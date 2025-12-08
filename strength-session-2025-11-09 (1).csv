@@ -1,0 +1,5 @@
+workoutId,workoutName,workoutFocus,date,startTime,exercise,setNumber,weight,reps,rpe,volume,completed
+session-1762716230388,Foundational Strength Session,Full Body,2025-11-09,2025-11-09T19:23:50.388Z,Back Squat,1,2,2,2,4,true
+session-1762716230388,Foundational Strength Session,Full Body,2025-11-09,2025-11-09T19:23:50.388Z,Barbell Bench Press,1,2,2,2,4,true
+session-1762716230388,Foundational Strength Session,Full Body,2025-11-09,2025-11-09T19:23:50.388Z,Conventional Deadlift,1,2,2,2,4,true
+session-1762716230388,Foundational Strength Session,Full Body,2025-11-09,2025-11-09T19:23:50.388Z,Bent-Over Barbell Row,1,2,2,2,4,true
