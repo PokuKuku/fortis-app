@@ -189,7 +189,6 @@ function DraggableItem<T>({
   const panGesture = useMemo(
     () =>
       Gesture.Pan()
-        .enabled(layoutConfig.value.itemWidth > 0)
         .onStart(() => {
           const currentIndex = positions.value[itemKey] ?? 0;
           const startPosition = getPositionForIndex(currentIndex, layoutConfig.value);
