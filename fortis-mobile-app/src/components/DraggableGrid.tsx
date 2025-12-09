@@ -232,31 +232,22 @@ function DraggableItem<T>({
           const nextX = startX.value + event.translationX;
           const nextY = startY.value + event.translationY;
 
-          // Ignore very tiny movements to avoid accidental reorders but keep visuals responsive
-          const minMove = 10;
-          if (
-            Math.abs(event.translationX) < minMove &&
-            Math.abs(event.translationY) < minMove
-          ) {
-            translateX.value = nextX;
-            translateY.value = nextY;
-            return;
-          }
-
-          translateX.value = nextX;
-          translateY.value = nextY;
-
-          // Require meaningful displacement from the original slot before reordering
-          const baseIndex = originIndex.value;
-          const originTarget = getPositionForIndex(baseIndex, layoutConfig.value);
+          // Shared threshold so both visual movement and reorder activation feel consistent
           const activationDistance = Math.max(
             16,
             Math.min(layoutConfig.value.itemWidth, layoutConfig.value.itemHeight) * 0.3
           );
+          const baseIndex = originIndex.value;
+          const originTarget = getPositionForIndex(baseIndex, layoutConfig.value);
           const movedFromOrigin = Math.hypot(
             nextX - originTarget.x,
             nextY - originTarget.y
           );
+
+          translateX.value = nextX;
+          translateY.value = nextY;
+
+          // Ignore moves below the shared activation threshold
           if (movedFromOrigin < activationDistance) {
             return;
           }

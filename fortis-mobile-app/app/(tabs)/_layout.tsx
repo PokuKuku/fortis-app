@@ -1,9 +1,222 @@
-import { Tabs } from 'expo-router';
-import { Platform, View, TouchableOpacity, StyleSheet } from 'react-native';
+import { Tabs, usePathname } from 'expo-router';
+import { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Animated,
+  Text,
+  Modal,
+  ScrollView,
+  TextInput,
+  DeviceEventEmitter,
+} from 'react-native';
+import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Calendar, List, Dumbbell, Layout, User, Plus } from 'lucide-react-native';
 import { GlassButton } from '../../components/GlassButton';
+import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 
 export default function TabLayout() {
+  const pathname = usePathname();
+  const isExercises = pathname?.includes('/exercises');
+  const [showActionSheet, setShowActionSheet] = useState(false);
+  const sheetTranslate = useRef(new Animated.Value(1)).current; // 1 hidden, 0 visible
+  const sheetOpacity = useRef(new Animated.Value(0)).current;
+  const fabOpacity = useRef(new Animated.Value(1)).current;
+  const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [exerciseName, setExerciseName] = useState('');
+  const [primaryMuscle, setPrimaryMuscle] = useState('');
+  const [secondaryMuscle, setSecondaryMuscle] = useState('');
+  const [category, setCategory] = useState('');
+  const [level, setLevel] = useState('');
+  const [force, setForce] = useState('');
+  const [equipment, setEquipment] = useState('');
+  const [mechanic, setMechanic] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({
+    name: false,
+    primary: false,
+    category: false,
+  });
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const nameShake = useRef(new Animated.Value(0)).current;
+  const primaryShake = useRef(new Animated.Value(0)).current;
+  const categoryShake = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!isExercises && showActionSheet) {
+      setShowActionSheet(false);
+    }
+  }, [isExercises, showActionSheet]);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(sheetOpacity, {
+        toValue: showActionSheet ? 1 : 0,
+        duration: showActionSheet ? 200 : 150,
+        useNativeDriver: true,
+      }),
+      Animated.spring(sheetTranslate, {
+        toValue: showActionSheet ? 0 : 1,
+        tension: 120,
+        friction: 16,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fabOpacity, {
+        toValue: showActionSheet ? 0 : 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [fabOpacity, sheetOpacity, sheetTranslate, showActionSheet]);
+
+  // Track exercise detail modal visibility to disable FAB interactions
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('exerciseDetailVisible', (visible: boolean) => {
+      setDetailModalVisible(!!visible);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const handleFabPress = () => {
+    if (!isExercises) return;
+    setShowActionSheet(true);
+    // Clear any lingering form errors when reopening the sheet
+    setFieldErrors({ name: false, primary: false, category: false });
+  };
+
+  const resetExerciseForm = () => {
+    setExerciseName('');
+    setPrimaryMuscle('');
+    setSecondaryMuscle('');
+    setCategory('');
+    setLevel('');
+    setForce('');
+    setEquipment('');
+    setMechanic('');
+    setInstructions('');
+    setEditingExerciseId(null);
+  };
+
+  const handleSaveExercise = async () => {
+    const missing = {
+      name: !exerciseName.trim(),
+      primary: !primaryMuscle,
+      category: !category,
+    };
+    setFieldErrors(missing);
+
+    const triggerShake = (anim: Animated.Value) => {
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 50, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: -1, duration: 50, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 1, duration: 50, useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 0, duration: 50, useNativeDriver: true }),
+      ]).start();
+    };
+
+    if (missing.name || missing.primary || missing.category) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
+      if (missing.name) triggerShake(nameShake);
+      if (missing.primary) triggerShake(primaryShake);
+      if (missing.category) triggerShake(categoryShake);
+      return;
+    }
+
+    const instructionList = instructions
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const newExercise = {
+      id: editingExerciseId ?? `custom-${Date.now()}`,
+      name: exerciseName.trim(),
+      primaryMuscles: [primaryMuscle],
+      secondaryMuscles: secondaryMuscle ? [secondaryMuscle] : [],
+      equipment: equipment || 'Bodyweight',
+      category,
+      level: level || 'Unspecified',
+      force: force || '',
+      mechanic: mechanic || '',
+      instructions: instructionList,
+      images: [],
+    };
+
+    try {
+      const existingRaw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
+      const existing = existingRaw ? JSON.parse(existingRaw) : [];
+      const updated = editingExerciseId
+        ? existing.map((ex: any) => (ex.id === editingExerciseId ? newExercise : ex))
+        : [newExercise, ...existing];
+      await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(updated));
+      DeviceEventEmitter.emit('customExerciseUpsert', newExercise);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+    } catch (err) {
+      console.warn('Failed to save custom exercise', err);
+    }
+
+    setShowAddExerciseModal(false);
+    resetExerciseForm();
+  };
+
+  // Listen for edit requests from the exercises screen to prefill the modal
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('openEditExercise', (exercise: any) => {
+      if (!exercise || !isExercises) return;
+      setExerciseName(exercise.name || '');
+      setCategory(exercise.category || '');
+      setPrimaryMuscle(exercise.primaryMuscles?.[0] || '');
+      setSecondaryMuscle(exercise.secondaryMuscles?.[0] || '');
+      setLevel(exercise.level || '');
+      setForce(exercise.force || '');
+      setEquipment(exercise.equipment || '');
+      setMechanic(exercise.mechanic || '');
+      setInstructions(
+        Array.isArray(exercise.instructions)
+          ? exercise.instructions.join('\n')
+          : exercise.instructions || ''
+      );
+      setEditingExerciseId(exercise.id || null);
+      setFieldErrors({ name: false, primary: false, category: false });
+      setShowActionSheet(false);
+      setShowAddExerciseModal(true);
+    });
+    return () => sub.remove();
+  }, [isExercises]);
+
+  const shakeStyle = (anim: Animated.Value) => ({
+    transform: [
+      {
+        translateX: anim.interpolate({
+          inputRange: [-1, 1],
+          outputRange: [-6, 6],
+        }),
+      },
+    ],
+  });
+
+  const optionList = {
+    primaryMuscles: [
+      'Chest',
+      'Back',
+      'Shoulders',
+      'Quadriceps',
+      'Hamstrings',
+      'Calves',
+      'Biceps',
+      'Triceps',
+      'Glutes',
+      'Core',
+    ],
+    categories: ['Strength', 'Power', 'Cardio', 'Mobility', 'Plyometrics'],
+    levels: ['Beginner', 'Intermediate', 'Advanced'],
+    forces: ['Push', 'Pull', 'Static'],
+    equipmentTypes: ['Barbell', 'Dumbbell', 'Cable', 'Machine', 'Bodyweight', 'Kettlebell', 'Bands'],
+    mechanics: ['Compound', 'Isolation', 'Unilateral'],
+  };
+
   return (
     <>
       <Tabs
@@ -11,7 +224,7 @@ export default function TabLayout() {
         headerShown: false,
         tabBarActiveTintColor: '#22c55e',
         tabBarInactiveTintColor: '#9CA3AF',
-        animation: 'none',
+        animationEnabled: true,
         lazy: false,
         unmountOnBlur: false,
         freezeOnBlur: false,
@@ -28,7 +241,7 @@ export default function TabLayout() {
           width: '90%',
           maxWidth: 420,
           marginHorizontal: '5%',
-          bottom: 24,
+          bottom: 12,
           borderRadius: 28,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 8 },
@@ -39,7 +252,7 @@ export default function TabLayout() {
         tabBarLabelStyle: {
           fontSize: 8,
           fontWeight: '500',
-          marginTop: 2,
+          marginTop: 0,
         },
         tabBarItemStyle: {
           flex: 1,
@@ -113,11 +326,279 @@ export default function TabLayout() {
     </Tabs>
 
     {/* Plus Button */}
-    <View style={styles.plusButtonContainer}>
-      <GlassButton circular size={60} style={styles.plusButton}>
+    <Animated.View
+      style={[
+        styles.plusButtonContainer,
+        {
+          opacity: fabOpacity,
+          transform: [
+            {
+              scale: fabOpacity.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0.85, 1],
+              }),
+            },
+          ],
+        },
+      ]}
+      pointerEvents={showActionSheet ? 'none' : 'auto'}
+    >
+      <GlassButton
+        circular
+        size={60}
+        style={styles.plusButton}
+        onPress={handleFabPress}
+        pointerEvents={showActionSheet || detailModalVisible ? 'none' : 'auto'}
+      >
         <Plus color="#fff" size={30} strokeWidth={2.5} />
       </GlassButton>
-    </View>
+    </Animated.View>
+
+    {/* Exercises Action Sheet */}
+    {isExercises && (showActionSheet || sheetOpacity._value > 0) && (
+      <Animated.View
+        style={[styles.actionSheetOverlay, { opacity: sheetOpacity }]}
+        pointerEvents={showActionSheet ? 'auto' : 'none'}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={() => setShowActionSheet(false)}
+        />
+        <Animated.View
+          style={[
+            styles.actionSheet,
+            {
+              transform: [
+                {
+                  translateY: sheetTranslate.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 260],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.actionHandle} />
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => {
+              setShowActionSheet(false);
+              setShowAddExerciseModal(true);
+            }}
+          >
+            <Text style={styles.actionButtonText}>Add Custom Exercise</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowActionSheet(false)}>
+            <Text style={styles.actionButtonText}>Add Custom Muscle Group</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowActionSheet(false)}>
+            <Text style={styles.actionButtonText}>Add Custom Category</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+    )}
+
+    {/* Add Custom Exercise Modal */}
+    <Modal transparent visible={showAddExerciseModal} animationType="fade">
+      <View style={styles.modalOverlay}>
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={() => {
+            setShowAddExerciseModal(false);
+            resetExerciseForm();
+          }}
+        />
+        <View style={styles.modalCard}>
+          <Text style={styles.modalTitle}>Add Custom Exercise</Text>
+          <ScrollView
+            style={styles.modalScroll}
+            contentContainerStyle={styles.modalScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.inputLabel}>Name *</Text>
+            <Animated.View style={shakeStyle(nameShake)}>
+              <TextInput
+                style={[
+                  styles.textInput,
+                  fieldErrors.name && styles.invalidInput,
+                ]}
+                placeholder="e.g. Single Arm Cable Row"
+                placeholderTextColor="#6b7280"
+                value={exerciseName}
+                onChangeText={(v) => {
+                  setExerciseName(v);
+                  if (fieldErrors.name) setFieldErrors(prev => ({ ...prev, name: false }));
+                }}
+              />
+            </Animated.View>
+
+            <Text style={styles.inputLabel}>Category *</Text>
+            <Animated.View style={shakeStyle(categoryShake)}>
+              <View style={styles.chipWrap}>
+                {optionList.categories.map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={[
+                      styles.chip,
+                      category === item && styles.chipActive,
+                      fieldErrors.category && styles.invalidChip,
+                    ]}
+                    onPress={() => {
+                      setCategory(item);
+                      if (fieldErrors.category) setFieldErrors(prev => ({ ...prev, category: false }));
+                    }}
+                  >
+                    <Text style={[
+                      styles.chipText,
+                      category === item && styles.chipTextActive,
+                    ]}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </Animated.View>
+
+            <Text style={styles.inputLabel}>Primary Muscle *</Text>
+            <Animated.View style={shakeStyle(primaryShake)}>
+              <View style={styles.chipWrap}>
+                {optionList.primaryMuscles.map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={[
+                      styles.chip,
+                      primaryMuscle === item && styles.chipActive,
+                      fieldErrors.primary && styles.invalidChip,
+                    ]}
+                    onPress={() => {
+                      setPrimaryMuscle(item);
+                      if (fieldErrors.primary) setFieldErrors(prev => ({ ...prev, primary: false }));
+                    }}
+                  >
+                    <Text style={[
+                      styles.chipText,
+                      primaryMuscle === item && styles.chipTextActive,
+                    ]}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </Animated.View>
+
+            <Text style={styles.inputLabel}>Secondary Muscle (optional)</Text>
+            <View style={styles.chipWrap}>
+              {optionList.primaryMuscles.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.chip, secondaryMuscle === item && styles.chipActive]}
+                  onPress={() => setSecondaryMuscle(item === secondaryMuscle ? '' : item)}
+                >
+                  <Text style={[styles.chipText, secondaryMuscle === item && styles.chipTextActive]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.inputLabel}>Level (optional)</Text>
+            <View style={styles.chipWrap}>
+              {optionList.levels.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.chip, level === item && styles.chipActive]}
+                  onPress={() => setLevel(item === level ? '' : item)}
+                >
+                  <Text style={[styles.chipText, level === item && styles.chipTextActive]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.inputLabel}>Force (optional)</Text>
+            <View style={styles.chipWrap}>
+              {optionList.forces.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.chip, force === item && styles.chipActive]}
+                  onPress={() => setForce(item === force ? '' : item)}
+                >
+                  <Text style={[styles.chipText, force === item && styles.chipTextActive]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.inputLabel}>Equipment (optional)</Text>
+            <View style={styles.chipWrap}>
+              {optionList.equipmentTypes.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.chip, equipment === item && styles.chipActive]}
+                  onPress={() => setEquipment(item === equipment ? '' : item)}
+                >
+                  <Text style={[styles.chipText, equipment === item && styles.chipTextActive]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.inputLabel}>Mechanic (optional)</Text>
+            <View style={styles.chipWrap}>
+              {optionList.mechanics.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[styles.chip, mechanic === item && styles.chipActive]}
+                  onPress={() => setMechanic(item === mechanic ? '' : item)}
+                >
+                  <Text style={[styles.chipText, mechanic === item && styles.chipTextActive]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.inputLabel}>Instructions (optional)</Text>
+            <TextInput
+              style={[styles.textInput, styles.instructionsInput]}
+              placeholder="Step-by-step cues"
+              placeholderTextColor="#6b7280"
+              multiline
+              value={instructions}
+              onChangeText={setInstructions}
+            />
+
+            <TouchableOpacity style={styles.importButton} activeOpacity={0.8}>
+              <Text style={styles.importButtonText}>Import Image (coming soon)</Text>
+            </TouchableOpacity>
+          </ScrollView>
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalActionButton, styles.modalCancel]}
+              onPress={() => {
+                setShowAddExerciseModal(false);
+                resetExerciseForm();
+              }}
+            >
+              <Text style={styles.modalCancelText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalActionButton, styles.modalSave]}
+              onPress={handleSaveExercise}
+            >
+              <Text style={styles.modalSaveText}>Save</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
     </>
   );
 }
@@ -150,5 +631,180 @@ const styles = StyleSheet.create({
   plusButton: {
     borderWidth: 2,
     borderColor: 'rgba(36, 36, 36, 0.9)',
+  },
+  actionSheetOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    zIndex: 950,
+  },
+  actionSheet: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 12,
+    backgroundColor: '#0a0a0a',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  actionHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    marginBottom: 10,
+  },
+  actionButton: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    marginBottom: 10,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 440,
+    backgroundColor: '#0a0a0a',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    padding: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 12,
+  },
+  modalScroll: {
+    maxHeight: 500,
+  },
+  modalScrollContent: {
+    paddingBottom: 12,
+    gap: 12,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#d1d5db',
+  },
+  textInput: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#fff',
+    fontSize: 14,
+  },
+  instructionsInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  chipRow: {
+    flexGrow: 0,
+  },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  chipActive: {
+    backgroundColor: 'rgba(34,197,94,0.2)',
+    borderColor: '#22c55e',
+  },
+  chipText: {
+    color: '#d1d5db',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  chipTextActive: {
+    color: '#22c55e',
+  },
+  invalidInput: {
+    borderColor: '#ef4444',
+    backgroundColor: 'rgba(239,68,68,0.08)',
+  },
+  invalidChip: {
+    borderColor: '#ef4444',
+  },
+  importButton: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  importButtonText: {
+    color: '#9ca3af',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 12,
+  },
+  modalActionButton: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  modalCancel: {
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  modalSave: {
+    borderColor: '#22c55e',
+    backgroundColor: 'rgba(34,197,94,0.15)',
+  },
+  modalCancelText: {
+    color: '#d1d5db',
+    fontWeight: '700',
+  },
+  modalSaveText: {
+    color: '#22c55e',
+    fontWeight: '800',
   },
 });

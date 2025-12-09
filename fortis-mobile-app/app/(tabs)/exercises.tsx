@@ -1,13 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Image, Animated, DeviceEventEmitter, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, ArrowUpDown, X } from 'lucide-react-native';
+import { Search, ArrowUpDown, X, Dumbbell } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassCard } from '../../components/GlassCard';
 import { GlassButton } from '../../components/GlassButton';
 import exercisesData from '../../assets/exercises.json';
+import { FadeOnFocus } from '../../components/FadeOnFocus';
+import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 
 interface Exercise {
   id: string;
@@ -33,11 +36,49 @@ export default function ExercisesScreen() {
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [selectedTab, setSelectedTab] = useState<'About' | 'History' | 'Charts' | 'Records'>('About');
+  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
 
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
   const filterPopoverScale = useRef(new Animated.Value(0)).current;
   const filterPopoverOpacity = useRef(new Animated.Value(0)).current;
+
+  // Base dataset
+  const baseExercises = exercisesData as Exercise[];
+
+  // Hydrate custom exercises and subscribe to additions
+  useEffect(() => {
+    let isMounted = true;
+    const loadCustom = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
+        if (!isMounted) return;
+        if (raw) {
+          setCustomExercises(JSON.parse(raw));
+        }
+      } catch (err) {
+        console.warn('Failed to load custom exercises', err);
+      }
+    };
+    loadCustom();
+
+    const sub = DeviceEventEmitter.addListener('customExerciseUpsert', (exercise: Exercise) => {
+      setCustomExercises(prev => {
+        const exists = prev.some((ex) => ex.id === exercise.id);
+        return exists ? prev.map((ex) => (ex.id === exercise.id ? exercise : ex)) : [exercise, ...prev];
+      });
+    });
+
+    return () => {
+      isMounted = false;
+      sub.remove();
+    };
+  }, []);
+
+  const allExercises = useMemo(
+    () => [...customExercises, ...baseExercises],
+    [customExercises, baseExercises]
+  );
 
   useEffect(() => {
     if (selectedExercise) {
@@ -69,6 +110,16 @@ export default function ExercisesScreen() {
       ]).start();
     }
   }, [selectedExercise]);
+
+  // Keep the open detail modal in sync after edits
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('customExerciseUpsert', (exercise: Exercise) => {
+      setSelectedExercise(current =>
+        current && current.id === exercise.id ? exercise : current
+      );
+    });
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     const isFilterOpen = showMuscleModal || showCategoryModal || showEquipmentModal;
@@ -102,36 +153,34 @@ export default function ExercisesScreen() {
     }
   }, [showMuscleModal, showCategoryModal, showEquipmentModal]);
 
-  const exercises = exercisesData as Exercise[];
-
   // Get unique muscles and categories
   const uniqueMuscles = useMemo(() => {
     const muscles = new Set<string>();
-    exercises.forEach(ex => {
+    allExercises.forEach(ex => {
       ex.primaryMuscles?.forEach(muscle => {
         if (muscle) muscles.add(muscle);
       });
     });
     return Array.from(muscles).sort();
-  }, []);
+  }, [allExercises]);
 
   const uniqueCategories = useMemo(() => {
     const categories = new Set<string>();
-    exercises.forEach(ex => {
+    allExercises.forEach(ex => {
       if (ex.category) categories.add(ex.category);
     });
     return Array.from(categories).sort();
-  }, []);
+  }, [allExercises]);
 
   const uniqueEquipment = useMemo(() => {
     const equipment = new Set<string>();
-    exercises.forEach(ex => {
+    allExercises.forEach(ex => {
       if (ex.equipment) equipment.add(ex.equipment);
     });
     return Array.from(equipment).sort();
-  }, []);
+  }, [allExercises]);
 
-  const filteredExercises = exercises.filter(exercise => {
+  const filteredExercises = allExercises.filter(exercise => {
     const matchesSearch =
       exercise.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       exercise.primaryMuscles?.some(muscle =>
@@ -234,7 +283,7 @@ export default function ExercisesScreen() {
             <Text style={styles.filterButtonText} numberOfLines={1}>
               {selectedMuscles.length > 0
                 ? `${selectedMuscles.length} Body Part${selectedMuscles.length > 1 ? 's' : ''}`
-                : 'Any Body Part'}
+                : 'Any Muscle Group'}
             </Text>
           </TouchableOpacity>
 
@@ -303,7 +352,7 @@ export default function ExercisesScreen() {
 
             {/* Popover Header */}
             <View style={styles.popoverHeader}>
-              <Text style={styles.popoverTitle}>Filter by Body Part</Text>
+              <Text style={styles.popoverTitle}>Filter by Muscle Group</Text>
             </View>
 
             {/* Clear All Button */}
@@ -488,15 +537,36 @@ export default function ExercisesScreen() {
             <StainlessSteelPattern />
 
             {/* Fixed Header */}
-            <View style={styles.fixedHeader}>
-              <View style={styles.headerTop}>
-                <TouchableOpacity
-                  onPress={() => setSelectedExercise(null)}
-                  style={styles.closeButton}
-                >
-                  <X color="#fff" size={20} strokeWidth={2} />
-                </TouchableOpacity>
-              </View>
+              <View style={styles.fixedHeader}>
+                <View style={styles.headerTop}>
+                  {selectedExercise && (
+                    <TouchableOpacity
+                      style={styles.editHeaderButton}
+                      activeOpacity={selectedExercise.id.startsWith('custom-') ? 0.7 : 1}
+                      disabled={!selectedExercise.id.startsWith('custom-')}
+                      onPress={() => {
+                        if (selectedExercise.id.startsWith('custom-')) {
+                          DeviceEventEmitter.emit('openEditExercise', selectedExercise);
+                        }
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.editHeaderText,
+                          !selectedExercise.id.startsWith('custom-') && styles.editHeaderTextDisabled,
+                        ]}
+                      >
+                        Edit
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity
+                    onPress={() => setSelectedExercise(null)}
+                    style={styles.closeButton}
+                  >
+                    <X color="#fff" size={20} strokeWidth={2} />
+                  </TouchableOpacity>
+                </View>
 
               {/* Tabs */}
               <View style={styles.tabBar}>
@@ -521,40 +591,44 @@ export default function ExercisesScreen() {
               {selectedExercise && (
                 <>
                   {/* Exercise Image with Title Overlay */}
-                  {selectedExercise.images && selectedExercise.images.length > 0 && (
-                    <View style={styles.exerciseImageContainer}>
+                  <View style={styles.exerciseImageContainer}>
+                    {selectedExercise.images && selectedExercise.images.length > 0 ? (
                       <Image
                         source={{ uri: `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${selectedExercise.images[0]}` }}
                         style={styles.exerciseImage}
                         resizeMode="cover"
                       />
-                      <LinearGradient
-                        colors={['rgba(0,0,0,0.4)', 'transparent', 'rgba(0,0,0,0.7)']}
-                        style={styles.imageGradient}
-                      />
-                      <View style={styles.imageTitleOverlay}>
-                        <Text style={styles.exerciseDetailTitle}>{selectedExercise.name}</Text>
-                        <LinearGradient
-                          colors={['#22c55e', '#16a34a']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={styles.categoryTag}
-                        >
-                          <Text style={styles.categoryTagText}>{selectedExercise.category}</Text>
-                        </LinearGradient>
+                    ) : (
+                      <View style={styles.placeholderImage}>
+                        <Text style={styles.placeholderImageText}>No image provided</Text>
                       </View>
+                    )}
+                    <LinearGradient
+                      colors={['rgba(0,0,0,0.4)', 'transparent', 'rgba(0,0,0,0.7)']}
+                      style={styles.imageGradient}
+                    />
+                    <View style={styles.imageTitleOverlay}>
+                      <Text style={styles.exerciseDetailTitle}>{selectedExercise.name}</Text>
+                      <LinearGradient
+                        colors={['#22c55e', '#16a34a']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.categoryTag}
+                      >
+                        <Text style={styles.categoryTagText}>{selectedExercise.category || 'Custom'}</Text>
+                      </LinearGradient>
                     </View>
-                  )}
+                  </View>
 
                   {/* Info Grid */}
                   <View style={styles.infoGrid}>
                 <View style={styles.infoBox}>
                   <Text style={styles.infoLabel}>LEVEL</Text>
-                  <Text style={styles.infoValue}>{selectedExercise.level}</Text>
+                  <Text style={styles.infoValue}>{selectedExercise.level || 'N/A'}</Text>
                 </View>
                 <View style={styles.infoBox}>
                   <Text style={styles.infoLabel}>FORCE</Text>
-                  <Text style={styles.infoValue}>{selectedExercise.force}</Text>
+                  <Text style={styles.infoValue}>{selectedExercise.force || 'N/A'}</Text>
                 </View>
                 <View style={styles.infoBox}>
                   <Text style={styles.infoLabel}>MECHANIC</Text>
@@ -562,7 +636,7 @@ export default function ExercisesScreen() {
                 </View>
                 <View style={styles.infoBox}>
                   <Text style={styles.infoLabel}>EQUIPMENT</Text>
-                  <Text style={styles.infoValue}>{selectedExercise.equipment}</Text>
+                  <Text style={styles.infoValue}>{selectedExercise.equipment || 'N/A'}</Text>
                 </View>
               </View>
 
@@ -601,19 +675,23 @@ export default function ExercisesScreen() {
               {/* Instructions */}
               <View style={styles.instructionsSection}>
                 <Text style={styles.instructionsSectionTitle}>INSTRUCTIONS</Text>
-                {selectedExercise.instructions.map((instruction, index) => (
-                  <View key={index} style={styles.instructionItem}>
-                    <LinearGradient
-                      colors={['#22c55e', '#16a34a']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={styles.instructionNumber}
-                    >
-                      <Text style={styles.instructionNumberText}>{index + 1}</Text>
-                    </LinearGradient>
-                    <Text style={styles.instructionText}>{instruction}</Text>
-                  </View>
-                ))}
+                {selectedExercise.instructions.length === 0 ? (
+                  <Text style={styles.instructionText}>N/A</Text>
+                ) : (
+                  selectedExercise.instructions.map((instruction, index) => (
+                    <View key={index} style={styles.instructionItem}>
+                      <LinearGradient
+                        colors={['#22c55e', '#16a34a']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.instructionNumber}
+                      >
+                        <Text style={styles.instructionNumberText}>{index + 1}</Text>
+                      </LinearGradient>
+                      <Text style={styles.instructionText}>{instruction}</Text>
+                    </View>
+                  ))
+                )}
               </View>
                 </>
               )}
@@ -886,7 +964,7 @@ const styles = StyleSheet.create({
   },
   headerTop: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'flex-start',
     paddingHorizontal: 24,
     paddingTop: 24,
@@ -973,6 +1051,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  editHeaderButton: {
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+  },
+  editHeaderText: {
+    color: '#22c55e',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  editHeaderTextDisabled: {
+    color: '#4b5563',
+  },
   infoGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1021,6 +1111,21 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  placeholderImage: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingBottom: 16,
+  },
+  placeholderImageText: {
+    color: '#9CA3AF',
+    fontSize: 12,
+    marginTop: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   primaryMuscleTag: {
     paddingHorizontal: 12,
