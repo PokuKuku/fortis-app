@@ -2,7 +2,6 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
-import { DragOverlayProvider } from '../src/components/DragOverlay';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -15,7 +14,6 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <DragOverlayProvider>
         <StatusBar style="light" />
         <Stack
           screenOptions={{
@@ -27,7 +25,6 @@ export default function RootLayout() {
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />
         </Stack>
-      </DragOverlayProvider>
     </GestureHandlerRootView>
   );
 }

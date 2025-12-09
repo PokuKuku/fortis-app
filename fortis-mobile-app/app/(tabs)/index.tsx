@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Animated,
   Modal,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -65,7 +66,7 @@ function KebabPopover({
   onClose: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
-  position: { top: number; right: number };
+  position: { top: number; left: number };
 }) {
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
@@ -130,7 +131,7 @@ function KebabPopover({
           styles.kebabPopover,
           {
             top: position.top,
-            right: position.right,
+            left: position.left,
             opacity: popoverOpacity,
             transform: [{ scale: popoverScale }],
           },
@@ -474,7 +475,7 @@ function CollapsibleSection({
           outputRange: [0, 2000],
         }),
         opacity: animationOpacity,
-        overflow: 'hidden',
+        overflow: 'visible',
       }}
     >
       {children}
@@ -523,17 +524,26 @@ export default function ProgramsScreen() {
     event.preventDefault();
     event.stopPropagation();
 
-    // Measure the button position
-    event.target.measure((x: number, y: number, width: number, height: number, pageX: number, pageY: number) => {
-      setOpenKebab({
-        type,
-        id,
-        position: {
-          top: pageY + height + 4,
-          right: 24,
-        },
-      });
-    });
+    // Measure the button position relative to the screen
+    event.target.measure(
+      (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+        const screenWidth = Dimensions.get('window').width;
+        const popoverWidth = 200;
+        const margin = 12;
+        const left = Math.min(
+          Math.max(margin, pageX - 4),
+          screenWidth - popoverWidth - margin
+        );
+        setOpenKebab({
+          type,
+          id,
+          position: {
+            top: pageY + height + 4,
+            left,
+          },
+        });
+      }
+    );
   };
 
   const handleDuplicate = () => {
