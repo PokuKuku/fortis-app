@@ -18,12 +18,14 @@ import DraggableFlatList, {
   ScaleDecorator,
 } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassCard } from '../../components/GlassCard';
 import { GlassButton } from '../../components/GlassButton';
 import { usePersistedOrder } from '../../src/hooks/usePersistedOrder';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
+import { useWorkoutStore } from '../../src/store/workoutStore';
 
 // Sample data
 const initialPrograms = [
@@ -484,6 +486,9 @@ function CollapsibleSection({
 }
 
 export default function ProgramsScreen() {
+  const router = useRouter();
+  const startWorkout = useWorkoutStore(s => s.startWorkout);
+
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
   const [programs, setPrograms] = useState(initialPrograms);
@@ -515,6 +520,13 @@ export default function ProgramsScreen() {
     workouts,
     setWorkouts
   );
+
+  // Handle start blank workout
+  const handleStartBlankWorkout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    startWorkout(); // Creates blank workout with generated ID and timestamp
+    router.push('/workout/active');
+  };
 
   const handleKebabPress = (
     type: 'program' | 'workout',
@@ -838,7 +850,7 @@ export default function ProgramsScreen() {
         >
           {/* Quick Start Section */}
           <View style={styles.quickStartSection}>
-            <GlassButton style={styles.startButton}>
+            <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout}>
               <View style={styles.startButtonInner}>
                 <Play color="#fff" size={20} fill="#fff" />
                 <Text style={styles.startButtonText}>Start a Blank Workout</Text>
