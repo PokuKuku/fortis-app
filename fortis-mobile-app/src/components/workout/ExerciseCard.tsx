@@ -1,36 +1,67 @@
+import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
-import { Trash2 } from 'lucide-react-native';
+import { MoreVertical } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { SetRow } from './SetRow';
+import { ExerciseKebabPopover } from './ExerciseKebabPopover';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeIn,
   FadeOut,
-  SlideInLeft,
-  SlideOutRight,
   Layout,
   Easing,
 } from 'react-native-reanimated';
 
 interface ExerciseCardProps {
   exerciseLocalId: string;
+  onReplace?: (exerciseLocalId: string) => void;
+  onViewDetails?: (exerciseId: string) => void;
 }
 
-export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
+export function ExerciseCard({
+  exerciseLocalId,
+  onReplace,
+  onViewDetails,
+}: ExerciseCardProps) {
   const activeSession = useWorkoutStore(s => s.activeSession);
   const removeExercise = useWorkoutStore(s => s.removeExercise);
   const updateExerciseNotes = useWorkoutStore(s => s.updateExerciseNotes);
   const addSet = useWorkoutStore(s => s.addSet);
 
+  const [showKebab, setShowKebab] = useState(false);
+  const [kebabPosition, setKebabPosition] = useState({ top: 0, left: 0 });
+  const kebabRef = useRef<View>(null);
+
   const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
 
   if (!exercise) return null;
 
-  const handleRemove = () => {
+  const handleKebabPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    kebabRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
+      setKebabPosition({
+        top: pageY + height + 4,
+        left: pageX - 130, // Position popover to the left of the button
+      });
+      setShowKebab(true);
+    });
+  };
+
+  const handleDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     removeExercise(exerciseLocalId);
+  };
+
+  const handleReplace = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onReplace?.(exerciseLocalId);
+  };
+
+  const handleViewDetails = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onViewDetails?.(exercise.exerciseId);
   };
 
   const handleAddSet = () => {
@@ -50,15 +81,17 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
         {/* Exercise Header */}
         <View style={styles.header}>
           <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
-          <Pressable
-            onPress={handleRemove}
-            style={({ pressed }) => [
-              styles.deleteButton,
-              pressed && styles.pressed
-            ]}
-          >
-            <Trash2 size={20} color={Colors.textSecondary} strokeWidth={2} />
-          </Pressable>
+          <View ref={kebabRef} collapsable={false}>
+            <Pressable
+              onPress={handleKebabPress}
+              style={({ pressed }) => [
+                styles.kebabButton,
+                pressed && styles.pressed
+              ]}
+            >
+              <MoreVertical size={20} color={Colors.textSecondary} strokeWidth={2} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Notes Input */}
@@ -104,6 +137,16 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
           <Text style={styles.addSetText}>+ Add Set</Text>
         </Pressable>
       </View>
+
+      {/* Kebab Popover */}
+      <ExerciseKebabPopover
+        visible={showKebab}
+        onClose={() => setShowKebab(false)}
+        onDelete={handleDelete}
+        onReplace={handleReplace}
+        onViewDetails={handleViewDetails}
+        position={kebabPosition}
+      />
     </Animated.View>
   );
 }
@@ -114,7 +157,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    overflow: 'hidden',
+    overflow: 'visible', // Allow popover to overflow
     marginBottom: Spacing.lg,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -137,7 +180,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.textPrimary,
   },
-  deleteButton: {
+  kebabButton: {
     padding: Spacing.xs,
     marginLeft: Spacing.sm,
   },

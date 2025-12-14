@@ -38,10 +38,18 @@ interface Exercise {
 interface AddExerciseModalProps {
   visible: boolean;
   onClose: () => void;
+  replaceMode?: boolean;
+  exerciseLocalIdToReplace?: string;
 }
 
-export function AddExerciseModal({ visible, onClose }: AddExerciseModalProps) {
+export function AddExerciseModal({
+  visible,
+  onClose,
+  replaceMode = false,
+  exerciseLocalIdToReplace,
+}: AddExerciseModalProps) {
   const addExercises = useWorkoutStore(s => s.addExercises);
+  const replaceExercise = useWorkoutStore(s => s.replaceExercise);
   const activeSession = useWorkoutStore(s => s.activeSession);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,24 +93,38 @@ export function AddExerciseModal({ visible, onClose }: AddExerciseModalProps) {
     [activeSession]
   );
 
-  // Filter exercises based on search and exclude existing
+  // Filter exercises based on search and exclude existing (except in replace mode)
   const filteredExercises = useMemo(() => {
     return allExercises
-      .filter((ex) =>
-        !existingExerciseIds.includes(ex.id) &&
-        ex.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      .filter((ex) => {
+        // In replace mode, don't filter out existing exercises
+        const isExisting = existingExerciseIds.includes(ex.id);
+        if (!replaceMode && isExisting) return false;
+        return ex.name.toLowerCase().includes(searchQuery.toLowerCase());
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [allExercises, existingExerciseIds, searchQuery]);
+  }, [allExercises, existingExerciseIds, searchQuery, replaceMode]);
 
-  // Toggle exercise selection
+  // Toggle exercise selection (different behavior in replace mode)
   const toggleExercise = (exerciseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedExercises(prev =>
-      prev.includes(exerciseId)
-        ? prev.filter(id => id !== exerciseId)
-        : [...prev, exerciseId]
-    );
+
+    if (replaceMode) {
+      // In replace mode, immediately replace and close
+      const exercise = allExercises.find(ex => ex.id === exerciseId);
+      if (exercise && exerciseLocalIdToReplace) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        replaceExercise(exerciseLocalIdToReplace, exerciseId, exercise.name);
+        onClose();
+      }
+    } else {
+      // Normal mode: toggle selection
+      setSelectedExercises(prev =>
+        prev.includes(exerciseId)
+          ? prev.filter(id => id !== exerciseId)
+          : [...prev, exerciseId]
+      );
+    }
   };
 
   // Remove exercise from selection
@@ -184,7 +206,9 @@ export function AddExerciseModal({ visible, onClose }: AddExerciseModalProps) {
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Add Exercise</Text>
+            <Text style={styles.title}>
+              {replaceMode ? 'Replace Exercise' : 'Add Exercise'}
+            </Text>
             <Pressable
               onPress={onClose}
               style={({ pressed }) => [
@@ -196,8 +220,8 @@ export function AddExerciseModal({ visible, onClose }: AddExerciseModalProps) {
             </Pressable>
           </View>
 
-          {/* Selected Exercises Chips */}
-          {selectedExercises.length > 0 && (
+          {/* Selected Exercises Chips (only in add mode) */}
+          {!replaceMode && selectedExercises.length > 0 && (
             <View style={styles.selectedSection}>
               <ScrollView
                 horizontal
@@ -219,6 +243,13 @@ export function AddExerciseModal({ visible, onClose }: AddExerciseModalProps) {
                 ))}
               </ScrollView>
             </View>
+          )}
+
+          {/* Replace mode hint */}
+          {replaceMode && (
+            <Text style={styles.replaceHint}>
+              Tap an exercise to replace the current one
+            </Text>
           )}
 
           {/* Search Input */}
@@ -250,8 +281,8 @@ export function AddExerciseModal({ visible, onClose }: AddExerciseModalProps) {
             keyboardShouldPersistTaps="handled"
           />
 
-          {/* Add Button */}
-          {selectedExercises.length > 0 && (
+          {/* Add Button (only in add mode) */}
+          {!replaceMode && selectedExercises.length > 0 && (
             <View style={styles.addButtonContainer}>
               <GlassButton style={styles.addButton} onPress={handleAddExercises}>
                 <Text style={styles.addButtonText}>
@@ -329,6 +360,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.success,
     flexShrink: 1,
+  },
+  replaceHint: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing.md,
   },
   searchContainer: {
     flexDirection: 'row',

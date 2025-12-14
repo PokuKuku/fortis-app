@@ -50,6 +50,9 @@ export default function ActiveWorkoutScreen() {
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
 
+  // Replace exercise state
+  const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
+
   // Initialize rest timer tick
   useRestTimerTick();
 
@@ -69,6 +72,23 @@ export default function ActiveWorkoutScreen() {
   const handleAddExercise = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowAddExerciseModal(true);
+  };
+
+  // Handle replace exercise (opens AddExerciseModal in replace mode)
+  const handleReplaceExercise = (exerciseLocalId: string) => {
+    setReplaceExerciseLocalId(exerciseLocalId);
+    setShowAddExerciseModal(true);
+  };
+
+  // Handle view exercise details
+  const handleViewExerciseDetails = (exerciseId: string) => {
+    router.push(`/exercise/${exerciseId}`);
+  };
+
+  // Handle close add exercise modal
+  const handleCloseAddExerciseModal = () => {
+    setShowAddExerciseModal(false);
+    setReplaceExerciseLocalId(null);
   };
 
   // Handle finish workout
@@ -166,7 +186,11 @@ export default function ActiveWorkoutScreen() {
 
   // Exercise card renderer
   const renderExerciseCard = ({ item }: any) => (
-    <ExerciseCard exerciseLocalId={item.localId} />
+    <ExerciseCard
+      exerciseLocalId={item.localId}
+      onReplace={handleReplaceExercise}
+      onViewDetails={handleViewExerciseDetails}
+    />
   );
 
   // Footer with action buttons
@@ -225,7 +249,9 @@ export default function ActiveWorkoutScreen() {
       {/* Add Exercise Modal */}
       <AddExerciseModal
         visible={showAddExerciseModal}
-        onClose={() => setShowAddExerciseModal(false)}
+        onClose={handleCloseAddExerciseModal}
+        replaceMode={replaceExerciseLocalId !== null}
+        exerciseLocalIdToReplace={replaceExerciseLocalId ?? undefined}
       />
 
       {/* Rest Timer Controls */}

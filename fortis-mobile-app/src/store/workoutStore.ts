@@ -71,6 +71,7 @@ interface WorkoutState {
   addExercise: (exerciseId: string, exerciseName: string) => void;
   addExercises: (exercises: Array<{ id: string; name: string }>) => void;
   removeExercise: (localId: string) => void;
+  replaceExercise: (localId: string, newExerciseId: string, newExerciseName: string) => void;
   reorderExercises: (fromIndex: number, toIndex: number) => void;
   updateExerciseNotes: (localId: string, notes: string) => void;
 
@@ -365,6 +366,45 @@ export const useWorkoutStore = create<WorkoutState>()(
         activeSession: {
           ...activeSession,
           exercises: reindexed,
+        },
+      });
+      get().persistSession();
+    },
+
+    replaceExercise: (localId, newExerciseId, newExerciseName) => {
+      const { activeSession } = get();
+      if (!activeSession) return;
+
+      const exercises = activeSession.exercises.map((ex) => {
+        if (ex.localId !== localId) return ex;
+
+        // Replace with new exercise, reset sets to single empty set
+        return {
+          ...ex,
+          exerciseId: newExerciseId,
+          exerciseName: newExerciseName,
+          sets: [
+            {
+              localId: generateId(),
+              setNumber: 1,
+              setType: 'normal' as const,
+              weight: null,
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          notes: '',
+        };
+      });
+
+      set({
+        activeSession: {
+          ...activeSession,
+          exercises,
         },
       });
       get().persistSession();
