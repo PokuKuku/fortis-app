@@ -15,6 +15,7 @@ interface GlassButtonProps {
   gradientColors?: string[];
   circular?: boolean;
   size?: number;
+  disabled?: boolean;
 }
 
 export function GlassButton({
@@ -24,13 +25,14 @@ export function GlassButton({
   gradientColors = ['#4ade80', '#22c55e'],
   circular = false,
   size,
+  disabled = false,
 }: GlassButtonProps) {
   const buttonStyle = circular && size
     ? { width: size, height: size, borderRadius: size / 2 }
     : {};
 
   return (
-    <View style={[styles.container, buttonStyle, style]}>
+    <View style={[styles.container, buttonStyle, style, disabled && styles.disabled]}>
       {/* Gradient background - render first */}
       <LinearGradient
         colors={gradientColors}
@@ -54,6 +56,7 @@ export function GlassButton({
         style={styles.touchable}
         onPress={onPress}
         activeOpacity={0.8}
+        disabled={disabled}
       >
         {children}
       </TouchableOpacity>
@@ -78,5 +81,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
     zIndex: 10,
+  },
+  disabled: {
+    opacity: 0.5,
   },
 });

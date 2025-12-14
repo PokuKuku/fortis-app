@@ -21,6 +21,9 @@ import {
   REST_TIMER_SETTINGS_KEY,
 } from '../constants/storageKeys';
 
+// Module-level lock to prevent rapid double-clicks from creating multiple sessions
+let isStartingWorkout = false;
+
 // Simple UUID generator (no external dependency needed)
 const generateId = (): string => {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -130,8 +133,9 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     startWorkout: (name, programWorkoutId) => {
-      // Prevent multiple sessions
-      if (get().isWorkoutActive) return;
+      // Synchronous module-level check - blocks rapid clicks immediately
+      if (isStartingWorkout || get().isWorkoutActive) return;
+      isStartingWorkout = true;
 
       const session: WorkoutSession = {
         localId: generateId(),
@@ -179,6 +183,8 @@ export const useWorkoutStore = create<WorkoutState>()(
         completedAt: new Date(),
       };
 
+      isStartingWorkout = false; // Reset lock
+
       // Clear active state
       set({
         activeSession: null,
@@ -200,6 +206,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     cancelWorkout: () => {
+      isStartingWorkout = false; // Reset lock
       set({
         activeSession: null,
         isWorkoutActive: false,

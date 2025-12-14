@@ -509,6 +509,14 @@ export default function ProgramsScreen() {
     [key: string]: 'entering' | 'exiting';
   }>({});
   const [showToast, setShowToast] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
+
+  // Reset starting flag when workout becomes inactive (user cancelled or finished)
+  useEffect(() => {
+    if (!isWorkoutActive) {
+      setIsStarting(false);
+    }
+  }, [isWorkoutActive]);
 
   // Persistence hooks for drag-and-drop order
   const { saveOrder: saveProgramsOrder } = usePersistedOrder(
@@ -524,11 +532,15 @@ export default function ProgramsScreen() {
 
   // Handle start blank workout
   const handleStartBlankWorkout = () => {
-    // Prevent multiple workout sessions
+    // Navigate to active workout if one exists
     if (isWorkoutActive) {
       router.push('/workout/active');
       return;
     }
+    // Button is disabled when isStarting, but guard anyway
+    if (isStarting) return;
+
+    setIsStarting(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startWorkout(); // Creates blank workout with generated ID and timestamp
     router.push('/workout/active');
@@ -861,7 +873,11 @@ export default function ProgramsScreen() {
         >
           {/* Quick Start Section */}
           <View style={styles.quickStartSection}>
-            <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout}>
+            <GlassButton
+              style={styles.startButton}
+              onPress={handleStartBlankWorkout}
+              disabled={isStarting || isWorkoutActive}
+            >
               <View style={styles.startButtonInner}>
                 <Play color="#fff" size={20} fill="#fff" />
                 <Text style={styles.startButtonText}>Start a Blank Workout</Text>

@@ -23,6 +23,7 @@ import { RestTimerControls } from '@/src/components/workout/modals/RestTimerCont
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
 import { CancelWorkoutModal } from '@/src/components/workout/modals/CancelWorkoutModal';
 import { WorkoutCompleteModal } from '@/src/components/workout/modals/WorkoutCompleteModal';
+import { FinishConfirmationModal } from '@/src/components/workout/modals/FinishConfirmationModal';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
@@ -46,6 +47,7 @@ export default function ActiveWorkoutScreen() {
   const [showTimerSettingsModal, setShowTimerSettingsModal] = useState(false);
   const [showRestTimerControls, setShowRestTimerControls] = useState(false);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
 
   // Initialize rest timer tick
@@ -83,8 +85,18 @@ export default function ActiveWorkoutScreen() {
       // Show cancel modal instead if workout has no meaningful progress
       setShowCancelModal(true);
     } else {
-      setShowFinishModal(true);
+      // Show confirmation modal first
+      setShowFinishConfirmModal(true);
     }
+  };
+
+  // Handle confirmation to finish (shows celebration modal)
+  const handleConfirmFinishStep = () => {
+    setShowFinishConfirmModal(false);
+    // Small delay to allow confirmation modal to close before showing celebration modal
+    setTimeout(() => {
+      setShowFinishModal(true);
+    }, 150);
   };
 
   // Handle timer settings save
@@ -237,6 +249,13 @@ export default function ActiveWorkoutScreen() {
         visible={showCancelModal}
         onClose={() => setShowCancelModal(false)}
         onConfirm={handleConfirmCancel}
+      />
+
+      {/* Finish Confirmation Modal */}
+      <FinishConfirmationModal
+        visible={showFinishConfirmModal}
+        onClose={() => setShowFinishConfirmModal(false)}
+        onConfirm={handleConfirmFinishStep}
       />
 
       {/* Workout Complete Modal */}
