@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
   filterButtonText: {
     color: '#FFFFFF',
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   sortButton: {
     backgroundColor: '#2C2C2E',
@@ -784,6 +784,7 @@ const styles = StyleSheet.create({
   },
   countText: {
     fontSize: 14,
+    fontWeight: '500',
     color: '#9CA3AF',
   },
   listContent: {
@@ -818,6 +819,7 @@ const styles = StyleSheet.create({
   },
   exerciseMetaText: {
     fontSize: 12,
+    fontWeight: '500',
     color: '#9CA3AF',
     textTransform: 'capitalize',
     flexShrink: 0,
@@ -906,6 +908,7 @@ const styles = StyleSheet.create({
   },
   muscleOptionText: {
     fontSize: 13,
+    fontWeight: '500',
     color: '#DFE2E6',
     textTransform: 'capitalize',
   },
@@ -997,7 +1000,7 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#9CA3AF',
   },
   tabTextActive: {
@@ -1124,6 +1127,7 @@ const styles = StyleSheet.create({
   placeholderImageText: {
     color: '#9CA3AF',
     fontSize: 12,
+    fontWeight: '500',
     marginTop: 8,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1148,7 +1152,7 @@ const styles = StyleSheet.create({
   secondaryMuscleTagText: {
     color: '#FFFFFF',
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '600',
     textTransform: 'capitalize',
   },
   instructionsSection: {
@@ -1183,6 +1187,7 @@ const styles = StyleSheet.create({
   instructionText: {
     flex: 1,
     fontSize: 14,
+    fontWeight: '500',
     lineHeight: 20,
     color: '#DFE2E6',
   },

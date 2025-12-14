@@ -138,12 +138,13 @@ const styles = StyleSheet.create({
   },
   workoutName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.textPrimary,
     marginBottom: 2,
   },
   exerciseName: {
     fontSize: 12,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   rightSection: {

@@ -252,7 +252,7 @@ export default function TabLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 8,
-          fontWeight: '500',
+          fontWeight: '600',
           marginTop: 0,
         },
         tabBarItemStyle: {
@@ -728,6 +728,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     color: '#fff',
     fontSize: 14,
+    fontWeight: '500',
   },
   instructionsInput: {
     minHeight: 80,
@@ -780,7 +781,7 @@ const styles = StyleSheet.create({
   importButtonText: {
     color: '#9ca3af',
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   modalActions: {
     flexDirection: 'row',

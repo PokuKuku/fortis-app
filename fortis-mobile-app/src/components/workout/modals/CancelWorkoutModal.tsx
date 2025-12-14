@@ -141,6 +141,7 @@ const styles = StyleSheet.create({
   },
   message: {
     fontSize: FontSizes.base,
+    fontWeight: '500',
     color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing['2xl'],
@@ -159,7 +160,7 @@ const styles = StyleSheet.create({
   },
   keepButtonText: {
     fontSize: FontSizes.base,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
   cancelButton: {
@@ -171,7 +172,7 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     fontSize: FontSizes.base,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.error,
   },
   buttonPressed: {

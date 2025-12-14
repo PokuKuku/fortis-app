@@ -38,6 +38,7 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: 16,
+    fontWeight: '500',
     color: '#9CA3AF',
     textAlign: 'center',
   },

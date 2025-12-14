@@ -317,6 +317,7 @@ const styles = StyleSheet.create({
   },
   previousText: {
     fontSize: FontSizes.sm,
+    fontWeight: '500',
     color: Colors.textTertiary,
   },
   inputWrapper: {
@@ -338,6 +339,7 @@ const styles = StyleSheet.create({
   },
   inputText: {
     fontSize: FontSizes.sm,
+    fontWeight: '600',
     color: Colors.textPrimary,
     textAlign: 'center',
   },

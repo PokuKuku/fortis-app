@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Fortis is an offline-first mobile workout tracker built with Expo/React Native. The repository is a monorepo:
 
-- **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19, TypeScript)
+- **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19.1, React Native 0.81.5, TypeScript)
 - **fortis-mobile/fortis-mobile-design/**: UI prototypes built with Vite/React
 - **fortis-web/**: Web dashboard designs
 - **supabase/**: Database schema, migrations, and seed data
@@ -41,6 +41,11 @@ npm run web            # Run on web
 npx expo prebuild      # Generate native projects (after dependency changes)
 npx expo prebuild --clean  # Clean rebuild
 npx pod-install        # Install iOS CocoaPods (after native dependency changes)
+
+# Local Supabase (requires Docker)
+supabase start         # Start local Supabase instance
+supabase db reset      # Reset and apply migrations
+supabase stop          # Stop local instance
 ```
 
 ## Architecture
@@ -54,21 +59,22 @@ app/                    # Expo Router file-based routing
 ├── (tabs)/             # Tab navigator group
 │   ├── _layout.tsx     # Tab bar + FAB for exercises
 │   ├── index.tsx       # Home/workout screen (CANONICAL UI REFERENCE)
+│   ├── start.tsx       # Start workout screen
 │   ├── exercises.tsx   # Exercise library
 │   ├── history.tsx     # Workout history
 │   └── profile.tsx     # User profile
-├── workout/            # Active workout flow
-└── exercises/          # Exercise details
+└── workout/
+    └── active.tsx      # Active workout logging screen
 
 src/
 ├── components/
 │   ├── ui/             # Base UI primitives
 │   ├── shared/         # Cross-feature components
-│   └── workout/        # Workout-specific components
-├── hooks/              # Custom hooks
+│   └── workout/        # Workout components (ExerciseCard, SetRow, NumberPadModal, modals/)
+├── hooks/              # Custom hooks (useElapsedTime, useRestTimerTick, usePersistedOrder)
 ├── lib/supabase.ts     # Supabase client with SecureStore adapter
-├── store/              # Zustand state management
-├── types/              # TypeScript definitions
+├── store/workoutStore.ts  # Zustand state (active session, rest timer, number pad)
+├── types/workout.ts    # TypeScript definitions (WorkoutSession, WorkoutSet, SetType)
 └── constants/          # Storage keys, config
 
 components/             # Root-level glass morphism components
@@ -88,12 +94,15 @@ constants/              # Design system tokens
 - **Local ID generation**: Client-side UUID generation for offline-first operations
 - **Storage keys**: All AsyncStorage keys in `src/constants/storageKeys.ts`
 - **Event emitter**: `DeviceEventEmitter` for cross-component communication
+- **Number pad pattern**: Global `activeNumberPad` state in store, single `NumberPadModal` rendered at root
 
 ### Backend (Supabase)
 
 Schema in `supabase/schema.sql`: profiles, exercises, workout_programs, workout_sessions, workout_sets, subscriptions
 
 Sessions and sets use `local_id` and `is_synced` fields for offline sync.
+
+Import support for Strong, Hevy apps - see `supabase/IMPORT_GUIDE.md`.
 
 ## Environment Setup
 
@@ -128,6 +137,8 @@ Colors.textSecondary   // #a3a3a3
 Colors.success         // #22c55e (THE green - never use #10b981)
 Colors.error           // #dc2626
 Colors.warning         // #f59e0b
+Colors.white           // #ffffff
+Colors.black           // #000000
 
 // ❌ NEVER hardcode
 '#22c55e', '#ef4444', '#fff', 'rgba(255,255,255,0.08)'
@@ -147,6 +158,12 @@ padding: 16, margin: 24, gap: 12
 ```tsx
 // ✅ ALWAYS use
 BorderRadius.sm (6), BorderRadius.md (8), BorderRadius.lg (10), BorderRadius.xl (14)
+```
+
+**Button/Icon Sizes** (`constants/Sizes.ts`):
+```tsx
+ButtonHeights.sm (32), ButtonHeights.md (36), ButtonHeights.lg (40), ButtonHeights.xl (48)
+IconSizes.xs (12), IconSizes.sm (16), IconSizes.md (20), IconSizes.lg (24), IconSizes.xl (32)
 ```
 
 **Typography** (`constants/Typography.ts`):
@@ -224,6 +241,15 @@ exiting={ZoomOut.duration(200)}
 - `Easing.out(Easing.cubic)` - Enter animations (starts fast, slows at end)
 - `Easing.in(Easing.cubic)` - Exit animations (starts slow, accelerates)
 - `Easing.inOut(Easing.cubic)` - Symmetrical animations
+
+**Haptics** (use `expo-haptics` for tactile feedback):
+```tsx
+import * as Haptics from 'expo-haptics';
+
+Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);   // Button taps
+Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
+Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);  // Workout complete
+```
 
 ### Component Extraction
 

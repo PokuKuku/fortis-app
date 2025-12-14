@@ -146,6 +146,7 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     fontSize: FontSizes.base,
+    fontWeight: '500',
     color: Colors.textPrimary,
     padding: 0,
     margin: 0,
@@ -161,6 +162,7 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontSize: FontSizes.sm,
+    fontWeight: '600',
     color: Colors.textSecondary,
     textAlign: 'center',
   },

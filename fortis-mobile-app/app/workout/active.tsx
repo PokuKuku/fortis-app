@@ -297,6 +297,7 @@ const styles = StyleSheet.create({
   },
   emptyDescription: {
     fontSize: FontSizes.base,
+    fontWeight: '500',
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
@@ -317,7 +318,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: FontSizes.base,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.success,
   },
   finishButton: {

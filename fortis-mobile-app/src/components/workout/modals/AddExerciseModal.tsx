@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   chipText: {
     fontSize: FontSizes.sm,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Colors.success,
     flexShrink: 1,
   },
@@ -347,6 +347,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: FontSizes.base,
+    fontWeight: '500',
     color: Colors.textPrimary,
     paddingVertical: Spacing.xs,
   },
@@ -375,7 +376,7 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     fontSize: FontSizes.base,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Colors.textPrimary,
     flex: 1,
   },

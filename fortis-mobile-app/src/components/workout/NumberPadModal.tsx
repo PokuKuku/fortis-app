@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   },
   numberText: {
     fontSize: 28,
-    fontWeight: '400',
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
   controlsColumn: {
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   },
   nextText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
     zIndex: 10,
   },

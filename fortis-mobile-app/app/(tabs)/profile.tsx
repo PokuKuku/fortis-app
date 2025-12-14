@@ -77,6 +77,7 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     fontSize: 14,
+    fontWeight: '500',
     color: '#9CA3AF',
     textAlign: 'center',
     marginTop: 40,

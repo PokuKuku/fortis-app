@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
   },
   elapsedTime: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '700',
     color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
     minWidth: 45,
@@ -209,6 +209,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: 12,
+    fontWeight: '500',
     color: '#b9bec7',
   },
   rightColumn: {

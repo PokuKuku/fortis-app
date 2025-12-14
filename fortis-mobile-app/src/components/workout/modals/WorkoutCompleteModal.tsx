@@ -181,6 +181,7 @@ const styles = StyleSheet.create({
   },
   congratsText: {
     fontSize: 18,
+    fontWeight: '600',
     color: Colors.success,
     textAlign: 'center',
     marginBottom: Spacing['2xl'],
@@ -199,11 +200,12 @@ const styles = StyleSheet.create({
   },
   statLabel: {
     fontSize: FontSizes.base,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   statValue: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.textPrimary,
   },
   doneButton: {
@@ -212,7 +214,7 @@ const styles = StyleSheet.create({
   },
   doneButtonText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#fff',
   },
 });

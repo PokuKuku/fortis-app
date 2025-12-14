@@ -542,7 +542,7 @@ const styles = StyleSheet.create({
   },
   pickerValueSelected: {
     color: Colors.textPrimary,
-    fontWeight: '500',
+    fontWeight: '700',
     transform: [{ scale: 1.1 }],
   },
   pickerUnit: {
@@ -575,7 +575,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: FontSizes.base,
-    fontWeight: '600',
+    fontWeight: '700',
     color: Colors.success,
   },
   saveButtonTextSaved: {
@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   },
   typeSelectorText: {
     fontSize: FontSizes.sm,
-    fontWeight: '500',
+    fontWeight: '600',
     color: Colors.textPrimary,
   },
 });

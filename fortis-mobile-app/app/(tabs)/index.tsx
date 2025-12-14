@@ -1042,7 +1042,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#DFE2E6',
   },
   startButton: {
@@ -1058,7 +1058,7 @@ const styles = StyleSheet.create({
   startButtonText: {
     color: '#fff',
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   cardsContainer: {
   },
@@ -1131,6 +1131,7 @@ const styles = StyleSheet.create({
   },
   cardMetaText: {
     fontSize: 12,
+    fontWeight: '500',
     color: '#9CA3AF',
   },
   kebabOverlay: {
@@ -1165,7 +1166,7 @@ const styles = StyleSheet.create({
   },
   kebabOptionText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#DFE2E6',
   },
   kebabDeleteText: {
@@ -1210,6 +1211,7 @@ const styles = StyleSheet.create({
   },
   modalMessage: {
     fontSize: 14,
+    fontWeight: '500',
     color: '#9CA3AF',
     marginBottom: 24,
     lineHeight: 20,
@@ -1230,7 +1232,7 @@ const styles = StyleSheet.create({
   },
   modalCancelText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#DFE2E6',
   },
   modalDeleteButton: {
@@ -1245,7 +1247,7 @@ const styles = StyleSheet.create({
   },
   modalDeleteText: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#ef4444',
   },
   toastWrapper: {

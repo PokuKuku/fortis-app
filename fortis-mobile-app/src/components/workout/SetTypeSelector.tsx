@@ -197,6 +197,7 @@ const styles = StyleSheet.create({
   label: {
     flex: 1,
     fontSize: FontSizes.sm,
+    fontWeight: '600',
     color: Colors.textSecondary,
   },
   labelSelected: {
@@ -205,6 +206,7 @@ const styles = StyleSheet.create({
   },
   duration: {
     fontSize: FontSizes.xs,
+    fontWeight: '500',
     color: Colors.textTertiary,
   },
   divider: {
