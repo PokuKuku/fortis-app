@@ -81,7 +81,7 @@ export function WorkoutCompleteModal({
               {/* Content */}
               <View style={styles.content}>
                 <Text style={styles.congratsText}>
-                  Great work! You crushed it! 💪
+                  Great work! You crushed it!
                 </Text>
 
                 {/* Stats Card */}
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: Colors.textPrimary,
-    paddingRight: 32, // Space for X button
+    textAlign: 'center',
   },
   closeButton: {
     position: 'absolute',

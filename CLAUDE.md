@@ -188,6 +188,43 @@ fontSize: 16, fontWeight: '600'
 - Pop-in/pop-out animations (spring for scale, timing for opacity)
 - Background color `Colors.secondary` or similar dark gray with `overflow: 'hidden'`
 
+### Animation Standards
+
+Use `react-native-reanimated` for all animations. Apply consistent easing for smooth, polished feel.
+
+**Slide-up Modals/Sheets** (bottom sheets, keyboards, action sheets):
+```tsx
+import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
+
+// Standard durations and easing
+entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
+exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
+```
+
+**Number Pad / Keyboards** (slightly faster enter, slower dismiss):
+```tsx
+entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
+exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
+```
+
+**Pop-in Modals** (centered dialogs):
+```tsx
+import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+
+// Container fade
+entering={FadeIn.duration(200)}
+exiting={FadeOut.duration(150)}
+
+// Content zoom
+entering={ZoomIn.duration(250)}
+exiting={ZoomOut.duration(200)}
+```
+
+**Easing Guide**:
+- `Easing.out(Easing.cubic)` - Enter animations (starts fast, slows at end)
+- `Easing.in(Easing.cubic)` - Exit animations (starts slow, accelerates)
+- `Easing.inOut(Easing.cubic)` - Symmetrical animations
+
 ### Component Extraction
 
 **When to extract** (create reusable component):

@@ -1,10 +1,12 @@
-import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { SetType } from '@/src/types/workout';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut, Easing } from 'react-native-reanimated';
 
 interface SetTypeSelectorProps {
   visible: boolean;
@@ -13,34 +15,8 @@ interface SetTypeSelectorProps {
   onRemove: () => void;
   currentType: SetType;
   setIndex: number;
+  anchorPosition?: { x: number; y: number };
 }
-
-const SET_TYPE_OPTIONS = [
-  {
-    type: 'normal' as SetType,
-    label: 'Normal',
-    color: Colors.textPrimary,
-    getIcon: (index: number) => (index + 1).toString(),
-  },
-  {
-    type: 'warmup' as SetType,
-    label: 'Warm Up',
-    color: '#eab308',
-    getIcon: () => 'W',
-  },
-  {
-    type: 'failure' as SetType,
-    label: 'Failure',
-    color: Colors.error,
-    getIcon: () => 'F',
-  },
-  {
-    type: 'dropset' as SetType,
-    label: 'Drop Set',
-    color: '#3b82f6',
-    getIcon: () => 'D',
-  },
-];
 
 export function SetTypeSelector({
   visible,
@@ -49,7 +25,51 @@ export function SetTypeSelector({
   onRemove,
   currentType,
   setIndex,
+  anchorPosition,
 }: SetTypeSelectorProps) {
+  const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
+
+  // Format seconds to display string
+  const formatDuration = (seconds: number) => {
+    if (seconds === 0) return 'Off';
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins === 0) return `${secs}s`;
+    if (secs === 0) return `${mins}m`;
+    return `${mins}m ${secs}s`;
+  };
+
+  const SET_TYPE_OPTIONS = [
+    {
+      type: 'normal' as SetType,
+      label: 'Normal',
+      color: Colors.textPrimary,
+      getIcon: (index: number) => (index + 1).toString(),
+      duration: restTimerSettings.normalSeconds,
+    },
+    {
+      type: 'warmup' as SetType,
+      label: 'Warm Up',
+      color: '#eab308',
+      getIcon: () => 'W',
+      duration: restTimerSettings.warmupSeconds,
+    },
+    {
+      type: 'failure' as SetType,
+      label: 'Failure',
+      color: Colors.error,
+      getIcon: () => 'F',
+      duration: restTimerSettings.normalSeconds,
+    },
+    {
+      type: 'dropset' as SetType,
+      label: 'Drop Set',
+      color: '#3b82f6',
+      getIcon: () => 'D',
+      duration: restTimerSettings.dropsetSeconds,
+    },
+  ];
+
   const handleSelect = (type: SetType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onSelect(type);
@@ -66,33 +86,44 @@ export function SetTypeSelector({
 
   return (
     <Modal transparent visible={visible} animationType="none" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose} activeOpacity={1}>
+      <Pressable style={styles.overlay} onPress={onClose}>
         <Animated.View
-          entering={FadeIn.duration(200)}
-          exiting={FadeOut.duration(150)}
-          style={styles.centeredView}
+          entering={FadeIn.duration(200).easing(Easing.out(Easing.cubic))}
+          exiting={FadeOut.duration(150).easing(Easing.in(Easing.cubic))}
+          style={[
+            styles.popover,
+            anchorPosition && {
+              top: anchorPosition.y,
+              left: anchorPosition.x,
+            },
+          ]}
         >
-          <Animated.View
-            entering={SlideInDown.duration(250)}
-            exiting={SlideOutDown.duration(200)}
-          >
-            <Pressable
-              style={styles.container}
-              onPress={(e) => e.stopPropagation()}
-            >
+          <View style={styles.container}>
+            <StainlessSteelPattern />
+
+            <View style={styles.content}>
               {SET_TYPE_OPTIONS.map((option) => (
                 <Pressable
                   key={option.type}
                   onPress={() => handleSelect(option.type)}
                   style={({ pressed }) => [
                     styles.option,
+                    currentType === option.type && styles.optionSelected,
                     pressed && styles.optionPressed,
                   ]}
                 >
                   <Text style={[styles.icon, { color: option.color }]}>
                     {option.getIcon(setIndex)}
                   </Text>
-                  <Text style={styles.label}>{option.label}</Text>
+                  <Text style={[
+                    styles.label,
+                    currentType === option.type && styles.labelSelected
+                  ]}>
+                    {option.label}
+                  </Text>
+                  <Text style={styles.duration}>
+                    {formatDuration(option.duration)}
+                  </Text>
                 </Pressable>
               ))}
 
@@ -104,15 +135,14 @@ export function SetTypeSelector({
                 onPress={handleRemove}
                 style={({ pressed }) => [
                   styles.option,
-                  styles.removeOption,
                   pressed && styles.optionPressed,
                 ]}
               >
                 <Trash2 size={16} color={Colors.error} strokeWidth={2} />
                 <Text style={[styles.label, styles.removeLabel]}>Remove</Text>
               </Pressable>
-            </Pressable>
-          </Animated.View>
+            </View>
+          </View>
         </Animated.View>
       </Pressable>
     </Modal>
@@ -122,26 +152,28 @@ export function SetTypeSelector({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
-  centeredView: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing['2xl'],
+  popover: {
+    position: 'absolute',
+    top: 120,
+    left: 40,
   },
   container: {
-    backgroundColor: '#1c1c1e',
+    backgroundColor: Colors.background,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    minWidth: 160,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    minWidth: 210,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
     shadowRadius: 16,
-    elevation: 10,
+    elevation: 12,
+  },
+  content: {
+    zIndex: 1,
   },
   option: {
     flexDirection: 'row',
@@ -150,8 +182,11 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.md,
   },
+  optionSelected: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
   optionPressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
   },
   icon: {
     width: 20,
@@ -160,16 +195,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   label: {
+    flex: 1,
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
+  },
+  labelSelected: {
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
+  duration: {
+    fontSize: FontSizes.xs,
+    color: Colors.textTertiary,
   },
   divider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: Spacing.md,
     marginVertical: Spacing.xs,
-  },
-  removeOption: {
-    // Additional styling for remove option if needed
   },
   removeLabel: {
     color: Colors.error,

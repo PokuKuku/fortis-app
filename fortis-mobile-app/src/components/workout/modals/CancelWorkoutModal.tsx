@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
 import { X } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
@@ -31,6 +32,8 @@ export function CancelWorkoutModal({ visible, onClose, onConfirm }: CancelWorkou
         <Pressable style={styles.centeredView} onPress={onClose} activeOpacity={1}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
             <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+              <StainlessSteelPattern />
+
               {/* Header */}
               <View style={styles.header}>
                 <Text style={styles.title}>Cancel Workout</Text>
@@ -114,6 +117,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing['2xl'],
     paddingBottom: Spacing.lg,
     position: 'relative',
+    zIndex: 1,
   },
   title: {
     fontSize: 22,
@@ -133,6 +137,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: Spacing['2xl'],
     paddingBottom: Spacing['2xl'],
+    zIndex: 1,
   },
   message: {
     fontSize: FontSizes.base,

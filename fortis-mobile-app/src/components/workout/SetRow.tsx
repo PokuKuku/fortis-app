@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Check } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -39,10 +40,12 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
     activeNumberPad?.inputType === 'reps';
 
   const [showTypeSelector, setShowTypeSelector] = useState(false);
+  const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | undefined>();
   const [validationErrors, setValidationErrors] = useState<{
     weight?: boolean;
     reps?: boolean;
   }>({});
+  const badgeRef = useRef<View>(null);
 
   // Shake animation
   const weightShake = useSharedValue(0);
@@ -78,6 +81,19 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
     }
   }, [activeNumberPad?.hasError]);
 
+  // Clear validation errors when user starts entering values
+  useEffect(() => {
+    if (isWeightActive) {
+      setValidationErrors(prev => ({ ...prev, weight: false }));
+    }
+  }, [isWeightActive]);
+
+  useEffect(() => {
+    if (isRepsActive) {
+      setValidationErrors(prev => ({ ...prev, reps: false }));
+    }
+  }, [isRepsActive]);
+
   // Find the current set
   const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
   const set = exercise?.sets.find(s => s.localId === setLocalId);
@@ -85,13 +101,23 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
   if (!set) return null;
 
   const handleComplete = () => {
-    const missingFields: ('weight' | 'reps')[] = [];
+    // Try to use autofill values from previous set if current values are null
+    let finalWeight = set.weight;
+    let finalReps = set.reps;
 
-    if (set.weight === null) missingFields.push('weight');
-    if (set.reps === null) missingFields.push('reps');
+    if (finalWeight === null && previousSet?.weight != null) {
+      finalWeight = previousSet.weight;
+    }
+    if (finalReps === null && previousSet?.reps != null) {
+      finalReps = previousSet.reps;
+    }
+
+    // Validate - only error if still missing after autofill attempt
+    const missingFields: ('weight' | 'reps')[] = [];
+    if (finalWeight === null) missingFields.push('weight');
+    if (finalReps === null) missingFields.push('reps');
 
     if (missingFields.length > 0) {
-      // Show validation errors
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       const errors: { weight?: boolean; reps?: boolean } = {};
       missingFields.forEach(field => {
@@ -100,6 +126,17 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
       });
       setValidationErrors(errors);
       return;
+    }
+
+    // Clear any previous validation errors
+    setValidationErrors({});
+
+    // Save autofilled values if they were used
+    if (set.weight === null || set.reps === null) {
+      updateSet(exerciseLocalId, setLocalId, {
+        weight: finalWeight,
+        reps: finalReps
+      });
     }
 
     // Complete the set
@@ -139,14 +176,21 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
   return (
     <View style={[styles.container, set.isCompleted && styles.containerCompleted]}>
       {/* Set number/type badge */}
-      <Pressable
-        onPress={() => setShowTypeSelector(true)}
-        style={styles.setBadge}
-      >
-        <Text style={[styles.setBadgeText, { color: setDisplay.color }]}>
-          {setDisplay.label}
-        </Text>
-      </Pressable>
+      <View ref={badgeRef} collapsable={false}>
+        <Pressable
+          onPress={() => {
+            badgeRef.current?.measureInWindow((x, y, width, height) => {
+              setPopoverPosition({ x: x, y: y + height + 4 });
+              setShowTypeSelector(true);
+            });
+          }}
+          style={styles.setBadge}
+        >
+          <Text style={[styles.setBadgeText, { color: setDisplay.color }]}>
+            {setDisplay.label}
+          </Text>
+        </Pressable>
+      </View>
 
       {/* Previous set indicator */}
       <View style={styles.previousCol}>
@@ -165,10 +209,11 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
         >
           <Text style={[
             styles.inputText,
-            !isWeightActive && set.weight === null && styles.placeholderText
+            (isWeightActive && !activeNumberPad?.pendingValue && previousSet?.weight != null) && styles.placeholderText,
+            (!isWeightActive && set.weight === null) && styles.placeholderText
           ]}>
             {isWeightActive
-              ? activeNumberPad?.pendingValue || ''
+              ? (activeNumberPad?.pendingValue || previousSet?.weight?.toString() || '')
               : (set.weight !== null ? set.weight.toString() : (previousSet?.weight?.toString() || ''))}
           </Text>
         </Pressable>
@@ -186,10 +231,11 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
         >
           <Text style={[
             styles.inputText,
-            !isRepsActive && set.reps === null && styles.placeholderText
+            (isRepsActive && !activeNumberPad?.pendingValue && previousSet?.reps != null) && styles.placeholderText,
+            (!isRepsActive && set.reps === null) && styles.placeholderText
           ]}>
             {isRepsActive
-              ? activeNumberPad?.pendingValue || ''
+              ? (activeNumberPad?.pendingValue || previousSet?.reps?.toString() || '')
               : (set.reps !== null ? set.reps.toString() : (previousSet?.reps?.toString() || ''))}
           </Text>
         </Pressable>
@@ -200,6 +246,22 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
         onPress={handleComplete}
         style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
       >
+        {set.isCompleted && (
+          <>
+            <LinearGradient
+              colors={['#4ade80', '#22c55e']}
+              start={{ x: 0.5, y: 0 }}
+              end={{ x: 0.5, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <LinearGradient
+              colors={['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+              style={StyleSheet.absoluteFillObject}
+            />
+          </>
+        )}
         <Check
           size={20}
           color={Colors.textPrimary}
@@ -207,7 +269,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
         />
       </Pressable>
 
-      {/* Modals */}
+      {/* Set Type Popover */}
       <SetTypeSelector
         visible={showTypeSelector}
         onClose={() => setShowTypeSelector(false)}
@@ -215,6 +277,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
         onRemove={() => removeSet(exerciseLocalId, setLocalId)}
         currentType={set.setType}
         setIndex={setIndex}
+        anchorPosition={popoverPosition}
       />
     </View>
   );
@@ -224,18 +287,25 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
     paddingVertical: Spacing.xs,
+    paddingRight: Spacing.xs,
   },
   containerCompleted: {
     backgroundColor: 'rgba(34, 197, 94, 0.1)',
     borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.xs,
+    paddingLeft: Spacing.xs,
+    paddingRight: Spacing.lg,
   },
   setBadge: {
-    width: 40,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   setBadgeText: {
     fontSize: FontSizes.sm,
@@ -253,10 +323,10 @@ const styles = StyleSheet.create({
     // Wrapper for animated shake
   },
   weightWrapper: {
-    marginRight: Spacing.sm,
+    // Gap handles spacing
   },
   input: {
-    width: 70,
+    width: 60,
     height: 36,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
@@ -293,9 +363,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 'auto',
+    marginLeft: Spacing.md,
+    overflow: 'hidden',
   },
   checkboxCompleted: {
-    backgroundColor: Colors.success,
+    shadowColor: 'rgba(34, 197, 94, 0.4)',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 4,
   },
 });

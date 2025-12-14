@@ -72,7 +72,19 @@ export default function ActiveWorkoutScreen() {
   // Handle finish workout
   const handleFinishWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setShowFinishModal(true);
+
+    // Check if there are no exercises or no completed sets
+    const hasExercises = (activeSession?.exercises.length ?? 0) > 0;
+    const hasCompletedSets = activeSession?.exercises.some(ex =>
+      ex.sets.some(set => set.isCompleted)
+    ) ?? false;
+
+    if (!hasExercises || !hasCompletedSets) {
+      // Show cancel modal instead if workout has no meaningful progress
+      setShowCancelModal(true);
+    } else {
+      setShowFinishModal(true);
+    }
   };
 
   // Handle timer settings save

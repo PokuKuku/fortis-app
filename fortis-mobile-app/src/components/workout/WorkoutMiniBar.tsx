@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
-import { usePathname, router } from 'expo-router';
+import { usePathname, useSegments, router } from 'expo-router';
 import { ChevronUp, Pause, Play } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
@@ -20,16 +20,21 @@ function getCurrentExerciseName(session: ReturnType<typeof useWorkoutStore>['act
     ex.sets.some(set => !set.isCompleted)
   ) || session.exercises[session.exercises.length - 1];
 
-  return currentExercise?.exercise?.name || 'Unknown exercise';
+  return currentExercise?.exerciseName || 'Unknown exercise';
 }
 
 export function WorkoutMiniBar() {
   const pathname = usePathname();
+  const segments = useSegments();
   const { activeSession, isWorkoutActive, isWorkoutTimerPaused, toggleWorkoutTimer } = useWorkoutStore();
   const elapsedSeconds = useElapsedTime();
 
+  // Check if on splash screen (not inside tabs group) or on active workout screen
+  const isOnSplashScreen = segments.length === 0 || (segments[0] !== '(tabs)' && pathname === '/');
+  const isOnWorkoutScreen = pathname === '/workout/active';
+
   // Hide if no workout active, on splash screen, or already on workout screen
-  if (!isWorkoutActive || pathname === '/' || pathname === '/workout/active') {
+  if (!isWorkoutActive || isOnSplashScreen || isOnWorkoutScreen) {
     return null;
   }
 

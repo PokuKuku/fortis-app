@@ -17,7 +17,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
-import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import exercisesData from '@/assets/exercises.json';
 import { CUSTOM_EXERCISES_KEY } from '@/src/constants/storageKeys';
 
@@ -176,8 +176,8 @@ export function AddExerciseModal({ visible, onClose }: AddExerciseModalProps) {
     >
       <View style={styles.backdrop}>
         <Animated.View
-          entering={SlideInDown.duration(300)}
-          exiting={SlideOutDown.duration(250)}
+          entering={SlideInDown.duration(450).easing(Easing.out(Easing.quad))}
+          exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
           style={styles.container}
         >
           <StainlessSteelPattern />

@@ -5,7 +5,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 interface NumberPadModalProps {
@@ -93,11 +93,14 @@ export function NumberPadModal({
   if (!visible) return null;
 
   return (
-    <View style={styles.absoluteContainer} pointerEvents="box-none">
+    <View style={styles.absoluteContainer}>
+      {/* Dismissible backdrop - tap to close */}
+      <Pressable style={styles.backdrop} onPress={onClose} />
+
       {/* Keyboard */}
       <Animated.View
-        entering={SlideInDown.duration(200)}
-        exiting={SlideOutDown.duration(200)}
+        entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
+        exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
         style={styles.container}
       >
         <View style={styles.padWrapper}>
@@ -210,6 +213,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 1000,
+  },
+  backdrop: {
+    flex: 1,
   },
   container: {
     position: 'absolute',

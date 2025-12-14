@@ -5,6 +5,14 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { SetRow } from './SetRow';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  SlideInLeft,
+  SlideOutRight,
+  Layout,
+  Easing,
+} from 'react-native-reanimated';
 
 interface ExerciseCardProps {
   exerciseLocalId: string;
@@ -31,7 +39,13 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <Animated.View
+      style={styles.container}
+      entering={FadeIn.duration(300).easing(Easing.out(Easing.cubic))
+        .delay(50)}
+      exiting={FadeOut.duration(250).easing(Easing.in(Easing.cubic))}
+      layout={Layout.duration(300).easing(Easing.inOut(Easing.cubic))}
+    >
       <View style={styles.content}>
         {/* Exercise Header */}
         <View style={styles.header}>
@@ -90,7 +104,7 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
           <Text style={styles.addSetText}>+ Add Set</Text>
         </Pressable>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -141,8 +155,9 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
     paddingBottom: Spacing.xs,
+    paddingRight: Spacing.xs,
   },
   headerText: {
     fontSize: FontSizes.sm,
@@ -150,19 +165,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   setCol: {
-    width: 40,
+    width: 32,
   },
   previousCol: {
     width: 65,
   },
   weightCol: {
-    width: 70,
+    width: 60,
   },
   repsCol: {
-    width: 70,
+    width: 60,
   },
   checkCol: {
-    flex: 1,
+    width: 32,
+    marginLeft: Spacing.md,
   },
   addSetButton: {
     backgroundColor: 'rgba(34, 197, 94, 0.2)',
