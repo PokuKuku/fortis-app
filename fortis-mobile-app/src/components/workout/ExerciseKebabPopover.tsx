@@ -7,7 +7,7 @@ import {
   Animated,
   Modal,
 } from 'react-native';
-import { Info, RefreshCw, Trash2 } from 'lucide-react-native';
+import { Info, RefreshCw, Trash2, StickyNote, FileText } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 
 interface ExerciseKebabPopoverProps {
@@ -16,6 +16,10 @@ interface ExerciseKebabPopoverProps {
   onDelete: () => void;
   onReplace: () => void;
   onViewDetails: () => void;
+  onStickyNote: () => void;
+  hasStickyNote: boolean;
+  onAddNote: () => void;
+  hasNote: boolean;
   position: { top: number; left: number };
 }
 
@@ -25,6 +29,10 @@ export function ExerciseKebabPopover({
   onDelete,
   onReplace,
   onViewDetails,
+  onStickyNote,
+  hasStickyNote,
+  onAddNote,
+  hasNote,
   position,
 }: ExerciseKebabPopoverProps) {
   const popoverScale = useRef(new Animated.Value(0)).current;
@@ -107,6 +115,28 @@ export function ExerciseKebabPopover({
         <View style={styles.divider} />
         <TouchableOpacity
           style={styles.option}
+          onPress={() => handleAction(onStickyNote)}
+        >
+          <StickyNote color="#60a5fa" size={18} strokeWidth={2} />
+          <Text style={[styles.optionText, styles.stickyNoteText]}>
+            {hasStickyNote ? 'Edit Sticky Note' : 'Add Sticky Note'}
+          </Text>
+        </TouchableOpacity>
+        {!hasNote && (
+          <>
+            <View style={styles.divider} />
+            <TouchableOpacity
+              style={styles.option}
+              onPress={() => handleAction(onAddNote)}
+            >
+              <FileText color="#DFE2E6" size={18} strokeWidth={2} />
+              <Text style={styles.optionText}>Add Note</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        <View style={styles.divider} />
+        <TouchableOpacity
+          style={styles.option}
           onPress={() => handleAction(onReplace)}
         >
           <RefreshCw color="#DFE2E6" size={18} strokeWidth={2} />
@@ -159,6 +189,9 @@ const styles = StyleSheet.create({
   },
   deleteText: {
     color: Colors.error,
+  },
+  stickyNoteText: {
+    color: '#60a5fa',
   },
   divider: {
     height: 1,

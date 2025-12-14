@@ -84,10 +84,15 @@ export function WorkoutHeader({
         </Pressable>
       </View>
 
-      {/* Content Row: Left (timers/date) and Right (names) */}
+      {/* Content Row: Left (title/timers/date) and Right (program name) */}
       <View style={styles.contentRow}>
         {/* Left Column */}
         <View style={styles.leftColumn}>
+          {/* Workout Title */}
+          {workoutName && (
+            <Text style={styles.workoutName}>{workoutName}</Text>
+          )}
+
           {/* Timers Row */}
           <View style={styles.timersRow}>
             {/* Elapsed Time */}
@@ -122,13 +127,10 @@ export function WorkoutHeader({
           </View>
         </View>
 
-        {/* Right Column - Program/Workout Names */}
+        {/* Right Column - Program Name */}
         <View style={styles.rightColumn}>
           {programName && (
             <Text style={styles.programName}>{programName}</Text>
-          )}
-          {workoutName && (
-            <Text style={styles.workoutName}>{workoutName}</Text>
           )}
         </View>
       </View>
@@ -225,7 +227,6 @@ const styles = StyleSheet.create({
   workoutName: {
     fontSize: 17,
     fontWeight: '700',
-    textAlign: 'right',
-    color: Colors.success,
+    color: Colors.textPrimary,
   },
 });

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
-import { MoreVertical } from 'lucide-react-native';
+import { MoreVertical, StickyNote, X } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -29,12 +29,20 @@ export function ExerciseCard({
   const removeExercise = useWorkoutStore(s => s.removeExercise);
   const updateExerciseNotes = useWorkoutStore(s => s.updateExerciseNotes);
   const addSet = useWorkoutStore(s => s.addSet);
+  const stickyNotes = useWorkoutStore(s => s.stickyNotes);
+  const setStickyNote = useWorkoutStore(s => s.setStickyNote);
 
   const [showKebab, setShowKebab] = useState(false);
+  const [showStickyNoteInput, setShowStickyNoteInput] = useState(false);
+  const [stickyNoteValue, setStickyNoteValue] = useState('');
+  const [showNotesInput, setShowNotesInput] = useState(false);
   const [kebabPosition, setKebabPosition] = useState({ top: 0, left: 0 });
   const kebabRef = useRef<View>(null);
+  const stickyNoteInputRef = useRef<TextInput>(null);
+  const notesInputRef = useRef<TextInput>(null);
 
   const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+  const stickyNote = exercise ? stickyNotes[exercise.exerciseId] : undefined;
 
   if (!exercise) return null;
 
@@ -62,6 +70,43 @@ export function ExerciseCard({
   const handleViewDetails = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onViewDetails?.(exercise.exerciseId);
+  };
+
+  const handleOpenStickyNote = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStickyNoteValue(stickyNote || '');
+    setShowStickyNoteInput(true);
+    // Focus the input after state update
+    setTimeout(() => stickyNoteInputRef.current?.focus(), 100);
+  };
+
+  const handleStickyNoteBlur = () => {
+    const trimmed = stickyNoteValue.trim();
+    if (trimmed !== (stickyNote || '')) {
+      setStickyNote(exercise.exerciseId, trimmed);
+    }
+    if (!trimmed) {
+      setShowStickyNoteInput(false);
+    }
+  };
+
+  const handleRemoveStickyNote = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStickyNote(exercise.exerciseId, '');
+    setStickyNoteValue('');
+    setShowStickyNoteInput(false);
+  };
+
+  const handleOpenNotes = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowNotesInput(true);
+    setTimeout(() => notesInputRef.current?.focus(), 100);
+  };
+
+  const handleNotesBlur = () => {
+    if (!exercise.notes) {
+      setShowNotesInput(false);
+    }
   };
 
   const handleAddSet = () => {
@@ -94,14 +139,60 @@ export function ExerciseCard({
           </View>
         </View>
 
-        {/* Notes Input */}
-        <TextInput
-          value={exercise.notes || ''}
-          onChangeText={(text) => updateExerciseNotes(exerciseLocalId, text)}
-          placeholder="Add notes..."
-          placeholderTextColor={Colors.textTertiary}
-          style={styles.notesInput}
-        />
+        {/* Sticky Note - Inline Editable */}
+        {(stickyNote || showStickyNoteInput) && (
+          <Animated.View
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(150)}
+            style={styles.stickyNoteBanner}
+          >
+            <StickyNote size={14} color="#60a5fa" strokeWidth={2} style={styles.stickyNoteIcon} />
+            <TextInput
+              ref={stickyNoteInputRef}
+              value={showStickyNoteInput ? stickyNoteValue : stickyNote}
+              onChangeText={setStickyNoteValue}
+              onFocus={() => {
+                setStickyNoteValue(stickyNote || '');
+                setShowStickyNoteInput(true);
+              }}
+              onBlur={handleStickyNoteBlur}
+              placeholder="Add a persistent note..."
+              placeholderTextColor="rgba(96, 165, 250, 0.5)"
+              style={styles.stickyNoteInput}
+              multiline
+            />
+            {(stickyNote || stickyNoteValue) && (
+              <Pressable
+                onPress={handleRemoveStickyNote}
+                style={({ pressed }) => [
+                  styles.removeStickyNoteButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <X size={14} color="#60a5fa" strokeWidth={2.5} />
+              </Pressable>
+            )}
+          </Animated.View>
+        )}
+
+        {/* Notes Input - Only show when has content or triggered from kebab */}
+        {(exercise.notes || showNotesInput) && (
+          <Animated.View
+            entering={FadeIn.duration(200)}
+            exiting={FadeOut.duration(150)}
+          >
+            <TextInput
+              ref={notesInputRef}
+              value={exercise.notes || ''}
+              onChangeText={(text) => updateExerciseNotes(exerciseLocalId, text)}
+              onBlur={handleNotesBlur}
+              placeholder="Add notes..."
+              placeholderTextColor={Colors.textTertiary}
+              style={styles.notesInput}
+              multiline
+            />
+          </Animated.View>
+        )}
 
         {/* Sets Table */}
         <View style={styles.setsTable}>
@@ -145,6 +236,10 @@ export function ExerciseCard({
         onDelete={handleDelete}
         onReplace={handleReplace}
         onViewDetails={handleViewDetails}
+        onStickyNote={handleOpenStickyNote}
+        hasStickyNote={!!stickyNote}
+        onAddNote={handleOpenNotes}
+        hasNote={!!exercise.notes}
         position={kebabPosition}
       />
     </Animated.View>
@@ -204,26 +299,27 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.xs,
   },
   headerText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.lg,
     fontWeight: '600',
     color: Colors.textSecondary,
     textAlign: 'center',
   },
   setCol: {
-    width: 32,
+    width: 36,
   },
   previousCol: {
-    width: 65,
+    width: 80,
   },
   weightCol: {
-    width: 60,
+    width: 52,
   },
   repsCol: {
-    width: 60,
+    width: 52,
+    marginLeft: Spacing.md,
   },
   checkCol: {
-    width: 32,
-    marginLeft: Spacing.md,
+    width: 36,
+    marginLeft: Spacing.lg,
   },
   addSetButton: {
     backgroundColor: 'rgba(34, 197, 94, 0.2)',
@@ -235,5 +331,31 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '600',
     color: Colors.success,
+  },
+  stickyNoteBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: 'rgba(96, 165, 250, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  stickyNoteIcon: {
+    marginTop: 3,
+  },
+  stickyNoteInput: {
+    flex: 1,
+    fontSize: FontSizes.base,
+    fontWeight: '500',
+    color: '#60a5fa',
+    padding: 0,
+    margin: 0,
+  },
+  removeStickyNoteButton: {
+    padding: 2,
+    marginTop: 1,
   },
 });

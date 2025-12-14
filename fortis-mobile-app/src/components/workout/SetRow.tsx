@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Check } from 'lucide-react-native';
+import { View, Text, StyleSheet, Pressable, Animated as RNAnimated } from 'react-native';
+import { Check, Trash2 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Swipeable } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -46,6 +47,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
     reps?: boolean;
   }>({});
   const badgeRef = useRef<View>(null);
+  const swipeableRef = useRef<Swipeable>(null);
 
   // Shake animation
   const weightShake = useSharedValue(0);
@@ -159,6 +161,45 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
 
   const setDisplay = getSetDisplay();
 
+  const handleDelete = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    swipeableRef.current?.close();
+    removeSet(exerciseLocalId, setLocalId);
+  };
+
+  const renderRightActions = (
+    progress: RNAnimated.AnimatedInterpolation<number>,
+    dragX: RNAnimated.AnimatedInterpolation<number>
+  ) => {
+    const scale = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.8, 1],
+      extrapolate: 'clamp',
+    });
+
+    const opacity = progress.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.5, 1],
+      extrapolate: 'clamp',
+    });
+
+    return (
+      <RNAnimated.View
+        style={[
+          styles.deleteAction,
+          {
+            transform: [{ scale }],
+            opacity,
+          },
+        ]}
+      >
+        <Pressable onPress={handleDelete} style={styles.deleteActionInner}>
+          <Trash2 size={18} color={Colors.white} strokeWidth={2.5} />
+        </Pressable>
+      </RNAnimated.View>
+    );
+  };
+
   const getInputStyle = (field: 'weight' | 'reps' | 'rpe') => {
     const hasError = validationErrors[field as 'weight' | 'reps'];
 
@@ -174,112 +215,120 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
   };
 
   return (
-    <View style={[styles.container, set.isCompleted && styles.containerCompleted]}>
-      {/* Set number/type badge */}
-      <View ref={badgeRef} collapsable={false}>
+    <Swipeable
+      ref={swipeableRef}
+      renderRightActions={renderRightActions}
+      overshootRight={false}
+      friction={2}
+      rightThreshold={40}
+    >
+      <View style={[styles.container, set.isCompleted && styles.containerCompleted]}>
+        {/* Set number/type badge */}
+        <View ref={badgeRef} collapsable={false}>
+          <Pressable
+            onPress={() => {
+              badgeRef.current?.measureInWindow((x, y, width, height) => {
+                setPopoverPosition({ x: x, y: y + height + 4 });
+                setShowTypeSelector(true);
+              });
+            }}
+            style={styles.setBadge}
+          >
+            <Text style={[styles.setBadgeText, { color: setDisplay.color }]}>
+              {setDisplay.label}
+            </Text>
+          </Pressable>
+        </View>
+
+        {/* Previous set indicator */}
+        <View style={styles.previousCol}>
+          <Text style={styles.previousText}>—</Text>
+        </View>
+
+        {/* Weight input */}
+        <Animated.View style={[styles.inputWrapper, styles.weightWrapper, weightAnimatedStyle]}>
+          <Pressable
+            onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'weight')}
+            style={[
+              getInputStyle('weight'),
+              isWeightActive && styles.inputActive,
+              isWeightActive && activeNumberPad?.hasError && styles.inputError
+            ]}
+          >
+            <Text style={[
+              styles.inputText,
+              (isWeightActive && !activeNumberPad?.pendingValue && previousSet?.weight != null) && styles.placeholderText,
+              (!isWeightActive && set.weight === null) && styles.placeholderText
+            ]}>
+              {isWeightActive
+                ? (activeNumberPad?.pendingValue || previousSet?.weight?.toString() || '')
+                : (set.weight !== null ? set.weight.toString() : (previousSet?.weight?.toString() || ''))}
+            </Text>
+          </Pressable>
+        </Animated.View>
+
+        {/* Reps input */}
+        <Animated.View style={[styles.inputWrapper, styles.repsWrapper, repsAnimatedStyle]}>
+          <Pressable
+            onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
+            style={[
+              getInputStyle('reps'),
+              isRepsActive && styles.inputActive,
+              isRepsActive && activeNumberPad?.hasError && styles.inputError
+            ]}
+          >
+            <Text style={[
+              styles.inputText,
+              (isRepsActive && !activeNumberPad?.pendingValue && previousSet?.reps != null) && styles.placeholderText,
+              (!isRepsActive && set.reps === null) && styles.placeholderText
+            ]}>
+              {isRepsActive
+                ? (activeNumberPad?.pendingValue || previousSet?.reps?.toString() || '')
+                : (set.reps !== null ? set.reps.toString() : (previousSet?.reps?.toString() || ''))}
+            </Text>
+          </Pressable>
+        </Animated.View>
+
+        {/* Completion checkbox */}
         <Pressable
-          onPress={() => {
-            badgeRef.current?.measureInWindow((x, y, width, height) => {
-              setPopoverPosition({ x: x, y: y + height + 4 });
-              setShowTypeSelector(true);
-            });
-          }}
-          style={styles.setBadge}
+          onPress={handleComplete}
+          style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
         >
-          <Text style={[styles.setBadgeText, { color: setDisplay.color }]}>
-            {setDisplay.label}
-          </Text>
+          {set.isCompleted && (
+            <>
+              <LinearGradient
+                colors={['#4ade80', '#22c55e']}
+                start={{ x: 0.5, y: 0 }}
+                end={{ x: 0.5, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+              <LinearGradient
+                colors={['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={StyleSheet.absoluteFillObject}
+              />
+            </>
+          )}
+          <Check
+            size={20}
+            color={Colors.textPrimary}
+            strokeWidth={2.5}
+          />
         </Pressable>
-      </View>
 
-      {/* Previous set indicator */}
-      <View style={styles.previousCol}>
-        <Text style={styles.previousText}>—</Text>
-      </View>
-
-      {/* Weight input */}
-      <Animated.View style={[styles.inputWrapper, styles.weightWrapper, weightAnimatedStyle]}>
-        <Pressable
-          onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'weight')}
-          style={[
-            getInputStyle('weight'),
-            isWeightActive && styles.inputActive,
-            isWeightActive && activeNumberPad?.hasError && styles.inputError
-          ]}
-        >
-          <Text style={[
-            styles.inputText,
-            (isWeightActive && !activeNumberPad?.pendingValue && previousSet?.weight != null) && styles.placeholderText,
-            (!isWeightActive && set.weight === null) && styles.placeholderText
-          ]}>
-            {isWeightActive
-              ? (activeNumberPad?.pendingValue || previousSet?.weight?.toString() || '')
-              : (set.weight !== null ? set.weight.toString() : (previousSet?.weight?.toString() || ''))}
-          </Text>
-        </Pressable>
-      </Animated.View>
-
-      {/* Reps input */}
-      <Animated.View style={[styles.inputWrapper, repsAnimatedStyle]}>
-        <Pressable
-          onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
-          style={[
-            getInputStyle('reps'),
-            isRepsActive && styles.inputActive,
-            isRepsActive && activeNumberPad?.hasError && styles.inputError
-          ]}
-        >
-          <Text style={[
-            styles.inputText,
-            (isRepsActive && !activeNumberPad?.pendingValue && previousSet?.reps != null) && styles.placeholderText,
-            (!isRepsActive && set.reps === null) && styles.placeholderText
-          ]}>
-            {isRepsActive
-              ? (activeNumberPad?.pendingValue || previousSet?.reps?.toString() || '')
-              : (set.reps !== null ? set.reps.toString() : (previousSet?.reps?.toString() || ''))}
-          </Text>
-        </Pressable>
-      </Animated.View>
-
-      {/* Completion checkbox */}
-      <Pressable
-        onPress={handleComplete}
-        style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
-      >
-        {set.isCompleted && (
-          <>
-            <LinearGradient
-              colors={['#4ade80', '#22c55e']}
-              start={{ x: 0.5, y: 0 }}
-              end={{ x: 0.5, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-            <LinearGradient
-              colors={['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
-            />
-          </>
-        )}
-        <Check
-          size={20}
-          color={Colors.textPrimary}
-          strokeWidth={2.5}
+        {/* Set Type Popover */}
+        <SetTypeSelector
+          visible={showTypeSelector}
+          onClose={() => setShowTypeSelector(false)}
+          onSelect={(type) => updateSetType(exerciseLocalId, setLocalId, type)}
+          onRemove={() => removeSet(exerciseLocalId, setLocalId)}
+          currentType={set.setType}
+          setIndex={setIndex}
+          anchorPosition={popoverPosition}
         />
-      </Pressable>
-
-      {/* Set Type Popover */}
-      <SetTypeSelector
-        visible={showTypeSelector}
-        onClose={() => setShowTypeSelector(false)}
-        onSelect={(type) => updateSetType(exerciseLocalId, setLocalId, type)}
-        onRemove={() => removeSet(exerciseLocalId, setLocalId)}
-        currentType={set.setType}
-        setIndex={setIndex}
-        anchorPosition={popoverPosition}
-      />
-    </View>
+      </View>
+    </Swipeable>
   );
 }
 
@@ -291,6 +340,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     paddingRight: Spacing.xs,
   },
+  deleteAction: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: Spacing.sm,
+  },
+  deleteActionInner: {
+    width: 44,
+    height: 36,
+    backgroundColor: Colors.error,
+    borderRadius: BorderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   containerCompleted: {
     backgroundColor: 'rgba(34, 197, 94, 0.1)',
     borderRadius: BorderRadius.lg,
@@ -298,8 +360,8 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.lg,
   },
   setBadge: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -308,11 +370,11 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   setBadgeText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.base,
     fontWeight: '700',
   },
   previousCol: {
-    width: 65,
+    width: 80,
     alignItems: 'center',
   },
   previousText: {
@@ -326,8 +388,11 @@ const styles = StyleSheet.create({
   weightWrapper: {
     // Gap handles spacing
   },
+  repsWrapper: {
+    marginLeft: Spacing.md,
+  },
   input: {
-    width: 60,
+    width: 52,
     height: 36,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
@@ -338,7 +403,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inputText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.base,
     fontWeight: '600',
     color: Colors.textPrimary,
     textAlign: 'center',
@@ -359,13 +424,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   checkbox: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     borderRadius: BorderRadius.lg,
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: Spacing.md,
+    marginLeft: Spacing.lg,
     overflow: 'hidden',
   },
   checkboxCompleted: {

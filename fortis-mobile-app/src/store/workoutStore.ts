@@ -19,6 +19,7 @@ import {
 import {
   ACTIVE_WORKOUT_KEY,
   REST_TIMER_SETTINGS_KEY,
+  EXERCISE_STICKY_NOTES_KEY,
 } from '../constants/storageKeys';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
@@ -57,6 +58,9 @@ interface WorkoutState {
     pendingValue: string;
     hasError: boolean;
   } | null;
+
+  // Sticky notes (persist across sessions, keyed by exerciseId)
+  stickyNotes: Record<string, string>;
 
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string) => void;
@@ -107,6 +111,11 @@ interface WorkoutState {
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
 
+  // Actions - Sticky Notes
+  setStickyNote: (exerciseId: string, note: string) => Promise<void>;
+  deleteStickyNote: (exerciseId: string) => Promise<void>;
+  loadStickyNotes: () => Promise<void>;
+
   // Actions - Number Pad
   openNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
   closeNumberPad: () => void;
@@ -131,6 +140,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     isLoading: false,
     showRestTimerComplete: false,
     activeNumberPad: null,
+    stickyNotes: {},
 
     // ========================================
     // Session Actions
@@ -752,6 +762,63 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
       } catch (error) {
         console.warn('Failed to load rest timer settings:', error);
+      }
+    },
+
+    // ========================================
+    // Sticky Notes Actions
+    // ========================================
+
+    setStickyNote: async (exerciseId, note) => {
+      const { stickyNotes } = get();
+      const trimmedNote = note.trim();
+
+      let newNotes: Record<string, string>;
+      if (trimmedNote === '') {
+        // Remove empty notes
+        const { [exerciseId]: _, ...rest } = stickyNotes;
+        newNotes = rest;
+      } else {
+        newNotes = { ...stickyNotes, [exerciseId]: trimmedNote };
+      }
+
+      set({ stickyNotes: newNotes });
+
+      try {
+        await AsyncStorage.setItem(
+          EXERCISE_STICKY_NOTES_KEY,
+          JSON.stringify(newNotes)
+        );
+      } catch (error) {
+        console.warn('Failed to save sticky notes:', error);
+      }
+    },
+
+    deleteStickyNote: async (exerciseId) => {
+      const { stickyNotes } = get();
+      const { [exerciseId]: _, ...newNotes } = stickyNotes;
+
+      set({ stickyNotes: newNotes });
+
+      try {
+        await AsyncStorage.setItem(
+          EXERCISE_STICKY_NOTES_KEY,
+          JSON.stringify(newNotes)
+        );
+      } catch (error) {
+        console.warn('Failed to save sticky notes:', error);
+      }
+    },
+
+    loadStickyNotes: async () => {
+      try {
+        const stored = await AsyncStorage.getItem(EXERCISE_STICKY_NOTES_KEY);
+        if (stored) {
+          const notes = JSON.parse(stored);
+          set({ stickyNotes: notes });
+        }
+      } catch (error) {
+        console.warn('Failed to load sticky notes:', error);
       }
     },
 

@@ -1,13 +1,22 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 
 export default function RootLayout() {
+  const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
+
   const [fontsLoaded] = useFonts({
     'BankGothic': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
+
+  // Load sticky notes on app start
+  useEffect(() => {
+    loadStickyNotes();
+  }, [loadStickyNotes]);
 
   if (!fontsLoaded) {
     return null;
