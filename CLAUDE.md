@@ -63,6 +63,8 @@ app/                    # Expo Router file-based routing
 │   ├── exercises.tsx   # Exercise library
 │   ├── history.tsx     # Workout history
 │   └── profile.tsx     # User profile
+├── exercise/
+│   └── [id].tsx        # Exercise details screen (dynamic route)
 └── workout/
     └── active.tsx      # Active workout logging screen
 
@@ -87,6 +89,15 @@ constants/              # Design system tokens
 ├── Sizes.ts            # Spacing, border radius, font sizes
 └── Typography.ts       # Text styles
 ```
+
+### Key Dependencies
+
+- **State**: Zustand with AsyncStorage persistence
+- **Forms**: react-hook-form with zod validation
+- **Animations**: react-native-reanimated
+- **Gestures**: react-native-gesture-handler, react-native-draggable-flatlist
+- **Icons**: lucide-react-native
+- **Date handling**: date-fns
 
 ### Key Patterns
 
