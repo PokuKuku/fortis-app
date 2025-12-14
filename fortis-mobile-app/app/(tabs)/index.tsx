@@ -488,6 +488,7 @@ function CollapsibleSection({
 export default function ProgramsScreen() {
   const router = useRouter();
   const startWorkout = useWorkoutStore(s => s.startWorkout);
+  const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
@@ -523,6 +524,11 @@ export default function ProgramsScreen() {
 
   // Handle start blank workout
   const handleStartBlankWorkout = () => {
+    // Prevent multiple workout sessions
+    if (isWorkoutActive) {
+      router.push('/workout/active');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startWorkout(); // Creates blank workout with generated ID and timestamp
     router.push('/workout/active');
@@ -843,6 +849,11 @@ export default function ProgramsScreen() {
           <AnimatedLogo />
         </View>
 
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Programs</Text>
+        </View>
+
         <NestableScrollContainer
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -976,16 +987,18 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 24,
+    paddingBottom: 12,
     alignItems: 'flex-start',
+  },
+  titleContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 12,
   },
   title: {
     fontSize: 24,
-    fontWeight: '900',
+    fontWeight: '700',
     fontFamily: 'BankGothic',
-    color: '#22c55e',
-    letterSpacing: 6,
-    textAlign: 'left',
+    color: '#FFFFFF',
   },
   scrollView: {
     flex: 1,

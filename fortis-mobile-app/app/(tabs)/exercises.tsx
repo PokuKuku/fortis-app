@@ -722,9 +722,10 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   title: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: 'BankGothic',
   },
   searchContainer: {
     paddingHorizontal: 24,

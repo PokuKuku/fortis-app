@@ -1,0 +1,218 @@
+import { View, Text, StyleSheet, Modal, Pressable, Dimensions } from 'react-native';
+import { X } from 'lucide-react-native';
+import { Colors } from '@/constants/Colors';
+import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { GlassButton } from '@/components/GlassButton';
+import { WorkoutSession } from '@/src/types/workout';
+import { getWorkoutSummary } from '@/src/store/workoutStore';
+import { formatElapsedTime } from '@/src/hooks/useElapsedTime';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import ConfettiCannon from 'react-native-confetti-cannon';
+import { useRef, useEffect } from 'react';
+
+interface WorkoutCompleteModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  session: WorkoutSession | null;
+}
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+export function WorkoutCompleteModal({
+  visible,
+  onClose,
+  onConfirm,
+  session,
+}: WorkoutCompleteModalProps) {
+  const confettiRef = useRef<ConfettiCannon>(null);
+
+  // Fire fireworks when modal opens
+  useEffect(() => {
+    if (visible) {
+      // Small delay to ensure modal is visible before fireworks
+      const timer = setTimeout(() => {
+        confettiRef.current?.start();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const handleConfirm = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    onConfirm();
+  };
+
+  const summary = getWorkoutSummary(session);
+  const duration = formatElapsedTime(summary.durationSeconds);
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
+        <Pressable style={styles.centeredView} onPress={onClose} activeOpacity={1}>
+          <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
+            <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+              <StainlessSteelPattern />
+
+              {/* Header */}
+              <View style={styles.header}>
+                <Text style={styles.title}>Workout Complete!</Text>
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    pressed && styles.closeButtonPressed,
+                  ]}
+                >
+                  <X size={20} color={Colors.error} strokeWidth={2.5} />
+                </Pressable>
+              </View>
+
+              {/* Content */}
+              <View style={styles.content}>
+                <Text style={styles.congratsText}>
+                  Great work! You crushed it! 💪
+                </Text>
+
+                {/* Stats Card */}
+                <View style={styles.statsCard}>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>Exercises</Text>
+                    <Text style={styles.statValue}>{summary.totalExercises}</Text>
+                  </View>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>Sets</Text>
+                    <Text style={styles.statValue}>{summary.totalSets}</Text>
+                  </View>
+                  <View style={styles.statRow}>
+                    <Text style={styles.statLabel}>Duration</Text>
+                    <Text style={styles.statValue}>{duration}</Text>
+                  </View>
+                </View>
+
+                {/* Done Button */}
+                <GlassButton style={styles.doneButton} onPress={handleConfirm}>
+                  <Text style={styles.doneButtonText}>Done</Text>
+                </GlassButton>
+              </View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Animated.View>
+      {/* Fireworks celebration effect - centered over modal */}
+      <ConfettiCannon
+        ref={confettiRef}
+        count={100}
+        origin={{ x: screenWidth / 2, y: screenHeight / 2 }}
+        explosionSpeed={350}
+        fallSpeed={3000}
+        fadeOut
+        autoStart={false}
+        colors={['#22c55e', '#ffd700', '#ffffff', '#f59e0b', '#ef4444']}
+      />
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing['2xl'],
+  },
+  container: {
+    width: 340,
+    backgroundColor: '#222222',
+    borderRadius: BorderRadius['2xl'],
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing['2xl'],
+    paddingBottom: Spacing.lg,
+    position: 'relative',
+    zIndex: 1,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    paddingRight: 32, // Space for X button
+  },
+  closeButton: {
+    position: 'absolute',
+    right: Spacing['2xl'],
+    backgroundColor: '#2a2a2a',
+    borderRadius: BorderRadius.lg,
+    padding: 4,
+  },
+  closeButtonPressed: {
+    opacity: 0.6,
+  },
+  content: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing['2xl'],
+    zIndex: 1,
+  },
+  congratsText: {
+    fontSize: 18,
+    color: Colors.success,
+    textAlign: 'center',
+    marginBottom: Spacing['2xl'],
+  },
+  statsCard: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing['2xl'],
+    gap: Spacing.md,
+  },
+  statRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statLabel: {
+    fontSize: FontSizes.base,
+    color: Colors.textSecondary,
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  doneButton: {
+    height: 36,
+    borderRadius: 8,
+  },
+  doneButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+});

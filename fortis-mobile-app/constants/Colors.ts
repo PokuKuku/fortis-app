@@ -50,7 +50,7 @@ export const Colors = {
   chart5: '#ef4444', // oklch(0.645 0.246 16.439) - Red
 
   // Status colors
-  success: '#10b981', // Green
+  success: '#22c55e', // Green-600 (matches main page)
   warning: '#f59e0b', // Amber
   error: '#dc2626', // Red
   info: '#0ea5e9', // Sky blue

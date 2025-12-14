@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
+import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -24,7 +25,16 @@ export default function RootLayout() {
         >
           <Stack.Screen name="index" />
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="workout/active"
+            options={{
+              animation: 'slide_from_bottom',
+              gestureEnabled: true,
+              gestureDirection: 'vertical',
+            }}
+          />
         </Stack>
+        <WorkoutMiniBar />
     </GestureHandlerRootView>
   );
 }

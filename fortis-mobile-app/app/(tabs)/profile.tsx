@@ -70,9 +70,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sectionTitle: {
-    fontSize: 32,
+    fontSize: 24,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: 'BankGothic',
   },
   placeholder: {
     fontSize: 14,

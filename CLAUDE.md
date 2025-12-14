@@ -2,9 +2,25 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Claude Code Rules
+
+**Workflow:**
+1. Think through the problem, read relevant files, and write a plan to `tasks/todo.md`
+2. Check in with user to verify the plan before starting
+3. Work through todo items, marking complete as you go, with high-level explanations
+4. Add a review section to `tasks/todo.md` with a summary when done
+
+**Principles:**
+- Make changes as simple as possible - impact only necessary code
+- Find root causes for bugs - NO temporary fixes
+- When debugging, trace through the ENTIRE code flow step by step - no assumptions
+- If a task is unclear, push back to clarify before implementing
+- Before implementing ANY UI, run the design system checklist below
+- Proactively scan for duplicated UI patterns and suggest component extraction (2+ occurrences)
+
 ## Project Overview
 
-Fortis is an offline-first mobile workout tracker built with Expo/React Native. The repository is a monorepo containing:
+Fortis is an offline-first mobile workout tracker built with Expo/React Native. The repository is a monorepo:
 
 - **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19, TypeScript)
 - **fortis-mobile/fortis-mobile-design/**: UI prototypes built with Vite/React
@@ -15,20 +31,16 @@ Fortis is an offline-first mobile workout tracker built with Expo/React Native. 
 ## Development Commands
 
 ```bash
-# Navigate to mobile app
 cd fortis-mobile-app
 
-# Start development server
-npm start
+npm start              # Start development server
+npm run ios            # Run on iOS simulator (requires native build)
+npm run android        # Run on Android emulator (requires native build)
+npm run web            # Run on web
 
-# Run on iOS simulator (requires native build)
-npm run ios
-
-# Run on Android emulator (requires native build)
-npm run android
-
-# Run on web
-npm run web
+npx expo prebuild      # Generate native projects (after dependency changes)
+npx expo prebuild --clean  # Clean rebuild
+npx pod-install        # Install iOS CocoaPods (after native dependency changes)
 ```
 
 ## Architecture
@@ -41,71 +53,47 @@ app/                    # Expo Router file-based routing
 ├── index.tsx           # Splash/landing screen
 ├── (tabs)/             # Tab navigator group
 │   ├── _layout.tsx     # Tab bar + FAB for exercises
-│   ├── index.tsx       # Home/workout screen
+│   ├── index.tsx       # Home/workout screen (CANONICAL UI REFERENCE)
 │   ├── exercises.tsx   # Exercise library
 │   ├── history.tsx     # Workout history
-│   ├── profile.tsx     # User profile
-│   └── start.tsx       # Start workout
-├── auth/               # Auth screens (planned)
-├── workout/            # Active workout flow (planned)
-└── exercises/          # Exercise details (planned)
+│   └── profile.tsx     # User profile
+├── workout/            # Active workout flow
+└── exercises/          # Exercise details
 
 src/
 ├── components/
-│   ├── DraggableGrid.tsx  # Drag-and-drop grid using react-native-draggable-flatlist
-│   ├── shared/         # Shared components
-│   ├── ui/             # Base UI components
+│   ├── ui/             # Base UI primitives
+│   ├── shared/         # Cross-feature components
 │   └── workout/        # Workout-specific components
-├── features/           # Feature modules (auth, workout, exercises, analytics, programs, settings)
-├── hooks/              # Custom hooks (usePersistedOrder)
-├── lib/
-│   └── supabase.ts     # Supabase client with SecureStore adapter
+├── hooks/              # Custom hooks
+├── lib/supabase.ts     # Supabase client with SecureStore adapter
 ├── store/              # Zustand state management
 ├── types/              # TypeScript definitions
 └── constants/          # Storage keys, config
 
-components/             # Root-level splash/landing components
-├── AnimatedLogo.tsx
-├── GlassButton.tsx
-├── GlassCard.tsx
-└── StainlessSteelPattern.tsx
+components/             # Root-level glass morphism components
+├── GlassButton.tsx     # Green gradient button (USE FOR ALL GREEN BUTTONS)
+├── GlassCard.tsx       # Glass effect card container
+└── StainlessSteelPattern.tsx  # Background pattern (USE ON ALL SCREENS)
 
-constants/              # Design system
-├── Colors.ts           # Dark theme color palette
-├── Sizes.ts            # Spacing, font sizes
+constants/              # Design system tokens
+├── Colors.ts           # Color palette
+├── Sizes.ts            # Spacing, border radius, font sizes
 └── Typography.ts       # Text styles
-
-ios/                    # Native iOS project (Expo prebuild)
-android/                # Native Android project (Expo prebuild)
 ```
 
-### Key Dependencies
+### Key Patterns
 
-- **expo-router**: File-based navigation
-- **zustand**: State management
-- **react-hook-form + zod**: Form handling and validation
-- **react-native-reanimated**: Animations
-- **react-native-gesture-handler**: Gestures and drag-drop
-- **react-native-draggable-flatlist**: Draggable lists
-- **@supabase/supabase-js**: Backend client
-- **expo-secure-store**: Secure token storage
-- **lucide-react-native**: Icons
+- **Offline-first state**: `workoutStore.ts` uses Zustand with AsyncStorage persistence
+- **Local ID generation**: Client-side UUID generation for offline-first operations
+- **Storage keys**: All AsyncStorage keys in `src/constants/storageKeys.ts`
+- **Event emitter**: `DeviceEventEmitter` for cross-component communication
 
 ### Backend (Supabase)
 
-Database schema in `supabase/schema.sql` includes:
-- **profiles**: User profiles extending Supabase Auth
-- **exercises**: Exercise library (default + custom)
-- **workout_programs**: Training programs with program_workouts and program_exercises
-- **workout_sessions**: User workout logs
-- **workout_sets**: Individual sets with weight, reps, RPE tracking
-- **subscriptions**: Stripe subscription tracking
+Schema in `supabase/schema.sql`: profiles, exercises, workout_programs, workout_sessions, workout_sets, subscriptions
 
-Views for analytics: `user_workout_stats`, `exercise_personal_records`, `weekly_workout_volume`, `muscle_group_frequency`
-
-### Offline-First Design
-
-Sessions and sets use `local_id` and `is_synced` fields for offline sync. The app generates UUIDs locally and syncs via upsert when online.
+Sessions and sets use `local_id` and `is_synced` fields for offline sync.
 
 ## Environment Setup
 
@@ -116,251 +104,111 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
 EXPO_PUBLIC_APP_ENV=development
 ```
 
-## Design System
-
-The app uses a dark theme extracted from Figma prototypes:
-- Background: `#0a0a0a`
-- Foreground: `#fafafa`
-- See `constants/Colors.ts` for full palette including semantic colors for RPE, muscle groups, and status
-
-Custom font: BankGothic (loaded in `app/_layout.tsx`)
-
-## Key Patterns
-
-- **Tab layout with FAB**: `app/(tabs)/_layout.tsx` includes a floating action button for exercises tab with action sheet
-- **Persisted order**: `usePersistedOrder` hook for saving drag-drop order to AsyncStorage
-- **Event emitter**: `DeviceEventEmitter` used for cross-component communication (e.g., modal visibility)
-- **Supabase client**: Uses platform-specific storage (SecureStore on native, AsyncStorage on web) in `src/lib/supabase.ts`
-- **Offline-first state**: `workoutStore.ts` uses Zustand with AsyncStorage persistence and `subscribeWithSelector` middleware
-- **Local ID generation**: Client-side UUID generation for offline-first operations before syncing to Supabase
-- **Storage keys**: All AsyncStorage keys centralized in `src/constants/storageKeys.ts`
-
-## State Management (Zustand)
-
-The app uses Zustand for centralized state management:
-
-- **workoutStore.ts**: Core workout state including active sessions, exercises, sets, and rest timer
-  - Persists to AsyncStorage on every state change
-  - Rehydrates on app launch (`loadActiveSession`)
-  - Uses `local_id` fields for offline-first sync
-  - Auto-starts rest timer when sets are completed
-  - Supports workout templates from programs
-
-## Native Features
-
-- **New Architecture**: Expo SDK 54 with React Native new architecture enabled (`newArchEnabled: true`)
-- **Haptics**: Uses `expo-haptics` for tactile feedback
-- **SecureStore**: Auth tokens stored securely on native, AsyncStorage fallback on web
-- **Animations**: `react-native-reanimated` for performant animations
-- **Edge-to-edge**: Android uses `edgeToEdgeEnabled` for modern UI
-
-## Testing & Building
-
-No test suite currently configured. To build native apps:
-
-```bash
-# Generate native projects (only needed after dependency changes)
-cd fortis-mobile-app
-npx expo prebuild
-
-# Clean rebuild (if needed)
-npx expo prebuild --clean
-```
-
-## UI/UX Consistency
+## Design System (MANDATORY)
 
 ### Pre-Implementation Checklist
-Before implementing ANY UI feature, verify:
-- [ ] Using `Colors.ts` constants (NO hardcoded hex/rgba values like `#22c55e`, `rgba(255,255,255,0.08)`)
-- [ ] Using `Spacing` from `Sizes.ts` (NO magic numbers like 8, 12, 16, 24)
-- [ ] Using `Typography.ts` style objects (spread entire object for font, size, weight)
-- [ ] Using `BorderRadius` from `Sizes.ts` (NO hardcoded 6, 8, 10, 16)
-- [ ] Background uses `#0a0a0a` with `<StainlessSteelPattern>` component
-- [ ] Is this pattern duplicated elsewhere? Should it be a component?
 
-### Design System Enforcement
+Before implementing ANY UI feature, verify:
+- [ ] Using `Colors.ts` constants (NO hardcoded hex/rgba)
+- [ ] Using `Spacing` from `Sizes.ts` (NO magic numbers)
+- [ ] Using `Typography.ts` style objects (spread entire object)
+- [ ] Using `BorderRadius` from `Sizes.ts`
+- [ ] Background uses `Colors.background` with `<StainlessSteelPattern>`
+- [ ] Checked `app/(tabs)/index.tsx` for similar patterns to reuse
+- [ ] Using `GlassButton`/`GlassCard` instead of custom implementations
+
+### Design Tokens
 
 **Colors** (`constants/Colors.ts`):
-- Background: `Colors.background` (#0a0a0a)
-- Text: `Colors.textPrimary`, `Colors.textSecondary`, `Colors.textTertiary`
-- Success/Error/Warning: `Colors.success`, `Colors.error`, `Colors.warning`
-- Semantic: `Colors.rpe.low/medium/high`, `Colors.muscle.chest/back/etc`
-- ❌ NEVER: `#22c55e`, `#ef4444`, `#fff`, `rgba(255,255,255,0.08)`
-- ✅ ALWAYS: Import and use `Colors` object
+```tsx
+// ✅ ALWAYS use
+Colors.background      // #0a0a0a
+Colors.textPrimary     // #fafafa
+Colors.textSecondary   // #a3a3a3
+Colors.success         // #22c55e (THE green - never use #10b981)
+Colors.error           // #dc2626
+Colors.warning         // #f59e0b
+
+// ❌ NEVER hardcode
+'#22c55e', '#ef4444', '#fff', 'rgba(255,255,255,0.08)'
+```
 
 **Spacing** (`constants/Sizes.ts`):
-- Scale: `Spacing.xs`, `Spacing.sm`, `Spacing.md`, `Spacing.lg`, `Spacing.xl`, `Spacing['2xl']`, etc.
-- ❌ NEVER: `padding: 16`, `margin: 24`, `gap: 12`
-- ✅ ALWAYS: `padding: Spacing.lg`, `margin: Spacing['2xl']`, `gap: Spacing.md`
+```tsx
+// ✅ ALWAYS use
+Spacing.xs (4), Spacing.sm (8), Spacing.md (12), Spacing.lg (16), Spacing.xl (20)
+Spacing['2xl'] (24), Spacing['3xl'] (32), Spacing['4xl'] (40), Spacing['5xl'] (48), Spacing['6xl'] (64)
 
-**Typography** (`constants/Typography.ts`):
-- Use: `...Typography.h1`, `...Typography.body`, `...Typography.label`
-- ❌ NEVER: `fontSize: 16`, `fontWeight: '600'`, individual style props
-- ✅ ALWAYS: Spread complete style object: `style={{ ...Typography.h2 }}`
+// ❌ NEVER hardcode
+padding: 16, margin: 24, gap: 12
+```
 
 **Border Radius** (`constants/Sizes.ts`):
-- Use: `BorderRadius.sm`, `BorderRadius.md`, `BorderRadius.lg`, `BorderRadius.xl`
-- ❌ NEVER: `borderRadius: 6`, `borderRadius: 16`
-- ✅ ALWAYS: `borderRadius: BorderRadius.lg`
-
-### Glass Morphism Pattern
-
-**When to use**: Cards, buttons, modals, overlays
-
-**How to implement**:
-1. **Prefer existing components**: Use `<GlassCard>` or `<GlassButton>` from `components/`
-2. **For custom glass effects**: Layer structure = base background → fog gradient (LinearGradient) → content
-3. **Reference**: See `components/GlassCard.tsx` for the multi-layer pattern
-
-**Example**:
 ```tsx
-// ✅ Good - Use existing component
-<GlassCard padding={Spacing.lg}>
-  <Text style={{ ...Typography.h3, color: Colors.textPrimary }}>Content</Text>
-</GlassCard>
-
-// ❌ Bad - Inline glass styling
-<View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 16 }}>
+// ✅ ALWAYS use
+BorderRadius.sm (6), BorderRadius.md (8), BorderRadius.lg (10), BorderRadius.xl (14)
 ```
 
-### Component Extraction Rules
-
-**When to extract** (create a reusable component):
-- Pattern appears **2+ times** across different screens
-- Complex styling (5+ style properties or uses LinearGradient)
-- Reusable interaction pattern (chip selection, toggle, badge)
-- Any repeated UI element (buttons, inputs, cards, chips)
-
-**Where to put components**:
-- `src/components/ui/`: Base UI primitives (Button, Input, Chip, Badge, Avatar)
-- `src/components/shared/`: Cross-feature components (EmptyState, LoadingSpinner, ErrorBoundary)
-- `src/components/[feature]/`: Feature-specific (workout/, exercises/, history/)
-
-**Extraction protocol**:
-1. Identify duplicate pattern while implementing
-2. **Proactively suggest**: "I noticed this chip/button/card pattern appears in [file1] and [file2]. Should I extract it to `src/components/ui/Chip.tsx` for consistency?"
-3. Wait for user approval before extracting
-4. If obvious duplication (3+ occurrences), suggest strongly
-
-**Component composition principles**:
-- Small, focused components (single responsibility)
-- Flexible props (style, onPress, children, variant)
-- Use design system tokens internally
-- Export from index.ts for clean imports
-
-### Proactive Suggestions Protocol
-
-**While implementing UI, actively check for**:
-1. **Hardcoded colors**: Scan code for hex/rgba → suggest Colors.ts replacement
-2. **Hardcoded spacing**: Scan for magic numbers → suggest Spacing constants
-3. **Duplicated styling**: Compare with existing screens → suggest component extraction
-4. **Missing glass effect**: If card/button/modal → suggest GlassCard/GlassButton
-5. **Background inconsistency**: If new screen → ensure StainlessSteelPattern is used
-
-**Suggestion phrasing examples**:
-- "I noticed you're using `#22c55e` - this should use `Colors.success` from the design system for consistency."
-- "This chip styling is similar to the chips in `app/(tabs)/_layout.tsx`. Should I extract a reusable `<Chip>` component to `src/components/ui/Chip.tsx`?"
-- "This card has custom glass styling. We have a `<GlassCard>` component that provides this effect. Should I use that instead?"
-
-**Balance**:
-- Auto-fix obvious issues: hardcoded colors → design system tokens
-- Suggest for architectural decisions: component extraction, new patterns
-- Ask user before creating new components or major refactors
-
-### Common Anti-Patterns
-
-**❌ Hardcoded colors**:
+**Typography** (`constants/Typography.ts`):
 ```tsx
-color: '#22c55e'
-backgroundColor: 'rgba(255,255,255,0.08)'
-borderColor: '#ef4444'
-```
-**✅ Design system**:
-```tsx
-color: Colors.success
-backgroundColor: Colors.card
-borderColor: Colors.error
+// ✅ Spread complete style object
+style={{ ...Typography.h2, color: Colors.textPrimary }}
+
+// Available variants: h1-h6, body, bodyLarge, bodySmall, label, labelSmall,
+// caption, button, buttonSmall, buttonLarge, number, numberLarge, mono, link
+
+// ❌ NEVER use individual props
+fontSize: 16, fontWeight: '600'
 ```
 
-**❌ Hardcoded spacing**:
-```tsx
-padding: 16
-margin: 24
-gap: 12
-```
-**✅ Design system**:
-```tsx
-padding: Spacing.lg
-margin: Spacing['2xl']
-gap: Spacing.md
-```
+### Component Patterns
 
-**❌ Inline typography**:
-```tsx
-fontSize: 16, fontWeight: '600', color: '#fff'
-```
-**✅ Design system**:
-```tsx
-{ ...Typography.body, color: Colors.textPrimary }
-```
-
-**❌ Duplicated chip component**:
-```tsx
-// In screen A
-<TouchableOpacity style={{ borderRadius: 999, paddingHorizontal: 14, ... }}>
-
-// In screen B
-<TouchableOpacity style={{ borderRadius: 999, paddingHorizontal: 14, ... }}>
-```
-**✅ Extracted component**:
-```tsx
-// src/components/ui/Chip.tsx created
-<Chip label="Primary Muscle" selected={isPrimary} onPress={...} />
-```
-
-**❌ Custom glass implementation**:
-```tsx
-<View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }}>
-  <LinearGradient colors={[...]} />
-  {children}
-</View>
-```
-**✅ Use existing component**:
-```tsx
-<GlassCard>{children}</GlassCard>
-```
-
-### Background Pattern Requirements
-
-**All screens MUST use**:
-1. Background color: `Colors.background` (#0a0a0a)
-2. Background component: `<StainlessSteelPattern>` with `StyleSheet.absoluteFillObject`
-3. Content layered on top with proper zIndex
-
-**Example screen structure**:
+**Screen Structure** (all screens):
 ```tsx
 <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
   <StainlessSteelPattern />
   <ScrollView contentContainerStyle={{ paddingHorizontal: Spacing['2xl'] }}>
-    {/* Screen content */}
+    {/* Content */}
   </ScrollView>
 </SafeAreaView>
 ```
 
-Claude Code Rules:
-1. First think through the problem, read the codebase for relevant files, and write a plan to tasks/todo.md.
-2. The plan should have a list of todo items that you can check off as you complete them
-3. Before you begin working, check in with me and I will verify the plan.
-4. Then, begin working on the todo items, marking them as complete as you go.
-5. Please every step of the way just give me a high level explanation of what changes you made
-6. Make every task and code change you do as simple as possible. We want to avoid making any massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity.
-7. Finally, add a review section to the todo.md file with a summary of the changes you made and any other relevant information.
-8. DO NOT BE LAZY. NEVER BE LAZY. IF THERE IS A BUG FIND THE ROOT CAUSE AND FIX IT. NO TEMPORARY FIXES. YOU ARE A SENIOR DEVELOPER. NEVER BE LAZY
-9. MAKE ALL FIXES AND CODE CHANGES AS SIMPLE AS HUMANLY POSSIBLE. THEY SHOULD ONLY IMPACT NECESSARY CODE RELEVANT TO THE TASK AND NOTHING ELSE. IT SHOULD IMPACT AS LITTLE CODE AS POSSIBLE. YOUR GOAL IS TO NOT INTRODUCE ANY BUGS. IT'S ALL ABOUT SIMPLICITY
-10. Before implementing ANY UI, run the UI/UX Consistency pre-implementation checklist
-11. Proactively scan for duplicated UI patterns and suggest component extraction (2+ occurrences)
-12. Auto-suggest design system usage when spotting hardcoded colors, spacing, or typography
+**Green Buttons** (use `GlassButton` - see `app/(tabs)/index.tsx` line ~853):
+```tsx
+<GlassButton style={{ height: ButtonHeights.md, borderRadius: BorderRadius.md }} onPress={handleAction}>
+  <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
+    <Icon color={Colors.white} size={IconSizes.md} />
+    <Text style={{ ...Typography.button, color: Colors.white }}>Button Text</Text>
+  </View>
+</GlassButton>
+```
 
+**Modals** (follow `DeleteConfirmationModal` pattern in `app/(tabs)/index.tsx`):
+- Use `StainlessSteelPattern` background
+- Pop-in/pop-out animations (spring for scale, timing for opacity)
+- Background color `Colors.secondary` or similar dark gray with `overflow: 'hidden'`
 
-CRITICAL: When debugging, you MUST trace through the ENTIRE code flow step by step. No assumptions. No shortcuts.
-- If I haven't gone into plan mode, and I give you a task that's not completely clear and simple, and you don't quite know which files to search or what to do, push back on me to clarify what exactly you need to do. Don't push back just for the sake of pushing back, but push back to verify what needs to be done so it can be implemented properly.
+### Component Extraction
+
+**When to extract** (create reusable component):
+- Pattern appears 2+ times across different screens
+- Complex styling (5+ style properties or uses LinearGradient)
+
+**Where to place**:
+- `src/components/ui/`: Base primitives (Button, Input, Chip)
+- `src/components/shared/`: Cross-feature (EmptyState, LoadingSpinner)
+- `src/components/[feature]/`: Feature-specific (workout/, exercises/)
+
+**Protocol**: Suggest extraction to user before creating new components.
+
+### Prototype Code Handling
+
+When user provides prototype code:
+1. **Preserve logic/behavior** from the prototype
+2. **Replace all styling** with current app patterns:
+   - Custom buttons → `GlassButton`
+   - Hardcoded colors → `Colors.ts`
+   - Hardcoded spacing → `Spacing` constants
+   - Custom modals → `DeleteConfirmationModal` pattern
+
+**Priority**: Current app design system > Prototype styling

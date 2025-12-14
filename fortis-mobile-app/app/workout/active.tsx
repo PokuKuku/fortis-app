@@ -10,20 +10,29 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Dumbbell, Plus } from 'lucide-react-native';
+import { Plus } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import { useWorkoutStore } from '@/store/workoutStore';
-import { useRestTimerTick } from '@/hooks/useRestTimerTick';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useRestTimerTick } from '@/src/hooks/useRestTimerTick';
 import { WorkoutHeader } from '@/src/components/workout/WorkoutHeader';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
+import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
+import { RestTimerControls } from '@/src/components/workout/modals/RestTimerControls';
+import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
+import { CancelWorkoutModal } from '@/src/components/workout/modals/CancelWorkoutModal';
+import { WorkoutCompleteModal } from '@/src/components/workout/modals/WorkoutCompleteModal';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
 
 export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const activeSession = useWorkoutStore(s => s.activeSession);
   const cancelWorkout = useWorkoutStore(s => s.cancelWorkout);
+  const finishWorkout = useWorkoutStore(s => s.finishWorkout);
+  const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
+  const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
 
   // Modal visibility states
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -59,13 +68,28 @@ export default function ActiveWorkoutScreen() {
     setShowFinishModal(true);
   };
 
+  // Handle timer settings save
+  const handleSaveTimerSettings = (normal: number, warmup: number, dropset: number) => {
+    updateRestTimerSettings({
+      normalSeconds: normal,
+      warmupSeconds: warmup,
+      dropsetSeconds: dropset,
+    });
+  };
+
+  // Handle confirm finish
+  const handleConfirmFinish = async () => {
+    await finishWorkout();
+    setShowFinishModal(false);
+    router.back();
+  };
+
   // Empty state
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Dumbbell size={64} color={Colors.textTertiary} strokeWidth={1.5} />
-      <Text style={styles.emptyTitle}>No Exercises Added</Text>
+      <Text style={styles.emptyTitle}>No exercises added yet</Text>
       <Text style={styles.emptyDescription}>
-        Tap the button below to add exercises to your workout
+        Tap the button below to get started
       </Text>
     </View>
   );
@@ -75,9 +99,33 @@ export default function ActiveWorkoutScreen() {
     <ExerciseCard exerciseLocalId={item.localId} />
   );
 
+  // Footer with action buttons
+  const renderFooter = () => (
+    <View style={styles.bottomActions}>
+      <Pressable
+        onPress={handleAddExercise}
+        style={({ pressed }) => [
+          styles.addButton,
+          pressed && styles.pressed
+        ]}
+      >
+        <Text style={styles.addButtonText}>+ Add Exercise</Text>
+      </Pressable>
+
+      <GlassButton style={styles.finishButton} onPress={handleFinishWorkout}>
+        <Text style={styles.finishButtonText}>Finish Workout</Text>
+      </GlassButton>
+    </View>
+  );
+
   return (
     <SafeAreaView edges={['top']} style={styles.container}>
       <StainlessSteelPattern />
+
+      {/* Drag Handle Indicator */}
+      <View style={styles.dragHandleContainer}>
+        <View style={styles.dragHandle} />
+      </View>
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -98,48 +146,47 @@ export default function ActiveWorkoutScreen() {
           keyExtractor={(item) => item.localId}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={renderEmptyState}
+          ListFooterComponent={renderFooter}
           showsVerticalScrollIndicator={false}
         />
-
-        {/* Bottom Actions */}
-        <View style={styles.bottomActions}>
-          <Pressable
-            onPress={handleAddExercise}
-            style={({ pressed }) => [
-              styles.addButton,
-              pressed && styles.pressed
-            ]}
-          >
-            <Plus size={20} color={Colors.background} strokeWidth={2.5} />
-            <Text style={styles.addButtonText}>Add Exercise</Text>
-          </Pressable>
-
-          {activeSession && activeSession.exercises.length > 0 && (
-            <Pressable
-              onPress={handleFinishWorkout}
-              style={({ pressed }) => [
-                styles.finishButton,
-                pressed && styles.pressed
-              ]}
-            >
-              <Text style={styles.finishButtonText}>Finish Workout</Text>
-            </Pressable>
-          )}
-        </View>
       </KeyboardAvoidingView>
 
-      {/* Modals (placeholders - will be implemented in later phases) */}
-      {showCancelModal && (
-        <View style={styles.modalPlaceholder}>
-          <Text style={styles.modalText}>Cancel Modal - Phase 6</Text>
-          <Pressable onPress={() => setShowCancelModal(false)}>
-            <Text style={styles.closeText}>Close</Text>
-          </Pressable>
-          <Pressable onPress={handleConfirmCancel}>
-            <Text style={styles.confirmText}>Confirm Cancel</Text>
-          </Pressable>
-        </View>
-      )}
+      {/* Add Exercise Modal */}
+      <AddExerciseModal
+        visible={showAddExerciseModal}
+        onClose={() => setShowAddExerciseModal(false)}
+      />
+
+      {/* Rest Timer Controls */}
+      <RestTimerControls
+        visible={showRestTimerControls}
+        onClose={() => setShowRestTimerControls(false)}
+      />
+
+      {/* Timer Settings Modal */}
+      <TimerSettingsModal
+        visible={showTimerSettingsModal}
+        onClose={() => setShowTimerSettingsModal(false)}
+        onSave={handleSaveTimerSettings}
+        initialNormalDuration={restTimerSettings.normalSeconds}
+        initialWarmupDuration={restTimerSettings.warmupSeconds}
+        initialDropDuration={restTimerSettings.dropsetSeconds}
+      />
+
+      {/* Cancel Workout Modal */}
+      <CancelWorkoutModal
+        visible={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+      />
+
+      {/* Workout Complete Modal */}
+      <WorkoutCompleteModal
+        visible={showFinishModal}
+        onClose={() => setShowFinishModal(false)}
+        onConfirm={handleConfirmFinish}
+        session={activeSession}
+      />
     </SafeAreaView>
   );
 }
@@ -152,10 +199,21 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  dragHandleContainer: {
+    alignItems: 'center',
+    paddingTop: Spacing.xs,
+    paddingBottom: 0,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
   listContent: {
     flexGrow: 1,
     paddingHorizontal: Spacing['2xl'],
-    paddingBottom: 120, // Space for bottom actions
+    paddingTop: Spacing.lg,
   },
   emptyState: {
     flex: 1,
@@ -163,11 +221,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.lg,
     paddingHorizontal: Spacing['2xl'],
+    paddingBottom: 100,
   },
   emptyTitle: {
     fontSize: FontSizes.xl,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: Colors.textSecondary,
   },
   emptyDescription: {
     fontSize: FontSizes.base,
@@ -176,73 +235,34 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   bottomActions: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing['2xl'],
     paddingTop: Spacing.lg,
-    paddingBottom: Spacing['2xl'],
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingBottom: 140,
     gap: Spacing.md,
   },
   addButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#22c55e',
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.lg,
-    gap: Spacing.sm,
+    backgroundColor: 'transparent',
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    paddingVertical: Spacing.sm,
   },
   addButtonText: {
     fontSize: FontSizes.base,
-    fontWeight: '700',
-    color: Colors.background,
+    fontWeight: '600',
+    color: Colors.success,
   },
   finishButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    paddingVertical: Spacing.lg,
+    height: 40,
+    borderRadius: 16,
   },
   finishButtonText: {
-    fontSize: FontSizes.base,
+    fontSize: 15,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: '#fff',
   },
   pressed: {
     opacity: 0.7,
-  },
-  // Modal placeholders (temporary)
-  modalPlaceholder: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -100 }, { translateY: -50 }],
-    width: 200,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    gap: Spacing.md,
-    alignItems: 'center',
-  },
-  modalText: {
-    color: Colors.textPrimary,
-    fontSize: FontSizes.sm,
-  },
-  closeText: {
-    color: Colors.textSecondary,
-    fontSize: FontSizes.sm,
-  },
-  confirmText: {
-    color: Colors.destructive,
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
   },
 });

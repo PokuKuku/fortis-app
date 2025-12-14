@@ -16,10 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Calendar, List, Dumbbell, Layout, User, Plus } from 'lucide-react-native';
 import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
-
 export default function TabLayout() {
   const pathname = usePathname();
   const isExercises = pathname?.includes('/exercises');
+  // Tab bar stays at fixed position
+  const tabBarBottom = 12;
   const [showActionSheet, setShowActionSheet] = useState(false);
   const sheetTranslate = useRef(new Animated.Value(1)).current; // 1 hidden, 0 visible
   const sheetOpacity = useRef(new Animated.Value(0)).current;
@@ -241,7 +242,7 @@ export default function TabLayout() {
           width: '90%',
           maxWidth: 420,
           marginHorizontal: '5%',
-          bottom: 12,
+          bottom: tabBarBottom,
           borderRadius: 28,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: 8 },
@@ -330,6 +331,8 @@ export default function TabLayout() {
       style={[
         styles.plusButtonContainer,
         {
+          // FAB aligned with mini bar height (88px from bottom)
+          bottom: tabBarBottom + 56 + 20,
           opacity: fabOpacity,
           transform: [
             {

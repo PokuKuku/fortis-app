@@ -1,11 +1,10 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Clock, X } from 'lucide-react-native';
+import { Clock, X, Calendar } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import { useElapsedTime, formatElapsedTime } from '@/hooks/useElapsedTime';
-import { formatRestTime } from '@/hooks/useRestTimerTick';
-import { useWorkoutStore, getRestTimerColor } from '@/store/workoutStore';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
+import { formatRestTime } from '@/src/hooks/useRestTimerTick';
+import { useWorkoutStore, getRestTimerColor, getRestTimerBackgroundColor } from '@/src/store/workoutStore';
 import * as Haptics from 'expo-haptics';
 
 interface WorkoutHeaderProps {
@@ -22,108 +21,116 @@ export function WorkoutHeader({
   const elapsed = useElapsedTime();
   const activeSession = useWorkoutStore(s => s.activeSession);
   const restTimer = useWorkoutStore(s => s.restTimer);
+  const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
 
   const today = new Date().toLocaleDateString('en-US', {
-    weekday: 'short',
     month: 'short',
     day: 'numeric',
+    year: 'numeric',
   });
+
+  // Display configured duration when idle, countdown when active
+  const displaySeconds = restTimer.isActive
+    ? restTimer.remainingSeconds
+    : restTimerSettings.normalSeconds;
 
   const restTimerColor = restTimer.isActive
     ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
-    : Colors.textSecondary;
+    : '#b9bec7';
+
+  const restTimerBgColor = restTimer.isActive
+    ? getRestTimerBackgroundColor(restTimer.remainingSeconds, restTimer.totalSeconds)
+    : 'rgba(156, 163, 175, 0.2)';
 
   const handleRestTimerPress = () => {
-    if (restTimer.isActive || restTimer.remainingSeconds > 0) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      onRestTimerPress();
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onRestTimerPress();
   };
+
+  // Get program and workout names
+  const programName = activeSession?.programName || null;
+  const workoutName = activeSession?.name || null;
 
   return (
     <View style={styles.container}>
-      {/* Top Row: Timer Settings | Date | Cancel */}
+      {/* Top Row: Clock Button and Cancel Button */}
       <View style={styles.topRow}>
-        {/* Timer Settings Button */}
+        {/* Timer Settings Button - Top Left */}
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onTimerSettingsPress();
           }}
           style={({ pressed }) => [
-            styles.iconButton,
+            styles.clockButton,
             pressed && styles.pressed
           ]}
         >
-          <Clock size={20} color={Colors.textSecondary} />
+          <Clock size={20} color="#b9bec7" strokeWidth={2.5} />
         </Pressable>
 
-        {/* Date */}
-        <Text style={styles.dateText}>{today}</Text>
-
-        {/* Cancel Button */}
+        {/* Cancel Button - Top Right */}
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onCancelPress();
           }}
           style={({ pressed }) => [
-            styles.iconButton,
+            styles.cancelButton,
             pressed && styles.pressed
           ]}
         >
-          <X size={20} color={Colors.textSecondary} />
+          <X size={20} color={Colors.error} strokeWidth={2.5} />
         </Pressable>
       </View>
 
-      {/* Workout Name */}
-      {activeSession && (
-        <View style={styles.nameContainer}>
-          <Text style={styles.workoutName} numberOfLines={1}>
-            {activeSession.name}
-          </Text>
-        </View>
-      )}
+      {/* Content Row: Left (timers/date) and Right (names) */}
+      <View style={styles.contentRow}>
+        {/* Left Column */}
+        <View style={styles.leftColumn}>
+          {/* Timers Row */}
+          <View style={styles.timersRow}>
+            {/* Elapsed Time */}
+            <Text style={[
+              styles.elapsedTime,
+              elapsed >= 3600 && styles.elapsedTimeSmall
+            ]}>
+              {formatElapsedTime(elapsed)}
+            </Text>
 
-      {/* Bottom Row: Elapsed Time | Rest Timer */}
-      <View style={styles.bottomRow}>
-        {/* Elapsed Time */}
-        <View style={styles.timerBadge}>
-          <Text style={styles.timerLabel}>Elapsed</Text>
-          <Text style={styles.timerValue}>{formatElapsedTime(elapsed)}</Text>
+            {/* Separator */}
+            <Text style={styles.separator}>|</Text>
+
+            {/* Rest Timer Button */}
+            <Pressable
+              onPress={handleRestTimerPress}
+              style={[
+                styles.restTimerButton,
+                { backgroundColor: restTimerBgColor }
+              ]}
+            >
+              <Text style={[styles.restTimerText, { color: restTimerColor }]}>
+                {formatRestTime(displaySeconds)}
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Date Row */}
+          <View style={styles.dateRow}>
+            <Calendar size={16} color="#b9bec7" strokeWidth={2} />
+            <Text style={styles.dateText}>{today}</Text>
+          </View>
         </View>
 
-        {/* Rest Timer (Clickable) */}
-        <Pressable
-          onPress={handleRestTimerPress}
-          disabled={!restTimer.isActive && restTimer.remainingSeconds === 0}
-          style={({ pressed }) => [
-            styles.restTimerBadge,
-            (restTimer.isActive || restTimer.remainingSeconds > 0) && styles.restTimerActive,
-            pressed && styles.pressed
-          ]}
-        >
-          <LinearGradient
-            colors={
-              restTimer.isActive
-                ? [restTimerColor, restTimerColor]
-                : ['rgba(255, 255, 255, 0.05)', 'rgba(255, 255, 255, 0.05)']
-            }
-            style={StyleSheet.absoluteFillObject}
-          />
-          <Text style={[
-            styles.timerLabel,
-            restTimer.isActive && styles.restTimerActiveText
-          ]}>
-            Rest
-          </Text>
-          <Text style={[
-            styles.timerValue,
-            restTimer.isActive && styles.restTimerActiveText
-          ]}>
-            {formatRestTime(restTimer.remainingSeconds)}
-          </Text>
-        </Pressable>
+        {/* Right Column - Program/Workout Names */}
+        <View style={styles.rightColumn}>
+          {programName && (
+            <Text style={styles.programName}>{programName}</Text>
+          )}
+          {workoutName && (
+            <Text style={styles.workoutName}>{workoutName}</Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -132,9 +139,9 @@ export function WorkoutHeader({
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing['2xl'],
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
-    backgroundColor: Colors.background,
+    paddingTop: 0,
+    paddingBottom: Spacing.sm,
+    backgroundColor: 'transparent',
     gap: Spacing.md,
   },
   topRow: {
@@ -142,74 +149,82 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
+  clockButton: {
+    backgroundColor: 'rgba(185, 190, 199, 0.2)',
+    padding: 8,
+    borderRadius: BorderRadius.lg,
+  },
+  cancelButton: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    padding: 8,
+    borderRadius: BorderRadius.lg,
   },
   pressed: {
     opacity: 0.6,
   },
-  dateText: {
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  nameContainer: {
-    alignItems: 'center',
-  },
-  workoutName: {
-    fontSize: FontSizes['2xl'],
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  bottomRow: {
+  contentRow: {
     flexDirection: 'row',
-    gap: Spacing.md,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
-  timerBadge: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    alignItems: 'center',
+  leftColumn: {
     gap: 4,
   },
-  restTimerBadge: {
-    flex: 1,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
+  timersRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    overflow: 'hidden',
   },
-  restTimerActive: {
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  timerLabel: {
-    fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
+  elapsedTime: {
+    fontSize: 16,
     fontWeight: '500',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  timerValue: {
-    fontSize: FontSizes.lg,
     color: Colors.textPrimary,
+    fontVariant: ['tabular-nums'],
+    minWidth: 45,
+  },
+  elapsedTimeSmall: {
+    fontSize: 14,
+  },
+  separator: {
+    color: '#4a4a4a',
+    marginLeft: -2,
+    paddingHorizontal: 6,
+    fontSize: 16,
+  },
+  restTimerButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.md,
+  },
+  restTimerText: {
+    fontSize: 16,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    minWidth: 40,
   },
-  restTimerActiveText: {
-    color: Colors.background, // Dark text on colored background
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  dateText: {
+    fontSize: 12,
+    color: '#b9bec7',
+  },
+  rightColumn: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  programName: {
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'right',
+    color: Colors.success,
+  },
+  workoutName: {
+    fontSize: 17,
+    fontWeight: '700',
+    textAlign: 'right',
+    color: Colors.success,
   },
 });

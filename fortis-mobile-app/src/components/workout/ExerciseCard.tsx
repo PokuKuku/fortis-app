@@ -2,8 +2,8 @@ import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import { useWorkoutStore } from '@/store/workoutStore';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { SetRow } from './SetRow';
 import * as Haptics from 'expo-haptics';
 
 interface ExerciseCardProps {
@@ -32,12 +32,6 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
 
   return (
     <View style={styles.container}>
-      {/* Glass morphism gradient background */}
-      <LinearGradient
-        colors={['#454545', '#303030']}
-        style={StyleSheet.absoluteFillObject}
-      />
-
       <View style={styles.content}>
         {/* Exercise Header */}
         <View style={styles.header}>
@@ -74,13 +68,15 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
             <View style={styles.checkCol} />
           </View>
 
-          {/* Set Rows - Phase 3 will implement full SetRow component */}
+          {/* Set Rows */}
           {exercise.sets.map((set, index) => (
-            <View key={set.localId} style={styles.setRowPlaceholder}>
-              <Text style={styles.placeholderText}>
-                Set {index + 1} • Phase 3 will implement full SetRow component
-              </Text>
-            </View>
+            <SetRow
+              key={set.localId}
+              exerciseLocalId={exerciseLocalId}
+              setLocalId={set.localId}
+              setIndex={index}
+              previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
+            />
           ))}
         </View>
 
@@ -101,11 +97,12 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.lg,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -170,16 +167,6 @@ const styles = StyleSheet.create({
   },
   checkCol: {
     flex: 1,
-  },
-  setRowPlaceholder: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-  },
-  placeholderText: {
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-    textAlign: 'center',
   },
   addSetButton: {
     backgroundColor: 'rgba(34, 197, 94, 0.2)',

@@ -37,6 +37,8 @@ interface WorkoutState {
 
   // Timers
   workoutStartTime: number | null;
+  isWorkoutTimerPaused: boolean;
+  pausedElapsedSeconds: number;
   restTimer: RestTimerState;
   restTimerSettings: RestTimerSettings;
 
@@ -49,6 +51,9 @@ interface WorkoutState {
   cancelWorkout: () => void;
   updateWorkoutName: (name: string) => void;
   updateWorkoutNotes: (notes: string) => void;
+  pauseWorkoutTimer: () => void;
+  resumeWorkoutTimer: () => void;
+  toggleWorkoutTimer: () => void;
 
   // Actions - Exercises
   addExercise: (exerciseId: string, exerciseName: string) => void;
@@ -93,6 +98,8 @@ export const useWorkoutStore = create<WorkoutState>()(
     activeSession: null,
     isWorkoutActive: false,
     workoutStartTime: null,
+    isWorkoutTimerPaused: false,
+    pausedElapsedSeconds: 0,
     restTimer: {
       isActive: false,
       remainingSeconds: 0,
@@ -107,9 +114,21 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     startWorkout: (name, programWorkoutId) => {
+      // Prevent multiple sessions
+      if (get().isWorkoutActive) return;
+
       const session: WorkoutSession = {
         localId: generateId(),
-        name: name || `Workout ${new Date().toLocaleDateString()}`,
+        name: name || (() => {
+          const date = new Date();
+          const month = date.toLocaleDateString('en-US', { month: 'long' });
+          const day = date.getDate();
+          const suffix = day === 1 || day === 21 || day === 31 ? 'st'
+            : day === 2 || day === 22 ? 'nd'
+            : day === 3 || day === 23 ? 'rd'
+            : 'th';
+          return `${month} ${day}${suffix}`;
+        })(),
         notes: '',
         startedAt: new Date(),
         completedAt: null,
@@ -122,6 +141,8 @@ export const useWorkoutStore = create<WorkoutState>()(
         activeSession: session,
         isWorkoutActive: true,
         workoutStartTime: Date.now(),
+        isWorkoutTimerPaused: false,
+        pausedElapsedSeconds: 0,
         restTimer: {
           isActive: false,
           remainingSeconds: 0,
@@ -147,6 +168,8 @@ export const useWorkoutStore = create<WorkoutState>()(
         activeSession: null,
         isWorkoutActive: false,
         workoutStartTime: null,
+        isWorkoutTimerPaused: false,
+        pausedElapsedSeconds: 0,
         restTimer: {
           isActive: false,
           remainingSeconds: 0,
@@ -165,6 +188,8 @@ export const useWorkoutStore = create<WorkoutState>()(
         activeSession: null,
         isWorkoutActive: false,
         workoutStartTime: null,
+        isWorkoutTimerPaused: false,
+        pausedElapsedSeconds: 0,
         restTimer: {
           isActive: false,
           remainingSeconds: 0,
@@ -193,6 +218,39 @@ export const useWorkoutStore = create<WorkoutState>()(
         activeSession: { ...activeSession, notes },
       });
       get().persistSession();
+    },
+
+    pauseWorkoutTimer: () => {
+      const { workoutStartTime, isWorkoutTimerPaused, pausedElapsedSeconds } = get();
+      if (!workoutStartTime || isWorkoutTimerPaused) return;
+
+      // Calculate elapsed time and store it
+      const currentElapsed = Math.floor((Date.now() - workoutStartTime) / 1000) + pausedElapsedSeconds;
+      set({
+        isWorkoutTimerPaused: true,
+        pausedElapsedSeconds: currentElapsed,
+        workoutStartTime: null,
+      });
+    },
+
+    resumeWorkoutTimer: () => {
+      const { isWorkoutTimerPaused } = get();
+      if (!isWorkoutTimerPaused) return;
+
+      // Reset start time to now (elapsed is preserved in pausedElapsedSeconds)
+      set({
+        isWorkoutTimerPaused: false,
+        workoutStartTime: Date.now(),
+      });
+    },
+
+    toggleWorkoutTimer: () => {
+      const { isWorkoutTimerPaused } = get();
+      if (isWorkoutTimerPaused) {
+        get().resumeWorkoutTimer();
+      } else {
+        get().pauseWorkoutTimer();
+      }
     },
 
     // ========================================
@@ -694,7 +752,7 @@ export const getRestTimerColor = (
 ): string => {
   if (totalSeconds === 0) return '#b9bec7'; // Gray when inactive
 
-  const percent = remainingSeconds / totalSeconds;
+  const percent = Math.min(1, remainingSeconds / totalSeconds); // Cap at 100% for added time
 
   if (percent > 0.5) {
     // Green to Yellow (100% to 50%)
@@ -710,5 +768,34 @@ export const getRestTimerColor = (
     const g = Math.round(179 + (68 - 179) * t);
     const b = Math.round(8 + (68 - 8) * t);
     return `rgb(${r}, ${g}, ${b})`;
+  }
+};
+
+/**
+ * Get rest timer background color (20% opacity version)
+ * Same interpolation as getRestTimerColor but with opacity
+ */
+export const getRestTimerBackgroundColor = (
+  remainingSeconds: number,
+  totalSeconds: number
+): string => {
+  if (totalSeconds === 0) return 'rgba(156, 163, 175, 0.2)'; // Gray when inactive
+
+  const percent = Math.min(1, remainingSeconds / totalSeconds); // Cap at 100% for added time
+
+  if (percent > 0.5) {
+    // Green to Yellow (100% to 50%)
+    const t = (1 - percent) * 2;
+    const r = Math.round(0 + (234 - 0) * t);
+    const g = Math.round(188 + (179 - 188) * t);
+    const b = Math.round(91 + (8 - 91) * t);
+    return `rgba(${r}, ${g}, ${b}, 0.2)`;
+  } else {
+    // Yellow to Red (50% to 0%)
+    const t = (0.5 - percent) * 2;
+    const r = Math.round(234 + (239 - 234) * t);
+    const g = Math.round(179 + (68 - 179) * t);
+    const b = Math.round(8 + (68 - 8) * t);
+    return `rgba(${r}, ${g}, ${b}, 0.2)`;
   }
 };

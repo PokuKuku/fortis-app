@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useWorkoutStore } from '@/store/workoutStore';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import * as Haptics from 'expo-haptics';
 
 /**
@@ -40,5 +40,5 @@ export function useRestTimerTick() {
 export function formatRestTime(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const secs = seconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return `${minutes}:${String(secs).padStart(2, '0')}`;
 }
