@@ -43,7 +43,7 @@ export function ExerciseCard({
     kebabRef.current?.measure((_x, _y, width, height, pageX, pageY) => {
       setKebabPosition({
         top: pageY + height + 4,
-        left: pageX - 130, // Position popover to the left of the button
+        left: pageX + width - 170, // Align popover's right edge with button's right edge
       });
       setShowKebab(true);
     });

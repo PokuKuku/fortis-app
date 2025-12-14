@@ -139,7 +139,8 @@ export function TimerSettingsModal({
     setTimeout(onClose, 300);
   };
 
-  const handleMinutesScroll = (event: any) => {
+  // Only update state when scroll has fully settled to prevent race conditions
+  const handleMinutesScrollEnd = (event: any) => {
     const y = event.nativeEvent.contentOffset.y;
     const index = Math.round(y / ITEM_HEIGHT);
     const clampedIndex = Math.max(0, Math.min(MINUTES.length - 1, index));
@@ -151,7 +152,7 @@ export function TimerSettingsModal({
     }
   };
 
-  const handleSecondsScroll = (event: any) => {
+  const handleSecondsScrollEnd = (event: any) => {
     const y = event.nativeEvent.contentOffset.y;
     const index = Math.round(y / ITEM_HEIGHT);
     const clampedIndex = Math.max(0, Math.min(SECONDS.length - 1, index));
@@ -245,9 +246,8 @@ export function TimerSettingsModal({
                     decelerationRate="fast"
                     scrollEventThrottle={16}
                     bounces={false}
-                    onScroll={handleMinutesScroll}
-                    onScrollEndDrag={handleMinutesScroll}
-                    onMomentumScrollEnd={handleMinutesScroll}
+                    onScrollEndDrag={handleMinutesScrollEnd}
+                    onMomentumScrollEnd={handleMinutesScrollEnd}
                     style={styles.picker}
                     contentContainerStyle={styles.pickerContent}
                   >
@@ -285,9 +285,8 @@ export function TimerSettingsModal({
                     decelerationRate="fast"
                     scrollEventThrottle={16}
                     bounces={false}
-                    onScroll={handleSecondsScroll}
-                    onScrollEndDrag={handleSecondsScroll}
-                    onMomentumScrollEnd={handleSecondsScroll}
+                    onScrollEndDrag={handleSecondsScrollEnd}
+                    onMomentumScrollEnd={handleSecondsScrollEnd}
                     style={styles.picker}
                     contentContainerStyle={styles.pickerContent}
                   >

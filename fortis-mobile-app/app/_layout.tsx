@@ -33,6 +33,14 @@ export default function RootLayout() {
               gestureDirection: 'vertical',
             }}
           />
+          <Stack.Screen
+            name="exercise/[id]"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
         </Stack>
         <WorkoutMiniBar />
     </GestureHandlerRootView>

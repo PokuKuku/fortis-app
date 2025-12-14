@@ -24,6 +24,8 @@ import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSetting
 import { CancelWorkoutModal } from '@/src/components/workout/modals/CancelWorkoutModal';
 import { WorkoutCompleteModal } from '@/src/components/workout/modals/WorkoutCompleteModal';
 import { FinishConfirmationModal } from '@/src/components/workout/modals/FinishConfirmationModal';
+import { ReplaceExerciseConfirmModal } from '@/src/components/workout/modals/ReplaceExerciseConfirmModal';
+import { RestTimerCompleteModal } from '@/src/components/workout/modals/RestTimerCompleteModal';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
@@ -41,6 +43,8 @@ export default function ActiveWorkoutScreen() {
   const openNumberPad = useWorkoutStore(s => s.openNumberPad);
   const completeSet = useWorkoutStore(s => s.completeSet);
   const setNumberPadError = useWorkoutStore(s => s.setNumberPadError);
+  const showRestTimerComplete = useWorkoutStore(s => s.showRestTimerComplete);
+  const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
 
   // Modal visibility states
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -52,6 +56,8 @@ export default function ActiveWorkoutScreen() {
 
   // Replace exercise state
   const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
+  const [showReplaceConfirmModal, setShowReplaceConfirmModal] = useState(false);
+  const [pendingReplaceExerciseLocalId, setPendingReplaceExerciseLocalId] = useState<string | null>(null);
 
   // Initialize rest timer tick
   useRestTimerTick();
@@ -76,8 +82,32 @@ export default function ActiveWorkoutScreen() {
 
   // Handle replace exercise (opens AddExerciseModal in replace mode)
   const handleReplaceExercise = (exerciseLocalId: string) => {
-    setReplaceExerciseLocalId(exerciseLocalId);
-    setShowAddExerciseModal(true);
+    // Check if exercise has any completed sets
+    const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+    const hasCompletedSets = exercise?.sets.some(set => set.isCompleted) ?? false;
+
+    if (hasCompletedSets) {
+      // Show confirmation modal first
+      setPendingReplaceExerciseLocalId(exerciseLocalId);
+      setShowReplaceConfirmModal(true);
+    } else {
+      // No completed sets, proceed directly
+      setReplaceExerciseLocalId(exerciseLocalId);
+      setShowAddExerciseModal(true);
+    }
+  };
+
+  // Handle confirmed replace (after user confirms in modal)
+  const handleConfirmReplace = () => {
+    setShowReplaceConfirmModal(false);
+    if (pendingReplaceExerciseLocalId) {
+      setReplaceExerciseLocalId(pendingReplaceExerciseLocalId);
+      setPendingReplaceExerciseLocalId(null);
+      // Small delay to allow confirmation modal to close
+      setTimeout(() => {
+        setShowAddExerciseModal(true);
+      }, 150);
+    }
   };
 
   // Handle view exercise details
@@ -284,6 +314,16 @@ export default function ActiveWorkoutScreen() {
         onConfirm={handleConfirmFinishStep}
       />
 
+      {/* Replace Exercise Confirmation Modal */}
+      <ReplaceExerciseConfirmModal
+        visible={showReplaceConfirmModal}
+        onClose={() => {
+          setShowReplaceConfirmModal(false);
+          setPendingReplaceExerciseLocalId(null);
+        }}
+        onConfirm={handleConfirmReplace}
+      />
+
       {/* Workout Complete Modal */}
       <WorkoutCompleteModal
         visible={showFinishModal}
@@ -298,6 +338,12 @@ export default function ActiveWorkoutScreen() {
         onClose={closeNumberPad}
         onConfirm={handleNumberPadConfirm}
         inputType={activeNumberPad?.inputType ?? 'weight'}
+      />
+
+      {/* Rest Timer Complete Modal */}
+      <RestTimerCompleteModal
+        visible={showRestTimerComplete}
+        onDismiss={dismissRestTimerComplete}
       />
     </SafeAreaView>
   );

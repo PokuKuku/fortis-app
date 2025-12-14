@@ -32,9 +32,10 @@ export function WorkoutMiniBar() {
   // Check if on splash screen (not inside tabs group) or on active workout screen
   const isOnSplashScreen = segments.length === 0 || (segments[0] !== '(tabs)' && pathname === '/');
   const isOnWorkoutScreen = pathname === '/workout/active';
+  const isOnExerciseDetailsScreen = pathname.startsWith('/exercise/');
 
-  // Hide if no workout active, on splash screen, or already on workout screen
-  if (!isWorkoutActive || isOnSplashScreen || isOnWorkoutScreen) {
+  // Hide if no workout active, on splash screen, on workout screen, or on exercise details
+  if (!isWorkoutActive || isOnSplashScreen || isOnWorkoutScreen || isOnExerciseDetailsScreen) {
     return null;
   }
 

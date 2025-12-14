@@ -47,6 +47,7 @@ interface WorkoutState {
 
   // UI state
   isLoading: boolean;
+  showRestTimerComplete: boolean;
 
   // Number pad state
   activeNumberPad: {
@@ -98,6 +99,7 @@ interface WorkoutState {
   adjustRestTimer: (adjustment: number) => void;
   tickRestTimer: () => void;
   updateRestTimerSettings: (settings: Partial<RestTimerSettings>) => void;
+  dismissRestTimerComplete: () => void;
 
   // Actions - Persistence
   loadActiveSession: () => Promise<void>;
@@ -127,6 +129,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
     restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
     isLoading: false,
+    showRestTimerComplete: false,
     activeNumberPad: null,
 
     // ========================================
@@ -649,13 +652,16 @@ export const useWorkoutStore = create<WorkoutState>()(
       if (!restTimer.isActive || restTimer.remainingSeconds <= 0) return;
 
       const newRemaining = restTimer.remainingSeconds - 1;
+      const timerComplete = newRemaining <= 0;
 
       set({
         restTimer: {
           ...restTimer,
           remainingSeconds: newRemaining,
-          isActive: newRemaining > 0,
+          isActive: !timerComplete,
         },
+        // Show the "Time's Up" modal when timer completes
+        ...(timerComplete && { showRestTimerComplete: true }),
       });
     },
 
@@ -673,6 +679,10 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to save rest timer settings:', error);
       }
+    },
+
+    dismissRestTimerComplete: () => {
+      set({ showRestTimerComplete: false });
     },
 
     // ========================================

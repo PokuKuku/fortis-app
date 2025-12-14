@@ -1,7 +1,7 @@
 # Fortis App - Development Session Summary
 
-**Date**: December 2024
-**Focus**: Workout Logger UI Overhaul & Rest Timer Enhancements
+**Date**: December 14, 2024
+**Focus**: Exercise Management, Modals & Animation Polish
 
 ---
 
@@ -16,96 +16,98 @@
 
 ## Current Session Accomplishments
 
-### 1. Workout Logger Layout Overhaul (Matched Figma Prototype)
+### 1. Exercise Kebab Menu & Management
+
+**Files Created/Modified**:
+- `src/components/workout/ExerciseKebabPopover.tsx` - New popover component
+- `src/components/workout/ExerciseCard.tsx` - Added kebab menu integration
+- `app/exercise/[id].tsx` - Exercise details screen
+
+**Features**:
+- Kebab menu on each exercise card with options: View Details, Replace Exercise, Delete
+- Delete option styled in red (`Colors.error`)
+- Popover wrapped in Modal for correct screen-level positioning
+- Exercise details screen with slide-from-right animation
+
+### 2. New Confirmation Modals
+
+**Files Created**:
+- `src/components/workout/modals/ReplaceExerciseConfirmModal.tsx`
+- `src/components/workout/modals/RestTimerCompleteModal.tsx`
+
+**ReplaceExerciseConfirmModal**:
+- Shows when replacing an exercise that has logged (completed) sets
+- Warns user that logged sets will be lost
+- Cancel and Replace buttons (Replace in red)
+
+**RestTimerCompleteModal**:
+- "Time's Up!" modal when rest timer completes
+- Clock icon, encouraging subtitle, "Let's Go" button
+- Haptic feedback on appearance (`NotificationFeedbackType.Success`)
+
+### 3. Animation Polish
 
 **Files Modified**:
-- `src/components/workout/WorkoutHeader.tsx` - Complete restructure
-- `app/workout/active.tsx` - Layout and styling updates
-
-**Header Restructure**:
-- Two-column layout: timers/date on left, program/workout names on right
-- Compact inline timers (elapsed time | rest timer)
-- Program and workout names in green (`Colors.success`)
-- Clock button (top-left) and X button (top-right) with subtle backgrounds
-- Transparent background (blends with main content)
-- Calendar icon with date display
-
-**Empty State**:
-- Removed dumbbell icon for cleaner look
-- Text: "No exercises added yet" / "Tap the button below to get started"
-- Positioned higher on screen (`paddingBottom: 100`)
-
-**Bottom Buttons**:
-- "+ Add Exercise": Transparent with green border (`rgba(34, 197, 94, 0.3)`)
-- "Finish Workout": GlassButton with green gradient
-- Both with `borderRadius: 16`
-- Positioned higher (`paddingBottom: 140`)
-- Removed solid background/border for seamless look
-
-**Drag Handle**:
-- Added horizontal pill indicator at top of screen
-- Signals to user that screen can be swiped down
-- Subtle styling: 36×4px, `rgba(255, 255, 255, 0.3)`
-
-### 2. Rest Timer System Enhancements
-
-**Files Modified**:
-- `src/components/workout/modals/RestTimerControls.tsx`
-- `src/components/workout/WorkoutHeader.tsx`
-- `src/store/workoutStore.ts`
-- `src/hooks/useElapsedTime.ts`
-- `src/hooks/useRestTimerTick.ts`
-
-**Display Logic**:
-- Shows configured duration when idle (e.g., "2:00") instead of "0:00"
-- Header and control panel always show same time (synced)
-- Dynamic font size: 28px default, 22px for 10+ minutes
-
-**Color Gradient**:
-- Green → Yellow → Red as timer counts down
-- Percentage capped at 100% (stays green when time added beyond original)
-- Gray when idle (`#b9bec7`)
-
-**Control Panel**:
-- Slimmer design (`paddingVertical: Spacing.sm`)
-- Smooth slide animation (400ms enter, 300ms exit, no spring)
-- +/- buttons: 10 second increments (was 15)
-- +/- work when idle (adjusts default settings) AND when active (adjusts countdown)
-
-**Play Button Fix**:
-- Fixed bug where pressing play caused timer to go to zero
-- Now starts fresh timer when `remainingSeconds` is 0
-
-### 3. Timer Format Updates
-
-**Files Modified**:
-- `src/hooks/useElapsedTime.ts`
-- `src/hooks/useRestTimerTick.ts`
+- `src/components/workout/modals/RestTimerCompleteModal.tsx`
+- `src/components/workout/modals/AddExerciseModal.tsx`
+- `app/_layout.tsx`
 
 **Changes**:
-- Removed leading zero on minutes: `0:14` instead of `00:14`
-- 4 digits only when needed (10+ minutes): `10:00`, `12:45`
-- Cleaner, more concise display
+- RestTimerCompleteModal: Timing-based animations (not spring)
+  - Backdrop: `FadeIn.duration(250)` / `FadeOut.duration(200)` with cubic easing
+  - Content: `ZoomIn.duration(300)` / `ZoomOut.duration(200)` with cubic easing
+- AddExerciseModal: Symmetrical enter/exit animations
+  - Both: `duration(350).easing(Easing.out/in(Easing.cubic))`
+- Exercise details screen: `slide_from_right` animation with swipe-back gesture
 
-### 4. Blank Workout Title Format
+### 4. Bug Fixes
+
+**Rest Timer Dial Glitch** (`TimerSettingsModal.tsx`):
+- Fixed race condition where setting 5s would jump to 2m 5s
+- Removed `onScroll` handler (was causing rapid state updates during momentum)
+- Now only updates state on `onScrollEndDrag` and `onMomentumScrollEnd`
+
+**Duplicate Exercise Prevention** (`AddExerciseModal.tsx`):
+- Exercises already in workout are now filtered out in both add and replace mode
+- Exception: In replace mode, the exercise being replaced is still shown
+
+**WorkoutMiniBar Visibility** (`WorkoutMiniBar.tsx`):
+- Mini bar now hides on exercise details screen (`/exercise/*` routes)
+
+**AddExerciseModal Title**:
+- Changed from "Add Exercise" to "Exercises" (shows "Replace Exercise" in replace mode)
+
+### 5. Store Updates
 
 **File**: `src/store/workoutStore.ts`
 
-**Change**: Full month name with ordinal suffix
-- Before: "Dec 13"
-- After: "December 13th"
-- Includes proper ordinals: 1st, 2nd, 3rd, 4th, etc.
-
-### 5. Bug Fixes
-
-**Prevented Multiple Workout Sessions**:
-- Store-level guard in `startWorkout`: Returns early if `isWorkoutActive`
-- UI-level guard in `handleStartBlankWorkout`: Checks before calling `startWorkout`
-- Double-clicking now navigates to existing workout instead of creating duplicates
+**New State/Actions**:
+- `showRestTimerComplete: boolean` - Controls timer complete modal visibility
+- `dismissRestTimerComplete()` - Dismisses the modal
+- `tickRestTimer()` - Now sets `showRestTimerComplete: true` when timer hits 0
 
 ---
 
 ## Previous Session Accomplishments
+
+### Workout Logger Layout Overhaul
+- Two-column header: timers/date on left, program/workout names on right
+- Transparent background, drag handle indicator
+- Bottom buttons: "+ Add Exercise" (bordered) and "Finish Workout" (GlassButton)
+
+### Rest Timer System
+- Color gradient: Green → Yellow → Red as timer counts down
+- Shows configured duration when idle
+- +/- buttons adjust by 10 seconds
+- Control panel with smooth slide animation
+
+### Timer Format
+- No leading zero: `0:14` instead of `00:14`
+- Blank workout title: "December 13th" format
+
+---
+
+## Earlier Session Accomplishments
 
 ### Workout Mini Bar (Spotify-style)
 - Persistent bottom bar when navigating away from active workout
@@ -138,7 +140,9 @@ fortis-mobile-app/
 │   ├── (tabs)/
 │   │   ├── _layout.tsx           # Tab bar + FAB + WorkoutMiniBar mount
 │   │   └── index.tsx             # Main page (reference for patterns)
-│   ├── _layout.tsx               # Root layout with slide animation
+│   ├── _layout.tsx               # Root layout with slide animations
+│   ├── exercise/
+│   │   └── [id].tsx              # Exercise details screen
 │   └── workout/
 │       └── active.tsx            # Active workout screen
 ├── src/
@@ -147,12 +151,15 @@ fortis-mobile-app/
 │   │       ├── WorkoutHeader.tsx       # Header with timers and names
 │   │       ├── WorkoutMiniBar.tsx      # Persistent mini player
 │   │       ├── ExerciseCard.tsx        # Exercise display component
+│   │       ├── ExerciseKebabPopover.tsx  # Exercise options popover
 │   │       └── modals/
-│   │           ├── RestTimerControls.tsx    # Floating timer control panel
-│   │           ├── TimerSettingsModal.tsx   # Timer duration settings
-│   │           ├── WorkoutCompleteModal.tsx # Completion with confetti
-│   │           ├── CancelWorkoutModal.tsx   # Cancel confirmation
-│   │           └── AddExerciseModal.tsx     # Add exercise (next to implement)
+│   │           ├── RestTimerControls.tsx        # Floating timer control panel
+│   │           ├── TimerSettingsModal.tsx       # Timer duration settings
+│   │           ├── WorkoutCompleteModal.tsx     # Completion with confetti
+│   │           ├── CancelWorkoutModal.tsx       # Cancel confirmation
+│   │           ├── AddExerciseModal.tsx         # Add/replace exercise
+│   │           ├── ReplaceExerciseConfirmModal.tsx  # Replace confirmation
+│   │           └── RestTimerCompleteModal.tsx   # Timer complete notification
 │   ├── hooks/
 │   │   ├── useElapsedTime.ts     # Elapsed time + formatting
 │   │   └── useRestTimerTick.ts   # Rest timer countdown + formatting
@@ -208,24 +215,27 @@ return `${month} ${day}${suffix}`; // "December 13th"
 
 ## Where We're Heading Next
 
-### Immediate Next Steps
-1. **Implement Add Exercise Button**
-   - AddExerciseModal already exists
-   - Connect to exercise library
-   - Allow adding exercises to active workout
+### Completed This Session
+- [x] Exercise kebab menu (View Details, Replace, Delete)
+- [x] Replace exercise confirmation modal
+- [x] Rest timer complete notification
+- [x] Exercise details screen with animations
+- [x] Duplicate exercise prevention
 
-2. **Exercise Card Functionality**
-   - Set logging (weight, reps, RPE)
-   - Set type selection (Normal/Warmup/Dropset)
-   - Auto-start rest timer on set completion
+### Immediate Next Steps
+1. **Exercise Details Screen Content**
+   - Display exercise instructions, images, muscle groups
+   - Previous performance history
+
+2. **Workout History**
+   - List of completed workouts
+   - Workout detail view with all sets
 
 ### Longer-Term Roadmap
-- Complete workout logging flow
 - Exercise library with custom exercises
-- Workout history and analytics
 - Workout programs and templates
 - Supabase sync
-- Offline-first persistence
+- Analytics and progress tracking
 
 ---
 
@@ -240,7 +250,8 @@ return `${month} ${day}${suffix}`; // "December 13th"
 | **Timer Font** | 28px default, 22px for 10+ min |
 | **Rest Timer Default** | 120s normal, 90s warmup, 60s dropset |
 | **+/- Increment** | 10 seconds |
-| **Animation Duration** | 400ms enter, 300ms exit |
+| **Animation Duration** | 350ms symmetrical (modal slide) |
+| **Screen Animations** | `slide_from_right` (details), `slide_from_bottom` (workout) |
 
 ---
 

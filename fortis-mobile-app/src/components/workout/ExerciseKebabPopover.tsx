@@ -5,6 +5,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  Modal,
 } from 'react-native';
 import { Info, RefreshCw, Trash2 } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
@@ -67,23 +68,23 @@ export function ExerciseKebabPopover({
     }
   }, [visible, pendingAction]);
 
-  // @ts-ignore - accessing internal value for early return
-  if (!visible && popoverOpacity._value === 0) {
-    return null;
-  }
-
   const handleAction = (action: () => void) => {
     setPendingAction(() => action);
     onClose();
   };
 
   return (
-    <>
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <TouchableOpacity
         style={styles.overlay}
         activeOpacity={1}
         onPress={onClose}
-        pointerEvents={visible ? 'auto' : 'none'}
       />
       <Animated.View
         style={[
@@ -95,7 +96,6 @@ export function ExerciseKebabPopover({
             transform: [{ scale: popoverScale }],
           },
         ]}
-        pointerEvents={visible ? 'auto' : 'none'}
       >
         <TouchableOpacity
           style={styles.option}
@@ -121,18 +121,14 @@ export function ExerciseKebabPopover({
           <Text style={[styles.optionText, styles.deleteText]}>Delete</Text>
         </TouchableOpacity>
       </Animated.View>
-    </>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 999,
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
   },
   popover: {
     position: 'absolute',

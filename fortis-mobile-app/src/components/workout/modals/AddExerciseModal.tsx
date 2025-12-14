@@ -93,17 +93,22 @@ export function AddExerciseModal({
     [activeSession]
   );
 
-  // Filter exercises based on search and exclude existing (except in replace mode)
+  // Filter exercises based on search and exclude existing exercises
   const filteredExercises = useMemo(() => {
+    // Get the exerciseId of the exercise being replaced (if in replace mode)
+    const replacingExerciseId = replaceMode && exerciseLocalIdToReplace
+      ? activeSession?.exercises.find(e => e.localId === exerciseLocalIdToReplace)?.exerciseId
+      : null;
+
     return allExercises
       .filter((ex) => {
-        // In replace mode, don't filter out existing exercises
         const isExisting = existingExerciseIds.includes(ex.id);
-        if (!replaceMode && isExisting) return false;
+        // Allow the exercise being replaced, filter out all other existing exercises
+        if (isExisting && ex.id !== replacingExerciseId) return false;
         return ex.name.toLowerCase().includes(searchQuery.toLowerCase());
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [allExercises, existingExerciseIds, searchQuery, replaceMode]);
+  }, [allExercises, existingExerciseIds, searchQuery, replaceMode, exerciseLocalIdToReplace, activeSession]);
 
   // Toggle exercise selection (different behavior in replace mode)
   const toggleExercise = (exerciseId: string) => {
@@ -198,7 +203,7 @@ export function AddExerciseModal({
     >
       <View style={styles.backdrop}>
         <Animated.View
-          entering={SlideInDown.duration(450).easing(Easing.out(Easing.quad))}
+          entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
           exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
           style={styles.container}
         >
@@ -207,7 +212,7 @@ export function AddExerciseModal({
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>
-              {replaceMode ? 'Replace Exercise' : 'Add Exercise'}
+              {replaceMode ? 'Replace Exercise' : 'Exercises'}
             </Text>
             <Pressable
               onPress={onClose}
