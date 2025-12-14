@@ -45,6 +45,15 @@ interface WorkoutState {
   // UI state
   isLoading: boolean;
 
+  // Number pad state
+  activeNumberPad: {
+    exerciseLocalId: string;
+    setLocalId: string;
+    inputType: 'weight' | 'reps';
+    pendingValue: string;
+    hasError: boolean;
+  } | null;
+
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string) => void;
   finishWorkout: () => Promise<WorkoutSession | null>;
@@ -91,6 +100,12 @@ interface WorkoutState {
   persistSession: () => Promise<void>;
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
+
+  // Actions - Number Pad
+  openNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
+  closeNumberPad: () => void;
+  updatePendingValue: (value: string) => void;
+  setNumberPadError: (hasError: boolean) => void;
 }
 
 export const useWorkoutStore = create<WorkoutState>()(
@@ -108,6 +123,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
     restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
     isLoading: false,
+    activeNumberPad: null,
 
     // ========================================
     // Session Actions
@@ -680,6 +696,47 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to load rest timer settings:', error);
       }
+    },
+
+    // ========================================
+    // Number Pad Actions
+    // ========================================
+
+    openNumberPad: (exerciseLocalId, setLocalId, inputType) => {
+      // Get the current value to initialize pendingValue
+      const { activeSession } = get();
+      const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+      const set_ = exercise?.sets.find(s => s.localId === setLocalId);
+      const currentValue = set_?.[inputType];
+      const pendingValue = currentValue !== null && currentValue !== undefined
+        ? currentValue.toString()
+        : '';
+
+      set({
+        activeNumberPad: { exerciseLocalId, setLocalId, inputType, pendingValue, hasError: false },
+      });
+    },
+
+    closeNumberPad: () => {
+      set({ activeNumberPad: null });
+    },
+
+    updatePendingValue: (value) => {
+      const { activeNumberPad } = get();
+      if (!activeNumberPad) return;
+
+      set({
+        activeNumberPad: { ...activeNumberPad, pendingValue: value, hasError: false },
+      });
+    },
+
+    setNumberPadError: (hasError) => {
+      const { activeNumberPad } = get();
+      if (!activeNumberPad) return;
+
+      set({
+        activeNumberPad: { ...activeNumberPad, hasError },
+      });
     },
   }))
 );

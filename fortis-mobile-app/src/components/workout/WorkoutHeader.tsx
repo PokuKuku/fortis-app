@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     paddingTop: 0,
     paddingBottom: Spacing.sm,
     backgroundColor: 'transparent',
-    gap: Spacing.md,
+    gap: Spacing.lg,
   },
   topRow: {
     flexDirection: 'row',

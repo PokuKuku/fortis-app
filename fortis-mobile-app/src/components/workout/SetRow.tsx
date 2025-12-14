@@ -1,12 +1,11 @@
-import { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, Pressable } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { WorkoutSet, SetType } from '@/src/types/workout';
+import { WorkoutSet } from '@/src/types/workout';
 import { SetTypeSelector } from './SetTypeSelector';
-import { RPESelector } from './RPESelector';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -28,16 +27,22 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
   const completeSet = useWorkoutStore(s => s.completeSet);
   const updateSetType = useWorkoutStore(s => s.updateSetType);
   const removeSet = useWorkoutStore(s => s.removeSet);
+  const openNumberPad = useWorkoutStore(s => s.openNumberPad);
+  const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+
+  // Check if this input is currently active
+  const isWeightActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
+    activeNumberPad?.setLocalId === setLocalId &&
+    activeNumberPad?.inputType === 'weight';
+  const isRepsActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
+    activeNumberPad?.setLocalId === setLocalId &&
+    activeNumberPad?.inputType === 'reps';
 
   const [showTypeSelector, setShowTypeSelector] = useState(false);
-  const [showRPESelector, setShowRPESelector] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{
     weight?: boolean;
     reps?: boolean;
   }>({});
-
-  const weightInputRef = useRef<TextInput>(null);
-  const repsInputRef = useRef<TextInput>(null);
 
   // Shake animation
   const weightShake = useSharedValue(0);
@@ -61,37 +66,23 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
     );
   };
 
+  // Trigger shake when hasError becomes true
+  useEffect(() => {
+    if (activeNumberPad?.hasError) {
+      if (isWeightActive) {
+        triggerShake('weight');
+      }
+      if (isRepsActive) {
+        triggerShake('reps');
+      }
+    }
+  }, [activeNumberPad?.hasError]);
+
   // Find the current set
   const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
   const set = exercise?.sets.find(s => s.localId === setLocalId);
 
   if (!set) return null;
-
-  const handleWeightChange = (text: string) => {
-    // Allow numbers and one decimal point
-    if (text === '' || /^\d*\.?\d*$/.test(text)) {
-      const value = text === '' ? null : parseFloat(text);
-      updateSet(exerciseLocalId, setLocalId, { weight: value });
-
-      // Clear error
-      if (validationErrors.weight) {
-        setValidationErrors(prev => ({ ...prev, weight: false }));
-      }
-    }
-  };
-
-  const handleRepsChange = (text: string) => {
-    // Allow integers only
-    if (text === '' || /^\d+$/.test(text)) {
-      const value = text === '' ? null : parseInt(text, 10);
-      updateSet(exerciseLocalId, setLocalId, { reps: value });
-
-      // Clear error
-      if (validationErrors.reps) {
-        setValidationErrors(prev => ({ ...prev, reps: false }));
-      }
-    }
-  };
 
   const handleComplete = () => {
     const missingFields: ('weight' | 'reps')[] = [];
@@ -163,44 +154,46 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
       </View>
 
       {/* Weight input */}
-      <Animated.View style={[styles.inputWrapper, weightAnimatedStyle]}>
-        <TextInput
-          ref={weightInputRef}
-          value={set.weight !== null ? set.weight.toString() : ''}
-          onChangeText={handleWeightChange}
-          placeholder={previousSet?.weight?.toString() || ''}
-          placeholderTextColor={Colors.textTertiary}
-          keyboardType="decimal-pad"
-          returnKeyType="next"
-          onSubmitEditing={() => repsInputRef.current?.focus()}
-          style={getInputStyle('weight')}
-        />
+      <Animated.View style={[styles.inputWrapper, styles.weightWrapper, weightAnimatedStyle]}>
+        <Pressable
+          onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'weight')}
+          style={[
+            getInputStyle('weight'),
+            isWeightActive && styles.inputActive,
+            isWeightActive && activeNumberPad?.hasError && styles.inputError
+          ]}
+        >
+          <Text style={[
+            styles.inputText,
+            !isWeightActive && set.weight === null && styles.placeholderText
+          ]}>
+            {isWeightActive
+              ? activeNumberPad?.pendingValue || ''
+              : (set.weight !== null ? set.weight.toString() : (previousSet?.weight?.toString() || ''))}
+          </Text>
+        </Pressable>
       </Animated.View>
 
       {/* Reps input */}
       <Animated.View style={[styles.inputWrapper, repsAnimatedStyle]}>
-        <TextInput
-          ref={repsInputRef}
-          value={set.reps !== null ? set.reps.toString() : ''}
-          onChangeText={handleRepsChange}
-          placeholder={previousSet?.reps?.toString() || ''}
-          placeholderTextColor={Colors.textTertiary}
-          keyboardType="number-pad"
-          returnKeyType="next"
-          onSubmitEditing={() => setShowRPESelector(true)}
-          style={getInputStyle('reps')}
-        />
+        <Pressable
+          onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
+          style={[
+            getInputStyle('reps'),
+            isRepsActive && styles.inputActive,
+            isRepsActive && activeNumberPad?.hasError && styles.inputError
+          ]}
+        >
+          <Text style={[
+            styles.inputText,
+            !isRepsActive && set.reps === null && styles.placeholderText
+          ]}>
+            {isRepsActive
+              ? activeNumberPad?.pendingValue || ''
+              : (set.reps !== null ? set.reps.toString() : (previousSet?.reps?.toString() || ''))}
+          </Text>
+        </Pressable>
       </Animated.View>
-
-      {/* RPE input */}
-      <Pressable
-        onPress={() => setShowRPESelector(true)}
-        style={styles.rpeButton}
-      >
-        <Text style={[styles.rpeText, set.isCompleted && styles.rpeTextCompleted]}>
-          {set.rpe ?? previousSet?.rpe ?? ''}
-        </Text>
-      </Pressable>
 
       {/* Completion checkbox */}
       <Pressable
@@ -222,13 +215,6 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
         onRemove={() => removeSet(exerciseLocalId, setLocalId)}
         currentType={set.setType}
         setIndex={setIndex}
-      />
-
-      <RPESelector
-        visible={showRPESelector}
-        onClose={() => setShowRPESelector(false)}
-        onSelect={(rpe) => updateSet(exerciseLocalId, setLocalId, { rpe })}
-        currentValue={set.rpe}
       />
     </View>
   );
@@ -266,17 +252,27 @@ const styles = StyleSheet.create({
   inputWrapper: {
     // Wrapper for animated shake
   },
+  weightWrapper: {
+    marginRight: Spacing.sm,
+  },
   input: {
-    width: 60,
+    width: 70,
     height: 36,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.xs,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  inputText: {
     fontSize: FontSizes.sm,
     color: Colors.textPrimary,
     textAlign: 'center',
+  },
+  placeholderText: {
+    color: Colors.textTertiary,
   },
   inputError: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -286,22 +282,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(34, 197, 94, 0.2)',
     borderColor: 'rgba(34, 197, 94, 0.3)',
   },
-  rpeButton: {
-    width: 50,
-    height: 36,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: BorderRadius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  rpeText: {
-    fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
-  },
-  rpeTextCompleted: {
-    color: Colors.textPrimary,
+  inputActive: {
+    borderColor: Colors.success,
+    borderWidth: 2,
   },
   checkbox: {
     width: 32,

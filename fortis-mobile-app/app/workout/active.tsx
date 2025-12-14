@@ -17,6 +17,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useRestTimerTick } from '@/src/hooks/useRestTimerTick';
 import { WorkoutHeader } from '@/src/components/workout/WorkoutHeader';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
+import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
 import { RestTimerControls } from '@/src/components/workout/modals/RestTimerControls';
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
@@ -33,6 +34,12 @@ export default function ActiveWorkoutScreen() {
   const finishWorkout = useWorkoutStore(s => s.finishWorkout);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
+  const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+  const updateSet = useWorkoutStore(s => s.updateSet);
+  const closeNumberPad = useWorkoutStore(s => s.closeNumberPad);
+  const openNumberPad = useWorkoutStore(s => s.openNumberPad);
+  const completeSet = useWorkoutStore(s => s.completeSet);
+  const setNumberPadError = useWorkoutStore(s => s.setNumberPadError);
 
   // Modal visibility states
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -82,6 +89,45 @@ export default function ActiveWorkoutScreen() {
     await finishWorkout();
     setShowFinishModal(false);
     router.back();
+  };
+
+  // Handle number pad confirm - implements perpetuating keyboard flow with autofill
+  const handleNumberPadConfirm = (value: number | null) => {
+    if (!activeNumberPad) return;
+
+    const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
+
+    // If no value entered, try to autofill from previous set
+    let finalValue = value;
+    if (finalValue === null) {
+      const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+      if (exercise) {
+        const setIndex = exercise.sets.findIndex(s => s.localId === setLocalId);
+        if (setIndex > 0) {
+          const previousSet = exercise.sets[setIndex - 1];
+          finalValue = previousSet[inputType];
+        }
+      }
+    }
+
+    // Validate: must have a value (either typed or autofilled)
+    if (finalValue === null) {
+      setNumberPadError(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
+    // Save the value
+    updateSet(exerciseLocalId, setLocalId, { [inputType]: finalValue });
+
+    if (inputType === 'weight') {
+      // Switch to reps input (keyboard stays open)
+      openNumberPad(exerciseLocalId, setLocalId, 'reps');
+    } else {
+      // inputType === 'reps' → complete the set and close keyboard
+      completeSet(exerciseLocalId, setLocalId);
+      closeNumberPad();
+    }
   };
 
   // Empty state
@@ -142,6 +188,7 @@ export default function ActiveWorkoutScreen() {
         {/* Exercise List */}
         <FlatList
           data={activeSession?.exercises || []}
+          extraData={activeSession}
           renderItem={renderExerciseCard}
           keyExtractor={(item) => item.localId}
           contentContainerStyle={styles.listContent}
@@ -186,6 +233,14 @@ export default function ActiveWorkoutScreen() {
         onClose={() => setShowFinishModal(false)}
         onConfirm={handleConfirmFinish}
         session={activeSession}
+      />
+
+      {/* Number Pad */}
+      <NumberPadModal
+        visible={activeNumberPad !== null}
+        onClose={closeNumberPad}
+        onConfirm={handleNumberPadConfirm}
+        inputType={activeNumberPad?.inputType ?? 'weight'}
       />
     </SafeAreaView>
   );

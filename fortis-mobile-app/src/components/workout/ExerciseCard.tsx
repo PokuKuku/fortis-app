@@ -64,7 +64,6 @@ export function ExerciseCard({ exerciseLocalId }: ExerciseCardProps) {
             <Text style={[styles.headerText, styles.previousCol]}>Previous</Text>
             <Text style={[styles.headerText, styles.weightCol]}>lbs</Text>
             <Text style={[styles.headerText, styles.repsCol]}>Reps</Text>
-            <Text style={[styles.headerText, styles.rpeCol]}>RPE</Text>
             <View style={styles.checkCol} />
           </View>
 
@@ -122,7 +121,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: FontSizes.xl,
     fontWeight: '600',
-    color: Colors.success,
+    color: Colors.textPrimary,
   },
   deleteButton: {
     padding: Spacing.xs,
@@ -157,13 +156,10 @@ const styles = StyleSheet.create({
     width: 65,
   },
   weightCol: {
-    width: 60,
+    width: 70,
   },
   repsCol: {
-    width: 55,
-  },
-  rpeCol: {
-    width: 50,
+    width: 70,
   },
   checkCol: {
     flex: 1,
