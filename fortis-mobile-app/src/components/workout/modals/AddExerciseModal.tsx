@@ -331,8 +331,10 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSizes['2xl'],
-    fontWeight: '700',
+    fontFamily: 'BankGothic',
     color: Colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   closeButton: {
     padding: Spacing.xs,

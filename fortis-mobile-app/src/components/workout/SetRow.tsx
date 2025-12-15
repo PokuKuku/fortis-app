@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
   },
   setBadgeText: {
     fontSize: FontSizes.base,
-    fontWeight: '700',
+    fontFamily: 'BankGothic',
   },
   previousCol: {
     width: 80,
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   },
   inputText: {
     fontSize: FontSizes.base,
-    fontWeight: '600',
+    fontFamily: 'BankGothic',
     color: Colors.textPrimary,
     textAlign: 'center',
   },

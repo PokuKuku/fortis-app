@@ -207,9 +207,13 @@ export default function ActiveWorkoutScreen() {
   // Empty state
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>No exercises added yet</Text>
+      <View style={styles.emptyTitleRow}>
+        <View style={styles.emptyLine} />
+        <Text style={styles.emptyTitle}>No exercises yet</Text>
+        <View style={styles.emptyLine} />
+      </View>
       <Text style={styles.emptyDescription}>
-        Tap the button below to get started
+        Tap below to get started
       </Text>
     </View>
   );
@@ -377,21 +381,33 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.md,
     paddingHorizontal: Spacing['2xl'],
     paddingBottom: 100,
   },
+  emptyTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    width: '100%',
+  },
+  emptyLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(163, 163, 163, 0.3)',
+  },
   emptyTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: '700',
+    fontSize: FontSizes.sm,
+    fontFamily: 'BankGothic',
     color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   emptyDescription: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '500',
-    color: Colors.textSecondary,
+    color: Colors.textTertiary,
     textAlign: 'center',
-    lineHeight: 22,
   },
   bottomActions: {
     paddingTop: Spacing.lg,
@@ -401,16 +417,18 @@ const styles = StyleSheet.create({
   addButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+    borderRadius: BorderRadius.xl,
   },
   addButtonText: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
+    fontSize: FontSizes.sm,
+    fontFamily: 'BankGothic',
     color: Colors.success,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   finishButton: {
     height: 40,
@@ -418,8 +436,10 @@ const styles = StyleSheet.create({
   },
   finishButtonText: {
     fontSize: 15,
-    fontWeight: '700',
+    fontFamily: 'BankGothic',
     color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   pressed: {
     opacity: 0.7,

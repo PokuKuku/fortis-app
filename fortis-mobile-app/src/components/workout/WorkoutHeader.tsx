@@ -177,14 +177,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   elapsedTime: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontFamily: 'BankGothic',
     color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
     minWidth: 45,
   },
   elapsedTimeSmall: {
-    fontSize: 14,
+    fontSize: 16,
   },
   separator: {
     color: '#4a4a4a',
@@ -198,8 +198,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   restTimerText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontFamily: 'BankGothic',
     fontVariant: ['tabular-nums'],
     textAlign: 'center',
     minWidth: 40,
@@ -210,9 +210,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   dateText: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 14,
+    fontFamily: 'BankGothic',
     color: '#b9bec7',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   rightColumn: {
     alignItems: 'flex-end',
@@ -226,7 +228,9 @@ const styles = StyleSheet.create({
   },
   workoutName: {
     fontSize: 17,
-    fontWeight: '700',
+    fontFamily: 'BankGothic',
     color: Colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

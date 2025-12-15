@@ -225,7 +225,9 @@ export function ExerciseCard({
             pressed && styles.pressed
           ]}
         >
+          <View style={styles.addSetLine} />
           <Text style={styles.addSetText}>+ Add Set</Text>
+          <View style={styles.addSetLine} />
         </Pressable>
       </View>
 
@@ -271,9 +273,11 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     flex: 1,
-    fontSize: FontSizes.xl,
-    fontWeight: '600',
+    fontSize: 19,
+    fontFamily: 'BankGothic',
     color: Colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   kebabButton: {
     padding: Spacing.xs,
@@ -322,15 +326,22 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.lg,
   },
   addSetButton: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing.sm,
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    gap: Spacing.md,
+  },
+  addSetLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(34, 197, 94, 0.3)',
   },
   addSetText: {
-    fontSize: FontSizes.base,
-    fontWeight: '600',
+    fontSize: FontSizes.sm,
+    fontFamily: 'BankGothic',
     color: Colors.success,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   stickyNoteBanner: {
     flexDirection: 'row',

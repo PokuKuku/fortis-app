@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 28,
-    fontWeight: '700',
+    fontFamily: 'BankGothic',
     fontVariant: ['tabular-nums'],
     lineHeight: 28,
   },
