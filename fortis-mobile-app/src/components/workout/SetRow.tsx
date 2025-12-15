@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
     paddingVertical: Spacing.xs,
-    paddingRight: Spacing.xs,
+    paddingRight: Spacing.sm,
   },
   deleteAction: {
     justifyContent: 'center',
