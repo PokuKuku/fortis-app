@@ -8,8 +8,8 @@
 // Set Types - matches database set_type enum
 export type SetType = 'normal' | 'warmup' | 'dropset' | 'failure';
 
-// RPE values (6-10 scale as per design, null if not tracked)
-export type RpeValue = 6 | 7 | 8 | 9 | 10 | null;
+// RPE values (6-10 scale with half values, null if not tracked)
+export type RpeValue = 6 | 6.5 | 7 | 7.5 | 8 | 8.5 | 9 | 9.5 | 10 | null;
 
 // Weight unit for per-exercise preference
 export type WeightUnit = 'lbs' | 'kg';
@@ -135,15 +135,56 @@ export interface WorkoutSetDTO {
 // ============================================
 
 /**
- * RPE color configuration
+ * RPE color configuration (includes half values)
  */
 export const RPE_COLORS: Record<number, string> = {
-  6: '#22c55e',  // Green
-  7: '#84cc16',  // Lime
-  8: '#eab308',  // Yellow
-  9: '#f97316',  // Orange
-  10: '#ef4444', // Red
+  6: '#22c55e',    // Green
+  6.5: '#65d439',  // Green-Lime
+  7: '#84cc16',    // Lime
+  7.5: '#b7d10f',  // Lime-Yellow
+  8: '#eab308',    // Yellow
+  8.5: '#f29b0e',  // Yellow-Orange
+  9: '#f97316',    // Orange
+  9.5: '#fc5b41',  // Orange-Red
+  10: '#ef4444',   // Red
 };
+
+/**
+ * RPE descriptions for user guidance
+ */
+export const RPE_DESCRIPTIONS: Record<number, string> = {
+  6: '4+ more reps',
+  6.5: '3-4 more reps',
+  7: '3 more reps',
+  7.5: '2-3 more reps',
+  8: '2 more reps',
+  8.5: '1-2 more reps',
+  9: '1 more rep',
+  9.5: 'Maybe 1 more rep',
+  10: 'No more reps',
+};
+
+/**
+ * RPE to RIR (Reps in Reserve) mapping
+ */
+export const RPE_TO_RIR: Record<number, string> = {
+  6: '4 RIR',
+  6.5: '3-4 RIR',
+  7: '3 RIR',
+  7.5: '2-3 RIR',
+  8: '2 RIR',
+  8.5: '1-2 RIR',
+  9: '1 RIR',
+  9.5: '0-1 RIR',
+  10: '0 RIR',
+};
+
+/**
+ * RPE values array for iteration
+ */
+export const RPE_VALUES: (6 | 6.5 | 7 | 7.5 | 8 | 8.5 | 9 | 9.5 | 10)[] = [
+  6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10
+];
 
 /**
  * Set type display configuration

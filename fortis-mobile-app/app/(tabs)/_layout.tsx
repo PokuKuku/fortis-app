@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Calendar, List, Dumbbell, Layout, User, Plus } from 'lucide-react-native';
+import { CalendarDaysIcon, Bars3Icon, Squares2X2Icon, UserIcon, SparklesIcon } from 'react-native-heroicons/outline';
+import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
 import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 import {
@@ -266,7 +267,7 @@ export default function TabLayout() {
           title: 'History',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
-              <Calendar color={color} size={18} strokeWidth={2} />
+              <CalendarDaysIcon color={color} size={18} strokeWidth={2} />
             </View>
           ),
         }}
@@ -277,7 +278,7 @@ export default function TabLayout() {
           title: 'Exercises',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
-              <List color={color} size={18} strokeWidth={2} />
+              <Bars3Icon color={color} size={18} strokeWidth={2} />
             </View>
           ),
         }}
@@ -289,7 +290,7 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={styles.centerButtonContainer}>
               <GlassButton circular size={46} style={styles.centerButton}>
-                <Dumbbell color="#fff" size={18} strokeWidth={2} fill="#fff" />
+                <DumbbellIcon color="#fff" size={18} fill="#fff" />
               </GlassButton>
             </View>
           ),
@@ -306,7 +307,7 @@ export default function TabLayout() {
           title: 'Programs',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
-              <Layout color={color} size={18} strokeWidth={2} />
+              <Squares2X2Icon color={color} size={18} strokeWidth={2} />
             </View>
           ),
         }}
@@ -317,7 +318,7 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
-              <User color={color} size={18} strokeWidth={2} />
+              <UserIcon color={color} size={18} strokeWidth={2} />
             </View>
           ),
         }}
@@ -351,7 +352,7 @@ export default function TabLayout() {
         onPress={handleFabPress}
         pointerEvents={showActionSheet || detailModalVisible ? 'none' : 'auto'}
       >
-        <Plus color="#fff" size={30} strokeWidth={2.5} />
+        <SparklesIcon color="#fff" size={30} strokeWidth={1.5} />
       </GlassButton>
     </Animated.View>
 

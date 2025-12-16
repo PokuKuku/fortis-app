@@ -12,7 +12,7 @@ import {
   StyleSheet,
   Animated,
 } from 'react-native';
-import { Check, Trash2 } from 'lucide-react-native';
+import { CheckIcon, TrashIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 
 import { WorkoutSet, SetType, SET_TYPE_CONFIG, RPE_COLORS } from '../../../types/workout';
@@ -230,10 +230,10 @@ export function SetRow({
         ]}
         onPress={handleComplete}
       >
-        <Check
+        <CheckIcon
           size={20}
           color="#ffffff"
-          strokeWidth={2.5}
+          strokeWidth={2}
         />
       </Pressable>
     </Animated.View>

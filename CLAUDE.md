@@ -97,8 +97,54 @@ constants/              # Design system tokens
 - **Forms**: react-hook-form with zod validation
 - **Animations**: react-native-reanimated
 - **Gestures**: react-native-gesture-handler, react-native-draggable-flatlist
-- **Icons**: lucide-react-native
+- **Icons**: react-native-heroicons/outline (see Icons section below)
 - **Date handling**: date-fns
+
+### Icons
+
+**Primary Library**: `react-native-heroicons/outline`
+- All icons use the outline variant for consistency
+- Import from: `import { IconName } from 'react-native-heroicons/outline';`
+
+**Common Icon Props**:
+```tsx
+<XMarkIcon size={20} color="#ffffff" strokeWidth={2.5} />
+```
+- `size`: Icon dimensions in pixels (use `IconSizes` from Sizes.ts)
+- `color`: Icon color (use `Colors` constants)
+- `strokeWidth`: Line thickness (default ~1.5, use 2-2.5 for better visibility)
+
+**Custom Icons**: `src/components/icons/`
+- `DumbbellIcon` - Custom SVG dumbbell icon (DO NOT replace with Heroicons)
+
+**Common Icon Mappings** (reference):
+| Purpose | Icon | Import |
+|---------|------|--------|
+| Close/Cancel | XMarkIcon | react-native-heroicons/outline |
+| Delete | TrashIcon | react-native-heroicons/outline |
+| Add | PlusIcon | react-native-heroicons/outline |
+| Subtract | MinusIcon | react-native-heroicons/outline |
+| Complete/Check | CheckIcon | react-native-heroicons/outline |
+| Timer/Clock | ClockIcon | react-native-heroicons/outline |
+| Calendar | CalendarDaysIcon | react-native-heroicons/outline |
+| Search | MagnifyingGlassIcon | react-native-heroicons/outline |
+| Sort | ArrowsUpDownIcon | react-native-heroicons/outline |
+| Navigation | ChevronRightIcon, ChevronLeftIcon | react-native-heroicons/outline |
+| Menu (horizontal) | EllipsisHorizontalIcon | react-native-heroicons/outline |
+| Menu (vertical) | EllipsisVerticalIcon | react-native-heroicons/outline |
+| Play/Pause | PlayIcon, PauseIcon | react-native-heroicons/outline |
+| Info | InformationCircleIcon | react-native-heroicons/outline |
+| Replace/Refresh | ArrowPathIcon | react-native-heroicons/outline |
+| Notes/Document | DocumentTextIcon | react-native-heroicons/outline |
+| Copy | DocumentDuplicateIcon | react-native-heroicons/outline |
+| Skip | ForwardIcon | react-native-heroicons/outline |
+| Reset | ArrowUturnLeftIcon | react-native-heroicons/outline |
+| Warning | ExclamationTriangleIcon | react-native-heroicons/outline |
+| Trophy | TrophyIcon | react-native-heroicons/outline |
+| User | UserIcon | react-native-heroicons/outline |
+| List | Bars3Icon | react-native-heroicons/outline |
+| Grid/Layout | Squares2X2Icon | react-native-heroicons/outline |
+| Backspace | BackspaceIcon | react-native-heroicons/outline |
 
 ### Key Patterns
 

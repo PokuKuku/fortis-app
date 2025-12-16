@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
-import { MoreVertical, StickyNote, X } from 'lucide-react-native';
+import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -32,7 +32,6 @@ export function ExerciseCard({
   const stickyNotes = useWorkoutStore(s => s.stickyNotes);
   const setStickyNote = useWorkoutStore(s => s.setStickyNote);
   const weightUnits = useWorkoutStore(s => s.weightUnits);
-  const toggleWeightUnit = useWorkoutStore(s => s.toggleWeightUnit);
 
   const [showKebab, setShowKebab] = useState(false);
   const [showStickyNoteInput, setShowStickyNoteInput] = useState(false);
@@ -48,11 +47,6 @@ export function ExerciseCard({
   const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
 
   if (!exercise) return null;
-
-  const handleToggleWeightUnit = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    toggleWeightUnit(exercise.exerciseId);
-  };
 
   const handleKebabPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -142,7 +136,7 @@ export function ExerciseCard({
                 pressed && styles.pressed
               ]}
             >
-              <MoreVertical size={20} color={Colors.textSecondary} strokeWidth={2} />
+              <EllipsisVerticalIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
         </View>
@@ -154,7 +148,7 @@ export function ExerciseCard({
             exiting={FadeOut.duration(150)}
             style={styles.stickyNoteBanner}
           >
-            <StickyNote size={14} color="#60a5fa" strokeWidth={2} style={styles.stickyNoteIcon} />
+            <DocumentTextIcon size={14} color="#60a5fa" strokeWidth={2} style={styles.stickyNoteIcon} />
             <TextInput
               ref={stickyNoteInputRef}
               value={showStickyNoteInput ? stickyNoteValue : stickyNote}
@@ -177,7 +171,7 @@ export function ExerciseCard({
                   pressed && styles.pressed,
                 ]}
               >
-                <X size={14} color="#60a5fa" strokeWidth={2.5} />
+                <XMarkIcon size={14} color="#60a5fa" strokeWidth={2} />
               </Pressable>
             )}
           </Animated.View>
@@ -250,8 +244,6 @@ export function ExerciseCard({
         hasStickyNote={!!stickyNote}
         onAddNote={handleOpenNotes}
         hasNote={!!exercise.notes}
-        onToggleWeightUnit={handleToggleWeightUnit}
-        currentWeightUnit={weightUnit}
         position={kebabPosition}
       />
     </Animated.View>
@@ -305,6 +297,7 @@ const styles = StyleSheet.create({
   },
   setsTable: {
     gap: Spacing.sm,
+    overflow: 'visible',
   },
   tableHeader: {
     flexDirection: 'row',

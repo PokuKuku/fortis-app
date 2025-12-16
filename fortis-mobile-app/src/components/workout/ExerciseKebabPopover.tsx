@@ -7,7 +7,7 @@ import {
   Animated,
   Modal,
 } from 'react-native';
-import { Info, RefreshCw, Trash2, StickyNote, FileText, Scale } from 'lucide-react-native';
+import { InformationCircleIcon, ArrowPathIcon, TrashIcon, DocumentTextIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 
 interface ExerciseKebabPopoverProps {
@@ -20,8 +20,6 @@ interface ExerciseKebabPopoverProps {
   hasStickyNote: boolean;
   onAddNote: () => void;
   hasNote: boolean;
-  onToggleWeightUnit: () => void;
-  currentWeightUnit: 'lbs' | 'kg';
   position: { top: number; left: number };
 }
 
@@ -35,8 +33,6 @@ export function ExerciseKebabPopover({
   hasStickyNote,
   onAddNote,
   hasNote,
-  onToggleWeightUnit,
-  currentWeightUnit,
   position,
 }: ExerciseKebabPopoverProps) {
   const popoverScale = useRef(new Animated.Value(0)).current;
@@ -113,7 +109,7 @@ export function ExerciseKebabPopover({
           style={styles.option}
           onPress={() => handleAction(onViewDetails)}
         >
-          <Info color="#DFE2E6" size={18} strokeWidth={2} />
+          <InformationCircleIcon color="#DFE2E6" size={18} strokeWidth={2} />
           <Text style={styles.optionText}>View Details</Text>
         </TouchableOpacity>
         <View style={styles.divider} />
@@ -121,7 +117,7 @@ export function ExerciseKebabPopover({
           style={styles.option}
           onPress={() => handleAction(onStickyNote)}
         >
-          <StickyNote color="#60a5fa" size={18} strokeWidth={2} />
+          <DocumentTextIcon color="#60a5fa" size={18} strokeWidth={2} />
           <Text style={[styles.optionText, styles.stickyNoteText]}>
             {hasStickyNote ? 'Edit Sticky Note' : 'Add Sticky Note'}
           </Text>
@@ -133,7 +129,7 @@ export function ExerciseKebabPopover({
               style={styles.option}
               onPress={() => handleAction(onAddNote)}
             >
-              <FileText color="#DFE2E6" size={18} strokeWidth={2} />
+              <DocumentTextIcon color="#DFE2E6" size={18} strokeWidth={2} />
               <Text style={styles.optionText}>Add Note</Text>
             </TouchableOpacity>
           </>
@@ -141,19 +137,9 @@ export function ExerciseKebabPopover({
         <View style={styles.divider} />
         <TouchableOpacity
           style={styles.option}
-          onPress={() => handleAction(onToggleWeightUnit)}
-        >
-          <Scale color="#DFE2E6" size={18} strokeWidth={2} />
-          <Text style={styles.optionText}>
-            Switch to {currentWeightUnit === 'lbs' ? 'kg' : 'lbs'}
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.divider} />
-        <TouchableOpacity
-          style={styles.option}
           onPress={() => handleAction(onReplace)}
         >
-          <RefreshCw color="#DFE2E6" size={18} strokeWidth={2} />
+          <ArrowPathIcon color="#DFE2E6" size={18} strokeWidth={2} />
           <Text style={styles.optionText}>Replace Exercise</Text>
         </TouchableOpacity>
         <View style={styles.divider} />
@@ -161,7 +147,7 @@ export function ExerciseKebabPopover({
           style={styles.option}
           onPress={() => handleAction(onDelete)}
         >
-          <Trash2 color={Colors.error} size={18} strokeWidth={2} />
+          <TrashIcon color={Colors.error} size={18} strokeWidth={2} />
           <Text style={[styles.optionText, styles.deleteText]}>Delete</Text>
         </TouchableOpacity>
       </Animated.View>

@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Image, Animated, DeviceEventEmitter, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Search, ArrowUpDown, X, Dumbbell } from 'lucide-react-native';
+import { MagnifyingGlassIcon, ArrowsUpDownIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassCard } from '../../components/GlassCard';
@@ -211,7 +211,7 @@ export default function ExercisesScreen() {
         {/* Search Bar */}
         <View style={styles.searchContainer}>
           <View style={styles.searchWrapper}>
-            <Search color="#9CA3AF" size={20} style={styles.searchIcon} />
+            <MagnifyingGlassIcon color="#9CA3AF" size={20} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search exercises..."
@@ -260,7 +260,7 @@ export default function ExercisesScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.sortButton}>
-            <ArrowUpDown color="#9CA3AF" size={20} strokeWidth={2} />
+            <ArrowsUpDownIcon color="#9CA3AF" size={20} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
@@ -514,7 +514,7 @@ export default function ExercisesScreen() {
                     onPress={() => setSelectedExercise(null)}
                     style={styles.closeButton}
                   >
-                    <X color="#fff" size={20} strokeWidth={2} />
+                    <XMarkIcon color="#fff" size={20} strokeWidth={2} />
                   </TouchableOpacity>
                 </View>
 

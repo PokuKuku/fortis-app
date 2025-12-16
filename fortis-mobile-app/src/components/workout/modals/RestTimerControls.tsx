@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
-import { Play, Pause, SkipForward, RotateCcw, Plus, Minus } from 'lucide-react-native';
+import { PlayIcon, PauseIcon, ForwardIcon, ArrowUturnLeftIcon, PlusIcon, MinusIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore, getRestTimerColor } from '@/src/store/workoutStore';
@@ -118,7 +118,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <Minus size={16} color={Colors.textPrimary} strokeWidth={2} />
+                <MinusIcon size={16} color={Colors.textPrimary} strokeWidth={2} />
               </Pressable>
 
               <GlassButton
@@ -128,9 +128,9 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                 onPress={handlePlayPause}
               >
                 {isRunning ? (
-                  <Pause size={20} color="#fff" strokeWidth={2} fill="#fff" />
+                  <PauseIcon size={20} color="#fff" strokeWidth={2} />
                 ) : (
-                  <Play size={20} color="#fff" strokeWidth={2} fill="#fff" style={{ marginLeft: 2 }} />
+                  <PlayIcon size={20} color="#fff" strokeWidth={2} style={{ marginLeft: 2 }} />
                 )}
               </GlassButton>
 
@@ -141,7 +141,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <Plus size={16} color={Colors.textPrimary} strokeWidth={2} />
+                <PlusIcon size={16} color={Colors.textPrimary} strokeWidth={2} />
               </Pressable>
             </View>
 
@@ -156,7 +156,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <RotateCcw size={20} color={Colors.textSecondary} strokeWidth={2} />
+                <ArrowUturnLeftIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
               </Pressable>
               <Pressable
                 onPress={handleSkip}
@@ -165,7 +165,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <SkipForward size={20} color={Colors.textSecondary} strokeWidth={2} />
+                <ForwardIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
           </Pressable>

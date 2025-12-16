@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated as RNAnimated } from 'react-native';
-import { Check, Trash2 } from 'lucide-react-native';
+import { CheckIcon, TrashIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { WorkoutSet } from '@/src/types/workout';
+import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { SetTypeSelector } from './SetTypeSelector';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -194,7 +194,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
         ]}
       >
         <Pressable onPress={handleDelete} style={styles.deleteActionInner}>
-          <Trash2 size={18} color={Colors.white} strokeWidth={2.5} />
+          <TrashIcon size={18} color={Colors.white} strokeWidth={2} />
         </Pressable>
       </RNAnimated.View>
     );
@@ -221,6 +221,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
       overshootRight={false}
       friction={2}
       rightThreshold={40}
+      containerStyle={{ overflow: 'visible' }}
     >
       <View style={[styles.container, set.isCompleted && styles.containerCompleted]}>
         {/* Set number/type badge */}
@@ -267,26 +268,39 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
           </Pressable>
         </Animated.View>
 
-        {/* Reps input */}
+        {/* Reps input with RPE badge */}
         <Animated.View style={[styles.inputWrapper, styles.repsWrapper, repsAnimatedStyle]}>
-          <Pressable
-            onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
-            style={[
-              getInputStyle('reps'),
-              isRepsActive && styles.inputActive,
-              isRepsActive && activeNumberPad?.hasError && styles.inputError
-            ]}
-          >
-            <Text style={[
-              styles.inputText,
-              (isRepsActive && !activeNumberPad?.pendingValue && previousSet?.reps != null) && styles.placeholderText,
-              (!isRepsActive && set.reps === null) && styles.placeholderText
-            ]}>
-              {isRepsActive
-                ? (activeNumberPad?.pendingValue || previousSet?.reps?.toString() || '')
-                : (set.reps !== null ? set.reps.toString() : (previousSet?.reps?.toString() || ''))}
-            </Text>
-          </Pressable>
+          <View style={styles.repsContainer}>
+            <Pressable
+              onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
+              style={[
+                getInputStyle('reps'),
+                isRepsActive && styles.inputActive,
+                isRepsActive && activeNumberPad?.hasError && styles.inputError
+              ]}
+            >
+              <Text style={[
+                styles.inputText,
+                (isRepsActive && !activeNumberPad?.pendingValue && previousSet?.reps != null) && styles.placeholderText,
+                (!isRepsActive && set.reps === null) && styles.placeholderText
+              ]}>
+                {isRepsActive
+                  ? (activeNumberPad?.pendingValue || previousSet?.reps?.toString() || '')
+                  : (set.reps !== null ? set.reps.toString() : (previousSet?.reps?.toString() || ''))}
+              </Text>
+            </Pressable>
+            {/* RPE Badge */}
+            {set.rpe !== null && (
+              <View
+                style={[
+                  styles.rpeBadge,
+                  { backgroundColor: RPE_COLORS[set.rpe] || Colors.textSecondary },
+                ]}
+              >
+                <Text style={styles.rpeBadgeText}>{set.rpe}</Text>
+              </View>
+            )}
+          </View>
         </Animated.View>
 
         {/* Completion checkbox */}
@@ -310,10 +324,10 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
               />
             </>
           )}
-          <Check
+          <CheckIcon
             size={20}
             color={Colors.textPrimary}
-            strokeWidth={2.5}
+            strokeWidth={2}
           />
         </Pressable>
 
@@ -382,6 +396,8 @@ const styles = StyleSheet.create({
   },
   inputWrapper: {
     // Wrapper for animated shake
+    overflow: 'visible',
+    zIndex: 1,
   },
   weightWrapper: {
     // Gap handles spacing
@@ -437,5 +453,26 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 4,
+  },
+  repsContainer: {
+    position: 'relative',
+    overflow: 'visible',
+  },
+  rpeBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    zIndex: 10,
+  },
+  rpeBadgeText: {
+    fontSize: 10,
+    fontFamily: 'BankGothic',
+    color: Colors.background,
   },
 });

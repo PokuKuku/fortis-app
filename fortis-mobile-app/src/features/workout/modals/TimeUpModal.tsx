@@ -11,7 +11,7 @@ import {
   Modal,
   StyleSheet,
 } from 'react-native';
-import { Timer } from 'lucide-react-native';
+import { ClockIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
@@ -45,7 +45,7 @@ export function TimeUpModal({ visible, onClose }: TimeUpModalProps) {
           exiting={FadeOut.duration(200)}
           style={styles.content}
         >
-          <Timer size={48} color="#22c55e" />
+          <ClockIcon size={48} color="#22c55e" />
           <Text style={styles.title}>Time's Up!</Text>
           <Text style={styles.message}>Rest period complete</Text>
           <Text style={styles.dismissHint}>Tap anywhere to dismiss</Text>

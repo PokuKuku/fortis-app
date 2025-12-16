@@ -13,7 +13,7 @@ import {
   StyleSheet,
   Modal,
 } from 'react-native';
-import { Trash2 } from 'lucide-react-native';
+import { TrashIcon } from 'react-native-heroicons/outline';
 import Animated, {
   FadeIn,
   FadeOut,
@@ -123,7 +123,7 @@ export function ExerciseCard({
           onPress={onRemove}
           hitSlop={8}
         >
-          <Trash2 size={20} color="#b9bec7" />
+          <TrashIcon size={20} color="#b9bec7" />
         </Pressable>
       </View>
 

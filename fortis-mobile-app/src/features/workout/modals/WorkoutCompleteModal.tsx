@@ -12,7 +12,7 @@ import {
   Modal,
   StyleSheet,
 } from 'react-native';
-import { X, Trophy } from 'lucide-react-native';
+import { XMarkIcon, TrophyIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
@@ -67,13 +67,13 @@ export function WorkoutCompleteModal({
           <View style={styles.header}>
             <Text style={styles.title}>Workout Complete!</Text>
             <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={20} color="#ef4444" strokeWidth={2.5} />
+              <XMarkIcon size={20} color="#ef4444" strokeWidth={2} />
             </Pressable>
           </View>
 
           {/* Celebration */}
           <View style={styles.celebration}>
-            <Trophy size={48} color="#22c55e" />
+            <TrophyIcon size={48} color="#22c55e" />
             <Text style={styles.celebrationText}>Great work! You crushed it!</Text>
           </View>
 

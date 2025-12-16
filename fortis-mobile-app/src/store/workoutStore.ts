@@ -16,6 +16,7 @@ import {
   RestTimerSettings,
   DEFAULT_REST_TIMER_SETTINGS,
   WeightUnit,
+  RpeValue,
 } from '../types/workout';
 import {
   ACTIVE_WORKOUT_KEY,
@@ -66,6 +67,10 @@ interface WorkoutState {
 
   // Weight units (persist across sessions, keyed by exerciseId)
   weightUnits: Record<string, WeightUnit>;
+
+  // RPE selector state
+  showRpeSelector: boolean;
+  showRpeHelp: boolean;
 
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string) => void;
@@ -131,6 +136,13 @@ interface WorkoutState {
   closeNumberPad: () => void;
   updatePendingValue: (value: string) => void;
   setNumberPadError: (hasError: boolean) => void;
+
+  // Actions - RPE Selector
+  openRpeSelector: () => void;
+  closeRpeSelector: () => void;
+  selectRpe: (rpe: RpeValue) => void;
+  openRpeHelp: () => void;
+  closeRpeHelp: () => void;
 }
 
 export const useWorkoutStore = create<WorkoutState>()(
@@ -152,6 +164,8 @@ export const useWorkoutStore = create<WorkoutState>()(
     activeNumberPad: null,
     stickyNotes: {},
     weightUnits: {},
+    showRpeSelector: false,
+    showRpeHelp: false,
 
     // ========================================
     // Session Actions
@@ -854,9 +868,48 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     toggleWeightUnit: async (exerciseId) => {
-      const { weightUnits } = get();
+      const { weightUnits, activeSession } = get();
       const currentUnit = weightUnits[exerciseId] || 'lbs';
       const newUnit: WeightUnit = currentUnit === 'lbs' ? 'kg' : 'lbs';
+
+      // Convert weight values for all sets of this exercise in active session
+      if (activeSession) {
+        const exercises = activeSession.exercises.map((ex) => {
+          if (ex.exerciseId !== exerciseId) return ex;
+
+          const sets = ex.sets.map((s) => {
+            if (s.weight === null) return s;
+
+            // Convert weight value
+            let convertedWeight: number;
+            if (currentUnit === 'lbs') {
+              // lbs to kg
+              convertedWeight = s.weight * 0.453592;
+            } else {
+              // kg to lbs
+              convertedWeight = s.weight / 0.453592;
+            }
+
+            // Round to 1 decimal place
+            convertedWeight = Math.round(convertedWeight * 10) / 10;
+
+            return { ...s, weight: convertedWeight };
+          });
+
+          return { ...ex, sets };
+        });
+
+        set({
+          activeSession: {
+            ...activeSession,
+            exercises,
+          },
+        });
+
+        // Persist the updated session
+        get().persistSession();
+      }
+
       await get().setWeightUnit(exerciseId, newUnit);
     },
 
@@ -911,6 +964,50 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({
         activeNumberPad: { ...activeNumberPad, hasError },
       });
+    },
+
+    // ========================================
+    // RPE Selector Actions
+    // ========================================
+
+    openRpeSelector: () => {
+      set({ showRpeSelector: true });
+    },
+
+    closeRpeSelector: () => {
+      set({ showRpeSelector: false });
+    },
+
+    selectRpe: (rpe) => {
+      const { activeNumberPad, activeSession } = get();
+      if (!activeNumberPad || !activeSession) return;
+
+      const { exerciseLocalId, setLocalId } = activeNumberPad;
+
+      // Update the set's RPE value
+      const exercises = activeSession.exercises.map((ex) => {
+        if (ex.localId !== exerciseLocalId) return ex;
+
+        const sets = ex.sets.map((s) =>
+          s.localId === setLocalId ? { ...s, rpe } : s
+        );
+
+        return { ...ex, sets };
+      });
+
+      set({
+        activeSession: { ...activeSession, exercises },
+      });
+
+      get().persistSession();
+    },
+
+    openRpeHelp: () => {
+      set({ showRpeHelp: true });
+    },
+
+    closeRpeHelp: () => {
+      set({ showRpeHelp: false });
     },
   }))
 );

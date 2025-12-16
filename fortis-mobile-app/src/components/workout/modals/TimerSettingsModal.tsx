@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
-import { X, ChevronDown } from 'lucide-react-native';
+import { XMarkIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -206,7 +206,7 @@ export function TimerSettingsModal({
                   <Text style={[styles.typeButtonText, { color: getTypeColor() }]}>
                     {getTypeLabel()}
                   </Text>
-                  <ChevronDown size={12} color={getTypeColor()} strokeWidth={3} />
+                  <ChevronDownIcon size={12} color={getTypeColor()} strokeWidth={3} />
                 </Pressable>
               </View>
 
@@ -222,7 +222,7 @@ export function TimerSettingsModal({
                     pressed && styles.closeButtonPressed,
                   ]}
                 >
-                  <X size={20} color={Colors.error} strokeWidth={2.5} />
+                  <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
                 </Pressable>
               </View>
             </View>

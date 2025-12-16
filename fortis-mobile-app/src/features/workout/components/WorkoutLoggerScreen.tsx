@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Dumbbell } from 'lucide-react-native';
+import { DumbbellIcon } from '../../../components/icons/DumbbellIcon';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 
@@ -131,7 +131,7 @@ export function WorkoutLoggerScreen({ onClose }: WorkoutLoggerScreenProps) {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Dumbbell size={64} color="#818692" strokeWidth={1.5} />
+      <DumbbellIcon size={64} color="#818692" />
       <Text style={styles.emptyTitle}>No exercises added yet</Text>
       <Text style={styles.emptySubtitle}>Tap the button below to get started</Text>
     </View>

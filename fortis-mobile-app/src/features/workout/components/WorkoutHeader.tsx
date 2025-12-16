@@ -14,7 +14,7 @@ import {
   Pressable,
   StyleSheet,
 } from 'react-native';
-import { Clock, X, Calendar } from 'lucide-react-native';
+import { ClockIcon, XMarkIcon, CalendarDaysIcon } from 'react-native-heroicons/outline';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useWorkoutStore, getRestTimerColor } from '../../../store/workoutStore';
@@ -98,7 +98,7 @@ export function WorkoutHeader({
         onPress={onTimerSettingsPress}
         hitSlop={8}
       >
-        <Clock size={20} color="#b9bec7" strokeWidth={2.5} />
+        <ClockIcon size={20} color="#b9bec7" strokeWidth={2} />
       </Pressable>
 
       {/* Cancel Button - Top Right */}
@@ -107,7 +107,7 @@ export function WorkoutHeader({
         onPress={onCancelPress}
         hitSlop={8}
       >
-        <X size={20} color="#ef4444" strokeWidth={2.5} />
+        <XMarkIcon size={20} color="#ef4444" strokeWidth={2} />
       </Pressable>
 
       {/* Main Content */}
@@ -143,7 +143,7 @@ export function WorkoutHeader({
 
           {/* Date Row */}
           <View style={styles.dateRow}>
-            <Calendar size={16} color="#b9bec7" />
+            <CalendarDaysIcon size={16} color="#b9bec7" />
             <Text style={styles.dateText}>{formatDate()}</Text>
           </View>
         </View>

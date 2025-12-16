@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
-import { Clock } from 'lucide-react-native';
+import { ClockIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -44,7 +44,7 @@ export function RestTimerCompleteModal({
               <View style={styles.content}>
                 {/* Icon */}
                 <View style={styles.iconContainer}>
-                  <Clock size={48} color={Colors.success} strokeWidth={2} />
+                  <ClockIcon size={48} color={Colors.success} strokeWidth={2} />
                 </View>
 
                 {/* Title */}

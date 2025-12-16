@@ -1,5 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Clock, X, Calendar } from 'lucide-react-native';
+import { ClockIcon, XMarkIcon, CalendarDaysIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
@@ -66,7 +66,7 @@ export function WorkoutHeader({
             pressed && styles.pressed
           ]}
         >
-          <Clock size={20} color="#b9bec7" strokeWidth={2.5} />
+          <ClockIcon size={20} color="#b9bec7" strokeWidth={2} />
         </Pressable>
 
         {/* Cancel Button - Top Right */}
@@ -80,7 +80,7 @@ export function WorkoutHeader({
             pressed && styles.pressed
           ]}
         >
-          <X size={20} color={Colors.error} strokeWidth={2.5} />
+          <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -122,7 +122,7 @@ export function WorkoutHeader({
 
           {/* Date Row */}
           <View style={styles.dateRow}>
-            <Calendar size={16} color="#b9bec7" strokeWidth={2} />
+            <CalendarDaysIcon size={16} color="#b9bec7" strokeWidth={2} />
             <Text style={styles.dateText}>{today}</Text>
           </View>
         </View>

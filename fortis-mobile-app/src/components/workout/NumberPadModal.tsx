@@ -1,10 +1,13 @@
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { Delete, Minus, Plus } from 'lucide-react-native';
+import { BackspaceIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { RPESelectorOverlay } from './RPESelectorOverlay';
+import { RPEHelpModal } from './RPEHelpModal';
+import { RpeValue } from '@/src/types/workout';
 import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
@@ -22,7 +25,37 @@ export function NumberPadModal({
   inputType,
 }: NumberPadModalProps) {
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+  const activeSession = useWorkoutStore(s => s.activeSession);
   const updatePendingValue = useWorkoutStore(s => s.updatePendingValue);
+  const showRpeSelector = useWorkoutStore(s => s.showRpeSelector);
+  const showRpeHelp = useWorkoutStore(s => s.showRpeHelp);
+  const openRpeSelector = useWorkoutStore(s => s.openRpeSelector);
+  const openRpeHelp = useWorkoutStore(s => s.openRpeHelp);
+  const closeRpeHelp = useWorkoutStore(s => s.closeRpeHelp);
+  const weightUnits = useWorkoutStore(s => s.weightUnits);
+  const toggleWeightUnit = useWorkoutStore(s => s.toggleWeightUnit);
+
+  // Get current RPE value for the active set
+  const getCurrentRpe = (): RpeValue => {
+    if (!activeNumberPad || !activeSession) return null;
+    const exercise = activeSession.exercises.find(
+      (e) => e.localId === activeNumberPad.exerciseLocalId
+    );
+    const set = exercise?.sets.find(
+      (s) => s.localId === activeNumberPad.setLocalId
+    );
+    return set?.rpe ?? null;
+  };
+
+  const currentRpe = getCurrentRpe();
+
+  // Get current exercise for weight unit
+  const currentExercise = activeNumberPad && activeSession
+    ? activeSession.exercises.find(e => e.localId === activeNumberPad.exerciseLocalId)
+    : null;
+  const currentWeightUnit = currentExercise
+    ? (weightUnits[currentExercise.exerciseId] || 'lbs')
+    : 'lbs';
 
   const displayValue = activeNumberPad?.pendingValue ?? '';
 
@@ -75,6 +108,22 @@ export function NumberPadModal({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const value = displayValue === '' ? null : parseFloat(displayValue);
     onConfirm(value);
+  };
+
+  const handleKeyboardToggle = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClose(); // Close the number pad
+  };
+
+  const handleRpePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    openRpeSelector();
+  };
+
+  const handleWeightUnitToggle = () => {
+    if (!currentExercise) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleWeightUnit(currentExercise.exerciseId);
   };
 
   const renderNumberButton = (num: string) => (
@@ -146,13 +195,47 @@ export function NumberPadModal({
                     pressed && styles.buttonPressed,
                   ]}
                 >
-                  <Delete size={24} color={Colors.textPrimary} strokeWidth={2} />
+                  <BackspaceIcon size={24} color={Colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               </View>
             </View>
 
             {/* Right side - Controls */}
             <View style={styles.controlsColumn}>
+              {/* Close button */}
+              <Pressable
+                onPress={handleKeyboardToggle}
+                style={({ pressed }) => [
+                  styles.controlButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <XMarkIcon size={22} color={Colors.textSecondary} strokeWidth={2} />
+              </Pressable>
+
+              {/* Context-aware button: Weight unit toggle or RPE */}
+              {inputType === 'weight' ? (
+                <Pressable
+                  onPress={handleWeightUnitToggle}
+                  style={({ pressed }) => [
+                    styles.controlButton,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.unitButtonText}>{currentWeightUnit === 'lbs' ? 'kg' : 'lbs'}</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={handleRpePress}
+                  style={({ pressed }) => [
+                    styles.controlButton,
+                    pressed && styles.buttonPressed,
+                  ]}
+                >
+                  <Text style={styles.rpeButtonText}>RPE</Text>
+                </Pressable>
+              )}
+
               {/* Increment/Decrement buttons */}
               <View style={styles.incrementRow}>
                 <Pressable
@@ -162,7 +245,7 @@ export function NumberPadModal({
                     pressed && styles.buttonPressed,
                   ]}
                 >
-                  <Minus size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+                  <MinusIcon size={20} color={Colors.textPrimary} strokeWidth={2} />
                 </Pressable>
                 <Pressable
                   onPress={handleIncrement}
@@ -171,7 +254,7 @@ export function NumberPadModal({
                     pressed && styles.buttonPressed,
                   ]}
                 >
-                  <Plus size={20} color={Colors.textPrimary} strokeWidth={2.5} />
+                  <PlusIcon size={20} color={Colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               </View>
 
@@ -200,7 +283,17 @@ export function NumberPadModal({
             </View>
           </View>
         </View>
+
+        {/* RPE Selector Overlay - rendered after padWrapper to appear on top */}
+        <RPESelectorOverlay
+          visible={showRpeSelector}
+          currentRpe={currentRpe}
+          onOpenHelp={openRpeHelp}
+        />
       </Animated.View>
+
+      {/* RPE Help Modal */}
+      <RPEHelpModal visible={showRpeHelp} onClose={closeRpeHelp} />
     </View>
   );
 }
@@ -279,10 +372,28 @@ const styles = StyleSheet.create({
     width: 110,
     gap: Spacing.xs,
   },
+  controlButton: {
+    height: 56,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rpeButtonText: {
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothic',
+    color: Colors.textPrimary,
+  },
+  unitButtonText: {
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothic',
+    color: Colors.textPrimary,
+    textTransform: 'uppercase',
+  },
   incrementRow: {
     flexDirection: 'row',
     gap: Spacing.xs,
-    flex: 1,
+    height: 56,
   },
   incrementButton: {
     flex: 1,

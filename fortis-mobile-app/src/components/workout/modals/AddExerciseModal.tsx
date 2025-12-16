@@ -9,7 +9,7 @@ import {
   TextInput,
   ScrollView,
 } from 'react-native';
-import { X, Search, Plus, Check } from 'lucide-react-native';
+import { XMarkIcon, MagnifyingGlassIcon, PlusIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -146,9 +146,9 @@ export function AddExerciseModal({
         </Text>
         <View style={[styles.iconContainer, selected && styles.iconContainerSelected]}>
           {selected ? (
-            <Check size={18} color={Colors.success} strokeWidth={2.5} />
+            <CheckIcon size={18} color={Colors.success} strokeWidth={2} />
           ) : (
-            <Plus size={18} color={Colors.textSecondary} strokeWidth={2} />
+            <PlusIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
           )}
         </View>
       </Pressable>
@@ -185,7 +185,7 @@ export function AddExerciseModal({
                 pressed && styles.closeButtonPressed,
               ]}
             >
-              <X size={24} color={Colors.textSecondary} strokeWidth={2} />
+              <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -206,7 +206,7 @@ export function AddExerciseModal({
                       onPress={() => removeFromSelection(exerciseId)}
                       hitSlop={8}
                     >
-                      <X size={14} color={Colors.textSecondary} strokeWidth={2.5} />
+                      <XMarkIcon size={14} color={Colors.textSecondary} strokeWidth={2} />
                     </Pressable>
                   </View>
                 ))}
@@ -223,7 +223,7 @@ export function AddExerciseModal({
 
           {/* Search Input */}
           <View style={styles.searchContainer}>
-            <Search size={18} color={Colors.textSecondary} strokeWidth={2} />
+            <MagnifyingGlassIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
             <TextInput
               style={styles.searchInput}
               placeholder="Search exercises..."
@@ -235,7 +235,7 @@ export function AddExerciseModal({
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-                <X size={16} color={Colors.textSecondary} strokeWidth={2} />
+                <XMarkIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
               </Pressable>
             )}
           </View>

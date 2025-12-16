@@ -11,7 +11,7 @@ import {
   Modal,
   StyleSheet,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { XMarkIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 interface CancelWorkoutModalProps {
@@ -42,7 +42,7 @@ export function CancelWorkoutModal({
           <View style={styles.header}>
             <Text style={styles.title}>Cancel Workout</Text>
             <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={20} color="#ef4444" strokeWidth={2.5} />
+              <XMarkIcon size={20} color="#ef4444" strokeWidth={2} />
             </Pressable>
           </View>
 

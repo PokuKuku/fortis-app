@@ -1,5 +1,5 @@
 import { View, Text, StyleSheet, Modal, Pressable, Dimensions } from 'react-native';
-import { X } from 'lucide-react-native';
+import { XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -74,7 +74,7 @@ export function WorkoutCompleteModal({
                     pressed && styles.closeButtonPressed,
                   ]}
                 >
-                  <X size={20} color={Colors.error} strokeWidth={2.5} />
+                  <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
                 </Pressable>
               </View>
 

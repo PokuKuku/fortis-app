@@ -11,7 +11,7 @@ import {
   Modal,
   StyleSheet,
 } from 'react-native';
-import { X, AlertTriangle } from 'lucide-react-native';
+import { XMarkIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 interface IncompleteSetsModalProps {
@@ -40,10 +40,10 @@ export function IncompleteSetsModal({
         >
           {/* Header */}
           <View style={styles.header}>
-            <AlertTriangle size={24} color="#f59e0b" />
+            <ExclamationTriangleIcon size={24} color="#f59e0b" />
             <Text style={styles.title}>Incomplete Sets</Text>
             <Pressable style={styles.closeButton} onPress={onClose}>
-              <X size={20} color="#ef4444" strokeWidth={2.5} />
+              <XMarkIcon size={20} color="#ef4444" strokeWidth={2} />
             </Pressable>
           </View>
 

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRight, Play, MoreHorizontal, Copy, Trash2 } from 'lucide-react-native';
+import { ChevronRightIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon } from 'react-native-heroicons/outline';
 import DraggableFlatList, {
   NestableScrollContainer,
   NestableDraggableFlatList,
@@ -144,7 +144,7 @@ function KebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onDuplicate)}
         >
-          <Copy color="#DFE2E6" size={16} strokeWidth={2} />
+          <DocumentDuplicateIcon color="#DFE2E6" size={16} strokeWidth={2} />
           <Text style={styles.kebabOptionText}>Duplicate</Text>
         </TouchableOpacity>
         <View style={styles.kebabDivider} />
@@ -152,7 +152,7 @@ function KebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onDelete)}
         >
-          <Trash2 color="#ef4444" size={16} strokeWidth={2} />
+          <TrashIcon color="#ef4444" size={16} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, styles.kebabDeleteText]}>Delete</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -234,7 +234,7 @@ function ProgramCard({
           {program.name}
         </Text>
         <TouchableOpacity style={styles.cardKebabButton} onPress={onKebabPress}>
-          <MoreHorizontal color="#22c55e" size={16} strokeWidth={2.5} />
+          <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
       <Text style={styles.cardMetaText}>
@@ -261,7 +261,7 @@ function WorkoutCard({
           {workout.name}
         </Text>
         <TouchableOpacity style={styles.cardKebabButton} onPress={onKebabPress}>
-          <MoreHorizontal color="#22c55e" size={16} strokeWidth={2.5} />
+          <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
       <Text style={styles.cardMetaText}>
@@ -758,7 +758,7 @@ export default function ProgramsScreen() {
                     onPress={(event) => handleKebabPress('program', item.id, event)}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                   >
-                    <MoreHorizontal color="#22c55e" size={16} strokeWidth={2.5} />
+                    <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.cardMetaText}>
@@ -799,7 +799,7 @@ export default function ProgramsScreen() {
                 onPress={(event) => handleKebabPress('workout', item.id, event)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <MoreHorizontal color="#22c55e" size={16} strokeWidth={2.5} />
+                <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
             <Text style={styles.cardMetaText}>
@@ -838,7 +838,7 @@ export default function ProgramsScreen() {
                 onPress={(event) => handleKebabPress('program', item.id, event)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <MoreHorizontal color="#22c55e" size={16} strokeWidth={2.5} />
+                <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
             <Text style={styles.cardMetaText}>
@@ -879,7 +879,7 @@ export default function ProgramsScreen() {
               disabled={isStarting || isWorkoutActive}
             >
               <View style={styles.startButtonInner}>
-                <Play color="#fff" size={20} fill="#fff" />
+                <PlayIcon color="#fff" size={20} />
                 <Text style={styles.startButtonText}>Start a Blank Workout</Text>
               </View>
             </GlassButton>
@@ -893,7 +893,7 @@ export default function ProgramsScreen() {
             >
               <View style={styles.sectionHeaderButton}>
                 <GlassButton circular size={24} onPress={() => setShowPrograms(!showPrograms)}>
-                  <ChevronRight
+                  <ChevronRightIcon
                     color="#fff"
                     size={16}
                     style={[
@@ -932,7 +932,7 @@ export default function ProgramsScreen() {
             >
               <View style={styles.sectionHeaderButton}>
                 <GlassButton circular size={24} onPress={() => setShowWorkouts(!showWorkouts)}>
-                  <ChevronRight
+                  <ChevronRightIcon
                     color="#fff"
                     size={16}
                     style={[
