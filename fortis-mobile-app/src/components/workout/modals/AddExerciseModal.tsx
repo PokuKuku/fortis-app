@@ -10,7 +10,6 @@ import {
   ScrollView,
 } from 'react-native';
 import { X, Search, Plus, Check } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -18,22 +17,8 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
 import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
-import exercisesData from '@/assets/exercises.json';
-import { CUSTOM_EXERCISES_KEY } from '@/src/constants/storageKeys';
-
-interface Exercise {
-  id: string;
-  name: string;
-  primaryMuscles: string[];
-  secondaryMuscles: string[];
-  equipment: string;
-  category: string;
-  level: string;
-  force: string;
-  mechanic: string | null;
-  instructions: string[];
-  images: string[];
-}
+import { Exercise } from '@/src/types/exercise';
+import { useExercises } from '@/src/hooks/useExercises';
 
 interface AddExerciseModalProps {
   visible: boolean;
@@ -52,26 +37,11 @@ export function AddExerciseModal({
   const replaceExercise = useWorkoutStore(s => s.replaceExercise);
   const activeSession = useWorkoutStore(s => s.activeSession);
 
+  // Use centralized exercise service
+  const { exercises: allExercises } = useExercises();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
-  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
-
-  // Load custom exercises on mount
-  useEffect(() => {
-    const loadCustomExercises = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
-        if (raw) {
-          setCustomExercises(JSON.parse(raw));
-        }
-      } catch (err) {
-        console.warn('Failed to load custom exercises', err);
-      }
-    };
-    if (visible) {
-      loadCustomExercises();
-    }
-  }, [visible]);
 
   // Reset state when modal closes
   useEffect(() => {
@@ -80,12 +50,6 @@ export function AddExerciseModal({
       setSelectedExercises([]);
     }
   }, [visible]);
-
-  // Combine base and custom exercises
-  const allExercises = useMemo(
-    () => [...customExercises, ...(exercisesData as Exercise[])],
-    [customExercises]
-  );
 
   // Get IDs of exercises already in the workout
   const existingExerciseIds = useMemo(

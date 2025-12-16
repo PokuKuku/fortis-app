@@ -356,8 +356,6 @@ const styles = StyleSheet.create({
   containerCompleted: {
     backgroundColor: 'rgba(34, 197, 94, 0.1)',
     borderRadius: BorderRadius.lg,
-    paddingLeft: Spacing.xs,
-    paddingRight: Spacing.lg,
   },
   setBadge: {
     width: 36,
@@ -430,7 +428,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: Spacing.lg,
+    marginLeft: Spacing.sm,
     overflow: 'hidden',
   },
   checkboxCompleted: {

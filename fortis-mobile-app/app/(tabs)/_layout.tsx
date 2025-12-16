@@ -16,6 +16,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Calendar, List, Dumbbell, Layout, User, Plus } from 'lucide-react-native';
 import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
+import {
+  PRIMARY_MUSCLES,
+  CATEGORIES,
+  LEVELS,
+  FORCES,
+  EQUIPMENT_TYPES,
+  MECHANICS,
+} from '@/src/constants/exerciseOptions';
 export default function TabLayout() {
   const pathname = usePathname();
   const isExercises = pathname?.includes('/exercises');
@@ -198,24 +206,14 @@ export default function TabLayout() {
     ],
   });
 
+  // Use centralized exercise option constants
   const optionList = {
-    primaryMuscles: [
-      'Chest',
-      'Back',
-      'Shoulders',
-      'Quadriceps',
-      'Hamstrings',
-      'Calves',
-      'Biceps',
-      'Triceps',
-      'Glutes',
-      'Core',
-    ],
-    categories: ['Strength', 'Power', 'Cardio', 'Mobility', 'Plyometrics'],
-    levels: ['Beginner', 'Intermediate', 'Advanced'],
-    forces: ['Push', 'Pull', 'Static'],
-    equipmentTypes: ['Barbell', 'Dumbbell', 'Cable', 'Machine', 'Bodyweight', 'Kettlebell', 'Bands'],
-    mechanics: ['Compound', 'Isolation', 'Unilateral'],
+    primaryMuscles: [...PRIMARY_MUSCLES],
+    categories: [...CATEGORIES],
+    levels: [...LEVELS],
+    forces: [...FORCES],
+    equipmentTypes: [...EQUIPMENT_TYPES],
+    mechanics: [...MECHANICS],
   };
 
   return (

@@ -73,11 +73,12 @@ src/
 │   ├── ui/             # Base UI primitives
 │   ├── shared/         # Cross-feature components
 │   └── workout/        # Workout components (ExerciseCard, SetRow, NumberPadModal, modals/)
-├── hooks/              # Custom hooks (useElapsedTime, useRestTimerTick, usePersistedOrder)
+├── hooks/              # Custom hooks (useElapsedTime, useRestTimerTick, useExercises)
+├── services/           # Service layer (exerciseService.ts)
 ├── lib/supabase.ts     # Supabase client with SecureStore adapter
 ├── store/workoutStore.ts  # Zustand state (active session, rest timer, number pad)
-├── types/workout.ts    # TypeScript definitions (WorkoutSession, WorkoutSet, SetType)
-└── constants/          # Storage keys, config
+├── types/              # TypeScript definitions (workout.ts, exercise.ts)
+└── constants/          # Storage keys, config, exerciseOptions, exerciseConfig
 
 components/             # Root-level glass morphism components
 ├── GlassButton.tsx     # Green gradient button (USE FOR ALL GREEN BUTTONS)
@@ -106,6 +107,53 @@ constants/              # Design system tokens
 - **Storage keys**: All AsyncStorage keys in `src/constants/storageKeys.ts`
 - **Event emitter**: `DeviceEventEmitter` for cross-component communication
 - **Number pad pattern**: Global `activeNumberPad` state in store, single `NumberPadModal` rendered at root
+
+### Exercise Database Abstraction Layer
+
+The exercise data is abstracted behind a service layer to allow easy switching between data sources (local JSON, different databases, or external APIs).
+
+**Key Files:**
+```
+src/
+├── types/exercise.ts           # Exercise, ExerciseWithSource, ExerciseSource types
+├── constants/
+│   ├── exerciseOptions.ts      # PRIMARY_MUSCLES, CATEGORIES, EQUIPMENT_TYPES, etc.
+│   └── exerciseConfig.ts       # Data source configuration
+├── services/exerciseService.ts # Core service with caching, search, filter
+└── hooks/useExercises.ts       # useExercises(), useExercise(id) hooks
+```
+
+**Usage in Components:**
+```tsx
+import { useExercises, useExercise } from '@/src/hooks/useExercises';
+import { getExerciseImageUrl } from '@/src/services/exerciseService';
+
+// Get all exercises (auto-refreshes on custom exercise changes)
+const { exercises, loading, error, refresh } = useExercises();
+
+// Get single exercise by ID
+const { exercise, loading } = useExercise(exerciseId);
+
+// Get image URL
+const imageUrl = getExerciseImageUrl(exercise.images[0]);
+```
+
+**To Switch to an API:**
+1. Update `src/constants/exerciseConfig.ts`:
+```tsx
+export const EXERCISE_CONFIG = {
+  source: 'api',  // Change from 'local' to 'api'
+  apiBaseUrl: 'https://your-api.com/v1',
+  imageBaseUrl: '...',
+};
+```
+2. Implement `fetchApiExercises()` in `exerciseService.ts` with error handling
+3. No UI changes needed - all components use the hooks
+
+**Option Constants** (use these instead of inline arrays):
+```tsx
+import { PRIMARY_MUSCLES, CATEGORIES, EQUIPMENT_TYPES, LEVELS, FORCES, MECHANICS } from '@/src/constants/exerciseOptions';
+```
 
 ### Backend (Supabase)
 

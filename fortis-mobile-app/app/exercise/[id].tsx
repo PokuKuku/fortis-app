@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -12,27 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeft } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import exercisesData from '@/assets/exercises.json';
-import { CUSTOM_EXERCISES_KEY } from '@/src/constants/storageKeys';
+import { useExercise } from '@/src/hooks/useExercises';
+import { getExerciseImageUrl } from '@/src/services/exerciseService';
 import * as Haptics from 'expo-haptics';
-
-interface Exercise {
-  id: string;
-  name: string;
-  primaryMuscles: string[];
-  secondaryMuscles: string[];
-  equipment: string;
-  category: string;
-  level: string;
-  force: string;
-  mechanic: string | null;
-  instructions: string[];
-  images: string[];
-}
 
 type TabType = 'About' | 'History' | 'Charts' | 'Records';
 
@@ -40,28 +25,9 @@ export default function ExerciseDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<TabType>('About');
-  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
 
-  // Load custom exercises on mount
-  useEffect(() => {
-    const loadCustomExercises = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
-        if (raw) {
-          setCustomExercises(JSON.parse(raw));
-        }
-      } catch (err) {
-        console.warn('Failed to load custom exercises', err);
-      }
-    };
-    loadCustomExercises();
-  }, []);
-
-  // Find exercise from base data or custom exercises
-  const exercise = useMemo(() => {
-    const allExercises = [...customExercises, ...(exercisesData as Exercise[])];
-    return allExercises.find(ex => ex.id === id);
-  }, [id, customExercises]);
+  // Use centralized exercise service
+  const { exercise, loading } = useExercise(id);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -124,7 +90,7 @@ export default function ExerciseDetailsScreen() {
               {exercise.images && exercise.images.length > 0 ? (
                 <Image
                   source={{
-                    uri: `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${exercise.images[0]}`,
+                    uri: getExerciseImageUrl(exercise.images[0]),
                   }}
                   style={styles.exerciseImage}
                   resizeMode="cover"
@@ -360,7 +326,7 @@ const styles = StyleSheet.create({
   categoryTag: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.xs,
+    borderRadius: BorderRadius.sm,
     alignSelf: 'flex-start',
   },
   categoryTagText: {

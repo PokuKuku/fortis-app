@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     flex: 1,
-    fontSize: 19,
+    fontSize: 17,
     fontFamily: 'BankGothic',
     color: Colors.textPrimary,
     textTransform: 'uppercase',

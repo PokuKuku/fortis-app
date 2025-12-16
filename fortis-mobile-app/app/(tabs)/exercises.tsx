@@ -3,28 +3,13 @@ import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpaci
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Search, ArrowUpDown, X, Dumbbell } from 'lucide-react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassCard } from '../../components/GlassCard';
 import { GlassButton } from '../../components/GlassButton';
-import exercisesData from '../../assets/exercises.json';
 import { FadeOnFocus } from '../../components/FadeOnFocus';
-import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
-
-interface Exercise {
-  id: string;
-  name: string;
-  primaryMuscles: string[];
-  secondaryMuscles: string[];
-  equipment: string;
-  category: string;
-  level: string;
-  force: string;
-  mechanic: string | null;
-  instructions: string[];
-  images: string[];
-}
+import { Exercise } from '@/src/types/exercise';
+import { useExercises } from '@/src/hooks/useExercises';
 
 export default function ExercisesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -36,49 +21,14 @@ export default function ExercisesScreen() {
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [selectedTab, setSelectedTab] = useState<'About' | 'History' | 'Charts' | 'Records'>('About');
-  const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
+
+  // Use centralized exercise service
+  const { exercises: allExercises } = useExercises();
 
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
   const filterPopoverScale = useRef(new Animated.Value(0)).current;
   const filterPopoverOpacity = useRef(new Animated.Value(0)).current;
-
-  // Base dataset
-  const baseExercises = exercisesData as Exercise[];
-
-  // Hydrate custom exercises and subscribe to additions
-  useEffect(() => {
-    let isMounted = true;
-    const loadCustom = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
-        if (!isMounted) return;
-        if (raw) {
-          setCustomExercises(JSON.parse(raw));
-        }
-      } catch (err) {
-        console.warn('Failed to load custom exercises', err);
-      }
-    };
-    loadCustom();
-
-    const sub = DeviceEventEmitter.addListener('customExerciseUpsert', (exercise: Exercise) => {
-      setCustomExercises(prev => {
-        const exists = prev.some((ex) => ex.id === exercise.id);
-        return exists ? prev.map((ex) => (ex.id === exercise.id ? exercise : ex)) : [exercise, ...prev];
-      });
-    });
-
-    return () => {
-      isMounted = false;
-      sub.remove();
-    };
-  }, []);
-
-  const allExercises = useMemo(
-    () => [...customExercises, ...baseExercises],
-    [customExercises, baseExercises]
-  );
 
   useEffect(() => {
     if (selectedExercise) {
