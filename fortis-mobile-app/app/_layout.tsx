@@ -8,15 +8,17 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 
 export default function RootLayout() {
   const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
+  const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
 
   const [fontsLoaded] = useFonts({
     'BankGothic': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
 
-  // Load sticky notes on app start
+  // Load persisted preferences on app start
   useEffect(() => {
     loadStickyNotes();
-  }, [loadStickyNotes]);
+    loadWeightUnits();
+  }, [loadStickyNotes, loadWeightUnits]);
 
   if (!fontsLoaded) {
     return null;

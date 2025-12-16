@@ -31,6 +31,8 @@ export function ExerciseCard({
   const addSet = useWorkoutStore(s => s.addSet);
   const stickyNotes = useWorkoutStore(s => s.stickyNotes);
   const setStickyNote = useWorkoutStore(s => s.setStickyNote);
+  const weightUnits = useWorkoutStore(s => s.weightUnits);
+  const toggleWeightUnit = useWorkoutStore(s => s.toggleWeightUnit);
 
   const [showKebab, setShowKebab] = useState(false);
   const [showStickyNoteInput, setShowStickyNoteInput] = useState(false);
@@ -43,8 +45,14 @@ export function ExerciseCard({
 
   const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
   const stickyNote = exercise ? stickyNotes[exercise.exerciseId] : undefined;
+  const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
 
   if (!exercise) return null;
+
+  const handleToggleWeightUnit = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleWeightUnit(exercise.exerciseId);
+  };
 
   const handleKebabPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -200,7 +208,7 @@ export function ExerciseCard({
           <View style={styles.tableHeader}>
             <Text style={[styles.headerText, styles.setCol]}>Set</Text>
             <Text style={[styles.headerText, styles.previousCol]}>Previous</Text>
-            <Text style={[styles.headerText, styles.weightCol]}>lbs</Text>
+            <Text style={[styles.headerText, styles.weightCol]}>{weightUnit}</Text>
             <Text style={[styles.headerText, styles.repsCol]}>Reps</Text>
             <View style={styles.checkCol} />
           </View>
@@ -242,6 +250,8 @@ export function ExerciseCard({
         hasStickyNote={!!stickyNote}
         onAddNote={handleOpenNotes}
         hasNote={!!exercise.notes}
+        onToggleWeightUnit={handleToggleWeightUnit}
+        currentWeightUnit={weightUnit}
         position={kebabPosition}
       />
     </Animated.View>

@@ -15,11 +15,13 @@ import {
   RestTimerState,
   RestTimerSettings,
   DEFAULT_REST_TIMER_SETTINGS,
+  WeightUnit,
 } from '../types/workout';
 import {
   ACTIVE_WORKOUT_KEY,
   REST_TIMER_SETTINGS_KEY,
   EXERCISE_STICKY_NOTES_KEY,
+  EXERCISE_WEIGHT_UNITS_KEY,
 } from '../constants/storageKeys';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
@@ -61,6 +63,9 @@ interface WorkoutState {
 
   // Sticky notes (persist across sessions, keyed by exerciseId)
   stickyNotes: Record<string, string>;
+
+  // Weight units (persist across sessions, keyed by exerciseId)
+  weightUnits: Record<string, WeightUnit>;
 
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string) => void;
@@ -116,6 +121,11 @@ interface WorkoutState {
   deleteStickyNote: (exerciseId: string) => Promise<void>;
   loadStickyNotes: () => Promise<void>;
 
+  // Actions - Weight Units
+  setWeightUnit: (exerciseId: string, unit: WeightUnit) => Promise<void>;
+  toggleWeightUnit: (exerciseId: string) => Promise<void>;
+  loadWeightUnits: () => Promise<void>;
+
   // Actions - Number Pad
   openNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
   closeNumberPad: () => void;
@@ -141,6 +151,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     showRestTimerComplete: false,
     activeNumberPad: null,
     stickyNotes: {},
+    weightUnits: {},
 
     // ========================================
     // Session Actions
@@ -819,6 +830,45 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
       } catch (error) {
         console.warn('Failed to load sticky notes:', error);
+      }
+    },
+
+    // ========================================
+    // Weight Units Actions
+    // ========================================
+
+    setWeightUnit: async (exerciseId, unit) => {
+      const { weightUnits } = get();
+      const newUnits = { ...weightUnits, [exerciseId]: unit };
+
+      set({ weightUnits: newUnits });
+
+      try {
+        await AsyncStorage.setItem(
+          EXERCISE_WEIGHT_UNITS_KEY,
+          JSON.stringify(newUnits)
+        );
+      } catch (error) {
+        console.warn('Failed to save weight units:', error);
+      }
+    },
+
+    toggleWeightUnit: async (exerciseId) => {
+      const { weightUnits } = get();
+      const currentUnit = weightUnits[exerciseId] || 'lbs';
+      const newUnit: WeightUnit = currentUnit === 'lbs' ? 'kg' : 'lbs';
+      await get().setWeightUnit(exerciseId, newUnit);
+    },
+
+    loadWeightUnits: async () => {
+      try {
+        const stored = await AsyncStorage.getItem(EXERCISE_WEIGHT_UNITS_KEY);
+        if (stored) {
+          const units = JSON.parse(stored);
+          set({ weightUnits: units });
+        }
+      } catch (error) {
+        console.warn('Failed to load weight units:', error);
       }
     },
 

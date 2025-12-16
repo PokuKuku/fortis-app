@@ -7,7 +7,7 @@ import {
   Animated,
   Modal,
 } from 'react-native';
-import { Info, RefreshCw, Trash2, StickyNote, FileText } from 'lucide-react-native';
+import { Info, RefreshCw, Trash2, StickyNote, FileText, Scale } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 
 interface ExerciseKebabPopoverProps {
@@ -20,6 +20,8 @@ interface ExerciseKebabPopoverProps {
   hasStickyNote: boolean;
   onAddNote: () => void;
   hasNote: boolean;
+  onToggleWeightUnit: () => void;
+  currentWeightUnit: 'lbs' | 'kg';
   position: { top: number; left: number };
 }
 
@@ -33,6 +35,8 @@ export function ExerciseKebabPopover({
   hasStickyNote,
   onAddNote,
   hasNote,
+  onToggleWeightUnit,
+  currentWeightUnit,
   position,
 }: ExerciseKebabPopoverProps) {
   const popoverScale = useRef(new Animated.Value(0)).current;
@@ -134,6 +138,16 @@ export function ExerciseKebabPopover({
             </TouchableOpacity>
           </>
         )}
+        <View style={styles.divider} />
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => handleAction(onToggleWeightUnit)}
+        >
+          <Scale color="#DFE2E6" size={18} strokeWidth={2} />
+          <Text style={styles.optionText}>
+            Switch to {currentWeightUnit === 'lbs' ? 'kg' : 'lbs'}
+          </Text>
+        </TouchableOpacity>
         <View style={styles.divider} />
         <TouchableOpacity
           style={styles.option}

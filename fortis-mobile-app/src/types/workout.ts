@@ -11,6 +11,9 @@ export type SetType = 'normal' | 'warmup' | 'dropset' | 'failure';
 // RPE values (6-10 scale as per design, null if not tracked)
 export type RpeValue = 6 | 7 | 8 | 9 | 10 | null;
 
+// Weight unit for per-exercise preference
+export type WeightUnit = 'lbs' | 'kg';
+
 /**
  * Individual set within an exercise
  */
