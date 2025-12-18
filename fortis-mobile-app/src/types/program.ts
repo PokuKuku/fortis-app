@@ -103,13 +103,3 @@ export interface WorkoutDetail {
  * Tab types for stats section
  */
 export type StatsTabType = 'Volume' | 'Reps' | 'Duration';
-
-/**
- * Tracks user progress through a program
- */
-export interface ProgramProgress {
-  programId: string;
-  completedWorkoutIds: string[];  // IDs of completed workouts in this program
-  currentDayNumber: number;       // Which day the user is on (1-indexed)
-  lastCompletedAt?: string;       // ISO date of last completion
-}

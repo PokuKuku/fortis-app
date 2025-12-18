@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRightIcon, ChevronDownIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { ChevronRightIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon } from 'react-native-heroicons/outline';
 import AnimatedView, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import DraggableFlatList, {
   NestableScrollContainer,
@@ -32,8 +32,6 @@ import { useDragDropContext } from '../../src/hooks/useDragDropContext';
 import { AddToProgramModal, ProgramWorkoutSlot } from '../../src/components/workout/AddToProgramModal';
 import { usePrograms } from '../../src/hooks/usePrograms';
 import * as ProgramService from '../../src/services/programService';
-import { WorkoutStackPreview } from '../../src/components/program/WorkoutStackPreview';
-import { ProgramWorkout, ProgramProgress } from '../../src/types/program';
 import { Colors } from '../../constants/Colors';
 
 // Sample data for workouts (will be moved to service layer later)
@@ -539,25 +537,6 @@ export default function ProgramsScreen() {
   // Use programs from service with persistence
   const { programs: programsData, loading: programsLoading, refresh: refreshPrograms } = usePrograms();
 
-  // Program progress state
-  const [programProgress, setProgramProgress] = useState<Record<string, ProgramProgress>>({});
-
-  // Accordion state for program cards
-  const [expandedPrograms, setExpandedPrograms] = useState<Record<string, boolean>>({});
-
-  // Load program progress on mount
-  useEffect(() => {
-    const loadProgress = async () => {
-      try {
-        const progress = await ProgramService.getAllProgramProgress();
-        setProgramProgress(progress);
-      } catch (error) {
-        console.error('Failed to load program progress:', error);
-      }
-    };
-    loadProgress();
-  }, []);
-
   // Transform ProgramDetail to ProgramItem for the UI
   const programs: ProgramItem[] = programsData.map(p => ({
     id: p.id,
@@ -645,15 +624,6 @@ export default function ProgramsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/programs/${programId}`);
   };
-
-  // Toggle program card accordion
-  const toggleProgramExpanded = useCallback((programId: string) => {
-    setExpandedPrograms(prev => ({
-      ...prev,
-      [programId]: !prev[programId],
-    }));
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  }, []);
 
   const handleKebabPress = (
     type: 'program' | 'workout',
@@ -977,100 +947,47 @@ export default function ProgramsScreen() {
     [animatingCards, handleAnimationComplete, handleKebabPress, handleWorkoutCardPress]
   );
 
-  // Draggable program card renderer for NestableDraggableFlatList
-  const renderDraggableProgramItem = useCallback(
-    ({ item, drag, isActive }: RenderItemParams<ProgramItem>) => {
+  // Draggable program card renderer for DraggableGrid (with drop zone)
+  const renderProgramGridItem = useCallback(
+    (item: ProgramItem, index: number, isActive: boolean) => {
       const cardKey = `program-${item.id}`;
       const animState = animatingCards[cardKey];
 
-      // Get full program data with workouts array
-      const fullProgram = programsData.find(p => p.id === item.id);
-      const workoutsArray = fullProgram?.workouts || [];
-
-      // Get progress for this program
-      const progress = programProgress[item.id];
-      const completedIds = progress?.completedWorkoutIds || [];
-      const currentDayNumber = progress?.currentDayNumber || 1;
-
-      // Check if accordion is expanded
-      const isExpanded = expandedPrograms[item.id] || false;
-
-      const handleDrag = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        drag();
-      };
-
       return (
-        <ScaleDecorator activeScale={1.03}>
-          <View style={{ marginBottom: 12 }}>
-            <DropZoneProgramCard programId={item.id}>
-              <AnimatedCard
-                animationState={animState}
-                onAnimationComplete={() => handleAnimationComplete('program', item.id)}
-              >
+        <DropZoneProgramCard programId={item.id}>
+          <AnimatedCard
+            animationState={animState}
+            onAnimationComplete={() => handleAnimationComplete('program', item.id)}
+          >
+            <TouchableOpacity
+              onPress={() => handleProgramCardPress(item.id)}
+              activeOpacity={0.8}
+              style={[
+                styles.programCardInner,
+                isActive && styles.cardActive,
+              ]}
+            >
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
+                  {item.name}
+                </Text>
                 <TouchableOpacity
-                  onPress={() => handleProgramCardPress(item.id)}
-                  onLongPress={handleDrag}
-                  delayLongPress={150}
-                  disabled={isActive}
-                  activeOpacity={0.8}
-                  style={[
-                    styles.programCardInner,
-                    isActive && styles.cardActive,
-                  ]}
+                  style={styles.cardKebabButton}
+                  onPress={(event) => handleKebabPress('program', item.id, event)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <View style={styles.cardHeader}>
-                    {workoutsArray.length > 0 && (
-                      <TouchableOpacity
-                        onPress={(e) => {
-                          e.stopPropagation();
-                          toggleProgramExpanded(item.id);
-                        }}
-                        style={styles.chevronToggle}
-                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      >
-                        <ChevronDownIcon
-                          size={14}
-                          color="#9CA3AF"
-                          strokeWidth={2.5}
-                          style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
-                        />
-                      </TouchableOpacity>
-                    )}
-                    <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
-                      {item.name}
-                    </Text>
-                    <TouchableOpacity
-                      style={styles.cardKebabButton}
-                      onPress={(event) => handleKebabPress('program', item.id, event)}
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
-                    </TouchableOpacity>
-                  </View>
-                  <Text style={styles.cardMetaText}>
-                    {item.workouts} workouts · {item.lastPerformed}
-                  </Text>
-
-                  {/* Workout stack preview (collapsible) */}
-                  {workoutsArray.length > 0 && (
-                    <CollapsibleSection isOpen={isExpanded}>
-                      <WorkoutStackPreview
-                        workouts={workoutsArray}
-                        completedIds={completedIds}
-                        currentDayNumber={currentDayNumber}
-                        maxVisible={3}
-                      />
-                    </CollapsibleSection>
-                  )}
+                  <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
                 </TouchableOpacity>
-              </AnimatedCard>
-            </DropZoneProgramCard>
-          </View>
-        </ScaleDecorator>
+              </View>
+              <Text style={styles.cardMetaText}>
+                {item.workouts} workouts · {item.lastPerformed}
+              </Text>
+            </TouchableOpacity>
+          </AnimatedCard>
+        </DropZoneProgramCard>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress, programsData, programProgress, expandedPrograms, toggleProgramExpanded]
+    [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress]
   );
 
   return (
@@ -1130,14 +1047,17 @@ export default function ProgramsScreen() {
 
             <CollapsibleSection isOpen={showPrograms}>
               {showPrograms && (
-                <NestableDraggableFlatList
+                <DraggableGrid
                   data={programs}
-                  keyExtractor={(item) => item.id}
-                  renderItem={renderDraggableProgramItem}
-                  onDragEnd={({ data }) => {
-                    // TODO: Persist program order via service
+                  keyExtractor={(item) => `program-${item.id}`}
+                  renderItem={renderProgramGridItem}
+                  onReorder={() => {
+                    // TODO: Implement program reordering via service
+                    // For now, reordering is disabled - programs are ordered by service data
                   }}
-                  scrollEnabled={false}
+                  numColumns={1}
+                  itemHeight={70}
+                  gap={12}
                 />
               )}
             </CollapsibleSection>
@@ -1348,7 +1268,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     overflow: 'hidden',
-    minHeight: 70, // Minimum height, expands for workout stack preview
+    height: 70,
   },
   workoutCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -1371,6 +1291,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
+    overflow: 'hidden',
   },
   // Program card inner (used when wrapped in DropZoneProgramCard)
   programCardInner: {
@@ -1378,9 +1299,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 10,
     paddingBottom: 12,
-    minHeight: 68, // Minimum height, expands for workout stack preview
-    borderRadius: 16,
-    overflow: 'hidden',
+    height: 68, // Slightly less than programCard due to wrapper border
   },
   cardTitle: {
     flex: 1,
@@ -1392,20 +1311,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  cardMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  chevronToggle: {
-    marginRight: 8,
-  },
-  programsList: {
-    gap: 12,
-  },
-  programCardWrapper: {
-    // Natural height based on content
   },
   cardMetaText: {
     fontSize: 12,

@@ -6,14 +6,12 @@ import {
   ProgramExercise,
   WorkoutExerciseDetail,
   HubStats,
-  ProgramProgress,
 } from '@/src/types/program';
-import { PROGRAMS_KEY, PROGRAM_PROGRESS_KEY } from '@/src/constants/storageKeys';
+import { PROGRAMS_KEY } from '@/src/constants/storageKeys';
 
 // In-memory cache
 let programsCache: ProgramDetail[] | null = null;
 let workoutsCache: WorkoutDetail[] | null = null;
-let progressCache: Record<string, ProgramProgress> | null = null;
 let storageLoaded = false;
 
 // --- Mock Data ---
@@ -683,114 +681,4 @@ export function invalidateWorkoutCache(): void {
 export function invalidateAllCache(): void {
   programsCache = null;
   workoutsCache = null;
-  progressCache = null;
-}
-
-// --- Program Progress Tracking ---
-
-/**
- * Load all program progress from AsyncStorage
- */
-async function loadProgressFromStorage(): Promise<Record<string, ProgramProgress>> {
-  try {
-    const stored = await AsyncStorage.getItem(PROGRAM_PROGRESS_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (error) {
-    console.error('Failed to load program progress:', error);
-  }
-  return {};
-}
-
-/**
- * Save all program progress to AsyncStorage
- */
-async function saveProgressToStorage(progress: Record<string, ProgramProgress>): Promise<void> {
-  try {
-    await AsyncStorage.setItem(PROGRAM_PROGRESS_KEY, JSON.stringify(progress));
-  } catch (error) {
-    console.error('Failed to save program progress:', error);
-  }
-}
-
-/**
- * Get all program progress (for listing screens)
- */
-export async function getAllProgramProgress(): Promise<Record<string, ProgramProgress>> {
-  if (progressCache) return progressCache;
-
-  progressCache = await loadProgressFromStorage();
-  return progressCache;
-}
-
-/**
- * Get progress for a specific program
- */
-export async function getProgramProgress(programId: string): Promise<ProgramProgress | null> {
-  const allProgress = await getAllProgramProgress();
-  return allProgress[programId] || null;
-}
-
-/**
- * Mark a workout as completed within a program
- */
-export async function markWorkoutCompleted(
-  programId: string,
-  workoutId: string
-): Promise<ProgramProgress> {
-  const allProgress = await getAllProgramProgress();
-  const program = await getProgramById(programId);
-
-  // Get or create progress for this program
-  const existing = allProgress[programId] || {
-    programId,
-    completedWorkoutIds: [],
-    currentDayNumber: 1,
-  };
-
-  // Add workout to completed if not already there
-  if (!existing.completedWorkoutIds.includes(workoutId)) {
-    existing.completedWorkoutIds.push(workoutId);
-    existing.lastCompletedAt = new Date().toISOString();
-
-    // Find the workout to get its day number and advance to next day
-    if (program) {
-      const completedWorkout = program.workouts.find(w => w.id === workoutId);
-      if (completedWorkout) {
-        // Move to the next day (or stay at last day if completed all)
-        const nextDay = completedWorkout.dayNumber + 1;
-        const maxDay = Math.max(...program.workouts.map(w => w.dayNumber));
-        existing.currentDayNumber = Math.min(nextDay, maxDay);
-      }
-    }
-  }
-
-  // Update cache and persist
-  allProgress[programId] = existing;
-  progressCache = allProgress;
-  await saveProgressToStorage(allProgress);
-
-  return existing;
-}
-
-/**
- * Reset progress for a program (start over)
- */
-export async function resetProgramProgress(programId: string): Promise<void> {
-  const allProgress = await getAllProgramProgress();
-
-  // Remove progress for this program
-  delete allProgress[programId];
-
-  // Update cache and persist
-  progressCache = allProgress;
-  await saveProgressToStorage(allProgress);
-}
-
-/**
- * Invalidate progress cache (forces reload from storage)
- */
-export function invalidateProgressCache(): void {
-  progressCache = null;
 }
