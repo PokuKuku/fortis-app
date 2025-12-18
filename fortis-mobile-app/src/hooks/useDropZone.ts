@@ -77,21 +77,37 @@ export function useDropZone({
     return context.hoveredDropZoneId.value === id;
   }, [context, id]);
 
+  // Function to re-measure bounds (called on demand when drag starts)
+  const remeasure = useCallback(() => {
+    if (!context || !enabled) return;
+    ref.current?.measure((x, y, width, height, pageX, pageY) => {
+      const bounds: DropZone['bounds'] = {
+        x: pageX,
+        y: pageY,
+        width,
+        height,
+      };
+      boundsRef.current = bounds;
+      context.updateDropZoneBounds(id, bounds);
+    });
+  }, [context, id, enabled]);
+
   // Register drop zone on mount, unregister on unmount
   useEffect(() => {
     if (!context || !enabled) return;
 
-    // Register with initial bounds (will be updated on layout)
+    // Register with initial bounds and measureFn for on-demand re-measurement
     context.registerDropZone({
       id,
       type,
       bounds: boundsRef.current || { x: 0, y: 0, width: 0, height: 0 },
+      measureFn: remeasure,
     });
 
     return () => {
       context.unregisterDropZone(id);
     };
-  }, [context, id, type, enabled]);
+  }, [context, id, type, enabled, remeasure]);
 
   // Handle layout changes to measure bounds
   const onLayout = useCallback(

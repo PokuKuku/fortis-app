@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -15,9 +16,13 @@ export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { workout, loading } = useWorkout(id);
+  const isNavigating = useRef(false);
 
   const handleBack = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     router.back();
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   const handleEdit = () => {
@@ -26,13 +31,19 @@ export default function WorkoutDetailScreen() {
   };
 
   const handleStartWorkout = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // TODO: Start workout with this template
     router.push('/workout/active');
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   const handleExercisePress = (exerciseId: string) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     router.push(`/exercise/${exerciseId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   // Loading state

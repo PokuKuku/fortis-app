@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -42,12 +42,14 @@ export function AddExerciseModal({
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
+  const isProcessing = useRef(false);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!visible) {
       setSearchQuery('');
       setSelectedExercises([]);
+      isProcessing.current = false;
     }
   }, [visible]);
 
@@ -79,12 +81,18 @@ export function AddExerciseModal({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     if (replaceMode) {
+      // Guard against rapid clicks in replace mode
+      if (isProcessing.current) return;
+      isProcessing.current = true;
+
       // In replace mode, immediately replace and close
       const exercise = allExercises.find(ex => ex.id === exerciseId);
       if (exercise && exerciseLocalIdToReplace) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         replaceExercise(exerciseLocalIdToReplace, exerciseId, exercise.name);
         onClose();
+      } else {
+        isProcessing.current = false;
       }
     } else {
       // Normal mode: toggle selection
@@ -104,6 +112,9 @@ export function AddExerciseModal({
 
   // Add all selected exercises in one atomic operation
   const handleAddExercises = () => {
+    if (isProcessing.current) return;
+    isProcessing.current = true;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Build array of exercises to add

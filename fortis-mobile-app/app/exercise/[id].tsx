@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -25,13 +25,17 @@ export default function ExerciseDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [selectedTab, setSelectedTab] = useState<TabType>('About');
+  const isNavigating = useRef(false);
 
   // Use centralized exercise service
   const { exercise, loading } = useExercise(id);
 
   const handleBack = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   if (!exercise) {
@@ -287,7 +291,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: Spacing['6xl'],
+    paddingBottom: 240, // Clear mini bar + FAB + tab bar when opened from Exercises tab
   },
   exerciseImageContainer: {
     height: 180,

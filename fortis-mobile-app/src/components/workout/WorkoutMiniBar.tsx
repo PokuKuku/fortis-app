@@ -1,11 +1,13 @@
-import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { usePathname, useSegments, router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronUp, Pause, Play } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
-import Animated, { SlideInDown, FadeOut } from 'react-native-reanimated';
+import Animated, { FadeOut, useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 export const MINI_BAR_HEIGHT = 60;
@@ -28,14 +30,73 @@ export function WorkoutMiniBar() {
   const segments = useSegments();
   const { activeSession, isWorkoutActive, isWorkoutTimerPaused, toggleWorkoutTimer } = useWorkoutStore();
   const elapsedSeconds = useElapsedTime();
+  const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
 
   // Check if on splash screen (not inside tabs group) or on active workout screen
   const isOnSplashScreen = segments.length === 0 || (segments[0] !== '(tabs)' && pathname === '/');
   const isOnWorkoutScreen = pathname === '/workout/active';
-  const isOnExerciseDetailsScreen = pathname.startsWith('/exercise/');
 
-  // Hide if no workout active, on splash screen, on workout screen, or on exercise details
-  if (!isWorkoutActive || isOnSplashScreen || isOnWorkoutScreen || isOnExerciseDetailsScreen) {
+  // Check if on main programs page (tabs home)
+  const isOnMainProgramsPage = segments[0] === '(tabs)' && (pathname === '/' || segments[1] === 'index');
+
+  // Check if on a page with tab bar (inside tabs group)
+  const hasTabBar = segments[0] === '(tabs)';
+
+  // Calculate bar width and positions
+  const barWidth = Math.min(screenWidth * 0.7, 300); // 70% width, max 300
+  const homeLeftPosition = screenWidth * 0.05; // 5% from left on home
+  const centeredLeftPosition = (screenWidth - barWidth) / 2; // Centered on other pages
+
+  // Bottom offsets: match FAB positioning (88px from bottom on tab pages)
+  const bottomWithTabBar = 56 + 12 + 20; // 88px - matches FAB exactly
+  const bottomWithoutTabBar = Math.max(24, insets.bottom + 12); // safe area + gap
+
+  // Use shared values for position and opacity
+  const leftPosition = useSharedValue(hasTabBar ? homeLeftPosition : centeredLeftPosition);
+  const bottomPosition = useSharedValue(hasTabBar ? bottomWithTabBar : bottomWithoutTabBar);
+  const opacity = useSharedValue(0); // Start at 0 for fade-in on first appearance
+  const hasShownBefore = useRef(false); // Track if we've shown before (for instant return from workout)
+
+  // Update positions when route changes - but NOT while on workout screen
+  useEffect(() => {
+    // Skip position updates while on workout screen (position should stay frozen)
+    if (isOnWorkoutScreen) return;
+
+    leftPosition.value = withTiming(hasTabBar ? homeLeftPosition : centeredLeftPosition, {
+      duration: 400,
+      easing: Easing.inOut(Easing.cubic),
+    });
+    bottomPosition.value = withTiming(hasTabBar ? bottomWithTabBar : bottomWithoutTabBar, {
+      duration: 400,
+      easing: Easing.inOut(Easing.cubic),
+    });
+  }, [hasTabBar, homeLeftPosition, centeredLeftPosition, bottomWithTabBar, bottomWithoutTabBar, isOnWorkoutScreen]);
+
+  // Animate opacity: fade in ONLY on first appearance, instant for workout screen transitions
+  useEffect(() => {
+    if (isOnWorkoutScreen) {
+      // Going to workout - fade out
+      opacity.value = withTiming(0, { duration: 150 });
+    } else if (!hasShownBefore.current) {
+      // First appearance - fade in
+      opacity.value = withTiming(1, { duration: 300 });
+      hasShownBefore.current = true;
+    } else {
+      // Returning from workout - fade in
+      opacity.value = withTiming(1, { duration: 300 });
+    }
+  }, [isOnWorkoutScreen]);
+
+  // Animated style reads all shared values
+  const animatedContainerStyle = useAnimatedStyle(() => ({
+    left: leftPosition.value,
+    bottom: bottomPosition.value,
+    opacity: opacity.value,
+  }));
+
+  // Unmount completely when no workout or on splash screen
+  if (!isWorkoutActive || isOnSplashScreen) {
     return null;
   }
 
@@ -53,16 +114,14 @@ export function WorkoutMiniBar() {
   const currentExercise = getCurrentExerciseName(activeSession);
   const elapsed = formatElapsedTime(elapsedSeconds);
 
-  // Position above tab bar with spacing (56 height + 12 bottom margin + 20 gap)
-  const bottomOffset = 56 + 12 + 20; // tab bar + margin + larger gap
-
   return (
     <Animated.View
-      entering={SlideInDown.duration(250)}
       exiting={FadeOut.duration(150)}
+      pointerEvents={isOnWorkoutScreen ? 'none' : 'auto'}
       style={[
         styles.container,
-        { bottom: bottomOffset },
+        { width: barWidth },
+        animatedContainerStyle,
       ]}
     >
       <Pressable
@@ -108,9 +167,8 @@ export function WorkoutMiniBar() {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    left: '5%',
-    width: '70%',
-    maxWidth: 300,
+    left: '5%', // Initial left position for tab pages
+    bottom: 88, // Match FAB position - animated style will adjust
     zIndex: 900,
   },
   bar: {

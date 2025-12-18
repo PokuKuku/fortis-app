@@ -127,6 +127,8 @@ type DraggableItemProps<T> = {
   dragType?: 'workout' | 'program';
   dragDropContext: DragDropContextValue | null;
   onCrossContainerDrop?: (sourceItemId: string, targetDropZoneId: string) => void;
+  // Callback to re-measure container offset on drag start
+  remeasureContainer?: () => void;
 };
 
 function DraggableItem<T>({
@@ -146,6 +148,7 @@ function DraggableItem<T>({
   dragType,
   dragDropContext,
   onCrossContainerDrop,
+  remeasureContainer,
 }: DraggableItemProps<T>) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -255,6 +258,12 @@ function DraggableItem<T>({
 
           // Notify cross-container drag context if enabled
           if (enableCrossContainerDrag && dragDropContext && dragType) {
+            // Re-measure container offset to account for scroll changes
+            if (remeasureContainer) {
+              runOnJS(remeasureContainer)();
+            }
+            // Re-measure all drop zone bounds to account for scroll changes
+            runOnJS(dragDropContext.remeasureAllBounds)();
             runOnJS(dragDropContext.startDrag)(itemKey, dragType);
           }
         })
@@ -379,6 +388,7 @@ function DraggableItem<T>({
       dragType,
       dragDropContext,
       onCrossContainerDrop,
+      remeasureContainer,
     ]
   );
 
@@ -458,6 +468,13 @@ export function DraggableGrid<T>({
     [containerOffset]
   );
 
+  // Re-measure container offset (called on drag start to account for scroll changes)
+  const remeasureContainer = useCallback(() => {
+    containerRef.current?.measure((x, y, _w, _h, pageX, pageY) => {
+      containerOffset.value = { x: pageX, y: pageY, ready: true };
+    });
+  }, [containerOffset]);
+
   useEffect(() => {
     positions.value = data.reduce<PositionMap>((acc, item, idx) => {
       acc[keyExtractor(item, idx)] = idx;
@@ -506,6 +523,7 @@ export function DraggableGrid<T>({
               dragType={dragType}
               dragDropContext={dragDropContext}
               onCrossContainerDrop={onCrossContainerDrop}
+              remeasureContainer={remeasureContainer}
             />
           );
         })}

@@ -11,6 +11,7 @@ export interface DropZone {
     width: number;
     height: number;
   };
+  measureFn?: () => void;
 }
 
 export interface DragState {
@@ -39,6 +40,9 @@ export interface DragDropContextValue {
 
   // Check if currently dragging
   checkDropZones: (absoluteX: number, absoluteY: number) => string | null;
+
+  // Re-measure all drop zone bounds (call when scroll position may have changed)
+  remeasureAllBounds: () => void;
 }
 
 export const DragDropContext = createContext<DragDropContextValue | null>(null);
@@ -156,6 +160,16 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
     [dropZones, hoveredDropZoneId]
   );
 
+  // Re-measure all drop zone bounds (useful when scroll position has changed)
+  const remeasureAllBounds = useCallback(() => {
+    const zones = dropZones.value;
+    zones.forEach((zone) => {
+      if (zone.measureFn) {
+        zone.measureFn();
+      }
+    });
+  }, [dropZones]);
+
   const value = useMemo<DragDropContextValue>(
     () => ({
       dragState,
@@ -168,6 +182,7 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
       updateDragPosition,
       endDrag,
       checkDropZones,
+      remeasureAllBounds,
     }),
     [
       dragState,
@@ -180,6 +195,7 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
       updateDragPosition,
       endDrag,
       checkDropZones,
+      remeasureAllBounds,
     ]
   );
 

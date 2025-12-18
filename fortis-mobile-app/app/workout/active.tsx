@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -57,6 +57,7 @@ export default function ActiveWorkoutScreen() {
   const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
   const [showReplaceConfirmModal, setShowReplaceConfirmModal] = useState(false);
   const [pendingReplaceExerciseLocalId, setPendingReplaceExerciseLocalId] = useState<string | null>(null);
+  const isNavigating = useRef(false);
 
   // Initialize rest timer tick
   useRestTimerTick();
@@ -68,9 +69,12 @@ export default function ActiveWorkoutScreen() {
   };
 
   const handleConfirmCancel = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     cancelWorkout();
     setShowCancelModal(false);
     router.back();
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   // Handle add exercise
@@ -111,7 +115,10 @@ export default function ActiveWorkoutScreen() {
 
   // Handle view exercise details
   const handleViewExerciseDetails = (exerciseId: string) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     router.push(`/exercise/${exerciseId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   // Handle close add exercise modal
@@ -159,9 +166,12 @@ export default function ActiveWorkoutScreen() {
 
   // Handle confirm finish
   const handleConfirmFinish = async () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     await finishWorkout();
     setShowFinishModal(false);
     router.back();
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   // Handle number pad confirm - implements perpetuating keyboard flow with autofill

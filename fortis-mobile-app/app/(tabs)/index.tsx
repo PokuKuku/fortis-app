@@ -566,6 +566,8 @@ export default function ProgramsScreen() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('Duplicated!');
   const [isStarting, setIsStarting] = useState(false);
+  const isNavigating = useRef(false);
+  const isProcessing = useRef(false);
 
   // Add to program modal state
   const [addToProgramModal, setAddToProgramModal] = useState<{
@@ -615,14 +617,26 @@ export default function ProgramsScreen() {
 
   // Handle tap on workout card to navigate to workout hub
   const handleWorkoutCardPress = (workoutId: number) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/workouts/${workoutId}`);
+
+    // Reset after navigation completes
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   // Handle tap on program card to navigate to program hub
   const handleProgramCardPress = (programId: string | number) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/programs/${programId}`);
+
+    // Reset after navigation completes
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   const handleKebabPress = (
@@ -656,10 +670,14 @@ export default function ProgramsScreen() {
   };
 
   const handleDuplicate = () => {
+    if (isProcessing.current) return;
+    isProcessing.current = true;
+
     if (openKebab.type === 'program' && openKebab.id !== null) {
       // TODO: Implement program duplication via service
       setToastMessage('Program duplication coming soon');
       setShowToast(true);
+      isProcessing.current = false;
     } else if (openKebab.type === 'workout' && openKebab.id !== null) {
       const workoutIndex = workouts.findIndex((w) => w.id === openKebab.id);
       const workout = workouts[workoutIndex];
@@ -697,6 +715,9 @@ export default function ProgramsScreen() {
         // Show toast notification
         setShowToast(true);
       }
+      isProcessing.current = false;
+    } else {
+      isProcessing.current = false;
     }
   };
 
@@ -795,6 +816,8 @@ export default function ProgramsScreen() {
   // Handle position selection in add-to-program modal
   const handleSelectPosition = useCallback(async (position: number) => {
     if (!addToProgramModal.workoutId || !addToProgramModal.programId) return;
+    if (isProcessing.current) return;
+    isProcessing.current = true;
 
     try {
       // Add workout to program at the selected position
@@ -824,6 +847,8 @@ export default function ProgramsScreen() {
       console.error('Failed to add workout to program:', error);
       setToastMessage('Failed to add workout');
       setShowToast(true);
+    } finally {
+      isProcessing.current = false;
     }
   }, [addToProgramModal, refreshPrograms]);
 

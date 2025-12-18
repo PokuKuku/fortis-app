@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -118,9 +118,13 @@ export default function ProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { program, loading } = useProgram(id);
+  const isNavigating = useRef(false);
 
   const handleBack = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     router.back();
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   const handleEdit = () => {
@@ -129,13 +133,19 @@ export default function ProgramDetailScreen() {
   };
 
   const handleStartProgram = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     // TODO: Start first workout of the program
     router.push('/workout/active');
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   const handleExercisePress = (exerciseId: string) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     router.push(`/exercise/${exerciseId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   // Calculate total exercises across all workouts
