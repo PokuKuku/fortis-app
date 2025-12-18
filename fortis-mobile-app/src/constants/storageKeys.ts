@@ -14,3 +14,7 @@ export const REST_TIMER_SETTINGS_KEY = 'rest_timer_settings_v1';
 export const EXERCISE_ORDER_KEY = 'exercise_order_v1';
 export const EXERCISE_STICKY_NOTES_KEY = 'exercise_sticky_notes_v1';
 export const EXERCISE_WEIGHT_UNITS_KEY = 'exercise_weight_units_v1';
+
+// AI assistant
+export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
+export const AI_PENDING_ACTIONS_KEY = 'ai_pending_actions_v1';

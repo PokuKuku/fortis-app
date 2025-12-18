@@ -204,3 +204,106 @@ export const DEFAULT_REST_TIMER_SETTINGS: RestTimerSettings = {
   warmupSeconds: 90,   // 1.5 minutes
   dropsetSeconds: 60,  // 1 minute
 };
+
+// ============================================
+// Program Types (for Programs/Templates screen)
+// ============================================
+
+/**
+ * Difficulty levels for programs
+ */
+export type ProgramDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+/**
+ * Program goals
+ */
+export type ProgramGoal = 'strength' | 'hypertrophy' | 'powerlifting' | 'general_fitness';
+
+/**
+ * Exercise prescription within a program workout
+ */
+export interface ProgramExercise {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  sets: number;
+  reps: string;           // Can be "8-12" or "5"
+  restSeconds?: number;
+  notes?: string;
+  orderIndex: number;
+}
+
+/**
+ * Single workout day within a program
+ */
+export interface ProgramWorkout {
+  id: string;
+  name: string;           // e.g., "Push Day A"
+  dayNumber: number;
+  exercises: ProgramExercise[];
+}
+
+/**
+ * Workout program (multi-day training plan)
+ */
+export interface Program {
+  id: string;
+  name: string;
+  description?: string;
+  difficulty: ProgramDifficulty;
+  goal?: ProgramGoal;
+  durationWeeks?: number;
+  isPublic: boolean;
+  isDefault: boolean;
+  isAiCreated: boolean;
+  lastPerformedAt: string | null;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
+  workouts: ProgramWorkout[];
+}
+
+/**
+ * Program DTO (snake_case for Supabase)
+ */
+export interface ProgramDTO {
+  id: string;
+  name: string;
+  description?: string;
+  difficulty: ProgramDifficulty;
+  goal?: ProgramGoal;
+  duration_weeks?: number;
+  is_public: boolean;
+  is_default: boolean;
+  is_ai_created: boolean;
+  last_performed_at: string | null;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+  program_workouts?: ProgramWorkoutDTO[];
+}
+
+/**
+ * Program workout DTO
+ */
+export interface ProgramWorkoutDTO {
+  id: string;
+  program_id: string;
+  name: string;
+  day_number: number;
+  program_exercises?: ProgramExerciseDTO[];
+}
+
+/**
+ * Program exercise DTO
+ */
+export interface ProgramExerciseDTO {
+  id: string;
+  program_workout_id: string;
+  exercise_id: string;
+  sets: number;
+  reps: string;
+  rest_seconds?: number;
+  notes?: string;
+  order_index: number;
+}
