@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { DragDropProvider } from '@/src/contexts/DragDropContext';
 
 export default function RootLayout() {
   const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
@@ -26,6 +27,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
+      <DragDropProvider>
         <StatusBar style="light" />
         <Stack
           screenOptions={{
@@ -52,8 +54,25 @@ export default function RootLayout() {
               gestureDirection: 'horizontal',
             }}
           />
+          <Stack.Screen
+            name="workouts/[id]"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
+            name="programs/[id]"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
         </Stack>
         <WorkoutMiniBar />
+      </DragDropProvider>
     </GestureHandlerRootView>
   );
 }

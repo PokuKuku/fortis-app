@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useContext } from 'react';
 import { LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -9,6 +9,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
+import { DragDropContext, DragDropContextValue } from '../contexts/DragDropContext';
 
 type LayoutConfig = {
   itemWidth: number;
@@ -28,6 +29,10 @@ type DraggableGridProps<T> = {
   numColumns: number;
   itemHeight: number;
   gap?: number;
+  // Cross-container drag-and-drop props
+  enableCrossContainerDrag?: boolean;
+  dragType?: 'workout' | 'program';
+  onCrossContainerDrop?: (sourceItemId: string, targetDropZoneId: string) => void;
 };
 
 const SPRING_CONFIG = {
@@ -108,15 +113,20 @@ type DraggableItemProps<T> = {
   item: T;
   index: number;
   itemKey: string;
-  positions: Animated.SharedValue<PositionMap>;
-  layoutConfig: Animated.SharedValue<LayoutConfig>;
-  activeKey: Animated.SharedValue<string | null>;
-  dataLength: Animated.SharedValue<number>;
+  positions: ReturnType<typeof useSharedValue<PositionMap>>;
+  layoutConfig: ReturnType<typeof useSharedValue<LayoutConfig>>;
+  activeKey: ReturnType<typeof useSharedValue<string | null>>;
+  dataLength: ReturnType<typeof useSharedValue<number>>;
   renderItem: (item: T, index: number, isActive: boolean) => React.ReactNode;
   onDrop: (itemKey: string, fromIndex: number, toIndex: number) => void;
-  containerOffset: Animated.SharedValue<ContainerOffset>;
+  containerOffset: ReturnType<typeof useSharedValue<ContainerOffset>>;
   itemWidth: number;
   itemHeight: number;
+  // Cross-container drag-and-drop props
+  enableCrossContainerDrag?: boolean;
+  dragType?: 'workout' | 'program';
+  dragDropContext: DragDropContextValue | null;
+  onCrossContainerDrop?: (sourceItemId: string, targetDropZoneId: string) => void;
 };
 
 function DraggableItem<T>({
@@ -132,6 +142,10 @@ function DraggableItem<T>({
   containerOffset,
   itemWidth,
   itemHeight,
+  enableCrossContainerDrag,
+  dragType,
+  dragDropContext,
+  onCrossContainerDrop,
 }: DraggableItemProps<T>) {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
@@ -175,6 +189,24 @@ function DraggableItem<T>({
   const triggerHaptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
   }, []);
+
+  const triggerDropZoneHaptic = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+  }, []);
+
+  // Track the last hovered drop zone to trigger haptic only on entry
+  const lastHoveredDropZoneRef = useRef<string | null>(null);
+
+  // Helper callback to check drop zones from JS thread (called via runOnJS)
+  const checkDropZonesAndHaptic = useCallback((absoluteX: number, absoluteY: number) => {
+    if (!dragDropContext) return;
+
+    const hoveredZone = dragDropContext.checkDropZones(absoluteX, absoluteY);
+    if (hoveredZone && lastHoveredDropZoneRef.current !== hoveredZone) {
+      triggerDropZoneHaptic();
+    }
+    lastHoveredDropZoneRef.current = hoveredZone;
+  }, [dragDropContext, triggerDropZoneHaptic]);
 
   const animatedStyle = useAnimatedStyle(() => {
     const dragging = activeKey.value === itemKey;
@@ -220,6 +252,11 @@ function DraggableItem<T>({
           activeKey.value = itemKey;
           runOnJS(setIsActiveRender)(true);
           runOnJS(triggerHaptic)();
+
+          // Notify cross-container drag context if enabled
+          if (enableCrossContainerDrag && dragDropContext && dragType) {
+            runOnJS(dragDropContext.startDrag)(itemKey, dragType);
+          }
         })
         .onChange((event) => {
           if (
@@ -263,6 +300,19 @@ function DraggableItem<T>({
             positions.value = swapPositions(positions.value, currentIndex.value, overIndex);
             currentIndex.value = overIndex;
           }
+
+          // Cross-container drag: update position and check drop zones
+          if (enableCrossContainerDrag && dragDropContext) {
+            // Calculate absolute position on screen
+            const absoluteX = containerOffset.value.x + nextX + layoutConfig.value.itemWidth / 2;
+            const absoluteY = containerOffset.value.y + nextY + layoutConfig.value.itemHeight / 2;
+
+            // Update drag position in context (on JS thread)
+            runOnJS(dragDropContext.updateDragPosition)(absoluteX, absoluteY);
+
+            // Check drop zones and trigger haptic on entry (must run on JS thread)
+            runOnJS(checkDropZonesAndHaptic)(absoluteX, absoluteY);
+          }
         })
         .onFinalize(() => {
           if (
@@ -273,14 +323,41 @@ function DraggableItem<T>({
             return;
           }
           isPressing.value = false;
-          const finalIndex = currentIndex.value;
-          originIndex.value = finalIndex;
-          const destination = getPositionForIndex(finalIndex, layoutConfig.value);
+
+          // Check if we're dropping on a cross-container drop zone
+          const hoveredZone = dragDropContext?.hoveredDropZoneId.value;
+          if (enableCrossContainerDrag && hoveredZone && onCrossContainerDrop && dragType === 'workout') {
+            // Cross-container drop - notify and reset to original position
+            runOnJS(onCrossContainerDrop)(itemKey, hoveredZone);
+
+            // Reset position to original slot (don't reorder)
+            const originalSlot = startIndex.value;
+            const originalPosition = getPositionForIndex(originalSlot, layoutConfig.value);
+            translateX.value = withSpring(originalPosition.x, SPRING_CONFIG);
+            translateY.value = withSpring(originalPosition.y, SPRING_CONFIG);
+
+            // Reset positions map to original order
+            positions.value = { ...positions.value, [itemKey]: startIndex.value };
+            currentIndex.value = startIndex.value;
+            originIndex.value = startIndex.value;
+          } else {
+            // Normal reorder within container
+            const finalIndex = currentIndex.value;
+            originIndex.value = finalIndex;
+            const destination = getPositionForIndex(finalIndex, layoutConfig.value);
+            translateX.value = withSpring(destination.x, SPRING_CONFIG);
+            translateY.value = withSpring(destination.y, SPRING_CONFIG);
+            runOnJS(onDrop)(itemKey, startIndex.value, finalIndex);
+          }
+
           activeKey.value = null;
           runOnJS(setIsActiveRender)(false);
-          translateX.value = withSpring(destination.x, SPRING_CONFIG);
-          translateY.value = withSpring(destination.y, SPRING_CONFIG);
-          runOnJS(onDrop)(itemKey, startIndex.value, finalIndex);
+
+          // Clean up drag context state
+          if (enableCrossContainerDrag && dragDropContext) {
+            runOnJS(dragDropContext.endDrag)();
+            lastHoveredDropZoneRef.current = null;
+          }
         }),
     [
       activeKey,
@@ -292,11 +369,16 @@ function DraggableItem<T>({
       positions,
       setIsActiveRender,
       triggerHaptic,
+      triggerDropZoneHaptic,
       translateX,
       translateY,
       startX,
       startY,
       itemWidth,
+      enableCrossContainerDrag,
+      dragType,
+      dragDropContext,
+      onCrossContainerDrop,
     ]
   );
 
@@ -317,7 +399,12 @@ export function DraggableGrid<T>({
   numColumns,
   itemHeight,
   gap = 12,
+  enableCrossContainerDrag = false,
+  dragType,
+  onCrossContainerDrop,
 }: DraggableGridProps<T>) {
+  // Get drag-drop context (optional, for cross-container drag)
+  const dragDropContext = useContext(DragDropContext);
   const [containerWidth, setContainerWidth] = useState<number | null>(null);
   const containerRef = useRef<View>(null);
   const containerOffset = useSharedValue<ContainerOffset>({ x: 0, y: 0, ready: false });
@@ -415,6 +502,10 @@ export function DraggableGrid<T>({
               containerOffset={containerOffset}
               itemWidth={itemWidth}
               itemHeight={itemHeight}
+              enableCrossContainerDrag={enableCrossContainerDrag}
+              dragType={dragType}
+              dragDropContext={dragDropContext}
+              onCrossContainerDrop={onCrossContainerDrop}
             />
           );
         })}

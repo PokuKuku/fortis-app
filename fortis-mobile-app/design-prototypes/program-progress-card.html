@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Program Card Progress - Design Concepts</title>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #0a0a0a;
+      --surface: rgba(255, 255, 255, 0.08);
+      --surface-border: rgba(255, 255, 255, 0.15);
+      --text-primary: #DFE2E6;
+      --text-secondary: #9CA3AF;
+      --text-muted: #6B7280;
+      --success: #22c55e;
+      --success-glow: rgba(34, 197, 94, 0.3);
+      --success-subtle: rgba(34, 197, 94, 0.15);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Geist', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--background);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: var(--text-primary);
+    }
+
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 32px;
+    }
+
+    .concept-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--success);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 12px;
+      margin-top: 32px;
+    }
+
+    .concept-description {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    /* Base Card Styles */
+    .program-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 6px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .kebab {
+      color: var(--success);
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* ==================== */
+    /* CONCEPT 1: Progress Dots Timeline */
+    /* ==================== */
+    .concept-1 .progress-section {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .progress-dots {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .progress-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.15);
+      transition: all 0.3s ease;
+    }
+
+    .progress-dot.completed {
+      background: var(--success);
+    }
+
+    .progress-dot.current {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success-glow), 0 0 16px var(--success-glow);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 8px var(--success-glow); }
+      50% { box-shadow: 0 0 12px var(--success-glow), 0 0 20px var(--success-glow); }
+    }
+
+    .next-workout {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .next-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .next-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--success);
+    }
+
+    /* ==================== */
+    /* CONCEPT 2: Inline Progress Bar */
+    /* ==================== */
+    .concept-2 .card-content {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .concept-2 .progress-bar-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--success), #4ade80);
+      border-radius: 2px;
+      transition: width 0.5s ease;
+    }
+
+    .progress-text {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-family: 'Geist Mono', monospace;
+    }
+
+    .concept-2 .workout-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .last-workout {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .last-workout span {
+      color: var(--text-secondary);
+    }
+
+    .next-workout-inline {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .next-workout-inline span {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    /* ==================== */
+    /* CONCEPT 3: Stacked Mini Cards */
+    /* ==================== */
+    .concept-3 .program-card {
+      padding-bottom: 16px;
+    }
+
+    .concept-3 .workout-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .mini-workout {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 8px;
+      border: 1px solid transparent;
+    }
+
+    .mini-workout.completed {
+      opacity: 0.5;
+    }
+
+    .mini-workout.next {
+      background: var(--success-subtle);
+      border-color: rgba(34, 197, 94, 0.3);
+    }
+
+    .mini-workout .day-badge {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Geist Mono', monospace;
+    }
+
+    .mini-workout.next .day-badge {
+      background: var(--success);
+      color: #000;
+    }
+
+    .mini-workout .workout-name {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .mini-workout.next .workout-name {
+      color: var(--text-primary);
+    }
+
+    .mini-workout .check {
+      font-size: 12px;
+      color: var(--success);
+    }
+
+    /* ==================== */
+    /* CONCEPT 4: Badge Style (Compact) */
+    /* ==================== */
+    .concept-4 .program-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .concept-4 .progress-ring {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      flex-shrink: 0;
+    }
+
+    .concept-4 .progress-ring svg {
+      transform: rotate(-90deg);
+    }
+
+    .concept-4 .progress-ring circle {
+      fill: none;
+      stroke-width: 3;
+    }
+
+    .concept-4 .progress-ring .bg {
+      stroke: rgba(255, 255, 255, 0.1);
+    }
+
+    .concept-4 .progress-ring .progress {
+      stroke: var(--success);
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.5s ease;
+    }
+
+    .concept-4 .progress-ring .ring-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-primary);
+      font-family: 'Geist Mono', monospace;
+    }
+
+    .concept-4 .card-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .concept-4 .card-header {
+      margin-bottom: 4px;
+    }
+
+    .concept-4 .next-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--success-subtle);
+      border: 1px solid rgba(34, 197, 94, 0.25);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .concept-4 .next-badge .arrow {
+      color: var(--success);
+    }
+
+    .concept-4 .next-badge .text {
+      color: var(--text-primary);
+    }
+
+    /* ==================== */
+    /* CONCEPT 5: Minimal Timeline */
+    /* ==================== */
+    .concept-5 .program-card {
+      padding: 14px;
+    }
+
+    .concept-5 .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+
+    .concept-5 .title-group {
+      flex: 1;
+    }
+
+    .concept-5 .day-indicator {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--success);
+      background: var(--success-subtle);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: 'Geist Mono', monospace;
+    }
+
+    .concept-5 .timeline {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .concept-5 .timeline-segment {
+      height: 3px;
+      flex: 1;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      position: relative;
+    }
+
+    .concept-5 .timeline-segment.completed {
+      background: var(--success);
+    }
+
+    .concept-5 .timeline-segment.current {
+      background: linear-gradient(90deg, var(--success), rgba(255, 255, 255, 0.1));
+    }
+
+    .concept-5 .timeline-segment.current::after {
+      content: '';
+      position: absolute;
+      right: -2px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 7px;
+      height: 7px;
+      background: var(--success);
+      border-radius: 50%;
+      box-shadow: 0 0 6px var(--success-glow);
+    }
+
+    .concept-5 .workout-preview {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .concept-5 .workout-item {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .concept-5 .workout-item .label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .concept-5 .workout-item .name {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .concept-5 .workout-item.next .name {
+      color: var(--success);
+      font-weight: 600;
+    }
+
+    /* Section dividers */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+      margin: 40px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Program Progress Cards</h1>
+    <p class="subtitle">Design concepts for showing workout progress in program cards</p>
+
+    <!-- CONCEPT 1 -->
+    <div class="concept-label">Concept 1: Progress Dots</div>
+    <p class="concept-description">
+      Horizontal dots show each day. Completed days are solid green, current day pulses.
+      Clean and scannable at a glance.
+    </p>
+    <div class="concept-1">
+      <div class="program-card">
+        <div class="card-header">
+          <span class="card-title">Push Pull Legs</span>
+          <span class="kebab">•••</span>
+        </div>
+        <div class="card-meta">6 workouts · 12 weeks</div>
+        <div class="progress-section">
+          <div class="progress-dots">
+            <div class="progress-dot completed"></div>
+            <div class="progress-dot completed"></div>
+            <div class="progress-dot current"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+            <div class="progress-dot"></div>
+          </div>
+          <div class="next-workout">
+            <span class="next-label">Next:</span>
+            <span class="next-name">Day 3 - Legs</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- CONCEPT 2 -->
+    <div class="concept-label">Concept 2: Progress Bar + Labels</div>
+    <p class="concept-description">
+      Minimal progress bar with "Last" and "Next" workout labels.
+      Shows both where you've been and where you're going.
+    </p>
+    <div class="concept-2">
+      <div class="program-card">
+        <div class="card-content">
+          <div class="card-header">
+            <span class="card-title">Push Pull Legs</span>
+            <span class="kebab">•••</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar">
+              <div class="progress-bar-fill" style="width: 33%"></div>
+            </div>
+            <span class="progress-text">2/6</span>
+          </div>
+          <div class="workout-info">
+            <span class="last-workout">Last: <span>Pull Day</span></span>
+            <span class="next-workout-inline">Next: <span>Legs Day</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- CONCEPT 3 -->
+    <div class="concept-label">Concept 3: Stacked Workouts</div>
+    <p class="concept-description">
+      Shows the actual workout names in mini cards. The "next" workout is highlighted with green.
+      More detailed but takes more vertical space.
+    </p>
+    <div class="concept-3">
+      <div class="program-card">
+        <div class="card-header">
+          <span class="card-title">Push Pull Legs</span>
+          <span class="kebab">•••</span>
+        </div>
+        <div class="card-meta">Week 2 of 12</div>
+        <div class="workout-stack">
+          <div class="mini-workout completed">
+            <span class="day-badge">D1</span>
+            <span class="workout-name">Push Day A</span>
+            <span class="check">✓</span>
+          </div>
+          <div class="mini-workout completed">
+            <span class="day-badge">D2</span>
+            <span class="workout-name">Pull Day A</span>
+            <span class="check">✓</span>
+          </div>
+          <div class="mini-workout next">
+            <span class="day-badge">D3</span>
+            <span class="workout-name">Legs Day A</span>
+            <span class="arrow" style="color: var(--success)">→</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- CONCEPT 4 -->
+    <div class="concept-label">Concept 4: Circular Progress Ring</div>
+    <p class="concept-description">
+      Compact circular progress indicator with day count.
+      Badge shows the next workout. Very clean and modern.
+    </p>
+    <div class="concept-4">
+      <div class="program-card">
+        <div class="progress-ring">
+          <svg width="44" height="44" viewBox="0 0 44 44">
+            <circle class="bg" cx="22" cy="22" r="18"></circle>
+            <circle class="progress" cx="22" cy="22" r="18"
+              stroke-dasharray="113"
+              stroke-dashoffset="75">
+            </circle>
+          </svg>
+          <span class="ring-text">2/6</span>
+        </div>
+        <div class="card-info">
+          <div class="card-header">
+            <span class="card-title">Push Pull Legs</span>
+            <span class="kebab">•••</span>
+          </div>
+          <div class="next-badge">
+            <span class="arrow">→</span>
+            <span class="text">Legs Day A</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- CONCEPT 5 -->
+    <div class="concept-label">Concept 5: Timeline + Preview</div>
+    <p class="concept-description">
+      Segmented timeline at the top with a marker showing current position.
+      Shows both last completed and next workout below.
+    </p>
+    <div class="concept-5">
+      <div class="program-card">
+        <div class="top-row">
+          <div class="title-group">
+            <div class="card-title">Push Pull Legs</div>
+            <div class="card-meta">12 week program</div>
+          </div>
+          <span class="day-indicator">DAY 3</span>
+        </div>
+        <div class="timeline">
+          <div class="timeline-segment completed"></div>
+          <div class="timeline-segment completed"></div>
+          <div class="timeline-segment current"></div>
+          <div class="timeline-segment"></div>
+          <div class="timeline-segment"></div>
+          <div class="timeline-segment"></div>
+        </div>
+        <div class="workout-preview">
+          <div class="workout-item">
+            <span class="label">Last</span>
+            <span class="name">Pull Day A</span>
+          </div>
+          <div class="workout-item next">
+            <span class="label">Up Next</span>
+            <span class="name">Legs Day A</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

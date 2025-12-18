@@ -1,0 +1,191 @@
+import React, { createContext, useCallback, useMemo } from 'react';
+import { useSharedValue, runOnJS } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
+
+export interface DropZone {
+  id: string;
+  type: 'program';
+  bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+export interface DragState {
+  isDragging: boolean;
+  draggedItemId: string | null;
+  draggedItemType: 'workout' | 'program' | null;
+  absoluteX: number;
+  absoluteY: number;
+}
+
+export interface DragDropContextValue {
+  // Shared animated values
+  dragState: SharedValue<DragState>;
+  dropZones: SharedValue<DropZone[]>;
+  hoveredDropZoneId: SharedValue<string | null>;
+
+  // Actions
+  registerDropZone: (zone: DropZone) => void;
+  unregisterDropZone: (id: string) => void;
+  updateDropZoneBounds: (id: string, bounds: DropZone['bounds']) => void;
+
+  // Drag lifecycle
+  startDrag: (itemId: string, itemType: 'workout' | 'program') => void;
+  updateDragPosition: (absoluteX: number, absoluteY: number) => void;
+  endDrag: () => void;
+
+  // Check if currently dragging
+  checkDropZones: (absoluteX: number, absoluteY: number) => string | null;
+}
+
+export const DragDropContext = createContext<DragDropContextValue | null>(null);
+
+interface DragDropProviderProps {
+  children: React.ReactNode;
+}
+
+export function DragDropProvider({ children }: DragDropProviderProps) {
+  // Shared values for cross-component communication
+  const dragState = useSharedValue<DragState>({
+    isDragging: false,
+    draggedItemId: null,
+    draggedItemType: null,
+    absoluteX: 0,
+    absoluteY: 0,
+  });
+
+  const dropZones = useSharedValue<DropZone[]>([]);
+  const hoveredDropZoneId = useSharedValue<string | null>(null);
+
+  // Register a new drop zone
+  const registerDropZone = useCallback(
+    (zone: DropZone) => {
+      const existing = dropZones.value.find((z) => z.id === zone.id);
+      if (!existing) {
+        dropZones.value = [...dropZones.value, zone];
+      }
+    },
+    [dropZones]
+  );
+
+  // Unregister a drop zone
+  const unregisterDropZone = useCallback(
+    (id: string) => {
+      dropZones.value = dropZones.value.filter((z) => z.id !== id);
+    },
+    [dropZones]
+  );
+
+  // Update drop zone bounds (called on layout changes)
+  const updateDropZoneBounds = useCallback(
+    (id: string, bounds: DropZone['bounds']) => {
+      dropZones.value = dropZones.value.map((zone) =>
+        zone.id === id ? { ...zone, bounds } : zone
+      );
+    },
+    [dropZones]
+  );
+
+  // Start dragging an item
+  const startDrag = useCallback(
+    (itemId: string, itemType: 'workout' | 'program') => {
+      dragState.value = {
+        isDragging: true,
+        draggedItemId: itemId,
+        draggedItemType: itemType,
+        absoluteX: 0,
+        absoluteY: 0,
+      };
+    },
+    [dragState]
+  );
+
+  // Update drag position
+  const updateDragPosition = useCallback(
+    (absoluteX: number, absoluteY: number) => {
+      dragState.value = {
+        ...dragState.value,
+        absoluteX,
+        absoluteY,
+      };
+    },
+    [dragState]
+  );
+
+  // End dragging
+  const endDrag = useCallback(() => {
+    dragState.value = {
+      isDragging: false,
+      draggedItemId: null,
+      draggedItemType: null,
+      absoluteX: 0,
+      absoluteY: 0,
+    };
+    hoveredDropZoneId.value = null;
+  }, [dragState, hoveredDropZoneId]);
+
+  // Check if position is over any drop zone and update hovered state
+  const checkDropZones = useCallback(
+    (absoluteX: number, absoluteY: number): string | null => {
+      const zones = dropZones.value;
+
+      for (const zone of zones) {
+        const { bounds } = zone;
+        const isInside =
+          absoluteX >= bounds.x &&
+          absoluteX <= bounds.x + bounds.width &&
+          absoluteY >= bounds.y &&
+          absoluteY <= bounds.y + bounds.height;
+
+        if (isInside) {
+          if (hoveredDropZoneId.value !== zone.id) {
+            hoveredDropZoneId.value = zone.id;
+          }
+          return zone.id;
+        }
+      }
+
+      if (hoveredDropZoneId.value !== null) {
+        hoveredDropZoneId.value = null;
+      }
+      return null;
+    },
+    [dropZones, hoveredDropZoneId]
+  );
+
+  const value = useMemo<DragDropContextValue>(
+    () => ({
+      dragState,
+      dropZones,
+      hoveredDropZoneId,
+      registerDropZone,
+      unregisterDropZone,
+      updateDropZoneBounds,
+      startDrag,
+      updateDragPosition,
+      endDrag,
+      checkDropZones,
+    }),
+    [
+      dragState,
+      dropZones,
+      hoveredDropZoneId,
+      registerDropZone,
+      unregisterDropZone,
+      updateDropZoneBounds,
+      startDrag,
+      updateDragPosition,
+      endDrag,
+      checkDropZones,
+    ]
+  );
+
+  return (
+    <DragDropContext.Provider value={value}>
+      {children}
+    </DragDropContext.Provider>
+  );
+}

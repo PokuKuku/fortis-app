@@ -10,7 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRightIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { ChevronRightIcon, ChevronDownIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon } from 'react-native-heroicons/outline';
+import AnimatedView, { useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import DraggableFlatList, {
   NestableScrollContainer,
   NestableDraggableFlatList,
@@ -26,13 +27,16 @@ import { GlassButton } from '../../components/GlassButton';
 import { usePersistedOrder } from '../../src/hooks/usePersistedOrder';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { useWorkoutStore } from '../../src/store/workoutStore';
+import { useDropZone } from '../../src/hooks/useDropZone';
+import { useDragDropContext } from '../../src/hooks/useDragDropContext';
+import { AddToProgramModal, ProgramWorkoutSlot } from '../../src/components/workout/AddToProgramModal';
+import { usePrograms } from '../../src/hooks/usePrograms';
+import * as ProgramService from '../../src/services/programService';
+import { WorkoutStackPreview } from '../../src/components/program/WorkoutStackPreview';
+import { ProgramWorkout, ProgramProgress } from '../../src/types/program';
+import { Colors } from '../../constants/Colors';
 
-// Sample data
-const initialPrograms = [
-  { id: 1, name: 'Push Pull Legs', workouts: 6, weeks: 12, lastPerformed: '2 days ago' },
-  { id: 2, name: 'Upper Lower Split', workouts: 4, weeks: 8, lastPerformed: '1 week ago' },
-];
-
+// Sample data for workouts (will be moved to service layer later)
 const initialWorkouts = [
   { id: 1, name: 'Push Day A', exercises: 5, lastPerformed: '3 days ago' },
   { id: 2, name: 'Pull Day B', exercises: 6, lastPerformed: '5 days ago' },
@@ -42,9 +46,9 @@ const initialWorkouts = [
 
 // Types for drag-and-drop
 type ProgramItem = {
-  id: number;
+  id: string;
   name: string;
-  workouts: number;
+  workouts: number; // Now computed from workouts.length
   weeks: number;
   lastPerformed: string;
 };
@@ -223,7 +227,7 @@ function ProgramCard({
   onKebabPress,
   showKebab,
 }: {
-  program: typeof initialPrograms[0];
+  program: ProgramItem;
   onKebabPress: (event: any) => void;
   showKebab: boolean;
 }) {
@@ -439,6 +443,48 @@ function DeleteConfirmationModal({
   );
 }
 
+// Drop Zone Program Card Component - wraps program cards with drop zone functionality
+function DropZoneProgramCard({
+  programId,
+  children,
+}: {
+  programId: string | number;
+  children: React.ReactNode;
+}) {
+  const { ref, onLayout, isHovered } = useDropZone({
+    id: `program-${programId}`,
+    type: 'program',
+  });
+
+  // Animated style for drop zone highlight
+  const dropHighlightStyle = useAnimatedStyle(() => {
+    return {
+      borderColor: withSpring(
+        isHovered.value ? Colors.success : 'rgba(255, 255, 255, 0.15)',
+        { damping: 20, stiffness: 200 }
+      ),
+      borderWidth: withSpring(isHovered.value ? 2 : 1, { damping: 20, stiffness: 200 }),
+      transform: [
+        { scale: withSpring(isHovered.value ? 1.02 : 1, { damping: 20, stiffness: 200 }) },
+      ],
+      shadowColor: isHovered.value ? Colors.success : '#000',
+      shadowOpacity: withSpring(isHovered.value ? 0.4 : 0, { damping: 20, stiffness: 200 }),
+      shadowRadius: 8,
+      shadowOffset: { width: 0, height: 0 },
+    };
+  });
+
+  return (
+    <AnimatedView.View
+      ref={ref}
+      onLayout={onLayout}
+      style={[styles.dropZoneWrapper, dropHighlightStyle]}
+    >
+      {children}
+    </AnimatedView.View>
+  );
+}
+
 // Animated Collapsible Section Component
 function CollapsibleSection({
   isOpen,
@@ -490,26 +536,72 @@ export default function ProgramsScreen() {
   const startWorkout = useWorkoutStore(s => s.startWorkout);
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
 
+  // Use programs from service with persistence
+  const { programs: programsData, loading: programsLoading, refresh: refreshPrograms } = usePrograms();
+
+  // Program progress state
+  const [programProgress, setProgramProgress] = useState<Record<string, ProgramProgress>>({});
+
+  // Accordion state for program cards
+  const [expandedPrograms, setExpandedPrograms] = useState<Record<string, boolean>>({});
+
+  // Load program progress on mount
+  useEffect(() => {
+    const loadProgress = async () => {
+      try {
+        const progress = await ProgramService.getAllProgramProgress();
+        setProgramProgress(progress);
+      } catch (error) {
+        console.error('Failed to load program progress:', error);
+      }
+    };
+    loadProgress();
+  }, []);
+
+  // Transform ProgramDetail to ProgramItem for the UI
+  const programs: ProgramItem[] = programsData.map(p => ({
+    id: p.id,
+    name: p.name,
+    workouts: p.workouts.length, // Computed from actual workouts array
+    weeks: p.durationWeeks,
+    lastPerformed: p.lastPerformed || 'Never',
+  }));
+
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
-  const [programs, setPrograms] = useState(initialPrograms);
   const [workouts, setWorkouts] = useState(initialWorkouts);
   const [openKebab, setOpenKebab] = useState<{
     type: 'program' | 'workout' | null;
-    id: number | null;
+    id: string | number | null;
     position: { top: number; right: number };
   }>({ type: null, id: null, position: { top: 0, right: 0 } });
   const [deleteConfirmation, setDeleteConfirmation] = useState<{
     visible: boolean;
     type: 'program' | 'workout' | null;
-    id: number | null;
+    id: string | number | null;
     name: string;
   }>({ visible: false, type: null, id: null, name: '' });
   const [animatingCards, setAnimatingCards] = useState<{
     [key: string]: 'entering' | 'exiting';
   }>({});
   const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('Duplicated!');
   const [isStarting, setIsStarting] = useState(false);
+
+  // Add to program modal state
+  const [addToProgramModal, setAddToProgramModal] = useState<{
+    visible: boolean;
+    workoutId: string | null;
+    workoutName: string;
+    programId: string | null;
+    programName: string;
+  }>({
+    visible: false,
+    workoutId: null,
+    workoutName: '',
+    programId: null,
+    programName: '',
+  });
 
   // Reset starting flag when workout becomes inactive (user cancelled or finished)
   useEffect(() => {
@@ -518,12 +610,8 @@ export default function ProgramsScreen() {
     }
   }, [isWorkoutActive]);
 
-  // Persistence hooks for drag-and-drop order
-  const { saveOrder: saveProgramsOrder } = usePersistedOrder(
-    'programs',
-    programs,
-    setPrograms
-  );
+  // Persistence hook for workout drag-and-drop order
+  // Note: Programs order is managed by the program service with AsyncStorage persistence
   const { saveOrder: saveWorkoutsOrder } = usePersistedOrder(
     'workouts',
     workouts,
@@ -546,9 +634,30 @@ export default function ProgramsScreen() {
     router.push('/workout/active');
   };
 
+  // Handle tap on workout card to navigate to workout hub
+  const handleWorkoutCardPress = (workoutId: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/workouts/${workoutId}`);
+  };
+
+  // Handle tap on program card to navigate to program hub
+  const handleProgramCardPress = (programId: string | number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/programs/${programId}`);
+  };
+
+  // Toggle program card accordion
+  const toggleProgramExpanded = useCallback((programId: string) => {
+    setExpandedPrograms(prev => ({
+      ...prev,
+      [programId]: !prev[programId],
+    }));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, []);
+
   const handleKebabPress = (
     type: 'program' | 'workout',
-    id: number,
+    id: string | number,
     event: any
   ) => {
     event.preventDefault();
@@ -578,42 +687,9 @@ export default function ProgramsScreen() {
 
   const handleDuplicate = () => {
     if (openKebab.type === 'program' && openKebab.id !== null) {
-      const programIndex = programs.findIndex((p) => p.id === openKebab.id);
-      const program = programs[programIndex];
-      if (program) {
-        // Find existing duplicates to determine the next number
-        const baseName = program.name.replace(/\s*\(\d+\)$/, '');
-        const duplicates = programs.filter((p) =>
-          p.name.startsWith(baseName)
-        );
-        const duplicateNumbers = duplicates
-          .map((p) => {
-            const match = p.name.match(/\((\d+)\)$/);
-            return match ? parseInt(match[1]) : 0;
-          })
-          .filter((n) => n > 0);
-        const nextNumber = duplicateNumbers.length > 0
-          ? Math.max(...duplicateNumbers) + 1
-          : 1;
-
-        const newProgram = {
-          ...program,
-          id: Math.max(...programs.map((p) => p.id)) + 1,
-          name: `${baseName} (${nextNumber})`,
-        };
-
-        // Insert right after the original card
-        const newPrograms = [...programs];
-        newPrograms.splice(programIndex + 1, 0, newProgram);
-        setPrograms(newPrograms);
-
-        // Trigger entering animation
-        const cardKey = `program-${newProgram.id}`;
-        setAnimatingCards(prev => ({ ...prev, [cardKey]: 'entering' }));
-
-        // Show toast notification
-        setShowToast(true);
-      }
+      // TODO: Implement program duplication via service
+      setToastMessage('Program duplication coming soon');
+      setShowToast(true);
     } else if (openKebab.type === 'workout' && openKebab.id !== null) {
       const workoutIndex = workouts.findIndex((w) => w.id === openKebab.id);
       const workout = workouts[workoutIndex];
@@ -689,7 +765,7 @@ export default function ProgramsScreen() {
     setDeleteConfirmation({ visible: false, type: null, id: null, name: '' });
   };
 
-  const handleAnimationComplete = (type: 'program' | 'workout', id: number) => {
+  const handleAnimationComplete = (type: 'program' | 'workout', id: string | number) => {
     const cardKey = `${type}-${id}`;
     const animState = animatingCards[cardKey];
 
@@ -703,7 +779,9 @@ export default function ProgramsScreen() {
     } else if (animState === 'exiting') {
       // Remove card from list after exiting animation completes
       if (type === 'program') {
-        setPrograms(programs.filter((p) => p.id !== id));
+        // TODO: Implement program deletion via service
+        // For now, just refresh to sync with service data
+        refreshPrograms();
       } else {
         setWorkouts(workouts.filter((w) => w.id !== id));
       }
@@ -719,6 +797,90 @@ export default function ProgramsScreen() {
   const cancelDelete = () => {
     setDeleteConfirmation({ visible: false, type: null, id: null, name: '' });
   };
+
+  // Handle cross-container drop (workout onto program)
+  const handleCrossContainerDrop = useCallback((workoutItemKey: string, programDropZoneId: string) => {
+    // Extract IDs from keys (format: "workout-1" and "program-1")
+    const workoutId = workoutItemKey.replace('workout-', '');
+    const programId = programDropZoneId.replace('program-', '');
+
+    // Find the workout and program names
+    const workout = workouts.find(w => w.id === parseInt(workoutId));
+    const program = programs.find(p => p.id === programId); // Programs use string IDs
+
+    if (!workout || !program) return;
+
+    // Show the add-to-program modal
+    setAddToProgramModal({
+      visible: true,
+      workoutId,
+      workoutName: workout.name,
+      programId,
+      programName: program.name,
+    });
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [workouts, programs]);
+
+  // Handle position selection in add-to-program modal
+  const handleSelectPosition = useCallback(async (position: number) => {
+    if (!addToProgramModal.workoutId || !addToProgramModal.programId) return;
+
+    try {
+      // Add workout to program at the selected position
+      await ProgramService.addWorkoutToProgram(
+        addToProgramModal.workoutId,
+        addToProgramModal.programId,
+        position
+      );
+
+      // Invalidate cache and refresh UI to show updated workout count
+      ProgramService.invalidateProgramCache();
+      await refreshPrograms();
+
+      // Close modal
+      setAddToProgramModal({
+        visible: false,
+        workoutId: null,
+        workoutName: '',
+        programId: null,
+        programName: '',
+      });
+
+      // Show success toast
+      setToastMessage(`Added to ${addToProgramModal.programName}`);
+      setShowToast(true);
+    } catch (error) {
+      console.error('Failed to add workout to program:', error);
+      setToastMessage('Failed to add workout');
+      setShowToast(true);
+    }
+  }, [addToProgramModal, refreshPrograms]);
+
+  // Cancel add-to-program modal
+  const handleCancelAddToProgram = useCallback(() => {
+    setAddToProgramModal({
+      visible: false,
+      workoutId: null,
+      workoutName: '',
+      programId: null,
+      programName: '',
+    });
+  }, []);
+
+  // Get existing workouts for a program from real data
+  const getExistingProgramWorkouts = useCallback((programId: string): ProgramWorkoutSlot[] => {
+    // Find the program in programsData (which has full workout details)
+    const program = programsData.find(p => p.id === programId);
+    if (!program) return [];
+
+    // Map program workouts to the format expected by the modal
+    return program.workouts.map(w => ({
+      id: w.id,
+      name: w.name,
+      dayNumber: w.dayNumber,
+    }));
+  }, [programsData]);
 
   // Draggable program card renderer
   const renderProgramItem = useCallback(
@@ -738,6 +900,7 @@ export default function ProgramsScreen() {
             onAnimationComplete={() => handleAnimationComplete('program', item.id)}
           >
             <TouchableOpacity
+              onPress={() => handleProgramCardPress(item.id)}
               onLongPress={handleDrag}
               disabled={isActive}
               delayLongPress={150}
@@ -770,7 +933,7 @@ export default function ProgramsScreen() {
         </ScaleDecorator>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress]
+    [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress]
   );
 
   // Draggable workout card renderer for DraggableGrid
@@ -784,7 +947,9 @@ export default function ProgramsScreen() {
           animationState={animState}
           onAnimationComplete={() => handleAnimationComplete('workout', item.id)}
         >
-          <View
+          <TouchableOpacity
+            onPress={() => handleWorkoutCardPress(item.id)}
+            activeOpacity={0.8}
             style={[
               styles.workoutCard,
               isActive && styles.cardActive,
@@ -805,50 +970,107 @@ export default function ProgramsScreen() {
             <Text style={styles.cardMetaText}>
               {item.exercises} exercises · {item.lastPerformed}
             </Text>
-          </View>
+          </TouchableOpacity>
         </AnimatedCard>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress]
+    [animatingCards, handleAnimationComplete, handleKebabPress, handleWorkoutCardPress]
   );
 
-  // Draggable program card renderer for DraggableGrid
-  const renderProgramGridItem = useCallback(
-    (item: ProgramItem, index: number, isActive: boolean) => {
+  // Draggable program card renderer for NestableDraggableFlatList
+  const renderDraggableProgramItem = useCallback(
+    ({ item, drag, isActive }: RenderItemParams<ProgramItem>) => {
       const cardKey = `program-${item.id}`;
       const animState = animatingCards[cardKey];
 
+      // Get full program data with workouts array
+      const fullProgram = programsData.find(p => p.id === item.id);
+      const workoutsArray = fullProgram?.workouts || [];
+
+      // Get progress for this program
+      const progress = programProgress[item.id];
+      const completedIds = progress?.completedWorkoutIds || [];
+      const currentDayNumber = progress?.currentDayNumber || 1;
+
+      // Check if accordion is expanded
+      const isExpanded = expandedPrograms[item.id] || false;
+
+      const handleDrag = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        drag();
+      };
+
       return (
-        <AnimatedCard
-          animationState={animState}
-          onAnimationComplete={() => handleAnimationComplete('program', item.id)}
-        >
-          <View
-            style={[
-              styles.programCard,
-              isActive && styles.cardActive,
-            ]}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
-                {item.name}
-              </Text>
-              <TouchableOpacity
-                style={styles.cardKebabButton}
-                onPress={(event) => handleKebabPress('program', item.id, event)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        <ScaleDecorator activeScale={1.03}>
+          <View style={{ marginBottom: 12 }}>
+            <DropZoneProgramCard programId={item.id}>
+              <AnimatedCard
+                animationState={animState}
+                onAnimationComplete={() => handleAnimationComplete('program', item.id)}
               >
-                <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.cardMetaText}>
-              {item.workouts} workouts · {item.lastPerformed}
-            </Text>
+                <TouchableOpacity
+                  onPress={() => handleProgramCardPress(item.id)}
+                  onLongPress={handleDrag}
+                  delayLongPress={150}
+                  disabled={isActive}
+                  activeOpacity={0.8}
+                  style={[
+                    styles.programCardInner,
+                    isActive && styles.cardActive,
+                  ]}
+                >
+                  <View style={styles.cardHeader}>
+                    {workoutsArray.length > 0 && (
+                      <TouchableOpacity
+                        onPress={(e) => {
+                          e.stopPropagation();
+                          toggleProgramExpanded(item.id);
+                        }}
+                        style={styles.chevronToggle}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <ChevronDownIcon
+                          size={14}
+                          color="#9CA3AF"
+                          strokeWidth={2.5}
+                          style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
+                        />
+                      </TouchableOpacity>
+                    )}
+                    <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
+                      {item.name}
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.cardKebabButton}
+                      onPress={(event) => handleKebabPress('program', item.id, event)}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    >
+                      <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.cardMetaText}>
+                    {item.workouts} workouts · {item.lastPerformed}
+                  </Text>
+
+                  {/* Workout stack preview (collapsible) */}
+                  {workoutsArray.length > 0 && (
+                    <CollapsibleSection isOpen={isExpanded}>
+                      <WorkoutStackPreview
+                        workouts={workoutsArray}
+                        completedIds={completedIds}
+                        currentDayNumber={currentDayNumber}
+                        maxVisible={3}
+                      />
+                    </CollapsibleSection>
+                  )}
+                </TouchableOpacity>
+              </AnimatedCard>
+            </DropZoneProgramCard>
           </View>
-        </AnimatedCard>
+        </ScaleDecorator>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress]
+    [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress, programsData, programProgress, expandedPrograms, toggleProgramExpanded]
   );
 
   return (
@@ -908,17 +1130,14 @@ export default function ProgramsScreen() {
 
             <CollapsibleSection isOpen={showPrograms}>
               {showPrograms && (
-                <DraggableGrid
+                <NestableDraggableFlatList
                   data={programs}
-                  keyExtractor={(item) => `program-${item.id}`}
-                  renderItem={renderProgramGridItem}
-                  onReorder={(data) => {
-                    setPrograms(data);
-                    saveProgramsOrder(data);
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderDraggableProgramItem}
+                  onDragEnd={({ data }) => {
+                    // TODO: Persist program order via service
                   }}
-                  numColumns={1}
-                  itemHeight={70}
-                  gap={12}
+                  scrollEnabled={false}
                 />
               )}
             </CollapsibleSection>
@@ -958,6 +1177,9 @@ export default function ProgramsScreen() {
                   numColumns={2}
                   itemHeight={76}
                   gap={12}
+                  enableCrossContainerDrag={true}
+                  dragType="workout"
+                  onCrossContainerDrop={handleCrossContainerDrop}
                 />
               )}
             </CollapsibleSection>
@@ -985,8 +1207,18 @@ export default function ProgramsScreen() {
       {/* Toast Notification */}
       <ToastNotification
         visible={showToast}
-        message="Duplicated!"
+        message={toastMessage}
         onHide={() => setShowToast(false)}
+      />
+
+      {/* Add to Program Modal */}
+      <AddToProgramModal
+        visible={addToProgramModal.visible}
+        workoutName={addToProgramModal.workoutName}
+        programName={addToProgramModal.programName}
+        existingWorkouts={addToProgramModal.programId ? getExistingProgramWorkouts(addToProgramModal.programId) : []}
+        onSelectPosition={handleSelectPosition}
+        onCancel={handleCancelAddToProgram}
       />
     </View>
   );
@@ -1116,7 +1348,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
     overflow: 'hidden',
-    height: 70,
+    minHeight: 70, // Minimum height, expands for workout stack preview
   },
   workoutCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -1134,6 +1366,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     height: 76,
   },
+  // Drop zone wrapper for program cards
+  dropZoneWrapper: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+  },
+  // Program card inner (used when wrapped in DropZoneProgramCard)
+  programCardInner: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 12,
+    minHeight: 68, // Minimum height, expands for workout stack preview
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
   cardTitle: {
     flex: 1,
     fontSize: 14,
@@ -1144,6 +1392,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  cardMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chevronToggle: {
+    marginRight: 8,
+  },
+  programsList: {
+    gap: 12,
+  },
+  programCardWrapper: {
+    // Natural height based on content
   },
   cardMetaText: {
     fontSize: 12,

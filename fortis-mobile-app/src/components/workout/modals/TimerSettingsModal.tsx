@@ -109,6 +109,13 @@ export function TimerSettingsModal({
     }
   }, [showTypeSelector]);
 
+  // Reset accordion/popover state when modal opens
+  useEffect(() => {
+    if (visible) {
+      setShowTypeSelector(false);
+    }
+  }, [visible]);
+
   const handleTypeChange = (newType: SetType) => {
     if (newType === activeType) return;
 
