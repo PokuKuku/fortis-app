@@ -25,6 +25,7 @@ interface AddToProgramModalProps {
   workoutName: string;
   programName: string;
   existingWorkouts: ProgramWorkoutSlot[];
+  isAtLimit: boolean;
   onSelectPosition: (position: number) => void;
   onCancel: () => void;
 }
@@ -38,6 +39,7 @@ export function AddToProgramModal({
   workoutName,
   programName,
   existingWorkouts,
+  isAtLimit,
   onSelectPosition,
   onCancel,
 }: AddToProgramModalProps) {
@@ -154,25 +156,27 @@ export function AddToProgramModal({
                 </TouchableOpacity>
               ))}
 
-              {/* Add as new day option */}
-              <TouchableOpacity
-                style={[styles.positionOption, styles.addNewOption]}
-                onPress={() => handleSelectPosition(nextDayNumber)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.positionBadge, styles.addNewBadge]}>
-                  <PlusIcon color={Colors.success} size={14} strokeWidth={2.5} />
-                </View>
-                <View style={styles.positionInfo}>
-                  <Text style={[styles.positionName, styles.addNewText]}>
-                    Add as Day {nextDayNumber}
-                  </Text>
-                  <Text style={styles.positionHint}>
-                    Add at the end of the program
-                  </Text>
-                </View>
-                <CheckIcon color={Colors.success} size={18} strokeWidth={2} />
-              </TouchableOpacity>
+              {/* Add as new day option - hidden when at 7 workout limit */}
+              {!isAtLimit && (
+                <TouchableOpacity
+                  style={[styles.positionOption, styles.addNewOption]}
+                  onPress={() => handleSelectPosition(nextDayNumber)}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.positionBadge, styles.addNewBadge]}>
+                    <PlusIcon color={Colors.success} size={14} strokeWidth={2.5} />
+                  </View>
+                  <View style={styles.positionInfo}>
+                    <Text style={[styles.positionName, styles.addNewText]}>
+                      Add as Day {nextDayNumber}
+                    </Text>
+                    <Text style={styles.positionHint}>
+                      Add at the end of the program
+                    </Text>
+                  </View>
+                  <CheckIcon color={Colors.success} size={18} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
             </ScrollView>
 
             {/* Cancel Button */}

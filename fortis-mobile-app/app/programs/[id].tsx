@@ -1,17 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PlayIcon, ChevronDownIcon, ChevronRightIcon } from 'react-native-heroicons/outline';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import { PlayIcon, TrashIcon } from 'react-native-heroicons/outline';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
@@ -20,6 +13,9 @@ import { Spacing, BorderRadius, FontSizes, ButtonHeights, IconSizes } from '@/co
 import { useProgram } from '@/src/hooks/usePrograms';
 import { HubHeader, HubExerciseRow, HubStatsSection } from '@/src/components/hub';
 import { ProgramWorkout } from '@/src/types/program';
+import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
+import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import * as ProgramService from '@/src/services/programService';
 
 // Difficulty badge colors
 const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -41,54 +37,48 @@ function WorkoutSection({
   workout,
   index,
   onExercisePress,
+  onDeleteWorkout,
+  onDeleteExercise,
 }: {
   workout: ProgramWorkout;
   index: number;
   onExercisePress: (exerciseId: string) => void;
+  onDeleteWorkout: (workoutId: string, workoutName: string) => void;
+  onDeleteExercise: (workoutId: string, exerciseId: string, exerciseName: string) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(index === 0); // First one expanded by default
-  const rotation = useSharedValue(index === 0 ? 90 : 0);
 
   const handleToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    rotation.value = withTiming(isExpanded ? 0 : 90, {
-      duration: 200,
-      easing: Easing.out(Easing.cubic),
-    });
     setIsExpanded(!isExpanded);
   };
-
-  const chevronStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
 
   return (
     <View style={styles.workoutSection}>
       {/* Section Header */}
-      <TouchableOpacity
-        onPress={handleToggle}
-        activeOpacity={0.7}
-        style={styles.workoutSectionHeader}
-      >
-        <View style={styles.workoutSectionLeft}>
-          <View style={styles.dayBadge}>
-            <Text style={styles.dayBadgeText}>Day {workout.dayNumber}</Text>
+      <View style={styles.workoutSectionHeader}>
+        <TouchableOpacity
+          onPress={handleToggle}
+          activeOpacity={0.7}
+          style={styles.workoutSectionTouchable}
+        >
+          <View style={styles.workoutSectionLeft}>
+            <View style={styles.dayBadge}>
+              <Text style={styles.dayBadgeText}>Day {workout.dayNumber}</Text>
+            </View>
+            <View style={styles.workoutSectionInfo}>
+              <Text style={styles.workoutSectionTitle}>{workout.name}</Text>
+              <Text style={styles.workoutSectionSubtitle}>
+                {workout.exercises.length} exercises
+              </Text>
+            </View>
           </View>
-          <View style={styles.workoutSectionInfo}>
-            <Text style={styles.workoutSectionTitle}>{workout.name}</Text>
-            <Text style={styles.workoutSectionSubtitle}>
-              {workout.exercises.length} exercises
-            </Text>
-          </View>
-        </View>
-        <Animated.View style={chevronStyle}>
-          <ChevronRightIcon
-            size={20}
-            color={Colors.textSecondary}
-            strokeWidth={2}
-          />
-        </Animated.View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+        <DeleteKebabMenu
+          deleteLabel="Delete Workout"
+          onDelete={() => onDeleteWorkout(workout.id, workout.name)}
+        />
+      </View>
 
       {/* Exercises List (collapsible) */}
       {isExpanded && (
@@ -106,6 +96,12 @@ function WorkoutSection({
               images={exercise.images}
               index={exerciseIndex}
               onPress={() => onExercisePress(exercise.exerciseId)}
+              rightAction={
+                <DeleteKebabMenu
+                  deleteLabel="Delete Exercise"
+                  onDelete={() => onDeleteExercise(workout.id, exercise.id, exercise.exerciseName)}
+                />
+              }
             />
           ))}
         </Animated.View>
@@ -117,8 +113,17 @@ function WorkoutSection({
 export default function ProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { program, loading } = useProgram(id);
+  const { program, loading, refresh: refreshProgram } = useProgram(id);
   const isNavigating = useRef(false);
+
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    visible: boolean;
+    type: 'workout' | 'exercise';
+    workoutId: string;
+    exerciseId?: string;
+    name: string;
+  }>({ visible: false, type: 'workout', workoutId: '', name: '' });
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -147,6 +152,50 @@ export default function ProgramDetailScreen() {
     router.push(`/exercise/${exerciseId}`);
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
+
+  // Delete handlers
+  const handleDeleteWorkout = useCallback((workoutId: string, workoutName: string) => {
+    setDeleteModal({
+      visible: true,
+      type: 'workout',
+      workoutId,
+      name: workoutName,
+    });
+  }, []);
+
+  const handleDeleteExercise = useCallback((workoutId: string, exerciseId: string, exerciseName: string) => {
+    setDeleteModal({
+      visible: true,
+      type: 'exercise',
+      workoutId,
+      exerciseId,
+      name: exerciseName,
+    });
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!id) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+    if (deleteModal.type === 'workout') {
+      await ProgramService.removeWorkoutFromProgram(id, deleteModal.workoutId);
+    } else if (deleteModal.exerciseId) {
+      await ProgramService.removeExerciseFromProgramWorkout(
+        id,
+        deleteModal.workoutId,
+        deleteModal.exerciseId
+      );
+    }
+
+    // Close modal and refresh
+    setDeleteModal({ ...deleteModal, visible: false });
+    refreshProgram();
+  }, [id, deleteModal, refreshProgram]);
+
+  const handleCancelDelete = useCallback(() => {
+    setDeleteModal({ ...deleteModal, visible: false });
+  }, [deleteModal]);
 
   // Calculate total exercises across all workouts
   const totalExercises = program?.workouts.reduce(
@@ -306,11 +355,45 @@ export default function ProgramDetailScreen() {
                 workout={workout}
                 index={index}
                 onExercisePress={handleExercisePress}
+                onDeleteWorkout={handleDeleteWorkout}
+                onDeleteExercise={handleDeleteExercise}
               />
             ))}
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <BaseModal
+        visible={deleteModal.visible}
+        onClose={handleCancelDelete}
+        title={deleteModal.type === 'workout' ? 'Delete Workout?' : 'Delete Exercise?'}
+        icon={<TrashIcon size={24} color={Colors.error} />}
+      >
+        <Text style={modalStyles.message}>
+          Are you sure you want to remove "{deleteModal.name}" from this program? This cannot be undone.
+        </Text>
+        <View style={modalStyles.actions}>
+          <Pressable
+            onPress={handleCancelDelete}
+            style={({ pressed }) => [
+              modalStyles.cancelButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleConfirmDelete}
+            style={({ pressed }) => [
+              modalStyles.errorButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={modalStyles.errorButtonText}>Delete</Text>
+          </Pressable>
+        </View>
+      </BaseModal>
     </SafeAreaView>
   );
 }
@@ -446,7 +529,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: Spacing.lg,
+    paddingLeft: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  workoutSectionTouchable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flex: 1,
+    paddingRight: Spacing.sm,
   },
   workoutSectionLeft: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRightIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
@@ -15,6 +15,7 @@ interface HubExerciseRowProps {
   images: string[];
   index: number;
   onPress?: () => void;
+  rightAction?: React.ReactNode;
 }
 
 // Muscle group colors for visual distinction
@@ -49,6 +50,7 @@ export function HubExerciseRow({
   images,
   index,
   onPress,
+  rightAction,
 }: HubExerciseRowProps) {
   const imageUrl = images.length > 0
     ? `${EXERCISE_CONFIG.imageBaseUrl}${images[0]}`
@@ -126,16 +128,8 @@ export function HubExerciseRow({
           </View>
         </View>
 
-        {/* Chevron */}
-        {onPress && (
-          <View style={styles.chevronContainer}>
-            <ChevronRightIcon
-              size={18}
-              color={Colors.textSecondary}
-              strokeWidth={2}
-            />
-          </View>
-        )}
+        {/* Right Action (e.g., kebab menu) */}
+        {rightAction}
       </TouchableOpacity>
     </Animated.View>
   );
@@ -214,8 +208,5 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     fontWeight: '600',
     textTransform: 'capitalize',
-  },
-  chevronContainer: {
-    padding: Spacing.xs,
   },
 });

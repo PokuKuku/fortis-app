@@ -7,12 +7,16 @@ import {
   WorkoutExerciseDetail,
   HubStats,
 } from '@/src/types/program';
-import { PROGRAMS_KEY } from '@/src/constants/storageKeys';
+import { PROGRAMS_KEY, WORKOUTS_KEY } from '@/src/constants/storageKeys';
+
+// Maximum number of workouts allowed per program
+export const MAX_WORKOUTS_PER_PROGRAM = 7;
 
 // In-memory cache
 let programsCache: ProgramDetail[] | null = null;
 let workoutsCache: WorkoutDetail[] | null = null;
 let storageLoaded = false;
+let workoutsStorageLoaded = false;
 
 // --- Mock Data ---
 
@@ -533,6 +537,26 @@ async function saveProgramsToStorage(programs: ProgramDetail[]): Promise<void> {
   }
 }
 
+async function loadWorkoutsFromStorage(): Promise<WorkoutDetail[]> {
+  try {
+    const stored = await AsyncStorage.getItem(WORKOUTS_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Failed to load workouts from storage:', error);
+  }
+  return [];
+}
+
+async function saveWorkoutsToStorage(workouts: WorkoutDetail[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(WORKOUTS_KEY, JSON.stringify(workouts));
+  } catch (error) {
+    console.error('Failed to save workouts to storage:', error);
+  }
+}
+
 // --- Core Functions ---
 
 export async function getAllPrograms(): Promise<ProgramDetail[]> {
@@ -562,11 +586,39 @@ export async function getProgramById(id: string): Promise<ProgramDetail | null> 
   return programs.find(p => p.id === id) || null;
 }
 
+/**
+ * Check if a workout can be added to a program (respects the 7 workout limit).
+ */
+export async function canAddWorkoutToProgram(programId: string): Promise<{
+  canAdd: boolean;
+  currentCount: number;
+}> {
+  const program = await getProgramById(programId);
+  if (!program) return { canAdd: false, currentCount: 0 };
+  return {
+    canAdd: program.workouts.length < MAX_WORKOUTS_PER_PROGRAM,
+    currentCount: program.workouts.length,
+  };
+}
+
 export async function getAllWorkouts(): Promise<WorkoutDetail[]> {
   if (workoutsCache) return workoutsCache;
 
-  // TODO: Replace with Supabase fetch when ready
+  // Load persisted workouts from storage
+  if (!workoutsStorageLoaded) {
+    const storedWorkouts = await loadWorkoutsFromStorage();
+    workoutsStorageLoaded = true;
+
+    if (storedWorkouts.length > 0) {
+      workoutsCache = storedWorkouts;
+      return workoutsCache;
+    }
+  }
+
+  // Fall back to mock data if nothing stored
   workoutsCache = MOCK_WORKOUTS;
+  // Save mock data to storage for future modifications
+  await saveWorkoutsToStorage(workoutsCache);
   return workoutsCache;
 }
 
@@ -596,6 +648,11 @@ export async function addWorkoutToProgram(
 
   if (!workout || !program) {
     return null;
+  }
+
+  // Check if program has reached the workout limit
+  if (program.workouts.length >= MAX_WORKOUTS_PER_PROGRAM) {
+    throw new Error('PROGRAM_LIMIT_REACHED');
   }
 
   // Convert WorkoutDetail exercises to ProgramExercise format
@@ -667,6 +724,145 @@ export async function getProgramWorkoutSlots(
   }));
 }
 
+/**
+ * Remove a workout from a program.
+ * Renumbers remaining workouts to maintain sequential day numbers.
+ */
+export async function removeWorkoutFromProgram(
+  programId: string,
+  workoutId: string
+): Promise<ProgramDetail | null> {
+  const program = await getProgramById(programId);
+  if (!program) return null;
+
+  // Filter out the workout and renumber days
+  const updatedWorkouts = program.workouts
+    .filter((w) => w.id !== workoutId)
+    .map((w, index) => ({ ...w, dayNumber: index + 1 }));
+
+  const updatedProgram: ProgramDetail = {
+    ...program,
+    workouts: updatedWorkouts,
+  };
+
+  // Update cache and persist
+  if (programsCache) {
+    programsCache = programsCache.map((p) =>
+      p.id === programId ? updatedProgram : p
+    );
+    await saveProgramsToStorage(programsCache);
+  }
+
+  return updatedProgram;
+}
+
+/**
+ * Remove an exercise from a program workout.
+ * Renumbers remaining exercises to maintain sequential order indexes.
+ */
+export async function removeExerciseFromProgramWorkout(
+  programId: string,
+  workoutId: string,
+  exerciseId: string
+): Promise<ProgramDetail | null> {
+  const program = await getProgramById(programId);
+  if (!program) return null;
+
+  // Find and update the workout
+  const updatedWorkouts = program.workouts.map((workout) => {
+    if (workout.id !== workoutId) return workout;
+
+    // Filter out the exercise and renumber order indexes
+    const updatedExercises = workout.exercises
+      .filter((e) => e.id !== exerciseId)
+      .map((e, index) => ({ ...e, orderIndex: index }));
+
+    return { ...workout, exercises: updatedExercises };
+  });
+
+  const updatedProgram: ProgramDetail = {
+    ...program,
+    workouts: updatedWorkouts,
+  };
+
+  // Update cache and persist
+  if (programsCache) {
+    programsCache = programsCache.map((p) =>
+      p.id === programId ? updatedProgram : p
+    );
+    await saveProgramsToStorage(programsCache);
+  }
+
+  return updatedProgram;
+}
+
+/**
+ * Remove an exercise from a standalone workout.
+ * Renumbers remaining exercises to maintain sequential order indexes.
+ */
+export async function removeExerciseFromWorkout(
+  workoutId: string,
+  exerciseId: string
+): Promise<WorkoutDetail | null> {
+  const workouts = await getAllWorkouts();
+  const workout = workouts.find((w) => w.id === workoutId);
+  if (!workout) return null;
+
+  // Filter out the exercise and renumber order indexes
+  const updatedExercises = workout.exercises
+    .filter((e) => e.id !== exerciseId)
+    .map((e, index) => ({ ...e, orderIndex: index }));
+
+  const updatedWorkout: WorkoutDetail = {
+    ...workout,
+    exercises: updatedExercises,
+  };
+
+  // Update cache and persist
+  if (workoutsCache) {
+    workoutsCache = workoutsCache.map((w) =>
+      w.id === workoutId ? updatedWorkout : w
+    );
+    await saveWorkoutsToStorage(workoutsCache);
+  }
+
+  return updatedWorkout;
+}
+
+// --- Delete Functions ---
+
+/**
+ * Delete a program entirely.
+ */
+export async function deleteProgram(programId: string): Promise<boolean> {
+  const programs = await getAllPrograms();
+  const updatedPrograms = programs.filter(p => p.id !== programId);
+
+  if (updatedPrograms.length === programs.length) {
+    return false; // Program not found
+  }
+
+  programsCache = updatedPrograms;
+  await saveProgramsToStorage(programsCache);
+  return true;
+}
+
+/**
+ * Delete a standalone workout entirely.
+ */
+export async function deleteWorkout(workoutId: string): Promise<boolean> {
+  const workouts = await getAllWorkouts();
+  const updatedWorkouts = workouts.filter(w => w.id !== workoutId);
+
+  if (updatedWorkouts.length === workouts.length) {
+    return false; // Workout not found
+  }
+
+  workoutsCache = updatedWorkouts;
+  await saveWorkoutsToStorage(workoutsCache);
+  return true;
+}
+
 // --- Cache Management ---
 
 export function invalidateProgramCache(): void {
@@ -676,6 +872,7 @@ export function invalidateProgramCache(): void {
 
 export function invalidateWorkoutCache(): void {
   workoutsCache = null;
+  workoutsStorageLoaded = false;
 }
 
 export function invalidateAllCache(): void {

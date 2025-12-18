@@ -1,8 +1,8 @@
-import { useRef } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { PlayIcon } from 'react-native-heroicons/outline';
+import { PlayIcon, TrashIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -11,12 +11,22 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights, IconSizes } from '@/constants/Sizes';
 import { useWorkout } from '@/src/hooks/usePrograms';
 import { HubHeader, HubExerciseRow, HubStatsSection } from '@/src/components/hub';
+import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
+import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import * as ProgramService from '@/src/services/programService';
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { workout, loading } = useWorkout(id);
+  const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
+
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    visible: boolean;
+    exerciseId: string;
+    name: string;
+  }>({ visible: false, exerciseId: '', name: '' });
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -45,6 +55,30 @@ export default function WorkoutDetailScreen() {
     router.push(`/exercise/${exerciseId}`);
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
+
+  // Delete handlers
+  const handleDeleteExercise = useCallback((exerciseId: string, exerciseName: string) => {
+    setDeleteModal({
+      visible: true,
+      exerciseId,
+      name: exerciseName,
+    });
+  }, []);
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!id) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    await ProgramService.removeExerciseFromWorkout(id, deleteModal.exerciseId);
+
+    // Close modal and refresh
+    setDeleteModal({ ...deleteModal, visible: false });
+    refreshWorkout();
+  }, [id, deleteModal, refreshWorkout]);
+
+  const handleCancelDelete = useCallback(() => {
+    setDeleteModal({ ...deleteModal, visible: false });
+  }, [deleteModal]);
 
   // Loading state
   if (loading) {
@@ -161,11 +195,49 @@ export default function WorkoutDetailScreen() {
                 images={exercise.images}
                 index={index}
                 onPress={() => handleExercisePress(exercise.exerciseId)}
+                rightAction={
+                  <DeleteKebabMenu
+                    deleteLabel="Delete Exercise"
+                    onDelete={() => handleDeleteExercise(exercise.id, exercise.exerciseName)}
+                  />
+                }
               />
             ))}
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <BaseModal
+        visible={deleteModal.visible}
+        onClose={handleCancelDelete}
+        title="Delete Exercise?"
+        icon={<TrashIcon size={24} color={Colors.error} />}
+      >
+        <Text style={modalStyles.message}>
+          Are you sure you want to remove "{deleteModal.name}" from this workout? This cannot be undone.
+        </Text>
+        <View style={modalStyles.actions}>
+          <Pressable
+            onPress={handleCancelDelete}
+            style={({ pressed }) => [
+              modalStyles.cancelButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleConfirmDelete}
+            style={({ pressed }) => [
+              modalStyles.errorButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={modalStyles.errorButtonText}>Delete</Text>
+          </Pressable>
+        </View>
+      </BaseModal>
     </SafeAreaView>
   );
 }

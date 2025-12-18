@@ -31,35 +31,37 @@ export function usePrograms() {
 }
 
 /**
- * Hook to load a single program by ID
+ * Hook to load a single program by ID with refresh capability
  */
 export function useProgram(id: string | undefined) {
   const [program, setProgram] = useState<ProgramDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
+  const loadProgram = useCallback(async () => {
     if (!id) {
       setProgram(null);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    ProgramService.getProgramById(id)
-      .then(data => {
-        setProgram(data);
-        setError(null);
-      })
-      .catch(err => {
-        setError(err as Error);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    try {
+      setLoading(true);
+      const data = await ProgramService.getProgramById(id);
+      setProgram(data);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
-  return { program, loading, error };
+  useEffect(() => {
+    loadProgram();
+  }, [loadProgram]);
+
+  return { program, loading, error, refresh: loadProgram };
 }
 
 /**
@@ -91,33 +93,35 @@ export function useWorkouts() {
 }
 
 /**
- * Hook to load a single workout by ID
+ * Hook to load a single workout by ID with refresh capability
  */
 export function useWorkout(id: string | undefined) {
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
+  const loadWorkout = useCallback(async () => {
     if (!id) {
       setWorkout(null);
       setLoading(false);
       return;
     }
 
-    setLoading(true);
-    ProgramService.getWorkoutById(id)
-      .then(data => {
-        setWorkout(data);
-        setError(null);
-      })
-      .catch(err => {
-        setError(err as Error);
-      })
-      .finally(() => {
-        setLoading(false);
-      });
+    try {
+      setLoading(true);
+      const data = await ProgramService.getWorkoutById(id);
+      setWorkout(data);
+      setError(null);
+    } catch (err) {
+      setError(err as Error);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
-  return { workout, loading, error };
+  useEffect(() => {
+    loadWorkout();
+  }, [loadWorkout]);
+
+  return { workout, loading, error, refresh: loadWorkout };
 }

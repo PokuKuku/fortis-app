@@ -165,29 +165,51 @@ function DraggableItem<T>({
     () => {
       const dragging = activeKey.value === itemKey;
       const cfg = layoutConfig.value;
+      const length = dataLength.value; // Track data length changes for item removal
 
       if (cfg.itemWidth <= 0 || cfg.itemHeight <= 0) return null;
+
+      const positionIndex = positions.value[itemKey];
+      // Handle case where item was removed and key no longer exists
+      if (positionIndex === undefined) return null;
+
       return {
         dragging,
-        target: getPositionForIndex(positions.value[itemKey] ?? index, cfg),
+        target: getPositionForIndex(positionIndex, cfg),
+        length, // Include to trigger re-evaluation when items are removed
       };
     },
     (result, previous) => {
       if (!result || result.dragging) return;
 
       const { target } = result;
-      const closeToTarget =
-        Math.abs(translateX.value - target.x) < 0.5 &&
-        Math.abs(translateY.value - target.y) < 0.5;
 
-      if (closeToTarget) return;
-
+      // Always animate to new position when position changes
+      // (removed "close to target" check that prevented animation on data changes)
       const shouldAnimate = !!previous;
       translateX.value = shouldAnimate ? withSpring(target.x, SPRING_CONFIG) : target.x;
       translateY.value = shouldAnimate ? withSpring(target.y, SPRING_CONFIG) : target.y;
     },
     []
   );
+
+  // Force position update when index changes (e.g., when items above are removed)
+  // Uses index directly since it reflects the correct position after data changes
+  useEffect(() => {
+    // Skip if this item is being dragged
+    if (activeKey.value === itemKey) return;
+
+    const cfg = layoutConfig.value;
+    if (cfg.itemWidth <= 0 || cfg.itemHeight <= 0) return;
+
+    // Use index directly - it's the correct position after data changes
+    // (positions map may have stale data due to useEffect timing)
+    const target = getPositionForIndex(index, cfg);
+
+    // Animate to the new position
+    translateX.value = withSpring(target.x, SPRING_CONFIG);
+    translateY.value = withSpring(target.y, SPRING_CONFIG);
+  }, [index, itemKey]);
 
   const triggerHaptic = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);

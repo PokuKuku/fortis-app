@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -30,17 +31,11 @@ import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useDropZone } from '../../src/hooks/useDropZone';
 import { useDragDropContext } from '../../src/hooks/useDragDropContext';
 import { AddToProgramModal, ProgramWorkoutSlot } from '../../src/components/workout/AddToProgramModal';
-import { usePrograms } from '../../src/hooks/usePrograms';
+import { ProgramLimitModal } from '../../src/components/workout/modals/ProgramLimitModal';
+import { usePrograms, useWorkouts } from '../../src/hooks/usePrograms';
 import * as ProgramService from '../../src/services/programService';
 import { Colors } from '../../constants/Colors';
 
-// Sample data for workouts (will be moved to service layer later)
-const initialWorkouts = [
-  { id: 1, name: 'Push Day A', exercises: 5, lastPerformed: '3 days ago' },
-  { id: 2, name: 'Pull Day B', exercises: 6, lastPerformed: '5 days ago' },
-  { id: 3, name: 'Leg Day', exercises: 4, lastPerformed: '1 week ago' },
-  { id: 4, name: 'Core & Cardio', exercises: 3, lastPerformed: '2 weeks ago' },
-];
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -52,7 +47,7 @@ type ProgramItem = {
 };
 
 type WorkoutItem = {
-  id: number;
+  id: string;
   name: string;
   exercises: number;
   lastPerformed: string;
@@ -252,7 +247,7 @@ function WorkoutCard({
   onKebabPress,
   showKebab,
 }: {
-  workout: typeof initialWorkouts[0];
+  workout: WorkoutItem;
   onKebabPress: (event: any) => void;
   showKebab: boolean;
 }) {
@@ -537,6 +532,17 @@ export default function ProgramsScreen() {
   // Use programs from service with persistence
   const { programs: programsData, loading: programsLoading, refresh: refreshPrograms } = usePrograms();
 
+  // Use workouts from service with persistence
+  const { workouts: workoutsData, loading: workoutsLoading, refresh: refreshWorkouts } = useWorkouts();
+
+  // Refresh programs and workouts when screen comes into focus (ensures counts are accurate after deletions)
+  useFocusEffect(
+    useCallback(() => {
+      refreshPrograms();
+      refreshWorkouts();
+    }, [refreshPrograms, refreshWorkouts])
+  );
+
   // Transform ProgramDetail to ProgramItem for the UI
   const programs: ProgramItem[] = programsData.map(p => ({
     id: p.id,
@@ -546,9 +552,16 @@ export default function ProgramsScreen() {
     lastPerformed: p.lastPerformed || 'Never',
   }));
 
+  // Transform WorkoutDetail to WorkoutItem for the UI
+  const workouts: WorkoutItem[] = workoutsData.map(w => ({
+    id: w.id,
+    name: w.name,
+    exercises: w.exercises.length, // Computed from actual exercises array
+    lastPerformed: w.lastPerformed || 'Never',
+  }));
+
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
-  const [workouts, setWorkouts] = useState(initialWorkouts);
   const [openKebab, setOpenKebab] = useState<{
     type: 'program' | 'workout' | null;
     id: string | number | null;
@@ -584,6 +597,15 @@ export default function ProgramsScreen() {
     programName: '',
   });
 
+  // Program limit modal state (shown when trying to add more than 7 workouts)
+  const [programLimitModal, setProgramLimitModal] = useState<{
+    visible: boolean;
+    programName: string;
+  }>({
+    visible: false,
+    programName: '',
+  });
+
   // Reset starting flag when workout becomes inactive (user cancelled or finished)
   useEffect(() => {
     if (!isWorkoutActive) {
@@ -591,13 +613,8 @@ export default function ProgramsScreen() {
     }
   }, [isWorkoutActive]);
 
-  // Persistence hook for workout drag-and-drop order
-  // Note: Programs order is managed by the program service with AsyncStorage persistence
-  const { saveOrder: saveWorkoutsOrder } = usePersistedOrder(
-    'workouts',
-    workouts,
-    setWorkouts
-  );
+  // Note: Workout order is managed by the workout service with AsyncStorage persistence
+  // No longer using usePersistedOrder since workouts come from useWorkouts hook
 
   // Handle start blank workout
   const handleStartBlankWorkout = () => {
@@ -616,7 +633,7 @@ export default function ProgramsScreen() {
   };
 
   // Handle tap on workout card to navigate to workout hub
-  const handleWorkoutCardPress = (workoutId: number) => {
+  const handleWorkoutCardPress = (workoutId: string) => {
     if (isNavigating.current) return;
     isNavigating.current = true;
 
@@ -679,42 +696,9 @@ export default function ProgramsScreen() {
       setShowToast(true);
       isProcessing.current = false;
     } else if (openKebab.type === 'workout' && openKebab.id !== null) {
-      const workoutIndex = workouts.findIndex((w) => w.id === openKebab.id);
-      const workout = workouts[workoutIndex];
-      if (workout) {
-        // Find existing duplicates to determine the next number
-        const baseName = workout.name.replace(/\s*\(\d+\)$/, '');
-        const duplicates = workouts.filter((w) =>
-          w.name.startsWith(baseName)
-        );
-        const duplicateNumbers = duplicates
-          .map((w) => {
-            const match = w.name.match(/\((\d+)\)$/);
-            return match ? parseInt(match[1]) : 0;
-          })
-          .filter((n) => n > 0);
-        const nextNumber = duplicateNumbers.length > 0
-          ? Math.max(...duplicateNumbers) + 1
-          : 1;
-
-        const newWorkout = {
-          ...workout,
-          id: Math.max(...workouts.map((w) => w.id)) + 1,
-          name: `${baseName} (${nextNumber})`,
-        };
-
-        // Insert right after the original card
-        const newWorkouts = [...workouts];
-        newWorkouts.splice(workoutIndex + 1, 0, newWorkout);
-        setWorkouts(newWorkouts);
-
-        // Trigger entering animation
-        const cardKey = `workout-${newWorkout.id}`;
-        setAnimatingCards(prev => ({ ...prev, [cardKey]: 'entering' }));
-
-        // Show toast notification
-        setShowToast(true);
-      }
+      // TODO: Implement workout duplication via service
+      setToastMessage('Workout duplication coming soon');
+      setShowToast(true);
       isProcessing.current = false;
     } else {
       isProcessing.current = false;
@@ -770,11 +754,13 @@ export default function ProgramsScreen() {
     } else if (animState === 'exiting') {
       // Remove card from list after exiting animation completes
       if (type === 'program') {
-        // TODO: Implement program deletion via service
-        // For now, just refresh to sync with service data
-        refreshPrograms();
+        ProgramService.deleteProgram(String(id)).then(() => {
+          refreshPrograms();
+        });
       } else {
-        setWorkouts(workouts.filter((w) => w.id !== id));
+        ProgramService.deleteWorkout(String(id)).then(() => {
+          refreshWorkouts();
+        });
       }
       // Remove from animating cards
       setAnimatingCards(prev => {
@@ -790,16 +776,27 @@ export default function ProgramsScreen() {
   };
 
   // Handle cross-container drop (workout onto program)
-  const handleCrossContainerDrop = useCallback((workoutItemKey: string, programDropZoneId: string) => {
+  const handleCrossContainerDrop = useCallback(async (workoutItemKey: string, programDropZoneId: string) => {
     // Extract IDs from keys (format: "workout-1" and "program-1")
     const workoutId = workoutItemKey.replace('workout-', '');
     const programId = programDropZoneId.replace('program-', '');
 
-    // Find the workout and program names
-    const workout = workouts.find(w => w.id === parseInt(workoutId));
-    const program = programs.find(p => p.id === programId); // Programs use string IDs
+    // Find the workout and program names (both use string IDs)
+    const workout = workouts.find(w => w.id === workoutId);
+    const program = programs.find(p => p.id === programId);
 
     if (!workout || !program) return;
+
+    // Check if program is at the 7-workout limit
+    const limitCheck = await ProgramService.canAddWorkoutToProgram(programId);
+    if (!limitCheck.canAdd) {
+      setProgramLimitModal({
+        visible: true,
+        programName: program.name,
+      });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return;
+    }
 
     // Show the add-to-program modal
     setAddToProgramModal({
@@ -1115,9 +1112,9 @@ export default function ProgramsScreen() {
                   data={workouts}
                   keyExtractor={(item) => `workout-${item.id}`}
                   renderItem={renderWorkoutGridItem}
-                  onReorder={(data) => {
-                    setWorkouts(data);
-                    saveWorkoutsOrder(data);
+                  onReorder={() => {
+                    // TODO: Implement workout reordering via service
+                    // For now, reordering is disabled - workouts are ordered by service data
                   }}
                   numColumns={2}
                   itemHeight={76}
@@ -1162,8 +1159,16 @@ export default function ProgramsScreen() {
         workoutName={addToProgramModal.workoutName}
         programName={addToProgramModal.programName}
         existingWorkouts={addToProgramModal.programId ? getExistingProgramWorkouts(addToProgramModal.programId) : []}
+        isAtLimit={addToProgramModal.programId ? getExistingProgramWorkouts(addToProgramModal.programId).length >= 7 : false}
         onSelectPosition={handleSelectPosition}
         onCancel={handleCancelAddToProgram}
+      />
+
+      {/* Program Limit Modal */}
+      <ProgramLimitModal
+        visible={programLimitModal.visible}
+        programName={programLimitModal.programName}
+        onClose={() => setProgramLimitModal({ visible: false, programName: '' })}
       />
     </View>
   );

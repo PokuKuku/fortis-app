@@ -230,6 +230,7 @@ Before implementing ANY UI feature, verify:
 - [ ] Background uses `Colors.background` with `<StainlessSteelPattern>`
 - [ ] Checked `app/(tabs)/index.tsx` for similar patterns to reuse
 - [ ] Using `GlassButton`/`GlassCard` instead of custom implementations
+- [ ] Using `BaseModal` from `src/components/ui/BaseModal.tsx` for all centered dialog modals
 
 ### Design Tokens
 
@@ -305,10 +306,67 @@ fontSize: 16, fontWeight: '600'
 </GlassButton>
 ```
 
-**Modals** (follow `DeleteConfirmationModal` pattern in `app/(tabs)/index.tsx`):
-- Use `StainlessSteelPattern` background
-- Pop-in/pop-out animations (spring for scale, timing for opacity)
-- Background color `Colors.secondary` or similar dark gray with `overflow: 'hidden'`
+**Modals** (use `BaseModal` component from `src/components/ui/BaseModal.tsx`):
+
+All centered dialog modals MUST use the `BaseModal` component to ensure consistent styling. This component automatically handles:
+- StainlessSteelPattern background texture
+- FadeIn/FadeOut + ZoomIn/ZoomOut animations
+- Dark backdrop (`rgba(0, 0, 0, 0.7)`)
+- Container styling (`#222222` bg, `BorderRadius['2xl']`, shadows)
+- Header with title, optional icon, and close button
+- Haptic feedback on close
+
+```tsx
+import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { ExclamationTriangleIcon } from 'react-native-heroicons/outline';
+
+// Confirmation modal (two buttons)
+<BaseModal visible={visible} onClose={onClose} title="Finish Workout?">
+  <Text style={modalStyles.message}>Are you sure you want to finish?</Text>
+  <View style={modalStyles.actions}>
+    <Pressable style={modalStyles.cancelButton} onPress={onClose}>
+      <Text style={modalStyles.cancelButtonText}>Keep Going</Text>
+    </Pressable>
+    <Pressable style={modalStyles.successButton} onPress={onConfirm}>
+      <Text style={modalStyles.successButtonText}>Finish</Text>
+    </Pressable>
+  </View>
+</BaseModal>
+
+// Warning modal with icon (icon displays centered above title)
+<BaseModal
+  visible={visible}
+  onClose={onClose}
+  title="Limit Reached"
+  icon={<ExclamationTriangleIcon size={24} color="#f59e0b" />}
+>
+  <Text style={modalStyles.message}>Maximum limit reached.</Text>
+  <Pressable style={modalStyles.warningButton} onPress={onClose}>
+    <Text style={modalStyles.warningButtonText}>Got it</Text>
+  </Pressable>
+</BaseModal>
+```
+
+**BaseModal Props:**
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `visible` | boolean | required | Modal visibility |
+| `onClose` | () => void | required | Close handler |
+| `title` | string | required | Header title |
+| `icon` | ReactNode | - | Icon before title |
+| `showCloseButton` | boolean | true | Show X button |
+| `closeButtonColor` | string | textSecondary | Close icon color |
+| `closeOnBackdropPress` | boolean | true | Dismiss on backdrop tap |
+| `width` | number | 320 | Container width |
+
+**Modal Button Styles** (from `modalStyles`):
+- `cancelButton` / `cancelButtonText` - Gray neutral button
+- `successButton` / `successButtonText` - Green success action
+- `warningButton` / `warningButtonText` - Amber warning action
+- `errorButton` / `errorButtonText` - Red destructive action
+- `message` - Centered message text style
+- `actions` - Two-button row layout
+- `buttonPressed` - Apply on pressed state
 
 ### Animation Standards
 

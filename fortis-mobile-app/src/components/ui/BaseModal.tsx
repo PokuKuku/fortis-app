@@ -1,0 +1,300 @@
+/**
+ * BaseModal
+ *
+ * Reusable modal component that encapsulates the app's consistent modal styling.
+ * Includes StainlessSteelPattern background, animations, and standard header layout.
+ *
+ * @example
+ * // Simple confirmation modal
+ * <BaseModal visible={visible} onClose={onClose} title="Confirm Action">
+ *   <Text style={modalStyles.message}>Are you sure?</Text>
+ *   <View style={modalStyles.actions}>
+ *     <Pressable style={modalStyles.cancelButton} onPress={onClose}>
+ *       <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+ *     </Pressable>
+ *     <Pressable style={modalStyles.successButton} onPress={onConfirm}>
+ *       <Text style={modalStyles.successButtonText}>Confirm</Text>
+ *     </Pressable>
+ *   </View>
+ * </BaseModal>
+ *
+ * @example
+ * // Warning modal with icon
+ * <BaseModal
+ *   visible={visible}
+ *   onClose={onClose}
+ *   title="Warning"
+ *   icon={<ExclamationTriangleIcon size={24} color="#f59e0b" />}
+ * >
+ *   <Text style={modalStyles.message}>Something went wrong.</Text>
+ *   <Pressable style={modalStyles.warningButton} onPress={onClose}>
+ *     <Text style={modalStyles.warningButtonText}>Got it</Text>
+ *   </Pressable>
+ * </BaseModal>
+ */
+import React from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  Modal,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+} from 'react-native';
+import { XMarkIcon } from 'react-native-heroicons/outline';
+import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { Colors } from '@/constants/Colors';
+import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
+
+export interface BaseModalProps {
+  /** Whether the modal is visible */
+  visible: boolean;
+  /** Callback when modal should close */
+  onClose: () => void;
+  /** Modal title displayed in header */
+  title: string;
+  /** Optional icon displayed before the title */
+  icon?: React.ReactNode;
+  /** Whether to show the close button (default: true) */
+  showCloseButton?: boolean;
+  /** Close button icon color (default: Colors.textSecondary) */
+  closeButtonColor?: string;
+  /** Modal content */
+  children: React.ReactNode;
+  /** Whether tapping backdrop closes modal (default: true) */
+  closeOnBackdropPress?: boolean;
+  /** Whether to trigger haptic on close (default: true) */
+  hapticOnClose?: boolean;
+  /** Container width (default: 320) */
+  width?: number;
+}
+
+export function BaseModal({
+  visible,
+  onClose,
+  title,
+  icon,
+  showCloseButton = true,
+  closeButtonColor = Colors.textSecondary,
+  children,
+  closeOnBackdropPress = true,
+  hapticOnClose = true,
+  width = 320,
+}: BaseModalProps) {
+  const handleClose = () => {
+    if (hapticOnClose) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    onClose();
+  };
+
+  const handleBackdropPress = () => {
+    if (closeOnBackdropPress) {
+      handleClose();
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="none"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <Animated.View
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
+        style={styles.backdrop}
+      >
+        <Pressable style={styles.centeredView} onPress={handleBackdropPress}>
+          <Animated.View
+            entering={ZoomIn.duration(250)}
+            exiting={ZoomOut.duration(200)}
+          >
+            <Pressable
+              style={[styles.container, { width }]}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <StainlessSteelPattern />
+
+              {/* Header */}
+              <View style={styles.header}>
+                {showCloseButton && (
+                  <Pressable
+                    onPress={handleClose}
+                    style={({ pressed }) => [
+                      styles.closeButton,
+                      pressed && styles.closeButtonPressed,
+                    ]}
+                  >
+                    <XMarkIcon size={20} color={closeButtonColor} strokeWidth={2} />
+                  </Pressable>
+                )}
+                {icon && <View style={styles.iconContainer}>{icon}</View>}
+                <Text style={styles.title}>{title}</Text>
+              </View>
+
+              {/* Content */}
+              <View style={styles.content}>{children}</View>
+            </Pressable>
+          </Animated.View>
+        </Pressable>
+      </Animated.View>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing['2xl'],
+  },
+  container: {
+    backgroundColor: '#222222',
+    borderRadius: BorderRadius['2xl'],
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  header: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing['2xl'],
+    paddingBottom: Spacing.lg,
+    position: 'relative',
+    zIndex: 1,
+  },
+  iconContainer: {
+    marginBottom: Spacing.md,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+  },
+  closeButton: {
+    position: 'absolute',
+    top: Spacing.lg,
+    right: Spacing.lg,
+    backgroundColor: '#2a2a2a',
+    borderRadius: BorderRadius.lg,
+    padding: 4,
+  },
+  closeButtonPressed: {
+    opacity: 0.6,
+  },
+  content: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing['2xl'],
+    zIndex: 1,
+  },
+});
+
+/**
+ * Pre-built modal button and text styles for consistent styling across modals.
+ * Use these with Pressable components inside BaseModal.
+ */
+export const modalStyles = StyleSheet.create({
+  // Message text
+  message: {
+    fontSize: FontSizes.base,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing['2xl'],
+    lineHeight: 22,
+  } as TextStyle,
+
+  // Button container for two-button layouts
+  actions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  } as ViewStyle,
+
+  // Base button style (extend with color variants)
+  buttonBase: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+  } as ViewStyle,
+
+  // Cancel/neutral button (gray)
+  cancelButton: {
+    flex: 1,
+    backgroundColor: '#333333',
+    paddingVertical: 12,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+  } as ViewStyle,
+  cancelButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  } as TextStyle,
+
+  // Success button (green)
+  successButton: {
+    flex: 1,
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    paddingVertical: 12,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+  } as ViewStyle,
+  successButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: Colors.success,
+  } as TextStyle,
+
+  // Warning button (amber)
+  warningButton: {
+    backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    paddingVertical: 12,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+  } as ViewStyle,
+  warningButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: '#f59e0b',
+  } as TextStyle,
+
+  // Error/destructive button (red)
+  errorButton: {
+    flex: 1,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    paddingVertical: 12,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+  } as ViewStyle,
+  errorButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: Colors.error,
+  } as TextStyle,
+
+  // Pressed state (apply conditionally)
+  buttonPressed: {
+    opacity: 0.7,
+  } as ViewStyle,
+});
