@@ -77,46 +77,101 @@ export function useDropZone({
     return context.hoveredDropZoneId.value === id;
   }, [context, id]);
 
-  // Function to re-measure bounds (called on demand when drag starts)
-  const remeasure = useCallback(() => {
-    if (!context || !enabled) return;
-    ref.current?.measure((x, y, width, height, pageX, pageY) => {
-      const bounds: DropZone['bounds'] = {
-        x: pageX,
-        y: pageY,
-        width,
-        height,
-      };
-      boundsRef.current = bounds;
-      context.updateDropZoneBounds(id, bounds);
-    });
-  }, [context, id, enabled]);
-
   // Register drop zone on mount, unregister on unmount
   useEffect(() => {
     if (!context || !enabled) return;
 
-    // Register with initial bounds and measureFn for on-demand re-measurement
+    // Register drop zone with initial bounds (no measureFn - stored separately)
     context.registerDropZone({
       id,
       type,
       bounds: boundsRef.current || { x: 0, y: 0, width: 0, height: 0 },
-      measureFn: remeasure,
     });
 
     return () => {
       context.unregisterDropZone(id);
     };
-  }, [context, id, type, enabled, remeasure]);
+  }, [context, id, type, enabled]);
+
+  // Register measure callback separately (stored in ref, always stays current)
+  useEffect(() => {
+    if (!context || !enabled) return;
+
+    // Create fresh callback that references current ref
+    const measureCallback = () => {
+      ref.current?.measure((x, y, width, height, pageX, pageY) => {
+        // Guard against undefined/invalid measurements
+        if (typeof pageX !== 'number' || typeof pageY !== 'number' ||
+            typeof width !== 'number' || typeof height !== 'number' ||
+            width === 0 || height === 0) {
+          return; // Skip invalid measurements
+        }
+        const bounds: DropZone['bounds'] = {
+          x: pageX,
+          y: pageY,
+          width,
+          height,
+        };
+        boundsRef.current = bounds;
+        context.updateDropZoneBounds(id, bounds);
+      });
+    };
+
+    context.registerMeasureCallback(id, measureCallback);
+
+    return () => {
+      context.unregisterMeasureCallback(id);
+    };
+  }, [context, id, enabled]);
+
+  // Measure after mount as fallback (in case onLayout timing is bad)
+  useEffect(() => {
+    if (!context || !enabled) return;
+
+    // Small delay to ensure view is rendered
+    const timer = setTimeout(() => {
+      ref.current?.measure((x, y, width, height, pageX, pageY) => {
+        if (typeof pageX !== 'number' || typeof pageY !== 'number' ||
+            typeof width !== 'number' || typeof height !== 'number' ||
+            width === 0 || height === 0) {
+          return;
+        }
+        const bounds: DropZone['bounds'] = {
+          x: pageX,
+          y: pageY,
+          width,
+          height,
+        };
+        boundsRef.current = bounds;
+        context.updateDropZoneBounds(id, bounds);
+      });
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [context, id, enabled]);
 
   // Handle layout changes to measure bounds
   const onLayout = useCallback(
     (_event: LayoutChangeEvent) => {
       if (!context || !enabled) return;
 
-      // Use requestAnimationFrame to ensure layout is complete
-      requestAnimationFrame(() => {
+      // Retry counter to prevent infinite loops
+      let retryCount = 0;
+      const maxRetries = 5;
+
+      const doMeasure = () => {
         ref.current?.measure((x, y, width, height, pageX, pageY) => {
+          // Guard against undefined/invalid measurements
+          if (typeof pageX !== 'number' || typeof pageY !== 'number' ||
+              typeof width !== 'number' || typeof height !== 'number' ||
+              width === 0 || height === 0) {
+            // Retry quickly if measurement failed (up to maxRetries times)
+            if (retryCount < maxRetries) {
+              retryCount++;
+              setTimeout(doMeasure, 50);
+            }
+            return;
+          }
           const bounds: DropZone['bounds'] = {
             x: pageX,
             y: pageY,
@@ -126,7 +181,10 @@ export function useDropZone({
           boundsRef.current = bounds;
           context.updateDropZoneBounds(id, bounds);
         });
-      });
+      };
+
+      // Measure immediately - no InteractionManager delay
+      requestAnimationFrame(doMeasure);
     },
     [context, id, enabled]
   );

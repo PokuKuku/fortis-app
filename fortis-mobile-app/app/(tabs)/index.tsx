@@ -473,13 +473,13 @@ function DropZoneProgramCard({
   });
 
   return (
-    <AnimatedView.View
-      ref={ref}
-      onLayout={onLayout}
-      style={[styles.dropZoneWrapper, dropHighlightStyle]}
-    >
-      {children}
-    </AnimatedView.View>
+    // Outer non-animated View for measurement - avoids Reanimated warning
+    <View ref={ref} onLayout={onLayout} collapsable={false}>
+      {/* Inner animated View for visual effects only */}
+      <AnimatedView.View style={[styles.dropZoneWrapper, dropHighlightStyle]}>
+        {children}
+      </AnimatedView.View>
+    </View>
   );
 }
 

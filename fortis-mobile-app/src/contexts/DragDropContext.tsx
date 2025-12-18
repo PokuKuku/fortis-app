@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useMemo } from 'react';
+import React, { createContext, useCallback, useMemo, useRef } from 'react';
 import { useSharedValue, runOnJS } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 
@@ -11,7 +11,6 @@ export interface DropZone {
     width: number;
     height: number;
   };
-  measureFn?: () => void;
 }
 
 export interface DragState {
@@ -43,6 +42,10 @@ export interface DragDropContextValue {
 
   // Re-measure all drop zone bounds (call when scroll position may have changed)
   remeasureAllBounds: () => void;
+
+  // Measure callback registry (stored separately from SharedValue for proper closure handling)
+  registerMeasureCallback: (id: string, callback: () => void) => void;
+  unregisterMeasureCallback: (id: string) => void;
 }
 
 export const DragDropContext = createContext<DragDropContextValue | null>(null);
@@ -63,6 +66,19 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
 
   const dropZones = useSharedValue<DropZone[]>([]);
   const hoveredDropZoneId = useSharedValue<string | null>(null);
+
+  // Store measure callbacks in a regular ref (not SharedValue) for proper closure handling
+  const measureCallbacksRef = useRef<Map<string, () => void>>(new Map());
+
+  // Register a measure callback (stored separately from SharedValue)
+  const registerMeasureCallback = useCallback((id: string, callback: () => void) => {
+    measureCallbacksRef.current.set(id, callback);
+  }, []);
+
+  // Unregister a measure callback
+  const unregisterMeasureCallback = useCallback((id: string) => {
+    measureCallbacksRef.current.delete(id);
+  }, []);
 
   // Register a new drop zone
   const registerDropZone = useCallback(
@@ -138,6 +154,10 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
 
       for (const zone of zones) {
         const { bounds } = zone;
+
+        // Skip zones with invalid bounds (not yet measured or zero-sized)
+        if (bounds.width === 0 || bounds.height === 0) continue;
+
         const isInside =
           absoluteX >= bounds.x &&
           absoluteX <= bounds.x + bounds.width &&
@@ -162,13 +182,10 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
 
   // Re-measure all drop zone bounds (useful when scroll position has changed)
   const remeasureAllBounds = useCallback(() => {
-    const zones = dropZones.value;
-    zones.forEach((zone) => {
-      if (zone.measureFn) {
-        zone.measureFn();
-      }
+    measureCallbacksRef.current.forEach((callback) => {
+      callback();
     });
-  }, [dropZones]);
+  }, []);
 
   const value = useMemo<DragDropContextValue>(
     () => ({
@@ -183,6 +200,8 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
       endDrag,
       checkDropZones,
       remeasureAllBounds,
+      registerMeasureCallback,
+      unregisterMeasureCallback,
     }),
     [
       dragState,
@@ -196,6 +215,8 @@ export function DragDropProvider({ children }: DragDropProviderProps) {
       endDrag,
       checkDropZones,
       remeasureAllBounds,
+      registerMeasureCallback,
+      unregisterMeasureCallback,
     ]
   );
 
