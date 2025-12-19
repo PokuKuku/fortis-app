@@ -542,15 +542,17 @@ export default function ProgramsScreen() {
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
 
-  // Transform store programs to UI format
-  const programs: ProgramItem[] = storePrograms.map(p => ({
-    id: p.id,
-    name: p.name,
-    workouts: p.workouts.length,
-    weeks: p.durationWeeks || 0,
-    lastPerformed: formatRelativeTime(p.lastPerformedAt),
-    isAiCreated: p.isAiCreated,
-  }));
+  // Transform store programs to UI format (exclude templates)
+  const programs: ProgramItem[] = storePrograms
+    .filter(p => !p.isTemplate)
+    .map(p => ({
+      id: p.id,
+      name: p.name,
+      workouts: p.workouts.length,
+      weeks: p.durationWeeks || 0,
+      lastPerformed: formatRelativeTime(p.lastPerformedAt),
+      isAiCreated: p.isAiCreated,
+    }));
 
   // For workouts, we'll extract single-day workouts (templates) from programs
   // For now, use mock data as templates are not yet implemented
@@ -592,14 +594,21 @@ export default function ProgramsScreen() {
 
   // Handle start blank workout
   const handleStartBlankWorkout = () => {
-    // Prevent multiple workout sessions
-    if (isWorkoutActive) {
-      router.push('/workout/active');
-      return;
-    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     startWorkout(); // Creates blank workout with generated ID and timestamp
     router.push('/workout/active');
+  };
+
+  // Handle workout card press - navigate to workout detail
+  const handleWorkoutCardPress = (workoutId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/workouts/${workoutId}`);
+  };
+
+  // Handle program card press - navigate to program detail
+  const handleProgramCardPress = (programId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/programs/${programId}`);
   };
 
   const handleKebabPress = (
@@ -755,7 +764,9 @@ export default function ProgramsScreen() {
           animationState={animState}
           onAnimationComplete={() => handleAnimationComplete('workout', item.id)}
         >
-          <View
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => handleWorkoutCardPress(item.id)}
             style={[
               styles.workoutCard,
               isActive && styles.cardActive,
@@ -781,11 +792,11 @@ export default function ProgramsScreen() {
             <Text style={styles.cardMetaText}>
               {item.exercises} exercises · {item.lastPerformed}
             </Text>
-          </View>
+          </TouchableOpacity>
         </AnimatedCard>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress]
+    [animatingCards, handleAnimationComplete, handleKebabPress, handleWorkoutCardPress]
   );
 
   // Draggable program card renderer for DraggableGrid
@@ -799,7 +810,9 @@ export default function ProgramsScreen() {
           animationState={animState}
           onAnimationComplete={() => handleAnimationComplete('program', item.id)}
         >
-          <View
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => handleProgramCardPress(item.id)}
             style={[
               styles.programCard,
               isActive && styles.cardActive,
@@ -825,11 +838,11 @@ export default function ProgramsScreen() {
             <Text style={styles.cardMetaText}>
               {item.workouts} workouts · {item.lastPerformed}
             </Text>
-          </View>
+          </TouchableOpacity>
         </AnimatedCard>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress]
+    [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress]
   );
 
   return (
@@ -854,7 +867,7 @@ export default function ProgramsScreen() {
         >
           {/* Quick Start Section */}
           <View style={styles.quickStartSection}>
-            <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout}>
+            <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout} disabled={isWorkoutActive}>
               <View style={styles.startButtonInner}>
                 <PlayIcon color="#fff" size={20} />
                 <Text style={styles.startButtonText}>Start a Blank Workout</Text>

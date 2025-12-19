@@ -25,7 +25,9 @@ import { WorkoutCompleteModal } from '@/src/components/workout/modals/WorkoutCom
 import { FinishConfirmationModal } from '@/src/components/workout/modals/FinishConfirmationModal';
 import { ReplaceExerciseConfirmModal } from '@/src/components/workout/modals/ReplaceExerciseConfirmModal';
 import { RestTimerCompleteModal } from '@/src/components/workout/modals/RestTimerCompleteModal';
+import { SaveAsTemplateModal } from '@/src/components/workout/modals/SaveAsTemplateModal';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { WorkoutSession } from '@/src/types/workout';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
 
@@ -52,6 +54,7 @@ export default function ActiveWorkoutScreen() {
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
+  const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
 
   // Replace exercise state
   const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
@@ -172,6 +175,20 @@ export default function ActiveWorkoutScreen() {
     setShowFinishModal(false);
     router.back();
     setTimeout(() => { isNavigating.current = false; }, 500);
+  };
+
+  // Handle save as template
+  const handleSaveAsTemplate = () => {
+    setShowFinishModal(false);
+    setTimeout(() => {
+      setShowSaveTemplateModal(true);
+    }, 150);
+  };
+
+  // Handle template save success
+  const handleTemplateSaveSuccess = () => {
+    setShowSaveTemplateModal(false);
+    handleConfirmFinish();
   };
 
   // Handle number pad confirm - implements perpetuating keyboard flow with autofill
@@ -342,6 +359,15 @@ export default function ActiveWorkoutScreen() {
         visible={showFinishModal}
         onClose={() => setShowFinishModal(false)}
         onConfirm={handleConfirmFinish}
+        onSaveAsTemplate={handleSaveAsTemplate}
+        session={activeSession}
+      />
+
+      {/* Save As Template Modal */}
+      <SaveAsTemplateModal
+        visible={showSaveTemplateModal}
+        onClose={() => setShowSaveTemplateModal(false)}
+        onSuccess={handleTemplateSaveSuccess}
         session={activeSession}
       />
 

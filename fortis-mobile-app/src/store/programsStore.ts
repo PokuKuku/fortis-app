@@ -3,9 +3,13 @@
  *
  * Central state management for workout programs and templates.
  * Fetches from Supabase and provides CRUD operations.
+ * Supports offline-first local template saving.
  */
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+
+const LOCAL_TEMPLATES_KEY = 'fortis_local_templates';
 import {
   Program,
   ProgramDTO,
@@ -34,6 +38,7 @@ interface ProgramsState {
     name: string,
     exercises: Array<{
       exerciseId: string;
+      exerciseName?: string;
       sets: number;
       reps: string;
       restSeconds?: number;
@@ -41,6 +46,10 @@ interface ProgramsState {
   ) => Promise<string | null>;
   updateLastPerformed: (id: string) => Promise<void>;
   clearError: () => void;
+
+  // Local persistence
+  loadLocalPrograms: () => Promise<void>;
+  persistLocalPrograms: () => Promise<void>;
 }
 
 // ============================================
@@ -80,6 +89,7 @@ function mapProgramFromDTO(dto: ProgramDTO): Program {
     isPublic: dto.is_public,
     isDefault: dto.is_default,
     isAiCreated: dto.is_ai_created ?? false,
+    isTemplate: dto.is_template ?? false,
     lastPerformedAt: dto.last_performed_at,
     createdBy: dto.created_by,
     createdAt: dto.created_at,
@@ -99,19 +109,24 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   isDeleting: false,
   error: null,
 
-  // Fetch all programs for current user
+  // Fetch all programs for current user (includes local templates)
   fetchPrograms: async () => {
+    set({ isLoading: true, error: null });
+
+    // Always load local programs first
+    await get().loadLocalPrograms();
+
     if (!isSupabaseConfigured()) {
-      set({ error: 'Supabase is not configured' });
+      // If Supabase not configured, just use local programs
+      set({ isLoading: false });
       return;
     }
-
-    set({ isLoading: true, error: null });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        set({ programs: [], isLoading: false });
+        // Keep local programs when not authenticated
+        set({ isLoading: false });
         return;
       }
 
@@ -165,7 +180,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         });
       }
 
-      set({ programs, isLoading: false });
+      // Merge Supabase programs with local programs
+      set((state) => {
+        const localPrograms = state.programs.filter((p) => p.id.startsWith('local-'));
+        return { programs: [...programs, ...localPrograms], isLoading: false };
+      });
     } catch (err) {
       console.error('Error fetching programs:', err);
       set({
@@ -175,10 +194,21 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }
   },
 
-  // Delete a program
+  // Delete a program (handles both Supabase and local programs)
   deleteProgram: async (id: string) => {
     set({ isDeleting: true, error: null });
 
+    // Handle local programs (delete from AsyncStorage only)
+    if (id.startsWith('local-')) {
+      set((state) => ({
+        programs: state.programs.filter((p) => p.id !== id),
+        isDeleting: false,
+      }));
+      get().persistLocalPrograms();
+      return true;
+    }
+
+    // Handle Supabase programs
     try {
       const { error } = await supabase
         .from('workout_programs')
@@ -281,17 +311,66 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   },
 
   // Create a new workout template (saved as a single-workout program)
+  // Falls back to local storage if Supabase is unavailable
   createWorkoutTemplate: async (name, exercises) => {
+    // Helper to save locally
+    const saveLocally = () => {
+      const localId = `local-${Date.now()}`;
+      const now = new Date().toISOString();
+
+      // Create a proper Program object with workouts array
+      const localProgram: Program = {
+        id: localId,
+        name,
+        description: null,
+        difficulty: 'intermediate',
+        goal: null,
+        durationWeeks: null,
+        isPublic: false,
+        isDefault: false,
+        isAiCreated: false,
+        isTemplate: true,
+        lastPerformedAt: null,
+        createdBy: 'local',
+        createdAt: now,
+        updatedAt: now,
+        workouts: [{
+          id: `${localId}-workout`,
+          name,
+          dayNumber: 1,
+          exercises: exercises.map((ex, index) => ({
+            id: `${localId}-ex-${index}`,
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName || 'Unknown Exercise',
+            sets: ex.sets,
+            reps: ex.reps,
+            restSeconds: ex.restSeconds || 120,
+            notes: null,
+            orderIndex: index,
+          })),
+        }],
+      };
+
+      // Add to store and persist
+      set((state) => ({
+        programs: [localProgram, ...state.programs],
+      }));
+      get().persistLocalPrograms();
+
+      return localId;
+    };
+
+    // Try Supabase first if configured
     if (!isSupabaseConfigured()) {
-      set({ error: 'Supabase is not configured' });
-      return null;
+      // Save locally when Supabase is not configured
+      return saveLocally();
     }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        set({ error: 'Not authenticated' });
-        return null;
+        // Save locally when not authenticated
+        return saveLocally();
       }
 
       // Create program container for the template
@@ -303,6 +382,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           is_public: false,
           is_default: false,
           is_ai_created: false,
+          is_template: true,
           created_by: session.user.id,
         })
         .select()
@@ -392,6 +472,36 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   clearError: () => {
     set({ error: null });
   },
+
+  // Load local programs from AsyncStorage
+  loadLocalPrograms: async () => {
+    try {
+      const stored = await AsyncStorage.getItem(LOCAL_TEMPLATES_KEY);
+      if (stored) {
+        const localPrograms = JSON.parse(stored) as Program[];
+        // Merge with existing programs (avoid duplicates)
+        set((state) => {
+          const existingIds = new Set(state.programs.map((p) => p.id));
+          const newLocalPrograms = localPrograms.filter((p) => !existingIds.has(p.id));
+          return { programs: [...state.programs, ...newLocalPrograms] };
+        });
+      }
+    } catch (err) {
+      console.warn('Failed to load local programs:', err);
+    }
+  },
+
+  // Persist local programs to AsyncStorage
+  persistLocalPrograms: async () => {
+    try {
+      const { programs } = get();
+      // Only persist programs with local IDs (not synced to Supabase)
+      const localPrograms = programs.filter((p) => p.id.startsWith('local-'));
+      await AsyncStorage.setItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
+    } catch (err) {
+      console.warn('Failed to persist local programs:', err);
+    }
+  },
 }));
 
 // ============================================
@@ -421,3 +531,15 @@ export const selectRecentPrograms = (state: ProgramsState) => {
     (p) => p.lastPerformedAt && new Date(p.lastPerformedAt) > thirtyDaysAgo
   );
 };
+
+/**
+ * Select workout templates (single-workout programs marked as templates)
+ */
+export const selectTemplates = (state: ProgramsState) =>
+  state.programs.filter((p) => p.isTemplate);
+
+/**
+ * Select multi-week programs (not templates)
+ */
+export const selectPrograms = (state: ProgramsState) =>
+  state.programs.filter((p) => !p.isTemplate);

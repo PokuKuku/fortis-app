@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Claude Code Rules
 
 **Workflow:**
@@ -8,7 +10,7 @@
 3. Before you begin working, check in with me and I will verify the plan
 4. Then, begin working on the todo items, marking them as complete as you go
 5. Every step of the way just give me a high level explanation of what changes you made
-6. Make every task and code change as simple as possible - avoid massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity
+6. Make every task and code change as simple as possible - avoid massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity, however, if a task demands a more complex implementation for long-term stability of the project, do the complex implementation.
 7. Finally, add a review section to `tasks/todo.md` with a summary of the changes you made and any other relevant information
 
 **Principles:**
@@ -44,34 +46,45 @@ supabase functions deploy ai  # Deploy AI edge function
 ## Architecture
 
 ```
-app/                    # Expo Router file-based routing
-├── _layout.tsx         # Root layout (fonts, Stack nav)
-├── index.tsx           # Splash screen
-├── (tabs)/             # Tab navigator
-│   ├── index.tsx       # Home (CANONICAL UI REFERENCE)
-│   ├── exercises.tsx   # Exercise library
-│   └── history.tsx     # Workout history
-├── ai/chat.tsx         # AI chat (fullscreen route)
-└── workout/active.tsx  # Active workout logger
-
-src/
-├── components/         # UI components (ui/, workout/, ai/)
-├── hooks/              # Custom hooks
-├── services/           # exerciseService, programService, aiService
-├── store/              # Zustand stores (workoutStore, programsStore, aiStore)
-├── types/              # TypeScript definitions
-└── constants/          # Storage keys, exerciseOptions
-
-components/             # Root-level glass morphism components
-├── GlassButton.tsx     # Green gradient button (USE FOR ALL GREEN BUTTONS)
-├── GlassCard.tsx       # Glass effect card
-└── StainlessSteelPattern.tsx  # Background pattern (USE ON ALL SCREENS)
-
-constants/              # Design tokens
-├── Colors.ts, Sizes.ts, Typography.ts
+fortis-mobile-app/
+├── app/                    # Expo Router file-based routing
+│   ├── _layout.tsx         # Root layout (fonts, Stack nav)
+│   ├── index.tsx           # Splash screen
+│   ├── (tabs)/             # Tab navigator
+│   │   ├── index.tsx       # Home (CANONICAL UI REFERENCE)
+│   │   ├── exercises.tsx   # Exercise library
+│   │   ├── history.tsx     # Workout history
+│   │   ├── start.tsx       # Start workout screen
+│   │   └── profile.tsx     # User profile
+│   ├── ai/chat.tsx         # AI chat (fullscreen route)
+│   ├── workout/active.tsx  # Active workout logger
+│   ├── exercise/[id].tsx   # Exercise detail
+│   ├── workouts/[id].tsx   # Workout detail
+│   └── programs/[id].tsx   # Program detail
+│
+├── src/
+│   ├── components/         # UI components (ui/, workout/, ai/, hub/, program/)
+│   ├── features/           # Feature-specific components (workout/)
+│   ├── hooks/              # Custom hooks
+│   ├── services/           # exerciseService, programService, aiService
+│   ├── store/              # Zustand stores (workoutStore, programsStore, aiStore)
+│   ├── types/              # TypeScript definitions (exercise, program, workout, ai)
+│   ├── constants/          # Storage keys, exerciseOptions
+│   ├── contexts/           # React contexts (DragDropContext)
+│   └── lib/                # Supabase client
+│
+├── components/             # Root-level glass morphism components
+│   ├── GlassButton.tsx     # Green gradient button (USE FOR ALL GREEN BUTTONS)
+│   ├── GlassCard.tsx       # Glass effect card
+│   └── StainlessSteelPattern.tsx  # Background pattern (USE ON ALL SCREENS)
+│
+└── constants/              # Design tokens
+    ├── Colors.ts, Sizes.ts, Typography.ts
 ```
 
 **Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns
+
+**TypeScript Path Alias:** Use `@/` prefix for imports from project root (e.g., `@/src/components/ui/BaseModal`)
 
 **Icons:** Use `react-native-heroicons/outline` for all icons. Props: `size`, `color`, `strokeWidth` (2-2.5 for visibility). Custom: `DumbbellIcon` in `src/components/icons/`.
 

@@ -36,6 +36,8 @@ export function WorkoutMiniBar() {
   // Check if on splash screen (not inside tabs group) or on active workout screen
   const isOnSplashScreen = segments.length === 0 || (segments[0] !== '(tabs)' && pathname === '/');
   const isOnWorkoutScreen = pathname === '/workout/active';
+  const isOnAIScreen = pathname === '/ai/chat';
+  const isOnFullscreenRoute = isOnWorkoutScreen || isOnAIScreen;
 
   // Check if on main programs page (tabs home)
   const isOnMainProgramsPage = segments[0] === '(tabs)' && (pathname === '/' || segments[1] === 'index');
@@ -57,11 +59,13 @@ export function WorkoutMiniBar() {
   const bottomPosition = useSharedValue(hasTabBar ? bottomWithTabBar : bottomWithoutTabBar);
   const opacity = useSharedValue(0); // Start at 0 for fade-in on first appearance
   const hasShownBefore = useRef(false); // Track if we've shown before (for instant return from workout)
+  const wasOnWorkoutScreen = useRef(false); // Track if we were on workout screen (for fade-in on return)
+  const mountTimer = useRef<NodeJS.Timeout | null>(null); // Timer for delayed mount fade-in
 
-  // Update positions when route changes - but NOT while on workout screen
+  // Update positions when route changes - but NOT while on fullscreen routes
   useEffect(() => {
-    // Skip position updates while on workout screen (position should stay frozen)
-    if (isOnWorkoutScreen) return;
+    // Skip position updates while on fullscreen routes (position should stay frozen)
+    if (isOnFullscreenRoute) return;
 
     leftPosition.value = withTiming(hasTabBar ? homeLeftPosition : centeredLeftPosition, {
       duration: 400,
@@ -71,22 +75,42 @@ export function WorkoutMiniBar() {
       duration: 400,
       easing: Easing.inOut(Easing.cubic),
     });
-  }, [hasTabBar, homeLeftPosition, centeredLeftPosition, bottomWithTabBar, bottomWithoutTabBar, isOnWorkoutScreen]);
+  }, [hasTabBar, homeLeftPosition, centeredLeftPosition, bottomWithTabBar, bottomWithoutTabBar, isOnFullscreenRoute]);
 
-  // Animate opacity: fade in ONLY on first appearance, instant for workout screen transitions
+  // Animate opacity: only fade in when RETURNING from fullscreen routes, not on initial mount
+  // This prevents the flash when navigating TO fullscreen routes
   useEffect(() => {
-    if (isOnWorkoutScreen) {
-      // Going to workout - fade out
-      opacity.value = withTiming(0, { duration: 150 });
-    } else if (!hasShownBefore.current) {
-      // First appearance - fade in
-      opacity.value = withTiming(1, { duration: 300 });
-      hasShownBefore.current = true;
-    } else {
-      // Returning from workout - fade in
-      opacity.value = withTiming(1, { duration: 300 });
+    // Clear any pending mount timer
+    if (mountTimer.current) {
+      clearTimeout(mountTimer.current);
+      mountTimer.current = null;
     }
-  }, [isOnWorkoutScreen]);
+
+    if (isOnFullscreenRoute) {
+      // On fullscreen route - ensure hidden (no animation needed)
+      opacity.value = 0;
+      wasOnWorkoutScreen.current = true;
+    } else if (wasOnWorkoutScreen.current) {
+      // Just returned from fullscreen route - delay fade in until slide-down animation completes
+      wasOnWorkoutScreen.current = false;
+      mountTimer.current = setTimeout(() => {
+        opacity.value = withTiming(1, { duration: 300 });
+      }, 300); // Wait for navigation animation to complete
+    } else if (!hasShownBefore.current) {
+      // First mount, not on fullscreen route
+      // Wait to ensure we're not mid-navigation to fullscreen route
+      mountTimer.current = setTimeout(() => {
+        opacity.value = withTiming(1, { duration: 300 });
+      }, 350); // Slightly longer than nav animation (300ms)
+      hasShownBefore.current = true;
+    }
+
+    return () => {
+      if (mountTimer.current) {
+        clearTimeout(mountTimer.current);
+      }
+    };
+  }, [isOnFullscreenRoute]);
 
   // Animated style reads all shared values
   const animatedContainerStyle = useAnimatedStyle(() => ({
@@ -117,7 +141,7 @@ export function WorkoutMiniBar() {
   return (
     <Animated.View
       exiting={FadeOut.duration(150)}
-      pointerEvents={isOnWorkoutScreen ? 'none' : 'auto'}
+      pointerEvents={isOnFullscreenRoute ? 'none' : 'auto'}
       style={[
         styles.container,
         { width: barWidth },

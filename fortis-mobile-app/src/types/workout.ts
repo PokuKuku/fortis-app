@@ -256,6 +256,7 @@ export interface Program {
   isPublic: boolean;
   isDefault: boolean;
   isAiCreated: boolean;
+  isTemplate: boolean;
   lastPerformedAt: string | null;
   createdBy?: string;
   createdAt: string;
@@ -276,6 +277,7 @@ export interface ProgramDTO {
   is_public: boolean;
   is_default: boolean;
   is_ai_created: boolean;
+  is_template?: boolean;
   last_performed_at: string | null;
   created_by?: string;
   created_at: string;

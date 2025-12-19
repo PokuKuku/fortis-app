@@ -16,6 +16,7 @@ interface WorkoutCompleteModalProps {
   visible: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  onSaveAsTemplate?: () => void;
   session: WorkoutSession | null;
 }
 
@@ -25,6 +26,7 @@ export function WorkoutCompleteModal({
   visible,
   onClose,
   onConfirm,
+  onSaveAsTemplate,
   session,
 }: WorkoutCompleteModalProps) {
   const confettiRef = useRef<ConfettiCannon>(null);
@@ -45,6 +47,11 @@ export function WorkoutCompleteModal({
   const handleConfirm = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onConfirm();
+  };
+
+  const handleSaveAsTemplate = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onSaveAsTemplate?.();
   };
 
   const summary = getWorkoutSummary(session);
@@ -100,10 +107,23 @@ export function WorkoutCompleteModal({
                   </View>
                 </View>
 
-                {/* Done Button */}
-                <GlassButton style={styles.doneButton} onPress={handleConfirm}>
-                  <Text style={styles.doneButtonText}>Done</Text>
-                </GlassButton>
+                {/* Action Buttons */}
+                <View style={styles.buttonGroup}>
+                  {onSaveAsTemplate && (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.saveTemplateButton,
+                        pressed && styles.saveTemplateButtonPressed,
+                      ]}
+                      onPress={handleSaveAsTemplate}
+                    >
+                      <Text style={styles.saveTemplateButtonText}>Save as Template</Text>
+                    </Pressable>
+                  )}
+                  <GlassButton style={styles.doneButton} onPress={handleConfirm}>
+                    <Text style={styles.doneButtonText}>Done</Text>
+                  </GlassButton>
+                </View>
               </View>
             </Pressable>
           </Animated.View>
@@ -208,9 +228,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textPrimary,
   },
+  buttonGroup: {
+    gap: Spacing.md,
+  },
+  saveTemplateButton: {
+    height: 44,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.success,
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveTemplateButtonPressed: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+  },
+  saveTemplateButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.success,
+  },
   doneButton: {
-    height: 36,
-    borderRadius: 8,
+    height: 44,
+    borderRadius: BorderRadius.lg,
   },
   doneButtonText: {
     fontSize: 15,
