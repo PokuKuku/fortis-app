@@ -4,6 +4,7 @@ import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetRow } from './SetRow';
 import { ExerciseKebabPopover } from './ExerciseKebabPopover';
 import * as Haptics from 'expo-haptics';
@@ -45,6 +46,9 @@ export function ExerciseCard({
   const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
   const stickyNote = exercise ? stickyNotes[exercise.exerciseId] : undefined;
   const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
+
+  // Fetch last performance for this exercise from previous sessions
+  const { lastPerformance } = useLastExercisePerformance(exercise?.exerciseId);
 
   if (!exercise) return null;
 
@@ -201,11 +205,14 @@ export function ExerciseCard({
           {/* Header Row */}
           <View style={styles.tableHeader}>
             <Text style={[styles.headerText, styles.setCol]}>Set</Text>
-            <Text style={[styles.headerText, styles.previousCol]}>Previous</Text>
+            <Text style={[styles.headerText, styles.previousCol]}>Prev</Text>
             <Text style={[styles.headerText, styles.weightCol]}>{weightUnit}</Text>
             <Text style={[styles.headerText, styles.repsCol]}>Reps</Text>
             <View style={styles.checkCol} />
           </View>
+
+          {/* Header Divider */}
+          <View style={styles.headerDivider} />
 
           {/* Set Rows */}
           {exercise.sets.map((set, index) => (
@@ -215,6 +222,7 @@ export function ExerciseCard({
               setLocalId={set.localId}
               setIndex={index}
               previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
+              lastPerformance={lastPerformance}
             />
           ))}
         </View>
@@ -252,20 +260,20 @@ export function ExerciseCard({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: Colors.surfaceOverlay,
     borderRadius: BorderRadius['2xl'],
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
     overflow: 'visible', // Allow popover to overflow
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 5,
   },
   content: {
-    padding: Spacing.lg,
+    padding: Spacing.xl,
     gap: Spacing.lg,
   },
   header: {
@@ -275,18 +283,18 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     flex: 1,
-    fontSize: 17,
-    fontFamily: 'BankGothic',
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   kebabButton: {
-    padding: Spacing.xs,
+    padding: Spacing.sm,
     marginLeft: Spacing.sm,
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.7,
   },
   notesInput: {
     fontSize: FontSizes.base,
@@ -302,49 +310,56 @@ const styles = StyleSheet.create({
   tableHeader: {
     flexDirection: 'row',
     gap: Spacing.sm,
-    paddingBottom: Spacing.xs,
-    paddingRight: Spacing.xs,
+    paddingBottom: Spacing.sm,
+    paddingRight: Spacing.sm,
+  },
+  headerDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    marginBottom: Spacing.xs,
   },
   headerText: {
-    fontSize: FontSizes.lg,
-    fontWeight: '600',
+    fontSize: 13,
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.textSecondary,
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   setCol: {
-    width: 36,
+    width: 40,
   },
   previousCol: {
-    width: 80,
+    width: 56,
   },
   weightCol: {
-    width: 52,
+    width: 40,
   },
   repsCol: {
-    width: 52,
-    marginLeft: Spacing.md,
+    width: 44,
+    marginLeft: Spacing.sm,
   },
   checkCol: {
-    width: 36,
-    marginLeft: Spacing.lg,
+    width: 32,
+    marginLeft: Spacing.md,
   },
   addSetButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
-    gap: Spacing.md,
+    paddingVertical: Spacing.md,
+    gap: Spacing.lg,
   },
   addSetLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(34, 197, 94, 0.3)',
+    backgroundColor: Colors.successBorder,
   },
   addSetText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothic',
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.success,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   stickyNoteBanner: {
     flexDirection: 'row',

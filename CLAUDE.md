@@ -1,621 +1,167 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Claude Code Rules
 
 **Workflow:**
-1. Think through the problem, read relevant files, and write a plan to `tasks/todo.md`
-2. Check in with user to verify the plan before starting
-3. Work through todo items, marking complete as you go, with high-level explanations
-4. Add a review section to `tasks/todo.md` with a summary when done
+1. First think through the problem, read the codebase for relevant files, and write a plan to `tasks/todo.md`
+2. The plan should have a list of todo items that you can check off as you complete them
+3. Before you begin working, check in with me and I will verify the plan
+4. Then, begin working on the todo items, marking them as complete as you go
+5. Every step of the way just give me a high level explanation of what changes you made
+6. Make every task and code change as simple as possible - avoid massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity
+7. Finally, add a review section to `tasks/todo.md` with a summary of the changes you made and any other relevant information
 
 **Principles:**
-- Make changes as simple as possible - impact only necessary code
-- Find root causes for bugs - NO temporary fixes
-- When debugging, trace through the ENTIRE code flow step by step - no assumptions
-- If a task is unclear, push back to clarify before implementing
+- DO NOT BE LAZY. NEVER BE LAZY. IF THERE IS A BUG FIND THE ROOT CAUSE AND FIX IT. NO TEMPORARY FIXES. YOU ARE A SENIOR DEVELOPER. NEVER BE LAZY
+- MAKE ALL FIXES AND CODE CHANGES AS SIMPLE AS HUMANLY POSSIBLE. THEY SHOULD ONLY IMPACT NECESSARY CODE RELEVANT TO THE TASK AND NOTHING ELSE. IT SHOULD IMPACT AS LITTLE CODE AS POSSIBLE. YOUR GOAL IS TO NOT INTRODUCE ANY BUGS. IT'S ALL ABOUT SIMPLICITY
+- **CRITICAL:** When debugging, you MUST trace through the ENTIRE code flow step by step. No assumptions. No shortcuts.
 - Before implementing ANY UI, run the design system checklist below
 - Proactively scan for duplicated UI patterns and suggest component extraction (2+ occurrences)
 
 ## Project Overview
 
-Fortis is an offline-first mobile workout tracker built with Expo/React Native. The repository is a monorepo:
+Fortis is an offline-first mobile workout tracker built with Expo/React Native. Monorepo structure:
 
-- **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19.1, React Native 0.81.5, TypeScript)
-- **fortis-mobile/fortis-mobile-design/**: UI prototypes built with Vite/React
-- **fortis-web/**: Web dashboard designs
+- **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19.1, RN 0.81.5, TypeScript)
 - **supabase/**: Database schema, migrations, and seed data
 - **free-exercise-db-main/**: Exercise database with JSON files
 
 ## Development Commands
 
-### Mobile App
-
 ```bash
 cd fortis-mobile-app
-
-npm start              # Start development server (Expo Metro)
-npm run ios            # Run on iOS simulator (requires native build)
-npm run android        # Run on Android emulator (requires native build)
-npm run web            # Run on web browser (limited functionality)
-
-# Native project generation (after adding native dependencies)
-npx expo prebuild      # Generate native projects
-npx expo prebuild --clean  # Clean rebuild
-npx pod-install        # Install iOS CocoaPods dependencies
-
-# Cache clearing (when bundler gets stuck)
+npm start              # Start Expo dev server
+npm run ios            # Run on iOS simulator
+npm run android        # Run on Android emulator
 npm start -- --clear   # Clear bundler cache
-rm -rf .expo           # Clear Expo cache
+
+# Supabase (requires Docker)
+supabase start         # Start local instance
+supabase db reset      # Reset and apply migrations
+supabase functions deploy ai  # Deploy AI edge function
 ```
-
-### Supabase (Local Development)
-
-```bash
-# Requires Docker installed and running
-supabase start         # Start local Supabase instance (PostgreSQL, Auth, Storage, etc.)
-supabase db reset      # Reset database and apply all migrations from /migrations
-supabase stop          # Stop local Supabase
-supabase db pull       # Pull schema changes from remote
-supabase migration new migration_name  # Create new migration file
-
-# Database operations
-supabase db push       # Apply local migrations to remote
-supabase seed reset    # Reload seed data
-```
-
-### Quick Reference
-
-| Task | Command |
-|------|---------|
-| Hot reload | Save a file (automatic) or press `r` in terminal |
-| Full reload | Shake device → "Reload" or press `c` in terminal |
-| Debug menu | Shake device or press `d` (iOS) / `m` (Android) |
-| Clear all caches | `npm start -- --clear && rm -rf .expo` |
-| Reinstall deps | `rm -rf node_modules && npm install` |
 
 ## Architecture
 
-### Mobile App Structure (fortis-mobile-app/)
-
 ```
 app/                    # Expo Router file-based routing
-├── _layout.tsx         # Root layout (GestureHandler, fonts, Stack)
-├── index.tsx           # Splash/landing screen
-├── (tabs)/             # Tab navigator group
-│   ├── _layout.tsx     # Tab bar + FAB for AI chat
-│   ├── index.tsx       # Home/workout screen (CANONICAL UI REFERENCE)
-│   ├── start.tsx       # Start workout screen
+├── _layout.tsx         # Root layout (fonts, Stack nav)
+├── index.tsx           # Splash screen
+├── (tabs)/             # Tab navigator
+│   ├── index.tsx       # Home (CANONICAL UI REFERENCE)
 │   ├── exercises.tsx   # Exercise library
-│   ├── history.tsx     # Workout history
-│   └── profile.tsx     # User profile
-├── ai/
-│   └── chat.tsx        # AI chat fullscreen route
-├── exercise/
-│   └── [id].tsx        # Exercise details screen (dynamic route)
-└── workout/
-    └── active.tsx      # Active workout logging screen
+│   └── history.tsx     # Workout history
+├── ai/chat.tsx         # AI chat (fullscreen route)
+└── workout/active.tsx  # Active workout logger
 
 src/
-├── components/
-│   ├── ui/             # Base UI primitives
-│   ├── shared/         # Cross-feature components
-│   ├── ai/             # AI components (AIMutationPreviewModal, AIContainer)
-│   └── workout/        # Workout components (ExerciseCard, SetRow, NumberPadModal, modals/)
-├── hooks/              # Custom hooks (useElapsedTime, useRestTimerTick, useExercises)
-├── services/           # Service layer (exerciseService.ts)
-├── lib/supabase.ts     # Supabase client with SecureStore adapter
-├── store/workoutStore.ts  # Zustand state (active session, rest timer, number pad)
-├── types/              # TypeScript definitions (workout.ts, exercise.ts)
-└── constants/          # Storage keys, config, exerciseOptions, exerciseConfig
+├── components/         # UI components (ui/, workout/, ai/)
+├── hooks/              # Custom hooks
+├── services/           # exerciseService, programService, aiService
+├── store/              # Zustand stores (workoutStore, programsStore, aiStore)
+├── types/              # TypeScript definitions
+└── constants/          # Storage keys, exerciseOptions
 
 components/             # Root-level glass morphism components
 ├── GlassButton.tsx     # Green gradient button (USE FOR ALL GREEN BUTTONS)
-├── GlassCard.tsx       # Glass effect card container
+├── GlassCard.tsx       # Glass effect card
 └── StainlessSteelPattern.tsx  # Background pattern (USE ON ALL SCREENS)
 
-constants/              # Design system tokens
-├── Colors.ts           # Color palette
-├── Sizes.ts            # Spacing, border radius, font sizes
-└── Typography.ts       # Text styles
+constants/              # Design tokens
+├── Colors.ts, Sizes.ts, Typography.ts
 ```
 
-### Key Dependencies
+**Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns
 
-- **State**: Zustand with AsyncStorage persistence
-- **Forms**: react-hook-form with zod validation
-- **Animations**: react-native-reanimated
-- **Gestures**: react-native-gesture-handler, react-native-draggable-flatlist
-- **Icons**: react-native-heroicons/outline (see Icons section below)
-- **Date handling**: date-fns
+**Icons:** Use `react-native-heroicons/outline` for all icons. Props: `size`, `color`, `strokeWidth` (2-2.5 for visibility). Custom: `DumbbellIcon` in `src/components/icons/`.
 
-### Icons
+**Font:** `fontFamily: 'BankGothicMediumBT'` - loaded in `app/_layout.tsx`
 
-**Primary Library**: `react-native-heroicons/outline`
-- All icons use the outline variant for consistency
-- Import from: `import { IconName } from 'react-native-heroicons/outline';`
+## State Management
 
-**Common Icon Props**:
-```tsx
-<XMarkIcon size={20} color="#ffffff" strokeWidth={2.5} />
-```
-- `size`: Icon dimensions in pixels (use `IconSizes` from Sizes.ts)
-- `color`: Icon color (use `Colors` constants)
-- `strokeWidth`: Line thickness (default ~1.5, use 2-2.5 for better visibility)
+**Zustand + AsyncStorage** for offline-first persistence:
 
-**Custom Icons**: `src/components/icons/`
-- `DumbbellIcon` - Custom SVG dumbbell icon (DO NOT replace with Heroicons)
+- **workoutStore**: Active session, sets, rest timer, number pad state
+- **programsStore**: Programs/templates, CRUD operations
+- **aiStore**: Conversation, pending mutations, image attachments
 
-**Common Icon Mappings** (reference):
-| Purpose | Icon | Import |
-|---------|------|--------|
-| Close/Cancel | XMarkIcon | react-native-heroicons/outline |
-| Delete | TrashIcon | react-native-heroicons/outline |
-| Add | PlusIcon | react-native-heroicons/outline |
-| Subtract | MinusIcon | react-native-heroicons/outline |
-| Complete/Check | CheckIcon | react-native-heroicons/outline |
-| Timer/Clock | ClockIcon | react-native-heroicons/outline |
-| Calendar | CalendarDaysIcon | react-native-heroicons/outline |
-| Search | MagnifyingGlassIcon | react-native-heroicons/outline |
-| Sort | ArrowsUpDownIcon | react-native-heroicons/outline |
-| Navigation | ChevronRightIcon, ChevronLeftIcon | react-native-heroicons/outline |
-| Menu (horizontal) | EllipsisHorizontalIcon | react-native-heroicons/outline |
-| Menu (vertical) | EllipsisVerticalIcon | react-native-heroicons/outline |
-| Play/Pause | PlayIcon, PauseIcon | react-native-heroicons/outline |
-| Info | InformationCircleIcon | react-native-heroicons/outline |
-| Replace/Refresh | ArrowPathIcon | react-native-heroicons/outline |
-| Notes/Document | DocumentTextIcon | react-native-heroicons/outline |
-| Copy | DocumentDuplicateIcon | react-native-heroicons/outline |
-| Skip | ForwardIcon | react-native-heroicons/outline |
-| Reset | ArrowUturnLeftIcon | react-native-heroicons/outline |
-| Warning | ExclamationTriangleIcon | react-native-heroicons/outline |
-| Trophy | TrophyIcon | react-native-heroicons/outline |
-| User | UserIcon | react-native-heroicons/outline |
-| List | Bars3Icon | react-native-heroicons/outline |
-| Grid/Layout | Squares2X2Icon | react-native-heroicons/outline |
-| Backspace | BackspaceIcon | react-native-heroicons/outline |
-| AI/Sparkles | SparklesIcon | react-native-heroicons/outline |
-| Send/Submit | PaperAirplaneIcon | react-native-heroicons/outline |
-| Chat | ChatBubbleLeftRightIcon | react-native-heroicons/outline |
-| Trending Up/Stats | ArrowTrendingUpIcon | react-native-heroicons/outline |
-| Question | QuestionMarkCircleIcon | react-native-heroicons/outline |
-| Camera | CameraIcon | react-native-heroicons/outline |
-| Photo/Image | PhotoIcon | react-native-heroicons/outline |
+**Key Patterns:**
+- Offline-first: All stores persist to AsyncStorage
+- Local ID generation: Client-side UUIDs for offline sessions
+- Event emitter: `DeviceEventEmitter` for cross-component communication
+  - Events: `workout-updated`, `customExerciseUpsert`, `exerciseDetailVisible`, `openEditExercise`
 
-### Custom Fonts
-
-**Bank Gothic** (`assets/fonts/BankGothicMediumBT.ttf`):
-- Used for: AI chat title ("Fortis")
-- Loaded in: `app/_layout.tsx`
-- Font family name: `'BankGothicMediumBT'`
-
-**Usage**:
-```tsx
-<Text style={{
-  fontFamily: 'BankGothicMediumBT',
-  fontSize: 18,
-  fontWeight: '700',
-}}>
-  Fortis
-</Text>
-```
-
-**Loading** (in `app/_layout.tsx`):
-```tsx
-const [fontsLoaded] = useFonts({
-  'BankGothicMediumBT': require('../assets/fonts/BankGothicMediumBT.ttf'),
-});
-```
-
-### State Management Stores
-
-The app uses **Zustand** with AsyncStorage persistence for offline-first operation. Key stores:
-
-#### `workoutStore.ts` - Active Workout Session
-```tsx
-// Active session state
-sessionId: string | null
-currentExerciseIndex: number
-sets: WorkoutSet[]  // Completed/in-progress sets
-restTimer: number
-isLoading: boolean
-
-// Global UI state
-activeNumberPad: null | { exerciseIndex: number; setIndex: number }
-```
-- Persists to `ACTIVE_SESSION_KEY` in AsyncStorage
-- Auto-syncs completed sets to Supabase when online
-- Handles rest timers, set logging, exercise transitions
-
-#### `programsStore.ts` - Workout Programs/Templates
-```tsx
-// Data
-programs: Program[]  // User's saved programs
-isLoading: boolean
-error: string | null
-
-// Actions
-fetchPrograms(): Promise<void>
-deleteProgram(id: string): Promise<boolean>
-duplicateProgram(id: string): Promise<string | null>
-createWorkoutTemplate(...): Promise<string | null>
-updateLastPerformed(id: string): Promise<void>
-```
-- Fetches from `workout_programs` table in Supabase
-- Supports AI-generated programs (with source tracking)
-- Maps DTO responses to typed Program objects
-
-#### `aiStore.ts` - AI Assistant
-```tsx
-// Conversation
-conversation: AIConversation | null
-isSendingMessage: boolean
-
-// Pending mutations awaiting user confirmation
-pendingActions: AIPendingAction[]
-currentMutationPlan: AIMutationPlan | null
-mutationHistory: AIMutationRecord[]  // For undo
-
-// Image attachment
-selectedImage: { uri: string; base64: string; mimeType: AIImageMimeType } | null
-```
-- Stores conversation history in AsyncStorage (`AI_CONVERSATION_KEY`)
-- Handles image-to-template generation (base64 encoding)
-- Applies mutations to workouts with user confirmation
-- Tracks rate limits for API safety
-- **AI chat is a fullscreen route** (`app/ai/chat.tsx`), not a modal
-
-### Key Patterns
-
-- **Offline-first state**: All stores use Zustand + AsyncStorage for persistence
-- **Local ID generation**: Client-side UUIDs in `workoutStore` for offline sessions
-- **Storage keys**: Centralized in `src/constants/storageKeys.ts`
-- **Event emitter**: `DeviceEventEmitter` for store-to-component communication (e.g., `workout-updated`)
-- **Number pad pattern**: Single global `NumberPadModal` at app root, state in `workoutStore.activeNumberPad`
-- **DTO mapping**: Programs and AI responses use DTOs that get mapped to typed models
-
-### Exercise Database Abstraction Layer
-
-The exercise data is abstracted behind a service layer to allow easy switching between data sources (local JSON, different databases, or external APIs).
-
-**Key Files:**
-```
-src/
-├── types/exercise.ts           # Exercise, ExerciseWithSource, ExerciseSource types
-├── constants/
-│   ├── exerciseOptions.ts      # PRIMARY_MUSCLES, CATEGORIES, EQUIPMENT_TYPES, etc.
-│   └── exerciseConfig.ts       # Data source configuration
-├── services/exerciseService.ts # Core service with caching, search, filter
-└── hooks/useExercises.ts       # useExercises(), useExercise(id) hooks
-```
-
-**Usage in Components:**
-```tsx
-import { useExercises, useExercise } from '@/src/hooks/useExercises';
-import { getExerciseImageUrl } from '@/src/services/exerciseService';
-
-// Get all exercises (auto-refreshes on custom exercise changes)
-const { exercises, loading, error, refresh } = useExercises();
-
-// Get single exercise by ID
-const { exercise, loading } = useExercise(exerciseId);
-
-// Get image URL
-const imageUrl = getExerciseImageUrl(exercise.images[0]);
-```
-
-**To Switch to an API:**
-1. Update `src/constants/exerciseConfig.ts`:
-```tsx
-export const EXERCISE_CONFIG = {
-  source: 'api',  // Change from 'local' to 'api'
-  apiBaseUrl: 'https://your-api.com/v1',
-  imageBaseUrl: '...',
-};
-```
-2. Implement `fetchApiExercises()` in `exerciseService.ts` with error handling
-3. No UI changes needed - all components use the hooks
-
-**Option Constants** (use these instead of inline arrays):
-```tsx
-import { PRIMARY_MUSCLES, CATEGORIES, EQUIPMENT_TYPES, LEVELS, FORCES, MECHANICS } from '@/src/constants/exerciseOptions';
-```
-
-### Backend (Supabase)
+## Backend (Supabase)
 
 **Key Tables** (see `supabase/schema.sql`):
-- `profiles` - User account data
-- `exercises` - Exercise library (name, muscles, equipment, instructions)
-- `workout_programs` - Program templates created by users or AI
+- `profiles` - User accounts
+- `exercises` - Exercise library
+- `workout_programs` - Program templates
 - `workout_sessions` - Active workouts
-- `workout_sets` - Individual sets within sessions
-- `ai_conversations` - AI assistant conversation history
-- `subscriptions` - Subscription/payment tracking
+- `workout_sets` - Individual sets
+- `ai_conversations` - AI chat history
 
-**Offline-First Pattern**:
-- Sessions and sets use `local_id` (UUID generated client-side) and `is_synced` boolean
-- Data persists to AsyncStorage immediately for offline access
-- Periodic sync to Supabase when online (watch `getNetInfo()`)
-- Conflict resolution: last-write-wins or user confirmation
+**Offline-First Pattern:**
+- `local_id` (client UUID) + `is_synced` boolean
+- Persists to AsyncStorage immediately
+- Syncs to Supabase when online
 
 **Migrations** (`supabase/migrations/`):
 - `000_initial_schema.sql` - Core tables
-- `001_add_import_support.sql` - Strong/Hevy app imports
-- `002_core_features_and_ai_security.sql` - AI, programs, security policies
+- `001_add_import_support.sql` - Strong/Hevy imports
+- `002_core_features_and_ai_security.sql` - AI, programs, RLS
 - `003_program_ai_tracking.sql` - AI-generated program tracking
 
-**Data Import**:
-- Support for Strong and Hevy app exports - see `supabase/IMPORT_GUIDE.md`
-- Exercises seeded from `free-exercise-db-main/` (6000+ exercises)
+**AI Edge Function** (`supabase/functions/ai/index.ts`):
+- Rate limiting via `ai_rate_limits` table
+- Claude 3.5 Sonnet via Anthropic API
+- Image support (base64-encoded)
 
-## Environment Setup
-
-**Local Development**:
-Copy `fortis-mobile-app/.env.example` to `.env.local`:
-```
-EXPO_PUBLIC_SUPABASE_URL=http://localhost:54321   # Local Supabase
-EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-EXPO_PUBLIC_APP_ENV=development
+```bash
+supabase functions deploy ai
+supabase secrets set ANTHROPIC_API_KEY=<key>
 ```
 
-**Production**:
-```
-EXPO_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-EXPO_PUBLIC_APP_ENV=production
-```
-
-**Important Notes**:
-- `EXPO_PUBLIC_*` variables are embedded in the app bundle (not secret)
-- Supabase anon key has RLS policies - all data access controlled at DB level
-- Never commit `.env.local` (it's in `.gitignore`)
-- For Supabase local dev: Use keys from `supabase start` output (printed in terminal)
-
-## Debugging Guide
-
-### Common Issues & Solutions
-
-| Issue | Cause | Solution |
-|-------|-------|----------|
-| "Module not found" | Missing import or stale cache | `npm start -- --clear && npm install` |
-| White/blank screen | Bundler error | Check terminal for errors, shake device for debug menu |
-| AsyncStorage data not persisting | Wrong storage key or Zustand hydration | Verify key in `storageKeys.ts`, check store subscribers |
-| Supabase connection fails | Wrong URL/key or local instance down | `supabase start`, verify `.env.local` |
-| Network sync stuck | Device offline or connection timeout | Check `@react-native-community/netinfo` state |
-| AI mutations not applying | Pending action not confirmed | Check `aiStore.pendingActions` state in dev menu |
-
-### Logging Patterns
-
-**State inspection** (in device menu):
-```tsx
-// Check store state
-import { useWorkoutStore } from '@/src/store/workoutStore';
-const state = useWorkoutStore.getState();
-console.log('Workout state:', state);
-```
-
-**Trace async operations**:
-```tsx
-// Add logs to store actions
-fetchPrograms: async () => {
-  console.log('[programsStore] Fetching programs...');
-  try {
-    const { data } = await supabase.from('workout_programs').select('*');
-    console.log('[programsStore] Fetched', data?.length, 'programs');
-    set({ programs: data || [] });
-  } catch (error) {
-    console.error('[programsStore] Fetch failed:', error);
-  }
-}
-```
-
-**Network monitoring**:
-```tsx
-import NetInfo from '@react-native-community/netinfo';
-NetInfo.addEventListener(state => {
-  console.log('[Network] Connected:', state.isConnected, 'Type:', state.type);
-});
-```
-
-### Performance Debug
-
-Enable React Native debugger to profile renders:
-- Shake device → Enable "Debug" → Open Metro debug menu
-- Watch for unnecessary re-renders (use `whyDidYouRender` if added)
-- Check AsyncStorage operations (they're async and can block UI)
-
-## AI Features & Image Processing
-
-### Image-to-Template Generation
-
-The AI can convert workout photos to program templates:
-
-**Flow**:
-1. User selects image from device camera/gallery
-2. Image → base64 encoding in `aiStore`
-3. Send with message to Claude API
-4. Claude extracts exercises and proposes template structure
-5. AI returns `currentMutationPlan` with mutations
-6. User confirms → mutations apply to workout
-
-**Implementation** (`aiStore.ts`):
-```tsx
-// Selected image persists until message sent
-selectedImage: { uri: string; base64: string; mimeType: AIImageMimeType }
-
-// Send message with image attachment
-sendMessage(text: string): Promise<void>
-// → encodes image to base64 before API call
-// → clears selectedImage after send
-```
-
-**Supported formats**: JPEG, PNG (see `AIImageMimeType` enum in `types/ai.ts`)
-
-### Rate Limiting & Safety
-
-`aiStore` tracks API rate limits:
-```tsx
-rateLimitStatus: AIRateLimitStatus {
-  requestsRemaining: number
-  resetAt: Date
-  isLimited: boolean
-}
-
-// Update during API calls
-updateRateLimit(headers: APIHeaders): void
-```
-
-Monitor in UI before allowing requests - disable "Send" button if limited.
-
-### Mutation System
-
-AI-generated changes are staged before applying:
-
-```tsx
-// User proposes mutation (e.g., add exercise)
-currentMutationPlan: {
-  id: string
-  description: string  // "Add barbell bench press to day 1"
-  mutations: AIMutation[]
-}
-
-// Pending confirmation
-pendingActions: AIPendingAction[]
-
-// After confirmation
-mutationHistory: AIMutationRecord[]  // For undo support
-```
-
-Each mutation tracks:
-- Type (add, remove, update exercise)
-- Affected entities (workout/session/set IDs)
-- Previous state (for undo)
-- Timestamp of application
-
-### AI Chat Interface
-
-**Location**: `app/ai/chat.tsx` (fullscreen route)
-
-The AI chat is a fullscreen bottom sheet route with native animations, matching the workout logger's UX.
-
-**Architecture**:
-- **Route-based**: Uses Expo Router navigation (not a modal)
-- **Animation**: Native `slide_from_bottom` with gesture support
-- **Icons**: Heroicons (design system compliant)
-- **Title**: "Fortis" in Bank Gothic font
-- **Drag handle**: Visual indicator at top (matches workout logger)
-
-**Navigation**:
-```tsx
-// From FAB or anywhere in the app
-import { useRouter } from 'expo-router';
-const router = useRouter();
-router.push('/ai/chat');  // Opens AI chat
-
-// Close from within chat screen
-router.back();  // Dismisses AI chat
-```
-
-**Route Configuration** (`app/_layout.tsx`):
-```tsx
-<Stack.Screen
-  name="ai/chat"
-  options={{
-    animation: 'slide_from_bottom',
-    gestureEnabled: true,
-    gestureDirection: 'vertical',
-    headerShown: false,
-  }}
-/>
-```
-
-**Key Features**:
-- **Quick Actions**: 4 suggested prompts when chat is empty
-  - Check stats (ArrowTrendingUpIcon)
-  - Analyze plateau (QuestionMarkCircleIcon)
-  - Create workout (DumbbellIcon)
-  - Create program (ChatBubbleLeftRightIcon)
-- **Image Picker**: Camera button for workout photo uploads
-- **Intent System**: Automatically categorizes user requests
-- **Message History**: Persisted conversation with scroll-to-bottom
-- **Error Handling**: Inline error display with dismiss action
-- **Loading States**: "Thinking..." indicator during AI processing
-
-**Mutation Preview**:
-When AI generates program/template changes, a separate modal (`AIMutationPreviewModal`) appears over the chat to show proposed changes. After user confirms, the chat remains open to show success message.
-
-**DO NOT** create modal versions of AI chat - it's a fullscreen route by design.
+**Environment:** Copy `.env.example` to `.env.local` with Supabase URL/key.
 
 ## Design System (MANDATORY)
 
 ### Pre-Implementation Checklist
 
-Before implementing ANY UI feature, verify:
+Before implementing ANY UI:
 - [ ] Using `Colors.ts` constants (NO hardcoded hex/rgba)
 - [ ] Using `Spacing` from `Sizes.ts` (NO magic numbers)
-- [ ] Using `Typography.ts` style objects (spread entire object)
-- [ ] Using `BorderRadius` from `Sizes.ts`
-- [ ] Background uses `Colors.background` with `<StainlessSteelPattern>`
-- [ ] Checked `app/(tabs)/index.tsx` for similar patterns to reuse
+- [ ] Using `Typography.ts` style objects
+- [ ] Background uses `Colors.background` + `<StainlessSteelPattern>`
+- [ ] Checked `app/(tabs)/index.tsx` for similar patterns
 - [ ] Using `GlassButton`/`GlassCard` instead of custom implementations
-- [ ] Using `BaseModal` from `src/components/ui/BaseModal.tsx` for all centered dialog modals
+- [ ] Using `BaseModal` for all centered dialog modals
 
 ### Design Tokens
 
 **Colors** (`constants/Colors.ts`):
 ```tsx
-// ✅ ALWAYS use
 Colors.background      // #0a0a0a
 Colors.textPrimary     // #fafafa
 Colors.textSecondary   // #a3a3a3
-Colors.success         // #22c55e (THE green - never use #10b981)
+Colors.success         // #22c55e (THE green)
 Colors.error           // #dc2626
 Colors.warning         // #f59e0b
-Colors.white           // #ffffff
-Colors.black           // #000000
-
-// ❌ NEVER hardcode
-'#22c55e', '#ef4444', '#fff', 'rgba(255,255,255,0.08)'
 ```
 
 **Spacing** (`constants/Sizes.ts`):
 ```tsx
-// ✅ ALWAYS use
 Spacing.xs (4), Spacing.sm (8), Spacing.md (12), Spacing.lg (16), Spacing.xl (20)
-Spacing['2xl'] (24), Spacing['3xl'] (32), Spacing['4xl'] (40), Spacing['5xl'] (48), Spacing['6xl'] (64)
-
-// ❌ NEVER hardcode
-padding: 16, margin: 24, gap: 12
+Spacing['2xl'] (24), Spacing['3xl'] (32), Spacing['4xl'] (40)
 ```
 
-**Border Radius** (`constants/Sizes.ts`):
-```tsx
-// ✅ ALWAYS use
-BorderRadius.sm (6), BorderRadius.md (8), BorderRadius.lg (10), BorderRadius.xl (14)
-```
+**Border Radius:** `BorderRadius.sm (6), .md (8), .lg (10), .xl (14), ['2xl'] (16)`
 
-**Button/Icon Sizes** (`constants/Sizes.ts`):
-```tsx
-ButtonHeights.sm (32), ButtonHeights.md (36), ButtonHeights.lg (40), ButtonHeights.xl (48)
-IconSizes.xs (12), IconSizes.sm (16), IconSizes.md (20), IconSizes.lg (24), IconSizes.xl (32)
-```
-
-**Typography** (`constants/Typography.ts`):
-```tsx
-// ✅ Spread complete style object
-style={{ ...Typography.h2, color: Colors.textPrimary }}
-
-// Available variants: h1-h6, body, bodyLarge, bodySmall, label, labelSmall,
-// caption, button, buttonSmall, buttonLarge, number, numberLarge, mono, link
-
-// ❌ NEVER use individual props
-fontSize: 16, fontWeight: '600'
-```
+**Typography:** Spread complete style objects: `style={{ ...Typography.h2, color: Colors.textPrimary }}`
 
 ### Component Patterns
 
-**Screen Structure** (all screens):
+**Screen Structure:**
 ```tsx
 <SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
   <StainlessSteelPattern />
@@ -625,84 +171,43 @@ fontSize: 16, fontWeight: '600'
 </SafeAreaView>
 ```
 
-**Green Buttons** (use `GlassButton` - see `app/(tabs)/index.tsx` line ~853):
+**Green Buttons:** Use `GlassButton`:
 ```tsx
-<GlassButton style={{ height: ButtonHeights.md, borderRadius: BorderRadius.md }} onPress={handleAction}>
-  <View style={{ flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }}>
-    <Icon color={Colors.white} size={IconSizes.md} />
-    <Text style={{ ...Typography.button, color: Colors.white }}>Button Text</Text>
-  </View>
+<GlassButton style={{ height: 40, borderRadius: BorderRadius.md }} onPress={handleAction}>
+  <Text style={{ ...Typography.button, color: Colors.white }}>Button Text</Text>
 </GlassButton>
 ```
 
-**Modals** (use `BaseModal` component from `src/components/ui/BaseModal.tsx`):
+### BaseModal
 
-All centered dialog modals MUST use the `BaseModal` component to ensure consistent styling. This component automatically handles:
-- StainlessSteelPattern background texture
-- FadeIn/FadeOut + ZoomIn/ZoomOut animations
-- Dark backdrop (`rgba(0, 0, 0, 0.7)`)
-- Container styling (`#222222` bg, `BorderRadius['2xl']`, shadows)
-- Header with title, optional icon, and close button
-- Haptic feedback on close
+All centered dialog modals use `BaseModal` from `src/components/ui/BaseModal.tsx`:
 
 ```tsx
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
-import { ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 
-// Confirmation modal (two buttons)
 <BaseModal visible={visible} onClose={onClose} title="Finish Workout?">
-  <Text style={modalStyles.message}>Are you sure you want to finish?</Text>
+  <Text style={modalStyles.message}>Are you sure?</Text>
   <View style={modalStyles.actions}>
     <Pressable style={modalStyles.cancelButton} onPress={onClose}>
-      <Text style={modalStyles.cancelButtonText}>Keep Going</Text>
+      <Text style={modalStyles.cancelButtonText}>Cancel</Text>
     </Pressable>
     <Pressable style={modalStyles.successButton} onPress={onConfirm}>
-      <Text style={modalStyles.successButtonText}>Finish</Text>
+      <Text style={modalStyles.successButtonText}>Confirm</Text>
     </Pressable>
   </View>
 </BaseModal>
-
-// Warning modal with icon (icon displays centered above title)
-<BaseModal
-  visible={visible}
-  onClose={onClose}
-  title="Limit Reached"
-  icon={<ExclamationTriangleIcon size={24} color="#f59e0b" />}
->
-  <Text style={modalStyles.message}>Maximum limit reached.</Text>
-  <Pressable style={modalStyles.warningButton} onPress={onClose}>
-    <Text style={modalStyles.warningButtonText}>Got it</Text>
-  </Pressable>
-</BaseModal>
 ```
 
-**BaseModal Props:**
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `visible` | boolean | required | Modal visibility |
-| `onClose` | () => void | required | Close handler |
-| `title` | string | required | Header title |
-| `icon` | ReactNode | - | Icon before title |
-| `showCloseButton` | boolean | true | Show X button |
-| `closeButtonColor` | string | textSecondary | Close icon color |
-| `closeOnBackdropPress` | boolean | true | Dismiss on backdrop tap |
-| `width` | number | 320 | Container width |
+**Props:** `visible`, `onClose`, `title`, `icon?`, `showCloseButton?`, `width?`
 
-**Modal Button Styles** (from `modalStyles`):
-- `cancelButton` / `cancelButtonText` - Gray neutral button
-- `successButton` / `successButtonText` - Green success action
-- `warningButton` / `warningButtonText` - Amber warning action
-- `errorButton` / `errorButtonText` - Red destructive action
-- `message` - Centered message text style
-- `actions` - Two-button row layout
-- `buttonPressed` - Apply on pressed state
+**Button styles:** `cancelButton`, `successButton`, `warningButton`, `errorButton`
 
-**Fullscreen Bottom Sheet Routes** (for immersive screens like AI chat, workout logger):
+### Fullscreen Bottom Sheet Routes
 
-For screens that should feel like bottom sheets but with native navigation:
+For AI chat, workout logger - use Expo Router navigation:
 
 ```tsx
-// Route configuration in app/_layout.tsx
+// In app/_layout.tsx
 <Stack.Screen
   name="feature/screen"
   options={{
@@ -712,132 +217,38 @@ For screens that should feel like bottom sheets but with native navigation:
     headerShown: false,
   }}
 />
-
-// Screen component structure
-export default function FeatureScreen() {
-  const router = useRouter();
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StainlessSteelPattern />
-
-      {/* Drag handle (matches workout logger) */}
-      <View style={styles.dragHandleContainer}>
-        <View style={styles.dragHandle} />
-      </View>
-
-      {/* Header with close button */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Screen Title</Text>
-        <TouchableOpacity onPress={() => router.back()}>
-          <XMarkIcon color={Colors.textSecondary} size={IconSizes.lg} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Content */}
-      <View style={styles.content}>
-        {/* ... */}
-      </View>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  dragHandleContainer: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  dragHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  // ... rest of styles
-});
 ```
 
-**Examples**:
-- `app/workout/active.tsx` - Workout logger
-- `app/ai/chat.tsx` - AI chat interface
-
-**Benefits**:
-- Hardware-accelerated animations
-- Native gesture handling (swipe-to-dismiss)
-- Better performance than modals
-- Proper navigation stack integration
+Include drag handle at top matching workout logger pattern.
 
 ### Animation Standards
 
-Use `react-native-reanimated` for all animations. Apply consistent easing for smooth, polished feel.
+Use `react-native-reanimated`:
 
-**Slide-up Modals/Sheets** (bottom sheets, keyboards, action sheets):
+**Slide-up modals:**
 ```tsx
-import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
-
-// Standard durations and easing
 entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
 exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
 ```
 
-**Number Pad / Keyboards** (slightly faster enter, slower dismiss):
+**Pop-in modals:**
 ```tsx
-entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
-exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
-```
-
-**Pop-in Modals** (centered dialogs):
-```tsx
-import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
-
-// Container fade
-entering={FadeIn.duration(200)}
-exiting={FadeOut.duration(150)}
-
-// Content zoom
 entering={ZoomIn.duration(250)}
 exiting={ZoomOut.duration(200)}
 ```
 
-**Easing Guide**:
-- `Easing.out(Easing.cubic)` - Enter animations (starts fast, slows at end)
-- `Easing.in(Easing.cubic)` - Exit animations (starts slow, accelerates)
-- `Easing.inOut(Easing.cubic)` - Symmetrical animations
-
-**Haptics** (use `expo-haptics` for tactile feedback):
+**Haptics:**
 ```tsx
 import * as Haptics from 'expo-haptics';
-
 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);   // Button taps
 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
-Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);  // Workout complete
 ```
 
 ### Component Extraction
 
-**When to extract** (create reusable component):
-- Pattern appears 2+ times across different screens
-- Complex styling (5+ style properties or uses LinearGradient)
+**When to extract:** Pattern appears 2+ times OR complex styling (5+ properties)
 
-**Where to place**:
-- `src/components/ui/`: Base primitives (Button, Input, Chip)
-- `src/components/shared/`: Cross-feature (EmptyState, LoadingSpinner)
-- `src/components/[feature]/`: Feature-specific (workout/, exercises/)
-
-**Protocol**: Suggest extraction to user before creating new components.
-
-### Prototype Code Handling
-
-When user provides prototype code:
-1. **Preserve logic/behavior** from the prototype
-2. **Replace all styling** with current app patterns:
-   - Custom buttons → `GlassButton`
-   - Hardcoded colors → `Colors.ts`
-   - Hardcoded spacing → `Spacing` constants
-   - Custom modals → `DeleteConfirmationModal` pattern
-
-**Priority**: Current app design system > Prototype styling
+**Where to place:**
+- `src/components/ui/`: Base primitives
+- `src/components/shared/`: Cross-feature
+- `src/components/[feature]/`: Feature-specific

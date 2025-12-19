@@ -85,6 +85,27 @@ export const Colors = {
 
   backdrop: 'rgba(10, 10, 10, 0.8)',
 
+  // Surface variations (glass effect)
+  surfaceOverlay: 'rgba(255, 255, 255, 0.08)',
+  surfaceElevated: 'rgba(255, 255, 255, 0.12)',
+
+  // Border variations
+  borderLight: 'rgba(255, 255, 255, 0.15)',
+  borderMedium: 'rgba(255, 255, 255, 0.25)',
+
+  // Success state overlays
+  successOverlay: 'rgba(34, 197, 94, 0.1)',
+  successBorder: 'rgba(34, 197, 94, 0.3)',
+
+  // Error state overlays
+  errorOverlay: 'rgba(239, 68, 68, 0.15)',
+  errorBorder: 'rgba(239, 68, 68, 0.3)',
+
+  // Set type overlays (industrial color coding)
+  warmupOverlay: 'rgba(234, 179, 8, 0.12)',
+  dropsetOverlay: 'rgba(59, 130, 246, 0.12)',
+  failureOverlay: 'rgba(239, 68, 68, 0.12)',
+
   // Transparent variants
   transparent: 'transparent',
   white: '#ffffff',

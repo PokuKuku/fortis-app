@@ -193,7 +193,7 @@ export function RestTimerModal({ onClose, onSave, initialNormalDuration, initial
       onClick={handleClose}
     >
       <div 
-        className={`relative rounded-2xl w-[90%] max-w-md mx-4 transition-all duration-200 overflow-hidden bg-[#222222] ${
+        className={`relative rounded-2xl w-[95%] max-w-lg mx-4 transition-all duration-200 overflow-hidden bg-[#222222] ${
           isOpen ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
         }`}
         onClick={(e) => e.stopPropagation()}

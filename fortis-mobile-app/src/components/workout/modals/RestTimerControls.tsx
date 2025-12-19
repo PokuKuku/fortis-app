@@ -1,12 +1,13 @@
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { PlayIcon, PauseIcon, ForwardIcon, ArrowUturnLeftIcon, PlusIcon, MinusIcon } from 'react-native-heroicons/outline';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore, getRestTimerColor } from '@/src/store/workoutStore';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
-import { GlassButton } from '@/components/GlassButton';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import * as Haptics from 'expo-haptics';
-import Animated, { SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 
 interface RestTimerControlsProps {
   visible: boolean;
@@ -77,9 +78,9 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
 
   const timerColor = restTimer.isActive
     ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
-    : '#b9bec7';
+    : Colors.textSecondary;
   const timeString = formatRestTime(displaySeconds);
-  const timerFontSize = displaySeconds >= 600 ? 22 : 28; // Shrink font for 10+ min
+  const timerFontSize = displaySeconds >= 600 ? 16 : 18;
   const isRunning = restTimer.isActive;
 
   return (
@@ -93,79 +94,115 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
       {/* Backdrop */}
       <Pressable style={styles.backdrop} onPress={onClose} activeOpacity={1}>
         <Animated.View
-          entering={SlideInDown.duration(400)}
-          exiting={SlideOutDown.duration(300)}
+          entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
         >
           <Pressable
             style={styles.container}
             onPress={(e) => e.stopPropagation()}
           >
-            {/* Time Display */}
+            <StainlessSteelPattern />
+
+            {/* Time Display - Instrument Readout */}
             <View style={styles.timeContainer}>
-              <Text style={[styles.timeText, { color: timerColor, fontSize: timerFontSize }]}>
-                {timeString}
-              </Text>
+              <View style={styles.timeBezel}>
+                <Text style={[styles.timeText, { color: timerColor, fontSize: timerFontSize }]}>
+                  {timeString}
+                </Text>
+              </View>
             </View>
 
-            <View style={styles.divider} />
+            {/* Groove Divider */}
+            <View style={styles.grooveDivider}>
+              <View style={styles.grooveLight} />
+              <View style={styles.grooveDark} />
+            </View>
 
             {/* Main Controls */}
             <View style={styles.mainControls}>
+              {/* Minus Button - Machined Metal */}
               <Pressable
                 onPress={handleSubtract10s}
                 style={({ pressed }) => [
-                  styles.secondaryButton,
-                  pressed && styles.buttonPressed,
+                  styles.adjustButton,
+                  pressed && styles.adjustButtonPressed,
                 ]}
               >
-                <MinusIcon size={16} color={Colors.textPrimary} strokeWidth={2} />
+                <MinusIcon size={14} color={Colors.textPrimary} strokeWidth={2.5} />
               </Pressable>
 
-              <GlassButton
-                circular
-                size={48}
-                gradientColors={isRunning ? ['#ff9f0a', '#ff9f0a'] : undefined}
-                onPress={handlePlayPause}
-              >
-                {isRunning ? (
-                  <PauseIcon size={20} color="#fff" strokeWidth={2} />
-                ) : (
-                  <PlayIcon size={20} color="#fff" strokeWidth={2} style={{ marginLeft: 2 }} />
-                )}
-              </GlassButton>
+              {/* Play/Pause - Hero Button with Metallic Ring */}
+              <View style={styles.playButtonContainer}>
+                <View style={styles.playButtonRing}>
+                  <Pressable
+                    onPress={handlePlayPause}
+                    style={({ pressed }) => [
+                      styles.playButton,
+                      pressed && styles.playButtonPressed,
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={isRunning ? ['#ff9f0a', '#e88d00'] : ['#4ade80', '#22c55e']}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                    {/* Metallic overlay */}
+                    <LinearGradient
+                      colors={['rgba(255,255,255,0.3)', 'rgba(255,255,255,0.1)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.2)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={StyleSheet.absoluteFillObject}
+                    />
+                    {isRunning ? (
+                      <PauseIcon size={20} color="#fff" strokeWidth={2.5} />
+                    ) : (
+                      <PlayIcon size={20} color="#fff" strokeWidth={2.5} style={{ marginLeft: 2 }} />
+                    )}
+                  </Pressable>
+                </View>
+              </View>
 
+              {/* Plus Button - Machined Metal */}
               <Pressable
                 onPress={handleAdd10s}
                 style={({ pressed }) => [
-                  styles.secondaryButton,
-                  pressed && styles.buttonPressed,
+                  styles.adjustButton,
+                  pressed && styles.adjustButtonPressed,
                 ]}
               >
-                <PlusIcon size={16} color={Colors.textPrimary} strokeWidth={2} />
+                <PlusIcon size={14} color={Colors.textPrimary} strokeWidth={2.5} />
               </Pressable>
             </View>
 
-            <View style={styles.divider} />
+            {/* Groove Divider */}
+            <View style={styles.grooveDivider}>
+              <View style={styles.grooveLight} />
+              <View style={styles.grooveDark} />
+            </View>
 
             {/* Secondary Controls */}
             <View style={styles.secondaryControls}>
+              {/* Reset Button */}
               <Pressable
                 onPress={handleReset}
                 style={({ pressed }) => [
                   styles.iconButton,
-                  pressed && styles.buttonPressed,
+                  pressed && styles.iconButtonPressed,
                 ]}
               >
-                <ArrowUturnLeftIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+                <ArrowUturnLeftIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
               </Pressable>
+
+              {/* Skip Button */}
               <Pressable
                 onPress={handleSkip}
                 style={({ pressed }) => [
                   styles.iconButton,
-                  pressed && styles.buttonPressed,
+                  pressed && styles.iconButtonPressed,
                 ]}
               >
-                <ForwardIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+                <ForwardIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
           </Pressable>
@@ -186,60 +223,139 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#222222',
-    borderRadius: BorderRadius['3xl'],
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
-    width: 360,
     maxWidth: '90%',
+    overflow: 'hidden',
+    // Industrial shadow
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 12,
   },
+
+  // Time Display - Instrument Readout
   timeContainer: {
-    width: 75,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  timeBezel: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
   },
   timeText: {
-    fontSize: 28,
-    fontFamily: 'BankGothic',
+    fontSize: 18,
+    fontFamily: 'BankGothicMediumBT',
     fontVariant: ['tabular-nums'],
-    lineHeight: 28,
+    letterSpacing: 0.5,
   },
-  divider: {
-    width: 1,
+
+  // Groove Dividers
+  grooveDivider: {
+    width: 2,
     height: 32,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     marginHorizontal: Spacing.xs,
+    borderRadius: 1,
+    overflow: 'hidden',
   },
+  grooveLight: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    position: 'absolute',
+    left: 0,
+  },
+  grooveDark: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    position: 'absolute',
+    right: 0,
+  },
+
+  // Main Controls
   mainControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  secondaryButton: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.full,
-    backgroundColor: '#2c2c2e',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  buttonPressed: {
-    opacity: 0.7,
-    transform: [{ scale: 0.95 }],
-  },
-  secondaryControls: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
+
+  // +/- Buttons
+  adjustButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  adjustButtonPressed: {
+    opacity: 0.5,
+    transform: [{ scale: 0.95 }],
+  },
+
+  // Play/Pause Hero Button
+  playButtonContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playButtonRing: {
+    padding: 2,
+    borderRadius: BorderRadius.full,
+    // Metallic ring effect
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+    borderLeftColor: 'rgba(255, 255, 255, 0.1)',
+    borderRightColor: 'rgba(0, 0, 0, 0.2)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.25)',
+  },
+  playButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    // Glow effect
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  playButtonPressed: {
+    transform: [{ scale: 0.95 }],
+    opacity: 0.9,
+  },
+
+  // Secondary Controls
+  secondaryControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+
+  // Icon Buttons - Industrial Treatment
   iconButton: {
-    padding: Spacing.sm,
+    width: 40,
+    height: 40,
+    // Asymmetric chamfered corners
+    borderTopLeftRadius: BorderRadius.sm,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButtonPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    transform: [{ scale: 0.95 }],
   },
 });

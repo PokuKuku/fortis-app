@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
+import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetTypeSelector } from './SetTypeSelector';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -14,6 +15,8 @@ import Animated, {
   useAnimatedStyle,
   withSequence,
   withTiming,
+  FadeIn,
+  Easing,
 } from 'react-native-reanimated';
 
 interface SetRowProps {
@@ -21,9 +24,10 @@ interface SetRowProps {
   setLocalId: string;
   setIndex: number;
   previousSet?: WorkoutSet;
+  lastPerformance?: LastPerformance | null;
 }
 
-export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: SetRowProps) {
+export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet, lastPerformance }: SetRowProps) {
   const activeSession = useWorkoutStore(s => s.activeSession);
   const updateSet = useWorkoutStore(s => s.updateSet);
   const completeSet = useWorkoutStore(s => s.completeSet);
@@ -159,6 +163,21 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
     }
   };
 
+  // Get set type background color for row tinting
+  const getSetTypeStyle = () => {
+    if (set.isCompleted) return null; // Completed state takes priority
+    switch (set.setType) {
+      case 'warmup':
+        return { backgroundColor: Colors.warmupOverlay };
+      case 'dropset':
+        return { backgroundColor: Colors.dropsetOverlay };
+      case 'failure':
+        return { backgroundColor: Colors.failureOverlay };
+      default:
+        return null;
+    }
+  };
+
   const setDisplay = getSetDisplay();
 
   const handleDelete = () => {
@@ -214,16 +233,26 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
     return styles.input;
   };
 
+  const setTypeStyle = getSetTypeStyle();
+
   return (
-    <Swipeable
-      ref={swipeableRef}
-      renderRightActions={renderRightActions}
-      overshootRight={false}
-      friction={2}
-      rightThreshold={40}
-      containerStyle={{ overflow: 'visible' }}
+    <Animated.View
+      entering={FadeIn.delay(setIndex * 40).duration(200).easing(Easing.out(Easing.cubic))}
     >
-      <View style={[styles.container, set.isCompleted && styles.containerCompleted]}>
+      <Swipeable
+        ref={swipeableRef}
+        renderRightActions={renderRightActions}
+        overshootRight={false}
+        friction={2}
+        rightThreshold={40}
+        containerStyle={{ overflow: 'visible' }}
+      >
+        <View style={[
+          styles.container,
+          set.isCompleted && styles.containerCompleted,
+          setTypeStyle && styles.containerSetType,
+          setTypeStyle,
+        ]}>
         {/* Set number/type badge */}
         <View ref={badgeRef} collapsable={false}>
           <Pressable
@@ -241,9 +270,13 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
           </Pressable>
         </View>
 
-        {/* Previous set indicator */}
+        {/* Previous set indicator - shows last session performance */}
         <View style={styles.previousCol}>
-          <Text style={styles.previousText}>—</Text>
+          <Text style={styles.previousText}>
+            {lastPerformance
+              ? `${lastPerformance.setCount}x${lastPerformance.weight}`
+              : '—'}
+          </Text>
         </View>
 
         {/* Weight input */}
@@ -308,7 +341,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
           onPress={handleComplete}
           style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
         >
-          {set.isCompleted && (
+          {set.isCompleted ? (
             <>
               <LinearGradient
                 colors={['#4ade80', '#22c55e']}
@@ -317,18 +350,24 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
                 style={StyleSheet.absoluteFillObject}
               />
               <LinearGradient
-                colors={['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)']}
+                colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.15)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 0, y: 1 }}
                 style={StyleSheet.absoluteFillObject}
               />
+              <CheckIcon
+                size={18}
+                color={Colors.white}
+                strokeWidth={3}
+              />
             </>
+          ) : (
+            <CheckIcon
+              size={16}
+              color={Colors.textTertiary}
+              strokeWidth={2}
+            />
           )}
-          <CheckIcon
-            size={20}
-            color={Colors.textPrimary}
-            strokeWidth={2}
-          />
         </Pressable>
 
         {/* Set Type Popover */}
@@ -342,7 +381,8 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet }: S
           anchorPosition={popoverPosition}
         />
       </View>
-    </Swipeable>
+      </Swipeable>
+    </Animated.View>
   );
 }
 
@@ -351,7 +391,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
     paddingRight: Spacing.sm,
   },
   deleteAction: {
@@ -361,38 +401,55 @@ const styles = StyleSheet.create({
   },
   deleteActionInner: {
     width: 44,
-    height: 36,
+    height: 44,
     backgroundColor: Colors.error,
     borderRadius: BorderRadius.lg,
     justifyContent: 'center',
     alignItems: 'center',
   },
   containerCompleted: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    backgroundColor: Colors.successOverlay,
     borderRadius: BorderRadius.lg,
+    marginLeft: -Spacing.md,
+    paddingLeft: Spacing.md,
+    marginRight: -Spacing.sm,
+    paddingRight: Spacing.sm,
+  },
+  containerSetType: {
+    borderRadius: BorderRadius.md,
+    marginLeft: -Spacing.sm,
+    paddingLeft: Spacing.sm,
+    marginRight: -Spacing.xs,
+    paddingRight: Spacing.xs,
   },
   setBadge: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    // Stamped/embossed industrial look
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: 'rgba(0, 0, 0, 0.4)',
+    borderLeftColor: 'rgba(0, 0, 0, 0.3)',
+    borderRightColor: 'rgba(255, 255, 255, 0.08)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   setBadgeText: {
-    fontSize: FontSizes.base,
-    fontFamily: 'BankGothic',
+    fontSize: FontSizes.sm,
+    fontFamily: 'BankGothicMediumBT',
+    letterSpacing: 0.3,
   },
   previousCol: {
-    width: 80,
+    width: 56,
     alignItems: 'center',
   },
   previousText: {
     fontSize: FontSizes.sm,
-    fontWeight: '500',
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.textTertiary,
+    letterSpacing: 0.3,
   },
   inputWrapper: {
     // Wrapper for animated shake
@@ -403,56 +460,79 @@ const styles = StyleSheet.create({
     // Gap handles spacing
   },
   repsWrapper: {
-    marginLeft: Spacing.md,
+    marginLeft: Spacing.sm,
   },
   input: {
-    width: 52,
-    height: 36,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: BorderRadius.lg,
+    width: 40,
+    height: 32,
+    backgroundColor: Colors.surfaceOverlay,
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
+    // Asymmetric chamfered corners - industrial aesthetic
+    borderTopLeftRadius: BorderRadius.sm,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.xs,
     justifyContent: 'center',
     alignItems: 'center',
   },
   inputText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothic',
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.textPrimary,
     textAlign: 'center',
+    letterSpacing: 0.3,
+    fontVariant: ['tabular-nums'],
   },
   placeholderText: {
     color: Colors.textTertiary,
   },
   inputError: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: Colors.errorOverlay,
     borderColor: Colors.error,
+    borderWidth: 2,
+    shadowColor: Colors.error,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
   },
   inputCompleted: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-    borderColor: 'rgba(34, 197, 94, 0.3)',
+    backgroundColor: 'rgba(34, 197, 94, 0.25)',
+    borderColor: 'rgba(34, 197, 94, 0.5)',
   },
   inputActive: {
     borderColor: Colors.success,
-    borderWidth: 2,
+    borderWidth: 2.5,
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    shadowColor: Colors.success,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
   },
   checkbox: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'transparent',
+    width: 32,
+    height: 32,
+    // Asymmetric chamfered corners - matches inputs
+    borderTopLeftRadius: BorderRadius.sm,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: Spacing.sm,
+    marginLeft: Spacing.md,
     overflow: 'hidden',
   },
   checkboxCompleted: {
-    shadowColor: 'rgba(34, 197, 94, 0.4)',
+    borderWidth: 0,
+    shadowColor: Colors.success,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.5,
     shadowRadius: 6,
-    elevation: 4,
+    elevation: 5,
   },
   repsContainer: {
     position: 'relative',
@@ -472,7 +552,8 @@ const styles = StyleSheet.create({
   },
   rpeBadgeText: {
     fontSize: 10,
-    fontFamily: 'BankGothic',
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.background,
+    letterSpacing: 0.3,
   },
 });

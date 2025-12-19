@@ -36,7 +36,7 @@ export function WorkoutHeader({
 
   const restTimerColor = restTimer.isActive
     ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
-    : '#b9bec7';
+    : Colors.textSecondary;
 
   const restTimerBgColor = restTimer.isActive
     ? getRestTimerBackgroundColor(restTimer.remainingSeconds, restTimer.totalSeconds)
@@ -66,7 +66,7 @@ export function WorkoutHeader({
             pressed && styles.pressed
           ]}
         >
-          <ClockIcon size={20} color="#b9bec7" strokeWidth={2} />
+          <ClockIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
         </Pressable>
 
         {/* Cancel Button - Top Right */}
@@ -122,7 +122,7 @@ export function WorkoutHeader({
 
           {/* Date Row */}
           <View style={styles.dateRow}>
-            <CalendarDaysIcon size={16} color="#b9bec7" strokeWidth={2} />
+            <CalendarDaysIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
             <Text style={styles.dateText}>{today}</Text>
           </View>
         </View>
@@ -142,9 +142,9 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing['2xl'],
     paddingTop: 0,
-    paddingBottom: Spacing.sm,
+    paddingBottom: Spacing.lg,
     backgroundColor: 'transparent',
-    gap: Spacing.lg,
+    gap: Spacing.xl,
   },
   topRow: {
     flexDirection: 'row',
@@ -152,17 +152,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   clockButton: {
-    backgroundColor: 'rgba(185, 190, 199, 0.2)',
-    padding: 8,
+    backgroundColor: 'rgba(163, 163, 163, 0.2)',
+    padding: Spacing.sm,
     borderRadius: BorderRadius.lg,
   },
   cancelButton: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-    padding: 8,
+    backgroundColor: Colors.errorOverlay,
+    padding: Spacing.sm,
     borderRadius: BorderRadius.lg,
   },
   pressed: {
-    opacity: 0.6,
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   contentRow: {
     flexDirection: 'row',
@@ -170,65 +171,67 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   leftColumn: {
-    gap: 4,
+    gap: Spacing.sm,
   },
   timersRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   elapsedTime: {
-    fontSize: 18,
-    fontFamily: 'BankGothic',
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
+    letterSpacing: 0.5,
     minWidth: 45,
   },
   elapsedTimeSmall: {
-    fontSize: 16,
+    fontSize: FontSizes.sm,
   },
   separator: {
-    color: '#4a4a4a',
+    color: Colors.textTertiary,
     marginLeft: -2,
     paddingHorizontal: 6,
-    fontSize: 16,
+    fontSize: FontSizes.base,
   },
   restTimerButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.lg,
   },
   restTimerText: {
-    fontSize: 18,
-    fontFamily: 'BankGothic',
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicMediumBT',
     fontVariant: ['tabular-nums'],
+    letterSpacing: 0.5,
     textAlign: 'center',
     minWidth: 40,
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: Spacing.sm,
   },
   dateText: {
-    fontSize: 14,
-    fontFamily: 'BankGothic',
-    color: '#b9bec7',
+    fontSize: FontSizes.sm,
+    fontFamily: 'BankGothicMediumBT',
+    color: Colors.textSecondary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   rightColumn: {
     alignItems: 'flex-end',
-    gap: 4,
+    gap: Spacing.xs,
   },
   programName: {
-    fontSize: 17,
+    fontSize: FontSizes.base,
     fontWeight: '700',
     textAlign: 'right',
     color: Colors.success,
   },
   workoutName: {
-    fontSize: 17,
-    fontFamily: 'BankGothic',
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 1,

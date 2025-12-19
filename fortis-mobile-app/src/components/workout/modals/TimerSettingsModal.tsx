@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
 import { XMarkIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -9,6 +10,8 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeIn,
   FadeOut,
+  ZoomIn,
+  ZoomOut,
   useSharedValue,
   useAnimatedStyle,
   withTiming,
@@ -24,7 +27,7 @@ interface TimerSettingsModalProps {
   initialDropDuration: number;
 }
 
-const ITEM_HEIGHT = 60;
+const ITEM_HEIGHT = 56;
 const MINUTES = Array.from({ length: 11 }, (_, i) => i); // 0-10
 const SECONDS = Array.from({ length: 12 }, (_, i) => i * 5); // 0, 5, ..., 55
 
@@ -38,7 +41,6 @@ export function TimerSettingsModal({
 }: TimerSettingsModalProps) {
   const [activeType, setActiveType] = useState<SetType>('normal');
   const [showTypeSelector, setShowTypeSelector] = useState(false);
-  const [isSaved, setIsSaved] = useState(false);
 
   // Animation values for popover
   const popoverScale = useSharedValue(0);
@@ -46,7 +48,7 @@ export function TimerSettingsModal({
 
   const popoverAnimatedStyle = useAnimatedStyle(() => ({
     opacity: popoverOpacity.value,
-    transform: [{ scale: 0.95 + popoverScale.value * 0.05 }], // Scale from 0.95 to 1
+    transform: [{ scale: 0.95 + popoverScale.value * 0.05 }],
   }));
 
   // Store durations for all types
@@ -79,7 +81,6 @@ export function TimerSettingsModal({
     setSelectedMinutes(m);
     setSelectedSeconds(s);
 
-    // Scroll to position
     setTimeout(() => {
       minScrollRef.current?.scrollTo({ y: m * ITEM_HEIGHT, animated: false });
       secScrollRef.current?.scrollTo({ y: (s / 5) * ITEM_HEIGHT, animated: false });
@@ -89,27 +90,15 @@ export function TimerSettingsModal({
   // Animate popover
   useEffect(() => {
     if (showTypeSelector) {
-      popoverScale.value = withTiming(1, {
-        duration: 150,
-        easing: Easing.out(Easing.cubic),
-      });
-      popoverOpacity.value = withTiming(1, {
-        duration: 150,
-        easing: Easing.out(Easing.cubic),
-      });
+      popoverScale.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic) });
+      popoverOpacity.value = withTiming(1, { duration: 150, easing: Easing.out(Easing.cubic) });
     } else {
-      popoverScale.value = withTiming(0, {
-        duration: 120,
-        easing: Easing.in(Easing.cubic),
-      });
-      popoverOpacity.value = withTiming(0, {
-        duration: 120,
-        easing: Easing.in(Easing.cubic),
-      });
+      popoverScale.value = withTiming(0, { duration: 120, easing: Easing.in(Easing.cubic) });
+      popoverOpacity.value = withTiming(0, { duration: 120, easing: Easing.in(Easing.cubic) });
     }
   }, [showTypeSelector]);
 
-  // Reset accordion/popover state when modal opens
+  // Reset state when modal opens
   useEffect(() => {
     if (visible) {
       setShowTypeSelector(false);
@@ -119,7 +108,6 @@ export function TimerSettingsModal({
   const handleTypeChange = (newType: SetType) => {
     if (newType === activeType) return;
 
-    // Save current picker value to current type
     const currentTotal = selectedMinutes * 60 + selectedSeconds;
     setDurations((prev) => ({ ...prev, [activeType]: currentTotal }));
 
@@ -128,25 +116,16 @@ export function TimerSettingsModal({
     setShowTypeSelector(false);
   };
 
-  const handleSave = () => {
-    // Save current picker value
+  const handleSaveAndClose = () => {
     const currentTotal = selectedMinutes * 60 + selectedSeconds;
     const finalDurations = { ...durations, [activeType]: currentTotal };
     setDurations(finalDurations);
 
     onSave(finalDurations.normal, finalDurations.warmup, finalDurations.dropset);
-
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 1500);
+    onClose();
   };
 
-  const handleSaveAndClose = () => {
-    handleSave();
-    setTimeout(onClose, 300);
-  };
-
-  // Only update state when scroll has fully settled to prevent race conditions
   const handleMinutesScrollEnd = (event: any) => {
     const y = event.nativeEvent.contentOffset.y;
     const index = Math.round(y / ITEM_HEIGHT);
@@ -173,9 +152,9 @@ export function TimerSettingsModal({
 
   const getTypeLabel = () => {
     switch (activeType) {
-      case 'warmup': return 'Warm Up';
-      case 'dropset': return 'Drop Set';
-      default: return 'Normal';
+      case 'warmup': return 'WARM UP';
+      case 'dropset': return 'DROP SET';
+      default: return 'NORMAL';
     }
   };
 
@@ -187,61 +166,79 @@ export function TimerSettingsModal({
     }
   };
 
+  const isDisabled = selectedMinutes === 0 && selectedSeconds === 0;
+
   if (!visible) return null;
 
   return (
     <Modal
       transparent
       visible={visible}
-      animationType="fade"
+      animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
     >
       <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
         <Pressable style={styles.backdropPressable} onPress={onClose} />
         <View style={styles.centeredView} pointerEvents="box-none">
-          <View style={styles.container}>
+          <Animated.View
+            entering={ZoomIn.duration(250).easing(Easing.out(Easing.cubic))}
+            exiting={ZoomOut.duration(200).easing(Easing.in(Easing.cubic))}
+            style={styles.container}
+          >
             <StainlessSteelPattern />
 
-            {/* Header */}
+            {/* Header - Type Selector, Title, Close Button on same line */}
             <View style={styles.header}>
-              <View style={styles.headerLeft}>
+              {/* Type Selector - Left side container */}
+              <View style={styles.headerSide}>
                 <Pressable
                   onPress={() => setShowTypeSelector(true)}
-                  style={[styles.typeButton, { backgroundColor: `${getTypeColor()}33` }]}
+                  style={[styles.typeButton, { borderColor: getTypeColor() }]}
                 >
+                  <View style={[styles.typeDot, { backgroundColor: getTypeColor() }]} />
                   <Text style={[styles.typeButtonText, { color: getTypeColor() }]}>
                     {getTypeLabel()}
                   </Text>
-                  <ChevronDownIcon size={12} color={getTypeColor()} strokeWidth={3} />
+                  <ChevronDownIcon size={10} color={getTypeColor()} strokeWidth={2.5} />
                 </Pressable>
               </View>
 
-              <View style={styles.headerCenter}>
-                <Text style={styles.title}>Rest Timer</Text>
-              </View>
+              {/* Title - Centered */}
+              <Text style={styles.title}>REST TIMER</Text>
 
-              <View style={styles.headerRight}>
+              {/* Close Button - Right side container */}
+              <View style={[styles.headerSide, styles.headerSideRight]}>
                 <Pressable
                   onPress={onClose}
                   style={({ pressed }) => [
                     styles.closeButton,
-                    pressed && styles.closeButtonPressed,
+                    pressed && styles.buttonPressed,
                   ]}
                 >
-                  <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
+                  <XMarkIcon size={18} color={Colors.textSecondary} strokeWidth={2.5} />
                 </Pressable>
               </View>
             </View>
 
             {/* Picker Container */}
             <View style={styles.pickerContainer}>
-              {/* Selection Indicator */}
-              <View style={styles.selectionIndicator} />
+              {/* Selection Slot - Recessed industrial look */}
+              <View style={styles.selectionSlot}>
+                <View style={styles.selectionSlotInner} />
+              </View>
 
-              {/* Gradients */}
-              <View style={[styles.gradient, styles.gradientTop]} />
-              <View style={[styles.gradient, styles.gradientBottom]} />
+              {/* Fade overlays */}
+              <LinearGradient
+                colors={['#1a1a1a', 'transparent']}
+                style={[styles.fadeOverlay, styles.fadeTop]}
+                pointerEvents="none"
+              />
+              <LinearGradient
+                colors={['transparent', '#1a1a1a']}
+                style={[styles.fadeOverlay, styles.fadeBottom]}
+                pointerEvents="none"
+              />
 
               <View style={styles.pickersRow}>
                 {/* Minutes Picker */}
@@ -261,26 +258,28 @@ export function TimerSettingsModal({
                     <View style={styles.pickerSpacer} />
                     {MINUTES.map((m) => (
                       <View key={m} style={styles.pickerItem}>
-                        <Text
-                          style={[
-                            styles.pickerValue,
-                            m === selectedMinutes && styles.pickerValueSelected,
-                          ]}
-                        >
+                        <Text style={[
+                          styles.pickerValue,
+                          m === selectedMinutes && styles.pickerValueSelected,
+                        ]}>
                           {m}
                         </Text>
-                        <Text
-                          style={[
-                            styles.pickerUnit,
-                            m === selectedMinutes && styles.pickerUnitSelected,
-                          ]}
-                        >
+                        <Text style={[
+                          styles.pickerUnit,
+                          m === selectedMinutes && styles.pickerUnitSelected,
+                        ]}>
                           m
                         </Text>
                       </View>
                     ))}
                     <View style={styles.pickerSpacer} />
                   </ScrollView>
+                </View>
+
+                {/* Groove Divider */}
+                <View style={styles.grooveDivider}>
+                  <View style={styles.grooveLight} />
+                  <View style={styles.grooveDark} />
                 </View>
 
                 {/* Seconds Picker */}
@@ -300,20 +299,16 @@ export function TimerSettingsModal({
                     <View style={styles.pickerSpacer} />
                     {SECONDS.map((s) => (
                       <View key={s} style={styles.pickerItem}>
-                        <Text
-                          style={[
-                            styles.pickerValue,
-                            s === selectedSeconds && styles.pickerValueSelected,
-                          ]}
-                        >
+                        <Text style={[
+                          styles.pickerValue,
+                          s === selectedSeconds && styles.pickerValueSelected,
+                        ]}>
                           {s.toString().padStart(2, '0')}
                         </Text>
-                        <Text
-                          style={[
-                            styles.pickerUnit,
-                            s === selectedSeconds && styles.pickerUnitSelected,
-                          ]}
-                        >
+                        <Text style={[
+                          styles.pickerUnit,
+                          s === selectedSeconds && styles.pickerUnitSelected,
+                        ]}>
                           s
                         </Text>
                       </View>
@@ -324,38 +319,39 @@ export function TimerSettingsModal({
               </View>
             </View>
 
-            {/* Action Buttons */}
-            <View style={styles.actions}>
-              <Pressable
-                onPress={handleSave}
-                style={({ pressed }) => [
-                  styles.saveButton,
-                  isSaved && styles.saveButtonSaved,
-                  (selectedMinutes === 0 && selectedSeconds === 0) && styles.saveButtonDisable,
-                  pressed && styles.buttonPressed,
-                ]}
-              >
-                <Text style={[
-                  styles.saveButtonText,
-                  isSaved && styles.saveButtonTextSaved,
-                  (selectedMinutes === 0 && selectedSeconds === 0) && styles.saveButtonTextDisable,
-                ]}>
-                  {isSaved
-                    ? 'Saved!'
-                    : selectedMinutes === 0 && selectedSeconds === 0
-                      ? 'Disable Timer'
-                      : `Set ${selectedMinutes}m ${selectedSeconds}s`}
-                </Text>
-              </Pressable>
+            {/* Current Selection Display */}
+            <View style={styles.selectionDisplay}>
+              <Text style={styles.selectionLabel}>SET TO</Text>
+              <Text style={[styles.selectionValue, isDisabled && styles.selectionValueDisabled]}>
+                {isDisabled ? 'DISABLED' : `${selectedMinutes}:${selectedSeconds.toString().padStart(2, '0')}`}
+              </Text>
+            </View>
 
+            {/* Action Button */}
+            <View style={styles.actions}>
               <Pressable
                 onPress={handleSaveAndClose}
                 style={({ pressed }) => [
-                  styles.confirmButton,
+                  styles.saveButton,
+                  isDisabled && styles.saveButtonDisabled,
                   pressed && styles.buttonPressed,
                 ]}
               >
-                <Text style={styles.confirmButtonText}>Save Changes</Text>
+                <LinearGradient
+                  colors={isDisabled ? ['#ef4444', '#dc2626'] : ['#4ade80', '#22c55e']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.15)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <Text style={styles.saveButtonText}>
+                  {isDisabled ? 'DISABLE TIMER' : 'SAVE & CLOSE'}
+                </Text>
               </Pressable>
             </View>
 
@@ -367,43 +363,36 @@ export function TimerSettingsModal({
                   onPress={() => setShowTypeSelector(false)}
                   activeOpacity={1}
                 />
-                <Animated.View
-                  style={[
-                    styles.typeSelectorPopover,
-                    {
-                      top: 58, // Directly below header
-                      left: 16, // Match header padding
-                    },
-                    popoverAnimatedStyle,
-                  ]}
-                >
-                  <Pressable
-                    onPress={() => handleTypeChange('normal')}
-                    style={styles.typeSelectorOption}
-                  >
-                    <View style={[styles.typeSelectorDot, { backgroundColor: Colors.success }]} />
-                    <Text style={styles.typeSelectorText}>Normal Set</Text>
-                  </Pressable>
-                  <View style={styles.typeSelectorDivider} />
-                  <Pressable
-                    onPress={() => handleTypeChange('warmup')}
-                    style={styles.typeSelectorOption}
-                  >
-                    <View style={[styles.typeSelectorDot, { backgroundColor: '#eab308' }]} />
-                    <Text style={styles.typeSelectorText}>Warm Up Set</Text>
-                  </Pressable>
-                  <View style={styles.typeSelectorDivider} />
-                  <Pressable
-                    onPress={() => handleTypeChange('dropset')}
-                    style={styles.typeSelectorOption}
-                  >
-                    <View style={[styles.typeSelectorDot, { backgroundColor: '#3b82f6' }]} />
-                    <Text style={styles.typeSelectorText}>Drop Set</Text>
-                  </Pressable>
+                <Animated.View style={[styles.typeSelectorPopover, popoverAnimatedStyle]}>
+                  <StainlessSteelPattern />
+                  {(['normal', 'warmup', 'dropset'] as SetType[]).map((type, index) => (
+                    <View key={type}>
+                      {index > 0 && <View style={styles.typeSelectorDivider} />}
+                      <Pressable
+                        onPress={() => handleTypeChange(type)}
+                        style={({ pressed }) => [
+                          styles.typeSelectorOption,
+                          activeType === type && styles.typeSelectorOptionActive,
+                          pressed && styles.buttonPressed,
+                        ]}
+                      >
+                        <View style={[
+                          styles.typeSelectorDot,
+                          {
+                            backgroundColor: type === 'warmup' ? '#eab308' :
+                              type === 'dropset' ? '#3b82f6' : Colors.success
+                          }
+                        ]} />
+                        <Text style={styles.typeSelectorText}>
+                          {type === 'warmup' ? 'WARM UP' : type === 'dropset' ? 'DROP SET' : 'NORMAL'}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  ))}
                 </Animated.View>
               </>
             )}
-          </View>
+          </Animated.View>
         </View>
       </Animated.View>
     </Modal>
@@ -413,9 +402,7 @@ export function TimerSettingsModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
   },
   backdropPressable: {
     ...StyleSheet.absoluteFillObject,
@@ -423,117 +410,132 @@ const styles = StyleSheet.create({
   centeredView: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing['2xl'],
+    paddingHorizontal: Spacing.sm,
   },
   container: {
-    width: '98%',
-    backgroundColor: '#222222',
+    width: '100%',
+    backgroundColor: Colors.background,
     borderRadius: BorderRadius['2xl'],
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 12,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 16,
-    zIndex: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
   },
-  headerLeft: {
-    flex: 1,
+  headerSide: {
+    width: 80,
     alignItems: 'flex-start',
   },
-  headerCenter: {
-    alignItems: 'center',
-  },
-  headerRight: {
-    flex: 1,
+  headerSideRight: {
     alignItems: 'flex-end',
   },
+  title: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 16,
+    fontFamily: 'BankGothicMediumBT',
+    color: Colors.textPrimary,
+    letterSpacing: 1.2,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   typeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
     paddingHorizontal: 6,
     paddingVertical: 3,
-    borderRadius: BorderRadius.md,
+    borderRadius: 4,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  typeDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
   },
   typeButtonText: {
-    fontSize: FontSizes.xs,
-    fontWeight: '700',
+    fontSize: 9,
+    fontFamily: 'BankGothicMediumBT',
+    letterSpacing: 0.2,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  closeButton: {
-    backgroundColor: '#2a2a2a',
-    borderRadius: BorderRadius.lg,
-    padding: 4,
-  },
-  closeButtonPressed: {
-    opacity: 0.6,
-  },
+
+  // Picker
   pickerContainer: {
-    paddingTop: 0,
-    paddingBottom: 16,
     position: 'relative',
+    marginHorizontal: Spacing.xl,
   },
-  selectionIndicator: {
+  selectionSlot: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: '50%',
-    marginTop: -30,
+    marginTop: -ITEM_HEIGHT / 2,
     height: ITEM_HEIGHT,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    borderWidth: 2,
-    borderColor: Colors.success,
-    borderRadius: BorderRadius['2xl'],
-    zIndex: 10,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+    zIndex: 5,
     pointerEvents: 'none',
   },
-  gradient: {
+  selectionSlotInner: {
+    flex: 1,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  fadeOverlay: {
     position: 'absolute',
     left: 0,
     right: 0,
-    height: 96,
-    zIndex: 20,
-    pointerEvents: 'none',
+    height: 80,
+    zIndex: 10,
   },
-  gradientTop: {
+  fadeTop: {
     top: 0,
-    backgroundColor: 'linear-gradient(to bottom, #161616, transparent)',
   },
-  gradientBottom: {
+  fadeBottom: {
     bottom: 0,
-    backgroundColor: 'linear-gradient(to top, #161616, transparent)',
   },
   pickersRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: Spacing.sm,
+    alignItems: 'center',
   },
   pickerColumn: {
-    width: 150,
+    width: 100,
     alignItems: 'center',
-    position: 'relative',
   },
   picker: {
-    height: 240,
+    height: 224,
   },
   pickerContent: {
     alignItems: 'center',
   },
   pickerSpacer: {
-    height: 90,
+    height: 84,
   },
   pickerItem: {
     height: ITEM_HEIGHT,
@@ -542,68 +544,110 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pickerValue: {
-    fontSize: 28,
-    color: '#979ca6',
-    transform: [{ scale: 0.9 }],
+    fontSize: 32,
+    fontFamily: 'BankGothicMediumBT',
+    color: Colors.textTertiary,
+    fontVariant: ['tabular-nums'],
   },
   pickerValueSelected: {
+    fontSize: 40,
     color: Colors.textPrimary,
-    fontWeight: '700',
-    transform: [{ scale: 1.1 }],
   },
   pickerUnit: {
-    fontSize: 12,
-    color: '#979ca6',
-    marginLeft: 2,
-    marginTop: 8,
+    fontSize: 14,
+    fontFamily: 'BankGothicMediumBT',
+    color: Colors.textTertiary,
+    marginLeft: 4,
+    marginTop: 12,
   },
   pickerUnitSelected: {
-    color: Colors.textPrimary,
+    color: Colors.textSecondary,
+    marginTop: 16,
   },
+
+  // Groove Divider
+  grooveDivider: {
+    width: 2,
+    height: 120,
+    marginHorizontal: Spacing.md,
+  },
+  grooveLight: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    position: 'absolute',
+    left: 0,
+  },
+  grooveDark: {
+    width: 1,
+    height: '100%',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    position: 'absolute',
+    right: 0,
+  },
+
+  // Selection Display
+  selectionDisplay: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    marginHorizontal: Spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  selectionLabel: {
+    fontSize: FontSizes.xs,
+    fontFamily: 'BankGothicMediumBT',
+    color: Colors.textTertiary,
+    letterSpacing: 1,
+    marginBottom: Spacing.xs,
+  },
+  selectionValue: {
+    fontSize: 28,
+    fontFamily: 'BankGothicMediumBT',
+    color: Colors.success,
+    letterSpacing: 2,
+    fontVariant: ['tabular-nums'],
+  },
+  selectionValueDisabled: {
+    color: Colors.error,
+    fontSize: 20,
+  },
+
+  // Actions
   actions: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 16,
-    gap: 12,
-    zIndex: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
   },
   saveButton: {
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius['2xl'],
+    height: 52,
+    borderTopLeftRadius: BorderRadius.sm,
+    borderTopRightRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: BorderRadius.sm,
     alignItems: 'center',
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    shadowColor: Colors.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  saveButtonSaved: {
-    backgroundColor: Colors.success,
-  },
-  saveButtonDisable: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+  saveButtonDisabled: {
+    shadowColor: Colors.error,
   },
   saveButtonText: {
     fontSize: FontSizes.base,
-    fontWeight: '700',
-    color: Colors.success,
-  },
-  saveButtonTextSaved: {
-    color: Colors.textPrimary,
-  },
-  saveButtonTextDisable: {
-    color: Colors.error,
-  },
-  confirmButton: {
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius['2xl'],
-    alignItems: 'center',
-    backgroundColor: Colors.success,
-  },
-  confirmButtonText: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
-    color: Colors.textPrimary,
+    fontFamily: 'BankGothicMediumBT',
+    color: Colors.white,
+    letterSpacing: 1.5,
   },
   buttonPressed: {
-    opacity: 0.7,
+    opacity: 0.8,
+    transform: [{ scale: 0.98 }],
   },
+
+  // Type Selector Popover
   typeSelectorOverlay: {
     position: 'absolute',
     top: 0,
@@ -614,23 +658,26 @@ const styles = StyleSheet.create({
   },
   typeSelectorPopover: {
     position: 'absolute',
-    backgroundColor: '#1c1c1e',
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    padding: 4,
+    top: 100,
+    left: Spacing.xl,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    borderColor: Colors.borderLight,
+    padding: Spacing.xs,
     minWidth: 160,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.5,
     shadowRadius: 16,
-    elevation: 10,
+    elevation: 12,
     zIndex: 1000,
   },
   typeSelectorDivider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    marginHorizontal: Spacing.sm,
   },
   typeSelectorOption: {
     flexDirection: 'row',
@@ -638,16 +685,20 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
+  },
+  typeSelectorOptionActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   typeSelectorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   typeSelectorText: {
     fontSize: FontSizes.sm,
-    fontWeight: '600',
+    fontFamily: 'BankGothicMediumBT',
     color: Colors.textPrimary,
+    letterSpacing: 0.5,
   },
 });
