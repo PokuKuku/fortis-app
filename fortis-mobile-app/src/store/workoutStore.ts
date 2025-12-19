@@ -20,10 +20,17 @@ import {
 } from '../types/workout';
 import {
   ACTIVE_WORKOUT_KEY,
+  COMPLETED_WORKOUTS_KEY,
   REST_TIMER_SETTINGS_KEY,
   EXERCISE_STICKY_NOTES_KEY,
   EXERCISE_WEIGHT_UNITS_KEY,
 } from '../constants/storageKeys';
+import { syncWorkoutSession } from '../services/workoutHistoryService';
+import {
+  syncStickyNote,
+  deleteStickyNoteFromCloud,
+  fetchStickyNotesFromCloud,
+} from '../services/stickyNotesService';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
@@ -41,6 +48,9 @@ interface WorkoutState {
   // Active session
   activeSession: WorkoutSession | null;
   isWorkoutActive: boolean;
+
+  // Completed sessions history
+  completedSessions: WorkoutSession[];
 
   // Timers
   workoutStartTime: number | null;
@@ -120,6 +130,7 @@ interface WorkoutState {
   persistSession: () => Promise<void>;
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
+  loadCompletedSessions: () => Promise<void>;
 
   // Actions - Sticky Notes
   setStickyNote: (exerciseId: string, note: string) => Promise<void>;
@@ -149,6 +160,7 @@ export const useWorkoutStore = create<WorkoutState>()(
   subscribeWithSelector((set, get) => ({
     activeSession: null,
     isWorkoutActive: false,
+    completedSessions: [],
     workoutStartTime: null,
     isWorkoutTimerPaused: false,
     pausedElapsedSeconds: 0,
@@ -214,7 +226,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     finishWorkout: async () => {
-      const { activeSession } = get();
+      const { activeSession, completedSessions } = get();
       if (!activeSession) return null;
 
       const completedSession: WorkoutSession = {
@@ -224,10 +236,14 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       isStartingWorkout = false; // Reset lock
 
-      // Clear active state
+      // Add to completed sessions history
+      const updatedSessions = [completedSession, ...completedSessions];
+
+      // Clear active state and update completed sessions
       set({
         activeSession: null,
         isWorkoutActive: false,
+        completedSessions: updatedSessions,
         workoutStartTime: null,
         isWorkoutTimerPaused: false,
         pausedElapsedSeconds: 0,
@@ -239,7 +255,23 @@ export const useWorkoutStore = create<WorkoutState>()(
         },
       });
 
+      // Persist completed sessions to AsyncStorage
+      try {
+        await AsyncStorage.setItem(
+          COMPLETED_WORKOUTS_KEY,
+          JSON.stringify(updatedSessions)
+        );
+      } catch (error) {
+        console.warn('Failed to persist completed sessions:', error);
+      }
+
       await get().clearPersistedSession();
+
+      // Sync to Supabase (async, non-blocking)
+      // If offline or not authenticated, it will be queued for later
+      syncWorkoutSession(completedSession).catch(error => {
+        console.warn('Failed to sync workout session:', error);
+      });
 
       return completedSession;
     },
@@ -790,6 +822,24 @@ export const useWorkoutStore = create<WorkoutState>()(
       }
     },
 
+    loadCompletedSessions: async () => {
+      try {
+        const stored = await AsyncStorage.getItem(COMPLETED_WORKOUTS_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Rehydrate dates for each session
+          const sessions: WorkoutSession[] = parsed.map((session: WorkoutSession) => ({
+            ...session,
+            startedAt: new Date(session.startedAt),
+            completedAt: session.completedAt ? new Date(session.completedAt) : null,
+          }));
+          set({ completedSessions: sessions });
+        }
+      } catch (error) {
+        console.warn('Failed to load completed sessions:', error);
+      }
+    },
+
     // ========================================
     // Sticky Notes Actions
     // ========================================
@@ -803,8 +853,16 @@ export const useWorkoutStore = create<WorkoutState>()(
         // Remove empty notes
         const { [exerciseId]: _, ...rest } = stickyNotes;
         newNotes = rest;
+        // Also delete from cloud
+        deleteStickyNoteFromCloud(exerciseId).catch((err) => {
+          console.warn('Failed to delete sticky note from cloud:', err);
+        });
       } else {
         newNotes = { ...stickyNotes, [exerciseId]: trimmedNote };
+        // Sync to cloud in background
+        syncStickyNote(exerciseId, trimmedNote).catch((err) => {
+          console.warn('Failed to sync sticky note to cloud:', err);
+        });
       }
 
       set({ stickyNotes: newNotes });
@@ -825,6 +883,11 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       set({ stickyNotes: newNotes });
 
+      // Delete from cloud in background
+      deleteStickyNoteFromCloud(exerciseId).catch((err) => {
+        console.warn('Failed to delete sticky note from cloud:', err);
+      });
+
       try {
         await AsyncStorage.setItem(
           EXERCISE_STICKY_NOTES_KEY,
@@ -837,10 +900,24 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     loadStickyNotes: async () => {
       try {
+        // Load local notes first (fast)
         const stored = await AsyncStorage.getItem(EXERCISE_STICKY_NOTES_KEY);
-        if (stored) {
-          const notes = JSON.parse(stored);
-          set({ stickyNotes: notes });
+        const localNotes = stored ? JSON.parse(stored) : {};
+        set({ stickyNotes: localNotes });
+
+        // Fetch cloud notes and merge (cloud is source of truth for UUID exercises)
+        const cloudNotes = await fetchStickyNotesFromCloud();
+        if (Object.keys(cloudNotes).length > 0) {
+          // Merge: cloud notes override local for same exerciseId
+          // Local notes for non-UUID exercises are preserved
+          const mergedNotes = { ...localNotes, ...cloudNotes };
+          set({ stickyNotes: mergedNotes });
+
+          // Persist merged notes locally
+          await AsyncStorage.setItem(
+            EXERCISE_STICKY_NOTES_KEY,
+            JSON.stringify(mergedNotes)
+          );
         }
       } catch (error) {
         console.warn('Failed to load sticky notes:', error);

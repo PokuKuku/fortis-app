@@ -10,6 +10,9 @@ export const WORKOUTS_KEY = 'fortis_workouts_v1';
 // Workout logging
 export const ACTIVE_WORKOUT_KEY = 'active_workout_v1';
 export const COMPLETED_WORKOUTS_KEY = 'completed_workouts_v1';
+export const PENDING_SYNC_QUEUE_KEY = 'pending_sync_queue_v1';
+export const PENDING_PROGRAM_SYNC_QUEUE_KEY = 'pending_program_sync_queue_v1';
+export const PENDING_STICKY_NOTES_SYNC_KEY = 'pending_sticky_notes_sync_v1';
 export const REST_TIMER_SETTINGS_KEY = 'rest_timer_settings_v1';
 export const EXERCISE_ORDER_KEY = 'exercise_order_v1';
 export const EXERCISE_STICKY_NOTES_KEY = 'exercise_sticky_notes_v1';

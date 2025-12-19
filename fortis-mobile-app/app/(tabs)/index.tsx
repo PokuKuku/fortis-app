@@ -530,6 +530,7 @@ function CollapsibleSection({
 export default function ProgramsScreen() {
   const router = useRouter();
   const startWorkout = useWorkoutStore(s => s.startWorkout);
+  const addExercises = useWorkoutStore(s => s.addExercises);
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
 
   // Programs store
@@ -599,7 +600,7 @@ export default function ProgramsScreen() {
     router.push('/workout/active');
   };
 
-  // Handle workout card press - navigate to workout detail
+  // Handle workout card press - navigate to fullscreen workout detail
   const handleWorkoutCardPress = (workoutId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/workouts/${workoutId}`);

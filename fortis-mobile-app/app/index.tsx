@@ -1,7 +1,8 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { View, StyleSheet, Animated, Dimensions, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useAuth } from '@/src/contexts/AuthContext';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -161,6 +162,8 @@ function FloatingParticle({
 
 export default function SplashScreen() {
   const router = useRouter();
+  const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
+  const [splashComplete, setSplashComplete] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const shineAnim = useRef(new Animated.Value(0)).current;
@@ -182,6 +185,19 @@ export default function SplashScreen() {
       })),
     []
   );
+
+  // Handle navigation when both splash is complete and auth is loaded
+  useEffect(() => {
+    if (splashComplete && !isLoading) {
+      if (!isAuthenticated) {
+        router.replace('/auth');
+      } else if (needsOnboarding) {
+        router.replace('/onboarding');
+      } else {
+        router.replace('/(tabs)');
+      }
+    }
+  }, [splashComplete, isLoading, isAuthenticated, needsOnboarding, router]);
 
   useEffect(() => {
     // Fade in animation
@@ -211,15 +227,16 @@ export default function SplashScreen() {
 
     shineLoop.start();
 
+    // Mark splash as complete after animation
     const timer = setTimeout(() => {
-      router.replace('/(tabs)');
+      setSplashComplete(true);
     }, 2500);
 
     return () => {
       clearTimeout(timer);
       shineLoop.stop();
     };
-  }, [fadeAnim, scaleAnim, router, shineAnim]);
+  }, [fadeAnim, scaleAnim, shineAnim]);
 
   return (
     <View style={styles.container}>

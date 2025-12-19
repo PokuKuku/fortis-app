@@ -309,3 +309,37 @@ export interface ProgramExerciseDTO {
   notes?: string;
   order_index: number;
 }
+
+// ============================================
+// Program Progress Types
+// ============================================
+
+/**
+ * User's progress within a program
+ */
+export interface ProgramProgress {
+  id: string;
+  userId: string;
+  programId: string;
+  currentWorkoutIndex: number;
+  currentCycle: number;
+  startedAt: string;
+  completedAt: string | null;
+  lastWorkoutId: string | null;
+  lastWorkoutAt: string | null;
+}
+
+/**
+ * Program progress DTO (snake_case for Supabase)
+ */
+export interface ProgramProgressDTO {
+  id: string;
+  user_id: string;
+  program_id: string;
+  current_workout_index: number;
+  current_cycle: number;
+  started_at: string;
+  completed_at: string | null;
+  last_workout_id: string | null;
+  last_workout_at: string | null;
+}

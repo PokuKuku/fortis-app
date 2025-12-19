@@ -7,16 +7,24 @@ export interface LastPerformance {
   exerciseId: string;
 }
 
+// Helper to check if a string is a valid UUID
+function isValidUUID(str: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+}
+
 /**
  * Hook to fetch the user's last performance for a specific exercise.
  * Returns the number of sets and the weight from the last set of the most recent session.
+ * Only queries Supabase if exerciseId is a valid UUID (skips local exercise IDs).
  */
 export function useLastExercisePerformance(exerciseId: string | undefined) {
   const [lastPerformance, setLastPerformance] = useState<LastPerformance | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!exerciseId) {
+    // Skip if no exerciseId or if it's not a valid UUID (local exercise)
+    if (!exerciseId || !isValidUUID(exerciseId)) {
       setLastPerformance(null);
       setLoading(false);
       return;

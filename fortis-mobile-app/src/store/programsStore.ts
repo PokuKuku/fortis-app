@@ -3,11 +3,12 @@
  *
  * Central state management for workout programs and templates.
  * Fetches from Supabase and provides CRUD operations.
- * Supports offline-first local template saving.
+ * Supports offline-first local template saving with cloud sync.
  */
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { syncLocalProgram, processPendingProgramQueue } from '../services/programSyncService';
 
 const LOCAL_TEMPLATES_KEY = 'fortis_local_templates';
 import {
@@ -50,6 +51,10 @@ interface ProgramsState {
   // Local persistence
   loadLocalPrograms: () => Promise<void>;
   persistLocalPrograms: () => Promise<void>;
+
+  // Cloud sync
+  syncPendingPrograms: () => Promise<void>;
+  replaceLocalIdWithServerId: (localId: string, serverId: string) => void;
 }
 
 // ============================================
@@ -111,16 +116,16 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   // Fetch all programs for current user (includes local templates)
   fetchPrograms: async () => {
-    set({ isLoading: true, error: null });
-
-    // Always load local programs first
+    // Always load local programs first (fast)
     await get().loadLocalPrograms();
 
     if (!isSupabaseConfigured()) {
       // If Supabase not configured, just use local programs
-      set({ isLoading: false });
       return;
     }
+
+    // Set loading only after local data is loaded
+    set({ isLoading: true, error: null });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -130,7 +135,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         return;
       }
 
-      // Fetch programs with nested workouts and exercises
+      // Fetch programs with nested workouts and exercises (with timeout)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
       const { data, error } = await supabase
         .from('workout_programs')
         .select(`
@@ -140,7 +148,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             program_exercises (*)
           )
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .abortSignal(controller.signal);
+
+      clearTimeout(timeoutId);
 
       if (error) {
         console.error('Error fetching programs:', error);
@@ -185,7 +196,13 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const localPrograms = state.programs.filter((p) => p.id.startsWith('local-'));
         return { programs: [...programs, ...localPrograms], isLoading: false };
       });
-    } catch (err) {
+    } catch (err: any) {
+      // Don't show error for timeout/abort - just stop loading
+      if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
+        console.warn('Programs fetch timed out');
+        set({ isLoading: false });
+        return;
+      }
       console.error('Error fetching programs:', err);
       set({
         error: err instanceof Error ? err.message : 'Failed to fetch programs',
@@ -313,8 +330,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Create a new workout template (saved as a single-workout program)
   // Falls back to local storage if Supabase is unavailable
   createWorkoutTemplate: async (name, exercises) => {
-    // Helper to save locally
-    const saveLocally = () => {
+    // Helper to save locally and attempt cloud sync
+    const saveLocally = async () => {
       const localId = `local-${Date.now()}`;
       const now = new Date().toISOString();
 
@@ -351,26 +368,50 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         }],
       };
 
-      // Add to store and persist
+      // Add to store and persist locally
       set((state) => ({
         programs: [localProgram, ...state.programs],
       }));
       get().persistLocalPrograms();
 
+      // Attempt cloud sync in background (don't await, don't block)
+      syncLocalProgram(localProgram).then((result) => {
+        if (result.success && result.serverId) {
+          // Replace local ID with server ID
+          get().replaceLocalIdWithServerId(localId, result.serverId);
+        }
+      }).catch((err) => {
+        console.warn('Background program sync failed:', err);
+      });
+
       return localId;
     };
+
+    // Helper to check if a string is a valid UUID
+    const isValidUUID = (str: string): boolean => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(str);
+    };
+
+    // Check if any exercises have non-UUID IDs (local exercises)
+    const hasLocalExercises = exercises.some(ex => !isValidUUID(ex.exerciseId));
 
     // Try Supabase first if configured
     if (!isSupabaseConfigured()) {
       // Save locally when Supabase is not configured
-      return saveLocally();
+      return await saveLocally();
+    }
+
+    // If exercises have local (non-UUID) IDs, save locally
+    if (hasLocalExercises) {
+      return await saveLocally();
     }
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         // Save locally when not authenticated
-        return saveLocally();
+        return await saveLocally();
       }
 
       // Create program container for the template
@@ -501,6 +542,51 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     } catch (err) {
       console.warn('Failed to persist local programs:', err);
     }
+  },
+
+  // Process pending program sync queue (called on sign-in or when coming online)
+  syncPendingPrograms: async () => {
+    try {
+      const result = await processPendingProgramQueue();
+
+      // Update local IDs with server IDs for successfully synced programs
+      for (const [localId, serverId] of result.idMappings) {
+        get().replaceLocalIdWithServerId(localId, serverId);
+      }
+
+      if (result.processed > 0) {
+        console.log(`Synced ${result.processed} programs to cloud`);
+      }
+    } catch (err) {
+      console.warn('Failed to sync pending programs:', err);
+    }
+  },
+
+  // Replace a local program ID with server-assigned ID after successful sync
+  replaceLocalIdWithServerId: (localId: string, serverId: string) => {
+    set((state) => ({
+      programs: state.programs.map((p) => {
+        if (p.id === localId) {
+          // Create new program with server ID
+          return {
+            ...p,
+            id: serverId,
+            // Also update workout IDs if they contain the local ID
+            workouts: p.workouts.map((w) => ({
+              ...w,
+              id: w.id.replace(localId, serverId),
+              exercises: w.exercises.map((ex) => ({
+                ...ex,
+                id: ex.id.replace(localId, serverId),
+              })),
+            })),
+          };
+        }
+        return p;
+      }),
+    }));
+    // Re-persist to remove from local storage (no longer has local- prefix)
+    get().persistLocalPrograms();
   },
 }));
 
