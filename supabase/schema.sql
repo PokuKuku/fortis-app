@@ -55,7 +55,7 @@ CREATE POLICY "Users can insert own profile"
 -- =====================================================
 
 CREATE TABLE subscriptions (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
 
   -- Stripe details
@@ -91,7 +91,7 @@ CREATE POLICY "Users can view own subscription"
 -- =====================================================
 
 CREATE TABLE exercises (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
 
   -- Core exercise data
   name TEXT UNIQUE NOT NULL,
@@ -143,7 +143,7 @@ CREATE POLICY "Users can create custom exercises"
 -- =====================================================
 
 CREATE TABLE workout_programs (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
 
   -- Program details
   name TEXT NOT NULL,
@@ -179,7 +179,7 @@ CREATE POLICY "Users can create own programs"
 -- =====================================================
 
 CREATE TABLE program_workouts (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   program_id UUID REFERENCES workout_programs(id) ON DELETE CASCADE NOT NULL,
 
   -- Workout details
@@ -209,7 +209,7 @@ CREATE POLICY "Program workouts viewable with program"
 -- =====================================================
 
 CREATE TABLE program_exercises (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   program_workout_id UUID REFERENCES program_workouts(id) ON DELETE CASCADE NOT NULL,
   exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE NOT NULL,
 
@@ -243,7 +243,7 @@ CREATE POLICY "Program exercises viewable with workout"
 -- =====================================================
 
 CREATE TABLE workout_sessions (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
 
   -- Session details
@@ -298,7 +298,7 @@ CREATE POLICY "Users can delete own workout sessions"
 -- =====================================================
 
 CREATE TABLE workout_sets (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   session_id UUID REFERENCES workout_sessions(id) ON DELETE CASCADE NOT NULL,
   exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE NOT NULL,
 

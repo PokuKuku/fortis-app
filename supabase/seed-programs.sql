@@ -13,10 +13,10 @@
 
 DO $$
 DECLARE
-  program1_id UUID := uuid_generate_v4();
-  workout1_day1_id UUID := uuid_generate_v4();
-  workout1_day2_id UUID := uuid_generate_v4();
-  workout1_day3_id UUID := uuid_generate_v4();
+  program1_id UUID := gen_random_uuid();
+  workout1_day1_id UUID := gen_random_uuid();
+  workout1_day2_id UUID := gen_random_uuid();
+  workout1_day3_id UUID := gen_random_uuid();
 BEGIN
 
 -- Insert Full Body Strength Program
@@ -113,13 +113,13 @@ END $$;
 
 DO $$
 DECLARE
-  program2_id UUID := uuid_generate_v4();
-  workout2_push1_id UUID := uuid_generate_v4();
-  workout2_pull1_id UUID := uuid_generate_v4();
-  workout2_legs1_id UUID := uuid_generate_v4();
-  workout2_push2_id UUID := uuid_generate_v4();
-  workout2_pull2_id UUID := uuid_generate_v4();
-  workout2_legs2_id UUID := uuid_generate_v4();
+  program2_id UUID := gen_random_uuid();
+  workout2_push1_id UUID := gen_random_uuid();
+  workout2_pull1_id UUID := gen_random_uuid();
+  workout2_legs1_id UUID := gen_random_uuid();
+  workout2_push2_id UUID := gen_random_uuid();
+  workout2_pull2_id UUID := gen_random_uuid();
+  workout2_legs2_id UUID := gen_random_uuid();
 BEGIN
 
 -- Insert Push Pull Legs Program
@@ -258,11 +258,11 @@ END $$;
 
 DO $$
 DECLARE
-  program3_id UUID := uuid_generate_v4();
-  workout3_upper1_id UUID := uuid_generate_v4();
-  workout3_lower1_id UUID := uuid_generate_v4();
-  workout3_upper2_id UUID := uuid_generate_v4();
-  workout3_lower2_id UUID := uuid_generate_v4();
+  program3_id UUID := gen_random_uuid();
+  workout3_upper1_id UUID := gen_random_uuid();
+  workout3_lower1_id UUID := gen_random_uuid();
+  workout3_upper2_id UUID := gen_random_uuid();
+  workout3_lower2_id UUID := gen_random_uuid();
 BEGIN
 
 -- Insert Upper/Lower Split Program

@@ -30,23 +30,50 @@ Fortis is an offline-first mobile workout tracker built with Expo/React Native. 
 
 ## Development Commands
 
+### Mobile App
+
 ```bash
 cd fortis-mobile-app
 
-npm start              # Start development server
+npm start              # Start development server (Expo Metro)
 npm run ios            # Run on iOS simulator (requires native build)
 npm run android        # Run on Android emulator (requires native build)
-npm run web            # Run on web
+npm run web            # Run on web browser (limited functionality)
 
-npx expo prebuild      # Generate native projects (after dependency changes)
+# Native project generation (after adding native dependencies)
+npx expo prebuild      # Generate native projects
 npx expo prebuild --clean  # Clean rebuild
-npx pod-install        # Install iOS CocoaPods (after native dependency changes)
+npx pod-install        # Install iOS CocoaPods dependencies
 
-# Local Supabase (requires Docker)
-supabase start         # Start local Supabase instance
-supabase db reset      # Reset and apply migrations
-supabase stop          # Stop local instance
+# Cache clearing (when bundler gets stuck)
+npm start -- --clear   # Clear bundler cache
+rm -rf .expo           # Clear Expo cache
 ```
+
+### Supabase (Local Development)
+
+```bash
+# Requires Docker installed and running
+supabase start         # Start local Supabase instance (PostgreSQL, Auth, Storage, etc.)
+supabase db reset      # Reset database and apply all migrations from /migrations
+supabase stop          # Stop local Supabase
+supabase db pull       # Pull schema changes from remote
+supabase migration new migration_name  # Create new migration file
+
+# Database operations
+supabase db push       # Apply local migrations to remote
+supabase seed reset    # Reload seed data
+```
+
+### Quick Reference
+
+| Task | Command |
+|------|---------|
+| Hot reload | Save a file (automatic) or press `r` in terminal |
+| Full reload | Shake device → "Reload" or press `c` in terminal |
+| Debug menu | Shake device or press `d` (iOS) / `m` (Android) |
+| Clear all caches | `npm start -- --clear && rm -rf .expo` |
+| Reinstall deps | `rm -rf node_modules && npm install` |
 
 ## Architecture
 
@@ -146,13 +173,72 @@ constants/              # Design system tokens
 | Grid/Layout | Squares2X2Icon | react-native-heroicons/outline |
 | Backspace | BackspaceIcon | react-native-heroicons/outline |
 
+### State Management Stores
+
+The app uses **Zustand** with AsyncStorage persistence for offline-first operation. Key stores:
+
+#### `workoutStore.ts` - Active Workout Session
+```tsx
+// Active session state
+sessionId: string | null
+currentExerciseIndex: number
+sets: WorkoutSet[]  // Completed/in-progress sets
+restTimer: number
+isLoading: boolean
+
+// Global UI state
+activeNumberPad: null | { exerciseIndex: number; setIndex: number }
+```
+- Persists to `ACTIVE_SESSION_KEY` in AsyncStorage
+- Auto-syncs completed sets to Supabase when online
+- Handles rest timers, set logging, exercise transitions
+
+#### `programsStore.ts` - Workout Programs/Templates
+```tsx
+// Data
+programs: Program[]  // User's saved programs
+isLoading: boolean
+error: string | null
+
+// Actions
+fetchPrograms(): Promise<void>
+deleteProgram(id: string): Promise<boolean>
+duplicateProgram(id: string): Promise<string | null>
+createWorkoutTemplate(...): Promise<string | null>
+updateLastPerformed(id: string): Promise<void>
+```
+- Fetches from `workout_programs` table in Supabase
+- Supports AI-generated programs (with source tracking)
+- Maps DTO responses to typed Program objects
+
+#### `aiStore.ts` - AI Assistant
+```tsx
+// Conversation
+conversation: AIConversation | null
+isConversationOpen: boolean
+isSendingMessage: boolean
+
+// Pending mutations awaiting user confirmation
+pendingActions: AIPendingAction[]
+currentMutationPlan: AIMutationPlan | null
+mutationHistory: AIMutationRecord[]  // For undo
+
+// Image attachment
+selectedImage: { uri: string; base64: string; mimeType: AIImageMimeType } | null
+```
+- Stores conversation history in AsyncStorage (`AI_CONVERSATION_KEY`)
+- Handles image-to-template generation (base64 encoding)
+- Applies mutations to workouts with user confirmation
+- Tracks rate limits for API safety
+
 ### Key Patterns
 
-- **Offline-first state**: `workoutStore.ts` uses Zustand with AsyncStorage persistence
-- **Local ID generation**: Client-side UUID generation for offline-first operations
-- **Storage keys**: All AsyncStorage keys in `src/constants/storageKeys.ts`
-- **Event emitter**: `DeviceEventEmitter` for cross-component communication
-- **Number pad pattern**: Global `activeNumberPad` state in store, single `NumberPadModal` rendered at root
+- **Offline-first state**: All stores use Zustand + AsyncStorage for persistence
+- **Local ID generation**: Client-side UUIDs in `workoutStore` for offline sessions
+- **Storage keys**: Centralized in `src/constants/storageKeys.ts`
+- **Event emitter**: `DeviceEventEmitter` for store-to-component communication (e.g., `workout-updated`)
+- **Number pad pattern**: Single global `NumberPadModal` at app root, state in `workoutStore.activeNumberPad`
+- **DTO mapping**: Programs and AI responses use DTOs that get mapped to typed models
 
 ### Exercise Database Abstraction Layer
 
@@ -203,20 +289,174 @@ import { PRIMARY_MUSCLES, CATEGORIES, EQUIPMENT_TYPES, LEVELS, FORCES, MECHANICS
 
 ### Backend (Supabase)
 
-Schema in `supabase/schema.sql`: profiles, exercises, workout_programs, workout_sessions, workout_sets, subscriptions
+**Key Tables** (see `supabase/schema.sql`):
+- `profiles` - User account data
+- `exercises` - Exercise library (name, muscles, equipment, instructions)
+- `workout_programs` - Program templates created by users or AI
+- `workout_sessions` - Active workouts
+- `workout_sets` - Individual sets within sessions
+- `ai_conversations` - AI assistant conversation history
+- `subscriptions` - Subscription/payment tracking
 
-Sessions and sets use `local_id` and `is_synced` fields for offline sync.
+**Offline-First Pattern**:
+- Sessions and sets use `local_id` (UUID generated client-side) and `is_synced` boolean
+- Data persists to AsyncStorage immediately for offline access
+- Periodic sync to Supabase when online (watch `getNetInfo()`)
+- Conflict resolution: last-write-wins or user confirmation
 
-Import support for Strong, Hevy apps - see `supabase/IMPORT_GUIDE.md`.
+**Migrations** (`supabase/migrations/`):
+- `000_initial_schema.sql` - Core tables
+- `001_add_import_support.sql` - Strong/Hevy app imports
+- `002_core_features_and_ai_security.sql` - AI, programs, security policies
+- `003_program_ai_tracking.sql` - AI-generated program tracking
+
+**Data Import**:
+- Support for Strong and Hevy app exports - see `supabase/IMPORT_GUIDE.md`
+- Exercises seeded from `free-exercise-db-main/` (6000+ exercises)
 
 ## Environment Setup
 
+**Local Development**:
 Copy `fortis-mobile-app/.env.example` to `.env.local`:
+```
+EXPO_PUBLIC_SUPABASE_URL=http://localhost:54321   # Local Supabase
+EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+EXPO_PUBLIC_APP_ENV=development
+```
+
+**Production**:
 ```
 EXPO_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
-EXPO_PUBLIC_APP_ENV=development
+EXPO_PUBLIC_APP_ENV=production
 ```
+
+**Important Notes**:
+- `EXPO_PUBLIC_*` variables are embedded in the app bundle (not secret)
+- Supabase anon key has RLS policies - all data access controlled at DB level
+- Never commit `.env.local` (it's in `.gitignore`)
+- For Supabase local dev: Use keys from `supabase start` output (printed in terminal)
+
+## Debugging Guide
+
+### Common Issues & Solutions
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| "Module not found" | Missing import or stale cache | `npm start -- --clear && npm install` |
+| White/blank screen | Bundler error | Check terminal for errors, shake device for debug menu |
+| AsyncStorage data not persisting | Wrong storage key or Zustand hydration | Verify key in `storageKeys.ts`, check store subscribers |
+| Supabase connection fails | Wrong URL/key or local instance down | `supabase start`, verify `.env.local` |
+| Network sync stuck | Device offline or connection timeout | Check `@react-native-community/netinfo` state |
+| AI mutations not applying | Pending action not confirmed | Check `aiStore.pendingActions` state in dev menu |
+
+### Logging Patterns
+
+**State inspection** (in device menu):
+```tsx
+// Check store state
+import { useWorkoutStore } from '@/src/store/workoutStore';
+const state = useWorkoutStore.getState();
+console.log('Workout state:', state);
+```
+
+**Trace async operations**:
+```tsx
+// Add logs to store actions
+fetchPrograms: async () => {
+  console.log('[programsStore] Fetching programs...');
+  try {
+    const { data } = await supabase.from('workout_programs').select('*');
+    console.log('[programsStore] Fetched', data?.length, 'programs');
+    set({ programs: data || [] });
+  } catch (error) {
+    console.error('[programsStore] Fetch failed:', error);
+  }
+}
+```
+
+**Network monitoring**:
+```tsx
+import NetInfo from '@react-native-community/netinfo';
+NetInfo.addEventListener(state => {
+  console.log('[Network] Connected:', state.isConnected, 'Type:', state.type);
+});
+```
+
+### Performance Debug
+
+Enable React Native debugger to profile renders:
+- Shake device → Enable "Debug" → Open Metro debug menu
+- Watch for unnecessary re-renders (use `whyDidYouRender` if added)
+- Check AsyncStorage operations (they're async and can block UI)
+
+## AI Features & Image Processing
+
+### Image-to-Template Generation
+
+The AI can convert workout photos to program templates:
+
+**Flow**:
+1. User selects image from device camera/gallery
+2. Image → base64 encoding in `aiStore`
+3. Send with message to Claude API
+4. Claude extracts exercises and proposes template structure
+5. AI returns `currentMutationPlan` with mutations
+6. User confirms → mutations apply to workout
+
+**Implementation** (`aiStore.ts`):
+```tsx
+// Selected image persists until message sent
+selectedImage: { uri: string; base64: string; mimeType: AIImageMimeType }
+
+// Send message with image attachment
+sendMessage(text: string): Promise<void>
+// → encodes image to base64 before API call
+// → clears selectedImage after send
+```
+
+**Supported formats**: JPEG, PNG (see `AIImageMimeType` enum in `types/ai.ts`)
+
+### Rate Limiting & Safety
+
+`aiStore` tracks API rate limits:
+```tsx
+rateLimitStatus: AIRateLimitStatus {
+  requestsRemaining: number
+  resetAt: Date
+  isLimited: boolean
+}
+
+// Update during API calls
+updateRateLimit(headers: APIHeaders): void
+```
+
+Monitor in UI before allowing requests - disable "Send" button if limited.
+
+### Mutation System
+
+AI-generated changes are staged before applying:
+
+```tsx
+// User proposes mutation (e.g., add exercise)
+currentMutationPlan: {
+  id: string
+  description: string  // "Add barbell bench press to day 1"
+  mutations: AIMutation[]
+}
+
+// Pending confirmation
+pendingActions: AIPendingAction[]
+
+// After confirmation
+mutationHistory: AIMutationRecord[]  // For undo support
+```
+
+Each mutation tracks:
+- Type (add, remove, update exercise)
+- Affected entities (workout/session/set IDs)
+- Previous state (for undo)
+- Timestamp of application
 
 ## Design System (MANDATORY)
 

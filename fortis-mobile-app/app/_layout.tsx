@@ -6,6 +6,7 @@ import { useFonts } from 'expo-font';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
+import { AIContainer } from '@/src/components/ai';
 
 export default function RootLayout() {
   const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
@@ -72,6 +73,7 @@ export default function RootLayout() {
           />
         </Stack>
         <WorkoutMiniBar />
+        <AIContainer />
       </DragDropProvider>
     </GestureHandlerRootView>
   );

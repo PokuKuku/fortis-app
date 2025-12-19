@@ -10,7 +10,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- CHEST EXERCISES (8)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Barbell Bench Press',
   'barbell-bench-press',
   'push',
@@ -32,7 +32,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Dumbbell Bench Press',
   'dumbbell-bench-press',
   'push',
@@ -54,7 +54,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Incline Dumbbell Press',
   'incline-dumbbell-press',
   'push',
@@ -76,7 +76,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Dumbbell Flyes',
   'dumbbell-flyes',
   'pull',
@@ -98,7 +98,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Push-Ups',
   'push-ups',
   'push',
@@ -119,7 +119,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Cable Crossover',
   'cable-crossover',
   'push',
@@ -141,7 +141,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Chest Dips',
   'chest-dips',
   'push',
@@ -162,7 +162,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Decline Bench Press',
   'decline-bench-press',
   'push',
@@ -186,7 +186,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- BACK EXERCISES (9)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Barbell Deadlift',
   'barbell-deadlift',
   'pull',
@@ -209,7 +209,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Pull-Ups',
   'pull-ups',
   'pull',
@@ -232,7 +232,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Barbell Row',
   'barbell-row',
   'pull',
@@ -255,7 +255,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Lat Pulldown',
   'lat-pulldown',
   'pull',
@@ -278,7 +278,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Seated Cable Row',
   'seated-cable-row',
   'pull',
@@ -300,7 +300,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Dumbbell Row',
   'dumbbell-row',
   'pull',
@@ -323,7 +323,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'T-Bar Row',
   't-bar-row',
   't-bar-row',
@@ -346,7 +346,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Face Pulls',
   'face-pulls',
   'pull',
@@ -369,7 +369,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Hyperextensions',
   'hyperextensions',
   'pull',
@@ -393,7 +393,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- LEGS EXERCISES (10)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Barbell Squat',
   'barbell-squat',
   'push',
@@ -416,7 +416,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Front Squat',
   'front-squat',
   'push',
@@ -439,7 +439,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Romanian Deadlift',
   'romanian-deadlift',
   'pull',
@@ -461,7 +461,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Leg Press',
   'leg-press',
   'push',
@@ -483,7 +483,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Leg Curl',
   'leg-curl',
   'pull',
@@ -505,7 +505,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Leg Extension',
   'leg-extension',
   'push',
@@ -527,7 +527,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Bulgarian Split Squat',
   'bulgarian-split-squat',
   'push',
@@ -549,7 +549,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Walking Lunges',
   'walking-lunges',
   'push',
@@ -571,7 +571,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Goblet Squat',
   'goblet-squat',
   'push',
@@ -593,7 +593,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Calf Raises',
   'calf-raises',
   'push',
@@ -617,7 +617,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- SHOULDERS EXERCISES (6)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Overhead Press',
   'overhead-press',
   'push',
@@ -640,7 +640,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Dumbbell Shoulder Press',
   'dumbbell-shoulder-press',
   'push',
@@ -662,7 +662,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Lateral Raises',
   'lateral-raises',
   'pull',
@@ -685,7 +685,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Front Raises',
   'front-raises',
   'pull',
@@ -707,7 +707,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Rear Delt Flyes',
   'rear-delt-flyes',
   'pull',
@@ -729,7 +729,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Upright Row',
   'upright-row',
   'pull',
@@ -753,7 +753,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- ARMS - BICEPS (4)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Barbell Curl',
   'barbell-curl',
   'pull',
@@ -775,7 +775,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Dumbbell Curl',
   'dumbbell-curl',
   'pull',
@@ -797,7 +797,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Hammer Curl',
   'hammer-curl',
   'pull',
@@ -819,7 +819,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Preacher Curl',
   'preacher-curl',
   'pull',
@@ -843,7 +843,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- ARMS - TRICEPS (4)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Close-Grip Bench Press',
   'close-grip-bench-press',
   'push',
@@ -865,7 +865,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Triceps Dips',
   'triceps-dips',
   'push',
@@ -887,7 +887,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Overhead Triceps Extension',
   'overhead-triceps-extension',
   'push',
@@ -909,7 +909,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Cable Triceps Pushdown',
   'cable-triceps-pushdown',
   'push',
@@ -933,7 +933,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- CORE/ABS (5)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Plank',
   'plank',
   'static',
@@ -955,7 +955,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Russian Twists',
   'russian-twists',
   'pull',
@@ -977,7 +977,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Cable Crunches',
   'cable-crunches',
   'pull',
@@ -999,7 +999,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Hanging Leg Raises',
   'hanging-leg-raises',
   'pull',
@@ -1022,7 +1022,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Ab Wheel Rollout',
   'ab-wheel-rollout',
   'pull',
@@ -1047,7 +1047,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- TRAPS (1)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Barbell Shrugs',
   'barbell-shrugs',
   'pull',
@@ -1072,7 +1072,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
 
 -- GLUTES (2)
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Hip Thrust',
   'hip-thrust',
   'push',
@@ -1095,7 +1095,7 @@ INSERT INTO exercises (id, name, slug, force, level, mechanic, equipment, primar
   NULL
 ),
 (
-  uuid_generate_v4(),
+  gen_random_uuid(),
   'Glute Bridge',
   'glute-bridge',
   'push',

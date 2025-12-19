@@ -53,7 +53,7 @@ COMMENT ON COLUMN profiles.default_start_program_id IS 'Program to start when ty
 -- =====================================================
 
 CREATE TABLE user_program_progress (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   program_id UUID REFERENCES workout_programs(id) ON DELETE CASCADE NOT NULL,
 
@@ -111,7 +111,7 @@ COMMENT ON TABLE user_program_progress IS 'Tracks user position in workout progr
 -- =====================================================
 
 CREATE TABLE exercise_sticky_notes (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE NOT NULL,
 
@@ -166,7 +166,7 @@ COMMENT ON COLUMN exercise_sticky_notes.set_index IS 'Optional: applies to speci
 -- AI can read these for context about specific sessions.
 
 CREATE TABLE session_exercise_notes (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
   session_id UUID REFERENCES workout_sessions(id) ON DELETE CASCADE NOT NULL,
   exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE NOT NULL,
@@ -331,7 +331,7 @@ COMMENT ON FUNCTION check_ai_rate_limit IS 'Check and increment AI rate limit. R
 -- All proposed changes must be staged here and explicitly confirmed by user.
 
 CREATE TABLE ai_pending_actions (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
 
   -- What the AI wants to do (strict allowlist)
@@ -429,7 +429,7 @@ COMMENT ON FUNCTION expire_pending_actions IS 'Expire stale pending AI actions. 
 -- Enables complete undo of any AI action.
 
 CREATE TABLE ai_mutations (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
 
   -- Link to the pending action that was confirmed
@@ -548,7 +548,7 @@ CREATE TRIGGER enforce_audit_immutability
 -- =====================================================
 
 CREATE TABLE training_summaries (
-  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
 
   -- Period covered

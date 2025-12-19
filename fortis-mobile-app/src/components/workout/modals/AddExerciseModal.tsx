@@ -25,6 +25,9 @@ interface AddExerciseModalProps {
   onClose: () => void;
   replaceMode?: boolean;
   exerciseLocalIdToReplace?: string;
+  // Callback mode for template creation (doesn't use workoutStore)
+  onAddExercisesCallback?: (exercises: Array<{ id: string; name: string }>) => void;
+  existingExerciseIds?: string[];
 }
 
 export function AddExerciseModal({
@@ -32,6 +35,8 @@ export function AddExerciseModal({
   onClose,
   replaceMode = false,
   exerciseLocalIdToReplace,
+  onAddExercisesCallback,
+  existingExerciseIds: externalExistingIds,
 }: AddExerciseModalProps) {
   const addExercises = useWorkoutStore(s => s.addExercises);
   const replaceExercise = useWorkoutStore(s => s.replaceExercise);
@@ -53,10 +58,10 @@ export function AddExerciseModal({
     }
   }, [visible]);
 
-  // Get IDs of exercises already in the workout
+  // Get IDs of exercises already in the workout (use external prop if provided)
   const existingExerciseIds = useMemo(
-    () => activeSession?.exercises.map(e => e.exerciseId) || [],
-    [activeSession]
+    () => externalExistingIds || activeSession?.exercises.map(e => e.exerciseId) || [],
+    [externalExistingIds, activeSession]
   );
 
   // Filter exercises based on search and exclude existing exercises
@@ -125,9 +130,13 @@ export function AddExerciseModal({
       })
       .filter((ex): ex is { id: string; name: string } => ex !== null);
 
-    // Add all exercises in one batch update
+    // Use callback if provided (template mode), otherwise use store action
     if (exercisesToAdd.length > 0) {
-      addExercises(exercisesToAdd);
+      if (onAddExercisesCallback) {
+        onAddExercisesCallback(exercisesToAdd);
+      } else {
+        addExercises(exercisesToAdd);
+      }
     }
 
     onClose();

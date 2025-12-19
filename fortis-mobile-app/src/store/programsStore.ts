@@ -30,6 +30,15 @@ interface ProgramsState {
   fetchPrograms: () => Promise<void>;
   deleteProgram: (id: string) => Promise<boolean>;
   duplicateProgram: (id: string) => Promise<string | null>;
+  createWorkoutTemplate: (
+    name: string,
+    exercises: Array<{
+      exerciseId: string;
+      sets: number;
+      reps: string;
+      restSeconds?: number;
+    }>
+  ) => Promise<string | null>;
   updateLastPerformed: (id: string) => Promise<void>;
   clearError: () => void;
 }
@@ -266,6 +275,90 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : 'Failed to duplicate program',
+      });
+      return null;
+    }
+  },
+
+  // Create a new workout template (saved as a single-workout program)
+  createWorkoutTemplate: async (name, exercises) => {
+    if (!isSupabaseConfigured()) {
+      set({ error: 'Supabase is not configured' });
+      return null;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        set({ error: 'Not authenticated' });
+        return null;
+      }
+
+      // Create program container for the template
+      const { data: program, error: programError } = await supabase
+        .from('workout_programs')
+        .insert({
+          name,
+          difficulty: 'intermediate',
+          is_public: false,
+          is_default: false,
+          is_ai_created: false,
+          created_by: session.user.id,
+        })
+        .select()
+        .single();
+
+      if (programError || !program) {
+        set({ error: programError?.message || 'Failed to create template' });
+        return null;
+      }
+
+      // Create single workout entry
+      const { data: workout, error: workoutError } = await supabase
+        .from('program_workouts')
+        .insert({
+          program_id: program.id,
+          name,
+          day_number: 1,
+        })
+        .select()
+        .single();
+
+      if (workoutError || !workout) {
+        // Cleanup: delete the program if workout creation fails
+        await supabase.from('workout_programs').delete().eq('id', program.id);
+        set({ error: workoutError?.message || 'Failed to create workout' });
+        return null;
+      }
+
+      // Insert exercises
+      if (exercises.length > 0) {
+        const exercisesToInsert = exercises.map((ex, index) => ({
+          program_workout_id: workout.id,
+          exercise_id: ex.exerciseId,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest_seconds: ex.restSeconds || 120,
+          order_index: index,
+        }));
+
+        const { error: exercisesError } = await supabase
+          .from('program_exercises')
+          .insert(exercisesToInsert);
+
+        if (exercisesError) {
+          console.error('Error inserting exercises:', exercisesError);
+          // Don't fail completely - template is still created
+        }
+      }
+
+      // Refresh programs list to include the new template
+      get().fetchPrograms();
+
+      return program.id;
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Failed to create template',
       });
       return null;
     }

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRightIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon, SparklesIcon } from 'react-native-heroicons/outline';
+import { ChevronRightIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon, SparklesIcon, PlusIcon } from 'react-native-heroicons/outline';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
@@ -22,6 +22,7 @@ import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useProgramsStore } from '../../src/store/programsStore';
+import { CreateWorkoutModal } from '../../src/components/workout/modals/CreateWorkoutModal';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -156,6 +157,99 @@ function KebabPopover({
         >
           <TrashIcon color="#ef4444" size={16} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, styles.kebabDeleteText]}>Delete</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </>
+  );
+}
+
+// Workouts Section Kebab Popover Component
+function WorkoutsKebabPopover({
+  visible,
+  onClose,
+  onAddWorkout,
+  position,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAddWorkout: () => void;
+  position: { top: number; left: number };
+}) {
+  const popoverScale = useRef(new Animated.Value(0)).current;
+  const popoverOpacity = useRef(new Animated.Value(0)).current;
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(popoverScale, {
+          toValue: 1,
+          tension: 100,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+        Animated.timing(popoverOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(popoverScale, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(popoverOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        if (pendingAction) {
+          pendingAction();
+          setPendingAction(null);
+        }
+      });
+    }
+  }, [visible, pendingAction]);
+
+  if (!visible && popoverOpacity._value === 0) {
+    return null;
+  }
+
+  const handleAction = (action: () => void) => {
+    setPendingAction(() => action);
+    onClose();
+  };
+
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.kebabOverlay}
+        activeOpacity={1}
+        onPress={onClose}
+        pointerEvents={visible ? 'auto' : 'none'}
+      />
+      <Animated.View
+        style={[
+          styles.kebabPopover,
+          {
+            top: position.top,
+            left: position.left,
+            opacity: popoverOpacity,
+            transform: [{ scale: popoverScale }],
+          },
+        ]}
+        pointerEvents={visible ? 'auto' : 'none'}
+      >
+        <TouchableOpacity
+          style={styles.kebabOption}
+          onPress={() => handleAction(onAddWorkout)}
+        >
+          <PlusIcon color="#22c55e" size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: '#22c55e' }]}>Add Workout</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -491,6 +585,11 @@ export default function ProgramsScreen() {
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  // Workouts section kebab menu state
+  const [showWorkoutsKebab, setShowWorkoutsKebab] = useState(false);
+  const [workoutsKebabPosition, setWorkoutsKebabPosition] = useState({ top: 0, left: 0 });
+  const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
+
   // Handle start blank workout
   const handleStartBlankWorkout = () => {
     // Prevent multiple workout sessions
@@ -611,6 +710,38 @@ export default function ProgramsScreen() {
 
   const cancelDelete = () => {
     setDeleteConfirmation({ visible: false, type: null, id: null, name: '' });
+  };
+
+  // Handle workouts section kebab press
+  const handleWorkoutsKebabPress = (event: any) => {
+    event.preventDefault?.();
+    event.stopPropagation?.();
+
+    event.target.measure(
+      (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+        const screenWidth = Dimensions.get('window').width;
+        const popoverWidth = 180;
+        const margin = 12;
+        const left = Math.min(
+          Math.max(margin, pageX - popoverWidth + width),
+          screenWidth - popoverWidth - margin
+        );
+        setWorkoutsKebabPosition({
+          top: pageY + height + 4,
+          left,
+        });
+        setShowWorkoutsKebab(true);
+      }
+    );
+  };
+
+  // Handle add workout from kebab menu
+  const handleAddWorkoutPress = () => {
+    setShowWorkoutsKebab(false);
+    // Small delay to let kebab close animation start
+    setTimeout(() => {
+      setShowCreateWorkoutModal(true);
+    }, 100);
   };
 
   // Draggable workout card renderer for DraggableGrid
@@ -783,11 +914,11 @@ export default function ProgramsScreen() {
 
           {/* Workouts Section */}
           <View style={styles.section}>
-            <TouchableOpacity
-              onPress={() => setShowWorkouts(!showWorkouts)}
-              style={styles.sectionHeader}
-            >
-              <View style={styles.sectionHeaderButton}>
+            <View style={styles.sectionHeader}>
+              <TouchableOpacity
+                onPress={() => setShowWorkouts(!showWorkouts)}
+                style={styles.sectionHeaderButton}
+              >
                 <GlassButton circular size={24} onPress={() => setShowWorkouts(!showWorkouts)}>
                   <ChevronRightIcon
                     color="#fff"
@@ -799,8 +930,15 @@ export default function ProgramsScreen() {
                   />
                 </GlassButton>
                 <Text style={styles.sectionTitle}>Workouts</Text>
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={handleWorkoutsKebabPress}
+                style={styles.sectionKebabButton}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <EllipsisHorizontalIcon color="#9CA3AF" size={20} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
 
             <CollapsibleSection isOpen={showWorkouts}>
               {showWorkouts && (
@@ -840,6 +978,14 @@ export default function ProgramsScreen() {
           onDelete={handleDelete}
           position={openKebab.position}
         />
+
+        {/* Workouts Section Kebab Popover */}
+        <WorkoutsKebabPopover
+          visible={showWorkoutsKebab}
+          onClose={() => setShowWorkoutsKebab(false)}
+          onAddWorkout={handleAddWorkoutPress}
+          position={workoutsKebabPosition}
+        />
       </SafeAreaView>
 
       {/* Delete Confirmation Modal */}
@@ -855,6 +1001,16 @@ export default function ProgramsScreen() {
         visible={showToast}
         message={toastMessage || 'Done!'}
         onHide={() => setShowToast(false)}
+      />
+
+      {/* Create Workout Modal */}
+      <CreateWorkoutModal
+        visible={showCreateWorkoutModal}
+        onClose={() => setShowCreateWorkoutModal(false)}
+        onSave={() => {
+          setToastMessage('Workout template created!');
+          setShowToast(true);
+        }}
       />
     </View>
   );
@@ -928,6 +1084,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#DFE2E6',
+  },
+  sectionKebabButton: {
+    padding: 4,
   },
   startButton: {
     height: 36,
