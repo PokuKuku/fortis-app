@@ -242,7 +242,12 @@ export async function getPendingActions(): Promise<AIPendingAction[]> {
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching pending actions:', error);
+    console.error('Error fetching pending actions:', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
     return [];
   }
 

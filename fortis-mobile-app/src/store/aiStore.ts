@@ -29,6 +29,7 @@ import {
   AI_PENDING_ACTIONS_KEY,
 } from '../constants/storageKeys';
 import { useProgramsStore } from './programsStore';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 // Simple UUID generator
 const generateId = (): string => {
@@ -309,13 +310,27 @@ export const useAIStore = create<AIState>()(
 
     // Pending actions
     loadPendingActions: async () => {
+      // Check if Supabase is configured
+      if (!isSupabaseConfigured()) {
+        console.log('Supabase not configured, skipping pending actions load');
+        return;
+      }
+
+      // Check if user is authenticated
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('User not authenticated, skipping pending actions load');
+        set({ pendingActions: [] });
+        return;
+      }
+
       set({ isLoading: true });
       try {
         const actions = await aiService.getPendingActions();
         set({ pendingActions: actions, isLoading: false });
       } catch (err) {
         console.error('Error loading pending actions:', err);
-        set({ isLoading: false });
+        set({ pendingActions: [], isLoading: false });
       }
     },
 
