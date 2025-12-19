@@ -1,8 +1,9 @@
 /**
- * AI Chat Modal
+ * AI Chat Screen
  *
- * Full-screen chat interface for AI conversations.
+ * Fullscreen chat interface for AI conversations.
  * Displays conversation history and allows sending messages.
+ * Uses native route animations for smooth bottom sheet experience.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -10,7 +11,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Modal,
   TouchableOpacity,
   TextInput,
   ScrollView,
@@ -21,73 +21,61 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import Animated, {
-  SlideInDown,
-  SlideOutDown,
   FadeIn,
-  FadeOut,
-  Easing,
 } from 'react-native-reanimated';
 import {
-  X,
-  Send,
-  Sparkles,
-  MessageSquare,
-  TrendingUp,
-  Dumbbell,
-  HelpCircle,
-  ChevronRight,
-  Camera,
-  ImageIcon,
-} from 'lucide-react-native';
+  XMarkIcon,
+  PaperAirplaneIcon,
+  SparklesIcon,
+  ChatBubbleLeftRightIcon,
+  ArrowTrendingUpIcon,
+  QuestionMarkCircleIcon,
+  ChevronRightIcon,
+  CameraIcon,
+  PhotoIcon,
+} from 'react-native-heroicons/outline';
+import { DumbbellIcon } from '@/src/components/icons/DumbbellIcon';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors } from '../../../constants/Colors';
-import { Spacing, BorderRadius, FontSizes, IconSizes } from '../../../constants/Sizes';
-import { Typography } from '../../../constants/Typography';
-import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
-import { useAIStore, selectRecentMessages } from '../../store/aiStore';
-import { AIIntent, AIConversationMessage, AIImageMimeType } from '../../types/ai';
-
-interface AIChatModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onMutationPlanReady?: () => void;
-}
+import { Colors } from '@/constants/Colors';
+import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
+import { Typography } from '@/constants/Typography';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { useAIStore } from '@/src/store/aiStore';
+import { AIIntent, AIConversationMessage, AIImageMimeType } from '@/src/types/ai';
 
 // Quick action suggestions
 const QUICK_ACTIONS = [
   {
     intent: 'QUERY_STATS' as AIIntent,
-    icon: TrendingUp,
+    icon: ArrowTrendingUpIcon,
     label: 'Check my stats',
     prompt: "What's my best bench press?",
   },
   {
     intent: 'ANALYZE_PLATEAU' as AIIntent,
-    icon: HelpCircle,
+    icon: QuestionMarkCircleIcon,
     label: 'Analyze plateau',
     prompt: 'Why has my progress stalled?',
   },
   {
     intent: 'CREATE_TEMPLATE' as AIIntent,
-    icon: Dumbbell,
+    icon: DumbbellIcon,
     label: 'Create workout',
     prompt: 'Create a push day workout',
   },
   {
     intent: 'CREATE_PROGRAM' as AIIntent,
-    icon: MessageSquare,
+    icon: ChatBubbleLeftRightIcon,
     label: 'Create program',
     prompt: 'Build me a 4-day program',
   },
 ];
 
-export function AIChatModal({
-  visible,
-  onClose,
-  onMutationPlanReady,
-}: AIChatModalProps) {
+export default function AIChatScreen() {
+  const router = useRouter();
   const [inputText, setInputText] = useState('');
   const [selectedIntent, setSelectedIntent] = useState<AIIntent>('QUERY_STATS');
   const scrollViewRef = useRef<ScrollView>(null);
@@ -114,12 +102,9 @@ export function AIChatModal({
     }
   }, [messages.length]);
 
-  // Notify parent when mutation plan is ready
-  useEffect(() => {
-    if (currentMutationPlan && onMutationPlanReady) {
-      onMutationPlanReady();
-    }
-  }, [currentMutationPlan, onMutationPlanReady]);
+  const handleClose = () => {
+    router.back();
+  };
 
   const handleSend = async () => {
     // Allow send if there's text OR an image attached
@@ -226,7 +211,7 @@ export function AIChatModal({
       >
         {!isUser && (
           <View style={styles.assistantAvatar}>
-            <Sparkles color={Colors.success} size={IconSizes.sm} />
+            <SparklesIcon color={Colors.success} size={IconSizes.sm} />
           </View>
         )}
         <View
@@ -260,214 +245,199 @@ export function AIChatModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="none"
-      transparent
-      onRequestClose={onClose}
-    >
-      <Animated.View
-        entering={FadeIn.duration(200)}
-        exiting={FadeOut.duration(150)}
-        style={styles.overlay}
-      >
-        <Animated.View
-          entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
-          exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
-          style={styles.modalContainer}
-        >
-          <SafeAreaView style={styles.safeArea} edges={['top']}>
-            <StainlessSteelPattern />
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StainlessSteelPattern />
 
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <View style={styles.aiIcon}>
-                  <Sparkles color={Colors.success} size={IconSizes.md} />
-                </View>
-                <View>
-                  <Text style={styles.headerTitle}>Fortis AI</Text>
-                  <Text style={styles.headerSubtitle}>
-                    {isSendingMessage ? 'Thinking...' : 'Ask me anything'}
-                  </Text>
-                </View>
+      {/* Drag handle for visual indication of bottom sheet */}
+      <View style={styles.dragHandleContainer}>
+        <View style={styles.dragHandle} />
+      </View>
+
+      {/* Header with "Fortis Analyst" title */}
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <View style={styles.aiIcon}>
+            <SparklesIcon color={Colors.success} size={IconSizes.md} />
+          </View>
+          <View>
+            <Text style={styles.fortisText}>Fortis</Text>
+            <Text style={styles.headerSubtitle}>
+              {isSendingMessage ? 'Thinking...' : 'Ask me anything'}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.clearButton}
+            onPress={clearConversation}
+          >
+            <Text style={styles.clearButtonText}>Clear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+            <XMarkIcon color={Colors.textSecondary} size={IconSizes.lg} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* Messages and Input */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.content}
+        keyboardVerticalOffset={0}
+      >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {messages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIcon}>
+                <SparklesIcon color={Colors.success} size={32} />
               </View>
-              <View style={styles.headerActions}>
-                <TouchableOpacity
-                  style={styles.clearButton}
-                  onPress={clearConversation}
-                >
-                  <Text style={styles.clearButtonText}>Clear</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                  <X color={Colors.textSecondary} size={IconSizes.lg} />
-                </TouchableOpacity>
+              <Text style={styles.emptyTitle}>
+                How can I help you train?
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                Ask about your stats, create programs, or analyze your
+                progress.
+              </Text>
+
+              {/* Quick Actions */}
+              <View style={styles.quickActions}>
+                {QUICK_ACTIONS.map((action) => (
+                  <TouchableOpacity
+                    key={action.intent}
+                    style={styles.quickAction}
+                    onPress={() => handleQuickAction(action)}
+                  >
+                    <action.icon
+                      color={Colors.textSecondary}
+                      size={IconSizes.md}
+                    />
+                    <Text style={styles.quickActionText}>
+                      {action.label}
+                    </Text>
+                    <ChevronRightIcon
+                      color={Colors.textTertiary}
+                      size={IconSizes.sm}
+                    />
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
+          ) : (
+            messages.map(renderMessage)
+          )}
 
-            {/* Messages */}
-            <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              style={styles.content}
-              keyboardVerticalOffset={0}
+          {isSendingMessage && (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator color={Colors.success} size="small" />
+              <Text style={styles.loadingText}>Thinking...</Text>
+            </View>
+          )}
+
+          {error && (
+            <TouchableOpacity
+              style={styles.errorContainer}
+              onPress={clearError}
             >
-              <ScrollView
-                ref={scrollViewRef}
-                style={styles.messagesContainer}
-                contentContainerStyle={styles.messagesContent}
-                showsVerticalScrollIndicator={false}
+              <Text style={styles.errorText}>{error}</Text>
+              <Text style={styles.errorDismiss}>Tap to dismiss</Text>
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+
+        {/* Input */}
+        <View style={styles.inputContainer}>
+          {/* Image preview */}
+          {selectedImage && (
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              style={styles.imagePreviewContainer}
+            >
+              <Image
+                source={{ uri: selectedImage.uri }}
+                style={styles.imagePreview}
+                resizeMode="cover"
+              />
+              <TouchableOpacity
+                style={styles.removeImageButton}
+                onPress={clearSelectedImage}
               >
-                {messages.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <View style={styles.emptyIcon}>
-                      <Sparkles color={Colors.success} size={32} />
-                    </View>
-                    <Text style={styles.emptyTitle}>
-                      How can I help you train?
-                    </Text>
-                    <Text style={styles.emptySubtitle}>
-                      Ask about your stats, create programs, or analyze your
-                      progress.
-                    </Text>
+                <XMarkIcon color={Colors.white} size={IconSizes.sm} />
+              </TouchableOpacity>
+            </Animated.View>
+          )}
 
-                    {/* Quick Actions */}
-                    <View style={styles.quickActions}>
-                      {QUICK_ACTIONS.map((action) => (
-                        <TouchableOpacity
-                          key={action.intent}
-                          style={styles.quickAction}
-                          onPress={() => handleQuickAction(action)}
-                        >
-                          <action.icon
-                            color={Colors.textSecondary}
-                            size={IconSizes.md}
-                          />
-                          <Text style={styles.quickActionText}>
-                            {action.label}
-                          </Text>
-                          <ChevronRight
-                            color={Colors.textTertiary}
-                            size={IconSizes.sm}
-                          />
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                ) : (
-                  messages.map(renderMessage)
-                )}
+          <View style={styles.inputWrapper}>
+            {/* Camera button */}
+            <TouchableOpacity
+              style={styles.cameraButton}
+              onPress={pickImage}
+              disabled={isSendingMessage}
+            >
+              <CameraIcon
+                color={isSendingMessage ? Colors.textTertiary : Colors.textSecondary}
+                size={IconSizes.md}
+              />
+            </TouchableOpacity>
 
-                {isSendingMessage && (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator color={Colors.success} size="small" />
-                    <Text style={styles.loadingText}>Thinking...</Text>
-                  </View>
-                )}
-
-                {error && (
-                  <TouchableOpacity
-                    style={styles.errorContainer}
-                    onPress={clearError}
-                  >
-                    <Text style={styles.errorText}>{error}</Text>
-                    <Text style={styles.errorDismiss}>Tap to dismiss</Text>
-                  </TouchableOpacity>
-                )}
-              </ScrollView>
-
-              {/* Input */}
-              <View style={styles.inputContainer}>
-                {/* Image preview */}
-                {selectedImage && (
-                  <Animated.View
-                    entering={FadeIn.duration(200)}
-                    style={styles.imagePreviewContainer}
-                  >
-                    <Image
-                      source={{ uri: selectedImage.uri }}
-                      style={styles.imagePreview}
-                      resizeMode="cover"
-                    />
-                    <TouchableOpacity
-                      style={styles.removeImageButton}
-                      onPress={clearSelectedImage}
-                    >
-                      <X color={Colors.white} size={IconSizes.sm} />
-                    </TouchableOpacity>
-                  </Animated.View>
-                )}
-
-                <View style={styles.inputWrapper}>
-                  {/* Camera button */}
-                  <TouchableOpacity
-                    style={styles.cameraButton}
-                    onPress={pickImage}
-                    disabled={isSendingMessage}
-                  >
-                    <Camera
-                      color={isSendingMessage ? Colors.textTertiary : Colors.textSecondary}
-                      size={IconSizes.md}
-                    />
-                  </TouchableOpacity>
-
-                  <TextInput
-                    style={styles.input}
-                    placeholder={selectedImage ? "Describe the workout (optional)..." : "Ask about your training..."}
-                    placeholderTextColor={Colors.textTertiary}
-                    value={inputText}
-                    onChangeText={setInputText}
-                    multiline
-                    maxLength={2000}
-                    editable={!isSendingMessage}
-                    onSubmitEditing={handleSend}
-                    returnKeyType="send"
-                  />
-                  <TouchableOpacity
-                    style={[
-                      styles.sendButton,
-                      ((!inputText.trim() && !selectedImage) || isSendingMessage) &&
-                        styles.sendButtonDisabled,
-                    ]}
-                    onPress={handleSend}
-                    disabled={(!inputText.trim() && !selectedImage) || isSendingMessage}
-                  >
-                    <Send
-                      color={
-                        (inputText.trim() || selectedImage) && !isSendingMessage
-                          ? Colors.white
-                          : Colors.textTertiary
-                      }
-                      size={IconSizes.md}
-                    />
-                  </TouchableOpacity>
-                </View>
-                <Text style={styles.inputHint}>
-                  Intent: {selectedIntent.replace('_', ' ')}{selectedImage ? ' (with image)' : ''}
-                </Text>
-              </View>
-            </KeyboardAvoidingView>
-          </SafeAreaView>
-        </Animated.View>
-      </Animated.View>
-    </Modal>
+            <TextInput
+              style={styles.input}
+              placeholder={selectedImage ? "Describe the workout (optional)..." : "Ask about your training..."}
+              placeholderTextColor={Colors.textTertiary}
+              value={inputText}
+              onChangeText={setInputText}
+              multiline
+              maxLength={2000}
+              editable={!isSendingMessage}
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+            />
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                ((!inputText.trim() && !selectedImage) || isSendingMessage) &&
+                  styles.sendButtonDisabled,
+              ]}
+              onPress={handleSend}
+              disabled={(!inputText.trim() && !selectedImage) || isSendingMessage}
+            >
+              <PaperAirplaneIcon
+                color={
+                  (inputText.trim() || selectedImage) && !isSendingMessage
+                    ? Colors.white
+                    : Colors.textTertiary
+                }
+                size={IconSizes.md}
+              />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.inputHint}>
+            Intent: {selectedIntent.replace('_', ' ')}{selectedImage ? ' (with image)' : ''}
+          </Text>
+        </View>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: Colors.overlayHeavy,
-  },
-  modalContainer: {
+  container: {
     flex: 1,
     backgroundColor: Colors.background,
-    marginTop: 40,
-    borderTopLeftRadius: BorderRadius['2xl'],
-    borderTopRightRadius: BorderRadius['2xl'],
-    overflow: 'hidden',
   },
-  safeArea: {
-    flex: 1,
+  dragHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   header: {
     flexDirection: 'row',
@@ -491,9 +461,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerTitle: {
-    ...Typography.h4,
+  fortisText: {
+    fontFamily: 'BankGothicMediumBT',
+    fontSize: 18,
     color: Colors.textPrimary,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
     ...Typography.caption,
@@ -687,7 +660,6 @@ const styles = StyleSheet.create({
     marginLeft: Spacing.xs,
     textTransform: 'capitalize',
   },
-  // Image-related styles
   messageImage: {
     width: '100%',
     height: 150,
@@ -719,5 +691,3 @@ const styles = StyleSheet.create({
     marginRight: Spacing.xs,
   },
 });
-
-export default AIChatModal;

@@ -67,7 +67,7 @@ export function AnimatedLogo() {
           x="0"
           y="24"
           textAnchor="start"
-          fontFamily="BankGothic"
+          fontFamily="BankGothicMediumBT"
         >
           FORTIS
         </SvgText>

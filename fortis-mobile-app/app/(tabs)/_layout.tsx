@@ -1,4 +1,4 @@
-import { Tabs, usePathname } from 'expo-router';
+import { Tabs, usePathname, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   View,
@@ -17,6 +17,8 @@ import { CalendarDaysIcon, Bars3Icon, Squares2X2Icon, UserIcon, SparklesIcon } f
 import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
 import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
+import { useAIStore } from '../../src/store/aiStore';
+import { Colors } from '../../constants/Colors';
 import {
   PRIMARY_MUSCLES,
   CATEGORIES,
@@ -26,13 +28,15 @@ import {
   MECHANICS,
 } from '@/src/constants/exerciseOptions';
 export default function TabLayout() {
+  const router = useRouter();
   const pathname = usePathname();
   const isExercises = pathname?.includes('/exercises');
   // Tab bar stays at fixed position
   const tabBarBottom = 12;
-  const [showActionSheet, setShowActionSheet] = useState(false);
-  const sheetTranslate = useRef(new Animated.Value(1)).current; // 1 hidden, 0 visible
-  const sheetOpacity = useRef(new Animated.Value(0)).current;
+
+  // AI Store
+  const { pendingActions } = useAIStore();
+  const hasPendingActions = pendingActions.length > 0;
   const fabOpacity = useRef(new Animated.Value(1)).current;
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [exerciseName, setExerciseName] = useState('');
@@ -55,33 +59,6 @@ export default function TabLayout() {
   const primaryShake = useRef(new Animated.Value(0)).current;
   const categoryShake = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (!isExercises && showActionSheet) {
-      setShowActionSheet(false);
-    }
-  }, [isExercises, showActionSheet]);
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(sheetOpacity, {
-        toValue: showActionSheet ? 1 : 0,
-        duration: showActionSheet ? 200 : 150,
-        useNativeDriver: true,
-      }),
-      Animated.spring(sheetTranslate, {
-        toValue: showActionSheet ? 0 : 1,
-        tension: 120,
-        friction: 16,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fabOpacity, {
-        toValue: showActionSheet ? 0 : 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fabOpacity, sheetOpacity, sheetTranslate, showActionSheet]);
-
   // Track exercise detail modal visibility to disable FAB interactions
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('exerciseDetailVisible', (visible: boolean) => {
@@ -91,10 +68,8 @@ export default function TabLayout() {
   }, []);
 
   const handleFabPress = () => {
-    if (!isExercises) return;
-    setShowActionSheet(true);
-    // Clear any lingering form errors when reopening the sheet
-    setFieldErrors({ name: false, primary: false, category: false });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/ai/chat');
   };
 
   const resetExerciseForm = () => {
@@ -190,7 +165,6 @@ export default function TabLayout() {
       );
       setEditingExerciseId(exercise.id || null);
       setFieldErrors({ name: false, primary: false, category: false });
-      setShowActionSheet(false);
       setShowAddExerciseModal(true);
     });
     return () => sub.remove();
@@ -343,64 +317,23 @@ export default function TabLayout() {
           ],
         },
       ]}
-      pointerEvents={showActionSheet ? 'none' : 'auto'}
+      pointerEvents="auto"
     >
       <GlassButton
         circular
         size={60}
         style={styles.plusButton}
         onPress={handleFabPress}
-        pointerEvents={showActionSheet || detailModalVisible ? 'none' : 'auto'}
+        pointerEvents={detailModalVisible ? 'none' : 'auto'}
       >
         <SparklesIcon color="#fff" size={30} strokeWidth={1.5} />
+        {hasPendingActions && (
+          <View style={styles.aiBadge}>
+            <Text style={styles.aiBadgeText}>!</Text>
+          </View>
+        )}
       </GlassButton>
     </Animated.View>
-
-    {/* Exercises Action Sheet */}
-    {isExercises && (showActionSheet || sheetOpacity._value > 0) && (
-      <Animated.View
-        style={[styles.actionSheetOverlay, { opacity: sheetOpacity }]}
-        pointerEvents={showActionSheet ? 'auto' : 'none'}
-      >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
-          onPress={() => setShowActionSheet(false)}
-        />
-        <Animated.View
-          style={[
-            styles.actionSheet,
-            {
-              transform: [
-                {
-                  translateY: sheetTranslate.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 260],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.actionHandle} />
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => {
-              setShowActionSheet(false);
-              setShowAddExerciseModal(true);
-            }}
-          >
-            <Text style={styles.actionButtonText}>Add Custom Exercise</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => setShowActionSheet(false)}>
-            <Text style={styles.actionButtonText}>Add Custom Muscle Group</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => setShowActionSheet(false)}>
-            <Text style={styles.actionButtonText}>Add Custom Category</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </Animated.View>
-    )}
 
     {/* Add Custom Exercise Modal */}
     <Modal transparent visible={showAddExerciseModal} animationType="fade">
@@ -633,6 +566,22 @@ const styles = StyleSheet.create({
   plusButton: {
     borderWidth: 2,
     borderColor: 'rgba(36, 36, 36, 0.9)',
+  },
+  aiBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#f59e0b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  aiBadgeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
   },
   actionSheetOverlay: {
     position: 'absolute',

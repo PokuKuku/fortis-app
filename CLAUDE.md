@@ -84,12 +84,14 @@ app/                    # Expo Router file-based routing
 ├── _layout.tsx         # Root layout (GestureHandler, fonts, Stack)
 ├── index.tsx           # Splash/landing screen
 ├── (tabs)/             # Tab navigator group
-│   ├── _layout.tsx     # Tab bar + FAB for exercises
+│   ├── _layout.tsx     # Tab bar + FAB for AI chat
 │   ├── index.tsx       # Home/workout screen (CANONICAL UI REFERENCE)
 │   ├── start.tsx       # Start workout screen
 │   ├── exercises.tsx   # Exercise library
 │   ├── history.tsx     # Workout history
 │   └── profile.tsx     # User profile
+├── ai/
+│   └── chat.tsx        # AI chat fullscreen route
 ├── exercise/
 │   └── [id].tsx        # Exercise details screen (dynamic route)
 └── workout/
@@ -99,6 +101,7 @@ src/
 ├── components/
 │   ├── ui/             # Base UI primitives
 │   ├── shared/         # Cross-feature components
+│   ├── ai/             # AI components (AIMutationPreviewModal, AIContainer)
 │   └── workout/        # Workout components (ExerciseCard, SetRow, NumberPadModal, modals/)
 ├── hooks/              # Custom hooks (useElapsedTime, useRestTimerTick, useExercises)
 ├── services/           # Service layer (exerciseService.ts)
@@ -172,6 +175,38 @@ constants/              # Design system tokens
 | List | Bars3Icon | react-native-heroicons/outline |
 | Grid/Layout | Squares2X2Icon | react-native-heroicons/outline |
 | Backspace | BackspaceIcon | react-native-heroicons/outline |
+| AI/Sparkles | SparklesIcon | react-native-heroicons/outline |
+| Send/Submit | PaperAirplaneIcon | react-native-heroicons/outline |
+| Chat | ChatBubbleLeftRightIcon | react-native-heroicons/outline |
+| Trending Up/Stats | ArrowTrendingUpIcon | react-native-heroicons/outline |
+| Question | QuestionMarkCircleIcon | react-native-heroicons/outline |
+| Camera | CameraIcon | react-native-heroicons/outline |
+| Photo/Image | PhotoIcon | react-native-heroicons/outline |
+
+### Custom Fonts
+
+**Bank Gothic** (`assets/fonts/BankGothicMediumBT.ttf`):
+- Used for: AI chat title ("Fortis")
+- Loaded in: `app/_layout.tsx`
+- Font family name: `'BankGothicMediumBT'`
+
+**Usage**:
+```tsx
+<Text style={{
+  fontFamily: 'BankGothicMediumBT',
+  fontSize: 18,
+  fontWeight: '700',
+}}>
+  Fortis
+</Text>
+```
+
+**Loading** (in `app/_layout.tsx`):
+```tsx
+const [fontsLoaded] = useFonts({
+  'BankGothicMediumBT': require('../assets/fonts/BankGothicMediumBT.ttf'),
+});
+```
 
 ### State Management Stores
 
@@ -215,7 +250,6 @@ updateLastPerformed(id: string): Promise<void>
 ```tsx
 // Conversation
 conversation: AIConversation | null
-isConversationOpen: boolean
 isSendingMessage: boolean
 
 // Pending mutations awaiting user confirmation
@@ -230,6 +264,7 @@ selectedImage: { uri: string; base64: string; mimeType: AIImageMimeType } | null
 - Handles image-to-template generation (base64 encoding)
 - Applies mutations to workouts with user confirmation
 - Tracks rate limits for API safety
+- **AI chat is a fullscreen route** (`app/ai/chat.tsx`), not a modal
 
 ### Key Patterns
 
@@ -458,6 +493,60 @@ Each mutation tracks:
 - Previous state (for undo)
 - Timestamp of application
 
+### AI Chat Interface
+
+**Location**: `app/ai/chat.tsx` (fullscreen route)
+
+The AI chat is a fullscreen bottom sheet route with native animations, matching the workout logger's UX.
+
+**Architecture**:
+- **Route-based**: Uses Expo Router navigation (not a modal)
+- **Animation**: Native `slide_from_bottom` with gesture support
+- **Icons**: Heroicons (design system compliant)
+- **Title**: "Fortis" in Bank Gothic font
+- **Drag handle**: Visual indicator at top (matches workout logger)
+
+**Navigation**:
+```tsx
+// From FAB or anywhere in the app
+import { useRouter } from 'expo-router';
+const router = useRouter();
+router.push('/ai/chat');  // Opens AI chat
+
+// Close from within chat screen
+router.back();  // Dismisses AI chat
+```
+
+**Route Configuration** (`app/_layout.tsx`):
+```tsx
+<Stack.Screen
+  name="ai/chat"
+  options={{
+    animation: 'slide_from_bottom',
+    gestureEnabled: true,
+    gestureDirection: 'vertical',
+    headerShown: false,
+  }}
+/>
+```
+
+**Key Features**:
+- **Quick Actions**: 4 suggested prompts when chat is empty
+  - Check stats (ArrowTrendingUpIcon)
+  - Analyze plateau (QuestionMarkCircleIcon)
+  - Create workout (DumbbellIcon)
+  - Create program (ChatBubbleLeftRightIcon)
+- **Image Picker**: Camera button for workout photo uploads
+- **Intent System**: Automatically categorizes user requests
+- **Message History**: Persisted conversation with scroll-to-bottom
+- **Error Handling**: Inline error display with dismiss action
+- **Loading States**: "Thinking..." indicator during AI processing
+
+**Mutation Preview**:
+When AI generates program/template changes, a separate modal (`AIMutationPreviewModal`) appears over the chat to show proposed changes. After user confirms, the chat remains open to show success message.
+
+**DO NOT** create modal versions of AI chat - it's a fullscreen route by design.
+
 ## Design System (MANDATORY)
 
 ### Pre-Implementation Checklist
@@ -607,6 +696,80 @@ import { ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 - `message` - Centered message text style
 - `actions` - Two-button row layout
 - `buttonPressed` - Apply on pressed state
+
+**Fullscreen Bottom Sheet Routes** (for immersive screens like AI chat, workout logger):
+
+For screens that should feel like bottom sheets but with native navigation:
+
+```tsx
+// Route configuration in app/_layout.tsx
+<Stack.Screen
+  name="feature/screen"
+  options={{
+    animation: 'slide_from_bottom',
+    gestureEnabled: true,
+    gestureDirection: 'vertical',
+    headerShown: false,
+  }}
+/>
+
+// Screen component structure
+export default function FeatureScreen() {
+  const router = useRouter();
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <StainlessSteelPattern />
+
+      {/* Drag handle (matches workout logger) */}
+      <View style={styles.dragHandleContainer}>
+        <View style={styles.dragHandle} />
+      </View>
+
+      {/* Header with close button */}
+      <View style={styles.header}>
+        <Text style={styles.title}>Screen Title</Text>
+        <TouchableOpacity onPress={() => router.back()}>
+          <XMarkIcon color={Colors.textSecondary} size={IconSizes.lg} />
+        </TouchableOpacity>
+      </View>
+
+      {/* Content */}
+      <View style={styles.content}>
+        {/* ... */}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  dragHandleContainer: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  // ... rest of styles
+});
+```
+
+**Examples**:
+- `app/workout/active.tsx` - Workout logger
+- `app/ai/chat.tsx` - AI chat interface
+
+**Benefits**:
+- Hardware-accelerated animations
+- Native gesture handling (swipe-to-dismiss)
+- Better performance than modals
+- Proper navigation stack integration
 
 ### Animation Standards
 

@@ -1,14 +1,13 @@
 /**
  * AI Container
  *
- * Main container that manages the AI FAB, chat modal, and mutation preview.
+ * Manages the mutation preview modal for AI-generated changes.
+ * Chat interface is now a fullscreen route in app/ai/chat.tsx
  * Add this component to your app's root layout to enable AI features.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useAIStore } from '../../store/aiStore';
-import { AIFab } from './AIFab';
-import { AIChatModal } from './AIChatModal';
 import { AIMutationPreviewModal } from './AIMutationPreviewModal';
 
 interface AIContainerProps {
@@ -19,11 +18,8 @@ interface AIContainerProps {
 }
 
 export function AIContainer({ hideFab = false, fabBottom = 88 }: AIContainerProps) {
-  const [showChat, setShowChat] = useState(false);
   const [showMutationPreview, setShowMutationPreview] = useState(false);
 
-  const isConversationOpen = useAIStore((state) => state.isConversationOpen);
-  const closeConversation = useAIStore((state) => state.closeConversation);
   const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
   const loadConversation = useAIStore((state) => state.loadConversation);
   const loadPendingActions = useAIStore((state) => state.loadPendingActions);
@@ -34,26 +30,12 @@ export function AIContainer({ hideFab = false, fabBottom = 88 }: AIContainerProp
     loadPendingActions();
   }, [loadConversation, loadPendingActions]);
 
-  // Sync modal state with store
-  useEffect(() => {
-    setShowChat(isConversationOpen);
-  }, [isConversationOpen]);
-
   // Show mutation preview when plan is ready
   useEffect(() => {
-    if (currentMutationPlan && showChat) {
+    if (currentMutationPlan) {
       setShowMutationPreview(true);
     }
-  }, [currentMutationPlan, showChat]);
-
-  const handleFabPress = () => {
-    setShowChat(true);
-  };
-
-  const handleChatClose = () => {
-    setShowChat(false);
-    closeConversation();
-  };
+  }, [currentMutationPlan]);
 
   const handleMutationPreviewClose = () => {
     setShowMutationPreview(false);
@@ -61,25 +43,10 @@ export function AIContainer({ hideFab = false, fabBottom = 88 }: AIContainerProp
 
   const handleMutationConfirm = () => {
     setShowMutationPreview(false);
-    // Keep chat open to show success message
   };
 
   return (
     <>
-      {/* FAB Button */}
-      <AIFab
-        bottom={fabBottom}
-        hidden={hideFab}
-        onPress={handleFabPress}
-      />
-
-      {/* Chat Modal */}
-      <AIChatModal
-        visible={showChat}
-        onClose={handleChatClose}
-        onMutationPlanReady={() => setShowMutationPreview(true)}
-      />
-
       {/* Mutation Preview Modal */}
       <AIMutationPreviewModal
         visible={showMutationPreview}

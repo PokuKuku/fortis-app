@@ -277,7 +277,7 @@ export default function SplashScreen() {
             x="160"
             y="70"
             textAnchor="middle"
-            fontFamily="BankGothic, sans-serif"
+            fontFamily="BankGothicMediumBT, sans-serif"
           >
             FORTIS
           </SvgText>

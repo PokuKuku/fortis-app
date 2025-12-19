@@ -13,7 +13,7 @@ export default function RootLayout() {
   const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
 
   const [fontsLoaded] = useFonts({
-    'BankGothic': require('../assets/fonts/BankGothicMediumBT.ttf'),
+    'BankGothicMediumBT': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
 
   // Load persisted preferences on app start
@@ -45,6 +45,15 @@ export default function RootLayout() {
               animation: 'slide_from_bottom',
               gestureEnabled: true,
               gestureDirection: 'vertical',
+            }}
+          />
+          <Stack.Screen
+            name="ai/chat"
+            options={{
+              animation: 'slide_from_bottom',
+              gestureEnabled: true,
+              gestureDirection: 'vertical',
+              headerShown: false,
             }}
           />
           <Stack.Screen
