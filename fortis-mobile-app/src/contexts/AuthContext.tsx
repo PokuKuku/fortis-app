@@ -281,10 +281,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Sign out
   const signOut = useCallback(async () => {
-    await supabase.auth.signOut();
+    // Clear state immediately - UI updates right away
     setUser(null);
     setSession(null);
     setProfile(null);
+
+    // Fire and forget - clean up Supabase session in background
+    supabase.auth.signOut().catch(err => {
+      console.warn('Sign out error:', err);
+    });
   }, []);
 
   // Update profile

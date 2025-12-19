@@ -899,17 +899,7 @@ export default function ProgramsScreen() {
 
             <CollapsibleSection isOpen={showPrograms}>
               {showPrograms && (
-                isLoadingPrograms ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#22c55e" />
-                    <Text style={styles.loadingText}>Loading programs...</Text>
-                  </View>
-                ) : programs.length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No programs yet</Text>
-                    <Text style={styles.emptySubtext}>Create your first program with AI</Text>
-                  </View>
-                ) : (
+                programs.length === 0 ? null : (
                   <DraggableGrid
                     data={programs}
                     keyExtractor={(item) => `program-${item.id}`}
@@ -956,17 +946,7 @@ export default function ProgramsScreen() {
 
             <CollapsibleSection isOpen={showWorkouts}>
               {showWorkouts && (
-                isLoadingPrograms ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="small" color="#22c55e" />
-                    <Text style={styles.loadingText}>Loading workouts...</Text>
-                  </View>
-                ) : workouts.length === 0 ? (
-                  <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyText}>No workouts yet</Text>
-                    <Text style={styles.emptySubtext}>Create programs to see workouts here</Text>
-                  </View>
-                ) : (
+                workouts.length === 0 ? null : (
                   <DraggableGrid
                     data={workouts}
                     keyExtractor={(item) => `workout-${item.id}`}

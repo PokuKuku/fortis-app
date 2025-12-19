@@ -1,99 +1,18 @@
 import { useEffect, useRef, useMemo, useState } from 'react';
 import { View, StyleSheet, Animated, Dimensions, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
   Stop,
   Text as SvgText,
-  Line,
-  G,
-  RadialGradient,
-  Rect,
-  Pattern,
 } from 'react-native-svg';
 
 const { width, height } = Dimensions.get('window');
 
 const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
-
-// Stainless Steel Diagonal Pattern
-function StainlessSteelPattern() {
-  return (
-    <View style={StyleSheet.absoluteFillObject}>
-      {/* Base gradient */}
-      <LinearGradient
-        colors={['#000000', '#0f0f10', '#000000']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      <Svg width={width} height={height} style={StyleSheet.absoluteFillObject} pointerEvents="none">
-        <Defs>
-          <Pattern id="slashPattern" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-            <Line
-              x1="3"
-              y1="9"
-              x2="9"
-              y2="3"
-              stroke="rgba(255,255,255,0.12)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-            <Line
-              x1="15"
-              y1="15"
-              x2="21"
-              y2="21"
-              stroke="rgba(255,255,255,0.12)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </Pattern>
-
-          {/* Vignette */}
-          <RadialGradient id="vignette" cx="50%" cy="50%" r="70%">
-            <Stop offset="0%" stopColor="rgba(0,0,0,0)" />
-            <Stop offset="100%" stopColor="rgba(0,0,0,0.25)" />
-          </RadialGradient>
-        </Defs>
-
-        {/* Stainless diagonal slash overlay */}
-        <Rect width="100%" height="100%" fill="url(#slashPattern)" opacity={0.18} />
-
-        {/* Brushed metal texture - horizontal grain */}
-        <G opacity={0.12}>
-          {Array.from({ length: Math.ceil(height / 2) }).map((_, i) => (
-            <Line
-              key={`h-${i}`}
-              x1={0}
-              y1={i * 2}
-              x2={width}
-              y2={i * 2}
-              stroke="rgba(255,255,255,0.12)"
-              strokeWidth={1}
-            />
-          ))}
-        </G>
-
-        {/* Vignette overlay */}
-        <Rect width={width} height={height} fill="url(#vignette)" />
-      </Svg>
-
-      {/* Subtle corner vignette */}
-      <LinearGradient
-        colors={["transparent", 'rgba(0,0,0,0.14)']}
-        start={{ x: 0.2, y: 0.2 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-        pointerEvents="none"
-      />
-    </View>
-  );
-}
 
 // Floating Particle
 function FloatingParticle({
@@ -169,7 +88,7 @@ export default function SplashScreen() {
   const shineAnim = useRef(new Animated.Value(0)).current;
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [320, -320],
+    outputRange: [-320, 320],
   });
 
   // Generate 15 particles
@@ -216,25 +135,21 @@ export default function SplashScreen() {
       }),
     ]).start();
 
-    const shineLoop = Animated.loop(
-      Animated.timing(shineAnim, {
-        toValue: 1,
-        duration: 5000,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      })
-    );
+    // Single pass shine animation
+    Animated.timing(shineAnim, {
+      toValue: 1,
+      duration: 2500,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    }).start();
 
-    shineLoop.start();
-
-    // Mark splash as complete after animation
+    // Mark splash as complete after one full animation pass
     const timer = setTimeout(() => {
       setSplashComplete(true);
     }, 2500);
 
     return () => {
       clearTimeout(timer);
-      shineLoop.stop();
     };
   }, [fadeAnim, scaleAnim, shineAnim]);
 
@@ -307,7 +222,7 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#0a0a0a',
     alignItems: 'center',
     justifyContent: 'center',
   },
