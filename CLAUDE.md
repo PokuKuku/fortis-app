@@ -37,6 +37,12 @@ npm run ios            # Run on iOS simulator
 npm run android        # Run on Android emulator
 npm start -- --clear   # Clear bundler cache
 
+# Testing
+npm test               # Run all tests
+npm test:watch         # Run tests in watch mode
+npm test:coverage      # Run tests with coverage report
+npm test -- ComponentName  # Run specific test file
+
 # Supabase (requires Docker)
 supabase start         # Start local instance
 supabase db reset      # Reset and apply migrations
