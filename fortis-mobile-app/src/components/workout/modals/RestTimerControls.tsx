@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 18,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.5,
   },

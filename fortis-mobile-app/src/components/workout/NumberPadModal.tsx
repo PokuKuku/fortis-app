@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   },
   numberText: {
     fontSize: 28,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   controlsColumn: {
@@ -381,12 +381,12 @@ const styles = StyleSheet.create({
   },
   rpeButtonText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   unitButtonText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
   },
@@ -419,7 +419,7 @@ const styles = StyleSheet.create({
   },
   nextText: {
     fontSize: 18,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: '#fff',
     textTransform: 'uppercase',
     zIndex: 10,

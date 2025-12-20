@@ -433,7 +433,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.success,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -475,7 +475,7 @@ const styles = StyleSheet.create({
   },
   finishButtonText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.white,
     textTransform: 'uppercase',
     letterSpacing: 1,

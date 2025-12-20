@@ -327,7 +327,7 @@ const styles = StyleSheet.create({
   },
   numberText: {
     fontSize: 28,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   controlsColumn: {
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   },
   dashButtonText: {
     fontSize: 28,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   incrementRow: {
@@ -375,7 +375,7 @@ const styles = StyleSheet.create({
   },
   doneText: {
     fontSize: 18,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: '#fff',
     textTransform: 'uppercase',
     zIndex: 10,

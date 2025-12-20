@@ -445,7 +445,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     fontSize: 16,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     letterSpacing: 1.2,
   },
@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
   },
   typeButtonText: {
     fontSize: 9,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.2,
   },
 
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   },
   pickerValue: {
     fontSize: 32,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textTertiary,
     fontVariant: ['tabular-nums'],
   },
@@ -555,7 +555,7 @@ const styles = StyleSheet.create({
   },
   pickerUnit: {
     fontSize: 14,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textTertiary,
     marginLeft: 4,
     marginTop: 12,
@@ -596,14 +596,14 @@ const styles = StyleSheet.create({
   },
   selectionLabel: {
     fontSize: FontSizes.xs,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textTertiary,
     letterSpacing: 1,
     marginBottom: Spacing.xs,
   },
   selectionValue: {
     fontSize: 28,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.success,
     letterSpacing: 2,
     fontVariant: ['tabular-nums'],
@@ -638,7 +638,7 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.white,
     letterSpacing: 1.5,
   },
@@ -697,7 +697,7 @@ const styles = StyleSheet.create({
   },
   typeSelectorText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     letterSpacing: 0.5,
   },

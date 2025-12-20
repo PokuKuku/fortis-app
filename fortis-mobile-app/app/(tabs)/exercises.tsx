@@ -454,9 +454,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: '700',
+    fontFamily: 'BankGothicBT-Medium',
     color: '#FFFFFF',
-    fontFamily: 'BankGothic',
   },
   searchContainer: {
     paddingHorizontal: 24,

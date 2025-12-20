@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
   },
   whatsRpeText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothic',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
   },
   closeButton: {
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   },
   valueText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothic',
+    fontFamily: 'BankGothicBT-Medium',
   },
   valueTextSelected: {
     color: Colors.background,

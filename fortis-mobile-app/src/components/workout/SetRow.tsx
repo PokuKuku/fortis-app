@@ -438,7 +438,7 @@ const styles = StyleSheet.create({
   },
   setBadgeText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.3,
   },
   previousCol: {
@@ -447,7 +447,7 @@ const styles = StyleSheet.create({
   },
   previousText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textTertiary,
     letterSpacing: 0.3,
   },
@@ -479,7 +479,7 @@ const styles = StyleSheet.create({
   },
   inputText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textAlign: 'center',
     letterSpacing: 0.3,
@@ -552,7 +552,7 @@ const styles = StyleSheet.create({
   },
   rpeBadgeText: {
     fontSize: 10,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.background,
     letterSpacing: 0.3,
   },

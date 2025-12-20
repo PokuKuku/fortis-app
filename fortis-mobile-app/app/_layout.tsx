@@ -16,7 +16,7 @@ export default function RootLayout() {
   const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
 
   const [fontsLoaded] = useFonts({
-    'BankGothicMediumBT': require('../assets/fonts/BankGothicMediumBT.ttf'),
+    'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
 
   // Load persisted preferences on app start

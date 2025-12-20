@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: FontSizes.lg,
-    fontFamily: 'BankGothic',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textAlign: 'center',
   },
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   },
   rpeText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothic',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   rirText: {

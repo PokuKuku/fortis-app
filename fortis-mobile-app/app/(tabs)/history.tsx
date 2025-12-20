@@ -238,9 +238,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   sectionTitle: {
-    ...Typography.h1,
+    fontSize: 24,
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
-    fontFamily: 'BankGothicMediumBT',
   },
   workoutCount: {
     ...Typography.caption,

@@ -133,7 +133,7 @@ export default function AuthWelcomeScreen() {
                 x="140"
                 y="52"
                 textAnchor="middle"
-                fontFamily="BankGothicMediumBT, sans-serif"
+                fontFamily="BankGothicBT-Medium, sans-serif"
               >
                 FORTIS
               </SvgText>

@@ -191,9 +191,9 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.md,
   },
   sectionTitle: {
-    ...Typography.h1,
+    fontSize: 24,
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
-    fontFamily: 'BankGothicMediumBT',
   },
   scrollView: {
     flex: 1,

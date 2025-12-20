@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   },
   elapsedTime: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.5,
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
   },
   restTimerText: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.5,
     textAlign: 'center',
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
   },
   dateText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
@@ -231,7 +231,7 @@ const styles = StyleSheet.create({
   },
   workoutName: {
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 1,

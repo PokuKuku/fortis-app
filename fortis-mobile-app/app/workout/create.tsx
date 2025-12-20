@@ -521,7 +521,7 @@ const styles = StyleSheet.create({
   exerciseName: {
     flex: 1,
     fontSize: FontSizes.base,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -548,7 +548,7 @@ const styles = StyleSheet.create({
   },
   headerText: {
     fontSize: 13,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -624,7 +624,7 @@ const styles = StyleSheet.create({
   },
   addSetText: {
     fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.success,
     textTransform: 'uppercase',
     letterSpacing: 0.8,

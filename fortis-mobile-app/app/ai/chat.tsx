@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fortisText: {
-    fontFamily: 'BankGothicMediumBT',
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: 18,
     color: Colors.textPrimary,
     fontWeight: '700',

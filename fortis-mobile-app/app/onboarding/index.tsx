@@ -80,7 +80,7 @@ export default function OnboardingWelcomeScreen() {
                 x="110"
                 y="42"
                 textAnchor="middle"
-                fontFamily="BankGothicMediumBT, sans-serif"
+                fontFamily="BankGothicBT-Medium, sans-serif"
               >
                 FORTIS
               </SvgText>
