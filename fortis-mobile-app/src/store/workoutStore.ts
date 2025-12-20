@@ -24,6 +24,7 @@ import {
   REST_TIMER_SETTINGS_KEY,
   EXERCISE_STICKY_NOTES_KEY,
   EXERCISE_WEIGHT_UNITS_KEY,
+  BODY_TYPE_KEY,
 } from '../constants/storageKeys';
 import { syncWorkoutSession } from '../services/workoutHistoryService';
 import {
@@ -77,6 +78,9 @@ interface WorkoutState {
 
   // Weight units (persist across sessions, keyed by exerciseId)
   weightUnits: Record<string, WeightUnit>;
+
+  // Body type preference for muscle heatmap
+  bodyType: 'male' | 'female';
 
   // RPE selector state
   showRpeSelector: boolean;
@@ -142,6 +146,10 @@ interface WorkoutState {
   toggleWeightUnit: (exerciseId: string) => Promise<void>;
   loadWeightUnits: () => Promise<void>;
 
+  // Actions - Body Type
+  setBodyType: (type: 'male' | 'female') => Promise<void>;
+  loadBodyType: () => Promise<void>;
+
   // Actions - Number Pad
   openNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
   closeNumberPad: () => void;
@@ -176,6 +184,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     activeNumberPad: null,
     stickyNotes: {},
     weightUnits: {},
+    bodyType: 'male',
     showRpeSelector: false,
     showRpeHelp: false,
 
@@ -999,6 +1008,31 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
       } catch (error) {
         console.warn('Failed to load weight units:', error);
+      }
+    },
+
+    // ========================================
+    // Body Type Actions
+    // ========================================
+
+    setBodyType: async (type) => {
+      set({ bodyType: type });
+
+      try {
+        await AsyncStorage.setItem(BODY_TYPE_KEY, type);
+      } catch (error) {
+        console.warn('Failed to save body type:', error);
+      }
+    },
+
+    loadBodyType: async () => {
+      try {
+        const stored = await AsyncStorage.getItem(BODY_TYPE_KEY);
+        if (stored === 'male' || stored === 'female') {
+          set({ bodyType: stored });
+        }
+      } catch (error) {
+        console.warn('Failed to load body type:', error);
       }
     },
 

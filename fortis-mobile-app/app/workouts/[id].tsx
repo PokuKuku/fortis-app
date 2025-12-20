@@ -10,16 +10,19 @@ import { GlassButton } from '@/components/GlassButton';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights, IconSizes } from '@/constants/Sizes';
 import { useWorkout } from '@/src/hooks/usePrograms';
-import { HubHeader, HubExerciseRow, HubStatsSection } from '@/src/components/hub';
+import { HubHeader, HubExerciseRow } from '@/src/components/hub';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 import * as ProgramService from '@/src/services/programService';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
+  const bodyType = useWorkoutStore((s) => s.bodyType);
 
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -145,9 +148,17 @@ export default function WorkoutDetailScreen() {
           </Animated.View>
         )}
 
-        {/* Start Workout Button */}
+        {/* Muscle Heatmap Section */}
         <Animated.View
           entering={FadeInDown.delay(200).duration(400)}
+          style={styles.section}
+        >
+          <MuscleHeatmap exercises={workout.exercises} gender={bodyType} />
+        </Animated.View>
+
+        {/* Start Workout Button */}
+        <Animated.View
+          entering={FadeInDown.delay(300).duration(400)}
           style={styles.startButtonContainer}
         >
           <GlassButton
@@ -159,17 +170,6 @@ export default function WorkoutDetailScreen() {
               <Text style={styles.startButtonText}>Start Workout</Text>
             </View>
           </GlassButton>
-        </Animated.View>
-
-        {/* Stats Section */}
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(400)}
-          style={styles.section}
-        >
-          <HubStatsSection
-            stats={workout.stats}
-            totalExercises={workout.exercises.length}
-          />
         </Animated.View>
 
         {/* Exercises Section */}

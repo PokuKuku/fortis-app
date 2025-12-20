@@ -13,6 +13,7 @@ export default function RootLayout() {
   const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
   const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
   const loadCompletedSessions = useWorkoutStore((s) => s.loadCompletedSessions);
+  const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
 
   const [fontsLoaded] = useFonts({
     'BankGothicMediumBT': require('../assets/fonts/BankGothicMediumBT.ttf'),
@@ -23,7 +24,8 @@ export default function RootLayout() {
     loadStickyNotes();
     loadWeightUnits();
     loadCompletedSessions();
-  }, [loadStickyNotes, loadWeightUnits, loadCompletedSessions]);
+    loadBodyType();
+  }, [loadStickyNotes, loadWeightUnits, loadCompletedSessions, loadBodyType]);
 
   if (!fontsLoaded) {
     return null;
@@ -83,6 +85,15 @@ export default function RootLayout() {
                 animation: 'slide_from_bottom',
                 gestureEnabled: true,
                 gestureDirection: 'vertical',
+              }}
+            />
+            <Stack.Screen
+              name="workout/create"
+              options={{
+                animation: 'slide_from_bottom',
+                gestureEnabled: true,
+                gestureDirection: 'vertical',
+                headerShown: false,
               }}
             />
             <Stack.Screen

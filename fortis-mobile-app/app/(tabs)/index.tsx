@@ -22,7 +22,6 @@ import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useProgramsStore } from '../../src/store/programsStore';
-import { CreateWorkoutModal } from '../../src/components/workout/modals/CreateWorkoutModal';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -591,7 +590,6 @@ export default function ProgramsScreen() {
   // Workouts section kebab menu state
   const [showWorkoutsKebab, setShowWorkoutsKebab] = useState(false);
   const [workoutsKebabPosition, setWorkoutsKebabPosition] = useState({ top: 0, left: 0 });
-  const [showCreateWorkoutModal, setShowCreateWorkoutModal] = useState(false);
 
   // Handle start blank workout
   const handleStartBlankWorkout = () => {
@@ -750,7 +748,7 @@ export default function ProgramsScreen() {
     setShowWorkoutsKebab(false);
     // Small delay to let kebab close animation start
     setTimeout(() => {
-      setShowCreateWorkoutModal(true);
+      router.push('/workout/create');
     }, 100);
   };
 
@@ -995,16 +993,6 @@ export default function ProgramsScreen() {
         visible={showToast}
         message={toastMessage || 'Done!'}
         onHide={() => setShowToast(false)}
-      />
-
-      {/* Create Workout Modal */}
-      <CreateWorkoutModal
-        visible={showCreateWorkoutModal}
-        onClose={() => setShowCreateWorkoutModal(false)}
-        onSave={() => {
-          setToastMessage('Workout template created!');
-          setShowToast(true);
-        }}
       />
     </View>
   );

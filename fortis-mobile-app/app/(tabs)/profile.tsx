@@ -15,11 +15,13 @@ import {
   UserCircleIcon,
   Cog6ToothIcon,
   ScaleIcon,
+  UserIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -28,6 +30,13 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, profile, signOut, isAuthenticated } = useAuth();
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const bodyType = useWorkoutStore((s) => s.bodyType);
+  const setBodyType = useWorkoutStore((s) => s.setBodyType);
+
+  const handleToggleBodyType = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setBodyType(bodyType === 'male' ? 'female' : 'male');
+  };
 
   const handleSignOut = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -54,6 +63,7 @@ export default function ProfileScreen() {
   };
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
+  const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
 
   return (
     <View style={styles.container}>
@@ -101,6 +111,16 @@ export default function ProfileScreen() {
                       <Text style={styles.settingsLabel}>Weight Units</Text>
                     </View>
                     <Text style={styles.settingsValue}>{unitLabel}</Text>
+                  </TouchableOpacity>
+
+                  <View style={styles.settingsDivider} />
+
+                  <TouchableOpacity style={styles.settingsRow} activeOpacity={0.7} onPress={handleToggleBodyType}>
+                    <View style={styles.settingsRowLeft}>
+                      <UserIcon color={Colors.textSecondary} size={20} strokeWidth={2} />
+                      <Text style={styles.settingsLabel}>Body Type</Text>
+                    </View>
+                    <Text style={styles.settingsValue}>{bodyTypeLabel}</Text>
                   </TouchableOpacity>
 
                   <View style={styles.settingsDivider} />
