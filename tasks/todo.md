@@ -55,3 +55,120 @@ npm test:watch         # Run tests in watch mode
 npm test:coverage      # Run tests with coverage report
 npm test -- GlassButton  # Run specific test file
 ```
+
+---
+
+# Unified Workout Entry UI Implementation
+
+## Tasks
+
+- [x] Add editor session state and actions to workoutStore.ts
+- [x] Add useEditor prop to ExerciseCard.tsx
+- [x] Add useEditor prop to SetRow.tsx
+- [x] Refactor create.tsx to use ExerciseCard/SetRow
+- [x] Add date/time picker for log mode
+- [x] Implement saveEditorAsTemplate and saveEditorAsWorkout
+- [x] Add Log Past Workout option to home kebab menu
+- [x] Test both template and log workout flows
+
+## Review
+
+### Summary
+
+Implemented a unified workout entry UI that replaces the simple SET/LBS/REPS input cards with the active workout-style `ExerciseCard` + `SetRow` components (with checkmarks). The same UI now supports both:
+1. **Template creation** - Creating reusable workout templates
+2. **Past workout logging** - Logging completed workouts with a backdated date
+
+### Files Modified
+
+1. **`src/store/workoutStore.ts`**
+   - Added `editorSession`, `editorMode`, `editorDate` state
+   - Added 15 editor-specific actions (initEditorSession, addEditorExercises, updateEditorSet, completeEditorSet, saveEditorAsTemplate, saveEditorAsWorkout, etc.)
+
+2. **`src/components/workout/ExerciseCard.tsx`**
+   - Added `useEditor` prop to switch between `activeSession` and `editorSession`
+   - Conditional store action selection based on mode
+
+3. **`src/components/workout/SetRow.tsx`**
+   - Added `useEditor` prop to switch between `activeSession` and `editorSession`
+   - Conditional store action selection for all set operations
+
+4. **`src/components/workout/NumberPadModal.tsx`**
+   - Added `useEditor` prop to read from correct session
+
+5. **`app/workout/create.tsx`**
+   - Complete refactor to use ExerciseCard/SetRow instead of custom cards
+   - Added route param support for `mode=template|log`
+   - Added DateSelector for backdating in log mode
+   - Updated save logic to dispatch to appropriate save function
+
+6. **`app/(tabs)/index.tsx`**
+   - Added "Log Past Workout" option to workouts kebab menu
+   - Added `handleLogPastWorkoutPress` handler that navigates to `/workout/create?mode=log`
+   - Added `ClockIcon` and `Colors` imports
+
+### How to Use
+
+1. **Create Template**: Tap kebab menu on Workouts section → "Add Workout"
+2. **Log Past Workout**: Tap kebab menu on Workouts section → "Log Past Workout"
+
+### Notes
+
+- The date picker only supports date selection (not time) using the existing DateSelector component
+- In log mode, sets can be checked off for visual feedback but all sets are saved regardless of completion state
+- Templates only save the exercise/set structure, not the actual weight/rep values entered
+
+---
+
+# Save Templates & Start Workout from Template
+
+## Tasks
+
+- [x] Update types - Add setDetails to ProgramExercise type
+- [x] Update programsStore - Modify createWorkoutTemplate to accept set details
+- [x] Update workoutStore - Modify saveEditorAsTemplate to pass set data
+- [x] Add startWorkoutFromTemplate function in workoutStore
+- [x] Update index page - Add press handler for template cards
+
+## Review
+
+### Summary
+
+Implemented the ability to save workout templates with full set data (weight/reps) and start new workout sessions from saved templates with pre-filled exercises and sets.
+
+### Files Modified
+
+1. **`src/types/workout.ts`**
+   - Added `TemplateSetDetail` interface for storing weight/reps per set
+   - Extended `ProgramExercise` with optional `setDetails?: TemplateSetDetail[]`
+
+2. **`src/store/programsStore.ts`**
+   - Updated `createWorkoutTemplate` signature to accept `setDetails` in exercise array
+   - Modified local program creation to store `setDetails` in exercises
+
+3. **`src/store/workoutStore.ts`**
+   - Updated `saveEditorAsTemplate` to pass full set details (weight, reps for each set)
+   - Added `startWorkoutFromTemplate(templateId)` function that:
+     - Loads template from programsStore
+     - Creates active session with pre-filled exercises and sets
+     - Uses stored setDetails to populate weight/reps values
+     - Updates template's `lastPerformedAt` timestamp
+
+4. **`app/(tabs)/index.tsx`**
+   - Modified templates display to show programs where `isTemplate: true`
+   - Changed `handleWorkoutCardPress` to call `startWorkoutFromTemplate` and navigate to active workout
+
+### Data Flow
+
+```
+Create Template:
+editorSession.exercises → saveEditorAsTemplate() → createWorkoutTemplate(with setDetails) → AsyncStorage/Supabase
+
+Start from Template:
+templateId → startWorkoutFromTemplate() → load template → create activeSession with pre-filled sets → navigate to /workout/active
+```
+
+### How to Use
+
+1. **Create Template**: Tap kebab menu on Workouts section → "Add Workout" → Add exercises, fill in weight/reps → Save
+2. **Start from Template**: Tap any saved template card in Workouts section → Workout starts with pre-filled data

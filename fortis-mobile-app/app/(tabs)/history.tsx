@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pr
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, DateData } from 'react-native-calendars';
 import { format, isSameDay } from 'date-fns';
-import { ClockIcon, FireIcon, TrophyIcon, CloudIcon, CalendarDaysIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
+import { ClockIcon, FireIcon, TrophyIcon, CloudIcon, CalendarDaysIcon } from 'react-native-heroicons/outline';
 import { DateSelector } from '../../src/components/ui/DateSelector';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -17,7 +17,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
-import { GlassCard } from '../../components/GlassCard';
 import { useWorkoutStore, getWorkoutSummary } from '../../src/store/workoutStore';
 import { fetchWorkoutHistory, getPendingSyncCount } from '../../src/services/workoutHistoryService';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -93,7 +92,6 @@ function AnimatedDay({
   onPress: (date: DateData) => void;
 }) {
   const scale = useSharedValue(1);
-  const isToday = state === 'today';
   const isDisabled = state === 'disabled';
   const intensity = marking?.intensity;
 
@@ -102,9 +100,7 @@ function AnimatedDay({
   }));
 
   let backgroundColor = 'transparent';
-  if (isSelected) {
-    backgroundColor = 'rgba(34, 197, 94, 0.85)';
-  } else if (intensity) {
+  if (intensity) {
     backgroundColor = INTENSITY_COLORS[`level${intensity}`];
   }
 
@@ -132,7 +128,6 @@ function AnimatedDay({
           styles.dayContainer,
           { backgroundColor },
           isSelected && styles.selectedDayContainer,
-          isToday && !isSelected && styles.todayBorder,
           animatedStyle,
         ]}
       >
@@ -141,7 +136,6 @@ function AnimatedDay({
             styles.dayText,
             isDisabled && styles.dayTextDisabled,
             isSelected && styles.dayTextSelected,
-            isToday && !isSelected && styles.dayTextToday,
           ]}
         >
           {date.day}
@@ -377,7 +371,7 @@ export default function HistoryScreen() {
             renderItem={({ item }) => <WorkoutHistoryCard session={item} />}
             ListHeaderComponent={
               <>
-                <GlassCard style={styles.calendarCard}>
+                <View style={styles.calendarCard}>
                   <Calendar
                     key={displayedMonthKey}
                     current={displayedMonthKey}
@@ -395,13 +389,15 @@ export default function HistoryScreen() {
                     }}
                     renderHeader={(date) => (
                       <Pressable
-                        style={styles.calendarHeader}
+                        style={({ pressed }) => [
+                          styles.calendarHeader,
+                          pressed && styles.calendarHeaderPressed,
+                        ]}
                         onPress={openDateSelector}
                       >
                         <Text style={styles.calendarHeaderText}>
                           {format(new Date(date), 'MMMM yyyy')}
                         </Text>
-                        <ChevronDownIcon color={Colors.success} size={18} strokeWidth={2.5} />
                       </Pressable>
                     )}
                     dayComponent={({ date, state }) => (
@@ -414,9 +410,10 @@ export default function HistoryScreen() {
                       />
                     )}
                     hideExtraDays={false}
+                    hideArrows={true}
                     enableSwipeMonths={true}
                   />
-                </GlassCard>
+                </View>
 
                 <DateHeader date={selectedDate} volume={selectedDateVolume} />
               </>
@@ -487,13 +484,25 @@ const styles = StyleSheet.create({
   calendarCard: {
     marginBottom: Spacing.lg,
     padding: Spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   calendarHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  calendarHeaderPressed: {
+    borderColor: 'rgba(34, 197, 94, 0.5)',
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
   },
   calendarHeaderText: {
     fontSize: 20,
@@ -514,11 +523,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   selectedDayContainer: {
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 5,
-    elevation: 3,
+    borderWidth: 2,
+    borderColor: Colors.success,
   },
   dayText: {
     ...Typography.body,
@@ -531,16 +537,8 @@ const styles = StyleSheet.create({
     opacity: 0.3,
   },
   dayTextSelected: {
-    color: Colors.background,
-    fontWeight: '700',
-  },
-  dayTextToday: {
     color: Colors.success,
     fontWeight: '700',
-  },
-  todayBorder: {
-    borderWidth: 2,
-    borderColor: Colors.success,
   },
   dateHeader: {
     flexDirection: 'row',

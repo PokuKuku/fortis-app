@@ -287,6 +287,21 @@ export function useWorkout(id: string | undefined) {
         }
       }
 
+      // Check if ID matches a template (program with isTemplate: true)
+      const template = programs.find((p) => p.id === id && p.isTemplate);
+      if (template && template.workouts[0]) {
+        const converted = await convertProgramWorkoutToDetail(
+          template.workouts[0],
+          template.lastPerformedAt
+        );
+        // Use template name instead of workout name
+        converted.name = template.name;
+        converted.id = template.id;
+        setWorkout(converted);
+        setError(null);
+        return;
+      }
+
       // Not found in either source
       setWorkout(null);
       setError(null);

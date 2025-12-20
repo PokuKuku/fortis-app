@@ -11,11 +11,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronRightIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon, SparklesIcon, PlusIcon } from 'react-native-heroicons/outline';
+import { ChevronRightIcon, PlayIcon, EllipsisHorizontalIcon, DocumentDuplicateIcon, TrashIcon, SparklesIcon, PlusIcon, ClockIcon } from 'react-native-heroicons/outline';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
+import { Colors } from '../../constants/Colors';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassCard } from '../../components/GlassCard';
 import { GlassButton } from '../../components/GlassButton';
@@ -167,11 +168,13 @@ function WorkoutsKebabPopover({
   visible,
   onClose,
   onAddWorkout,
+  onLogPastWorkout,
   position,
 }: {
   visible: boolean;
   onClose: () => void;
   onAddWorkout: () => void;
+  onLogPastWorkout: () => void;
   position: { top: number; left: number };
 }) {
   const popoverScale = useRef(new Animated.Value(0)).current;
@@ -249,6 +252,13 @@ function WorkoutsKebabPopover({
         >
           <PlusIcon color="#22c55e" size={16} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, { color: '#22c55e' }]}>Add Workout</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.kebabOption}
+          onPress={() => handleAction(onLogPastWorkout)}
+        >
+          <ClockIcon color={Colors.textSecondary} size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: Colors.textSecondary }]}>Log Past Workout</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -529,7 +539,6 @@ function CollapsibleSection({
 export default function ProgramsScreen() {
   const router = useRouter();
   const startWorkout = useWorkoutStore(s => s.startWorkout);
-  const addExercises = useWorkoutStore(s => s.addExercises);
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
 
   // Programs store
@@ -554,17 +563,20 @@ export default function ProgramsScreen() {
       isAiCreated: p.isAiCreated,
     }));
 
-  // For workouts, we'll extract single-day workouts (templates) from programs
-  // For now, use mock data as templates are not yet implemented
-  const workouts: WorkoutItem[] = storePrograms.flatMap(p =>
-    p.workouts.map(w => ({
-      id: w.id,
-      name: w.name,
-      exercises: w.exercises.length,
+  // Templates (programs marked as isTemplate)
+  const templates: (WorkoutItem & { programId: string })[] = storePrograms
+    .filter(p => p.isTemplate)
+    .map(p => ({
+      id: p.id,
+      programId: p.id,
+      name: p.name,
+      exercises: p.workouts[0]?.exercises.length || 0,
       lastPerformed: formatRelativeTime(p.lastPerformedAt),
       isAiCreated: p.isAiCreated,
-    }))
-  );
+    }));
+
+  // Keep original workouts for backward compatibility
+  const workouts: WorkoutItem[] = templates;
 
   // Fetch programs on mount
   useEffect(() => {
@@ -598,10 +610,10 @@ export default function ProgramsScreen() {
     router.push('/workout/active');
   };
 
-  // Handle workout card press - navigate to fullscreen workout detail
-  const handleWorkoutCardPress = (workoutId: string) => {
+  // Handle workout/template card press - navigate to detail screen
+  const handleWorkoutCardPress = (templateId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/workouts/${workoutId}`);
+    router.push(`/workouts/${templateId}`);
   };
 
   // Handle program card press - navigate to program detail
@@ -749,6 +761,15 @@ export default function ProgramsScreen() {
     // Small delay to let kebab close animation start
     setTimeout(() => {
       router.push('/workout/create');
+    }, 100);
+  };
+
+  // Handle log past workout from kebab menu
+  const handleLogPastWorkoutPress = () => {
+    setShowWorkoutsKebab(false);
+    // Small delay to let kebab close animation start
+    setTimeout(() => {
+      router.push('/workout/create?mode=log');
     }, 100);
   };
 
@@ -976,6 +997,7 @@ export default function ProgramsScreen() {
           visible={showWorkoutsKebab}
           onClose={() => setShowWorkoutsKebab(false)}
           onAddWorkout={handleAddWorkoutPress}
+          onLogPastWorkout={handleLogPastWorkoutPress}
           position={workoutsKebabPosition}
         />
       </SafeAreaView>

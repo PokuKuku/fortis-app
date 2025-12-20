@@ -15,17 +15,22 @@ interface NumberPadModalProps {
   visible: boolean;
   onClose: () => void;
   onConfirm: (value: number | null) => void;
+  onNext?: (value: number | null) => void;
   inputType: 'weight' | 'reps';
+  useEditor?: boolean;
 }
 
 export function NumberPadModal({
   visible,
   onClose,
   onConfirm,
+  onNext,
   inputType,
+  useEditor = false,
 }: NumberPadModalProps) {
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
-  const activeSession = useWorkoutStore(s => s.activeSession);
+  // Use editor session or active session based on mode
+  const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
   const updatePendingValue = useWorkoutStore(s => s.updatePendingValue);
   const showRpeSelector = useWorkoutStore(s => s.showRpeSelector);
   const showRpeHelp = useWorkoutStore(s => s.showRpeHelp);
@@ -37,8 +42,8 @@ export function NumberPadModal({
 
   // Get current RPE value for the active set
   const getCurrentRpe = (): RpeValue => {
-    if (!activeNumberPad || !activeSession) return null;
-    const exercise = activeSession.exercises.find(
+    if (!activeNumberPad || !session) return null;
+    const exercise = session.exercises.find(
       (e) => e.localId === activeNumberPad.exerciseLocalId
     );
     const set = exercise?.sets.find(
@@ -50,8 +55,8 @@ export function NumberPadModal({
   const currentRpe = getCurrentRpe();
 
   // Get current exercise for weight unit
-  const currentExercise = activeNumberPad && activeSession
-    ? activeSession.exercises.find(e => e.localId === activeNumberPad.exerciseLocalId)
+  const currentExercise = activeNumberPad && session
+    ? session.exercises.find(e => e.localId === activeNumberPad.exerciseLocalId)
     : null;
   const currentWeightUnit = currentExercise
     ? (weightUnits[currentExercise.exerciseId] || 'lbs')
@@ -107,7 +112,11 @@ export function NumberPadModal({
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const value = displayValue === '' ? null : parseFloat(displayValue);
-    onConfirm(value);
+    if (onNext) {
+      onNext(value);
+    } else {
+      onConfirm(value);
+    }
   };
 
   const handleKeyboardToggle = () => {
@@ -224,7 +233,7 @@ export function NumberPadModal({
                 >
                   <Text style={styles.unitButtonText}>{currentWeightUnit === 'lbs' ? 'kg' : 'lbs'}</Text>
                 </Pressable>
-              ) : (
+              ) : !useEditor ? (
                 <Pressable
                   onPress={handleRpePress}
                   style={({ pressed }) => [
@@ -234,6 +243,8 @@ export function NumberPadModal({
                 >
                   <Text style={styles.rpeButtonText}>RPE</Text>
                 </Pressable>
+              ) : (
+                <View style={styles.controlButton} />
               )}
 
               {/* Increment/Decrement buttons */}

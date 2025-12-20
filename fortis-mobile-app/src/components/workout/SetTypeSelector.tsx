@@ -16,6 +16,7 @@ interface SetTypeSelectorProps {
   currentType: SetType;
   setIndex: number;
   anchorPosition?: { x: number; y: number };
+  hideFailure?: boolean;
 }
 
 export function SetTypeSelector({
@@ -26,6 +27,7 @@ export function SetTypeSelector({
   currentType,
   setIndex,
   anchorPosition,
+  hideFailure = false,
 }: SetTypeSelectorProps) {
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
 
@@ -70,6 +72,10 @@ export function SetTypeSelector({
     },
   ];
 
+  const filteredOptions = hideFailure
+    ? SET_TYPE_OPTIONS.filter(opt => opt.type !== 'failure')
+    : SET_TYPE_OPTIONS;
+
   const handleSelect = (type: SetType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onSelect(type);
@@ -102,7 +108,7 @@ export function SetTypeSelector({
             <StainlessSteelPattern />
 
             <View style={styles.content}>
-              {SET_TYPE_OPTIONS.map((option) => (
+              {filteredOptions.map((option) => (
                 <Pressable
                   key={option.type}
                   onPress={() => handleSelect(option.type)}

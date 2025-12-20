@@ -220,6 +220,14 @@ export type ProgramDifficulty = 'beginner' | 'intermediate' | 'advanced';
 export type ProgramGoal = 'strength' | 'hypertrophy' | 'powerlifting' | 'general_fitness';
 
 /**
+ * Set details for template exercises (stores weight/reps per set)
+ */
+export interface TemplateSetDetail {
+  weight: number | null;
+  reps: number | null;
+}
+
+/**
  * Exercise prescription within a program workout
  */
 export interface ProgramExercise {
@@ -231,6 +239,7 @@ export interface ProgramExercise {
   restSeconds?: number;
   notes?: string;
   orderIndex: number;
+  setDetails?: TemplateSetDetail[];  // Per-set weight/reps for templates
 }
 
 /**

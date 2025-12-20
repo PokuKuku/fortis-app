@@ -17,19 +17,22 @@ import Animated, {
 
 interface ExerciseCardProps {
   exerciseLocalId: string;
+  useEditor?: boolean;
   onReplace?: (exerciseLocalId: string) => void;
   onViewDetails?: (exerciseId: string) => void;
 }
 
 export function ExerciseCard({
   exerciseLocalId,
+  useEditor = false,
   onReplace,
   onViewDetails,
 }: ExerciseCardProps) {
-  const activeSession = useWorkoutStore(s => s.activeSession);
-  const removeExercise = useWorkoutStore(s => s.removeExercise);
-  const updateExerciseNotes = useWorkoutStore(s => s.updateExerciseNotes);
-  const addSet = useWorkoutStore(s => s.addSet);
+  // Use editor session or active session based on mode
+  const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
+  const removeExercise = useWorkoutStore(s => useEditor ? s.removeEditorExercise : s.removeExercise);
+  const updateExerciseNotes = useWorkoutStore(s => useEditor ? s.updateEditorExerciseNotes : s.updateExerciseNotes);
+  const addSet = useWorkoutStore(s => useEditor ? s.addEditorSet : s.addSet);
   const stickyNotes = useWorkoutStore(s => s.stickyNotes);
   const setStickyNote = useWorkoutStore(s => s.setStickyNote);
   const weightUnits = useWorkoutStore(s => s.weightUnits);
@@ -43,7 +46,7 @@ export function ExerciseCard({
   const stickyNoteInputRef = useRef<TextInput>(null);
   const notesInputRef = useRef<TextInput>(null);
 
-  const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+  const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
   const stickyNote = exercise ? stickyNotes[exercise.exerciseId] : undefined;
   const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
 
@@ -206,9 +209,9 @@ export function ExerciseCard({
           <View style={styles.tableHeader}>
             <Text style={[styles.headerText, styles.setCol]}>Set</Text>
             <Text style={[styles.headerText, styles.previousCol]}>Prev</Text>
-            <Text style={[styles.headerText, styles.weightCol]}>{weightUnit}</Text>
-            <Text style={[styles.headerText, styles.repsCol]}>Reps</Text>
-            <View style={styles.checkCol} />
+            <Text style={[styles.headerText, styles.weightCol, useEditor && styles.flexCol]}>{weightUnit}</Text>
+            <Text style={[styles.headerText, styles.repsCol, useEditor && styles.flexCol]}>Reps</Text>
+            {!useEditor && <View style={styles.checkCol} />}
           </View>
 
           {/* Header Divider */}
@@ -221,6 +224,7 @@ export function ExerciseCard({
               exerciseLocalId={exerciseLocalId}
               setLocalId={set.localId}
               setIndex={index}
+              useEditor={useEditor}
               previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
               lastPerformance={lastPerformance}
             />
@@ -305,7 +309,7 @@ const styles = StyleSheet.create({
   },
   setsTable: {
     gap: Spacing.sm,
-    overflow: 'visible',
+    overflow: 'hidden',
   },
   tableHeader: {
     flexDirection: 'row',
@@ -342,6 +346,12 @@ const styles = StyleSheet.create({
   checkCol: {
     width: 32,
     marginLeft: Spacing.md,
+  },
+  flexCol: {
+    flex: 1,
+    width: undefined,
+    textAlign: 'center',
+    marginLeft: 0,
   },
   addSetButton: {
     flexDirection: 'row',

@@ -53,6 +53,8 @@ interface Exercise {
 interface MuscleHeatmapProps {
   exercises: Exercise[];
   gender?: 'male' | 'female';
+  scale?: number;
+  compact?: boolean;
 }
 
 interface BodyPartData {
@@ -61,7 +63,7 @@ interface BodyPartData {
   side?: 'left' | 'right';
 }
 
-export function MuscleHeatmap({ exercises, gender = 'male' }: MuscleHeatmapProps) {
+export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
   const { frontData, backData } = useMemo(() => {
     const muscleIntensity: Record<string, number> = {};
 
@@ -116,29 +118,29 @@ export function MuscleHeatmap({ exercises, gender = 'male' }: MuscleHeatmapProps
   }, [exercises]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, compact && styles.containerCompact]}>
       <View style={styles.bodiesContainer}>
         <View style={styles.bodyWrapper}>
           <Body
             data={frontData}
             side="front"
             gender={gender}
-            scale={0.5}
+            scale={scale}
             colors={['#166534', '#22c55e']} // Darker green for secondary, bright for primary
             border="#333333"
           />
-          <Text style={styles.viewLabel}>Front</Text>
+          {!compact && <Text style={styles.viewLabel}>Front</Text>}
         </View>
         <View style={styles.bodyWrapper}>
           <Body
             data={backData}
             side="back"
             gender={gender}
-            scale={0.5}
+            scale={scale}
             colors={['#166534', '#22c55e']}
             border="#333333"
           />
-          <Text style={styles.viewLabel}>Back</Text>
+          {!compact && <Text style={styles.viewLabel}>Back</Text>}
         </View>
       </View>
     </View>
@@ -147,12 +149,12 @@ export function MuscleHeatmap({ exercises, gender = 'male' }: MuscleHeatmapProps
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    padding: Spacing.lg,
+    padding: Spacing.md,
     marginBottom: Spacing.lg,
+  },
+  containerCompact: {
+    padding: 0,
+    marginBottom: 0,
   },
   bodiesContainer: {
     flexDirection: 'row',

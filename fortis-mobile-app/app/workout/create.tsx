@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,168 +8,93 @@ import {
   FlatList,
   ActivityIndicator,
   DeviceEventEmitter,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { XMarkIcon, PlusIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { XMarkIcon, PlusIcon, CalendarDaysIcon, PencilIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn, FadeOut, Layout, Easing } from 'react-native-reanimated';
-import { useProgramsStore } from '@/src/store/programsStore';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
-import { TemplateNumberPad } from '@/src/components/workout/TemplateNumberPad';
-
-// Simple UUID generator for local IDs
-const generateLocalId = () => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
-
-// Template set type
-interface TemplateSet {
-  localId: string;
-  targetWeight: string;
-  targetReps: string;
-}
-
-// Template exercise type for local state
-interface TemplateExercise {
-  localId: string;
-  exerciseId: string;
-  exerciseName: string;
-  sets: TemplateSet[];
-  restSeconds: number;
-}
+import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
+import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
+import { DateSelector } from '@/src/components/ui/DateSelector';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
+import { format } from 'date-fns';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 export default function CreateWorkoutScreen() {
   const router = useRouter();
-  const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
+  const { mode = 'template' } = useLocalSearchParams<{ mode?: 'template' | 'log' }>();
 
-  const [templateName, setTemplateName] = useState('');
-  const [exercises, setExercises] = useState<TemplateExercise[]>([]);
+  // Editor store actions
+  const editorSession = useWorkoutStore(s => s.editorSession);
+  const editorDate = useWorkoutStore(s => s.editorDate);
+  const initEditorSession = useWorkoutStore(s => s.initEditorSession);
+  const setEditorWorkoutName = useWorkoutStore(s => s.setEditorWorkoutName);
+  const setEditorDate = useWorkoutStore(s => s.setEditorDate);
+  const addEditorExercises = useWorkoutStore(s => s.addEditorExercises);
+  const saveEditorAsTemplate = useWorkoutStore(s => s.saveEditorAsTemplate);
+  const saveEditorAsWorkout = useWorkoutStore(s => s.saveEditorAsWorkout);
+  const clearEditorSession = useWorkoutStore(s => s.clearEditorSession);
+  const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+  const closeNumberPad = useWorkoutStore(s => s.closeNumberPad);
+  const updateEditorSet = useWorkoutStore(s => s.updateEditorSet);
+  const openEditorNumberPad = useWorkoutStore(s => s.openEditorNumberPad);
+
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isNameFocused, setIsNameFocused] = useState(false);
+  const nameInputRef = useRef<TextInput>(null);
 
-  // Number pad state
-  const [showNumberPad, setShowNumberPad] = useState(false);
-  const [editingField, setEditingField] = useState<{
-    exerciseLocalId: string;
-    setLocalId: string;
-    field: 'targetWeight' | 'targetReps';
-  } | null>(null);
+  // Get exercise IDs and fetch muscle data for heatmap
+  const exerciseIds = useMemo(
+    () => editorSession?.exercises.map(e => e.exerciseId) || [],
+    [editorSession?.exercises]
+  );
+  const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
+  const hasMuscles = exercisesWithMuscles.length > 0;
+
+  // Calculate stats for the stats row
+  const exerciseCount = editorSession?.exercises.length || 0;
+  const totalSets = useMemo(
+    () => editorSession?.exercises.reduce((sum, ex) => sum + ex.sets.length, 0) || 0,
+    [editorSession?.exercises]
+  );
+
+  // Initialize editor session on mount
+  useEffect(() => {
+    initEditorSession();
+    return () => {
+      clearEditorSession();
+    };
+  }, []);
 
   // Check if we can save
-  const canSave = templateName.trim().length > 0 && exercises.length > 0 && !isSaving;
+  const canSave = (editorSession?.name?.trim()?.length ?? 0) > 0 &&
+    (editorSession?.exercises?.length ?? 0) > 0 &&
+    !isSaving;
 
   // Handle close
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    closeNumberPad();
     router.back();
   };
 
   // Handle adding exercises from the exercise modal
   const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string }>) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const newExercises: TemplateExercise[] = exercisesToAdd.map((ex) => ({
-      localId: generateLocalId(),
-      exerciseId: ex.id,
-      exerciseName: ex.name,
-      sets: [],
-      restSeconds: 120,
-    }));
-
-    setExercises(prev => [...prev, ...newExercises]);
+    addEditorExercises(exercisesToAdd);
     setShowAddExerciseModal(false);
-  }, []);
-
-  // Handle removing an exercise
-  const handleRemoveExercise = useCallback((localId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setExercises(prev => prev.filter(ex => ex.localId !== localId));
-  }, []);
-
-  // Handle adding a set to an exercise
-  const handleAddSet = useCallback((exerciseLocalId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setExercises(prev => prev.map(ex => {
-      if (ex.localId === exerciseLocalId) {
-        return {
-          ...ex,
-          sets: [...ex.sets, { localId: generateLocalId(), targetWeight: '', targetReps: '8-12' }],
-        };
-      }
-      return ex;
-    }));
-  }, []);
-
-  // Handle removing a set from an exercise
-  const handleRemoveSet = useCallback((exerciseLocalId: string, setLocalId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setExercises(prev => prev.map(ex => {
-      if (ex.localId === exerciseLocalId && ex.sets.length > 1) {
-        return {
-          ...ex,
-          sets: ex.sets.filter(s => s.localId !== setLocalId),
-        };
-      }
-      return ex;
-    }));
-  }, []);
-
-  // Handle updating set values
-  const handleUpdateSet = useCallback((exerciseLocalId: string, setLocalId: string, field: 'targetWeight' | 'targetReps', value: string) => {
-    setExercises(prev => prev.map(ex => {
-      if (ex.localId === exerciseLocalId) {
-        return {
-          ...ex,
-          sets: ex.sets.map(s => {
-            if (s.localId === setLocalId) {
-              return { ...s, [field]: value };
-            }
-            return s;
-          }),
-        };
-      }
-      return ex;
-    }));
-  }, []);
-
-  // Handle opening the number pad for a specific field
-  const handleInputPress = useCallback((exerciseLocalId: string, setLocalId: string, field: 'targetWeight' | 'targetReps') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setEditingField({ exerciseLocalId, setLocalId, field });
-    setShowNumberPad(true);
-  }, []);
-
-  // Get current value for the number pad
-  const getCurrentValue = () => {
-    if (!editingField) return '';
-    const exercise = exercises.find(ex => ex.localId === editingField.exerciseLocalId);
-    if (!exercise) return '';
-    const set = exercise.sets.find(s => s.localId === editingField.setLocalId);
-    if (!set) return '';
-    return set[editingField.field];
-  };
-
-  // Handle number pad value change
-  const handleNumberPadChange = useCallback((value: string) => {
-    if (!editingField) return;
-    handleUpdateSet(editingField.exerciseLocalId, editingField.setLocalId, editingField.field, value);
-  }, [editingField, handleUpdateSet]);
-
-  // Handle closing the number pad
-  const handleNumberPadClose = useCallback(() => {
-    setShowNumberPad(false);
-    setEditingField(null);
-  }, []);
+  }, [addEditorExercises]);
 
   // Handle save
   const handleSave = async () => {
@@ -179,126 +104,78 @@ export default function CreateWorkoutScreen() {
     setIsSaving(true);
 
     try {
-      const exercisesToSave = exercises.map(ex => ({
-        exerciseId: ex.exerciseId,
-        sets: ex.sets.length,
-        reps: ex.sets[0]?.targetReps || '8-12',
-        restSeconds: ex.restSeconds,
-      }));
-
-      const templateId = await createWorkoutTemplate(templateName.trim(), exercisesToSave);
-
-      if (templateId) {
+      if (mode === 'log') {
+        await saveEditorAsWorkout();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         DeviceEventEmitter.emit('workout-updated');
         router.back();
       } else {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setIsSaving(false);
+        const templateId = await saveEditorAsTemplate();
+        if (templateId) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          DeviceEventEmitter.emit('workout-updated');
+          router.back();
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setIsSaving(false);
+        }
       }
     } catch (error) {
-      console.error('Failed to save workout template:', error);
+      console.error('Failed to save workout:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsSaving(false);
     }
   };
 
-  // Render set row
-  const renderSetRow = (exercise: TemplateExercise, set: TemplateSet, index: number) => (
-    <View key={set.localId} style={styles.setRow}>
-      {/* Set Number */}
-      <Pressable
-        onLongPress={() => handleRemoveSet(exercise.localId, set.localId)}
-        style={styles.setNumberBox}
-      >
-        <Text style={styles.setNumber}>{index + 1}</Text>
-      </Pressable>
+  // Handle number pad confirm
+  const handleNumberPadConfirm = useCallback((value: number | null) => {
+    if (!activeNumberPad) return;
 
-      {/* Target Weight Input */}
-      <Pressable
-        onPress={() => handleInputPress(exercise.localId, set.localId, 'targetWeight')}
-        style={({ pressed }) => [
-          styles.inputBox,
-          pressed && styles.inputBoxPressed,
-        ]}
-      >
-        <Text style={[styles.inputText, !set.targetWeight && styles.inputPlaceholder]}>
-          {set.targetWeight || '—'}
-        </Text>
-      </Pressable>
+    const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
+    updateEditorSet(exerciseLocalId, setLocalId, { [inputType]: value });
+    closeNumberPad();
+  }, [activeNumberPad, updateEditorSet, closeNumberPad]);
 
-      {/* Target Reps Input */}
-      <Pressable
-        onPress={() => handleInputPress(exercise.localId, set.localId, 'targetReps')}
-        style={({ pressed }) => [
-          styles.inputBox,
-          pressed && styles.inputBoxPressed,
-        ]}
-      >
-        <Text style={[styles.inputText, !set.targetReps && styles.inputPlaceholder]}>
-          {set.targetReps || '—'}
-        </Text>
-      </Pressable>
-    </View>
-  );
+  // Handle number pad next - navigate to next input
+  const handleNumberPadNext = useCallback((value: number | null) => {
+    if (!activeNumberPad || !editorSession) return;
+
+    const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
+
+    // Save current value
+    updateEditorSet(exerciseLocalId, setLocalId, { [inputType]: value });
+
+    // Find current exercise and set
+    const exercise = editorSession.exercises.find(e => e.localId === exerciseLocalId);
+    const setIndex = exercise?.sets.findIndex(s => s.localId === setLocalId) ?? -1;
+
+    if (inputType === 'weight') {
+      // Go to reps (same set)
+      openEditorNumberPad(exerciseLocalId, setLocalId, 'reps');
+    } else {
+      // inputType === 'reps' - go to weight of next set
+      const nextSet = exercise?.sets[setIndex + 1];
+      if (nextSet) {
+        openEditorNumberPad(exerciseLocalId, nextSet.localId, 'weight');
+      } else {
+        // No more sets - close
+        closeNumberPad();
+      }
+    }
+  }, [activeNumberPad, editorSession, updateEditorSet, openEditorNumberPad, closeNumberPad]);
+
+  // Handle date selection
+  const handleDateSelect = (selectedDate: Date) => {
+    setEditorDate(selectedDate);
+  };
 
   // Render exercise card
-  const renderExerciseCard = useCallback(({ item }: { item: TemplateExercise }) => (
-    <Animated.View
-      entering={FadeIn.duration(300).easing(Easing.out(Easing.cubic)).delay(50)}
-      exiting={FadeOut.duration(250).easing(Easing.in(Easing.cubic))}
-      layout={Layout.duration(300).easing(Easing.inOut(Easing.cubic))}
-      style={styles.exerciseCard}
-    >
-      <View style={styles.cardContent}>
-        {/* Exercise Header */}
-        <View style={styles.exerciseHeader}>
-          <Text style={styles.exerciseName} numberOfLines={1}>
-            {item.exerciseName}
-          </Text>
-          <Pressable
-            onPress={() => handleRemoveExercise(item.localId)}
-            style={({ pressed }) => [
-              styles.trashButton,
-              pressed && styles.pressed,
-            ]}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <TrashIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
-          </Pressable>
-        </View>
-
-        {/* Sets Table */}
-        <View style={styles.setsTable}>
-          {/* Table Header */}
-          <View style={styles.tableHeader}>
-            <Text style={[styles.headerText, styles.setCol]}>Set</Text>
-            <Text style={[styles.headerText, styles.weightCol]}>LBS</Text>
-            <Text style={[styles.headerText, styles.repsCol]}>Reps</Text>
-          </View>
-
-          {/* Header Divider */}
-          <View style={styles.headerDivider} />
-
-          {/* Set Rows */}
-          {item.sets.map((set, index) => renderSetRow(item, set, index))}
-        </View>
-
-        {/* Add Set Button */}
-        <Pressable
-          onPress={() => handleAddSet(item.localId)}
-          style={({ pressed }) => [
-            styles.addSetButton,
-            pressed && styles.pressed
-          ]}
-        >
-          <View style={styles.addSetLine} />
-          <Text style={styles.addSetText}>+ Add Set</Text>
-          <View style={styles.addSetLine} />
-        </Pressable>
-      </View>
-    </Animated.View>
-  ), [handleRemoveExercise, handleAddSet, handleRemoveSet, handleInputPress]);
+  const renderExerciseCard = useCallback(({ item }: { item: { localId: string } }) => (
+    <ExerciseCard
+      exerciseLocalId={item.localId}
+      useEditor={true}
+    />
+  ), []);
 
   // Render empty state
   const renderEmptyState = () => (
@@ -309,6 +186,8 @@ export default function CreateWorkoutScreen() {
       </Text>
     </View>
   );
+
+  const saveButtonText = mode === 'log' ? 'Log' : 'Save';
 
   return (
     <View style={styles.container}>
@@ -330,7 +209,25 @@ export default function CreateWorkoutScreen() {
           >
             <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
           </Pressable>
-          <Text style={styles.headerTitle}>New Workout</Text>
+          <Pressable
+            style={styles.titleInputWrapper}
+            onPress={() => nameInputRef.current?.focus()}
+          >
+            <TextInput
+              ref={nameInputRef}
+              style={styles.headerTitleInput}
+              placeholder="Workout Name"
+              placeholderTextColor={Colors.textSecondary}
+              value={editorSession?.name || ''}
+              onChangeText={setEditorWorkoutName}
+              autoCorrect={false}
+              maxLength={50}
+              returnKeyType="done"
+              onFocus={() => setIsNameFocused(true)}
+              onBlur={() => setIsNameFocused(false)}
+            />
+            <PencilIcon size={14} color={isNameFocused ? Colors.success : Colors.textTertiary} strokeWidth={2} />
+          </Pressable>
           <GlassButton
             style={{
               ...styles.saveButton,
@@ -342,32 +239,57 @@ export default function CreateWorkoutScreen() {
             {isSaving ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.saveButtonText}>Save</Text>
+              <Text style={styles.saveButtonText}>{saveButtonText}</Text>
             )}
           </GlassButton>
         </View>
 
-        {/* Template Name Input */}
-        <View style={styles.nameInputContainer}>
-          <TextInput
-            style={styles.nameInput}
-            placeholder="Workout Name"
-            placeholderTextColor={Colors.textSecondary}
-            value={templateName}
-            onChangeText={setTemplateName}
-            autoCorrect={false}
-            maxLength={50}
-          />
-        </View>
+        {/* Date Picker (Log Mode Only) */}
+        {mode === 'log' && (
+          <Pressable
+            onPress={() => setShowDatePicker(true)}
+            style={({ pressed }) => [
+              styles.dateRow,
+              pressed && styles.dateRowPressed,
+            ]}
+          >
+            <CalendarDaysIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+            <Text style={styles.dateText}>
+              {format(editorDate, 'MMMM d, yyyy')}
+            </Text>
+          </Pressable>
+        )}
+
+        {/* Stats Row - Fixed above list */}
+        {exerciseCount > 0 && (
+          <View style={styles.statsCard}>
+            <View style={styles.statsLeft}>
+              <View style={styles.statItem}>
+                <Text style={styles.statLabel}>Exercises</Text>
+                <Text style={styles.statValue}>{exerciseCount}</Text>
+              </View>
+              <View style={styles.statItem}>
+                <Text style={styles.statLabel}>Sets</Text>
+                <Text style={styles.statValue}>{totalSets}</Text>
+              </View>
+            </View>
+            {hasMuscles && (
+              <MuscleHeatmap exercises={exercisesWithMuscles} scale={0.22} compact />
+            )}
+          </View>
+        )}
 
         {/* Exercise List */}
         <FlatList
-          data={exercises}
+          data={editorSession?.exercises || []}
           renderItem={renderExerciseCard}
           keyExtractor={item => item.localId}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          onScrollBeginDrag={Keyboard.dismiss}
         />
 
         {/* Add Exercises Button */}
@@ -393,16 +315,26 @@ export default function CreateWorkoutScreen() {
         visible={showAddExerciseModal}
         onClose={() => setShowAddExerciseModal(false)}
         onAddExercisesCallback={handleAddExercises}
-        existingExerciseIds={exercises.map(ex => ex.exerciseId)}
+        existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
       />
 
-      {/* Number Pad */}
-      <TemplateNumberPad
-        visible={showNumberPad}
-        value={getCurrentValue()}
-        onChange={handleNumberPadChange}
-        onClose={handleNumberPadClose}
-        inputType={editingField?.field === 'targetWeight' ? 'weight' : 'reps'}
+      {/* Number Pad Modal */}
+      <NumberPadModal
+        visible={!!activeNumberPad}
+        onConfirm={handleNumberPadConfirm}
+        onNext={handleNumberPadNext}
+        onClose={closeNumberPad}
+        inputType={activeNumberPad?.inputType || 'weight'}
+        useEditor={true}
+      />
+
+      {/* Date Picker */}
+      <DateSelector
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        onSelectDate={handleDateSelect}
+        currentDate={editorDate}
+        selectedDate={editorDate}
       />
     </View>
   );
@@ -446,9 +378,20 @@ const styles = StyleSheet.create({
   closeButtonPressed: {
     opacity: 0.6,
   },
-  headerTitle: {
+  titleInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    marginHorizontal: Spacing.md,
+  },
+  headerTitleInput: {
     ...Typography.h3,
     color: Colors.textPrimary,
+    textAlign: 'center',
+    flex: 1,
+    minWidth: 100,
   },
   saveButton: {
     height: 40,
@@ -462,17 +405,53 @@ const styles = StyleSheet.create({
     ...Typography.button,
     color: '#fff',
   },
-  nameInputContainer: {
+  statsCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing['2xl'],
-    paddingBottom: Spacing.lg,
-    zIndex: 1,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
   },
-  nameInput: {
-    ...Typography.h2,
-    color: Colors.textPrimary,
+  statsLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: Spacing['4xl'],
+  },
+  statItem: {
+    alignItems: 'flex-start',
+  },
+  statValue: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 28,
+    color: Colors.success,
+    lineHeight: 32,
+  },
+  statLabel: {
+    fontSize: 11,
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginHorizontal: Spacing['2xl'],
+    marginBottom: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  dateRowPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  dateText: {
+    ...Typography.body,
+    color: Colors.textPrimary,
   },
   listContent: {
     paddingHorizontal: Spacing['2xl'],
@@ -495,141 +474,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     opacity: 0.7,
   },
-  // Exercise Card Styles (matching ExerciseCard)
-  exerciseCard: {
-    backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius['2xl'],
-    borderWidth: 1.5,
-    borderColor: Colors.borderLight,
-    overflow: 'visible',
-    marginBottom: Spacing.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  cardContent: {
-    padding: Spacing.xl,
-    gap: Spacing.lg,
-  },
-  exerciseHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  exerciseName: {
-    flex: 1,
-    fontSize: FontSizes.base,
-    fontFamily: 'BankGothicBT-Medium',
-    color: Colors.textPrimary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  trashButton: {
-    padding: Spacing.sm,
-    marginLeft: Spacing.sm,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  // Sets Table
-  setsTable: {
-    gap: Spacing.sm,
-  },
-  tableHeader: {
-    flexDirection: 'row',
-    paddingBottom: Spacing.sm,
-  },
-  headerDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    marginBottom: Spacing.xs,
-  },
-  headerText: {
-    fontSize: 13,
-    fontFamily: 'BankGothicBT-Medium',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  setCol: {
-    width: 50,
-  },
-  weightCol: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  repsCol: {
-    flex: 1,
-    marginLeft: Spacing.md,
-  },
-  // Set Row
-  setRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  setNumberBox: {
-    width: 50,
-    height: 44,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  setNumber: {
-    fontSize: FontSizes.base,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  inputBox: {
-    flex: 1,
-    height: 44,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  inputBoxPressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderColor: 'rgba(34, 197, 94, 0.4)',
-  },
-  inputText: {
-    fontSize: FontSizes.base,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    textAlign: 'center',
-  },
-  inputPlaceholder: {
-    color: Colors.textTertiary,
-  },
-  // Add Set Button
-  addSetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-    gap: Spacing.lg,
-  },
-  addSetLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.successBorder,
-  },
-  addSetText: {
-    fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicBT-Medium',
-    color: Colors.success,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  // Bottom Add Button
   addButtonContainer: {
     position: 'absolute',
     bottom: 0,

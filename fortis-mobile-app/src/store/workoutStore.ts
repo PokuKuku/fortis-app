@@ -86,8 +86,14 @@ interface WorkoutState {
   showRpeSelector: boolean;
   showRpeHelp: boolean;
 
+  // Editor session (for template creation and manual workout logging)
+  editorSession: WorkoutSession | null;
+  editorMode: 'template' | 'log';
+  editorDate: Date;
+
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string) => void;
+  startWorkoutFromTemplate: (templateId: string) => Promise<boolean>;
   finishWorkout: () => Promise<WorkoutSession | null>;
   cancelWorkout: () => void;
   updateWorkoutName: (name: string) => void;
@@ -162,6 +168,32 @@ interface WorkoutState {
   selectRpe: (rpe: RpeValue) => void;
   openRpeHelp: () => void;
   closeRpeHelp: () => void;
+
+  // Actions - Editor Session
+  initEditorSession: () => void;
+  setEditorMode: (mode: 'template' | 'log') => void;
+  setEditorDate: (date: Date) => void;
+  setEditorWorkoutName: (name: string) => void;
+  addEditorExercises: (exercises: Array<{ id: string; name: string }>) => void;
+  removeEditorExercise: (localId: string) => void;
+  addEditorSet: (exerciseLocalId: string) => void;
+  removeEditorSet: (exerciseLocalId: string, setLocalId: string) => void;
+  updateEditorSet: (
+    exerciseLocalId: string,
+    setLocalId: string,
+    updates: Partial<WorkoutSet>
+  ) => void;
+  completeEditorSet: (exerciseLocalId: string, setLocalId: string) => void;
+  updateEditorSetType: (
+    exerciseLocalId: string,
+    setLocalId: string,
+    setType: SetType
+  ) => void;
+  openEditorNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
+  updateEditorExerciseNotes: (localId: string, notes: string) => void;
+  saveEditorAsTemplate: () => Promise<string | null>;
+  saveEditorAsWorkout: () => Promise<void>;
+  clearEditorSession: () => void;
 }
 
 export const useWorkoutStore = create<WorkoutState>()(
@@ -187,6 +219,9 @@ export const useWorkoutStore = create<WorkoutState>()(
     bodyType: 'male',
     showRpeSelector: false,
     showRpeHelp: false,
+    editorSession: null,
+    editorMode: 'template',
+    editorDate: new Date(),
 
     // ========================================
     // Session Actions
@@ -232,6 +267,96 @@ export const useWorkoutStore = create<WorkoutState>()(
       });
 
       get().persistSession();
+    },
+
+    startWorkoutFromTemplate: async (templateId: string) => {
+      // Prevent starting if already active
+      if (isStartingWorkout || get().isWorkoutActive) return false;
+      isStartingWorkout = true;
+
+      try {
+        // Import programsStore dynamically to avoid circular dependency
+        const { useProgramsStore } = await import('./programsStore');
+        const programs = useProgramsStore.getState().programs;
+
+        // Find the template
+        const template = programs.find(p => p.id === templateId && p.isTemplate);
+        if (!template || !template.workouts[0]) {
+          isStartingWorkout = false;
+          return false;
+        }
+
+        const workout = template.workouts[0];
+
+        // Create exercises with pre-filled sets from template
+        const exercises: WorkoutExercise[] = workout.exercises.map((templateEx, exIndex) => {
+          // Create sets based on template's setDetails or default empty sets
+          const sets: WorkoutSet[] = [];
+          const numSets = templateEx.setDetails?.length || templateEx.sets;
+
+          for (let i = 0; i < numSets; i++) {
+            const setDetail = templateEx.setDetails?.[i];
+            sets.push({
+              localId: generateId(),
+              setNumber: i + 1,
+              setType: 'normal',
+              weight: setDetail?.weight ?? null,
+              reps: setDetail?.reps ?? null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: i,
+            });
+          }
+
+          return {
+            localId: generateId(),
+            exerciseId: templateEx.exerciseId,
+            exerciseName: templateEx.exerciseName,
+            sets,
+            notes: templateEx.notes || '',
+            orderIndex: exIndex,
+          };
+        });
+
+        // Create session with pre-filled exercises
+        const session: WorkoutSession = {
+          localId: generateId(),
+          name: template.name,
+          notes: '',
+          startedAt: new Date(),
+          completedAt: null,
+          exercises,
+          isSynced: false,
+          programId: templateId,
+        };
+
+        set({
+          activeSession: session,
+          isWorkoutActive: true,
+          workoutStartTime: Date.now(),
+          isWorkoutTimerPaused: false,
+          pausedElapsedSeconds: 0,
+          restTimer: {
+            isActive: false,
+            remainingSeconds: 0,
+            totalSeconds: 0,
+            setType: 'normal',
+          },
+        });
+
+        get().persistSession();
+
+        // Update last performed timestamp on template
+        useProgramsStore.getState().updateLastPerformed(templateId);
+
+        return true;
+      } catch (error) {
+        console.error('Failed to start workout from template:', error);
+        isStartingWorkout = false;
+        return false;
+      }
     },
 
     finishWorkout: async () => {
@@ -1119,6 +1244,310 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     closeRpeHelp: () => {
       set({ showRpeHelp: false });
+    },
+
+    // ========================================
+    // Editor Session Actions
+    // ========================================
+
+    initEditorSession: () => {
+      const session: WorkoutSession = {
+        localId: generateId(),
+        name: '',
+        notes: '',
+        startedAt: new Date(),
+        completedAt: null,
+        exercises: [],
+        isSynced: false,
+      };
+
+      set({
+        editorSession: session,
+        editorDate: new Date(),
+        activeNumberPad: null,
+      });
+    },
+
+    setEditorMode: (mode) => {
+      set({ editorMode: mode });
+    },
+
+    setEditorDate: (date) => {
+      set({ editorDate: date });
+    },
+
+    setEditorWorkoutName: (name) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      set({
+        editorSession: { ...editorSession, name },
+      });
+    },
+
+    addEditorExercises: (exercises) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      const startIndex = editorSession.exercises.length;
+      const newExercises: WorkoutExercise[] = exercises.map((ex, i) => ({
+        localId: generateId(),
+        exerciseId: ex.id,
+        exerciseName: ex.name,
+        sets: [
+          {
+            localId: generateId(),
+            setNumber: 1,
+            setType: 'normal',
+            weight: null,
+            reps: null,
+            rpe: null,
+            restSeconds: null,
+            notes: '',
+            isCompleted: false,
+            orderIndex: 0,
+          },
+        ],
+        notes: '',
+        orderIndex: startIndex + i,
+      }));
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises: [...editorSession.exercises, ...newExercises],
+        },
+      });
+    },
+
+    removeEditorExercise: (localId) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      const filtered = editorSession.exercises.filter(
+        (ex) => ex.localId !== localId
+      );
+      const reindexed = filtered.map((ex, i) => ({ ...ex, orderIndex: i }));
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises: reindexed,
+        },
+      });
+    },
+
+    addEditorSet: (exerciseLocalId) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      const exercises = editorSession.exercises.map((ex) => {
+        if (ex.localId !== exerciseLocalId) return ex;
+
+        const newSet: WorkoutSet = {
+          localId: generateId(),
+          setNumber: ex.sets.length + 1,
+          setType: 'normal',
+          weight: null,
+          reps: null,
+          rpe: null,
+          restSeconds: null,
+          notes: '',
+          isCompleted: false,
+          orderIndex: ex.sets.length,
+        };
+
+        return { ...ex, sets: [...ex.sets, newSet] };
+      });
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises,
+        },
+      });
+    },
+
+    removeEditorSet: (exerciseLocalId, setLocalId) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      const exercises = editorSession.exercises.map((ex) => {
+        if (ex.localId !== exerciseLocalId) return ex;
+
+        const filtered = ex.sets.filter((s) => s.localId !== setLocalId);
+        const reindexed = filtered.map((s, i) => ({
+          ...s,
+          setNumber: i + 1,
+          orderIndex: i,
+        }));
+
+        return { ...ex, sets: reindexed };
+      });
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises,
+        },
+      });
+    },
+
+    updateEditorSet: (exerciseLocalId, setLocalId, updates) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      const exercises = editorSession.exercises.map((ex) => {
+        if (ex.localId !== exerciseLocalId) return ex;
+
+        const sets = ex.sets.map((s) =>
+          s.localId === setLocalId ? { ...s, ...updates } : s
+        );
+
+        return { ...ex, sets };
+      });
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises,
+        },
+      });
+    },
+
+    completeEditorSet: (exerciseLocalId, setLocalId) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      const exercises = editorSession.exercises.map((ex) => {
+        if (ex.localId !== exerciseLocalId) return ex;
+
+        const sets = ex.sets.map((s) => {
+          if (s.localId !== setLocalId) return s;
+          return { ...s, isCompleted: !s.isCompleted };
+        });
+
+        return { ...ex, sets };
+      });
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises,
+        },
+      });
+    },
+
+    updateEditorSetType: (exerciseLocalId, setLocalId, setType) => {
+      get().updateEditorSet(exerciseLocalId, setLocalId, { setType });
+    },
+
+    openEditorNumberPad: (exerciseLocalId, setLocalId, inputType) => {
+      const { editorSession } = get();
+      const exercise = editorSession?.exercises.find(e => e.localId === exerciseLocalId);
+      const set_ = exercise?.sets.find(s => s.localId === setLocalId);
+      const currentValue = set_?.[inputType];
+      const pendingValue = currentValue !== null && currentValue !== undefined
+        ? currentValue.toString()
+        : '';
+
+      set({
+        activeNumberPad: { exerciseLocalId, setLocalId, inputType, pendingValue, hasError: false },
+      });
+    },
+
+    updateEditorExerciseNotes: (localId, notes) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+
+      const exercises = editorSession.exercises.map((ex) =>
+        ex.localId === localId ? { ...ex, notes } : ex
+      );
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises,
+        },
+      });
+    },
+
+    saveEditorAsTemplate: async () => {
+      const { editorSession } = get();
+      if (!editorSession || !editorSession.name.trim()) return null;
+
+      // Import programsStore dynamically to avoid circular dependency
+      const { useProgramsStore } = await import('./programsStore');
+      const createWorkoutTemplate = useProgramsStore.getState().createWorkoutTemplate;
+
+      const exercisesToSave = editorSession.exercises.map(ex => ({
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
+        sets: ex.sets.length,
+        reps: '8-12', // Default rep range for templates
+        restSeconds: 120,
+        // Include full set details (weight, reps for each set)
+        setDetails: ex.sets.map(set => ({
+          weight: set.weight,
+          reps: set.reps,
+        })),
+      }));
+
+      const templateId = await createWorkoutTemplate(editorSession.name.trim(), exercisesToSave);
+      return templateId;
+    },
+
+    saveEditorAsWorkout: async () => {
+      const { editorSession, editorDate, completedSessions } = get();
+      if (!editorSession) return;
+
+      // Create completed session with backdated timestamps
+      const completedSession: WorkoutSession = {
+        ...editorSession,
+        name: editorSession.name || (() => {
+          const date = editorDate;
+          const month = date.toLocaleDateString('en-US', { month: 'long' });
+          const day = date.getDate();
+          const suffix = day === 1 || day === 21 || day === 31 ? 'st'
+            : day === 2 || day === 22 ? 'nd'
+            : day === 3 || day === 23 ? 'rd'
+            : 'th';
+          return `${month} ${day}${suffix}`;
+        })(),
+        startedAt: editorDate,
+        completedAt: editorDate,
+        isSynced: false,
+      };
+
+      // Add to completed sessions history
+      const updatedSessions = [completedSession, ...completedSessions];
+
+      set({
+        completedSessions: updatedSessions,
+      });
+
+      // Persist completed sessions to AsyncStorage
+      try {
+        await AsyncStorage.setItem(
+          COMPLETED_WORKOUTS_KEY,
+          JSON.stringify(updatedSessions)
+        );
+      } catch (error) {
+        console.warn('Failed to persist completed sessions:', error);
+      }
+
+      // Sync to Supabase (async, non-blocking)
+      syncWorkoutSession(completedSession).catch(error => {
+        console.warn('Failed to sync workout session:', error);
+      });
+    },
+
+    clearEditorSession: () => {
+      set({
+        editorSession: null,
+        editorMode: 'template',
+        editorDate: new Date(),
+      });
     },
   }))
 );

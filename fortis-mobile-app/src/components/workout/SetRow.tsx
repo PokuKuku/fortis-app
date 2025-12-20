@@ -23,17 +23,19 @@ interface SetRowProps {
   exerciseLocalId: string;
   setLocalId: string;
   setIndex: number;
+  useEditor?: boolean;
   previousSet?: WorkoutSet;
   lastPerformance?: LastPerformance | null;
 }
 
-export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet, lastPerformance }: SetRowProps) {
-  const activeSession = useWorkoutStore(s => s.activeSession);
-  const updateSet = useWorkoutStore(s => s.updateSet);
-  const completeSet = useWorkoutStore(s => s.completeSet);
-  const updateSetType = useWorkoutStore(s => s.updateSetType);
-  const removeSet = useWorkoutStore(s => s.removeSet);
-  const openNumberPad = useWorkoutStore(s => s.openNumberPad);
+export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = false, previousSet, lastPerformance }: SetRowProps) {
+  // Use editor session or active session based on mode
+  const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
+  const updateSet = useWorkoutStore(s => useEditor ? s.updateEditorSet : s.updateSet);
+  const completeSet = useWorkoutStore(s => useEditor ? s.completeEditorSet : s.completeSet);
+  const updateSetType = useWorkoutStore(s => useEditor ? s.updateEditorSetType : s.updateSetType);
+  const removeSet = useWorkoutStore(s => useEditor ? s.removeEditorSet : s.removeSet);
+  const openNumberPad = useWorkoutStore(s => useEditor ? s.openEditorNumberPad : s.openNumberPad);
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
 
   // Check if this input is currently active
@@ -101,7 +103,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet, las
   }, [isRepsActive]);
 
   // Find the current set
-  const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+  const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
   const set = exercise?.sets.find(s => s.localId === setLocalId);
 
   if (!set) return null;
@@ -280,7 +282,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet, las
         </View>
 
         {/* Weight input */}
-        <Animated.View style={[styles.inputWrapper, styles.weightWrapper, weightAnimatedStyle]}>
+        <Animated.View style={[styles.inputWrapper, styles.weightWrapper, useEditor && styles.flexCol, weightAnimatedStyle]}>
           <Pressable
             onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'weight')}
             style={[
@@ -302,7 +304,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet, las
         </Animated.View>
 
         {/* Reps input with RPE badge */}
-        <Animated.View style={[styles.inputWrapper, styles.repsWrapper, repsAnimatedStyle]}>
+        <Animated.View style={[styles.inputWrapper, styles.repsWrapper, useEditor && styles.flexCol, repsAnimatedStyle]}>
           <View style={styles.repsContainer}>
             <Pressable
               onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
@@ -336,45 +338,48 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, previousSet, las
           </View>
         </Animated.View>
 
-        {/* Completion checkbox */}
-        <Pressable
-          onPress={handleComplete}
-          style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
-        >
-          {set.isCompleted ? (
-            <>
-              <LinearGradient
-                colors={['#4ade80', '#22c55e']}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-              />
-              <LinearGradient
-                colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.15)']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={StyleSheet.absoluteFillObject}
-              />
+        {/* Completion checkbox - hidden in editor mode */}
+        {!useEditor && (
+          <Pressable
+            onPress={handleComplete}
+            style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
+          >
+            {set.isCompleted ? (
+              <>
+                <LinearGradient
+                  colors={['#4ade80', '#22c55e']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.15)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <CheckIcon
+                  size={18}
+                  color={Colors.white}
+                  strokeWidth={3}
+                />
+              </>
+            ) : (
               <CheckIcon
-                size={18}
-                color={Colors.white}
-                strokeWidth={3}
+                size={16}
+                color={Colors.textTertiary}
+                strokeWidth={2}
               />
-            </>
-          ) : (
-            <CheckIcon
-              size={16}
-              color={Colors.textTertiary}
-              strokeWidth={2}
-            />
-          )}
-        </Pressable>
+            )}
+          </Pressable>
+        )}
 
         {/* Set Type Popover */}
         <SetTypeSelector
           visible={showTypeSelector}
           onClose={() => setShowTypeSelector(false)}
           onSelect={(type) => updateSetType(exerciseLocalId, setLocalId, type)}
+          hideFailure={useEditor}
           onRemove={() => removeSet(exerciseLocalId, setLocalId)}
           currentType={set.setType}
           setIndex={setIndex}
@@ -462,6 +467,11 @@ const styles = StyleSheet.create({
   repsWrapper: {
     marginLeft: Spacing.sm,
   },
+  flexCol: {
+    flex: 1,
+    marginLeft: 0,
+    alignItems: 'center',
+  },
   input: {
     width: 40,
     height: 32,
@@ -505,10 +515,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.success,
     borderWidth: 2.5,
     backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    shadowColor: Colors.success,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.6,
-    shadowRadius: 12,
   },
   checkbox: {
     width: 32,

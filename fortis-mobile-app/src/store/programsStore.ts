@@ -18,6 +18,7 @@ import {
   ProgramWorkoutDTO,
   ProgramExercise,
   ProgramExerciseDTO,
+  TemplateSetDetail,
 } from '../types/workout';
 
 interface ProgramsState {
@@ -43,6 +44,7 @@ interface ProgramsState {
       sets: number;
       reps: string;
       restSeconds?: number;
+      setDetails?: TemplateSetDetail[];
     }>
   ) => Promise<string | null>;
   updateLastPerformed: (id: string) => Promise<void>;
@@ -339,10 +341,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const localProgram: Program = {
         id: localId,
         name,
-        description: null,
+        description: undefined,
         difficulty: 'intermediate',
-        goal: null,
-        durationWeeks: null,
+        goal: undefined,
+        durationWeeks: undefined,
         isPublic: false,
         isDefault: false,
         isAiCreated: false,
@@ -362,8 +364,9 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             sets: ex.sets,
             reps: ex.reps,
             restSeconds: ex.restSeconds || 120,
-            notes: null,
+            notes: undefined,
             orderIndex: index,
+            setDetails: ex.setDetails,
           })),
         }],
       };

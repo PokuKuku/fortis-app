@@ -43,12 +43,17 @@ export default function WorkoutDetailScreen() {
     // TODO: Navigate to edit screen
   };
 
-  const handleStartWorkout = () => {
-    if (isNavigating.current) return;
+  const startWorkoutFromTemplate = useWorkoutStore(s => s.startWorkoutFromTemplate);
+
+  const handleStartWorkout = async () => {
+    if (isNavigating.current || !id) return;
     isNavigating.current = true;
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // TODO: Start workout with this template
-    router.push('/workout/active');
+    const success = await startWorkoutFromTemplate(id);
+    if (success) {
+      router.push('/workout/active');
+    }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
