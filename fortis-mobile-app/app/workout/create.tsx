@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,6 @@ import {
   FlatList,
   ActivityIndicator,
   DeviceEventEmitter,
-  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -52,7 +51,7 @@ export default function CreateWorkoutScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isNameFocused, setIsNameFocused] = useState(false);
-  const nameInputRef = useRef<TextInput>(null);
+  const [workoutName, setWorkoutName] = useState('');
 
   // Get exercise IDs and fetch muscle data for heatmap
   const exerciseIds = useMemo(
@@ -209,25 +208,24 @@ export default function CreateWorkoutScreen() {
           >
             <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
           </Pressable>
-          <Pressable
-            style={styles.titleInputWrapper}
-            onPress={() => nameInputRef.current?.focus()}
-          >
+          <View style={styles.titleInputWrapper}>
             <TextInput
-              ref={nameInputRef}
               style={styles.headerTitleInput}
               placeholder="Workout Name"
               placeholderTextColor={Colors.textSecondary}
               value={editorSession?.name || ''}
               onChangeText={setEditorWorkoutName}
               autoCorrect={false}
+              autoCapitalize="words"
+              autoComplete="off"
+              editable={true}
               maxLength={50}
               returnKeyType="done"
               onFocus={() => setIsNameFocused(true)}
               onBlur={() => setIsNameFocused(false)}
             />
             <PencilIcon size={14} color={isNameFocused ? Colors.success : Colors.textTertiary} strokeWidth={2} />
-          </Pressable>
+          </View>
           <GlassButton
             style={{
               ...styles.saveButton,
@@ -289,7 +287,6 @@ export default function CreateWorkoutScreen() {
           ListEmptyComponent={renderEmptyState}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
-          onScrollBeginDrag={Keyboard.dismiss}
         />
 
         {/* Add Exercises Button */}

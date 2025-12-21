@@ -1277,8 +1277,20 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     setEditorWorkoutName: (name) => {
-      const { editorSession } = get();
-      if (!editorSession) return;
+      let { editorSession } = get();
+
+      // Auto-initialize session if it doesn't exist (handles race condition)
+      if (!editorSession) {
+        editorSession = {
+          localId: generateId(),
+          name: '',
+          notes: '',
+          startedAt: new Date(),
+          completedAt: null,
+          exercises: [],
+          isSynced: false,
+        };
+      }
 
       set({
         editorSession: { ...editorSession, name },
