@@ -8,7 +8,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { syncLocalProgram, processPendingProgramQueue } from '../services/programSyncService';
+import { syncLocalProgram, processPendingProgramQueue, removeFromPendingQueue } from '../services/programSyncService';
 
 const LOCAL_TEMPLATES_KEY = 'fortis_local_templates';
 import {
@@ -224,6 +224,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         isDeleting: false,
       }));
       get().persistLocalPrograms();
+
+      // Also remove from pending sync queue to prevent resurrection
+      removeFromPendingQueue(id).catch(err => {
+        console.warn('Failed to remove from pending queue:', err);
+      });
+
       return true;
     }
 
@@ -380,8 +386,20 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       // Attempt cloud sync in background (don't await, don't block)
       syncLocalProgram(localProgram).then((result) => {
         if (result.success && result.serverId) {
-          // Replace local ID with server ID
-          get().replaceLocalIdWithServerId(localId, result.serverId);
+          // Check if program still exists (wasn't deleted during sync)
+          const stillExists = get().programs.some(p => p.id === localId);
+          if (stillExists) {
+            // Replace local ID with server ID
+            get().replaceLocalIdWithServerId(localId, result.serverId);
+          } else {
+            // Program was deleted during sync - clean up from Supabase
+            supabase
+              .from('workout_programs')
+              .delete()
+              .eq('id', result.serverId)
+              .then(() => console.log('Cleaned up orphaned synced program'))
+              .catch(err => console.warn('Failed to clean up orphaned program:', err));
+          }
         }
       }).catch((err) => {
         console.warn('Background program sync failed:', err);

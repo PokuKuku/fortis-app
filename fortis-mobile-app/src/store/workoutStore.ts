@@ -86,13 +86,16 @@ interface WorkoutState {
   showRpeSelector: boolean;
   showRpeHelp: boolean;
 
+  // Backdated workout date (for logging past workouts)
+  backdatedDate: Date | null;
+
   // Editor session (for template creation and manual workout logging)
   editorSession: WorkoutSession | null;
   editorMode: 'template' | 'log';
   editorDate: Date;
 
   // Actions - Session
-  startWorkout: (name?: string, programWorkoutId?: string) => void;
+  startWorkout: (name?: string, programWorkoutId?: string, backdateToDate?: Date) => void;
   startWorkoutFromTemplate: (templateId: string) => Promise<boolean>;
   finishWorkout: () => Promise<WorkoutSession | null>;
   cancelWorkout: () => void;
@@ -219,6 +222,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     bodyType: 'male',
     showRpeSelector: false,
     showRpeHelp: false,
+    backdatedDate: null,
     editorSession: null,
     editorMode: 'template',
     editorDate: new Date(),
@@ -227,17 +231,17 @@ export const useWorkoutStore = create<WorkoutState>()(
     // Session Actions
     // ========================================
 
-    startWorkout: (name, programWorkoutId) => {
+    startWorkout: (name, programWorkoutId, backdateToDate) => {
       // Synchronous module-level check - blocks rapid clicks immediately
       if (isStartingWorkout || get().isWorkoutActive) return;
       isStartingWorkout = true;
 
+      const workoutDate = backdateToDate || new Date();
       const session: WorkoutSession = {
         localId: generateId(),
         name: name || (() => {
-          const date = new Date();
-          const month = date.toLocaleDateString('en-US', { month: 'long' });
-          const day = date.getDate();
+          const month = workoutDate.toLocaleDateString('en-US', { month: 'long' });
+          const day = workoutDate.getDate();
           const suffix = day === 1 || day === 21 || day === 31 ? 'st'
             : day === 2 || day === 22 ? 'nd'
             : day === 3 || day === 23 ? 'rd'
@@ -245,7 +249,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           return `${month} ${day}${suffix}`;
         })(),
         notes: '',
-        startedAt: new Date(),
+        startedAt: workoutDate,
         completedAt: null,
         exercises: [],
         isSynced: false,
@@ -258,6 +262,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         workoutStartTime: Date.now(),
         isWorkoutTimerPaused: false,
         pausedElapsedSeconds: 0,
+        backdatedDate: backdateToDate || null,
         restTimer: {
           isActive: false,
           remainingSeconds: 0,
@@ -361,12 +366,12 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     finishWorkout: async () => {
-      const { activeSession, completedSessions } = get();
+      const { activeSession, completedSessions, backdatedDate } = get();
       if (!activeSession) return null;
 
       const completedSession: WorkoutSession = {
         ...activeSession,
-        completedAt: new Date(),
+        completedAt: backdatedDate || new Date(),
       };
 
       isStartingWorkout = false; // Reset lock
@@ -382,6 +387,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         workoutStartTime: null,
         isWorkoutTimerPaused: false,
         pausedElapsedSeconds: 0,
+        backdatedDate: null,
         restTimer: {
           isActive: false,
           remainingSeconds: 0,
@@ -419,6 +425,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         workoutStartTime: null,
         isWorkoutTimerPaused: false,
         pausedElapsedSeconds: 0,
+        backdatedDate: null,
         restTimer: {
           isActive: false,
           remainingSeconds: 0,
@@ -1514,9 +1521,20 @@ export const useWorkoutStore = create<WorkoutState>()(
       const { editorSession, editorDate, completedSessions } = get();
       if (!editorSession) return;
 
+      // Auto-complete sets that have both weight and reps (for logged workouts)
+      const exercisesWithCompletedSets = editorSession.exercises.map(exercise => ({
+        ...exercise,
+        sets: exercise.sets.map(set => ({
+          ...set,
+          // Mark as completed if it has both weight and reps
+          isCompleted: set.weight !== null && set.reps !== null ? true : set.isCompleted,
+        })),
+      }));
+
       // Create completed session with backdated timestamps
       const completedSession: WorkoutSession = {
         ...editorSession,
+        exercises: exercisesWithCompletedSets,
         name: editorSession.name || (() => {
           const date = editorDate;
           const month = date.toLocaleDateString('en-US', { month: 'long' });

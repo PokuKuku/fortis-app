@@ -18,6 +18,7 @@ import Animated, {
 interface ExerciseCardProps {
   exerciseLocalId: string;
   useEditor?: boolean;
+  showCheckboxes?: boolean;
   onReplace?: (exerciseLocalId: string) => void;
   onViewDetails?: (exerciseId: string) => void;
 }
@@ -25,9 +26,12 @@ interface ExerciseCardProps {
 export function ExerciseCard({
   exerciseLocalId,
   useEditor = false,
+  showCheckboxes,
   onReplace,
   onViewDetails,
 }: ExerciseCardProps) {
+  // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
+  const shouldShowCheckboxes = showCheckboxes ?? !useEditor;
   // Use editor session or active session based on mode
   const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
   const removeExercise = useWorkoutStore(s => useEditor ? s.removeEditorExercise : s.removeExercise);
@@ -209,9 +213,9 @@ export function ExerciseCard({
           <View style={styles.tableHeader}>
             <Text style={[styles.headerText, styles.setCol]}>Set</Text>
             <Text style={[styles.headerText, styles.previousCol]}>Prev</Text>
-            <Text style={[styles.headerText, styles.weightCol, useEditor && styles.flexCol]}>{weightUnit}</Text>
-            <Text style={[styles.headerText, styles.repsCol, useEditor && styles.flexCol]}>Reps</Text>
-            {!useEditor && <View style={styles.checkCol} />}
+            <Text style={[styles.headerText, styles.weightCol, !shouldShowCheckboxes && styles.flexCol]}>{weightUnit}</Text>
+            <Text style={[styles.headerText, styles.repsCol, !shouldShowCheckboxes && styles.flexCol]}>Reps</Text>
+            {shouldShowCheckboxes && <View style={styles.checkCol} />}
           </View>
 
           {/* Header Divider */}
@@ -225,6 +229,7 @@ export function ExerciseCard({
               setLocalId={set.localId}
               setIndex={index}
               useEditor={useEditor}
+              showCheckboxes={shouldShowCheckboxes}
               previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
               lastPerformance={lastPerformance}
             />

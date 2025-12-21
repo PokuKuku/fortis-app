@@ -52,7 +52,7 @@ export default function WorkoutDetailScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     const success = await startWorkoutFromTemplate(id);
     if (success) {
-      router.push('/workout/active');
+      router.replace('/workout/active');
     }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };

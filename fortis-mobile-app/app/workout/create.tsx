@@ -30,7 +30,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 export default function CreateWorkoutScreen() {
   const router = useRouter();
-  const { mode = 'template' } = useLocalSearchParams<{ mode?: 'template' | 'log' }>();
+  const { mode = 'template', date } = useLocalSearchParams<{ mode?: 'template' | 'log'; date?: string }>();
 
   // Editor store actions
   const editorSession = useWorkoutStore(s => s.editorSession);
@@ -75,6 +75,13 @@ export default function CreateWorkoutScreen() {
       clearEditorSession();
     };
   }, []);
+
+  // Set date from URL parameter when logging past workout
+  useEffect(() => {
+    if (mode === 'log' && date) {
+      setEditorDate(new Date(date));
+    }
+  }, [mode, date, setEditorDate]);
 
   // Check if we can save
   const canSave = (editorSession?.name?.trim()?.length ?? 0) > 0 &&
@@ -173,8 +180,9 @@ export default function CreateWorkoutScreen() {
     <ExerciseCard
       exerciseLocalId={item.localId}
       useEditor={true}
+      showCheckboxes={mode === 'log'}
     />
-  ), []);
+  ), [mode]);
 
   // Render empty state
   const renderEmptyState = () => (
@@ -258,8 +266,8 @@ export default function CreateWorkoutScreen() {
           </Pressable>
         )}
 
-        {/* Stats Row - Fixed above list */}
-        {exerciseCount > 0 && (
+        {/* Stats Row - Fixed above list (hidden in log mode) */}
+        {mode !== 'log' && exerciseCount > 0 && (
           <View style={styles.statsCard}>
             <View style={styles.statsLeft}>
               <View style={styles.statItem}>

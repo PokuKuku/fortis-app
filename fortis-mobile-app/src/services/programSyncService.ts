@@ -105,7 +105,7 @@ async function addToPendingQueue(program: Program): Promise<void> {
 /**
  * Remove a program from the pending sync queue
  */
-async function removeFromPendingQueue(programId: string): Promise<void> {
+export async function removeFromPendingQueue(programId: string): Promise<void> {
   const queue = await loadPendingQueue();
   const filtered = queue.filter(item => item.program.id !== programId);
   await savePendingQueue(filtered);

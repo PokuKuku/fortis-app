@@ -24,11 +24,16 @@ interface SetRowProps {
   setLocalId: string;
   setIndex: number;
   useEditor?: boolean;
+  showCheckboxes?: boolean;
   previousSet?: WorkoutSet;
   lastPerformance?: LastPerformance | null;
 }
 
-export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = false, previousSet, lastPerformance }: SetRowProps) {
+export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = false, showCheckboxes, previousSet, lastPerformance }: SetRowProps) {
+  // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
+  const shouldShowCheckboxes = showCheckboxes ?? !useEditor;
+  // When logging past workouts (editor mode with checkboxes), disable autofill placeholders
+  const isLoggingPastWorkout = useEditor && shouldShowCheckboxes;
   // Use editor session or active session based on mode
   const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
   const updateSet = useWorkoutStore(s => useEditor ? s.updateEditorSet : s.updateSet);
@@ -282,7 +287,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         </View>
 
         {/* Weight input */}
-        <Animated.View style={[styles.inputWrapper, styles.weightWrapper, useEditor && styles.flexCol, weightAnimatedStyle]}>
+        <Animated.View style={[styles.inputWrapper, styles.weightWrapper, !shouldShowCheckboxes && styles.flexCol, weightAnimatedStyle]}>
           <Pressable
             onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'weight')}
             style={[
@@ -293,18 +298,18 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
           >
             <Text style={[
               styles.inputText,
-              (isWeightActive && !activeNumberPad?.pendingValue && previousSet?.weight != null) && styles.placeholderText,
-              (!isWeightActive && set.weight === null) && styles.placeholderText
+              (isWeightActive && !activeNumberPad?.pendingValue && !isLoggingPastWorkout && previousSet?.weight != null) && styles.placeholderText,
+              (!isWeightActive && set.weight === null && !isLoggingPastWorkout) && styles.placeholderText
             ]}>
               {isWeightActive
-                ? (activeNumberPad?.pendingValue || previousSet?.weight?.toString() || '')
-                : (set.weight !== null ? set.weight.toString() : (previousSet?.weight?.toString() || ''))}
+                ? (activeNumberPad?.pendingValue || (isLoggingPastWorkout ? '' : previousSet?.weight?.toString()) || '')
+                : (set.weight !== null ? set.weight.toString() : (isLoggingPastWorkout ? '' : previousSet?.weight?.toString() || ''))}
             </Text>
           </Pressable>
         </Animated.View>
 
         {/* Reps input with RPE badge */}
-        <Animated.View style={[styles.inputWrapper, styles.repsWrapper, useEditor && styles.flexCol, repsAnimatedStyle]}>
+        <Animated.View style={[styles.inputWrapper, styles.repsWrapper, !shouldShowCheckboxes && styles.flexCol, repsAnimatedStyle]}>
           <View style={styles.repsContainer}>
             <Pressable
               onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
@@ -316,12 +321,12 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
             >
               <Text style={[
                 styles.inputText,
-                (isRepsActive && !activeNumberPad?.pendingValue && previousSet?.reps != null) && styles.placeholderText,
-                (!isRepsActive && set.reps === null) && styles.placeholderText
+                (isRepsActive && !activeNumberPad?.pendingValue && !isLoggingPastWorkout && previousSet?.reps != null) && styles.placeholderText,
+                (!isRepsActive && set.reps === null && !isLoggingPastWorkout) && styles.placeholderText
               ]}>
                 {isRepsActive
-                  ? (activeNumberPad?.pendingValue || previousSet?.reps?.toString() || '')
-                  : (set.reps !== null ? set.reps.toString() : (previousSet?.reps?.toString() || ''))}
+                  ? (activeNumberPad?.pendingValue || (isLoggingPastWorkout ? '' : previousSet?.reps?.toString()) || '')
+                  : (set.reps !== null ? set.reps.toString() : (isLoggingPastWorkout ? '' : previousSet?.reps?.toString() || ''))}
               </Text>
             </Pressable>
             {/* RPE Badge */}
@@ -338,8 +343,8 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
           </View>
         </Animated.View>
 
-        {/* Completion checkbox - hidden in editor mode */}
-        {!useEditor && (
+        {/* Completion checkbox */}
+        {shouldShowCheckboxes && (
           <Pressable
             onPress={handleComplete}
             style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
@@ -379,7 +384,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
           visible={showTypeSelector}
           onClose={() => setShowTypeSelector(false)}
           onSelect={(type) => updateSetType(exerciseLocalId, setLocalId, type)}
-          hideFailure={useEditor}
+          hideFailure={!shouldShowCheckboxes}
           onRemove={() => removeSet(exerciseLocalId, setLocalId)}
           currentType={set.setType}
           setIndex={setIndex}

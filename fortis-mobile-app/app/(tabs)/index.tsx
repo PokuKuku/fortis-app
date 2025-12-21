@@ -168,13 +168,11 @@ function WorkoutsKebabPopover({
   visible,
   onClose,
   onAddWorkout,
-  onLogPastWorkout,
   position,
 }: {
   visible: boolean;
   onClose: () => void;
   onAddWorkout: () => void;
-  onLogPastWorkout: () => void;
   position: { top: number; left: number };
 }) {
   const popoverScale = useRef(new Animated.Value(0)).current;
@@ -252,13 +250,6 @@ function WorkoutsKebabPopover({
         >
           <PlusIcon color="#22c55e" size={16} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, { color: '#22c55e' }]}>Add Workout</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.kebabOption}
-          onPress={() => handleAction(onLogPastWorkout)}
-        >
-          <ClockIcon color={Colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, { color: Colors.textSecondary }]}>Log Past Workout</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -715,10 +706,8 @@ export default function ProgramsScreen() {
       });
     } else if (animState === 'exiting') {
       // Delete from database after exiting animation completes
-      if (type === 'program') {
-        await deleteProgramFromStore(id);
-      }
-      // Note: Individual workout deletion would need a separate store method
+      // Both programs and workouts (templates) use the same store
+      await deleteProgramFromStore(id);
       // Remove from animating cards
       setAnimatingCards(prev => {
         const next = { ...prev };
@@ -761,15 +750,6 @@ export default function ProgramsScreen() {
     // Small delay to let kebab close animation start
     setTimeout(() => {
       router.push('/workout/create');
-    }, 100);
-  };
-
-  // Handle log past workout from kebab menu
-  const handleLogPastWorkoutPress = () => {
-    setShowWorkoutsKebab(false);
-    // Small delay to let kebab close animation start
-    setTimeout(() => {
-      router.push('/workout/create?mode=log');
     }, 100);
   };
 
@@ -997,7 +977,6 @@ export default function ProgramsScreen() {
           visible={showWorkoutsKebab}
           onClose={() => setShowWorkoutsKebab(false)}
           onAddWorkout={handleAddWorkoutPress}
-          onLogPastWorkout={handleLogPastWorkoutPress}
           position={workoutsKebabPosition}
         />
       </SafeAreaView>

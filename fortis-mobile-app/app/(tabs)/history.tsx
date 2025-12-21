@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
 import { format, isSameDay } from 'date-fns';
 import { ClockIcon, FireIcon, TrophyIcon, CloudIcon, CalendarDaysIcon } from 'react-native-heroicons/outline';
@@ -24,6 +25,7 @@ import { WorkoutSession } from '../../src/types/workout';
 import { Colors } from '../../constants/Colors';
 import { Spacing, BorderRadius } from '../../constants/Sizes';
 import { Typography } from '../../constants/Typography';
+import { WorkoutHistoryDetailModal } from '../../src/components/workout/modals/WorkoutHistoryDetailModal';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -146,18 +148,19 @@ function AnimatedDay({
 }
 
 // Workout History Card Component
-function WorkoutHistoryCard({ session }: { session: WorkoutSession }) {
+function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onPress: () => void }) {
   const summary = getWorkoutSummary(session);
   const formattedDate = format(session.startedAt, 'MMM d, yyyy');
   const formattedTime = format(session.startedAt, 'h:mm a');
 
   return (
-    <Animated.View
-      entering={FadeIn.duration(300)}
-      exiting={FadeOut.duration(200)}
-      layout={Layout.duration(200)}
-      style={styles.card}
-    >
+    <Pressable onPress={onPress}>
+      <Animated.View
+        entering={FadeIn.duration(300)}
+        exiting={FadeOut.duration(200)}
+        layout={Layout.duration(200)}
+        style={styles.card}
+      >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
           <Text style={styles.workoutName} numberOfLines={1}>
@@ -194,7 +197,8 @@ function WorkoutHistoryCard({ session }: { session: WorkoutSession }) {
       <Text style={styles.exerciseCount}>
         {summary.totalExercises} exercise{summary.totalExercises !== 1 ? 's' : ''} • Started at {formattedTime}
       </Text>
-    </Animated.View>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -212,7 +216,7 @@ function EmptyState() {
 }
 
 // Empty state for no workouts on selected date
-function EmptyDateState() {
+function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) {
   return (
     <Animated.View
       entering={FadeIn.duration(300)}
@@ -220,12 +224,18 @@ function EmptyDateState() {
     >
       <CalendarDaysIcon color={Colors.textSecondary} size={32} strokeWidth={1.5} />
       <Text style={styles.emptyDateText}>No workouts logged on this day</Text>
+      <Pressable
+        style={({ pressed }) => [styles.logPastButton, pressed && styles.logPastButtonPressed]}
+        onPress={onLogPastWorkout}
+      >
+        <Text style={styles.logPastButtonText}>Log Past Workout</Text>
+      </Pressable>
     </Animated.View>
   );
 }
 
 // Animated Date Header Component
-function DateHeader({ date, volume }: { date: Date; volume: number }) {
+function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: () => void }) {
   const formattedDate = format(date, 'EEEE, MMMM d');
 
   return (
@@ -235,17 +245,18 @@ function DateHeader({ date, volume }: { date: Date; volume: number }) {
       style={styles.dateHeader}
     >
       <Text style={styles.dateHeaderText}>{formattedDate}</Text>
-      {volume > 0 && (
-        <View style={styles.volumeBadge}>
-          <Text style={styles.volumeLabel}>Total Volume</Text>
-          <Text style={styles.volumeValue}>{formatVolume(volume)} lbs</Text>
-        </View>
-      )}
+      <Pressable
+        style={({ pressed }) => [styles.logWorkoutButton, pressed && styles.logWorkoutButtonPressed]}
+        onPress={onLogPastWorkout}
+      >
+        <Text style={styles.logWorkoutButtonText}>Log Workout</Text>
+      </Pressable>
     </Animated.View>
   );
 }
 
 export default function HistoryScreen() {
+  const router = useRouter();
   const { isAuthenticated } = useAuth();
   const localSessions = useWorkoutStore((s) => s.completedSessions);
   const [remoteSessions, setRemoteSessions] = useState<WorkoutSession[]>([]);
@@ -255,6 +266,7 @@ export default function HistoryScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [displayedMonth, setDisplayedMonth] = useState<Date>(new Date());
   const [showDateSelector, setShowDateSelector] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
 
   // Merge local and remote sessions, avoiding duplicates
   const allSessions = useMemo(() => {
@@ -291,11 +303,6 @@ export default function HistoryScreen() {
   const filteredWorkouts = useMemo(() => {
     return allSessions.filter(session => isSameDay(session.startedAt, selectedDate));
   }, [allSessions, selectedDate]);
-
-  const selectedDateVolume = useMemo(() => {
-    const dateKey = format(selectedDate, 'yyyy-MM-dd');
-    return volumeByDate[dateKey] || 0;
-  }, [selectedDate, volumeByDate]);
 
   const loadData = useCallback(async () => {
     const count = await getPendingSyncCount();
@@ -341,6 +348,16 @@ export default function HistoryScreen() {
     setShowDateSelector(true);
   }, []);
 
+  const handleLogPastWorkout = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/workout/create?mode=log&date=${selectedDate.toISOString()}`);
+  }, [router, selectedDate]);
+
+  const handleCardPress = useCallback((session: WorkoutSession) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedSession(session);
+  }, []);
+
   const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
   const displayedMonthKey = format(displayedMonth, 'yyyy-MM-dd');
 
@@ -368,7 +385,7 @@ export default function HistoryScreen() {
           <FlatList
             data={filteredWorkouts}
             keyExtractor={(item) => item.localId}
-            renderItem={({ item }) => <WorkoutHistoryCard session={item} />}
+            renderItem={({ item }) => <WorkoutHistoryCard session={item} onPress={() => handleCardPress(item)} />}
             ListHeaderComponent={
               <>
                 <View style={styles.calendarCard}>
@@ -415,10 +432,10 @@ export default function HistoryScreen() {
                   />
                 </View>
 
-                <DateHeader date={selectedDate} volume={selectedDateVolume} />
+                <DateHeader date={selectedDate} onLogPastWorkout={handleLogPastWorkout} />
               </>
             }
-            ListEmptyComponent={<EmptyDateState />}
+            ListEmptyComponent={<EmptyDateState onLogPastWorkout={handleLogPastWorkout} />}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -440,6 +457,12 @@ export default function HistoryScreen() {
         onSelectDate={handleDateSelectorSelect}
         currentDate={displayedMonth}
         selectedDate={selectedDate}
+      />
+
+      <WorkoutHistoryDetailModal
+        visible={selectedSession !== null}
+        onClose={() => setSelectedSession(null)}
+        session={selectedSession}
       />
     </View>
   );
@@ -552,27 +575,23 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontWeight: '600',
   },
-  volumeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.surfaceOverlay,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-    borderRadius: BorderRadius.full,
+  logWorkoutButton: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
   },
-  volumeLabel: {
+  logWorkoutButtonPressed: {
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    borderColor: 'rgba(34, 197, 94, 0.6)',
+  },
+  logWorkoutButtonText: {
     ...Typography.caption,
     color: Colors.success,
     fontWeight: '600',
     fontSize: 11,
-  },
-  volumeValue: {
-    ...Typography.caption,
-    color: Colors.textPrimary,
-    fontWeight: '500',
   },
   listContent: {
     paddingHorizontal: Spacing['2xl'],
@@ -666,5 +685,21 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textSecondary,
     marginTop: Spacing.md,
+  },
+  logPastButton: {
+    marginTop: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.5)',
+  },
+  logPastButtonPressed: {
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+  },
+  logPastButtonText: {
+    ...Typography.labelSmall,
+    color: Colors.success,
+    fontWeight: '600',
   },
 });
