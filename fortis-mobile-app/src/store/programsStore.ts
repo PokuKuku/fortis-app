@@ -490,26 +490,28 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   // Update last performed timestamp
   updateLastPerformed: async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('workout_programs')
-        .update({ last_performed_at: new Date().toISOString() })
-        .eq('id', id);
+    // Skip Supabase update for local templates (they don't exist in the database yet)
+    if (!id.startsWith('local-')) {
+      try {
+        const { error } = await supabase
+          .from('workout_programs')
+          .update({ last_performed_at: new Date().toISOString() })
+          .eq('id', id);
 
-      if (error) {
-        console.error('Error updating last performed:', error);
-        return;
+        if (error) {
+          console.error('Error updating last performed:', error);
+        }
+      } catch (err) {
+        console.error('Error updating last performed:', err);
       }
-
-      // Update local state
-      set((state) => ({
-        programs: state.programs.map((p) =>
-          p.id === id ? { ...p, lastPerformedAt: new Date().toISOString() } : p
-        ),
-      }));
-    } catch (err) {
-      console.error('Error updating last performed:', err);
     }
+
+    // Always update local state
+    set((state) => ({
+      programs: state.programs.map((p) =>
+        p.id === id ? { ...p, lastPerformedAt: new Date().toISOString() } : p
+      ),
+    }));
   },
 
   // Clear error

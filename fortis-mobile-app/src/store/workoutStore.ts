@@ -330,6 +330,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           exercises,
           isSynced: false,
           programId: templateId,
+          originalExerciseIds: exercises.map(ex => ex.exerciseId),
         };
 
         set({
@@ -1620,6 +1621,30 @@ export const hasIncompleteSets = (session: WorkoutSession | null): boolean => {
   return session.exercises.some((ex) =>
     ex.sets.some((s) => !s.isCompleted)
   );
+};
+
+/**
+ * Check if workout has template modifications (for showing "Save as Template" button)
+ * Returns true if: blank workout OR template workout with exercise changes
+ */
+export const hasTemplateModifications = (session: WorkoutSession | null): boolean => {
+  if (!session) return false;
+
+  // Blank workout - always show save option
+  if (!session.programId || !session.originalExerciseIds) {
+    return true;
+  }
+
+  // Get current exercise IDs
+  const currentIds = session.exercises.map(ex => ex.exerciseId);
+  const originalIds = session.originalExerciseIds;
+
+  // Check if exercise count differs (additions or removals)
+  if (currentIds.length !== originalIds.length) return true;
+
+  // Check if any exercise was replaced (same count but different IDs)
+  const hasChanges = currentIds.some((id, index) => id !== originalIds[index]);
+  return hasChanges;
 };
 
 /**

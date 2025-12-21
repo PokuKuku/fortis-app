@@ -12,7 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useWorkoutStore, hasTemplateModifications } from '@/src/store/workoutStore';
 import { useRestTimerTick } from '@/src/hooks/useRestTimerTick';
 import { WorkoutHeader } from '@/src/components/workout/WorkoutHeader';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
@@ -299,7 +299,10 @@ export default function ActiveWorkoutScreen() {
           extraData={activeSession}
           renderItem={renderExerciseCard}
           keyExtractor={(item) => item.localId}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            activeNumberPad && { paddingBottom: 380 }
+          ]}
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={renderFooter}
           showsVerticalScrollIndicator={false}
@@ -359,7 +362,7 @@ export default function ActiveWorkoutScreen() {
         visible={showFinishModal}
         onClose={() => setShowFinishModal(false)}
         onConfirm={handleConfirmFinish}
-        onSaveAsTemplate={handleSaveAsTemplate}
+        onSaveAsTemplate={hasTemplateModifications(activeSession) ? handleSaveAsTemplate : undefined}
         session={activeSession}
       />
 

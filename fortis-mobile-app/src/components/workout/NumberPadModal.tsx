@@ -151,9 +151,9 @@ export function NumberPadModal({
   if (!visible) return null;
 
   return (
-    <View style={styles.absoluteContainer}>
-      {/* Dismissible backdrop - tap to close */}
-      <Pressable style={styles.backdrop} onPress={onClose} />
+    <View style={styles.absoluteContainer} pointerEvents="box-none">
+      {/* Empty space above keyboard - pointerEvents="none" allows touches to pass through to FlatList */}
+      <View style={styles.backdrop} pointerEvents="none" />
 
       {/* Keyboard */}
       <Animated.View

@@ -143,8 +143,8 @@ async function uploadSession(
       started_at: session.startedAt.toISOString(),
       completed_at: session.completedAt?.toISOString() || null,
       duration_seconds: calculateDuration(session),
-      program_id: session.programId,
-      program_workout_id: session.programWorkoutId,
+      program_id: session.programId?.startsWith('local-') ? null : session.programId,
+      program_workout_id: session.programWorkoutId?.startsWith('local-') ? null : session.programWorkoutId,
       is_synced: true,
     };
 
