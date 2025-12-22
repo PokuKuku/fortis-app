@@ -25,6 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Fortis is an offline-first mobile workout tracker built with Expo/React Native. Monorepo structure:
 
 - **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19.1, RN 0.81.5, TypeScript)
+- **fortis-dashboard-web/**: Next.js analytics dashboard (Next.js 16, React 19.2, TypeScript, Tailwind CSS)
 - **supabase/**: Database schema, migrations, and seed data
 - **free-exercise-db-main/**: Exercise database with JSON files
 
@@ -88,7 +89,7 @@ fortis-mobile-app/
     ├── Colors.ts, Sizes.ts, Typography.ts
 ```
 
-**Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns
+**Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns, victory-native (charts), react-native-calendars, lucide-react-native
 
 **TypeScript Path Alias:** Use `@/` prefix for imports from project root (e.g., `@/src/components/ui/BaseModal`)
 
@@ -130,6 +131,7 @@ fortis-mobile-app/
 - `001_add_import_support.sql` - Strong/Hevy imports
 - `002_core_features_and_ai_security.sql` - AI, programs, RLS
 - `003_program_ai_tracking.sql` - AI-generated program tracking
+- `004_add_program_delete_update_policies.sql` - Program deletion/update RLS policies
 
 **AI Edge Function** (`supabase/functions/ai/index.ts`):
 - Rate limiting via `ai_rate_limits` table

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,13 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -17,14 +20,15 @@ import Svg, {
   Text as SvgText,
   Path,
 } from 'react-native-svg';
+import MaskedView from '@react-native-masked-view/masked-view';
 
 // Apple Logo Component
-function AppleLogo({ size = 20 }: { size?: number }) {
+function AppleLogo({ size = 20, color = '#FFFFFF' }: { size?: number; color?: string }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Path
         d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
-        fill="#000000"
+        fill={color}
       />
     </Svg>
   );
@@ -59,6 +63,70 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+
+// Animated Fortis Logo with metallic shine
+function AnimatedFortisLogo() {
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.timing(shimmerAnim, {
+        toValue: 1,
+        duration: 3000,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, [shimmerAnim]);
+
+  const translateX = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-200, 200],
+  });
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <MaskedView
+        maskElement={
+          <Text style={{
+            fontFamily: 'BankGothicMediumBT',
+            fontSize: 42,
+            fontWeight: '900',
+            letterSpacing: 8,
+            textAlign: 'center',
+          }}>
+            FORTIS
+          </Text>
+        }
+      >
+        <LinearGradient
+          colors={['#4ade80', '#22c55e', '#4ade80']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ height: 60, width: 280 }}
+        >
+          <Animated.View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              transform: [{ translateX }],
+            }}
+          >
+            <LinearGradient
+              colors={['transparent', 'rgba(255,255,255,0.4)', 'transparent']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ width: 100, height: '100%' }}
+            />
+          </Animated.View>
+        </LinearGradient>
+      </MaskedView>
+    </View>
+  );
+}
 
 export default function AuthWelcomeScreen() {
   const router = useRouter();
@@ -117,89 +185,96 @@ export default function AuthWelcomeScreen() {
         <View style={styles.content}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <Svg height="80" width="280" viewBox="0 0 280 80">
-              <Defs>
-                <SvgLinearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0%" stopColor="#4ade80" />
-                  <Stop offset="50%" stopColor="#22c55e" />
-                  <Stop offset="100%" stopColor="#16a34a" />
-                </SvgLinearGradient>
-              </Defs>
-              <SvgText
-                fill="url(#logoGradient)"
-                fontSize="38"
-                fontWeight="900"
-                letterSpacing="6"
-                x="140"
-                y="52"
-                textAnchor="middle"
-                fontFamily="BankGothicBT-Medium, sans-serif"
-              >
-                FORTIS
-              </SvgText>
-            </Svg>
+            <AnimatedFortisLogo />
             <Text style={styles.tagline}>Track your strength journey</Text>
           </View>
 
-          {/* Auth Buttons */}
-          <View style={styles.authButtons}>
-            {/* Apple Sign In (iOS only) */}
-            {Platform.OS === 'ios' && (
-              <TouchableOpacity
-                style={styles.appleButton}
-                onPress={handleAppleSignIn}
-                disabled={isLoadingApple || isLoadingGoogle}
-                activeOpacity={0.8}
-              >
-                {isLoadingApple ? (
-                  <ActivityIndicator color="#000" size="small" />
-                ) : (
-                  <>
-                    <AppleLogo size={20} />
-                    <Text style={styles.appleButtonText}>Continue with Apple</Text>
-                  </>
+          {/* Glass Card Container */}
+          <View style={styles.glassCard}>
+            {/* Fog Overlay */}
+            <LinearGradient
+              colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)', 'transparent']}
+              style={styles.fogOverlay}
+            />
+
+            <View style={styles.glassCardContent}>
+              <Text style={styles.glassCardTitle}>Create an account or sign in</Text>
+
+              {/* OAuth Buttons */}
+              <View style={styles.oauthButtons}>
+                {/* Google Sign In */}
+                <TouchableOpacity
+                  style={styles.oauthButton}
+                  onPress={handleGoogleSignIn}
+                  disabled={isLoadingGoogle || isLoadingApple}
+                  activeOpacity={0.8}
+                >
+                  {isLoadingGoogle ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <View style={styles.oauthIconContainer}>
+                        <GoogleLogo size={20} />
+                      </View>
+                      <Text style={styles.oauthButtonText}>Continue with Google</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                {/* Apple Sign In (iOS only) */}
+                {Platform.OS === 'ios' && (
+                  <TouchableOpacity
+                    style={styles.oauthButton}
+                    onPress={handleAppleSignIn}
+                    disabled={isLoadingApple || isLoadingGoogle}
+                    activeOpacity={0.8}
+                  >
+                    {isLoadingApple ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <>
+                        <View style={styles.oauthIconContainer}>
+                          <AppleLogo size={20} />
+                        </View>
+                        <Text style={styles.oauthButtonText}>Continue with Apple</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
                 )}
-              </TouchableOpacity>
-            )}
-
-            {/* Google Sign In */}
-            <TouchableOpacity
-              style={styles.googleButton}
-              onPress={handleGoogleSignIn}
-              disabled={isLoadingGoogle || isLoadingApple}
-              activeOpacity={0.8}
-            >
-              {isLoadingGoogle ? (
-                <ActivityIndicator color="#000" size="small" />
-              ) : (
-                <>
-                  <GoogleLogo size={20} />
-                  <Text style={styles.googleButtonText}>Continue with Google</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            {/* Email Sign In */}
-            <GlassButton
-              style={styles.emailButton}
-              onPress={handleEmailPress}
-            >
-              <Text style={styles.emailButtonText}>Continue with Email</Text>
-            </GlassButton>
-
-            {/* Error Message */}
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
               </View>
-            )}
+
+              {/* Divider */}
+              <View style={styles.divider}>
+                <LinearGradient
+                  colors={['transparent', 'rgba(113,113,122,0.5)', 'transparent']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.dividerGradient}
+                />
+                <Text style={styles.dividerText}>or</Text>
+                <LinearGradient
+                  colors={['transparent', 'rgba(113,113,122,0.5)', 'transparent']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.dividerGradient}
+                />
+              </View>
+
+              {/* Email Sign In */}
+              <GlassButton
+                style={styles.emailButton}
+                onPress={handleEmailPress}
+              >
+                <Text style={styles.emailButtonText}>Continue with Email</Text>
+              </GlassButton>
+
+              {/* Error Message */}
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Terms */}
@@ -224,7 +299,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing['2xl'],
     justifyContent: 'space-between',
-    paddingTop: 80,
+    paddingTop: 60,
     paddingBottom: Spacing['2xl'],
   },
   logoContainer: {
@@ -234,71 +309,99 @@ const styles = StyleSheet.create({
   tagline: {
     ...Typography.body,
     color: Colors.textSecondary,
-    marginTop: Spacing.md,
+    marginTop: Spacing.lg,
   },
-  authButtons: {
+  // Glass card styles
+  glassCard: {
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  fogOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  glassCardContent: {
+    padding: Spacing.lg,
+  },
+  glassCardTitle: {
+    ...Typography.body,
+    color: '#DFE2E6',
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  // OAuth button styles
+  oauthButtons: {
     gap: Spacing.md,
   },
-  appleButton: {
+  oauthButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    height: 52,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
+    backgroundColor: 'rgba(24, 24, 27, 0.9)',
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(63, 63, 70, 0.8)',
   },
-  appleButtonText: {
+  oauthIconContainer: {
+    position: 'absolute',
+    left: Spacing.lg,
+  },
+  oauthButtonText: {
     ...Typography.button,
-    color: '#000000',
+    color: Colors.white,
+    fontSize: 15,
   },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    height: 52,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
-  },
-  googleButtonText: {
-    ...Typography.button,
-    color: '#000000',
-  },
+  // Divider styles
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: Spacing.lg,
+    marginVertical: Spacing.xl,
+    gap: Spacing.lg,
   },
-  dividerLine: {
+  dividerGradient: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   dividerText: {
-    ...Typography.caption,
+    ...Typography.body,
     color: Colors.textSecondary,
-    marginHorizontal: Spacing.lg,
+    fontSize: 14,
   },
+  // Email button
   emailButton: {
-    height: 52,
-    borderRadius: BorderRadius.lg,
+    height: 44,
+    borderRadius: 22,
   },
   emailButtonText: {
     ...Typography.button,
     color: Colors.white,
+    fontSize: 15,
   },
+  // Error
   errorContainer: {
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    marginTop: Spacing.sm,
+    marginTop: Spacing.md,
   },
   errorText: {
     ...Typography.caption,
     color: Colors.error,
     textAlign: 'center',
   },
+  // Terms
   terms: {
     ...Typography.caption,
     color: Colors.textSecondary,

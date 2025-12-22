@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
+import { EnvelopeIcon, LockClosedIcon, UserIcon } from 'react-native-heroicons/outline';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -46,6 +47,7 @@ export default function EmailAuthScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   const {
     control,
@@ -134,20 +136,33 @@ export default function EmailAuthScreen() {
                     control={control}
                     name="email"
                     render={({ field: { onChange, onBlur, value } }) => (
-                      <TextInput
-                        style={[
-                          styles.input,
-                          errors.email && styles.inputError,
-                        ]}
-                        placeholder="your@email.com"
-                        placeholderTextColor={Colors.textSecondary}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                        autoComplete="email"
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                      />
+                      <View style={[
+                        styles.inputWrapper,
+                        focusedField === 'email' && styles.inputWrapperFocused,
+                        errors.email && styles.inputWrapperError,
+                      ]}>
+                        <EnvelopeIcon
+                          size={18}
+                          color={focusedField === 'email' ? Colors.success : Colors.textSecondary}
+                          strokeWidth={2}
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="your@email.com"
+                          placeholderTextColor={Colors.textSecondary}
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          autoComplete="email"
+                          onFocus={() => setFocusedField('email')}
+                          onBlur={() => {
+                            setFocusedField(null);
+                            onBlur();
+                          }}
+                          onChangeText={onChange}
+                          value={value}
+                        />
+                      </View>
                     )}
                   />
                   {errors.email && (
@@ -161,19 +176,32 @@ export default function EmailAuthScreen() {
                     control={control}
                     name="password"
                     render={({ field: { onChange, onBlur, value } }) => (
-                      <TextInput
-                        style={[
-                          styles.input,
-                          errors.password && styles.inputError,
-                        ]}
-                        placeholder="Enter your password"
-                        placeholderTextColor={Colors.textSecondary}
-                        secureTextEntry
-                        autoComplete="password"
-                        onBlur={onBlur}
-                        onChangeText={onChange}
-                        value={value}
-                      />
+                      <View style={[
+                        styles.inputWrapper,
+                        focusedField === 'password' && styles.inputWrapperFocused,
+                        errors.password && styles.inputWrapperError,
+                      ]}>
+                        <LockClosedIcon
+                          size={18}
+                          color={focusedField === 'password' ? Colors.success : Colors.textSecondary}
+                          strokeWidth={2}
+                          style={styles.inputIcon}
+                        />
+                        <TextInput
+                          style={styles.input}
+                          placeholder="Enter your password"
+                          placeholderTextColor={Colors.textSecondary}
+                          secureTextEntry
+                          autoComplete="password"
+                          onFocus={() => setFocusedField('password')}
+                          onBlur={() => {
+                            setFocusedField(null);
+                            onBlur();
+                          }}
+                          onChangeText={onChange}
+                          value={value}
+                        />
+                      </View>
                     )}
                   />
                   {errors.password && (
@@ -188,19 +216,32 @@ export default function EmailAuthScreen() {
                       control={control}
                       name="confirmPassword"
                       render={({ field: { onChange, onBlur, value } }) => (
-                        <TextInput
-                          style={[
-                            styles.input,
-                            errors.confirmPassword && styles.inputError,
-                          ]}
-                          placeholder="Confirm your password"
-                          placeholderTextColor={Colors.textSecondary}
-                          secureTextEntry
-                          autoComplete="password-new"
-                          onBlur={onBlur}
-                          onChangeText={onChange}
-                          value={value}
-                        />
+                        <View style={[
+                          styles.inputWrapper,
+                          focusedField === 'confirmPassword' && styles.inputWrapperFocused,
+                          errors.confirmPassword && styles.inputWrapperError,
+                        ]}>
+                          <LockClosedIcon
+                            size={18}
+                            color={focusedField === 'confirmPassword' ? Colors.success : Colors.textSecondary}
+                            strokeWidth={2}
+                            style={styles.inputIcon}
+                          />
+                          <TextInput
+                            style={styles.input}
+                            placeholder="Confirm your password"
+                            placeholderTextColor={Colors.textSecondary}
+                            secureTextEntry
+                            autoComplete="password-new"
+                            onFocus={() => setFocusedField('confirmPassword')}
+                            onBlur={() => {
+                              setFocusedField(null);
+                              onBlur();
+                            }}
+                            onChangeText={onChange}
+                            value={value}
+                          />
+                        </View>
                       )}
                     />
                     {errors.confirmPassword && (
@@ -301,19 +342,34 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textSecondary,
     marginLeft: Spacing.xs,
+    textTransform: 'uppercase',
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 44,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: 'rgba(63, 63, 70, 0.8)',
+    paddingHorizontal: Spacing.md,
+  },
+  inputWrapperFocused: {
+    borderColor: 'rgba(63, 63, 70, 1)',
+  },
+  inputWrapperError: {
+    borderColor: Colors.error,
+  },
+  inputIcon: {
+    marginRight: Spacing.sm,
   },
   input: {
-    height: 52,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: Spacing.lg,
+    flex: 1,
+    height: '100%',
     ...Typography.body,
     color: Colors.textPrimary,
-  },
-  inputError: {
-    borderColor: Colors.error,
   },
   errorText: {
     ...Typography.caption,
@@ -331,13 +387,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   submitButton: {
-    height: 52,
-    borderRadius: BorderRadius.lg,
+    height: 44,
+    borderRadius: 22,
     marginTop: Spacing.md,
   },
   submitButtonText: {
     ...Typography.button,
     color: Colors.white,
+    fontSize: 15,
   },
   toggleContainer: {
     flexDirection: 'row',

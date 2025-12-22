@@ -212,6 +212,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         options: {
           redirectTo,
           skipBrowserRedirect: true,
+          queryParams: {
+            prompt: 'select_account', // Force account selection on re-auth
+          },
         },
       });
 
@@ -281,13 +284,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Sign out
   const signOut = useCallback(async () => {
+    // Dismiss any lingering OAuth browser session
+    WebBrowser.dismissBrowser();
+
     // Clear state immediately - UI updates right away
     setUser(null);
     setSession(null);
     setProfile(null);
 
-    // Fire and forget - clean up Supabase session in background
-    supabase.auth.signOut().catch(err => {
+    // Sign out from Supabase with global scope to clear all sessions
+    supabase.auth.signOut({ scope: 'global' }).catch(err => {
       console.warn('Sign out error:', err);
     });
   }, []);
