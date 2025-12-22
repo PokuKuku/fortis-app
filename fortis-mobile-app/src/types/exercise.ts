@@ -5,9 +5,6 @@ export interface Exercise {
   secondaryMuscles: string[];
   equipment: string;
   category: string;
-  level: string;
-  force: string;
-  mechanic: string | null;
   instructions: string[];
   images: string[];
 }
@@ -16,4 +13,25 @@ export type ExerciseSource = 'local' | 'api' | 'custom';
 
 export interface ExerciseWithSource extends Exercise {
   source: ExerciseSource;
+}
+
+// ExerciseDB API response structure
+// Note: Field names may vary between API versions
+export interface ExerciseDbResponse {
+  exerciseId?: string;
+  id?: string;
+  name: string;
+  targetMuscles?: string[];
+  target?: string;
+  secondaryMuscles?: string[];
+  equipments?: string[];
+  equipment?: string;
+  exerciseType?: string;
+  bodyParts?: string[];
+  bodyPart?: string;
+  instructions?: string[];
+  imageUrl?: string;
+  gifUrl?: string;
+  videoUrl?: string;
+  overview?: string;
 }

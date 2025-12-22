@@ -1,11 +1,96 @@
-import { Exercise, ExerciseWithSource, ExerciseSource } from '@/src/types/exercise';
+import { Exercise, ExerciseWithSource, ExerciseSource, ExerciseDbResponse } from '@/src/types/exercise';
 import { EXERCISE_CONFIG } from '@/src/constants/exerciseConfig';
-import { CUSTOM_EXERCISES_KEY } from '@/src/constants/storageKeys';
+import { CUSTOM_EXERCISES_KEY, EXERCISE_CACHE_KEY, EXERCISE_CACHE_TIMESTAMP_KEY } from '@/src/constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { exerciseDbClient } from './exerciseDbClient';
+import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
 let customExerciseCache: Exercise[] | null = null;
+
+// --- Helpers ---
+
+function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+// --- Data Transformation ---
+
+function transformExerciseDbToExercise(apiExercise: ExerciseDbResponse): Exercise {
+  const isOpenSource = EXERCISE_CONFIG.activeApi === 'opensource';
+
+  if (isOpenSource) {
+    // Open source API: exerciseId, targetMuscles[], bodyParts[], equipments[], gifUrl
+    return {
+      id: apiExercise.exerciseId || '',
+      name: toTitleCase(apiExercise.name || ''),
+      primaryMuscles: normalizeMuscleArray(apiExercise.targetMuscles || []),
+      secondaryMuscles: normalizeMuscleArray(apiExercise.secondaryMuscles || []),
+      equipment: apiExercise.equipments?.[0] || 'body only',
+      category: apiExercise.bodyParts?.[0] || 'strength',
+      instructions: apiExercise.instructions || [],
+      images: apiExercise.gifUrl ? [apiExercise.gifUrl] : [],
+    };
+  } else {
+    // RapidAPI: id, target (string), bodyPart (string), equipment (string)
+    const exerciseId = apiExercise.id || '';
+    const apiKey = process.env.EXPO_PUBLIC_EXERCISEDB_API_KEY || '';
+    const resolution = (EXERCISE_CONFIG as any).imageResolution || 360;
+    const gifUrl = exerciseId
+      ? `https://exercisedb.p.rapidapi.com/image?exerciseId=${exerciseId}&resolution=${resolution}&rapidapi-key=${apiKey}`
+      : '';
+
+    const primaryMuscles = apiExercise.target ? [apiExercise.target] : [];
+
+    return {
+      id: exerciseId,
+      name: toTitleCase(apiExercise.name || ''),
+      primaryMuscles: normalizeMuscleArray(primaryMuscles),
+      secondaryMuscles: normalizeMuscleArray(apiExercise.secondaryMuscles || []),
+      equipment: apiExercise.equipment || 'body only',
+      category: apiExercise.bodyPart || 'strength',
+      instructions: apiExercise.instructions || [],
+      images: gifUrl ? [gifUrl] : [],
+    };
+  }
+}
+
+// --- Cache Management ---
+
+async function isCacheValid(): Promise<boolean> {
+  try {
+    const timestamp = await AsyncStorage.getItem(EXERCISE_CACHE_TIMESTAMP_KEY);
+    if (!timestamp) return false;
+
+    const cacheAge = Date.now() - parseInt(timestamp, 10);
+    return cacheAge < EXERCISE_CONFIG.cacheDurationMs;
+  } catch {
+    return false;
+  }
+}
+
+async function loadCachedExercises(): Promise<Exercise[] | null> {
+  try {
+    const cached = await AsyncStorage.getItem(EXERCISE_CACHE_KEY);
+    return cached ? JSON.parse(cached) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function saveCachedExercises(exercises: Exercise[]): Promise<void> {
+  try {
+    await AsyncStorage.setItem(EXERCISE_CACHE_KEY, JSON.stringify(exercises));
+    await AsyncStorage.setItem(EXERCISE_CACHE_TIMESTAMP_KEY, Date.now().toString());
+  } catch (error) {
+    console.warn('Failed to cache exercises:', error);
+  }
+}
 
 // --- Core Functions ---
 
@@ -19,7 +104,7 @@ export async function getAllExercises(): Promise<ExerciseWithSource[]> {
   const customWithSource = customExercises.map(e => ({ ...e, source: 'custom' as ExerciseSource }));
   const baseWithSource = baseExercises.map(e => ({
     ...e,
-    source: (EXERCISE_CONFIG.source === 'local' ? 'local' : 'api') as ExerciseSource
+    source: 'api' as ExerciseSource
   }));
 
   return [...customWithSource, ...baseWithSource];
@@ -60,41 +145,54 @@ export async function filterExercises(filters: {
   });
 }
 
-// --- Base Exercise Loading (swappable) ---
+// --- Base Exercise Loading (API-only with caching) ---
 
 async function getBaseExercises(): Promise<Exercise[]> {
-  if (baseExerciseCache) return baseExerciseCache;
-
-  if (EXERCISE_CONFIG.source === 'local') {
-    return loadLocalExercises();
-  } else {
-    return fetchApiExercises();
+  // 1. Check in-memory cache
+  if (baseExerciseCache && baseExerciseCache.length > 0) {
+    return baseExerciseCache;
   }
-}
 
-function loadLocalExercises(): Exercise[] {
-  // Synchronous require for bundled JSON
-  const data = require('@/assets/exercises.json');
-  baseExerciseCache = data;
-  return data;
-}
-
-async function fetchApiExercises(): Promise<Exercise[]> {
-  // Future: API implementation
-  // Add error handling, retry logic, etc. as needed
-  try {
-    const response = await fetch(`${EXERCISE_CONFIG.apiBaseUrl}/exercises`);
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+  // 2. Check persistent cache
+  if (await isCacheValid()) {
+    const cached = await loadCachedExercises();
+    if (cached && cached.length > 0) {
+      baseExerciseCache = cached;
+      return cached;
     }
-    const data = await response.json();
-    baseExerciseCache = data;
-    return data;
-  } catch (error) {
-    console.error('Failed to fetch exercises from API:', error);
-    // Fallback to local if API fails
-    return loadLocalExercises();
   }
+
+  // 3. Fetch from API
+  try {
+    const apiExercises = await exerciseDbClient.fetchAllExercises();
+    const transformed = apiExercises.map(transformExerciseDbToExercise);
+
+    baseExerciseCache = transformed;
+    await saveCachedExercises(transformed);
+
+    return transformed;
+  } catch (error) {
+    // 4. Try to use stale cache if API fails
+    const staleCache = await loadCachedExercises();
+    if (staleCache && staleCache.length > 0) {
+      console.warn('Using stale cache due to API error:', error);
+      baseExerciseCache = staleCache;
+      return staleCache;
+    }
+
+    // 5. No cache available - throw error
+    throw new Error('Internet connection required to load exercises. Please check your connection and try again.');
+  }
+}
+
+/**
+ * Force refresh the exercise cache from API.
+ */
+export async function refreshExerciseCache(): Promise<void> {
+  baseExerciseCache = null;
+  await AsyncStorage.removeItem(EXERCISE_CACHE_KEY);
+  await AsyncStorage.removeItem(EXERCISE_CACHE_TIMESTAMP_KEY);
+  await getBaseExercises();
 }
 
 // --- Custom Exercises ---
@@ -146,8 +244,18 @@ export function invalidateCustomCache(): void {
 
 // --- Utilities ---
 
+/**
+ * Gets the full URL for an exercise image.
+ * Handles both full URLs (from ExerciseDB API) and relative paths.
+ */
 export function getExerciseImageUrl(imagePath: string): string {
-  return `${EXERCISE_CONFIG.imageBaseUrl}${imagePath}`;
+  if (!imagePath) return '';
+  // If it's already a full URL, return as-is
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  // For any relative paths (shouldn't happen with API), return as-is
+  return imagePath;
 }
 
 /**

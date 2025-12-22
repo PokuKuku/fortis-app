@@ -11,15 +11,26 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeftIcon } from 'react-native-heroicons/outline';
+import { ChevronLeftIcon, TrophyIcon, FireIcon, ScaleIcon, ChartBarIcon } from 'react-native-heroicons/outline';
+import { CartesianChart, Line, Scatter } from 'victory-native';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
+import { useExerciseHistory } from '@/src/hooks/useExerciseHistory';
+import { useExerciseRecords } from '@/src/hooks/useExerciseRecords';
 import { getExerciseImageUrl } from '@/src/services/exerciseService';
+import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 
 type TabType = 'About' | 'History' | 'Charts' | 'Records';
+
+function formatVolume(volume: number): string {
+  if (volume >= 1000) {
+    return `${(volume / 1000).toFixed(1)}k`;
+  }
+  return volume.toString();
+}
 
 export default function ExerciseDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,8 +38,9 @@ export default function ExerciseDetailsScreen() {
   const [selectedTab, setSelectedTab] = useState<TabType>('About');
   const isNavigating = useRef(false);
 
-  // Use centralized exercise service
   const { exercise, loading } = useExercise(id);
+  const { history } = useExerciseHistory(id);
+  const records = useExerciseRecords(id);
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -51,6 +63,17 @@ export default function ExerciseDetailsScreen() {
       </SafeAreaView>
     );
   }
+
+  // Prepare chart data
+  const chartData = history
+    .slice()
+    .reverse()
+    .map((entry, index) => ({
+      x: index + 1,
+      weight: entry.maxWeight,
+      volume: entry.totalVolume,
+      date: entry.date,
+    }));
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -87,63 +110,30 @@ export default function ExerciseDetailsScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {/* ==================== ABOUT TAB ==================== */}
         {selectedTab === 'About' && (
           <>
-            {/* Exercise Image with Title Overlay */}
             <View style={styles.exerciseImageContainer}>
               {exercise.images && exercise.images.length > 0 ? (
                 <Image
-                  source={{
-                    uri: getExerciseImageUrl(exercise.images[0]),
-                  }}
+                  source={{ uri: getExerciseImageUrl(exercise.images[0]) }}
                   style={styles.exerciseImage}
-                  resizeMode="cover"
+                  resizeMode="contain"
                 />
               ) : (
                 <View style={styles.placeholderImage}>
                   <Text style={styles.placeholderImageText}>No image provided</Text>
                 </View>
               )}
-              <LinearGradient
-                colors={['rgba(0,0,0,0.4)', 'transparent', 'rgba(0,0,0,0.7)']}
-                style={styles.imageGradient}
-              />
-              <View style={styles.imageTitleOverlay}>
-                <Text style={styles.exerciseDetailTitle}>{exercise.name}</Text>
-                <LinearGradient
-                  colors={['#22c55e', '#16a34a']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.categoryTag}
-                >
-                  <Text style={styles.categoryTagText}>
-                    {exercise.category || 'Custom'}
-                  </Text>
-                </LinearGradient>
-              </View>
             </View>
 
-            {/* Info Grid */}
             <View style={styles.infoGrid}>
-              <View style={styles.infoBox}>
-                <Text style={styles.infoLabel}>LEVEL</Text>
-                <Text style={styles.infoValue}>{exercise.level || 'N/A'}</Text>
-              </View>
-              <View style={styles.infoBox}>
-                <Text style={styles.infoLabel}>FORCE</Text>
-                <Text style={styles.infoValue}>{exercise.force || 'N/A'}</Text>
-              </View>
-              <View style={styles.infoBox}>
-                <Text style={styles.infoLabel}>MECHANIC</Text>
-                <Text style={styles.infoValue}>{exercise.mechanic || 'N/A'}</Text>
-              </View>
               <View style={styles.infoBox}>
                 <Text style={styles.infoLabel}>EQUIPMENT</Text>
                 <Text style={styles.infoValue}>{exercise.equipment || 'N/A'}</Text>
               </View>
             </View>
 
-            {/* Primary Muscles */}
             <View style={styles.musclesSection}>
               <Text style={styles.musclesSectionTitle}>PRIMARY MUSCLES</Text>
               <View style={styles.muscleTags}>
@@ -161,7 +151,6 @@ export default function ExerciseDetailsScreen() {
               </View>
             </View>
 
-            {/* Secondary Muscles */}
             {exercise.secondaryMuscles.length > 0 && (
               <View style={styles.musclesSection}>
                 <Text style={styles.musclesSectionTitle}>SECONDARY MUSCLES</Text>
@@ -175,7 +164,6 @@ export default function ExerciseDetailsScreen() {
               </View>
             )}
 
-            {/* Instructions */}
             <View style={styles.instructionsSection}>
               <Text style={styles.instructionsSectionTitle}>INSTRUCTIONS</Text>
               {exercise.instructions.length === 0 ? (
@@ -199,30 +187,258 @@ export default function ExerciseDetailsScreen() {
           </>
         )}
 
+        {/* ==================== HISTORY TAB ==================== */}
         {selectedTab === 'History' && (
-          <View style={styles.placeholderTab}>
-            <Text style={styles.placeholderTabText}>No history yet</Text>
-            <Text style={styles.placeholderTabSubtext}>
-              Complete workouts with this exercise to see your history
-            </Text>
+          <View style={styles.tabContent}>
+            {history.length === 0 ? (
+              <View style={styles.placeholderTab}>
+                <Text style={styles.placeholderTabText}>No history yet</Text>
+                <Text style={styles.placeholderTabSubtext}>
+                  Complete workouts with this exercise to see your history
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.sectionTitle}>WORKOUT HISTORY</Text>
+                {history.map((entry) => (
+                  <View key={entry.sessionId} style={styles.historyCard}>
+                    <View style={styles.historyHeader}>
+                      <Text style={styles.historyDate}>
+                        {format(entry.date, 'MMM d, yyyy')}
+                      </Text>
+                      <Text style={styles.historySession}>{entry.sessionName}</Text>
+                    </View>
+                    <View style={styles.historyStats}>
+                      <View style={styles.historyStat}>
+                        <Text style={styles.historyStatValue}>{entry.completedSets}</Text>
+                        <Text style={styles.historyStatLabel}>Sets</Text>
+                      </View>
+                      <View style={styles.historyStat}>
+                        <Text style={styles.historyStatValue}>{entry.totalReps}</Text>
+                        <Text style={styles.historyStatLabel}>Reps</Text>
+                      </View>
+                      <View style={styles.historyStat}>
+                        <Text style={styles.historyStatValue}>{entry.maxWeight}</Text>
+                        <Text style={styles.historyStatLabel}>Max lbs</Text>
+                      </View>
+                      <View style={styles.historyStat}>
+                        <Text style={styles.historyStatValue}>{formatVolume(entry.totalVolume)}</Text>
+                        <Text style={styles.historyStatLabel}>Volume</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </>
+            )}
           </View>
         )}
 
+        {/* ==================== CHARTS TAB ==================== */}
         {selectedTab === 'Charts' && (
-          <View style={styles.placeholderTab}>
-            <Text style={styles.placeholderTabText}>No data yet</Text>
-            <Text style={styles.placeholderTabSubtext}>
-              Log more workouts to see progress charts
-            </Text>
+          <View style={styles.tabContent}>
+            {chartData.length < 2 ? (
+              <View style={styles.placeholderTab}>
+                <Text style={styles.placeholderTabText}>Not enough data</Text>
+                <Text style={styles.placeholderTabSubtext}>
+                  Log at least 2 workouts with this exercise to see progress charts
+                </Text>
+              </View>
+            ) : (
+              <>
+                {/* Weight Progress Chart */}
+                <Text style={styles.sectionTitle}>WEIGHT PROGRESS</Text>
+                <View style={styles.chartContainer}>
+                  <CartesianChart
+                    data={chartData}
+                    xKey="x"
+                    yKeys={['weight']}
+                    padding={{ top: 20, bottom: 20, left: 10, right: 10 }}
+                    domainPadding={{ top: 20, bottom: 10 }}
+                    axisOptions={{
+                      tickCount: { x: 5, y: 5 },
+                      labelColor: Colors.textSecondary,
+                      lineColor: {
+                        grid: { x: 'transparent', y: 'rgba(255,255,255,0.1)' },
+                        frame: 'rgba(255,255,255,0.2)',
+                      },
+                      formatYLabel: (value) => `${value}`,
+                    }}
+                  >
+                    {({ points }) => (
+                      <>
+                        <Line
+                          points={points.weight}
+                          color={Colors.success}
+                          strokeWidth={2}
+                          curveType="natural"
+                          animate={{ type: 'timing', duration: 500 }}
+                        />
+                        <Scatter
+                          points={points.weight}
+                          radius={5}
+                          color={Colors.success}
+                          animate={{ type: 'timing', duration: 500 }}
+                        />
+                      </>
+                    )}
+                  </CartesianChart>
+                </View>
+
+                {/* Volume Progress Chart */}
+                <Text style={styles.sectionTitle}>VOLUME PROGRESS</Text>
+                <View style={styles.chartContainer}>
+                  <CartesianChart
+                    data={chartData}
+                    xKey="x"
+                    yKeys={['volume']}
+                    padding={{ top: 20, bottom: 20, left: 10, right: 10 }}
+                    domainPadding={{ top: 20, bottom: 10 }}
+                    axisOptions={{
+                      tickCount: { x: 5, y: 5 },
+                      labelColor: Colors.textSecondary,
+                      lineColor: {
+                        grid: { x: 'transparent', y: 'rgba(255,255,255,0.1)' },
+                        frame: 'rgba(255,255,255,0.2)',
+                      },
+                      formatYLabel: (value) => formatVolume(Number(value)),
+                    }}
+                  >
+                    {({ points }) => (
+                      <>
+                        <Line
+                          points={points.volume}
+                          color="#3b82f6"
+                          strokeWidth={2}
+                          curveType="natural"
+                          animate={{ type: 'timing', duration: 500 }}
+                        />
+                        <Scatter
+                          points={points.volume}
+                          radius={5}
+                          color="#3b82f6"
+                          animate={{ type: 'timing', duration: 500 }}
+                        />
+                      </>
+                    )}
+                  </CartesianChart>
+                </View>
+              </>
+            )}
           </View>
         )}
 
+        {/* ==================== RECORDS TAB ==================== */}
         {selectedTab === 'Records' && (
-          <View style={styles.placeholderTab}>
-            <Text style={styles.placeholderTabText}>No records yet</Text>
-            <Text style={styles.placeholderTabSubtext}>
-              Your personal records will appear here
-            </Text>
+          <View style={styles.tabContent}>
+            {records.totalWorkouts === 0 ? (
+              <View style={styles.placeholderTab}>
+                <Text style={styles.placeholderTabText}>No records yet</Text>
+                <Text style={styles.placeholderTabSubtext}>
+                  Your personal records will appear here after logging workouts
+                </Text>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.sectionTitle}>PERSONAL RECORDS</Text>
+
+                {/* Max Weight */}
+                {records.maxWeight && (
+                  <View style={styles.recordCard}>
+                    <LinearGradient
+                      colors={['#22c55e', '#16a34a']}
+                      style={styles.recordIcon}
+                    >
+                      <ScaleIcon color="#000" size={20} strokeWidth={2} />
+                    </LinearGradient>
+                    <View style={styles.recordInfo}>
+                      <Text style={styles.recordLabel}>Max Weight</Text>
+                      <Text style={styles.recordValue}>
+                        {records.maxWeight.value} lbs × {records.maxWeight.reps} reps
+                      </Text>
+                      <Text style={styles.recordDate}>
+                        {format(records.maxWeight.date, 'MMM d, yyyy')}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Estimated 1RM */}
+                {records.estimated1RM && (
+                  <View style={styles.recordCard}>
+                    <LinearGradient
+                      colors={['#f59e0b', '#d97706']}
+                      style={styles.recordIcon}
+                    >
+                      <TrophyIcon color="#000" size={20} strokeWidth={2} />
+                    </LinearGradient>
+                    <View style={styles.recordInfo}>
+                      <Text style={styles.recordLabel}>Estimated 1RM</Text>
+                      <Text style={styles.recordValue}>{records.estimated1RM.value} lbs</Text>
+                      <Text style={styles.recordDate}>
+                        {format(records.estimated1RM.date, 'MMM d, yyyy')}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Max Reps */}
+                {records.maxReps && (
+                  <View style={styles.recordCard}>
+                    <LinearGradient
+                      colors={['#3b82f6', '#2563eb']}
+                      style={styles.recordIcon}
+                    >
+                      <FireIcon color="#000" size={20} strokeWidth={2} />
+                    </LinearGradient>
+                    <View style={styles.recordInfo}>
+                      <Text style={styles.recordLabel}>Max Reps</Text>
+                      <Text style={styles.recordValue}>
+                        {records.maxReps.value} reps @ {records.maxReps.weight} lbs
+                      </Text>
+                      <Text style={styles.recordDate}>
+                        {format(records.maxReps.date, 'MMM d, yyyy')}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Best Volume */}
+                {records.maxVolume && (
+                  <View style={styles.recordCard}>
+                    <LinearGradient
+                      colors={['#8b5cf6', '#7c3aed']}
+                      style={styles.recordIcon}
+                    >
+                      <ChartBarIcon color="#000" size={20} strokeWidth={2} />
+                    </LinearGradient>
+                    <View style={styles.recordInfo}>
+                      <Text style={styles.recordLabel}>Best Session Volume</Text>
+                      <Text style={styles.recordValue}>
+                        {formatVolume(records.maxVolume.value)} lbs
+                      </Text>
+                      <Text style={styles.recordDate}>
+                        {format(records.maxVolume.date, 'MMM d, yyyy')}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Total Stats */}
+                <Text style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+                  LIFETIME STATS
+                </Text>
+                <View style={styles.statsRow}>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statValue}>{records.totalWorkouts}</Text>
+                    <Text style={styles.statLabel}>Workouts</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statValue}>{records.totalSets}</Text>
+                    <Text style={styles.statLabel}>Total Sets</Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
         )}
       </ScrollView>
@@ -291,53 +507,33 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 240, // Clear mini bar + FAB + tab bar when opened from Exercises tab
+    paddingBottom: 240,
   },
+  tabContent: {
+    paddingHorizontal: Spacing['2xl'],
+  },
+  sectionTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+    letterSpacing: 0.5,
+  },
+
+  // About tab styles
   exerciseImageContainer: {
-    height: 180,
-    marginBottom: 0,
+    height: 280,
+    marginBottom: Spacing.md,
     marginHorizontal: Spacing['2xl'],
     borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',
-    position: 'relative',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   exerciseImage: {
     width: '100%',
     height: '100%',
-    alignSelf: 'center',
-  },
-  imageGradient: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  imageTitleOverlay: {
-    position: 'absolute',
-    bottom: Spacing.lg,
-    left: Spacing.lg,
-    right: Spacing.lg,
-  },
-  exerciseDetailTitle: {
-    fontSize: FontSizes['2xl'],
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-  },
-  categoryTag: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
-    borderRadius: BorderRadius.sm,
-    alignSelf: 'flex-start',
-  },
-  categoryTagText: {
-    color: '#000',
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
-    textTransform: 'capitalize',
   },
   placeholderImage: {
     width: '100%',
@@ -361,7 +557,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['2xl'],
     justifyContent: 'space-between',
     marginBottom: Spacing.xl,
-    marginTop: Spacing.xl,
   },
   infoBox: {
     width: '48%',
@@ -460,6 +655,125 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: Colors.textPrimary,
   },
+
+  // History tab styles
+  historyCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  historyDate: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  historySession: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+  },
+  historyStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  historyStat: {
+    alignItems: 'center',
+  },
+  historyStatValue: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.success,
+  },
+  historyStatLabel: {
+    fontSize: FontSizes.xs,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+
+  // Charts tab styles
+  chartContainer: {
+    height: 220,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.xl,
+    overflow: 'hidden',
+  },
+
+  // Records tab styles
+  recordCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  recordIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.lg,
+  },
+  recordInfo: {
+    flex: 1,
+  },
+  recordLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    marginBottom: 2,
+  },
+  recordValue: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  recordDate: {
+    fontSize: FontSizes.xs,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  statBox: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  statValue: {
+    fontSize: FontSizes['2xl'],
+    fontWeight: '700',
+    color: Colors.textPrimary,
+  },
+  statLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+  },
+
+  // Placeholder styles
   placeholderTab: {
     flex: 1,
     alignItems: 'center',

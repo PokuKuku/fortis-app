@@ -22,10 +22,7 @@ import { Colors } from '../../constants/Colors';
 import {
   PRIMARY_MUSCLES,
   CATEGORIES,
-  LEVELS,
-  FORCES,
   EQUIPMENT_TYPES,
-  MECHANICS,
 } from '@/src/constants/exerciseOptions';
 export default function TabLayout() {
   const router = useRouter();
@@ -43,10 +40,7 @@ export default function TabLayout() {
   const [primaryMuscle, setPrimaryMuscle] = useState('');
   const [secondaryMuscle, setSecondaryMuscle] = useState('');
   const [category, setCategory] = useState('');
-  const [level, setLevel] = useState('');
-  const [force, setForce] = useState('');
   const [equipment, setEquipment] = useState('');
-  const [mechanic, setMechanic] = useState('');
   const [instructions, setInstructions] = useState('');
   const [fieldErrors, setFieldErrors] = useState({
     name: false,
@@ -77,10 +71,7 @@ export default function TabLayout() {
     setPrimaryMuscle('');
     setSecondaryMuscle('');
     setCategory('');
-    setLevel('');
-    setForce('');
     setEquipment('');
-    setMechanic('');
     setInstructions('');
     setEditingExerciseId(null);
   };
@@ -122,9 +113,6 @@ export default function TabLayout() {
       secondaryMuscles: secondaryMuscle ? [secondaryMuscle] : [],
       equipment: equipment || 'Bodyweight',
       category,
-      level: level || 'Unspecified',
-      force: force || '',
-      mechanic: mechanic || '',
       instructions: instructionList,
       images: [],
     };
@@ -154,10 +142,7 @@ export default function TabLayout() {
       setCategory(exercise.category || '');
       setPrimaryMuscle(exercise.primaryMuscles?.[0] || '');
       setSecondaryMuscle(exercise.secondaryMuscles?.[0] || '');
-      setLevel(exercise.level || '');
-      setForce(exercise.force || '');
       setEquipment(exercise.equipment || '');
-      setMechanic(exercise.mechanic || '');
       setInstructions(
         Array.isArray(exercise.instructions)
           ? exercise.instructions.join('\n')
@@ -185,10 +170,7 @@ export default function TabLayout() {
   const optionList = {
     primaryMuscles: [...PRIMARY_MUSCLES],
     categories: [...CATEGORIES],
-    levels: [...LEVELS],
-    forces: [...FORCES],
     equipmentTypes: [...EQUIPMENT_TYPES],
-    mechanics: [...MECHANICS],
   };
 
   return (
@@ -439,36 +421,6 @@ export default function TabLayout() {
               ))}
             </View>
 
-            <Text style={styles.inputLabel}>Level (optional)</Text>
-            <View style={styles.chipWrap}>
-              {optionList.levels.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[styles.chip, level === item && styles.chipActive]}
-                  onPress={() => setLevel(item === level ? '' : item)}
-                >
-                  <Text style={[styles.chipText, level === item && styles.chipTextActive]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.inputLabel}>Force (optional)</Text>
-            <View style={styles.chipWrap}>
-              {optionList.forces.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[styles.chip, force === item && styles.chipActive]}
-                  onPress={() => setForce(item === force ? '' : item)}
-                >
-                  <Text style={[styles.chipText, force === item && styles.chipTextActive]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             <Text style={styles.inputLabel}>Equipment (optional)</Text>
             <View style={styles.chipWrap}>
               {optionList.equipmentTypes.map((item) => (
@@ -478,21 +430,6 @@ export default function TabLayout() {
                   onPress={() => setEquipment(item === equipment ? '' : item)}
                 >
                   <Text style={[styles.chipText, equipment === item && styles.chipTextActive]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.inputLabel}>Mechanic (optional)</Text>
-            <View style={styles.chipWrap}>
-              {optionList.mechanics.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[styles.chip, mechanic === item && styles.chipActive]}
-                  onPress={() => setMechanic(item === mechanic ? '' : item)}
-                >
-                  <Text style={[styles.chipText, mechanic === item && styles.chipTextActive]}>
                     {item}
                   </Text>
                 </TouchableOpacity>

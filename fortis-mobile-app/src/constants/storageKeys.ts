@@ -1,5 +1,7 @@
 // Exercise library
 export const CUSTOM_EXERCISES_KEY = 'custom_exercises_v1';
+export const EXERCISE_CACHE_KEY = 'exercise_cache_v5';
+export const EXERCISE_CACHE_TIMESTAMP_KEY = 'exercise_cache_timestamp_v5';
 
 // Programs
 export const PROGRAMS_KEY = 'fortis_programs_v1';
