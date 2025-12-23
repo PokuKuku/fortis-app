@@ -141,18 +141,6 @@ export default function WorkoutDetailScreen() {
           </Animated.View>
         )}
 
-        {/* Last Performed */}
-        {workout.lastPerformed && (
-          <Animated.View
-            entering={FadeIn.delay(150).duration(300)}
-            style={styles.metaContainer}
-          >
-            <Text style={styles.metaText}>
-              Last performed: {workout.lastPerformed}
-            </Text>
-          </Animated.View>
-        )}
-
         {/* Muscle Heatmap Section */}
         <Animated.View
           entering={FadeInDown.delay(200).duration(400)}

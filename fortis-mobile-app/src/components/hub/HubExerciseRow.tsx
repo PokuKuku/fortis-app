@@ -5,7 +5,7 @@ import Animated, { FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
-import { EXERCISE_CONFIG } from '@/src/constants/exerciseConfig';
+import { getExerciseImageUrl } from '@/src/services/exerciseService';
 
 interface HubExerciseRowProps {
   exerciseName: string;
@@ -53,7 +53,7 @@ export function HubExerciseRow({
   rightAction,
 }: HubExerciseRowProps) {
   const imageUrl = images.length > 0
-    ? `${EXERCISE_CONFIG.imageBaseUrl}${images[0]}`
+    ? getExerciseImageUrl(images[0])
     : null;
 
   const handlePress = () => {

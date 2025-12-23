@@ -5,7 +5,7 @@
  * Supports offline-first: queues uploads when offline and syncs when online.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { WorkoutSession, WorkoutExercise, WorkoutSet } from '@/src/types/workout';
@@ -65,7 +65,7 @@ async function isOnline(): Promise<boolean> {
  */
 async function loadPendingQueue(): Promise<PendingSyncItem[]> {
   try {
-    const stored = await AsyncStorage.getItem(PENDING_SYNC_QUEUE_KEY);
+    const stored = await getScopedItem(PENDING_SYNC_QUEUE_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
@@ -80,7 +80,7 @@ async function loadPendingQueue(): Promise<PendingSyncItem[]> {
  */
 async function savePendingQueue(queue: PendingSyncItem[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(PENDING_SYNC_QUEUE_KEY, JSON.stringify(queue));
+    await setScopedItem(PENDING_SYNC_QUEUE_KEY, JSON.stringify(queue));
   } catch (error) {
     console.warn('Failed to save pending sync queue:', error);
   }
@@ -368,6 +368,7 @@ export async function fetchWorkoutHistory(
           order_index
         )
       `)
+      .eq('user_id', user.id)
       .order('started_at', { ascending: false })
       .limit(limit)
       .abortSignal(controller.signal);

@@ -32,8 +32,10 @@ interface SetRowProps {
 export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = false, showCheckboxes, previousSet, lastPerformance }: SetRowProps) {
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
   const shouldShowCheckboxes = showCheckboxes ?? !useEditor;
-  // When logging past workouts (editor mode with checkboxes), disable autofill placeholders
-  const isLoggingPastWorkout = useEditor && shouldShowCheckboxes;
+  // Allow previous-set autofill when logging a workout (active session or log mode),
+  // but keep template creation rows empty.
+  const allowAutoFill = !useEditor || shouldShowCheckboxes;
+  const allowApplyToRemaining = true;
   // Use editor session or active session based on mode
   const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
   const updateSet = useWorkoutStore(s => useEditor ? s.updateEditorSet : s.updateSet);
@@ -59,6 +61,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
   }>({});
   const badgeRef = useRef<View>(null);
   const swipeableRef = useRef<Swipeable>(null);
+  const longPressHandledRef = useRef<'weight' | 'reps' | 'check' | null>(null);
 
   // Shake animation
   const weightShake = useSharedValue(0);
@@ -113,15 +116,89 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
 
   if (!set) return null;
 
+  const applyValueToRemainingSets = (field: 'weight' | 'reps') => {
+    if (!allowApplyToRemaining || !exercise) return false;
+    const value = set[field];
+    if (value === null || value === undefined) return false;
+
+    const remainingSets = exercise.sets.slice(setIndex + 1);
+    const setsToUpdate = remainingSets.filter(
+      (s) => !s.isCompleted && s[field] !== value
+    );
+    if (setsToUpdate.length === 0) return false;
+
+    setsToUpdate.forEach((s) => {
+      updateSet(exerciseLocalId, s.localId, { [field]: value });
+    });
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    return true;
+  };
+
+  const handleApplyToRemaining = (field: 'weight' | 'reps') => {
+    const applied = applyValueToRemainingSets(field);
+    if (applied) {
+      longPressHandledRef.current = field;
+      setTimeout(() => {
+        if (longPressHandledRef.current === field) {
+          longPressHandledRef.current = null;
+        }
+      }, 500);
+    }
+  };
+
+  const handleInputPress = (field: 'weight' | 'reps') => {
+    if (longPressHandledRef.current === field) {
+      longPressHandledRef.current = null;
+      return;
+    }
+    openNumberPad(exerciseLocalId, setLocalId, field);
+  };
+
+  const applyCompletionToRemainingSets = () => {
+    if (!shouldShowCheckboxes || !exercise) return false;
+    const targetState = !set.isCompleted;
+    const remainingSets = exercise.sets.slice(setIndex);
+    const setsToUpdate = remainingSets.filter((s) => s.isCompleted !== targetState);
+    if (setsToUpdate.length === 0) return false;
+
+    setsToUpdate.forEach((s) => {
+      updateSet(exerciseLocalId, s.localId, { isCompleted: targetState });
+    });
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    return true;
+  };
+
+  const handleCheckboxPress = () => {
+    if (longPressHandledRef.current === 'check') {
+      longPressHandledRef.current = null;
+      return;
+    }
+    handleComplete();
+  };
+
+  const handleCheckboxLongPress = () => {
+    const applied = applyCompletionToRemainingSets();
+    if (applied) {
+      longPressHandledRef.current = 'check';
+      setTimeout(() => {
+        if (longPressHandledRef.current === 'check') {
+          longPressHandledRef.current = null;
+        }
+      }, 500);
+    }
+  };
+
   const handleComplete = () => {
     // Try to use autofill values from previous set if current values are null
     let finalWeight = set.weight;
     let finalReps = set.reps;
 
-    if (finalWeight === null && previousSet?.weight != null) {
+    if (allowAutoFill && finalWeight === null && previousSet?.weight != null) {
       finalWeight = previousSet.weight;
     }
-    if (finalReps === null && previousSet?.reps != null) {
+    if (allowAutoFill && finalReps === null && previousSet?.reps != null) {
       finalReps = previousSet.reps;
     }
 
@@ -289,7 +366,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         {/* Weight input */}
         <Animated.View style={[styles.inputWrapper, styles.weightWrapper, !shouldShowCheckboxes && styles.flexCol, weightAnimatedStyle]}>
           <Pressable
-            onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'weight')}
+            onPress={() => handleInputPress('weight')}
+            onLongPress={() => handleApplyToRemaining('weight')}
+            delayLongPress={350}
             style={[
               getInputStyle('weight'),
               isWeightActive && styles.inputActive,
@@ -298,12 +377,12 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
           >
             <Text style={[
               styles.inputText,
-              (isWeightActive && !activeNumberPad?.pendingValue && !isLoggingPastWorkout && previousSet?.weight != null) && styles.placeholderText,
-              (!isWeightActive && set.weight === null && !isLoggingPastWorkout) && styles.placeholderText
+              (isWeightActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.weight != null) && styles.placeholderText,
+              (!isWeightActive && set.weight === null && allowAutoFill) && styles.placeholderText
             ]}>
               {isWeightActive
-                ? (activeNumberPad?.pendingValue || (isLoggingPastWorkout ? '' : previousSet?.weight?.toString()) || '')
-                : (set.weight !== null ? set.weight.toString() : (isLoggingPastWorkout ? '' : previousSet?.weight?.toString() || ''))}
+                ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.weight?.toString() : '') || '')
+                : (set.weight !== null ? set.weight.toString() : (allowAutoFill ? previousSet?.weight?.toString() || '' : ''))}
             </Text>
           </Pressable>
         </Animated.View>
@@ -312,7 +391,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         <Animated.View style={[styles.inputWrapper, styles.repsWrapper, !shouldShowCheckboxes && styles.flexCol, repsAnimatedStyle]}>
           <View style={styles.repsContainer}>
             <Pressable
-              onPress={() => openNumberPad(exerciseLocalId, setLocalId, 'reps')}
+              onPress={() => handleInputPress('reps')}
+              onLongPress={() => handleApplyToRemaining('reps')}
+              delayLongPress={350}
               style={[
                 getInputStyle('reps'),
                 isRepsActive && styles.inputActive,
@@ -321,14 +402,14 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
             >
               <Text style={[
                 styles.inputText,
-                (isRepsActive && !activeNumberPad?.pendingValue && !isLoggingPastWorkout && previousSet?.reps != null) && styles.placeholderText,
-                (!isRepsActive && set.reps === null && !isLoggingPastWorkout) && styles.placeholderText
+                (isRepsActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.reps != null) && styles.placeholderText,
+                (!isRepsActive && set.reps === null && allowAutoFill) && styles.placeholderText
               ]}>
                 {isRepsActive
-                  ? (activeNumberPad?.pendingValue || (isLoggingPastWorkout ? '' : previousSet?.reps?.toString()) || '')
-                  : (set.reps !== null ? set.reps.toString() : (isLoggingPastWorkout ? '' : previousSet?.reps?.toString() || ''))}
-              </Text>
-            </Pressable>
+                  ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
+                  : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
+            </Text>
+          </Pressable>
             {/* RPE Badge */}
             {set.rpe !== null && (
               <View
@@ -346,7 +427,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         {/* Completion checkbox */}
         {shouldShowCheckboxes && (
           <Pressable
-            onPress={handleComplete}
+            onPress={handleCheckboxPress}
+            onLongPress={handleCheckboxLongPress}
+            delayLongPress={350}
             style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
           >
             {set.isCompleted ? (
@@ -419,11 +502,11 @@ const styles = StyleSheet.create({
   },
   containerCompleted: {
     backgroundColor: Colors.successOverlay,
-    borderRadius: BorderRadius.lg,
-    marginLeft: -Spacing.md,
-    paddingLeft: Spacing.md,
-    marginRight: -Spacing.sm,
-    paddingRight: Spacing.sm,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: Colors.successBorder,
+    marginHorizontal: 0,
+    paddingHorizontal: Spacing.xs,
   },
   containerSetType: {
     borderRadius: BorderRadius.md,

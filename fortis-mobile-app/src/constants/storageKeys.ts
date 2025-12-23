@@ -5,6 +5,7 @@ export const EXERCISE_CACHE_TIMESTAMP_KEY = 'exercise_cache_timestamp_v5';
 
 // Programs
 export const PROGRAMS_KEY = 'fortis_programs_v1';
+export const LOCAL_TEMPLATES_KEY = 'fortis_local_templates';
 
 // Workout templates
 export const WORKOUTS_KEY = 'fortis_workouts_v1';
@@ -24,3 +25,23 @@ export const BODY_TYPE_KEY = 'body_type_v1';
 // AI assistant
 export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
 export const AI_PENDING_ACTIONS_KEY = 'ai_pending_actions_v1';
+
+// Keys that should be scoped per user and cleared on sign-out
+export const USER_SCOPED_STORAGE_KEYS = [
+  CUSTOM_EXERCISES_KEY,
+  PROGRAMS_KEY,
+  WORKOUTS_KEY,
+  LOCAL_TEMPLATES_KEY,
+  ACTIVE_WORKOUT_KEY,
+  COMPLETED_WORKOUTS_KEY,
+  PENDING_SYNC_QUEUE_KEY,
+  PENDING_PROGRAM_SYNC_QUEUE_KEY,
+  PENDING_STICKY_NOTES_SYNC_KEY,
+  REST_TIMER_SETTINGS_KEY,
+  EXERCISE_ORDER_KEY,
+  EXERCISE_STICKY_NOTES_KEY,
+  EXERCISE_WEIGHT_UNITS_KEY,
+  BODY_TYPE_KEY,
+  AI_CONVERSATION_KEY,
+  AI_PENDING_ACTIONS_KEY,
+] as const;

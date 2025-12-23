@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ProgramDetail,
   WorkoutDetail,
@@ -8,6 +7,7 @@ import {
   HubStats,
 } from '@/src/types/program';
 import { PROGRAMS_KEY, WORKOUTS_KEY } from '@/src/constants/storageKeys';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 
 // Maximum number of workouts allowed per program
 export const MAX_WORKOUTS_PER_PROGRAM = 7;
@@ -17,6 +17,13 @@ let programsCache: ProgramDetail[] | null = null;
 let workoutsCache: WorkoutDetail[] | null = null;
 let storageLoaded = false;
 let workoutsStorageLoaded = false;
+
+export function resetProgramServiceCache(): void {
+  programsCache = null;
+  workoutsCache = null;
+  storageLoaded = false;
+  workoutsStorageLoaded = false;
+}
 
 // --- Mock Data ---
 
@@ -519,7 +526,7 @@ const MOCK_WORKOUTS: WorkoutDetail[] = [
 
 async function loadProgramsFromStorage(): Promise<ProgramDetail[]> {
   try {
-    const stored = await AsyncStorage.getItem(PROGRAMS_KEY);
+    const stored = await getScopedItem(PROGRAMS_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
@@ -531,7 +538,7 @@ async function loadProgramsFromStorage(): Promise<ProgramDetail[]> {
 
 async function saveProgramsToStorage(programs: ProgramDetail[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(PROGRAMS_KEY, JSON.stringify(programs));
+    await setScopedItem(PROGRAMS_KEY, JSON.stringify(programs));
   } catch (error) {
     console.error('Failed to save programs to storage:', error);
   }
@@ -539,7 +546,7 @@ async function saveProgramsToStorage(programs: ProgramDetail[]): Promise<void> {
 
 async function loadWorkoutsFromStorage(): Promise<WorkoutDetail[]> {
   try {
-    const stored = await AsyncStorage.getItem(WORKOUTS_KEY);
+    const stored = await getScopedItem(WORKOUTS_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
@@ -551,7 +558,7 @@ async function loadWorkoutsFromStorage(): Promise<WorkoutDetail[]> {
 
 async function saveWorkoutsToStorage(workouts: WorkoutDetail[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(WORKOUTS_KEY, JSON.stringify(workouts));
+    await setScopedItem(WORKOUTS_KEY, JSON.stringify(workouts));
   } catch (error) {
     console.error('Failed to save workouts to storage:', error);
   }

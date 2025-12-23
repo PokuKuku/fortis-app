@@ -21,6 +21,15 @@ import {
   INTENT_CONFIG,
 } from '../types/ai';
 
+async function getAuthenticatedUserId(): Promise<string | null> {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  return user?.id ?? null;
+}
+
 // ============================================
 // Main AI Service Functions
 // ============================================
@@ -235,9 +244,15 @@ export async function generateSummary(
  * Get all pending AI actions for current user
  */
 export async function getPendingActions(): Promise<AIPendingAction[]> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from('ai_pending_actions')
     .select('*')
+    .eq('user_id', userId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
@@ -260,10 +275,16 @@ export async function getPendingActions(): Promise<AIPendingAction[]> {
 export async function confirmPendingAction(
   actionId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
   const { error } = await supabase
     .from('ai_pending_actions')
     .update({ status: 'confirmed', resolved_at: new Date().toISOString() })
     .eq('id', actionId)
+    .eq('user_id', userId)
     .eq('status', 'pending');
 
   if (error) {
@@ -280,10 +301,16 @@ export async function confirmPendingAction(
 export async function rejectPendingAction(
   actionId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
   const { error } = await supabase
     .from('ai_pending_actions')
     .update({ status: 'rejected', resolved_at: new Date().toISOString() })
     .eq('id', actionId)
+    .eq('user_id', userId)
     .eq('status', 'pending');
 
   if (error) {
@@ -423,9 +450,15 @@ function entityTypeToTable(entityType: string): string {
 export async function getMutationHistory(
   limit = 50
 ): Promise<AIMutationRecord[]> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from('ai_mutations')
     .select('*')
+    .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
 
@@ -443,11 +476,17 @@ export async function getMutationHistory(
 export async function undoMutation(
   mutationId: string
 ): Promise<{ success: boolean; error?: string }> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
   // Get the mutation record
   const { data: mutation, error: fetchError } = await supabase
     .from('ai_mutations')
     .select('*')
     .eq('id', mutationId)
+    .eq('user_id', userId)
     .eq('is_undone', false)
     .single();
 
@@ -486,7 +525,8 @@ export async function undoMutation(
         undone_at: new Date().toISOString(),
         undone_by: 'user',
       })
-      .eq('id', mutationId);
+      .eq('id', mutationId)
+      .eq('user_id', userId);
 
     if (updateError) {
       return { success: false, error: updateError.message };
@@ -510,9 +550,15 @@ export async function undoMutation(
  * Get current rate limit status
  */
 export async function getRateLimitStatus(): Promise<AIRateLimitStatus | null> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from('ai_rate_limits')
     .select('*')
+    .eq('user_id', userId)
     .single();
 
   if (error) {

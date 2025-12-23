@@ -5,7 +5,13 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { processPendingQueue } from '@/src/services/workoutHistoryService';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useAIStore } from '@/src/store/aiStore';
+import { clearUserScopedStorage, migrateGuestStorageToUser } from '@/src/utils/scopedStorage';
+import { invalidateCustomCache } from '@/src/services/exerciseService';
+import { resetProgramServiceCache } from '@/src/services/programService';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 
@@ -128,6 +134,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(initialSession?.user ?? null);
 
       if (initialSession?.user) {
+        await migrateGuestStorageToUser(initialSession.user.id);
         const profileData = await fetchProfile(initialSession.user.id);
         setProfile(profileData);
       }
@@ -144,6 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (newSession?.user) {
         const userId = newSession.user.id;
         void (async () => {
+          await migrateGuestStorageToUser(userId);
           const profileData = await fetchProfile(userId);
           setProfile(profileData);
 
@@ -256,22 +264,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return { error: new Error('Apple Sign-In is only available on iOS') };
       }
 
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        return { error: new Error('Apple Sign-In is not available on this device') };
+      }
+
+      const nonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        nonce
+      );
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
 
-      if (credential.identityToken) {
-        const { error } = await supabase.auth.signInWithIdToken({
-          provider: 'apple',
-          token: credential.identityToken,
-        });
+      if (!credential.identityToken) {
+        return { error: new Error('Missing identity token from Apple Sign-In') };
+      }
 
-        if (error) {
-          return { error: new Error(error.message) };
-        }
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+        nonce,
+      });
+
+      if (error) {
+        return { error: new Error(error.message) };
       }
 
       return { error: null };
@@ -286,6 +309,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Sign out
   const signOut = useCallback(async () => {
+    const currentUserId = user?.id ?? null;
+
     // Dismiss any lingering OAuth browser session
     // Wrapped in try-catch because this throws if no browser is open
     // (e.g., when user signed in via email/password or Apple ID)
@@ -300,13 +325,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSession(null);
     setProfile(null);
 
+    useWorkoutStore.getState().resetStore();
+    useProgramsStore.getState().resetStore();
+    useAIStore.getState().resetStore();
+    invalidateCustomCache();
+    resetProgramServiceCache();
+
+    try {
+      if (currentUserId) {
+        await clearUserScopedStorage(currentUserId);
+      }
+      await clearUserScopedStorage(null);
+    } catch (error) {
+      console.warn('Failed to clear local storage on sign out:', error);
+    }
+
     // Sign out from Supabase with global scope to clear all sessions
     try {
       await supabase.auth.signOut({ scope: 'global' });
     } catch (err) {
       console.warn('Sign out error:', err);
     }
-  }, []);
+  }, [user?.id]);
 
   // Update profile
   const updateProfile = useCallback(async (updates: Partial<Profile>) => {

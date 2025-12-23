@@ -4,7 +4,7 @@
  * Modal that displays workout details (exercises, sets, reps) with a Start Workout button.
  * Triggered when tapping a workout card on the Programs screen.
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { PlayIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
@@ -13,6 +13,9 @@ import { GlassButton } from '@/components/GlassButton';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { ProgramWorkout } from '@/src/types/workout';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 
 interface WorkoutDetailModalProps {
   visible: boolean;
@@ -27,6 +30,14 @@ export function WorkoutDetailModal({
   workout,
   onStartWorkout,
 }: WorkoutDetailModalProps) {
+  const bodyType = useWorkoutStore((s) => s.bodyType);
+  const exerciseIds = useMemo(
+    () => workout?.exercises.map((exercise) => exercise.exerciseId) || [],
+    [workout]
+  );
+  const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
+  const hasMuscles = exercisesWithMuscles.length > 0;
+
   if (!workout) return null;
 
   const handleStart = () => {
@@ -46,6 +57,17 @@ export function WorkoutDetailModal({
       <Text style={styles.exerciseCount}>
         {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
       </Text>
+
+      {hasMuscles && (
+        <View style={styles.heatmapContainer}>
+          <MuscleHeatmap
+            exercises={exercisesWithMuscles}
+            gender={bodyType}
+            scale={0.26}
+            compact
+          />
+        </View>
+      )}
 
       {/* Exercise List */}
       <ScrollView
@@ -89,6 +111,10 @@ const styles = StyleSheet.create({
   exerciseList: {
     maxHeight: 280,
     marginBottom: Spacing['2xl'],
+  },
+  heatmapContainer: {
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   exerciseRow: {
     flexDirection: 'row',

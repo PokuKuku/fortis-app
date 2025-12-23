@@ -5,7 +5,7 @@
  * Supports offline-first: queues uploads when offline and syncs when online.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { PENDING_STICKY_NOTES_SYNC_KEY } from '@/src/constants/storageKeys';
@@ -54,7 +54,7 @@ function isValidUUID(str: string): boolean {
  */
 async function loadPendingQueue(): Promise<PendingStickyNoteSync[]> {
   try {
-    const stored = await AsyncStorage.getItem(PENDING_STICKY_NOTES_SYNC_KEY);
+    const stored = await getScopedItem(PENDING_STICKY_NOTES_SYNC_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
@@ -69,7 +69,7 @@ async function loadPendingQueue(): Promise<PendingStickyNoteSync[]> {
  */
 async function savePendingQueue(queue: PendingStickyNoteSync[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(PENDING_STICKY_NOTES_SYNC_KEY, JSON.stringify(queue));
+    await setScopedItem(PENDING_STICKY_NOTES_SYNC_KEY, JSON.stringify(queue));
   } catch (error) {
     console.warn('Failed to save pending sticky notes sync queue:', error);
   }

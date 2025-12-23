@@ -1,11 +1,20 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { BackspaceIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  SlideInDown,
+  SlideOutDown,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 interface TemplateNumberPadProps {
@@ -24,11 +33,18 @@ export function TemplateNumberPad({
   inputType,
 }: TemplateNumberPadProps) {
   const [displayValue, setDisplayValue] = useState(value);
+  const translateY = useSharedValue(0);
 
   // Sync displayValue when value prop changes (when switching fields)
   if (value !== displayValue && !visible) {
     setDisplayValue(value);
   }
+
+  useEffect(() => {
+    if (visible) {
+      translateY.value = 0;
+    }
+  }, [visible, translateY]);
 
   const handleNumberPress = (num: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -114,6 +130,26 @@ export function TemplateNumberPad({
     onClose();
   };
 
+  const panGesture = Gesture.Pan()
+    .activeOffsetY(10)
+    .failOffsetX([-15, 15])
+    .onUpdate((event) => {
+      translateY.value = Math.max(0, event.translationY);
+    })
+    .onEnd((event) => {
+      const shouldClose = event.translationY > 120 || event.velocityY > 1200;
+      if (shouldClose) {
+        translateY.value = withTiming(200, { duration: 150 });
+        runOnJS(handleKeyboardClose)();
+      } else {
+        translateY.value = withTiming(0, { duration: 200 });
+      }
+    });
+
+  const containerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
   const renderNumberButton = (num: string) => (
     <Pressable
       key={num}
@@ -135,13 +171,14 @@ export function TemplateNumberPad({
       <Pressable style={styles.backdrop} onPress={handleKeyboardClose} />
 
       {/* Keyboard */}
-      <Animated.View
-        entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
-        exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
-        style={styles.container}
-      >
-        <View style={styles.padWrapper}>
-          <StainlessSteelPattern />
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
+          style={[styles.container, containerAnimatedStyle]}
+        >
+          <View style={styles.padWrapper}>
+            <StainlessSteelPattern />
 
           {/* Drag Handle */}
           <View style={styles.dragHandleContainer}>
@@ -254,8 +291,9 @@ export function TemplateNumberPad({
               </Pressable>
             </View>
           </View>
-        </View>
-      </Animated.View>
+          </View>
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 }

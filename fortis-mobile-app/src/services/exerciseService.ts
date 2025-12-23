@@ -4,6 +4,7 @@ import { CUSTOM_EXERCISES_KEY, EXERCISE_CACHE_KEY, EXERCISE_CACHE_TIMESTAMP_KEY 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { exerciseDbClient } from './exerciseDbClient';
 import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
@@ -201,7 +202,7 @@ export async function getCustomExercises(): Promise<Exercise[]> {
   if (customExerciseCache) return customExerciseCache;
 
   try {
-    const raw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
+    const raw = await getScopedItem(CUSTOM_EXERCISES_KEY);
     customExerciseCache = raw ? JSON.parse(raw) : [];
     return customExerciseCache!;
   } catch (error) {
@@ -220,14 +221,14 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
     customs.unshift(exercise);
   }
 
-  await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customs));
+  await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customs));
   customExerciseCache = customs;
 }
 
 export async function deleteCustomExercise(id: string): Promise<void> {
   const customs = await getCustomExercises();
   const filtered = customs.filter(e => e.id !== id);
-  await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(filtered));
+  await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(filtered));
   customExerciseCache = filtered;
 }
 

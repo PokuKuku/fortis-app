@@ -23,7 +23,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
 const signInSchema = z.object({
@@ -370,6 +370,11 @@ const styles = StyleSheet.create({
     height: '100%',
     ...Typography.body,
     color: Colors.textPrimary,
+    lineHeight: FontSizes.base,
+    paddingVertical: 0,
+    paddingTop: 1,
+    paddingBottom: 0,
+    textAlignVertical: 'center',
   },
   errorText: {
     ...Typography.caption,

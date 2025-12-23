@@ -6,11 +6,10 @@
  * Supports offline-first local template saving with cloud sync.
  */
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { syncLocalProgram, processPendingProgramQueue, removeFromPendingQueue } from '../services/programSyncService';
 
-const LOCAL_TEMPLATES_KEY = 'fortis_local_templates';
 import {
   Program,
   ProgramDTO,
@@ -20,6 +19,7 @@ import {
   ProgramExerciseDTO,
   TemplateSetDetail,
 } from '../types/workout';
+import { LOCAL_TEMPLATES_KEY } from '../constants/storageKeys';
 
 interface ProgramsState {
   // Data
@@ -53,6 +53,7 @@ interface ProgramsState {
   // Local persistence
   loadLocalPrograms: () => Promise<void>;
   persistLocalPrograms: () => Promise<void>;
+  resetStore: () => void;
 
   // Cloud sync
   syncPendingPrograms: () => Promise<void>;
@@ -150,6 +151,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             program_exercises (*)
           )
         `)
+        .or(`created_by.eq.${session.user.id},is_public.eq.true`)
         .order('created_at', { ascending: false })
         .abortSignal(controller.signal);
 
@@ -540,7 +542,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Load local programs from AsyncStorage
   loadLocalPrograms: async () => {
     try {
-      const stored = await AsyncStorage.getItem(LOCAL_TEMPLATES_KEY);
+      const stored = await getScopedItem(LOCAL_TEMPLATES_KEY);
       if (stored) {
         const localPrograms = JSON.parse(stored) as Program[];
         // Merge with existing programs (avoid duplicates)
@@ -561,7 +563,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const { programs } = get();
       // Only persist programs with local IDs (not synced to Supabase)
       const localPrograms = programs.filter((p) => p.id.startsWith('local-'));
-      await AsyncStorage.setItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
+      await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
     } catch (err) {
       console.warn('Failed to persist local programs:', err);
     }
@@ -610,6 +612,15 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }));
     // Re-persist to remove from local storage (no longer has local- prefix)
     get().persistLocalPrograms();
+  },
+
+  resetStore: () => {
+    set({
+      programs: [],
+      isLoading: false,
+      isDeleting: false,
+      error: null,
+    });
   },
 }));
 

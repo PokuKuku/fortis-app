@@ -232,7 +232,11 @@ export default function CreateWorkoutScreen() {
               onFocus={() => setIsNameFocused(true)}
               onBlur={() => setIsNameFocused(false)}
             />
-            <PencilIcon size={14} color={isNameFocused ? Colors.success : Colors.textTertiary} strokeWidth={2} />
+            <View style={styles.editIconSlot}>
+              {!isNameFocused && (
+                <PencilIcon size={14} color={Colors.textTertiary} strokeWidth={2} />
+              )}
+            </View>
           </View>
           <GlassButton
             style={{
@@ -390,6 +394,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.xs,
     marginHorizontal: Spacing.md,
+  },
+  editIconSlot: {
+    width: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitleInput: {
     ...Typography.h3,

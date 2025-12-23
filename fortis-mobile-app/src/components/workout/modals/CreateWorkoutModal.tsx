@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,9 @@ import * as Haptics from 'expo-haptics';
 import Animated, { SlideInDown, SlideOutDown, Easing, FadeIn, FadeOut } from 'react-native-reanimated';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { AddExerciseModal } from './AddExerciseModal';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 
 // Simple UUID generator for local IDs
 const generateLocalId = () => {
@@ -53,11 +56,15 @@ export function CreateWorkoutModal({
   onSave,
 }: CreateWorkoutModalProps) {
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
+  const bodyType = useWorkoutStore((s) => s.bodyType);
 
   const [templateName, setTemplateName] = useState('');
   const [exercises, setExercises] = useState<TemplateExercise[]>([]);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const exerciseIds = useMemo(() => exercises.map(ex => ex.exerciseId), [exercises]);
+  const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
+  const hasMuscles = exercisesWithMuscles.length > 0;
 
   // Reset state when modal closes
   useEffect(() => {
@@ -272,6 +279,17 @@ export function CreateWorkoutModal({
             />
           </View>
 
+          {hasMuscles && (
+            <View style={styles.heatmapContainer}>
+              <MuscleHeatmap
+                exercises={exercisesWithMuscles}
+                gender={bodyType}
+                scale={0.22}
+                compact
+              />
+            </View>
+          )}
+
           {/* Exercise List */}
           <FlatList
             data={exercises}
@@ -359,6 +377,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['2xl'],
     paddingBottom: Spacing.lg,
     zIndex: 1,
+  },
+  heatmapContainer: {
+    alignItems: 'center',
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing.md,
   },
   nameInput: {
     ...Typography.h2,

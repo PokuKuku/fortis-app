@@ -12,6 +12,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
+import * as AppleAuthentication from 'expo-apple-authentication';
 
 // Apple Logo Component
 function AppleLogo({ size = 20, color = '#FFFFFF' }: { size?: number; color?: string }) {
@@ -61,6 +62,7 @@ export default function AuthWelcomeScreen() {
   const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding } = useAuth();
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const [error, setError] = useState<string | null>(null);
 
   // Navigate when auth state changes
@@ -73,6 +75,16 @@ export default function AuthWelcomeScreen() {
       }
     }
   }, [isAuthenticated, needsOnboarding, router]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    AppleAuthentication.isAvailableAsync()
+      .then(setIsAppleAvailable)
+      .catch(() => setIsAppleAvailable(false));
+  }, []);
 
   const handleGoogleSignIn = async () => {
     setError(null);
@@ -156,7 +168,7 @@ export default function AuthWelcomeScreen() {
                 </TouchableOpacity>
 
                 {/* Apple Sign In (iOS only) */}
-                {Platform.OS === 'ios' && (
+                {isAppleAvailable && (
                   <TouchableOpacity
                     style={styles.oauthButton}
                     onPress={handleAppleSignIn}

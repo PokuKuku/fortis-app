@@ -6,7 +6,7 @@
  */
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getScopedItem, setScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
 import {
   WorkoutSession,
   WorkoutExercise,
@@ -144,6 +144,7 @@ interface WorkoutState {
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
   loadCompletedSessions: () => Promise<void>;
+  resetStore: () => void;
 
   // Actions - Sticky Notes
   setStickyNote: (exerciseId: string, note: string) => Promise<void>;
@@ -398,7 +399,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       // Persist completed sessions to AsyncStorage
       try {
-        await AsyncStorage.setItem(
+        await setScopedItem(
           COMPLETED_WORKOUTS_KEY,
           JSON.stringify(updatedSessions)
         );
@@ -881,7 +882,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({ restTimerSettings: newSettings });
 
       try {
-        await AsyncStorage.setItem(
+        await setScopedItem(
           REST_TIMER_SETTINGS_KEY,
           JSON.stringify(newSettings)
         );
@@ -902,7 +903,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({ isLoading: true });
 
       try {
-        const stored = await AsyncStorage.getItem(ACTIVE_WORKOUT_KEY);
+        const stored = await getScopedItem(ACTIVE_WORKOUT_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
           // Rehydrate dates
@@ -935,7 +936,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       if (!activeSession) return;
 
       try {
-        await AsyncStorage.setItem(
+        await setScopedItem(
           ACTIVE_WORKOUT_KEY,
           JSON.stringify(activeSession)
         );
@@ -946,7 +947,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     clearPersistedSession: async () => {
       try {
-        await AsyncStorage.removeItem(ACTIVE_WORKOUT_KEY);
+        await removeScopedItem(ACTIVE_WORKOUT_KEY);
       } catch (error) {
         console.warn('Failed to clear persisted session:', error);
       }
@@ -954,7 +955,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     loadRestTimerSettings: async () => {
       try {
-        const stored = await AsyncStorage.getItem(REST_TIMER_SETTINGS_KEY);
+        const stored = await getScopedItem(REST_TIMER_SETTINGS_KEY);
         if (stored) {
           const settings = JSON.parse(stored);
           set({ restTimerSettings: settings });
@@ -966,7 +967,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     loadCompletedSessions: async () => {
       try {
-        const stored = await AsyncStorage.getItem(COMPLETED_WORKOUTS_KEY);
+        const stored = await getScopedItem(COMPLETED_WORKOUTS_KEY);
         if (stored) {
           const parsed = JSON.parse(stored);
           // Rehydrate dates for each session
@@ -1010,7 +1011,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({ stickyNotes: newNotes });
 
       try {
-        await AsyncStorage.setItem(
+        await setScopedItem(
           EXERCISE_STICKY_NOTES_KEY,
           JSON.stringify(newNotes)
         );
@@ -1031,7 +1032,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       });
 
       try {
-        await AsyncStorage.setItem(
+        await setScopedItem(
           EXERCISE_STICKY_NOTES_KEY,
           JSON.stringify(newNotes)
         );
@@ -1043,7 +1044,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     loadStickyNotes: async () => {
       try {
         // Load local notes first (fast)
-        const stored = await AsyncStorage.getItem(EXERCISE_STICKY_NOTES_KEY);
+        const stored = await getScopedItem(EXERCISE_STICKY_NOTES_KEY);
         const localNotes = stored ? JSON.parse(stored) : {};
         set({ stickyNotes: localNotes });
 
@@ -1056,7 +1057,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           set({ stickyNotes: mergedNotes });
 
           // Persist merged notes locally
-          await AsyncStorage.setItem(
+          await setScopedItem(
             EXERCISE_STICKY_NOTES_KEY,
             JSON.stringify(mergedNotes)
           );
@@ -1077,7 +1078,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({ weightUnits: newUnits });
 
       try {
-        await AsyncStorage.setItem(
+        await setScopedItem(
           EXERCISE_WEIGHT_UNITS_KEY,
           JSON.stringify(newUnits)
         );
@@ -1134,7 +1135,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     loadWeightUnits: async () => {
       try {
-        const stored = await AsyncStorage.getItem(EXERCISE_WEIGHT_UNITS_KEY);
+        const stored = await getScopedItem(EXERCISE_WEIGHT_UNITS_KEY);
         if (stored) {
           const units = JSON.parse(stored);
           set({ weightUnits: units });
@@ -1152,7 +1153,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({ bodyType: type });
 
       try {
-        await AsyncStorage.setItem(BODY_TYPE_KEY, type);
+        await setScopedItem(BODY_TYPE_KEY, type);
       } catch (error) {
         console.warn('Failed to save body type:', error);
       }
@@ -1160,7 +1161,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     loadBodyType: async () => {
       try {
-        const stored = await AsyncStorage.getItem(BODY_TYPE_KEY);
+        const stored = await getScopedItem(BODY_TYPE_KEY);
         if (stored === 'male' || stored === 'female') {
           set({ bodyType: stored });
         }
@@ -1559,7 +1560,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       // Persist completed sessions to AsyncStorage
       try {
-        await AsyncStorage.setItem(
+        await setScopedItem(
           COMPLETED_WORKOUTS_KEY,
           JSON.stringify(updatedSessions)
         );
@@ -1575,6 +1576,37 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     clearEditorSession: () => {
       set({
+        editorSession: null,
+        editorMode: 'template',
+        editorDate: new Date(),
+      });
+    },
+
+    resetStore: () => {
+      isStartingWorkout = false;
+      set({
+        activeSession: null,
+        isWorkoutActive: false,
+        completedSessions: [],
+        workoutStartTime: null,
+        isWorkoutTimerPaused: false,
+        pausedElapsedSeconds: 0,
+        restTimer: {
+          isActive: false,
+          remainingSeconds: 0,
+          totalSeconds: 0,
+          setType: 'normal',
+        },
+        restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
+        isLoading: false,
+        showRestTimerComplete: false,
+        activeNumberPad: null,
+        stickyNotes: {},
+        weightUnits: {},
+        bodyType: 'male',
+        showRpeSelector: false,
+        showRpeHelp: false,
+        backdatedDate: null,
         editorSession: null,
         editorMode: 'template',
         editorDate: new Date(),

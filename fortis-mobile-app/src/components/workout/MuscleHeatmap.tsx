@@ -3,6 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import Body, { Slug } from 'react-native-body-highlighter';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { normalizeMuscleName } from '@/src/utils/muscleMapping';
 
 // Map exercise muscle names to library slugs
 const MUSCLE_SLUG_MAP: Record<string, { slugs: Slug[]; side: 'front' | 'back' | 'both' }> = {
@@ -11,9 +12,15 @@ const MUSCLE_SLUG_MAP: Record<string, { slugs: Slug[]; side: 'front' | 'back' | 
   'abs': { slugs: ['abs'], side: 'front' },
   'obliques': { slugs: ['obliques'], side: 'front' },
   'chest': { slugs: ['chest'], side: 'front' },
+  'pectoral': { slugs: ['chest'], side: 'front' },
+  'pectorals': { slugs: ['chest'], side: 'front' },
+  'pecs': { slugs: ['chest'], side: 'front' },
+  'upper chest': { slugs: ['chest'], side: 'front' },
+  'lower chest': { slugs: ['chest'], side: 'front' },
   'biceps': { slugs: ['biceps'], side: 'front' },
   'quadriceps': { slugs: ['quadriceps'], side: 'front' },
   'quads': { slugs: ['quadriceps'], side: 'front' },
+  'tibialis': { slugs: ['tibialis'], side: 'front' },
 
   // Back muscles
   'back': { slugs: ['upper-back', 'lower-back'], side: 'back' },
@@ -21,8 +28,8 @@ const MUSCLE_SLUG_MAP: Record<string, { slugs: Slug[]; side: 'front' | 'back' | 
   'middle back': { slugs: ['upper-back'], side: 'back' },
   'lower back': { slugs: ['lower-back'], side: 'back' },
   'lats': { slugs: ['upper-back'], side: 'back' },
-  'traps': { slugs: ['trapezius'], side: 'back' },
-  'trapezius': { slugs: ['trapezius'], side: 'back' },
+  'traps': { slugs: ['trapezius'], side: 'both' },
+  'trapezius': { slugs: ['trapezius'], side: 'both' },
   'hamstrings': { slugs: ['hamstring'], side: 'back' },
   'glutes': { slugs: ['gluteal'], side: 'back' },
   'gluteal': { slugs: ['gluteal'], side: 'back' },
@@ -40,13 +47,84 @@ const MUSCLE_SLUG_MAP: Record<string, { slugs: Slug[]; side: 'front' | 'back' | 
   'neck': { slugs: ['neck'], side: 'both' },
 };
 
-// Front-only slugs for filtering
-const FRONT_SLUGS: Slug[] = ['abs', 'obliques', 'chest', 'biceps', 'quadriceps', 'knees', 'tibialis'];
-// Back-only slugs for filtering
-const BACK_SLUGS: Slug[] = ['upper-back', 'lower-back', 'hamstring', 'gluteal'];
+const MUSCLE_ALIAS_MAP: Record<string, string> = {
+  'pec': 'chest',
+  'pecs': 'chest',
+  'pectorals': 'chest',
+  'pectoral': 'chest',
+  'upper chest': 'chest',
+  'lower chest': 'chest',
+  'rear delts': 'shoulders',
+  'rear deltoids': 'shoulders',
+  'front delts': 'shoulders',
+  'front deltoids': 'shoulders',
+  'side delts': 'shoulders',
+  'side deltoids': 'shoulders',
+  'anterior deltoid': 'shoulders',
+  'posterior deltoid': 'shoulders',
+  'lateral deltoid': 'shoulders',
+  'mid back': 'middle back',
+  'upper back': 'upper back',
+  'lower back': 'lower back',
+  'bicep': 'biceps',
+  'tricep': 'triceps',
+  'calf': 'calves',
+  'hamstring': 'hamstrings',
+  'glute': 'glutes',
+  'gluteus': 'glutes',
+  'abdominal': 'abdominals',
+  'abs': 'abdominals',
+  'core': 'abdominals',
+  'oblique': 'obliques',
+  'adductor': 'adductors',
+  'abductor': 'abductors',
+  'tibialis anterior': 'tibialis',
+};
+
+const MUSCLE_KEYWORD_RULES: Array<[RegExp, string]> = [
+  [/\bpectoral|\bpec\b|\bpecs\b/i, 'chest'],
+  [/\bdeltoid|\bdelt\b|\bshoulder/i, 'shoulders'],
+  [/\btricep/i, 'triceps'],
+  [/\bbicep/i, 'biceps'],
+  [/\bforearm|\bbrachioradialis|\bwrist/i, 'forearms'],
+  [/\bquad|\bquadricep/i, 'quadriceps'],
+  [/\bhamstring/i, 'hamstrings'],
+  [/\bglute/i, 'glutes'],
+  [/\bcalf/i, 'calves'],
+  [/\boblique/i, 'obliques'],
+  [/\babs|\babdom|\bcore/i, 'abdominals'],
+  [/\badductor/i, 'adductors'],
+  [/\babductor/i, 'abductors'],
+  [/\btrapezius|\btrap\b/i, 'traps'],
+  [/\blat(s|issimus)?\b/i, 'lats'],
+  [/\bupper back|\bmid back|\bmiddle back/i, 'upper back'],
+  [/\blower back/i, 'lower back'],
+  [/\bback\b/i, 'back'],
+  [/\bneck\b/i, 'neck'],
+  [/\btibialis\b/i, 'tibialis'],
+];
+
+const normalizeMuscleKey = (value: string) =>
+  value.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+const resolveMuscleKey = (muscle: string) => {
+  const rawKey = normalizeMuscleKey(muscle);
+  const normalizedKey = normalizeMuscleKey(normalizeMuscleName(muscle));
+  const aliasKey = MUSCLE_ALIAS_MAP[rawKey] || MUSCLE_ALIAS_MAP[normalizedKey];
+
+  if (MUSCLE_SLUG_MAP[rawKey]) return rawKey;
+  if (aliasKey && MUSCLE_SLUG_MAP[aliasKey]) return aliasKey;
+  if (MUSCLE_SLUG_MAP[normalizedKey]) return normalizedKey;
+
+  const keywordKey =
+    MUSCLE_KEYWORD_RULES.find(([pattern]) => pattern.test(rawKey))?.[1] ||
+    MUSCLE_KEYWORD_RULES.find(([pattern]) => pattern.test(normalizedKey))?.[1];
+
+  return keywordKey && MUSCLE_SLUG_MAP[keywordKey] ? keywordKey : null;
+};
 
 interface Exercise {
-  primaryMuscles: string[];
+  primaryMuscles?: string[];
   secondaryMuscles?: string[];
 }
 
@@ -65,54 +143,50 @@ interface BodyPartData {
 
 export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
   const { frontData, backData } = useMemo(() => {
-    const muscleIntensity: Record<string, number> = {};
+    const frontIntensity: Record<string, number> = {};
+    const backIntensity: Record<string, number> = {};
+
+    const applyIntensity = (target: Record<string, number>, slug: Slug, intensity: number) => {
+      const current = target[slug] || 0;
+      if (intensity > current) {
+        target[slug] = intensity;
+      }
+    };
+
+    const addMuscle = (muscle: string | undefined, intensity: number) => {
+      if (!muscle) return;
+      const resolvedKey = resolveMuscleKey(muscle);
+      if (!resolvedKey) return;
+      const mapping = MUSCLE_SLUG_MAP[resolvedKey];
+      if (!mapping) return;
+
+      mapping.slugs.forEach((slug) => {
+        if (mapping.side === 'front' || mapping.side === 'both') {
+          applyIntensity(frontIntensity, slug, intensity);
+        }
+        if (mapping.side === 'back' || mapping.side === 'both') {
+          applyIntensity(backIntensity, slug, intensity);
+        }
+      });
+    };
 
     // Process all exercises
     exercises.forEach((exercise) => {
       // Primary muscles get intensity 2
-      exercise.primaryMuscles?.forEach((muscle) => {
-        const normalized = muscle.toLowerCase();
-        const mapping = MUSCLE_SLUG_MAP[normalized];
-        if (mapping) {
-          mapping.slugs.forEach((slug) => {
-            muscleIntensity[slug] = Math.max(muscleIntensity[slug] || 0, 2);
-          });
-        }
-      });
+      exercise.primaryMuscles?.forEach((muscle) => addMuscle(muscle, 2));
 
       // Secondary muscles get intensity 1
-      exercise.secondaryMuscles?.forEach((muscle) => {
-        const normalized = muscle.toLowerCase();
-        const mapping = MUSCLE_SLUG_MAP[normalized];
-        if (mapping) {
-          mapping.slugs.forEach((slug) => {
-            // Only set to 1 if not already primary (2)
-            if (!muscleIntensity[slug] || muscleIntensity[slug] < 2) {
-              muscleIntensity[slug] = Math.max(muscleIntensity[slug] || 0, 1);
-            }
-          });
-        }
-      });
+      exercise.secondaryMuscles?.forEach((muscle) => addMuscle(muscle, 1));
     });
 
-    // Split into front and back data
-    const frontData: BodyPartData[] = [];
-    const backData: BodyPartData[] = [];
-
-    Object.entries(muscleIntensity).forEach(([slug, intensity]) => {
-      const bodyPart: BodyPartData = { slug: slug as Slug, intensity };
-
-      // Determine which view(s) this muscle belongs to
-      if (FRONT_SLUGS.includes(slug as Slug)) {
-        frontData.push(bodyPart);
-      } else if (BACK_SLUGS.includes(slug as Slug)) {
-        backData.push(bodyPart);
-      } else {
-        // Muscles that appear on both sides
-        frontData.push(bodyPart);
-        backData.push(bodyPart);
-      }
-    });
+    const frontData: BodyPartData[] = Object.entries(frontIntensity).map(([slug, intensity]) => ({
+      slug: slug as Slug,
+      intensity,
+    }));
+    const backData: BodyPartData[] = Object.entries(backIntensity).map(([slug, intensity]) => ({
+      slug: slug as Slug,
+      intensity,
+    }));
 
     return { frontData, backData };
   }, [exercises]);

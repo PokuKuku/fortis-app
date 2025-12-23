@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { BackspaceIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,7 +9,16 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { RPESelectorOverlay } from './RPESelectorOverlay';
 import { RPEHelpModal } from './RPEHelpModal';
 import { RpeValue } from '@/src/types/workout';
-import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  SlideInDown,
+  SlideOutDown,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
 interface NumberPadModalProps {
@@ -63,6 +73,13 @@ export function NumberPadModal({
     : 'lbs';
 
   const displayValue = activeNumberPad?.pendingValue ?? '';
+  const translateY = useSharedValue(0);
+
+  useEffect(() => {
+    if (visible) {
+      translateY.value = 0;
+    }
+  }, [visible, translateY]);
 
   const setDisplayValue = (updater: string | ((prev: string) => string)) => {
     const newValue = typeof updater === 'function' ? updater(displayValue) : updater;
@@ -135,6 +152,26 @@ export function NumberPadModal({
     toggleWeightUnit(currentExercise.exerciseId);
   };
 
+  const panGesture = Gesture.Pan()
+    .activeOffsetY(10)
+    .failOffsetX([-15, 15])
+    .onUpdate((event) => {
+      translateY.value = Math.max(0, event.translationY);
+    })
+    .onEnd((event) => {
+      const shouldClose = event.translationY > 120 || event.velocityY > 1200;
+      if (shouldClose) {
+        translateY.value = withTiming(200, { duration: 150 });
+        runOnJS(handleKeyboardToggle)();
+      } else {
+        translateY.value = withTiming(0, { duration: 200 });
+      }
+    });
+
+  const containerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
   const renderNumberButton = (num: string) => (
     <Pressable
       key={num}
@@ -156,13 +193,14 @@ export function NumberPadModal({
       <View style={styles.backdrop} pointerEvents="none" />
 
       {/* Keyboard */}
-      <Animated.View
-        entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
-        exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
-        style={styles.container}
-      >
-        <View style={styles.padWrapper}>
-          <StainlessSteelPattern />
+      <GestureDetector gesture={panGesture}>
+        <Animated.View
+          entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
+          style={[styles.container, containerAnimatedStyle]}
+        >
+          <View style={styles.padWrapper}>
+            <StainlessSteelPattern />
 
           {/* Drag Handle */}
           <View style={styles.dragHandleContainer}>
@@ -293,15 +331,16 @@ export function NumberPadModal({
               </Pressable>
             </View>
           </View>
-        </View>
+          </View>
 
-        {/* RPE Selector Overlay - rendered after padWrapper to appear on top */}
-        <RPESelectorOverlay
-          visible={showRpeSelector}
-          currentRpe={currentRpe}
-          onOpenHelp={openRpeHelp}
-        />
-      </Animated.View>
+          {/* RPE Selector Overlay - rendered after padWrapper to appear on top */}
+          <RPESelectorOverlay
+            visible={showRpeSelector}
+            currentRpe={currentRpe}
+            onOpenHelp={openRpeHelp}
+          />
+        </Animated.View>
+      </GestureDetector>
 
       {/* RPE Help Modal */}
       <RPEHelpModal visible={showRpeHelp} onClose={closeRpeHelp} />

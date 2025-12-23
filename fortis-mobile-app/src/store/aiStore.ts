@@ -6,7 +6,7 @@
  */
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import {
   AIIntent,
   AIImage,
@@ -24,10 +24,7 @@ import {
   EditableWorkoutSet,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
-import {
-  AI_CONVERSATION_KEY,
-  AI_PENDING_ACTIONS_KEY,
-} from '../constants/storageKeys';
+import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -121,6 +118,7 @@ interface AIState {
   // Actions - Persistence
   loadConversation: () => Promise<void>;
   persistConversation: () => Promise<void>;
+  resetStore: () => void;
 
   // Actions - Error handling
   clearError: () => void;
@@ -706,7 +704,7 @@ export const useAIStore = create<AIState>()(
     // Persistence
     loadConversation: async () => {
       try {
-        const stored = await AsyncStorage.getItem(AI_CONVERSATION_KEY);
+        const stored = await getScopedItem(AI_CONVERSATION_KEY);
         if (stored) {
           const conversation = JSON.parse(stored) as AIConversation;
           set({ conversation });
@@ -742,7 +740,7 @@ export const useAIStore = create<AIState>()(
             ...conversation,
             messages: conversation.messages.slice(-50),
           };
-          await AsyncStorage.setItem(
+          await setScopedItem(
             AI_CONVERSATION_KEY,
             JSON.stringify(trimmedConversation)
           );
@@ -755,6 +753,23 @@ export const useAIStore = create<AIState>()(
     // Error handling
     clearError: () => {
       set({ error: null });
+    },
+
+    resetStore: () => {
+      set({
+        conversation: null,
+        isConversationOpen: false,
+        isLoading: false,
+        isSendingMessage: false,
+        isApplyingMutation: false,
+        selectedImage: null,
+        pendingActions: [],
+        currentMutationPlan: null,
+        mutationHistory: [],
+        editableWorkout: null,
+        rateLimitStatus: null,
+        error: null,
+      });
     },
   }))
 );

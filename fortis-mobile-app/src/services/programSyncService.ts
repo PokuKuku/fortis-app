@@ -5,7 +5,7 @@
  * Supports offline-first: queues uploads when offline and syncs when online.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { Program, ProgramWorkout, ProgramExercise } from '@/src/types/workout';
@@ -60,7 +60,7 @@ function hasLocalExercises(program: Program): boolean {
  */
 async function loadPendingQueue(): Promise<PendingProgramSyncItem[]> {
   try {
-    const stored = await AsyncStorage.getItem(PENDING_PROGRAM_SYNC_QUEUE_KEY);
+    const stored = await getScopedItem(PENDING_PROGRAM_SYNC_QUEUE_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
@@ -75,7 +75,7 @@ async function loadPendingQueue(): Promise<PendingProgramSyncItem[]> {
  */
 async function savePendingQueue(queue: PendingProgramSyncItem[]): Promise<void> {
   try {
-    await AsyncStorage.setItem(PENDING_PROGRAM_SYNC_QUEUE_KEY, JSON.stringify(queue));
+    await setScopedItem(PENDING_PROGRAM_SYNC_QUEUE_KEY, JSON.stringify(queue));
   } catch (error) {
     console.warn('Failed to save pending program sync queue:', error);
   }

@@ -736,7 +736,7 @@ export default function ProgramsScreen() {
           screenWidth - popoverWidth - margin
         );
         setWorkoutsKebabPosition({
-          top: pageY + height + 4,
+          top: pageY + height + 2,
           left,
         });
         setShowWorkoutsKebab(true);

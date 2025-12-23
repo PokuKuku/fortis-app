@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fortis.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "UIBackgroundModes": ["remote-notification"]
       }
