@@ -152,8 +152,8 @@ CREATE OR REPLACE FUNCTION log_ai_mutation(
   p_entity_id UUID,
   p_previous_state JSONB,
   p_new_state JSONB,
-  p_pending_action_id UUID DEFAULT NULL,
   p_request_id UUID,
+  p_pending_action_id UUID DEFAULT NULL,
   p_ai_conversation_id TEXT DEFAULT NULL,
   p_ai_action_summary TEXT DEFAULT NULL
 )
