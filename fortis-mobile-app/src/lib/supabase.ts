@@ -1,37 +1,29 @@
 import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Custom storage adapter for React Native
-const ExpoSecureStoreAdapter = {
+// Custom storage adapter for React Native using AsyncStorage
+// Note: We use AsyncStorage instead of SecureStore because JWT tokens
+// can exceed SecureStore's 2048 byte limit. AsyncStorage has no size limit
+// and is still secure due to iOS/Android app sandboxing.
+const ExpoStorageAdapter = {
   getItem: async (key: string) => {
-    if (Platform.OS === 'web') {
-      return AsyncStorage.getItem(key);
-    }
-    return SecureStore.getItemAsync(key);
+    return AsyncStorage.getItem(key);
   },
   setItem: async (key: string, value: string) => {
-    if (Platform.OS === 'web') {
-      return AsyncStorage.setItem(key, value);
-    }
-    return SecureStore.setItemAsync(key, value);
+    return AsyncStorage.setItem(key, value);
   },
   removeItem: async (key: string) => {
-    if (Platform.OS === 'web') {
-      return AsyncStorage.removeItem(key);
-    }
-    return SecureStore.deleteItemAsync(key);
+    return AsyncStorage.removeItem(key);
   },
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: ExpoSecureStoreAdapter,
+    storage: ExpoStorageAdapter,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

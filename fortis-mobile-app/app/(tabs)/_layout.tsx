@@ -19,6 +19,7 @@ import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 import { useAIStore } from '../../src/store/aiStore';
 import { Colors } from '../../constants/Colors';
+import { useAuth } from '@/src/contexts/AuthContext';
 import {
   PRIMARY_MUSCLES,
   CATEGORIES,
@@ -27,9 +28,16 @@ import {
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const { isAuthenticated, isLoading } = useAuth();
   const isExercises = pathname?.includes('/exercises');
   // Tab bar stays at fixed position
   const tabBarBottom = 12;
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace('/auth');
+    }
+  }, [isLoading, isAuthenticated, router]);
 
   // AI Store
   const { pendingActions } = useAIStore();
@@ -172,6 +180,10 @@ export default function TabLayout() {
     categories: [...CATEGORIES],
     equipmentTypes: [...EQUIPMENT_TYPES],
   };
+
+  if (!isLoading && !isAuthenticated) {
+    return null;
+  }
 
   return (
     <>

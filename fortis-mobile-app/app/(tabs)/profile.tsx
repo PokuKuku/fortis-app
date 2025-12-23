@@ -54,8 +54,11 @@ export default function ProfileScreen() {
           style: 'destructive',
           onPress: async () => {
             setIsSigningOut(true);
-            await signOut();
-            router.replace('/auth');
+            try {
+              await signOut();
+            } finally {
+              setIsSigningOut(false);
+            }
           },
         },
       ]

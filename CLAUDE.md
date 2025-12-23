@@ -32,6 +32,7 @@ Fortis is an offline-first mobile workout tracker built with Expo/React Native. 
 ## Development Commands
 
 ```bash
+# Mobile App (fortis-mobile-app/)
 cd fortis-mobile-app
 npm start              # Start Expo dev server
 npm run ios            # Run on iOS simulator
@@ -43,6 +44,12 @@ npm test               # Run all tests
 npm test:watch         # Run tests in watch mode
 npm test:coverage      # Run tests with coverage report
 npm test -- ComponentName  # Run specific test file
+
+# Web Dashboard (fortis-dashboard-web/)
+cd fortis-dashboard-web
+npm run dev            # Start Next.js dev server (http://localhost:3000)
+npm run build          # Production build
+npm run lint           # ESLint
 
 # Supabase (requires Docker)
 supabase start         # Start local instance
@@ -64,6 +71,8 @@ fortis-mobile-app/
 │   │   ├── start.tsx       # Start workout screen
 │   │   └── profile.tsx     # User profile
 │   ├── ai/chat.tsx         # AI chat (fullscreen route)
+│   ├── auth/               # Authentication screens (login, signup)
+│   ├── onboarding/         # Onboarding flow
 │   ├── workout/active.tsx  # Active workout logger
 │   ├── exercise/[id].tsx   # Exercise detail
 │   ├── workouts/[id].tsx   # Workout detail
@@ -73,7 +82,7 @@ fortis-mobile-app/
 │   ├── components/         # UI components (ui/, workout/, ai/, hub/, program/)
 │   ├── features/           # Feature-specific components (workout/)
 │   ├── hooks/              # Custom hooks
-│   ├── services/           # exerciseService, programService, aiService
+│   ├── services/           # Data services (see Services section below)
 │   ├── store/              # Zustand stores (workoutStore, programsStore, aiStore)
 │   ├── types/              # TypeScript definitions (exercise, program, workout, ai)
 │   ├── constants/          # Storage keys, exerciseOptions
@@ -111,6 +120,17 @@ fortis-mobile-app/
 - Event emitter: `DeviceEventEmitter` for cross-component communication
   - Events: `workout-updated`, `customExerciseUpsert`, `exerciseDetailVisible`, `openEditExercise`
 
+## Services (`src/services/`)
+
+- **exerciseService.ts**: Exercise CRUD, search, filtering, custom exercises
+- **programService.ts**: Program/template management, workout scheduling
+- **programProgressService.ts**: Track program completion and progress
+- **programSyncService.ts**: Sync programs between local storage and Supabase
+- **workoutHistoryService.ts**: Past workout queries, volume calculations
+- **aiService.ts**: AI chat integration with Supabase edge function
+- **stickyNotesService.ts**: Notes attached to exercises/workouts
+- **exerciseDbClient.ts**: External exercise database API client
+
 ## Backend (Supabase)
 
 **Key Tables** (see `supabase/schema.sql`):
@@ -120,6 +140,12 @@ fortis-mobile-app/
 - `workout_sessions` - Active workouts
 - `workout_sets` - Individual sets
 - `ai_conversations` - AI chat history
+
+**Analytics Views** (for dashboard):
+- `user_workout_stats` - Overall user statistics
+- `exercise_personal_records` - PRs and estimated 1RMs
+- `weekly_workout_volume` - Volume tracking by week
+- `muscle_group_frequency` - Training frequency per muscle group
 
 **Offline-First Pattern:**
 - `local_id` (client UUID) + `is_synced` boolean
@@ -273,3 +299,22 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
 - `src/components/ui/`: Base primitives
 - `src/components/shared/`: Cross-feature
 - `src/components/[feature]/`: Feature-specific
+
+## Troubleshooting
+
+```bash
+# Metro bundler won't start
+npm start -- --clear
+
+# "Unable to resolve module"
+rm -rf node_modules && npm install && npm start
+
+# App crashes on launch
+# - Use Expo Go app (not Dev Client) for testing
+# - Check terminal for error messages
+# - Shake device → Reload for full refresh
+
+# Debug menu
+# iOS: Cmd + D (Simulator) or Shake device
+# Android: Cmd + M (Emulator) or Shake device
+```

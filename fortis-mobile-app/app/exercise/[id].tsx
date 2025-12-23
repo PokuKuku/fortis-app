@@ -12,8 +12,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronLeftIcon, TrophyIcon, FireIcon, ScaleIcon, ChartBarIcon } from 'react-native-heroicons/outline';
-import { CartesianChart, Line, Scatter } from 'victory-native';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { ExerciseCharts } from '@/src/components/exercise/ExerciseCharts';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
@@ -236,94 +236,7 @@ export default function ExerciseDetailsScreen() {
         {/* ==================== CHARTS TAB ==================== */}
         {selectedTab === 'Charts' && (
           <View style={styles.tabContent}>
-            {chartData.length < 2 ? (
-              <View style={styles.placeholderTab}>
-                <Text style={styles.placeholderTabText}>Not enough data</Text>
-                <Text style={styles.placeholderTabSubtext}>
-                  Log at least 2 workouts with this exercise to see progress charts
-                </Text>
-              </View>
-            ) : (
-              <>
-                {/* Weight Progress Chart */}
-                <Text style={styles.sectionTitle}>WEIGHT PROGRESS</Text>
-                <View style={styles.chartContainer}>
-                  <CartesianChart
-                    data={chartData}
-                    xKey="x"
-                    yKeys={['weight']}
-                    padding={{ top: 20, bottom: 20, left: 10, right: 10 }}
-                    domainPadding={{ top: 20, bottom: 10 }}
-                    axisOptions={{
-                      tickCount: { x: 5, y: 5 },
-                      labelColor: Colors.textSecondary,
-                      lineColor: {
-                        grid: { x: 'transparent', y: 'rgba(255,255,255,0.1)' },
-                        frame: 'rgba(255,255,255,0.2)',
-                      },
-                      formatYLabel: (value) => `${value}`,
-                    }}
-                  >
-                    {({ points }) => (
-                      <>
-                        <Line
-                          points={points.weight}
-                          color={Colors.success}
-                          strokeWidth={2}
-                          curveType="natural"
-                          animate={{ type: 'timing', duration: 500 }}
-                        />
-                        <Scatter
-                          points={points.weight}
-                          radius={5}
-                          color={Colors.success}
-                          animate={{ type: 'timing', duration: 500 }}
-                        />
-                      </>
-                    )}
-                  </CartesianChart>
-                </View>
-
-                {/* Volume Progress Chart */}
-                <Text style={styles.sectionTitle}>VOLUME PROGRESS</Text>
-                <View style={styles.chartContainer}>
-                  <CartesianChart
-                    data={chartData}
-                    xKey="x"
-                    yKeys={['volume']}
-                    padding={{ top: 20, bottom: 20, left: 10, right: 10 }}
-                    domainPadding={{ top: 20, bottom: 10 }}
-                    axisOptions={{
-                      tickCount: { x: 5, y: 5 },
-                      labelColor: Colors.textSecondary,
-                      lineColor: {
-                        grid: { x: 'transparent', y: 'rgba(255,255,255,0.1)' },
-                        frame: 'rgba(255,255,255,0.2)',
-                      },
-                      formatYLabel: (value) => formatVolume(Number(value)),
-                    }}
-                  >
-                    {({ points }) => (
-                      <>
-                        <Line
-                          points={points.volume}
-                          color="#3b82f6"
-                          strokeWidth={2}
-                          curveType="natural"
-                          animate={{ type: 'timing', duration: 500 }}
-                        />
-                        <Scatter
-                          points={points.volume}
-                          radius={5}
-                          color="#3b82f6"
-                          animate={{ type: 'timing', duration: 500 }}
-                        />
-                      </>
-                    )}
-                  </CartesianChart>
-                </View>
-              </>
-            )}
+            <ExerciseCharts chartData={chartData} formatVolume={formatVolume} />
           </View>
         )}
 

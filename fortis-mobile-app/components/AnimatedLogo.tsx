@@ -1,11 +1,11 @@
 /**
  * AnimatedLogo.tsx
- * 
+ *
  * FORTIS logo with animated metallic shine effect.
  * Uses SVG LinearGradient animation to create a continuous sweeping shine.
  */
 import { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
+import { View, Animated, Easing, ViewStyle } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -15,19 +15,51 @@ import Svg, {
 
 const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
 
-export function AnimatedLogo() {
+interface AnimatedLogoProps {
+  size?: 'small' | 'large';
+  centered?: boolean;
+}
+
+export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoProps) {
   const shineAnim = useRef(new Animated.Value(0)).current;
-  
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  // Size configurations
+  const config = size === 'large'
+    ? { width: 280, height: 60, fontSize: 42, letterSpacing: 8, y: 48 }
+    : { width: 160, height: 32, fontSize: 20, letterSpacing: 6, y: 24 };
+
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-160, 160],
+    outputRange: [-config.width, config.width],
   });
 
   useEffect(() => {
+    fadeAnim.setValue(0);
+    scaleAnim.setValue(0.95);
+    shineAnim.setValue(0);
+
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
     const shineLoop = Animated.loop(
       Animated.timing(shineAnim, {
         toValue: 1,
-        duration: 5000,
+        duration: 3500,
+        easing: Easing.linear,
         useNativeDriver: false,
       })
     );
@@ -36,49 +68,48 @@ export function AnimatedLogo() {
     return () => {
       shineLoop.stop();
     };
-  }, [shineAnim]);
+  }, [fadeAnim, scaleAnim, shineAnim]);
+
+  const containerStyle: ViewStyle = centered
+    ? { alignItems: 'center', justifyContent: 'center' }
+    : { alignItems: 'flex-start', justifyContent: 'flex-start' };
 
   return (
-    <View style={styles.container}>
-      <Svg height="32" width="160" viewBox="0 0 160 32">
-        <Defs>
-          <AnimatedSvgLinearGradient
-            id="textGradient"
-            x1={shineX}
-            y1="0"
-            x2={Animated.add(shineX, 160)}
-            y2="0"
-            gradientUnits="userSpaceOnUse"
+    <View style={containerStyle}>
+      <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
+        <Svg height={config.height} width={config.width} viewBox={`0 0 ${config.width} ${config.height}`}>
+          <Defs>
+            <AnimatedSvgLinearGradient
+              id={`textGradient-${size}`}
+              x1={shineX}
+              y1="0"
+              x2={Animated.add(shineX, config.width)}
+              y2="0"
+              gradientUnits="userSpaceOnUse"
+            >
+              <Stop offset="0%" stopColor="#4ade80" />
+              <Stop offset="30%" stopColor="#22c55e" />
+              <Stop offset="45%" stopColor="#86efac" />
+              <Stop offset="50%" stopColor="#ffffff" />
+              <Stop offset="55%" stopColor="#86efac" />
+              <Stop offset="70%" stopColor="#22c55e" />
+              <Stop offset="100%" stopColor="#4ade80" />
+            </AnimatedSvgLinearGradient>
+          </Defs>
+          <SvgText
+            fill={`url(#textGradient-${size})`}
+            fontSize={config.fontSize}
+            fontWeight="900"
+            letterSpacing={config.letterSpacing}
+            x={centered ? config.width / 2 : 0}
+            y={config.y}
+            textAnchor={centered ? 'middle' : 'start'}
+            fontFamily="BankGothicBT-Medium"
           >
-            <Stop offset="0%" stopColor="#4ade80" />
-            <Stop offset="30%" stopColor="#22c55e" />
-            <Stop offset="45%" stopColor="#86efac" />
-            <Stop offset="50%" stopColor="#ffffff" />
-            <Stop offset="55%" stopColor="#86efac" />
-            <Stop offset="70%" stopColor="#22c55e" />
-            <Stop offset="100%" stopColor="#4ade80" />
-          </AnimatedSvgLinearGradient>
-        </Defs>
-        <SvgText
-          fill="url(#textGradient)"
-          fontSize="20"
-          fontWeight="900"
-          letterSpacing="6"
-          x="0"
-          y="24"
-          textAnchor="start"
-          fontFamily="BankGothicBT-Medium"
-        >
-          FORTIS
-        </SvgText>
-      </Svg>
+            FORTIS
+          </SvgText>
+        </Svg>
+      </Animated.View>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
-  },
-});

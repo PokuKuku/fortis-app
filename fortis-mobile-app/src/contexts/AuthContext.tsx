@@ -136,13 +136,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
+    // Avoid async callbacks here to prevent Supabase auth lock deadlocks.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
 
-        if (newSession?.user) {
-          const profileData = await fetchProfile(newSession.user.id);
+      if (newSession?.user) {
+        const userId = newSession.user.id;
+        void (async () => {
+          const profileData = await fetchProfile(userId);
           setProfile(profileData);
 
           // Process any pending syncs when user signs in
@@ -162,11 +164,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
               console.warn('Failed to process pending sticky notes sync queue:', error);
             });
           }
-        } else {
-          setProfile(null);
-        }
+        })();
+      } else {
+        setProfile(null);
       }
-    );
+    });
 
     return () => {
       subscription.unsubscribe();
@@ -285,7 +287,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Sign out
   const signOut = useCallback(async () => {
     // Dismiss any lingering OAuth browser session
-    WebBrowser.dismissBrowser();
+    // Wrapped in try-catch because this throws if no browser is open
+    // (e.g., when user signed in via email/password or Apple ID)
+    try {
+      await WebBrowser.dismissBrowser();
+    } catch {
+      // No browser to dismiss, that's fine
+    }
 
     // Clear state immediately - UI updates right away
     setUser(null);
@@ -293,9 +301,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setProfile(null);
 
     // Sign out from Supabase with global scope to clear all sessions
-    supabase.auth.signOut({ scope: 'global' }).catch(err => {
+    try {
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (err) {
       console.warn('Sign out error:', err);
-    });
+    }
   }, []);
 
   // Update profile

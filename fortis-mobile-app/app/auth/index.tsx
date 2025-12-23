@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,21 +6,12 @@ import {
   TouchableOpacity,
   Platform,
   ActivityIndicator,
-  Animated,
-  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, {
-  Defs,
-  LinearGradient as SvgLinearGradient,
-  Stop,
-  Text as SvgText,
-  Path,
-} from 'react-native-svg';
-import MaskedView from '@react-native-masked-view/masked-view';
+import Svg, { Path } from 'react-native-svg';
 
 // Apple Logo Component
 function AppleLogo({ size = 20, color = '#FFFFFF' }: { size?: number; color?: string }) {
@@ -59,74 +50,11 @@ function GoogleLogo({ size = 20 }: { size?: number }) {
 }
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
-
-// Animated Fortis Logo with metallic shine
-function AnimatedFortisLogo() {
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 3000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-  }, [shimmerAnim]);
-
-  const translateX = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-200, 200],
-  });
-
-  return (
-    <View style={{ alignItems: 'center' }}>
-      <MaskedView
-        maskElement={
-          <Text style={{
-            fontFamily: 'BankGothicMediumBT',
-            fontSize: 42,
-            fontWeight: '900',
-            letterSpacing: 8,
-            textAlign: 'center',
-          }}>
-            FORTIS
-          </Text>
-        }
-      >
-        <LinearGradient
-          colors={['#4ade80', '#22c55e', '#4ade80']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 0 }}
-          style={{ height: 60, width: 280 }}
-        >
-          <Animated.View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              transform: [{ translateX }],
-            }}
-          >
-            <LinearGradient
-              colors={['transparent', 'rgba(255,255,255,0.4)', 'transparent']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={{ width: 100, height: '100%' }}
-            />
-          </Animated.View>
-        </LinearGradient>
-      </MaskedView>
-    </View>
-  );
-}
 
 export default function AuthWelcomeScreen() {
   const router = useRouter();
@@ -149,26 +77,32 @@ export default function AuthWelcomeScreen() {
   const handleGoogleSignIn = async () => {
     setError(null);
     setIsLoadingGoogle(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const { error: signInError } = await signInWithGoogle();
+      const { error: signInError } = await signInWithGoogle();
 
-    setIsLoadingGoogle(false);
-    if (signInError) {
-      setError(signInError.message);
+      if (signInError) {
+        setError(signInError.message);
+      }
+    } finally {
+      setIsLoadingGoogle(false);
     }
   };
 
   const handleAppleSignIn = async () => {
     setError(null);
     setIsLoadingApple(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const { error: signInError } = await signInWithApple();
+      const { error: signInError } = await signInWithApple();
 
-    setIsLoadingApple(false);
-    if (signInError) {
-      setError(signInError.message);
+      if (signInError) {
+        setError(signInError.message);
+      }
+    } finally {
+      setIsLoadingApple(false);
     }
   };
 
@@ -185,7 +119,7 @@ export default function AuthWelcomeScreen() {
         <View style={styles.content}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <AnimatedFortisLogo />
+            <AnimatedLogo size="large" centered />
             <Text style={styles.tagline}>Track your strength journey</Text>
           </View>
 
