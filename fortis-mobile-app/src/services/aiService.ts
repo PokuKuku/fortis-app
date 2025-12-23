@@ -30,6 +30,22 @@ async function getAuthenticatedUserId(): Promise<string | null> {
   return user?.id ?? null;
 }
 
+const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
+  CREATE_PROGRAM: 'create_program',
+  MODIFY_PROGRAM: 'modify_program',
+  CREATE_TEMPLATE: 'create_template',
+  MODIFY_TEMPLATE: 'modify_template',
+  LOG_WORKOUT: 'log_workout',
+};
+
+const LOGGABLE_ENTITY_TYPES = new Set<string>([
+  'workout_program',
+  'program_workout',
+  'program_exercise',
+  'workout_session',
+  'workout_set',
+]);
+
 // ============================================
 // Main AI Service Functions
 // ============================================
@@ -329,6 +345,9 @@ export async function applyMutationPlan(
   plan: AIMutationPlan
 ): Promise<{ success: boolean; error?: string; appliedMutations?: string[] }> {
   const appliedMutations: string[] = [];
+  const userId = await getAuthenticatedUserId();
+  const actionType = ACTION_TYPE_BY_INTENT[plan.intent];
+  const canLog = Boolean(userId && actionType);
 
   try {
     // Sort mutations by order and process dependencies
@@ -357,6 +376,37 @@ export async function applyMutationPlan(
         createdEntities[mutation.mutationId] = result.entityId;
       }
 
+      if (
+        canLog &&
+        actionType &&
+        LOGGABLE_ENTITY_TYPES.has(mutation.entityType)
+      ) {
+        const resolvedEntityId =
+          mutation.operation === 'INSERT' ? result.entityId : mutation.entityId;
+        if (resolvedEntityId) {
+          const newState =
+            mutation.operation === 'DELETE'
+              ? {}
+              : result.appliedState || mutation.proposedState || {};
+
+          try {
+            await supabase.rpc('log_ai_mutation', {
+              p_action_type: actionType,
+              p_entity_type: mutation.entityType,
+              p_entity_id: resolvedEntityId,
+              p_previous_state: mutation.previousState ?? null,
+              p_new_state: newState,
+              p_pending_action_id: null,
+              p_request_id: plan.requestId,
+              p_ai_conversation_id: plan.conversationId ?? null,
+              p_ai_action_summary: plan.summary,
+            });
+          } catch (logError) {
+            console.warn('Failed to log AI mutation:', logError);
+          }
+        }
+      }
+
       appliedMutations.push(mutation.mutationId);
     }
 
@@ -374,7 +424,12 @@ export async function applyMutationPlan(
 async function applyMutation(
   mutation: AIMutationPlan['mutations'][0],
   createdEntities: Record<string, string>
-): Promise<{ success: boolean; error?: string; entityId?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  entityId?: string;
+  appliedState?: Record<string, unknown>;
+}> {
   const tableName = entityTypeToTable(mutation.entityType);
 
   // Replace placeholder references with actual created IDs
@@ -393,6 +448,9 @@ async function applyMutation(
 
   switch (mutation.operation) {
     case 'INSERT': {
+      if (!proposedState) {
+        return { success: false, error: 'Missing proposed state for insert' };
+      }
       const { data, error } = await supabase
         .from(tableName)
         .insert(proposedState)
@@ -400,17 +458,24 @@ async function applyMutation(
         .single();
 
       if (error) return { success: false, error: error.message };
-      return { success: true, entityId: data.id };
+      return {
+        success: true,
+        entityId: data.id,
+        appliedState: proposedState,
+      };
     }
 
     case 'UPDATE': {
+      if (!proposedState) {
+        return { success: false, error: 'Missing proposed state for update' };
+      }
       const { error } = await supabase
         .from(tableName)
         .update(proposedState)
         .eq('id', mutation.entityId);
 
       if (error) return { success: false, error: error.message };
-      return { success: true };
+      return { success: true, appliedState: proposedState };
     }
 
     case 'DELETE': {

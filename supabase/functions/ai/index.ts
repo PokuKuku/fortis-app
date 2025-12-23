@@ -172,6 +172,114 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
   },
 };
 
+const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
+  CREATE_PROGRAM: 'create_program',
+  MODIFY_PROGRAM: 'modify_program',
+  CREATE_TEMPLATE: 'create_template',
+  MODIFY_TEMPLATE: 'modify_template',
+  LOG_WORKOUT: 'log_workout',
+};
+
+const ALLOWED_ENTITY_TYPES = new Set<string>([
+  'workout_program',
+  'program_workout',
+  'program_exercise',
+  'workout_session',
+  'workout_set',
+]);
+
+function sanitizeProposedState(
+  entityType: string,
+  proposedState: Record<string, unknown> | undefined,
+  userId: string
+): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = { ...(proposedState || {}) };
+
+  if (entityType === 'workout_program') {
+    sanitized.created_by = userId;
+  }
+
+  if (entityType === 'workout_session') {
+    sanitized.user_id = userId;
+  }
+
+  return sanitized;
+}
+
+async function persistPendingActions(params: {
+  adminClient: SupabaseClient;
+  userId: string;
+  intent: AIIntent;
+  requestId: string;
+  mutationPlan: {
+    mutations: Array<{
+      entityType: string;
+      entityId?: string;
+      proposedState?: Record<string, unknown>;
+      description?: string;
+    }>;
+    summary?: string;
+    expiresAt?: string;
+    conversationId?: string;
+  };
+}): Promise<void> {
+  const actionType = ACTION_TYPE_BY_INTENT[params.intent];
+  if (!actionType) {
+    return;
+  }
+
+  const { data: existing, error: existingError } = await params.adminClient
+    .from('ai_pending_actions')
+    .select('id')
+    .eq('user_id', params.userId)
+    .eq('request_id', params.requestId)
+    .limit(1);
+
+  if (existingError) {
+    console.error('Error checking pending actions:', existingError);
+    return;
+  }
+
+  if (existing && existing.length > 0) {
+    return;
+  }
+
+  const expiresAt = params.mutationPlan.expiresAt
+    ? params.mutationPlan.expiresAt
+    : new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+  const rows = params.mutationPlan.mutations
+    .filter((mutation) => ALLOWED_ENTITY_TYPES.has(mutation.entityType))
+    .map((mutation) => ({
+      user_id: params.userId,
+      action_type: actionType,
+      entity_type: mutation.entityType,
+      target_entity_id: mutation.entityId ?? null,
+      proposed_state: sanitizeProposedState(
+        mutation.entityType,
+        mutation.proposedState,
+        params.userId
+      ),
+      description: mutation.description || params.mutationPlan.summary || 'Pending AI change',
+      expires_at: expiresAt,
+      status: 'pending',
+      request_id: params.requestId,
+      ai_conversation_id: params.mutationPlan.conversationId ?? null,
+    }));
+
+  if (rows.length === 0) {
+    return;
+  }
+
+  const { error: insertError } = await params.adminClient
+    .from('ai_pending_actions')
+    .insert(rows);
+
+  if (insertError) {
+    console.error('Error inserting pending actions:', insertError);
+  }
+}
+
 // ============================================
 // Main Handler
 // ============================================
@@ -204,6 +312,14 @@ Deno.serve(async (req: Request) => {
       return errorResponse('Unauthorized', 'UNAUTHORIZED', 401);
     }
 
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const adminClient = serviceRoleKey
+      ? createClient(
+          Deno.env.get('SUPABASE_URL')!,
+          serviceRoleKey
+        )
+      : null;
+
     // Parse and validate request body
     const body = await req.json();
     const validationError = validateRequest(body);
@@ -234,6 +350,27 @@ Deno.serve(async (req: Request) => {
 
     // Call Claude API
     const response = await callClaude(aiRequest, context, config, requestId);
+
+    if (
+      adminClient &&
+      response &&
+      typeof response === 'object' &&
+      'type' in response &&
+      (response as { type?: string }).type === 'mutation_plan' &&
+      (response as { mutationPlan?: unknown }).mutationPlan
+    ) {
+      try {
+        await persistPendingActions({
+          adminClient,
+          userId: user.id,
+          intent: aiRequest.intent,
+          requestId,
+          mutationPlan: (response as { mutationPlan: any }).mutationPlan,
+        });
+      } catch (error) {
+        console.error('Failed to persist pending actions:', error);
+      }
+    }
 
     return jsonResponse(response);
   } catch (error) {
