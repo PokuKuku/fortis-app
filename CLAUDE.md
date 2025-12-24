@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Fortis is an offline-first mobile workout tracker built with Expo/React Native. Monorepo structure:
 
 - **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19.1, RN 0.81.5, TypeScript)
-- **fortis-dashboard-web/**: Next.js analytics dashboard (Next.js 16, React 19.2, TypeScript, Tailwind CSS)
+- **fortis-dashboard-web/**: Next.js analytics dashboard (Next.js 16, React 19.2, TypeScript, Tailwind CSS 4)
 - **supabase/**: Database schema, migrations, and seed data
 - **free-exercise-db-main/**: Exercise database with JSON files
 
@@ -158,6 +158,7 @@ fortis-mobile-app/
 - `002_core_features_and_ai_security.sql` - AI, programs, RLS
 - `003_program_ai_tracking.sql` - AI-generated program tracking
 - `004_add_program_delete_update_policies.sql` - Program deletion/update RLS policies
+- `005_security_hardening.sql` - Enhanced security policies
 
 **AI Edge Function** (`supabase/functions/ai/index.ts`):
 - Rate limiting via `ai_rate_limits` table

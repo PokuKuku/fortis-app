@@ -1,72 +1,32 @@
-import { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import {
-  ArrowRightOnRectangleIcon,
-  UserCircleIcon,
-  Cog6ToothIcon,
-  ScaleIcon,
-  UserIcon,
-} from 'react-native-heroicons/outline';
+import { Cog6ToothIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
-import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { ProfileHeader } from '@/src/components/profile/ProfileHeader';
+import { StatsOverviewCard } from '@/src/components/profile/StatsOverviewCard';
+import { PersonalRecordsCard } from '@/src/components/profile/PersonalRecordsCard';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, profile, signOut, isAuthenticated } = useAuth();
-  const [isSigningOut, setIsSigningOut] = useState(false);
-  const bodyType = useWorkoutStore((s) => s.bodyType);
-  const setBodyType = useWorkoutStore((s) => s.setBodyType);
+  const { isAuthenticated } = useAuth();
 
-  const handleToggleBodyType = () => {
+  const handleSettingsPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setBodyType(bodyType === 'male' ? 'female' : 'male');
+    router.push('/settings');
   };
-
-  const handleSignOut = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Sign Out',
-          style: 'destructive',
-          onPress: async () => {
-            setIsSigningOut(true);
-            try {
-              await signOut();
-            } finally {
-              setIsSigningOut(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
-  const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
 
   return (
     <View style={styles.container}>
@@ -76,6 +36,15 @@ export default function ProfileScreen() {
         {/* Header */}
         <View style={styles.header}>
           <AnimatedLogo />
+          {isAuthenticated && (
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={handleSettingsPress}
+              activeOpacity={0.7}
+            >
+              <Cog6ToothIcon color={Colors.textSecondary} size={24} strokeWidth={2} />
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Title */}
@@ -90,71 +59,20 @@ export default function ProfileScreen() {
         >
           {isAuthenticated ? (
             <>
-              {/* User Info Card */}
-              <GlassCard style={styles.userCard}>
-                <View style={styles.avatarContainer}>
-                  <UserCircleIcon color={Colors.success} size={60} strokeWidth={1} />
-                </View>
-                <View style={styles.userInfo}>
-                  <Text style={styles.userName}>
-                    {profile?.full_name || 'Fortis User'}
-                  </Text>
-                  <Text style={styles.userEmail}>{user?.email}</Text>
-                </View>
-              </GlassCard>
-
-              {/* Settings Section */}
+              {/* Profile Header with Avatar, Name, and Weekly Activity */}
               <View style={styles.section}>
-                <Text style={styles.sectionHeader}>Preferences</Text>
-
-                <View style={styles.settingsCard}>
-                  <TouchableOpacity style={styles.settingsRow} activeOpacity={0.7}>
-                    <View style={styles.settingsRowLeft}>
-                      <ScaleIcon color={Colors.textSecondary} size={20} strokeWidth={2} />
-                      <Text style={styles.settingsLabel}>Weight Units</Text>
-                    </View>
-                    <Text style={styles.settingsValue}>{unitLabel}</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.settingsDivider} />
-
-                  <TouchableOpacity style={styles.settingsRow} activeOpacity={0.7} onPress={handleToggleBodyType}>
-                    <View style={styles.settingsRowLeft}>
-                      <UserIcon color={Colors.textSecondary} size={20} strokeWidth={2} />
-                      <Text style={styles.settingsLabel}>Body Type</Text>
-                    </View>
-                    <Text style={styles.settingsValue}>{bodyTypeLabel}</Text>
-                  </TouchableOpacity>
-
-                  <View style={styles.settingsDivider} />
-
-                  <TouchableOpacity style={styles.settingsRow} activeOpacity={0.7}>
-                    <View style={styles.settingsRowLeft}>
-                      <Cog6ToothIcon color={Colors.textSecondary} size={20} strokeWidth={2} />
-                      <Text style={styles.settingsLabel}>App Settings</Text>
-                    </View>
-                    <Text style={styles.settingsValue}>Coming soon</Text>
-                  </TouchableOpacity>
-                </View>
+                <ProfileHeader />
               </View>
 
-              {/* Sign Out Section */}
+              {/* Stats Overview */}
               <View style={styles.section}>
-                <TouchableOpacity
-                  style={styles.signOutButton}
-                  onPress={handleSignOut}
-                  disabled={isSigningOut}
-                  activeOpacity={0.7}
-                >
-                  <ArrowRightOnRectangleIcon color={Colors.error} size={20} strokeWidth={2} />
-                  <Text style={styles.signOutText}>
-                    {isSigningOut ? 'Signing out...' : 'Sign Out'}
-                  </Text>
-                </TouchableOpacity>
+                <StatsOverviewCard />
               </View>
 
-              {/* Version */}
-              <Text style={styles.version}>Fortis v1.0.0</Text>
+              {/* Personal Records */}
+              <View style={styles.section}>
+                <PersonalRecordsCard />
+              </View>
             </>
           ) : (
             <View style={styles.notSignedIn}>
@@ -184,10 +102,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: Spacing['2xl'],
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
-    alignItems: 'flex-start',
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   titleContainer: {
     paddingHorizontal: Spacing['2xl'],
@@ -205,96 +131,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing['2xl'],
     paddingBottom: 120,
   },
-  userCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.xl,
-    marginBottom: Spacing['2xl'],
-  },
-  avatarContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.lg,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    ...Typography.h3,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
-  },
-  userEmail: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
   section: {
-    marginBottom: Spacing['2xl'],
-  },
-  sectionHeader: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.md,
-    marginLeft: Spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  settingsCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    overflow: 'hidden',
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.lg,
-    paddingHorizontal: Spacing.lg,
-  },
-  settingsRowLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  settingsLabel: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-  },
-  settingsValue: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  settingsDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    marginHorizontal: Spacing.lg,
-  },
-  signOutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    paddingVertical: Spacing.lg,
-  },
-  signOutText: {
-    ...Typography.button,
-    color: Colors.error,
-  },
-  version: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginTop: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   notSignedIn: {
     flex: 1,
@@ -311,7 +149,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.success,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing['3xl'],
-    borderRadius: BorderRadius.lg,
+    borderRadius: 10,
   },
   signInButtonText: {
     ...Typography.button,

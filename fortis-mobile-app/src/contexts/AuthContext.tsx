@@ -44,6 +44,7 @@ export interface AuthContextValue {
 
   // Profile methods
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
+  uploadAvatar: (uri: string) => Promise<{ error: Error | null }>;
   completeOnboarding: () => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
 }
@@ -372,6 +373,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [user?.id, refreshProfile]);
 
+  // Upload avatar
+  const uploadAvatar = useCallback(async (uri: string) => {
+    if (!user?.id) {
+      return { error: new Error('Not authenticated') };
+    }
+
+    try {
+      // Fetch the image as a blob
+      const response = await fetch(uri);
+      const blob = await response.blob();
+
+      // Generate a unique filename
+      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${user.id}/avatar.${fileExt}`;
+
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, blob, {
+          cacheControl: '3600',
+          upsert: true,
+          contentType: blob.type || 'image/jpeg',
+        });
+
+      if (uploadError) {
+        console.error('Avatar upload error:', uploadError);
+        return { error: new Error(uploadError.message) };
+      }
+
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      // Update profile with new avatar URL (add cache buster)
+      const avatarUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+      return updateProfile({ avatar_url: avatarUrl });
+    } catch (err) {
+      console.error('Avatar upload error:', err);
+      return { error: err as Error };
+    }
+  }, [user?.id, updateProfile]);
+
   // Complete onboarding
   const completeOnboarding = useCallback(async () => {
     return updateProfile({ onboarding_completed: true });
@@ -390,6 +434,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     signInWithApple,
     signOut,
     updateProfile,
+    uploadAvatar,
     completeOnboarding,
     refreshProfile,
   };
