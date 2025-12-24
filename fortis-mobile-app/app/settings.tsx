@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -15,10 +16,13 @@ import {
   ArrowRightOnRectangleIcon,
   ScaleIcon,
   UserIcon,
+  ArrowDownTrayIcon,
+  ChevronRightIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -26,23 +30,36 @@ import { Typography } from '@/constants/Typography';
 interface SettingsRowProps {
   icon: React.ReactNode;
   label: string;
-  value: string;
+  value?: string;
   onPress?: () => void;
+  showChevron?: boolean;
+  isLoading?: boolean;
 }
 
-function SettingsRow({ icon, label, value, onPress }: SettingsRowProps) {
+function SettingsRow({ icon, label, value, onPress, showChevron, isLoading }: SettingsRowProps) {
   return (
     <TouchableOpacity
       style={styles.settingsRow}
       activeOpacity={0.7}
       onPress={onPress}
-      disabled={!onPress}
+      disabled={!onPress || isLoading}
     >
       <View style={styles.settingsRowLeft}>
         {icon}
         <Text style={styles.settingsLabel}>{label}</Text>
       </View>
-      <Text style={styles.settingsValue}>{value}</Text>
+      <View style={styles.settingsRowRight}>
+        {isLoading ? (
+          <ActivityIndicator size="small" color={Colors.textSecondary} />
+        ) : (
+          <>
+            {value && <Text style={styles.settingsValue}>{value}</Text>}
+            {showChevron && (
+              <ChevronRightIcon color={Colors.textTertiary} size={16} strokeWidth={2} />
+            )}
+          </>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -52,10 +69,13 @@ export default function SettingsScreen() {
   const { profile, updateProfile, signOut } = useAuth();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
+  const completedSessions = useWorkoutStore((s) => s.completedSessions);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
+  const workoutCount = completedSessions.length;
 
   const handleToggleUnits = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -66,6 +86,29 @@ export default function SettingsScreen() {
   const handleToggleBodyType = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setBodyType(bodyType === 'male' ? 'female' : 'male');
+  };
+
+  const handleExportData = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (completedSessions.length === 0) {
+      Alert.alert('No Data', 'You have no workout history to export.');
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const weightUnit = profile?.preferred_units === 'metric' ? 'kg' : 'lbs';
+      const result = await exportWorkoutsToCSV(completedSessions, weightUnit);
+
+      if (!result.success) {
+        Alert.alert('Export Failed', result.error || 'Failed to export workouts.');
+      }
+    } catch (error) {
+      Alert.alert('Export Failed', 'An unexpected error occurred.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleSignOut = () => {
@@ -138,6 +181,22 @@ export default function SettingsScreen() {
                 label="Body Type"
                 value={bodyTypeLabel}
                 onPress={handleToggleBodyType}
+              />
+            </View>
+          </View>
+
+          {/* Data Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>Data</Text>
+
+            <View style={styles.settingsCard}>
+              <SettingsRow
+                icon={<ArrowDownTrayIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Export to CSV"
+                value={`${workoutCount} workout${workoutCount !== 1 ? 's' : ''}`}
+                onPress={handleExportData}
+                showChevron
+                isLoading={isExporting}
               />
             </View>
           </View>
@@ -234,6 +293,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
+  },
+  settingsRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   settingsLabel: {
     ...Typography.body,

@@ -3,8 +3,8 @@
  *
  * Exports workout history to CSV format compatible with Strong/Hevy.
  */
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
+import { File, Paths } from 'expo-file-system';
+import { Share, Platform } from 'react-native';
 import { format } from 'date-fns';
 import { WorkoutSession } from '@/src/types/workout';
 
@@ -99,25 +99,25 @@ export async function exportWorkoutsToCSV(
     // Generate filename with current date
     const dateStr = format(new Date(), 'yyyy-MM-dd');
     const filename = `fortis-workouts-${dateStr}.csv`;
-    const filePath = `${FileSystem.documentDirectory}${filename}`;
 
-    // Write file
-    await FileSystem.writeAsStringAsync(filePath, csvContent, {
-      encoding: FileSystem.EncodingType.UTF8,
-    });
+    // Create file in document directory
+    const file = new File(Paths.document, filename);
+    await file.write(csvContent);
 
-    // Check if sharing is available
-    const isAvailable = await Sharing.isAvailableAsync();
-    if (!isAvailable) {
-      return { success: false, error: 'Sharing is not available on this device' };
+    // Share the file using React Native's Share API
+    if (Platform.OS === 'ios') {
+      // iOS supports sharing files via url
+      await Share.share({
+        url: file.uri,
+        title: filename,
+      });
+    } else {
+      // Android: Share the file path
+      await Share.share({
+        message: `Workout data exported to: ${file.uri}`,
+        title: 'Workout Export',
+      });
     }
-
-    // Share the file
-    await Sharing.shareAsync(filePath, {
-      mimeType: 'text/csv',
-      dialogTitle: 'Export Workout History',
-      UTI: 'public.comma-separated-values-text',
-    });
 
     return { success: true };
   } catch (error) {

@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { XMarkIcon, PlusIcon, TrashIcon, EllipsisVerticalIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, PlusIcon, TrashIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius, ButtonHeights } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -23,6 +23,7 @@ import { AddExerciseModal } from './AddExerciseModal';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { Program } from '@/src/types/workout';
 
 // Simple UUID generator for local IDs
 const generateLocalId = () => {
@@ -48,16 +49,20 @@ interface CreateWorkoutModalProps {
   visible: boolean;
   onClose: () => void;
   onSave?: (templateId: string) => void;
+  templateToEdit?: Program;
 }
 
 export function CreateWorkoutModal({
   visible,
   onClose,
   onSave,
+  templateToEdit,
 }: CreateWorkoutModalProps) {
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
+  const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
   const bodyType = useWorkoutStore((s) => s.bodyType);
 
+  const isEditing = !!templateToEdit;
   const [templateName, setTemplateName] = useState('');
   const [exercises, setExercises] = useState<TemplateExercise[]>([]);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
@@ -66,14 +71,41 @@ export function CreateWorkoutModal({
   const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
   const hasMuscles = exercisesWithMuscles.length > 0;
 
-  // Reset state when modal closes
+  // Reset or prefill state when modal opens/closes
   useEffect(() => {
     if (!visible) {
       setTemplateName('');
       setExercises([]);
       setIsSaving(false);
+      return;
     }
-  }, [visible]);
+
+    if (templateToEdit) {
+      const workout = templateToEdit.workouts[0];
+      const sortedExercises = workout
+        ? [...workout.exercises].sort(
+          (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+        )
+        : [];
+
+      setTemplateName(templateToEdit.name);
+      setExercises(sortedExercises.map((ex, index) => ({
+        localId: generateLocalId(),
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
+        sets: Math.max(1, ex.setDetails?.length ?? ex.sets ?? 1),
+        reps: ex.reps,
+        restSeconds: ex.restSeconds ?? 120,
+        orderIndex: index,
+      })));
+      setIsSaving(false);
+      return;
+    }
+
+    setTemplateName('');
+    setExercises([]);
+    setIsSaving(false);
+  }, [visible, templateToEdit]);
 
   // Check if we can save
   const canSave = templateName.trim().length > 0 && exercises.length > 0 && !isSaving;
@@ -124,10 +156,28 @@ export function CreateWorkoutModal({
     try {
       const exercisesToSave = exercises.map(ex => ({
         exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
         sets: ex.sets,
         reps: ex.reps,
         restSeconds: ex.restSeconds,
       }));
+
+      if (isEditing && templateToEdit?.id) {
+        const updatedId = await updateWorkoutTemplate(
+          templateToEdit.id,
+          templateName.trim(),
+          exercisesToSave
+        );
+        if (updatedId) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          onSave?.(updatedId);
+          onClose();
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setIsSaving(false);
+        }
+        return;
+      }
 
       const templateId = await createWorkoutTemplate(templateName.trim(), exercisesToSave);
 
@@ -222,6 +272,9 @@ export function CreateWorkoutModal({
 
   if (!visible) return null;
 
+  const headerTitle = isEditing ? 'Edit Template' : 'New Template';
+  const saveButtonText = isEditing ? 'Update' : 'Save';
+
   return (
     <Modal
       transparent
@@ -249,7 +302,7 @@ export function CreateWorkoutModal({
             >
               <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
             </Pressable>
-            <Text style={styles.headerTitle}>New Template</Text>
+            <Text style={styles.headerTitle}>{headerTitle}</Text>
             <GlassButton
               style={{
                 ...styles.saveButton,
@@ -261,7 +314,7 @@ export function CreateWorkoutModal({
               {isSaving ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={styles.saveButtonText}>{saveButtonText}</Text>
               )}
             </GlassButton>
           </View>

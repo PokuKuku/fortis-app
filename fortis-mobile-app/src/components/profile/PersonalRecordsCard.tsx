@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { TrophyIcon } from 'react-native-heroicons/outline';
-import { GlassCard } from '@/components/GlassCard';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
@@ -53,7 +52,7 @@ export function PersonalRecordsCard() {
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
 
   return (
-    <GlassCard style={styles.container}>
+    <View style={styles.container}>
       <Text style={styles.sectionHeader}>Personal Records</Text>
 
       {prs.length === 0 ? (
@@ -81,12 +80,16 @@ export function PersonalRecordsCard() {
           ))}
         </View>
       )}
-    </GlassCard>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: Spacing.xl,
   },
   sectionHeader: {

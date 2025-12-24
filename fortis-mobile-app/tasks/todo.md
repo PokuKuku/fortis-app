@@ -41,6 +41,9 @@ Restructured the profile page to have a cleaner layout with a combined profile h
 │  - Weight Units (tap)       │
 │  - Body Type (tap)          │
 ├─────────────────────────────┤
+│  Data                       │
+│  - Export to CSV (tap)      │  ← NEW: exports all workouts
+├─────────────────────────────┤
 │  App                        │
 │  - Sign Out                 │
 ├─────────────────────────────┤
@@ -50,7 +53,13 @@ Restructured the profile page to have a cleaner layout with a combined profile h
 
 ### Files Created
 
-- `app/settings.tsx` - New settings screen with preferences and sign out
+- `app/settings.tsx` - New settings screen with preferences, data export, and sign out
+- `src/utils/exportWorkouts.ts` - CSV export utility (generates Strong/Hevy compatible format)
+
+### Dependencies Added
+
+- `expo-file-system` - For writing CSV files
+- `expo-sharing` - For sharing/saving the exported file
 
 ### Files Modified
 

@@ -12,7 +12,6 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
-import { GlassCard } from '@/components/GlassCard';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useWeeklyActivity } from '@/src/hooks/useWeeklyActivity';
 import { Colors } from '@/constants/Colors';
@@ -162,7 +161,7 @@ export function ProfileHeader() {
   };
 
   return (
-    <GlassCard style={styles.container}>
+    <View style={styles.container}>
       {/* Top row: Avatar + User Info */}
       <View style={styles.topRow}>
         {/* Avatar */}
@@ -281,12 +280,16 @@ export function ProfileHeader() {
           </View>
         )}
       </View>
-    </GlassCard>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: Spacing.xl,
   },
   topRow: {

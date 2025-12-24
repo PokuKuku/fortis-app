@@ -175,6 +175,7 @@ interface WorkoutState {
 
   // Actions - Editor Session
   initEditorSession: () => void;
+  initEditorSessionFromTemplate: (templateId: string) => Promise<boolean>;
   setEditorMode: (mode: 'template' | 'log') => void;
   setEditorDate: (date: Date) => void;
   setEditorWorkoutName: (name: string) => void;
@@ -195,7 +196,7 @@ interface WorkoutState {
   ) => void;
   openEditorNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
   updateEditorExerciseNotes: (localId: string, notes: string) => void;
-  saveEditorAsTemplate: () => Promise<string | null>;
+  saveEditorAsTemplate: (templateId?: string) => Promise<string | null>;
   saveEditorAsWorkout: () => Promise<void>;
   clearEditorSession: () => void;
 }
@@ -1277,6 +1278,78 @@ export const useWorkoutStore = create<WorkoutState>()(
       });
     },
 
+    initEditorSessionFromTemplate: async (templateId) => {
+      try {
+        // Import programsStore dynamically to avoid circular dependency
+        const { useProgramsStore } = await import('./programsStore');
+        const programs = useProgramsStore.getState().programs;
+
+        const template = programs.find(p => p.id === templateId && p.isTemplate);
+        if (!template || !template.workouts[0]) {
+          get().initEditorSession();
+          return false;
+        }
+
+        const workout = template.workouts[0];
+        const sortedExercises = [...workout.exercises].sort(
+          (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+        );
+
+        const exercises: WorkoutExercise[] = sortedExercises.map((templateEx, exIndex) => {
+          const numSets = Math.max(1, templateEx.setDetails?.length ?? templateEx.sets ?? 1);
+          const sets: WorkoutSet[] = [];
+
+          for (let i = 0; i < numSets; i++) {
+            const setDetail = templateEx.setDetails?.[i];
+            sets.push({
+              localId: generateId(),
+              setNumber: i + 1,
+              setType: 'normal',
+              weight: setDetail?.weight ?? null,
+              reps: setDetail?.reps ?? null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: i,
+            });
+          }
+
+          return {
+            localId: generateId(),
+            exerciseId: templateEx.exerciseId,
+            exerciseName: templateEx.exerciseName,
+            sets,
+            notes: templateEx.notes || '',
+            orderIndex: exIndex,
+          };
+        });
+
+        const session: WorkoutSession = {
+          localId: generateId(),
+          name: template.name,
+          notes: '',
+          startedAt: new Date(),
+          completedAt: null,
+          exercises,
+          isSynced: false,
+        };
+
+        set({
+          editorSession: session,
+          editorDate: new Date(),
+          editorMode: 'template',
+          activeNumberPad: null,
+        });
+
+        return true;
+      } catch (error) {
+        console.error('Failed to init editor session from template:', error);
+        get().initEditorSession();
+        return false;
+      }
+    },
+
     setEditorMode: (mode) => {
       set({ editorMode: mode });
     },
@@ -1493,13 +1566,13 @@ export const useWorkoutStore = create<WorkoutState>()(
       });
     },
 
-    saveEditorAsTemplate: async () => {
+    saveEditorAsTemplate: async (templateId) => {
       const { editorSession } = get();
       if (!editorSession || !editorSession.name.trim()) return null;
 
       // Import programsStore dynamically to avoid circular dependency
       const { useProgramsStore } = await import('./programsStore');
-      const createWorkoutTemplate = useProgramsStore.getState().createWorkoutTemplate;
+      const { createWorkoutTemplate, updateWorkoutTemplate } = useProgramsStore.getState();
 
       const exercisesToSave = editorSession.exercises.map(ex => ({
         exerciseId: ex.exerciseId,
@@ -1514,8 +1587,17 @@ export const useWorkoutStore = create<WorkoutState>()(
         })),
       }));
 
-      const templateId = await createWorkoutTemplate(editorSession.name.trim(), exercisesToSave);
-      return templateId;
+      if (templateId) {
+        const updatedId = await updateWorkoutTemplate(
+          templateId,
+          editorSession.name.trim(),
+          exercisesToSave
+        );
+        return updatedId;
+      }
+
+      const newTemplateId = await createWorkoutTemplate(editorSession.name.trim(), exercisesToSave);
+      return newTemplateId;
     },
 
     saveEditorAsWorkout: async () => {

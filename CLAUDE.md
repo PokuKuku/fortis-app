@@ -40,10 +40,10 @@ npm run android        # Run on Android emulator
 npm start -- --clear   # Clear bundler cache
 
 # Testing
-npm test               # Run all tests
-npm test:watch         # Run tests in watch mode
-npm test:coverage      # Run tests with coverage report
-npm test -- ComponentName  # Run specific test file
+npm test                    # Run all tests
+npm run test:watch          # Run tests in watch mode
+npm run test:coverage       # Run tests with coverage report
+npm test -- ComponentName   # Run specific test file
 
 # Web Dashboard (fortis-dashboard-web/)
 cd fortis-dashboard-web
@@ -159,6 +159,9 @@ fortis-mobile-app/
 - `003_program_ai_tracking.sql` - AI-generated program tracking
 - `004_add_program_delete_update_policies.sql` - Program deletion/update RLS policies
 - `005_security_hardening.sql` - Enhanced security policies
+- `006_additional_security_hardening.sql` - Additional security policies
+- `007_fix_share_token_rng.sql` - Fix share token random generation
+- `008_ops_security_hardening.sql` - Operations security policies
 
 **AI Edge Function** (`supabase/functions/ai/index.ts`):
 - Rate limiting via `ai_rate_limits` table

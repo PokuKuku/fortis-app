@@ -5,11 +5,10 @@ import {
   ClockIcon,
   TrophyIcon,
 } from 'react-native-heroicons/outline';
-import { GlassCard } from '@/components/GlassCard';
 import { useProfileStats } from '@/src/hooks/useProfileStats';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
-import { Spacing } from '@/constants/Sizes';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
 /**
@@ -65,7 +64,7 @@ export function StatsOverviewCard() {
   const units = profile?.preferred_units || 'imperial';
 
   return (
-    <GlassCard style={styles.container}>
+    <View style={styles.container}>
       <Text style={styles.sectionHeader}>Your Stats</Text>
       <View style={styles.statsRow}>
         <StatItem
@@ -84,12 +83,16 @@ export function StatsOverviewCard() {
           label="Time Trained"
         />
       </View>
-    </GlassCard>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: Spacing.xl,
   },
   sectionHeader: {

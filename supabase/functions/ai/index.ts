@@ -312,7 +312,9 @@ Deno.serve(async (req: Request) => {
       return errorResponse('Unauthorized', 'UNAUTHORIZED', 401);
     }
 
-    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    const serviceRoleKey =
+      Deno.env.get('SERVICE_ROLE_KEY') ??
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     const adminClient = serviceRoleKey
       ? createClient(
           Deno.env.get('SUPABASE_URL')!,

@@ -16,6 +16,7 @@ import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 import * as ProgramService from '@/src/services/programService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useProgramsStore } from '@/src/store/programsStore';
 
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +24,8 @@ export default function WorkoutDetailScreen() {
   const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
   const bodyType = useWorkoutStore((s) => s.bodyType);
+  const template = useProgramsStore(s => s.programs.find(p => p.id === id && p.isTemplate));
+  const canEditTemplate = !!template;
 
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -39,8 +42,11 @@ export default function WorkoutDetailScreen() {
   };
 
   const handleEdit = () => {
+    if (!id || !canEditTemplate || isNavigating.current) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: Navigate to edit screen
+    isNavigating.current = true;
+    router.push(`/workout/create?templateId=${id}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   const startWorkoutFromTemplate = useWorkoutStore(s => s.startWorkoutFromTemplate);
@@ -123,7 +129,7 @@ export default function WorkoutDetailScreen() {
       <HubHeader
         title={workout.name}
         onBack={handleBack}
-        rightAction={{ label: 'Edit', onPress: handleEdit }}
+        rightAction={canEditTemplate ? { label: 'Edit', onPress: handleEdit } : undefined}
       />
 
       <ScrollView

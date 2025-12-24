@@ -129,6 +129,14 @@ export default function RootLayout() {
                 gestureDirection: 'horizontal',
               }}
             />
+            <Stack.Screen
+              name="settings"
+              options={{
+                animation: 'slide_from_right',
+                gestureEnabled: true,
+                gestureDirection: 'horizontal',
+              }}
+            />
           </Stack>
           <WorkoutMiniBar />
           <AIContainer />

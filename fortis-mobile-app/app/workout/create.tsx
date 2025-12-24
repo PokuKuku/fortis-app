@@ -30,12 +30,24 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 export default function CreateWorkoutScreen() {
   const router = useRouter();
-  const { mode = 'template', date } = useLocalSearchParams<{ mode?: 'template' | 'log'; date?: string }>();
+  const {
+    mode = 'template',
+    date,
+    templateId: templateIdParam,
+  } = useLocalSearchParams<{
+    mode?: 'template' | 'log';
+    date?: string | string[];
+    templateId?: string | string[];
+  }>();
+  const templateId = Array.isArray(templateIdParam) ? templateIdParam[0] : templateIdParam;
+  const dateValue = Array.isArray(date) ? date[0] : date;
+  const isEditingTemplate = mode !== 'log' && !!templateId;
 
   // Editor store actions
   const editorSession = useWorkoutStore(s => s.editorSession);
   const editorDate = useWorkoutStore(s => s.editorDate);
   const initEditorSession = useWorkoutStore(s => s.initEditorSession);
+  const initEditorSessionFromTemplate = useWorkoutStore(s => s.initEditorSessionFromTemplate);
   const setEditorWorkoutName = useWorkoutStore(s => s.setEditorWorkoutName);
   const setEditorDate = useWorkoutStore(s => s.setEditorDate);
   const addEditorExercises = useWorkoutStore(s => s.addEditorExercises);
@@ -70,18 +82,22 @@ export default function CreateWorkoutScreen() {
 
   // Initialize editor session on mount
   useEffect(() => {
-    initEditorSession();
+    if (isEditingTemplate && templateId) {
+      initEditorSessionFromTemplate(templateId);
+    } else {
+      initEditorSession();
+    }
     return () => {
       clearEditorSession();
     };
-  }, []);
+  }, [clearEditorSession, initEditorSession, initEditorSessionFromTemplate, isEditingTemplate, templateId]);
 
   // Set date from URL parameter when logging past workout
   useEffect(() => {
-    if (mode === 'log' && date) {
-      setEditorDate(new Date(date));
+    if (mode === 'log' && dateValue) {
+      setEditorDate(new Date(dateValue));
     }
-  }, [mode, date, setEditorDate]);
+  }, [mode, dateValue, setEditorDate]);
 
   // Check if we can save
   const canSave = (editorSession?.name?.trim()?.length ?? 0) > 0 &&
@@ -116,8 +132,10 @@ export default function CreateWorkoutScreen() {
         DeviceEventEmitter.emit('workout-updated');
         router.back();
       } else {
-        const templateId = await saveEditorAsTemplate();
-        if (templateId) {
+        const updatedTemplateId = isEditingTemplate && templateId
+          ? await saveEditorAsTemplate(templateId)
+          : await saveEditorAsTemplate();
+        if (updatedTemplateId) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           DeviceEventEmitter.emit('workout-updated');
           router.back();
@@ -194,7 +212,7 @@ export default function CreateWorkoutScreen() {
     </View>
   );
 
-  const saveButtonText = mode === 'log' ? 'Log' : 'Save';
+  const saveButtonText = mode === 'log' ? 'Log' : (isEditingTemplate ? 'Update' : 'Save');
 
   return (
     <View style={styles.container}>

@@ -47,6 +47,18 @@ interface ProgramsState {
       setDetails?: TemplateSetDetail[];
     }>
   ) => Promise<string | null>;
+  updateWorkoutTemplate: (
+    templateId: string,
+    name: string,
+    exercises: Array<{
+      exerciseId: string;
+      exerciseName?: string;
+      sets: number;
+      reps: string;
+      restSeconds?: number;
+      setDetails?: TemplateSetDetail[];
+    }>
+  ) => Promise<string | null>;
   updateLastPerformed: (id: string) => Promise<void>;
   clearError: () => void;
 
@@ -105,6 +117,15 @@ function mapProgramFromDTO(dto: ProgramDTO): Program {
     workouts: (dto.program_workouts || []).map(mapWorkoutFromDTO),
   };
 }
+
+const isValidUUID = (str: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(str);
+};
+
+const hasLocalExerciseIds = (
+  exercises: Array<{ exerciseId: string }>
+): boolean => exercises.some(ex => !isValidUUID(ex.exerciseId));
 
 // ============================================
 // Store
@@ -410,14 +431,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return localId;
     };
 
-    // Helper to check if a string is a valid UUID
-    const isValidUUID = (str: string): boolean => {
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      return uuidRegex.test(str);
-    };
-
     // Check if any exercises have non-UUID IDs (local exercises)
-    const hasLocalExercises = exercises.some(ex => !isValidUUID(ex.exerciseId));
+    const hasLocalExercises = hasLocalExerciseIds(exercises);
 
     // Try Supabase first if configured
     if (!isSupabaseConfigured()) {
@@ -503,6 +518,162 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     } catch (err) {
       set({
         error: err instanceof Error ? err.message : 'Failed to create template',
+      });
+      return null;
+    }
+  },
+
+  updateWorkoutTemplate: async (templateId, name, exercises) => {
+    set({ error: null });
+
+    const template = get().programs.find(p => p.id === templateId && p.isTemplate);
+    if (!template) {
+      set({ error: 'Template not found' });
+      return null;
+    }
+
+    const workout = template.workouts[0];
+    if (!workout) {
+      set({ error: 'Template workout not found' });
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    const workoutId = workout.id || `${templateId}-workout`;
+
+    const buildExercises = (idsByOrder?: Map<number, string>) => exercises.map((ex, index) => ({
+      id: idsByOrder?.get(index)
+        || (templateId.startsWith('local-')
+          ? `${templateId}-ex-${index}`
+          : `${workoutId}-ex-${index}`),
+      exerciseId: ex.exerciseId,
+      exerciseName: ex.exerciseName || 'Unknown Exercise',
+      sets: ex.sets,
+      reps: ex.reps,
+      restSeconds: ex.restSeconds ?? 120,
+      notes: undefined,
+      orderIndex: index,
+      setDetails: ex.setDetails,
+    }));
+
+    const applyLocalUpdate = (idsByOrder?: Map<number, string>) => {
+      const updatedProgram: Program = {
+        ...template,
+        name,
+        updatedAt: now,
+        workouts: [{
+          ...workout,
+          id: workoutId,
+          name,
+          exercises: buildExercises(idsByOrder),
+        }],
+      };
+
+      set((state) => ({
+        programs: state.programs.map((p) =>
+          p.id === templateId ? updatedProgram : p
+        ),
+      }));
+
+      return updatedProgram;
+    };
+
+    const hasLocalExercises = hasLocalExerciseIds(exercises);
+
+    if (templateId.startsWith('local-') || hasLocalExercises || !isSupabaseConfigured()) {
+      const updatedProgram = applyLocalUpdate();
+
+      if (templateId.startsWith('local-')) {
+        get().persistLocalPrograms();
+        await removeFromPendingQueue(templateId);
+
+        // Attempt cloud sync in background (don't await, don't block)
+        syncLocalProgram(updatedProgram).then((result) => {
+          if (result.success && result.serverId) {
+            const stillExists = get().programs.some(p => p.id === templateId);
+            if (stillExists) {
+              get().replaceLocalIdWithServerId(templateId, result.serverId);
+            }
+          }
+        }).catch((err) => {
+          console.warn('Background program sync failed:', err);
+        });
+      }
+
+      return templateId;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        applyLocalUpdate();
+        return templateId;
+      }
+
+      const { error: programError } = await supabase
+        .from('workout_programs')
+        .update({ name, updated_at: now })
+        .eq('id', templateId);
+
+      if (programError) {
+        set({ error: programError.message });
+        return null;
+      }
+
+      const { error: workoutError } = await supabase
+        .from('program_workouts')
+        .update({ name, day_number: workout.dayNumber ?? 1 })
+        .eq('id', workoutId);
+
+      if (workoutError) {
+        set({ error: workoutError.message });
+        return null;
+      }
+
+      const { error: deleteError } = await supabase
+        .from('program_exercises')
+        .delete()
+        .eq('program_workout_id', workoutId);
+
+      if (deleteError) {
+        set({ error: deleteError.message });
+        return null;
+      }
+
+      let idsByOrder: Map<number, string> | undefined;
+      if (exercises.length > 0) {
+        const exercisesToInsert = exercises.map((ex, index) => ({
+          program_workout_id: workoutId,
+          exercise_id: ex.exerciseId,
+          sets: ex.sets,
+          reps: ex.reps,
+          rest_seconds: ex.restSeconds ?? 120,
+          order_index: index,
+        }));
+
+        const { data: inserted, error: insertError } = await supabase
+          .from('program_exercises')
+          .insert(exercisesToInsert)
+          .select();
+
+        if (insertError) {
+          console.error('Error inserting exercises:', insertError);
+          set({ error: insertError.message });
+          return null;
+        }
+
+        if (inserted) {
+          idsByOrder = new Map(
+            inserted.map((ex: { id: string; order_index: number }) => [ex.order_index, ex.id])
+          );
+        }
+      }
+
+      applyLocalUpdate(idsByOrder);
+      return templateId;
+    } catch (err) {
+      set({
+        error: err instanceof Error ? err.message : 'Failed to update template',
       });
       return null;
     }
