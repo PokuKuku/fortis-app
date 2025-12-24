@@ -9,6 +9,8 @@ import { create } from 'zustand';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { syncLocalProgram, processPendingProgramQueue, removeFromPendingQueue } from '../services/programSyncService';
+import { getDefaultPrograms, getDefaultTemplates } from '../data/defaultPrograms';
+import { isLocalProgramId } from '../utils/localIds';
 
 import {
   Program,
@@ -235,7 +237,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       // Merge Supabase programs with local programs
       set((state) => {
-        const localPrograms = state.programs.filter((p) => p.id.startsWith('local-'));
+  const localPrograms = state.programs.filter((p) => isLocalProgramId(p.id));
         return { programs: [...programs, ...localPrograms], isLoading: false };
       });
     } catch (err: any) {
@@ -258,7 +260,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     set({ isDeleting: true, error: null });
 
     // Handle local programs (delete from AsyncStorage only)
-    if (id.startsWith('local-')) {
+    if (isLocalProgramId(id)) {
       set((state) => ({
         programs: state.programs.filter((p) => p.id !== id),
         isDeleting: false,
@@ -560,7 +562,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
     const buildExercises = (idsByOrder?: Map<number, string>) => exercises.map((ex, index) => ({
       id: idsByOrder?.get(index)
-        || (templateId.startsWith('local-')
+        || (isLocalProgramId(templateId)
           ? `${templateId}-ex-${index}`
           : `${workoutId}-ex-${index}`),
       exerciseId: ex.exerciseId,
@@ -597,10 +599,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
     const hasLocalExercises = hasLocalExerciseIds(exercises);
 
-    if (templateId.startsWith('local-') || hasLocalExercises || !isSupabaseConfigured()) {
+    if (isLocalProgramId(templateId) || hasLocalExercises || !isSupabaseConfigured()) {
       const updatedProgram = applyLocalUpdate();
 
-      if (templateId.startsWith('local-')) {
+      if (isLocalProgramId(templateId)) {
         get().persistLocalPrograms();
         await removeFromPendingQueue(templateId);
 
@@ -699,7 +701,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Update last performed timestamp
   updateLastPerformed: async (id: string) => {
     // Skip Supabase update for local templates (they don't exist in the database yet)
-    if (!id.startsWith('local-')) {
+    if (!isLocalProgramId(id)) {
       try {
         const { error } = await supabase
           .from('workout_programs')
@@ -750,7 +752,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     try {
       const { programs } = get();
       // Only persist programs with local IDs (not synced to Supabase)
-      const localPrograms = programs.filter((p) => p.id.startsWith('local-'));
+      const localPrograms = programs.filter((p) => isLocalProgramId(p.id));
       await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
     } catch (err) {
       console.warn('Failed to persist local programs:', err);
