@@ -163,6 +163,99 @@ function KebabPopover({
   );
 }
 
+// Programs Section Kebab Popover Component
+function ProgramsKebabPopover({
+  visible,
+  onClose,
+  onAddProgram,
+  position,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAddProgram: () => void;
+  position: { top: number; left: number };
+}) {
+  const popoverScale = useRef(new Animated.Value(0)).current;
+  const popoverOpacity = useRef(new Animated.Value(0)).current;
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(popoverScale, {
+          toValue: 1,
+          tension: 100,
+          friction: 10,
+          useNativeDriver: true,
+        }),
+        Animated.timing(popoverOpacity, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(popoverScale, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(popoverOpacity, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        if (pendingAction) {
+          pendingAction();
+          setPendingAction(null);
+        }
+      });
+    }
+  }, [visible, pendingAction]);
+
+  if (!visible && popoverOpacity._value === 0) {
+    return null;
+  }
+
+  const handleAction = (action: () => void) => {
+    setPendingAction(() => action);
+    onClose();
+  };
+
+  return (
+    <>
+      <TouchableOpacity
+        style={styles.kebabOverlay}
+        activeOpacity={1}
+        onPress={onClose}
+        pointerEvents={visible ? 'auto' : 'none'}
+      />
+      <Animated.View
+        style={[
+          styles.kebabPopover,
+          {
+            top: position.top,
+            left: position.left,
+            opacity: popoverOpacity,
+            transform: [{ scale: popoverScale }],
+          },
+        ]}
+        pointerEvents={visible ? 'auto' : 'none'}
+      >
+        <TouchableOpacity
+          style={styles.kebabOption}
+          onPress={() => handleAction(onAddProgram)}
+        >
+          <PlusIcon color="#22c55e" size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: '#22c55e' }]}>Add Program</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </>
+  );
+}
+
 // Workouts Section Kebab Popover Component
 function WorkoutsKebabPopover({
   visible,

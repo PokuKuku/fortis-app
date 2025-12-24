@@ -28,11 +28,11 @@ import { Typography } from '@/constants/Typography';
 
 const signInSchema = z.object({
   email: z.string().email('Please enter a valid email'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
 const signUpSchema = signInSchema.extend({
-  confirmPassword: z.string().min(6, 'Password must be at least 6 characters'),
+  confirmPassword: z.string().min(8, 'Password must be at least 8 characters'),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],

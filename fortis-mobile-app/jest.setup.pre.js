@@ -11,3 +11,25 @@ global.__ExpoImportMetaRegistry = {
 if (typeof global.structuredClone === 'undefined') {
   global.structuredClone = (val) => JSON.parse(JSON.stringify(val));
 }
+
+jest.mock('@/src/lib/supabase', () => ({
+  supabase: {
+    auth: {
+      getSession: jest.fn().mockResolvedValue({ data: { session: null } }),
+      getUser: jest.fn().mockResolvedValue({ data: { user: null } }),
+    },
+    from: jest.fn(() => ({
+      select: jest.fn().mockReturnThis(),
+      insert: jest.fn().mockReturnThis(),
+      update: jest.fn().mockReturnThis(),
+      delete: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      in: jest.fn().mockReturnThis(),
+      or: jest.fn().mockReturnThis(),
+      order: jest.fn().mockReturnThis(),
+      single: jest.fn().mockResolvedValue({ data: null, error: null }),
+      abortSignal: jest.fn().mockReturnThis(),
+    })),
+  },
+  isSupabaseConfigured: () => false,
+}));

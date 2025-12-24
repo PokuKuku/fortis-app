@@ -45,6 +45,14 @@ const generateId = (): string => {
   });
 };
 
+const loadProgramsStore = async () => {
+  try {
+    return await import('./programsStore');
+  } catch {
+    return require('./programsStore');
+  }
+};
+
 interface WorkoutState {
   // Active session
   activeSession: WorkoutSession | null;
@@ -282,8 +290,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       isStartingWorkout = true;
 
       try {
-        // Import programsStore dynamically to avoid circular dependency
-        const { useProgramsStore } = await import('./programsStore');
+        const { useProgramsStore } = await loadProgramsStore();
         const programs = useProgramsStore.getState().programs;
 
         // Find the template
@@ -1280,8 +1287,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     initEditorSessionFromTemplate: async (templateId) => {
       try {
-        // Import programsStore dynamically to avoid circular dependency
-        const { useProgramsStore } = await import('./programsStore');
+        const { useProgramsStore } = await loadProgramsStore();
         const programs = useProgramsStore.getState().programs;
 
         const template = programs.find(p => p.id === templateId && p.isTemplate);
@@ -1570,8 +1576,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       const { editorSession } = get();
       if (!editorSession || !editorSession.name.trim()) return null;
 
-      // Import programsStore dynamically to avoid circular dependency
-      const { useProgramsStore } = await import('./programsStore');
+      const { useProgramsStore } = await loadProgramsStore();
       const { createWorkoutTemplate, updateWorkoutTemplate } = useProgramsStore.getState();
 
       const exercisesToSave = editorSession.exercises.map(ex => ({

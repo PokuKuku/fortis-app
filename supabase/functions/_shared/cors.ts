@@ -1,7 +1,53 @@
 /**
  * CORS Headers for Edge Functions
+ *
+ * Security: Uses origin allowlist instead of wildcard to prevent CSRF attacks
  */
 
+// Allowed origins for CORS
+// Add production domain when ready (e.g., 'https://fortis-app.com')
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000', // web dashboard dev
+  'http://localhost:8081', // metro bundler
+  'http://localhost:19006', // expo web
+];
+
+/**
+ * Check if origin is allowed
+ * Allows: exact matches, Expo dev URLs (exp://), and localhost variants
+ */
+function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+
+  // Allow Expo development URLs
+  if (origin.startsWith('exp://')) return true;
+
+  // Allow exact matches from allowlist
+  if (ALLOWED_ORIGINS.includes(origin)) return true;
+
+  // Allow any localhost port for development
+  if (origin.match(/^https?:\/\/localhost(:\d+)?$/)) return true;
+
+  return false;
+}
+
+/**
+ * Get CORS headers with validated origin
+ */
+export function getCorsHeaders(origin: string | null): Record<string, string> {
+  const allowedOrigin = isAllowedOrigin(origin)
+    ? origin!
+    : ALLOWED_ORIGINS[0] || 'null';
+
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
+}
+
+// Legacy export for backwards compatibility (uses permissive origin for mobile apps)
+// Mobile apps don't send Origin headers, so this is safe for mobile-only endpoints
 export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -9,11 +55,12 @@ export const corsHeaders = {
 };
 
 /**
- * Handle CORS preflight request
+ * Handle CORS preflight request with origin validation
  */
 export function handleCors(req: Request): Response | null {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    const origin = req.headers.get('origin');
+    return new Response('ok', { headers: getCorsHeaders(origin) });
   }
   return null;
 }

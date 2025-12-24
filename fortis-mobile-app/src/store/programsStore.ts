@@ -47,6 +47,23 @@ interface ProgramsState {
       setDetails?: TemplateSetDetail[];
     }>
   ) => Promise<string | null>;
+  createProgram: (
+    name: string,
+    workouts: Array<{
+      name: string;
+      exercises: Array<{
+        exerciseId: string;
+        exerciseName?: string;
+        sets: number;
+        reps: string;
+        restSeconds?: number;
+      }>;
+    }>,
+    options?: {
+      description?: string;
+      difficulty?: 'beginner' | 'intermediate' | 'advanced';
+    }
+  ) => Promise<string | null>;
   updateWorkoutTemplate: (
     templateId: string,
     name: string,

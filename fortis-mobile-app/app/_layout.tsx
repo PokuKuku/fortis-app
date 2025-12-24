@@ -130,6 +130,15 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="programs/create"
+              options={{
+                animation: 'slide_from_bottom',
+                gestureEnabled: true,
+                gestureDirection: 'vertical',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
               name="settings"
               options={{
                 animation: 'slide_from_right',

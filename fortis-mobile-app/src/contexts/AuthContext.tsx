@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { processPendingQueue } from '@/src/services/workoutHistoryService';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -14,6 +15,9 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
+
+// Key for storing OAuth state parameter (CSRF protection)
+const OAUTH_STATE_KEY = 'oauth_state';
 
 // Ensure web browser is dismissed after auth
 WebBrowser.maybeCompleteAuthSession();
@@ -210,13 +214,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  // Google sign in
+  // Google sign in with CSRF protection
   const signInWithGoogle = useCallback(async () => {
     try {
       const redirectTo = makeRedirectUri({
         scheme: 'fortis',
         path: 'auth/callback',
       });
+
+      // Generate CSRF state parameter for security
+      const stateBytes = await Crypto.getRandomBytesAsync(32);
+      const state = Array.from(stateBytes)
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      // Store state for validation after redirect
+      await AsyncStorage.setItem(OAUTH_STATE_KEY, state);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -225,11 +238,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
           skipBrowserRedirect: true,
           queryParams: {
             prompt: 'select_account', // Force account selection on re-auth
+            state, // CSRF protection
           },
         },
       });
 
       if (error) {
+        await AsyncStorage.removeItem(OAUTH_STATE_KEY);
         return { error: new Error(error.message) };
       }
 
@@ -238,10 +253,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (result.type === 'success') {
           const url = result.url;
+
+          // Validate state parameter to prevent CSRF attacks
+          const fragmentParams = new URLSearchParams(url.split('#')[1] || '');
+          const queryParams = new URLSearchParams(url.split('?')[1]?.split('#')[0] || '');
+          const returnedState = fragmentParams.get('state') || queryParams.get('state');
+          const storedState = await AsyncStorage.getItem(OAUTH_STATE_KEY);
+
+          // Clear stored state
+          await AsyncStorage.removeItem(OAUTH_STATE_KEY);
+
+          if (!returnedState || returnedState !== storedState) {
+            console.error('OAuth state mismatch - possible CSRF attack');
+            return { error: new Error('Authentication failed: security check failed') };
+          }
+
           // Extract tokens from URL and set session
-          const params = new URLSearchParams(url.split('#')[1]);
-          const accessToken = params.get('access_token');
-          const refreshToken = params.get('refresh_token');
+          const accessToken = fragmentParams.get('access_token');
+          const refreshToken = fragmentParams.get('refresh_token');
 
           if (accessToken && refreshToken) {
             await supabase.auth.setSession({
@@ -249,11 +278,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
               refresh_token: refreshToken,
             });
           }
+        } else {
+          // User cancelled or error - clean up state
+          await AsyncStorage.removeItem(OAUTH_STATE_KEY);
         }
       }
 
       return { error: null };
     } catch (err) {
+      await AsyncStorage.removeItem(OAUTH_STATE_KEY);
       return { error: err as Error };
     }
   }, []);

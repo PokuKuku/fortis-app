@@ -197,11 +197,18 @@ function sanitizeProposedState(
 
   if (entityType === 'workout_program') {
     sanitized.created_by = userId;
+    sanitized.is_default = false; // Prevent privilege escalation
+    sanitized.is_public = false; // Default to private for security
   }
 
   if (entityType === 'workout_session') {
     sanitized.user_id = userId;
   }
+
+  // Remove any server-controlled fields that shouldn't be set by AI
+  delete sanitized.id;
+  delete sanitized.created_at;
+  delete sanitized.updated_at;
 
   return sanitized;
 }
@@ -469,8 +476,9 @@ async function checkRateLimit(
 
   if (error) {
     console.error('Rate limit check error:', error);
-    // Fail open but log - don't block user due to rate limit errors
-    return { allowed: true };
+    // Security: Fail CLOSED - block requests if rate limit check fails
+    // This prevents bypass attacks if the database is unavailable
+    return { allowed: false, retryAfterSeconds: 60 };
   }
 
   if (!data) {
@@ -847,9 +855,13 @@ async function callClaude(
   config: IntentConfig,
   requestId: string
 ): Promise<unknown> {
-  const anthropic = new Anthropic({
-    apiKey: Deno.env.get('ANTHROPIC_API_KEY')!,
-  });
+  // Security: Validate API key exists before using
+  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+  if (!apiKey) {
+    throw new Error('AI service configuration error');
+  }
+
+  const anthropic = new Anthropic({ apiKey });
 
   const systemPrompt = buildSystemPrompt(request.intent, config, context);
   const userMessage = buildUserMessage(request, context);
