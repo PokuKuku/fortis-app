@@ -153,6 +153,14 @@ export default function RootLayout() {
                 gestureDirection: 'horizontal',
               }}
             />
+            <Stack.Screen
+              name="goals"
+              options={{
+                ...PAGE_TRANSITION,
+                gestureEnabled: true,
+                gestureDirection: 'horizontal',
+              }}
+            />
           </Stack>
           <WorkoutMiniBar />
           <AIContainer />

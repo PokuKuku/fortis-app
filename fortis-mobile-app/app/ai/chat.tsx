@@ -74,6 +74,52 @@ const QUICK_ACTIONS = [
   },
 ];
 
+const inferIntentFromMessage = (
+  message: string,
+  hasImage: boolean
+): AIIntent | null => {
+  const text = message.toLowerCase();
+
+  if (text.includes('plateau')) return 'ANALYZE_PLATEAU';
+  if (text.includes('overload')) return 'ANALYZE_OVERLOAD';
+
+  const wantsProgram =
+    text.includes('program') ||
+    text.includes('split') ||
+    text.includes('routine') ||
+    text.includes('block') ||
+    text.includes('weeks');
+
+  const wantsTemplate =
+    text.includes('template') ||
+    text.includes('workout') ||
+    text.includes('session');
+
+  const wantsCreate =
+    text.includes('create') ||
+    text.includes('build') ||
+    text.includes('make') ||
+    text.includes('generate') ||
+    text.includes('design');
+
+  const wantsLog =
+    text.includes('log') ||
+    text.includes('record') ||
+    text.includes('i did') ||
+    text.includes('i completed') ||
+    text.includes('just finished');
+
+  if (hasImage && wantsLog) return 'LOG_WORKOUT';
+  if (hasImage && wantsProgram) return 'CREATE_PROGRAM';
+  if (hasImage && wantsTemplate) return 'CREATE_TEMPLATE';
+  if (hasImage) return 'LOG_WORKOUT';
+
+  if (wantsProgram && wantsCreate) return 'CREATE_PROGRAM';
+  if (wantsTemplate && wantsCreate) return 'CREATE_TEMPLATE';
+
+  return null;
+};
+
 export default function AIChatScreen() {
   const router = useRouter();
   const [inputText, setInputText] = useState('');
@@ -112,9 +158,14 @@ export default function AIChatScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     const message = inputText.trim() || (selectedImage ? 'Log this workout from the image' : '');
+    const inferredIntent = inferIntentFromMessage(message, Boolean(selectedImage));
+    const intentToSend = inferredIntent || selectedIntent;
+    if (inferredIntent && inferredIntent !== selectedIntent) {
+      setSelectedIntent(inferredIntent);
+    }
     setInputText('');
 
-    await sendMessage(selectedIntent, message);
+    await sendMessage(intentToSend, message);
   };
 
   const handleQuickAction = (action: (typeof QUICK_ACTIONS)[number]) => {

@@ -18,6 +18,7 @@ import {
   UserIcon,
   ArrowDownTrayIcon,
   ChevronRightIcon,
+  SparklesIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -181,6 +182,20 @@ export default function SettingsScreen() {
                 label="Body Type"
                 value={bodyTypeLabel}
                 onPress={handleToggleBodyType}
+              />
+            </View>
+          </View>
+
+          {/* AI Personalization */}
+          <View style={styles.section}>
+            <Text style={styles.sectionHeader}>Personalization</Text>
+
+            <View style={styles.settingsCard}>
+              <SettingsRow
+                icon={<SparklesIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Goals & Metrics"
+                onPress={() => router.push('/goals')}
+                showChevron
               />
             </View>
           </View>
