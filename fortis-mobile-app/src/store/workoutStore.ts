@@ -32,6 +32,7 @@ import {
   deleteStickyNoteFromCloud,
   fetchStickyNotesFromCloud,
 } from '../services/stickyNotesService';
+import { isCustomExercise } from '../services/exerciseService';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
@@ -161,6 +162,9 @@ interface WorkoutState {
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
   loadCompletedSessions: () => Promise<void>;
+  importCompletedSessions: (
+    sessions: WorkoutSession[]
+  ) => Promise<{ imported: number; skipped: number; skippedSync: number }>;
   resetStore: () => void;
 
   // Actions - Sticky Notes
@@ -1111,6 +1115,50 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to load completed sessions:', error);
       }
+    },
+
+    importCompletedSessions: async (sessions) => {
+      if (sessions.length === 0) {
+        return { imported: 0, skipped: 0, skippedSync: 0 };
+      }
+
+      const { completedSessions } = get();
+      const existingIds = new Set(completedSessions.map((session) => session.localId));
+      const newSessions = sessions.filter((session) => !existingIds.has(session.localId));
+      const skipped = sessions.length - newSessions.length;
+
+      if (newSessions.length === 0) {
+        return { imported: 0, skipped, skippedSync: 0 };
+      }
+
+      const updatedSessions = [...newSessions, ...completedSessions].sort(
+        (a, b) => b.startedAt.getTime() - a.startedAt.getTime()
+      );
+
+      set({ completedSessions: updatedSessions });
+
+      try {
+        await setScopedItem(COMPLETED_WORKOUTS_KEY, JSON.stringify(updatedSessions));
+      } catch (error) {
+        console.warn('Failed to persist imported sessions:', error);
+      }
+
+      let skippedSync = 0;
+
+      newSessions.forEach((session) => {
+        const hasCustomExercise = session.exercises.some((exercise) =>
+          isCustomExercise(exercise.exerciseId)
+        );
+        if (hasCustomExercise) {
+          skippedSync += 1;
+          return;
+        }
+        syncWorkoutSession(session).catch((error) => {
+          console.warn('Failed to sync imported workout session:', error);
+        });
+      });
+
+      return { imported: newSessions.length, skipped, skippedSync };
     },
 
     // ========================================

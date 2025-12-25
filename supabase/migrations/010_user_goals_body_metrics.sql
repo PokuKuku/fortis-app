@@ -102,6 +102,8 @@ COMMENT ON COLUMN user_body_metrics.weight IS 'Body weight recorded in specified
 -- 3. AI PREFERENCES FUNCTION UPDATE
 -- =====================================================
 
+DROP FUNCTION IF EXISTS get_user_preferences_for_ai(UUID);
+
 CREATE OR REPLACE FUNCTION get_user_preferences_for_ai(p_user_id UUID)
 RETURNS TABLE (
   preferred_units TEXT,

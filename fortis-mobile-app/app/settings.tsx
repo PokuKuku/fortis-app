@@ -11,12 +11,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import {
   ChevronLeftIcon,
   ArrowRightOnRectangleIcon,
   ScaleIcon,
   UserIcon,
   ArrowDownTrayIcon,
+  ArrowUpTrayIcon,
   ChevronRightIcon,
   SparklesIcon,
 } from 'react-native-heroicons/outline';
@@ -24,6 +27,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
+import { parseWorkoutCsv, type ImportSource } from '@/src/utils/importWorkouts';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -71,8 +75,10 @@ export default function SettingsScreen() {
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
   const completedSessions = useWorkoutStore((s) => s.completedSessions);
+  const importCompletedSessions = useWorkoutStore((s) => s.importCompletedSessions);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
@@ -110,6 +116,71 @@ export default function SettingsScreen() {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const runCsvImport = async (source: ImportSource) => {
+    setIsImporting(true);
+    try {
+      const pickerResult = await DocumentPicker.getDocumentAsync({
+        type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel'],
+        copyToCacheDirectory: true,
+      });
+
+      if (pickerResult.canceled) {
+        return;
+      }
+
+      const asset = pickerResult.assets?.[0];
+      if (!asset?.uri) {
+        Alert.alert('Import Failed', 'Could not read the selected file.');
+        return;
+      }
+
+      const csvText = await FileSystem.readAsStringAsync(asset.uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const { sessions, createdCustomExercises } = await parseWorkoutCsv(csvText, source);
+
+      if (sessions.length === 0) {
+        Alert.alert('No Workouts Found', 'This CSV did not contain any workouts to import.');
+        return;
+      }
+
+      const { imported, skipped, skippedSync } = await importCompletedSessions(sessions);
+      const customCount = createdCustomExercises.length;
+
+      let message = `Imported ${imported} workout${imported === 1 ? '' : 's'}.`;
+      if (skipped > 0) {
+        message += ` Skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}.`;
+      }
+      if (customCount > 0) {
+        message += ` Added ${customCount} custom exercise${customCount === 1 ? '' : 's'}.`;
+      }
+      if (skippedSync > 0) {
+        message += ` ${skippedSync} workout${skippedSync === 1 ? '' : 's'} not synced because they include custom exercises.`;
+      }
+
+      Alert.alert('Import Complete', message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+      Alert.alert('Import Failed', message);
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleImportData = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert(
+      'Import CSV',
+      'Choose the source app format for your CSV.',
+      [
+        { text: 'Strong', onPress: () => runCsvImport('strong') },
+        { text: 'Hevy / Generic', onPress: () => runCsvImport('generic') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
   };
 
   const handleSignOut = () => {
@@ -205,6 +276,16 @@ export default function SettingsScreen() {
             <Text style={styles.sectionHeader}>Data</Text>
 
             <View style={styles.settingsCard}>
+              <SettingsRow
+                icon={<ArrowUpTrayIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Import from CSV"
+                onPress={handleImportData}
+                showChevron
+                isLoading={isImporting}
+              />
+
+              <View style={styles.settingsDivider} />
+
               <SettingsRow
                 icon={<ArrowDownTrayIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Export to CSV"

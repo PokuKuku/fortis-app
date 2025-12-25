@@ -1318,6 +1318,9 @@ function parseModelResponse(
     }
 
     if (parsed.type === 'answer') {
+      if (config.type === 'write') {
+        return buildWriteClarification(intent, requestId);
+      }
       return { ...parsed, requestId };
     }
 
@@ -1368,6 +1371,56 @@ function buildModelError(requestId: string, message: string) {
       code: 'LLM_ERROR',
       message,
       retryable: false,
+    },
+  };
+}
+
+function buildWriteClarification(intent: AIIntent, requestId: string) {
+  const base = {
+    type: 'clarification',
+    requestId,
+    clarification: {
+      question: '',
+      options: [] as string[],
+    },
+  };
+
+  if (intent === 'CREATE_PROGRAM') {
+    return {
+      ...base,
+      clarification: {
+        question:
+          'I can draft a program, but need a few details: days per week, duration in weeks, and your main goal. What should I use?',
+        options: ['3 days/week • 8 weeks • strength', '4 days/week • 8 weeks • hypertrophy'],
+      },
+    };
+  }
+
+  if (intent === 'CREATE_TEMPLATE') {
+    return {
+      ...base,
+      clarification: {
+        question:
+          'I can draft a workout template. What focus and equipment should I use?',
+        options: ['Push day • full gym', 'Upper body • dumbbells only'],
+      },
+    };
+  }
+
+  if (intent === 'LOG_WORKOUT') {
+    return {
+      ...base,
+      clarification: {
+        question:
+          'I can log this workout, but I need the exercises and sets/reps/weight. Can you list them?',
+      },
+    };
+  }
+
+  return {
+    ...base,
+    clarification: {
+      question: 'I need a bit more detail to create a draft. What should I use?',
     },
   };
 }
