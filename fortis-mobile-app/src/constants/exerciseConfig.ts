@@ -15,7 +15,7 @@ const activeApi = 'opensource' as ApiProvider;
 // Open source ExerciseDB v1 (free, includes GIFs)
 const OPENSOURCE_CONFIG = {
   apiBaseUrl: 'https://exercisedb-api.vercel.app/api/v1',
-  pageSize: 100,
+  pageSize: 250,
   hasDirectGifUrl: true,
 };
 
