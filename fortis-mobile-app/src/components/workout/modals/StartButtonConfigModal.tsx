@@ -124,6 +124,7 @@ export function StartButtonConfigModal({
                 label: template.name,
                 subtitle: 'Saved workout template',
                 selected:
+                  draftPreset?.type === 'template' &&
                   (draftPreset.templateId === template.id ||
                     template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
                 icon: <Squares2X2Icon size={18} color={Colors.textPrimary} strokeWidth={2} />,
