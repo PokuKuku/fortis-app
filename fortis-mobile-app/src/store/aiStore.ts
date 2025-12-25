@@ -41,6 +41,11 @@ const generateId = (): string => {
   });
 };
 
+const isValidUUID = (value: string): boolean => {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(value);
+};
+
 interface AIState {
   // Conversation
   conversation: AIConversation | null;
@@ -775,6 +780,17 @@ export const useAIStore = create<AIState>()(
       set({ isApplyingMutation: true, error: null });
 
       try {
+        const invalidExercise = editableProgramDraft.workouts
+          .flatMap((workout) => workout.exercises)
+          .find((exercise) => !isValidUUID(exercise.exerciseId));
+        if (invalidExercise) {
+          set({
+            error: 'Select valid exercises before saving this draft.',
+            isApplyingMutation: false,
+          });
+          return false;
+        }
+
         const newPlan = buildPlanFromProgramDraft(editableProgramDraft);
         const result = await aiService.applyMutationPlan(newPlan);
         if (result.success) {

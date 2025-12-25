@@ -101,10 +101,16 @@ export function AIMutationPreviewModal({
   const deleteProgramExercise = useAIStore((state) => state.deleteProgramExercise);
   const applyEditableProgramDraft = useAIStore((state) => state.applyEditableProgramDraft);
   const clearEditableProgramDraft = useAIStore((state) => state.clearEditableProgramDraft);
+  const error = useAIStore((state) => state.error);
+  const clearError = useAIStore((state) => state.clearError);
 
   // Exercise picker state
   const [exercisePickerVisible, setExercisePickerVisible] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [selectedProgramExercise, setSelectedProgramExercise] = useState<{
+    workoutId: string;
+    exerciseId: string;
+  } | null>(null);
 
   // Check if this is a LOG_WORKOUT mutation
   const isLogWorkout = currentMutationPlan?.intent === 'LOG_WORKOUT';
@@ -159,6 +165,7 @@ export function AIMutationPreviewModal({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     clearEditableWorkout();
     clearEditableProgramDraft();
+    clearError();
     setCurrentMutationPlan(null);
     onClose();
   };
@@ -166,11 +173,19 @@ export function AIMutationPreviewModal({
   const handleClose = () => {
     clearEditableWorkout();
     clearEditableProgramDraft();
+    clearError();
     onClose();
   };
 
   const handleOpenExercisePicker = (exerciseLocalId: string) => {
+    setSelectedProgramExercise(null);
     setSelectedExerciseId(exerciseLocalId);
+    setExercisePickerVisible(true);
+  };
+
+  const handleOpenProgramExercisePicker = (workoutId: string, exerciseId: string) => {
+    setSelectedExerciseId(null);
+    setSelectedProgramExercise({ workoutId, exerciseId });
     setExercisePickerVisible(true);
   };
 
@@ -290,6 +305,11 @@ export function AIMutationPreviewModal({
     if (value === null || value === undefined) return '—';
     if (typeof value === 'string' && value.trim().length === 0) return '—';
     return String(value);
+  };
+
+  const isValidUUID = (value: string) => {
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(value);
   };
 
   const renderProgramDraft = () => {
@@ -423,9 +443,14 @@ export function AIMutationPreviewModal({
                   return (
                     <View key={exercise.id} style={styles.programExerciseCard}>
                       <View style={styles.programExerciseHeader}>
-                        <Text style={styles.programExerciseName} numberOfLines={1}>
-                          {exercise.exerciseName}
-                        </Text>
+                        <TouchableOpacity
+                          style={styles.programExerciseNameButton}
+                          onPress={() => handleOpenProgramExercisePicker(workout.id, exercise.id)}
+                        >
+                          <Text style={styles.programExerciseName} numberOfLines={1}>
+                            {exercise.exerciseName || 'Select exercise'}
+                          </Text>
+                        </TouchableOpacity>
                         <TouchableOpacity
                           style={styles.deleteExerciseButton}
                           onPress={() => {
@@ -436,6 +461,13 @@ export function AIMutationPreviewModal({
                           <Trash2 color={Colors.error} size={IconSizes.sm} />
                         </TouchableOpacity>
                       </View>
+
+                      {!isValidUUID(exercise.exerciseId) && (
+                        <View style={styles.invalidExerciseBadge}>
+                          <AlertTriangle color={Colors.warning} size={12} />
+                          <Text style={styles.invalidExerciseText}>Select a valid exercise</Text>
+                        </View>
+                      )}
 
                       {newExerciseMap.has(exercise.exerciseId) && (
                         <View style={styles.newExerciseInline}>
@@ -727,6 +759,16 @@ export function AIMutationPreviewModal({
               }
             </ScrollView>
 
+            {error && (
+              <TouchableOpacity
+                style={styles.errorBanner}
+                onPress={clearError}
+              >
+                <Text style={styles.errorBannerText}>{error}</Text>
+                <Text style={styles.errorBannerHint}>Tap to dismiss</Text>
+              </TouchableOpacity>
+            )}
+
             {/* Actions */}
             <View style={styles.actions}>
               <TouchableOpacity
@@ -764,7 +806,13 @@ export function AIMutationPreviewModal({
         visible={exercisePickerVisible}
         onClose={() => setExercisePickerVisible(false)}
         onSelect={(exerciseId, exerciseName) => {
-          if (selectedExerciseId) {
+          if (selectedProgramExercise) {
+            updateProgramExercise(selectedProgramExercise.workoutId, selectedProgramExercise.exerciseId, {
+              exerciseId,
+              exerciseName,
+            });
+            setSelectedProgramExercise(null);
+          } else if (selectedExerciseId) {
             // Updating existing exercise
             const { updateExerciseName } = useAIStore.getState();
             updateExerciseName(selectedExerciseId, exerciseId, exerciseName);
@@ -913,7 +961,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '100%',
     maxWidth: 440,
-    maxHeight: '90%',
+    height: '90%',
     backgroundColor: Colors.background,
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
@@ -967,6 +1015,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: Spacing.lg,
     gap: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
   },
   section: {
     gap: Spacing.sm,
@@ -1291,10 +1340,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
+  programExerciseNameButton: {
+    flex: 1,
+  },
   programExerciseName: {
     ...Typography.label,
     color: Colors.textPrimary,
     flex: 1,
+  },
+  invalidExerciseBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  invalidExerciseText: {
+    ...Typography.caption,
+    color: Colors.warning,
   },
   exerciseFieldRow: {
     flexDirection: 'row',
@@ -1406,6 +1468,24 @@ const styles = StyleSheet.create({
   loadingText: {
     ...Typography.body,
     color: Colors.textSecondary,
+  },
+  errorBanner: {
+    backgroundColor: 'rgba(220, 38, 38, 0.15)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.error,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  errorBannerText: {
+    ...Typography.body,
+    color: Colors.error,
+  },
+  errorBannerHint: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    marginTop: Spacing.xs,
   },
 });
 

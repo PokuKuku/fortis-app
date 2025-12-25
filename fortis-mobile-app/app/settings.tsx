@@ -11,7 +11,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import * as Haptics from 'expo-haptics';
-import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import {
   ChevronLeftIcon,
@@ -121,7 +120,13 @@ export default function SettingsScreen() {
   const runCsvImport = async (source: ImportSource) => {
     setIsImporting(true);
     try {
-      const pickerResult = await DocumentPicker.getDocumentAsync({
+      const { getDocumentAsync } = await import('expo-document-picker').catch((error) => {
+        throw new Error(
+          `Document picker unavailable. Rebuild the dev client after installing expo-document-picker. (${error instanceof Error ? error.message : 'unknown error'})`
+        );
+      });
+
+      const pickerResult = await getDocumentAsync({
         type: ['text/csv', 'text/comma-separated-values', 'application/vnd.ms-excel'],
         copyToCacheDirectory: true,
       });
