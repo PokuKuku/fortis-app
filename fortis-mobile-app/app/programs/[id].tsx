@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { PlayIcon, TrashIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -63,22 +64,22 @@ const formatShortRelativeTime = (dateString?: string | null) => {
 // Collapsible workout section component
 function WorkoutSection({
   workout,
-  index,
+  isExpanded,
+  onToggle,
   onExercisePress,
   onDeleteWorkout,
   onDeleteExercise,
 }: {
   workout: ProgramWorkout;
-  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
   onExercisePress: (exerciseId: string) => void;
   onDeleteWorkout: (workoutId: string, workoutName: string) => void;
   onDeleteExercise: (workoutId: string, exerciseId: string, exerciseName: string) => void;
 }) {
-  const [isExpanded, setIsExpanded] = useState(index === 0); // First one expanded by default
-
   const handleToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsExpanded(!isExpanded);
+    onToggle();
   };
 
   return (
@@ -169,6 +170,21 @@ export default function ProgramDetailScreen() {
     workoutId: string;
     exerciseId?: string;
   } | null>(null);
+  const [expandedWorkouts, setExpandedWorkouts] = useState<Record<string, boolean>>({});
+
+  const toggleWorkout = useCallback((workoutId: string) => {
+    setExpandedWorkouts((prev) => ({
+      ...prev,
+      [workoutId]: !prev[workoutId],
+    }));
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setExpandedWorkouts({});
+      return undefined;
+    }, [id])
+  );
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -310,20 +326,15 @@ export default function ProgramDetailScreen() {
     loadProgress();
   }, [loadProgress]);
 
-  // Loading state
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <StainlessSteelPattern />
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Not found state
+  // Not found state (avoid loading splash)
   if (!program) {
+    if (loading) {
+      return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+          <StainlessSteelPattern />
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <StainlessSteelPattern />
@@ -431,8 +442,35 @@ export default function ProgramDetailScreen() {
           </GlassButton>
         </Animated.View>
 
+        {/* Workouts Section */}
         <Animated.View
           entering={FadeInDown.delay(350).duration(400)}
+          style={styles.section}
+        >
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Workouts</Text>
+            <Text style={styles.sectionCount}>
+              {program.workouts.length} workouts
+            </Text>
+          </View>
+
+          <View style={styles.workoutsList}>
+            {program.workouts.map((workout) => (
+              <WorkoutSection
+                key={workout.id}
+                workout={workout}
+                isExpanded={!!expandedWorkouts[workout.id]}
+                onToggle={() => toggleWorkout(workout.id)}
+                onExercisePress={handleExercisePress}
+                onDeleteWorkout={handleDeleteWorkout}
+                onDeleteExercise={handleDeleteExercise}
+              />
+            ))}
+          </View>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.delay(400).duration(400)}
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
@@ -455,38 +493,12 @@ export default function ProgramDetailScreen() {
 
         {/* Stats Section */}
         <Animated.View
-          entering={FadeInDown.delay(400).duration(400)}
+          entering={FadeInDown.delay(450).duration(400)}
           style={styles.section}
         >
           <HubStatsSection
             stats={program.stats}
           />
-        </Animated.View>
-
-        {/* Workouts Section */}
-        <Animated.View
-          entering={FadeInDown.delay(500).duration(400)}
-          style={styles.section}
-        >
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Workouts</Text>
-            <Text style={styles.sectionCount}>
-              {program.workouts.length} workouts
-            </Text>
-          </View>
-
-          <View style={styles.workoutsList}>
-            {program.workouts.map((workout, index) => (
-              <WorkoutSection
-                key={workout.id}
-                workout={workout}
-                index={index}
-                onExercisePress={handleExercisePress}
-                onDeleteWorkout={handleDeleteWorkout}
-                onDeleteExercise={handleDeleteExercise}
-              />
-            ))}
-          </View>
         </Animated.View>
       </ScrollView>
 

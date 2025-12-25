@@ -116,7 +116,7 @@ export function WorkoutStackPreview({
 const styles = StyleSheet.create({
   container: {
     gap: 6,
-    marginTop: 10,
+    marginTop: 4,
   },
   workoutRow: {
     flexDirection: 'row',

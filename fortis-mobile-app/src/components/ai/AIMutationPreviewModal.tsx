@@ -6,7 +6,7 @@
  * For other intents, displays exercise resolutions with justifications.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -44,7 +44,15 @@ import { Typography } from '../../../constants/Typography';
 import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
 import { GlassButton } from '../../../components/GlassButton';
 import { useAIStore } from '../../store/aiStore';
-import { AIMutation, AIExerciseResolution, EditableExercise, EditableWorkoutSet } from '../../types/ai';
+import {
+  AIMutation,
+  AIExerciseResolution,
+  EditableExercise,
+  EditableWorkoutSet,
+  EditableProgramWorkout,
+} from '../../types/ai';
+import { buildProgramDraftFromPlan } from '../../utils/aiProgramDraft';
+import { useExercises } from '../../hooks/useExercises';
 
 interface AIMutationPreviewModalProps {
   visible: boolean;
@@ -84,12 +92,25 @@ export function AIMutationPreviewModal({
   const applyEditableWorkout = useAIStore((state) => state.applyEditableWorkout);
   const clearEditableWorkout = useAIStore((state) => state.clearEditableWorkout);
 
+  // Editable program draft state and actions
+  const editableProgramDraft = useAIStore((state) => state.editableProgramDraft);
+  const initEditableProgramDraft = useAIStore((state) => state.initEditableProgramDraft);
+  const updateProgramDraft = useAIStore((state) => state.updateProgramDraft);
+  const updateProgramWorkout = useAIStore((state) => state.updateProgramWorkout);
+  const updateProgramExercise = useAIStore((state) => state.updateProgramExercise);
+  const deleteProgramExercise = useAIStore((state) => state.deleteProgramExercise);
+  const applyEditableProgramDraft = useAIStore((state) => state.applyEditableProgramDraft);
+  const clearEditableProgramDraft = useAIStore((state) => state.clearEditableProgramDraft);
+
   // Exercise picker state
   const [exercisePickerVisible, setExercisePickerVisible] = useState(false);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
 
   // Check if this is a LOG_WORKOUT mutation
   const isLogWorkout = currentMutationPlan?.intent === 'LOG_WORKOUT';
+  const isProgramDraft =
+    currentMutationPlan?.intent === 'CREATE_PROGRAM' ||
+    currentMutationPlan?.intent === 'CREATE_TEMPLATE';
 
   // Initialize editable workout when modal opens with LOG_WORKOUT plan
   useEffect(() => {
@@ -97,6 +118,17 @@ export function AIMutationPreviewModal({
       initEditableWorkout(currentMutationPlan);
     }
   }, [visible, currentMutationPlan, isLogWorkout, editableWorkout, initEditableWorkout]);
+
+  useEffect(() => {
+    if (visible && currentMutationPlan && isProgramDraft && !editableProgramDraft) {
+      initEditableProgramDraft(currentMutationPlan);
+    }
+  }, [visible, currentMutationPlan, isProgramDraft, editableProgramDraft, initEditableProgramDraft]);
+
+  const originalProgramDraft = useMemo(() => {
+    if (!currentMutationPlan || !isProgramDraft) return null;
+    return buildProgramDraftFromPlan(currentMutationPlan);
+  }, [currentMutationPlan, isProgramDraft]);
 
   if (!currentMutationPlan) return null;
 
@@ -107,6 +139,9 @@ export function AIMutationPreviewModal({
     if (isLogWorkout && editableWorkout) {
       // Use edited workout for LOG_WORKOUT
       success = await applyEditableWorkout();
+    } else if (isProgramDraft && editableProgramDraft) {
+      // Use edited draft for CREATE_PROGRAM / CREATE_TEMPLATE
+      success = await applyEditableProgramDraft();
     } else {
       // Use original plan for other intents
       success = await applyCurrentMutationPlan();
@@ -123,12 +158,14 @@ export function AIMutationPreviewModal({
   const handleReject = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     clearEditableWorkout();
+    clearEditableProgramDraft();
     setCurrentMutationPlan(null);
     onClose();
   };
 
   const handleClose = () => {
     clearEditableWorkout();
+    clearEditableProgramDraft();
     onClose();
   };
 
@@ -249,6 +286,274 @@ export function AIMutationPreviewModal({
     );
   };
 
+  const formatDiffValue = (value: unknown) => {
+    if (value === null || value === undefined) return '—';
+    if (typeof value === 'string' && value.trim().length === 0) return '—';
+    return String(value);
+  };
+
+  const renderProgramDraft = () => {
+    if (!editableProgramDraft) return null;
+
+    const originalWorkoutById = new Map<string, EditableProgramWorkout>();
+    originalProgramDraft?.workouts.forEach((workout) => {
+      originalWorkoutById.set(workout.id, workout);
+    });
+
+    const getOriginalExercise = (workoutId: string, exerciseId: string) => {
+      const workout = originalWorkoutById.get(workoutId);
+      return workout?.exercises.find((exercise) => exercise.id === exerciseId);
+    };
+
+    const newExerciseMap = new Map<string, AIExerciseResolution>();
+    currentMutationPlan.exerciseResolution.forEach((resolution) => {
+      if (!resolution.fromHistory) {
+        newExerciseMap.set(resolution.exerciseId, resolution);
+      }
+    });
+
+    return (
+      <View style={styles.programDraftContainer}>
+        {/* Program Metadata */}
+        <View style={styles.programMetaCard}>
+          <Text style={styles.inputLabel}>
+            {editableProgramDraft.isTemplate ? 'Template name' : 'Program name'}
+          </Text>
+          <TextInput
+            style={styles.metaInput}
+            value={editableProgramDraft.name}
+            onChangeText={(text) => updateProgramDraft({ name: text })}
+            placeholder={editableProgramDraft.isTemplate ? 'Upper Body Template' : 'Strength Block'}
+            placeholderTextColor={Colors.textTertiary}
+          />
+          <Text style={styles.inputLabel}>Description</Text>
+          <TextInput
+            style={[styles.metaInput, styles.metaTextarea]}
+            value={editableProgramDraft.description || ''}
+            onChangeText={(text) => updateProgramDraft({ description: text })}
+            placeholder="Short summary of the focus and intent"
+            placeholderTextColor={Colors.textTertiary}
+            multiline
+          />
+          <View style={styles.metaRow}>
+            <View style={styles.metaField}>
+              <Text style={styles.inputLabel}>Difficulty</Text>
+              <TextInput
+                style={styles.metaInput}
+                value={editableProgramDraft.difficulty}
+                onChangeText={(text) => updateProgramDraft({ difficulty: text })}
+                placeholder="beginner | intermediate | advanced"
+                placeholderTextColor={Colors.textTertiary}
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={styles.metaField}>
+              <Text style={styles.inputLabel}>Weeks</Text>
+              <TextInput
+                style={styles.metaInput}
+                value={editableProgramDraft.durationWeeks ? String(editableProgramDraft.durationWeeks) : ''}
+                onChangeText={(text) => {
+                  const weeks = parseInt(text, 10);
+                  updateProgramDraft({ durationWeeks: Number.isNaN(weeks) ? undefined : weeks });
+                }}
+                placeholder="8"
+                placeholderTextColor={Colors.textTertiary}
+                keyboardType="number-pad"
+              />
+            </View>
+          </View>
+          <Text style={styles.inputLabel}>Goal</Text>
+          <TextInput
+            style={styles.metaInput}
+            value={editableProgramDraft.goal || ''}
+            onChangeText={(text) => updateProgramDraft({ goal: text })}
+            placeholder="strength | hypertrophy | powerlifting | general_fitness"
+            placeholderTextColor={Colors.textTertiary}
+            autoCapitalize="none"
+          />
+        </View>
+
+        {/* Workouts */}
+        {editableProgramDraft.workouts.map((workout) => {
+          const originalWorkout = originalWorkoutById.get(workout.id);
+
+          return (
+            <View key={workout.id} style={styles.workoutCard}>
+              <View style={styles.workoutHeader}>
+                <TextInput
+                  style={styles.workoutNameInput}
+                  value={workout.name}
+                  onChangeText={(text) => updateProgramWorkout(workout.id, { name: text })}
+                  placeholder="Workout name"
+                  placeholderTextColor={Colors.textTertiary}
+                />
+                <View style={styles.workoutDayContainer}>
+                  <Text style={styles.workoutDayLabel}>Day</Text>
+                  <TextInput
+                    style={styles.workoutDayInput}
+                    value={String(workout.dayNumber)}
+                    onChangeText={(text) => {
+                      const dayNumber = parseInt(text, 10);
+                      updateProgramWorkout(workout.id, {
+                        dayNumber: Number.isNaN(dayNumber) ? workout.dayNumber : dayNumber,
+                      });
+                    }}
+                    keyboardType="number-pad"
+                  />
+                </View>
+              </View>
+
+              {originalWorkout && originalWorkout.name !== workout.name && (
+                <Text style={styles.diffHint}>Was: {originalWorkout.name}</Text>
+              )}
+
+              {/* Exercises */}
+              <View style={styles.exerciseList}>
+                {workout.exercises.map((exercise) => {
+                  const originalExercise = getOriginalExercise(workout.id, exercise.id);
+                  const setsChanged =
+                    originalExercise && originalExercise.sets !== exercise.sets;
+                  const repsChanged =
+                    originalExercise && originalExercise.reps !== exercise.reps;
+                  const restChanged =
+                    originalExercise && originalExercise.restSeconds !== exercise.restSeconds;
+                  const notesChanged =
+                    originalExercise && originalExercise.notes !== exercise.notes;
+
+                  return (
+                    <View key={exercise.id} style={styles.programExerciseCard}>
+                      <View style={styles.programExerciseHeader}>
+                        <Text style={styles.programExerciseName} numberOfLines={1}>
+                          {exercise.exerciseName}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.deleteExerciseButton}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+                            deleteProgramExercise(workout.id, exercise.id);
+                          }}
+                        >
+                          <Trash2 color={Colors.error} size={IconSizes.sm} />
+                        </TouchableOpacity>
+                      </View>
+
+                      {newExerciseMap.has(exercise.exerciseId) && (
+                        <View style={styles.newExerciseInline}>
+                          <AlertTriangle color={Colors.warning} size={12} />
+                          <Text style={styles.newExerciseInlineText}>
+                            New to you
+                          </Text>
+                        </View>
+                      )}
+
+                      <View style={styles.exerciseFieldRow}>
+                        <View style={styles.exerciseField}>
+                          <Text style={styles.exerciseFieldLabel}>Sets</Text>
+                          <TextInput
+                            style={styles.exerciseFieldInput}
+                            value={String(exercise.sets)}
+                            onChangeText={(text) => {
+                              const sets = parseInt(text, 10);
+                              updateProgramExercise(workout.id, exercise.id, {
+                                sets: Number.isNaN(sets) ? 0 : sets,
+                              });
+                            }}
+                            keyboardType="number-pad"
+                          />
+                          {setsChanged && (
+                            <Text style={styles.diffHint}>
+                              Was: {formatDiffValue(originalExercise?.sets)}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.exerciseField}>
+                          <Text style={styles.exerciseFieldLabel}>Reps</Text>
+                          <TextInput
+                            style={styles.exerciseFieldInput}
+                            value={exercise.reps || ''}
+                            onChangeText={(text) =>
+                              updateProgramExercise(workout.id, exercise.id, { reps: text })
+                            }
+                            placeholder="8-12"
+                            placeholderTextColor={Colors.textTertiary}
+                          />
+                          {repsChanged && (
+                            <Text style={styles.diffHint}>
+                              Was: {formatDiffValue(originalExercise?.reps)}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      <View style={styles.exerciseFieldRow}>
+                        <View style={styles.exerciseField}>
+                          <Text style={styles.exerciseFieldLabel}>Rest (sec)</Text>
+                          <TextInput
+                            style={styles.exerciseFieldInput}
+                            value={
+                              exercise.restSeconds === undefined ? '' : String(exercise.restSeconds)
+                            }
+                            onChangeText={(text) => {
+                              const rest = parseInt(text, 10);
+                              updateProgramExercise(workout.id, exercise.id, {
+                                restSeconds: Number.isNaN(rest) ? undefined : rest,
+                              });
+                            }}
+                            keyboardType="number-pad"
+                          />
+                          {restChanged && (
+                            <Text style={styles.diffHint}>
+                              Was: {formatDiffValue(originalExercise?.restSeconds)}
+                            </Text>
+                          )}
+                        </View>
+                        <View style={styles.exerciseField}>
+                          <Text style={styles.exerciseFieldLabel}>Notes</Text>
+                          <TextInput
+                            style={styles.exerciseFieldInput}
+                            value={exercise.notes || ''}
+                            onChangeText={(text) =>
+                              updateProgramExercise(workout.id, exercise.id, { notes: text })
+                            }
+                            placeholder="Optional"
+                            placeholderTextColor={Colors.textTertiary}
+                          />
+                          {notesChanged && (
+                            <Text style={styles.diffHint}>
+                              Was: {formatDiffValue(originalExercise?.notes)}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+
+                      {newExerciseMap.has(exercise.exerciseId) && (
+                        <View style={styles.newExerciseNotes}>
+                          {newExerciseMap.get(exercise.exerciseId)?.justification && (
+                            <Text style={styles.newExerciseJustification}>
+                              {newExerciseMap.get(exercise.exerciseId)?.justification}
+                            </Text>
+                          )}
+                          {newExerciseMap.get(exercise.exerciseId)?.explanation && (
+                            <View style={styles.newExerciseExplanation}>
+                              <Info color={Colors.textTertiary} size={12} />
+                              <Text style={styles.newExerciseExplanationText}>
+                                {newExerciseMap.get(exercise.exerciseId)?.explanation}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    );
+  };
+
   // Render generic mutation view for other intents
   const renderMutation = (mutation: AIMutation, index: number) => {
     const Icon = OPERATION_ICONS[mutation.operation];
@@ -295,17 +600,30 @@ export function AIMutationPreviewModal({
     );
   };
 
-  // Calculate total sets for summary
   const totalSets = editableWorkout?.exercises.reduce(
     (sum, ex) => sum + ex.sets.length,
     0
-  ) ?? currentMutationPlan.mutations.filter((m) => m.entityType === 'workout_set').length;
+  ) ??
+    editableProgramDraft?.workouts.reduce(
+      (sum, workout) => sum + workout.exercises.reduce((acc, ex) => acc + ex.sets, 0),
+      0
+    ) ??
+    currentMutationPlan.mutations.filter((m) => m.entityType === 'workout_set').length;
 
   const totalExercises = editableWorkout?.exercises.length ??
+    editableProgramDraft?.workouts.reduce((sum, workout) => sum + workout.exercises.length, 0) ??
     new Set(currentMutationPlan.mutations
       .filter((m) => m.entityType === 'workout_set')
       .map((m) => (m.proposedState as Record<string, unknown>)?.exercise_id)
     ).size;
+
+  const totalWorkouts = editableProgramDraft?.workouts.length ?? 0;
+  const draftLabel = editableProgramDraft?.isTemplate ? 'Template' : 'Program';
+  const confirmLabel = isLogWorkout
+    ? 'Save Workout'
+    : isProgramDraft
+    ? `Create ${draftLabel}`
+    : 'Apply Changes';
 
   return (
     <Modal
@@ -341,7 +659,11 @@ export function AIMutationPreviewModal({
                 <Sparkles color={Colors.success} size={IconSizes.lg} />
               </View>
               <Text style={styles.headerTitle}>
-                {isLogWorkout ? 'Review Workout' : 'Review Changes'}
+                {isLogWorkout
+                  ? 'Review Workout'
+                  : isProgramDraft
+                  ? `Review ${draftLabel}`
+                  : 'Review Changes'}
               </Text>
               <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                 <X color={Colors.textSecondary} size={IconSizes.md} />
@@ -353,12 +675,16 @@ export function AIMutationPreviewModal({
               <Text style={styles.summaryTitle}>
                 {isLogWorkout
                   ? `${totalExercises} exercises • ${totalSets} sets`
+                  : isProgramDraft
+                  ? `${totalWorkouts || 1} workouts • ${totalExercises} exercises`
                   : currentMutationPlan.summary
                 }
               </Text>
               <Text style={styles.summaryExplanation}>
                 {isLogWorkout
                   ? 'Review and edit the extracted workout before saving'
+                  : isProgramDraft
+                  ? 'Review and edit the draft before saving'
                   : currentMutationPlan.explanation
                 }
               </Text>
@@ -371,31 +697,34 @@ export function AIMutationPreviewModal({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {isLogWorkout ? (
-                renderEditableWorkout()
-              ) : (
-                <>
-                  {/* New Exercises Warning */}
-                  {newExercises.length > 0 && (
+              {isLogWorkout
+                ? renderEditableWorkout()
+                : isProgramDraft
+                ? renderProgramDraft()
+                : (
+                  <>
+                    {/* New Exercises Warning */}
+                    {newExercises.length > 0 && (
+                      <View style={styles.section}>
+                        <Text style={styles.sectionTitle}>
+                          New Exercises ({newExercises.length})
+                        </Text>
+                        {currentMutationPlan.exerciseResolution.map(
+                          renderExerciseResolution
+                        )}
+                      </View>
+                    )}
+
+                    {/* Mutations */}
                     <View style={styles.section}>
                       <Text style={styles.sectionTitle}>
-                        New Exercises ({newExercises.length})
+                        Changes ({currentMutationPlan.mutations.length})
                       </Text>
-                      {currentMutationPlan.exerciseResolution.map(
-                        renderExerciseResolution
-                      )}
+                      {currentMutationPlan.mutations.map(renderMutation)}
                     </View>
-                  )}
-
-                  {/* Mutations */}
-                  <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>
-                      Changes ({currentMutationPlan.mutations.length})
-                    </Text>
-                    {currentMutationPlan.mutations.map(renderMutation)}
-                  </View>
-                </>
-              )}
+                  </>
+                )
+              }
             </ScrollView>
 
             {/* Actions */}
@@ -420,7 +749,7 @@ export function AIMutationPreviewModal({
                   <>
                     <Check color={Colors.white} size={IconSizes.md} />
                     <Text style={styles.confirmButtonText}>
-                      {isLogWorkout ? 'Save Workout' : 'Apply Changes'}
+                      {confirmLabel}
                     </Text>
                   </>
                 )}
@@ -460,32 +789,29 @@ interface ExercisePickerModalProps {
 
 function ExercisePickerModal({ visible, onClose, onSelect }: ExercisePickerModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const { exercises, loading, error } = useExercises();
 
-  // Common exercises for quick selection
-  const commonExercises = [
-    { id: 'bench-press', name: 'Bench Press' },
-    { id: 'squat', name: 'Squat' },
-    { id: 'deadlift', name: 'Deadlift' },
-    { id: 'overhead-press', name: 'Overhead Press' },
-    { id: 'barbell-row', name: 'Barbell Row' },
-    { id: 'pull-up', name: 'Pull-up' },
-    { id: 'dumbbell-curl', name: 'Dumbbell Curl' },
-    { id: 'tricep-pushdown', name: 'Tricep Pushdown' },
-    { id: 'leg-press', name: 'Leg Press' },
-    { id: 'lat-pulldown', name: 'Lat Pulldown' },
-    { id: 'incline-bench-press', name: 'Incline Bench Press' },
-    { id: 'romanian-deadlift', name: 'Romanian Deadlift' },
-    { id: 'leg-curl', name: 'Leg Curl' },
-    { id: 'leg-extension', name: 'Leg Extension' },
-    { id: 'cable-fly', name: 'Cable Fly' },
-    { id: 'face-pull', name: 'Face Pull' },
-  ];
+  const sortedExercises = useMemo(() => {
+    return [...exercises].sort((a, b) => a.name.localeCompare(b.name));
+  }, [exercises]);
 
-  const filteredExercises = searchQuery
-    ? commonExercises.filter((e) =>
-        e.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : commonExercises;
+  const filteredExercises = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return sortedExercises.slice(0, 50);
+    }
+
+    return sortedExercises.filter((exercise) => {
+      if (exercise.name.toLowerCase().includes(query)) return true;
+      if (exercise.primaryMuscles?.some((muscle) => muscle.toLowerCase().includes(query))) {
+        return true;
+      }
+      if (exercise.equipment?.toLowerCase().includes(query)) {
+        return true;
+      }
+      return false;
+    });
+  }, [sortedExercises, searchQuery]);
 
   if (!visible) return null;
 
@@ -538,7 +864,18 @@ function ExercisePickerModal({ visible, onClose, onSelect }: ExercisePickerModal
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {filteredExercises.map((exercise) => (
+            {loading && (
+              <View style={styles.loadingState}>
+                <ActivityIndicator color={Colors.success} size="small" />
+                <Text style={styles.loadingText}>Loading exercises...</Text>
+              </View>
+            )}
+            {!loading && error && (
+              <Text style={styles.noResultsText}>
+                Unable to load exercises. Please check your connection.
+              </Text>
+            )}
+            {!loading && !error && filteredExercises.map((exercise) => (
               <TouchableOpacity
                 key={exercise.id}
                 style={styles.exerciseOption}
@@ -552,7 +889,7 @@ function ExercisePickerModal({ visible, onClose, onSelect }: ExercisePickerModal
                 <Text style={styles.exerciseOptionText}>{exercise.name}</Text>
               </TouchableOpacity>
             ))}
-            {filteredExercises.length === 0 && (
+            {!loading && !error && filteredExercises.length === 0 && (
               <Text style={styles.noResultsText}>No exercises found</Text>
             )}
           </ScrollView>
@@ -858,6 +1195,140 @@ const styles = StyleSheet.create({
     color: Colors.success,
   },
 
+  // Program draft styles
+  programDraftContainer: {
+    gap: Spacing.lg,
+  },
+  programMetaCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  metaInput: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  inputLabel: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
+  },
+  metaTextarea: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  metaRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  metaField: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  workoutCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    padding: Spacing.md,
+    gap: Spacing.md,
+  },
+  workoutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  workoutNameInput: {
+    flex: 1,
+    ...Typography.label,
+    color: Colors.textPrimary,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  workoutDayContainer: {
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  workoutDayLabel: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+  },
+  workoutDayInput: {
+    width: 44,
+    ...Typography.label,
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: BorderRadius.sm,
+    paddingVertical: Spacing.xs,
+  },
+  diffHint: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    marginTop: -Spacing.xs,
+  },
+  exerciseList: {
+    gap: Spacing.sm,
+  },
+  programExerciseCard: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  programExerciseHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  programExerciseName: {
+    ...Typography.label,
+    color: Colors.textPrimary,
+    flex: 1,
+  },
+  exerciseFieldRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  exerciseField: {
+    flex: 1,
+    gap: Spacing.xs,
+  },
+  exerciseFieldLabel: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+  },
+  exerciseFieldInput: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  newExerciseInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  newExerciseInlineText: {
+    ...Typography.caption,
+    color: Colors.warning,
+  },
+  newExerciseNotes: {
+    gap: Spacing.xs,
+  },
+
   // Exercise Picker Modal styles
   pickerOverlay: {
     flex: 1,
@@ -926,6 +1397,15 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     textAlign: 'center',
     paddingVertical: Spacing.lg,
+  },
+  loadingState: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
+  },
+  loadingText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
   },
 });
 

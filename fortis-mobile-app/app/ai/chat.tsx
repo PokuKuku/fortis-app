@@ -239,6 +239,22 @@ export default function AIChatScreen() {
           {message.intent && (
             <Text style={styles.intentTag}>{message.intent}</Text>
           )}
+          {message.clarification?.options && message.clarification.options.length > 0 && (
+            <View style={styles.clarificationOptions}>
+              {message.clarification.options.map((option) => (
+                <TouchableOpacity
+                  key={option}
+                  style={styles.clarificationOption}
+                  onPress={() => {
+                    setSelectedIntent(message.intent || selectedIntent);
+                    setInputText(option);
+                  }}
+                >
+                  <Text style={styles.clarificationOptionText}>{option}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       </Animated.View>
     );
@@ -589,6 +605,24 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     marginTop: Spacing.xs,
     fontSize: 10,
+  },
+  clarificationOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  clarificationOption: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  clarificationOptionText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
   },
   loadingContainer: {
     flexDirection: 'row',

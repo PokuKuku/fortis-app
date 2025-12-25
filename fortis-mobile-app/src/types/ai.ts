@@ -593,6 +593,7 @@ export interface AIConversationMessage {
   intent?: AIIntent;
   mutationPlanId?: string;
   createdAt: string;
+  clarification?: AIClarification;
   /** Image attachment (for user messages with photos) */
   image?: {
     uri: string;
@@ -658,4 +659,38 @@ export interface EditableExercise {
 export interface EditableWorkout {
   exercises: EditableExercise[];
   originalPlan: AIMutationPlan;  // Keep original for reference
+}
+
+// ============================================
+// Editable Program Draft Types (for templates/programs)
+// ============================================
+
+export interface EditableProgramExercise {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  orderIndex: number;
+  sets: number;
+  reps?: string;
+  restSeconds?: number;
+  notes?: string;
+}
+
+export interface EditableProgramWorkout {
+  id: string;
+  name: string;
+  dayNumber: number;
+  description?: string;
+  exercises: EditableProgramExercise[];
+}
+
+export interface EditableProgramDraft {
+  name: string;
+  description?: string;
+  difficulty: string;
+  goal?: string;
+  durationWeeks?: number;
+  isTemplate: boolean;
+  workouts: EditableProgramWorkout[];
+  originalPlan: AIMutationPlan;
 }

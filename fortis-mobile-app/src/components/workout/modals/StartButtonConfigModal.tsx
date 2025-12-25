@@ -15,11 +15,12 @@ import type { Program } from '@/src/types/workout';
 interface StartButtonConfigModalProps {
   visible: boolean;
   currentPreset: StartPreset | null;
+  draftPreset: StartPreset | null;
   templates: Program[];
   programs: Program[];
   isLoading: boolean;
-  onSelect: (preset: StartPreset) => void;
-  onUnset: () => void;
+  onChange: (preset: StartPreset | null) => void;
+  onConfirm: () => void;
   onClose: () => void;
   currentLabel?: string;
 }
@@ -27,11 +28,12 @@ interface StartButtonConfigModalProps {
 export function StartButtonConfigModal({
   visible,
   currentPreset,
+  draftPreset,
   templates,
   programs,
   isLoading,
-  onSelect,
-  onUnset,
+  onChange,
+  onConfirm,
   onClose,
   currentLabel,
 }: StartButtonConfigModalProps) {
@@ -64,6 +66,7 @@ export function StartButtonConfigModal({
   );
 
   const presetLabel = currentLabel || (currentPreset ? 'Selected' : 'Not set');
+  const hasChanges = JSON.stringify(currentPreset) !== JSON.stringify(draftPreset);
 
   return (
     <BaseModal
@@ -77,10 +80,13 @@ export function StartButtonConfigModal({
           ? `Currently set to ${presetLabel}.`
           : 'Choose what the Start button should launch.'}
       </Text>
+      <Text style={styles.hintText}>
+        Press and hold the Start button to reconfigure.
+      </Text>
 
       {currentPreset && (
         <Pressable
-          onPress={onUnset}
+          onPress={() => onChange(null)}
           style={({ pressed }) => [
             styles.unsetButton,
             pressed && modalStyles.buttonPressed,
@@ -101,9 +107,9 @@ export function StartButtonConfigModal({
         {renderOption({
           label: 'Blank Workout',
           subtitle: 'Start a fresh workout log',
-          selected: currentPreset?.type === 'blank',
+          selected: draftPreset?.type === 'blank',
           icon: <PlayIcon size={18} color={Colors.textPrimary} strokeWidth={2} />,
-          onPress: () => onSelect({ type: 'blank' }),
+          onPress: () => onChange({ type: 'blank' }),
         })}
 
         <Text style={styles.sectionTitle}>Workouts</Text>
@@ -117,12 +123,12 @@ export function StartButtonConfigModal({
               label: template.name,
               subtitle: 'Saved workout template',
               selected:
-                currentPreset?.type === 'template' &&
-                (currentPreset.templateId === template.id ||
-                  template.workouts.some((w) => w.id === currentPreset.templateWorkoutId)),
+                draftPreset?.type === 'template' &&
+                (draftPreset.templateId === template.id ||
+                  template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
               icon: <Squares2X2Icon size={18} color={Colors.textPrimary} strokeWidth={2} />,
               onPress: () =>
-                onSelect({
+                onChange({
                   type: 'template',
                   templateId: template.id,
                   templateWorkoutId: template.workouts[0]?.id,
@@ -141,13 +147,27 @@ export function StartButtonConfigModal({
             renderOption({
               label: program.name,
               subtitle: 'Continue to the next workout',
-              selected: currentPreset?.type === 'program' && currentPreset.programId === program.id,
+              selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
               icon: <CalendarDaysIcon size={18} color={Colors.textPrimary} strokeWidth={2} />,
-              onPress: () => onSelect({ type: 'program', programId: program.id }),
+              onPress: () => onChange({ type: 'program', programId: program.id }),
             })
           )
         )}
       </ScrollView>
+
+      <Pressable
+        onPress={onConfirm}
+        disabled={!hasChanges}
+        style={({ pressed }) => [
+          styles.confirmButton,
+          !hasChanges && styles.confirmButtonDisabled,
+          pressed && hasChanges && modalStyles.buttonPressed,
+        ]}
+      >
+        <Text style={[modalStyles.successButtonText, !hasChanges && styles.confirmButtonTextDisabled]}>
+          Confirm
+        </Text>
+      </Pressable>
     </BaseModal>
   );
 }
@@ -229,5 +249,31 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '700',
     color: Colors.error,
+  },
+  hintText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    marginTop: -Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  confirmButton: {
+    marginTop: Spacing.md,
+    width: '100%',
+    flex: 0,
+    backgroundColor: 'rgba(34, 197, 94, 0.22)',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.successBorder,
+  },
+  confirmButtonDisabled: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  confirmButtonTextDisabled: {
+    color: Colors.textTertiary,
   },
 });

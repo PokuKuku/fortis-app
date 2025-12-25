@@ -88,6 +88,7 @@ export default function RootLayout() {
               name="workout/active"
               options={{
                 animation: 'slide_from_bottom',
+                animationDuration: 500,
                 gestureEnabled: true,
                 gestureDirection: 'vertical',
               }}
@@ -105,6 +106,7 @@ export default function RootLayout() {
               name="ai/chat"
               options={{
                 animation: 'slide_from_bottom',
+                animationDuration: 500,
                 gestureEnabled: true,
                 gestureDirection: 'vertical',
                 headerShown: false,

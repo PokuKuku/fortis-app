@@ -672,6 +672,30 @@ async function fetchHistorySummary(
   const totalWorkouts = sessions?.length || 0;
   const totalVolume = weeklyVolume?.reduce((sum, w) => sum + (w.total_volume || 0), 0) || 0;
   const totalDuration = sessions?.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) || 0;
+  const recentWeeks = weeklyVolume?.slice(0, 4) || [];
+  const previousWeeks = weeklyVolume?.slice(4, 8) || [];
+  const avgRecentVolume =
+    recentWeeks.length > 0
+      ? recentWeeks.reduce((sum, w) => sum + (w.total_volume || 0), 0) / recentWeeks.length
+      : 0;
+  const avgPreviousVolume =
+    previousWeeks.length > 0
+      ? previousWeeks.reduce((sum, w) => sum + (w.total_volume || 0), 0) / previousWeeks.length
+      : 0;
+  const volumeChangePct =
+    avgPreviousVolume > 0 ? ((avgRecentVolume - avgPreviousVolume) / avgPreviousVolume) * 100 : null;
+  const avgRecentWorkouts =
+    recentWeeks.length > 0
+      ? recentWeeks.reduce((sum, w) => sum + (w.workouts_count || 0), 0) / recentWeeks.length
+      : 0;
+  const avgPreviousWorkouts =
+    previousWeeks.length > 0
+      ? previousWeeks.reduce((sum, w) => sum + (w.workouts_count || 0), 0) / previousWeeks.length
+      : 0;
+  const workoutChangePct =
+    avgPreviousWorkouts > 0
+      ? ((avgRecentWorkouts - avgPreviousWorkouts) / avgPreviousWorkouts) * 100
+      : null;
 
   return {
     periodWeeks,
@@ -686,6 +710,14 @@ async function fetchHistorySummary(
       workouts: w.workouts_count,
       totalVolume: w.total_volume,
     })),
+    trendSignals: {
+      avgVolumeRecent4Weeks: Math.round(avgRecentVolume),
+      avgVolumePrevious4Weeks: Math.round(avgPreviousVolume),
+      volumeChangePct: volumeChangePct !== null ? Math.round(volumeChangePct * 10) / 10 : null,
+      avgWorkoutsRecent4Weeks: Math.round(avgRecentWorkouts * 10) / 10,
+      avgWorkoutsPrevious4Weeks: Math.round(avgPreviousWorkouts * 10) / 10,
+      workoutChangePct: workoutChangePct !== null ? Math.round(workoutChangePct * 10) / 10 : null,
+    },
     recentPRs: prs?.slice(0, 10).map((pr) => ({
       exerciseId: pr.exercise_id,
       exerciseName: pr.exercise_name,

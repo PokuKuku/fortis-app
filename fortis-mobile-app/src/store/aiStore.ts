@@ -22,11 +22,15 @@ import {
   EditableWorkout,
   EditableExercise,
   EditableWorkoutSet,
+  EditableProgramDraft,
+  EditableProgramWorkout,
+  EditableProgramExercise,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { buildProgramDraftFromPlan, buildPlanFromProgramDraft } from '../utils/aiProgramDraft';
 
 // Simple UUID generator
 const generateId = (): string => {
@@ -59,6 +63,9 @@ interface AIState {
 
   // Editable workout (for editing AI-extracted workouts before saving)
   editableWorkout: EditableWorkout | null;
+
+  // Editable program/template draft (for CREATE_* intents)
+  editableProgramDraft: EditableProgramDraft | null;
 
   // Rate limiting
   rateLimitStatus: AIRateLimitStatus | null;
@@ -100,6 +107,7 @@ interface AIState {
 
   // Actions - Editable workout (for LOG_WORKOUT mutations)
   initEditableWorkout: (plan: AIMutationPlan) => void;
+  initEditableProgramDraft: (plan: AIMutationPlan) => void;
   updateExerciseName: (localExerciseId: string, newExerciseDbId: string, newName: string) => void;
   deleteExercise: (localExerciseId: string) => void;
   addExercise: (exerciseDbId: string, exerciseName: string) => void;
@@ -108,6 +116,18 @@ interface AIState {
   addSet: (localExerciseId: string) => void;
   applyEditableWorkout: () => Promise<boolean>;
   clearEditableWorkout: () => void;
+
+  // Editable program draft actions
+  updateProgramDraft: (updates: Partial<EditableProgramDraft>) => void;
+  updateProgramWorkout: (workoutId: string, updates: Partial<EditableProgramWorkout>) => void;
+  updateProgramExercise: (
+    workoutId: string,
+    exerciseId: string,
+    updates: Partial<EditableProgramExercise>
+  ) => void;
+  deleteProgramExercise: (workoutId: string, exerciseId: string) => void;
+  applyEditableProgramDraft: () => Promise<boolean>;
+  clearEditableProgramDraft: () => void;
 
   // Actions - Undo
   loadMutationHistory: () => Promise<void>;
@@ -138,6 +158,7 @@ export const useAIStore = create<AIState>()(
     currentMutationPlan: null,
     mutationHistory: [],
     editableWorkout: null,
+    editableProgramDraft: null,
     rateLimitStatus: null,
     error: null,
 
@@ -219,10 +240,13 @@ export const useAIStore = create<AIState>()(
               ? response.answer?.text || ''
               : response.type === 'mutation_plan'
               ? response.mutationPlan?.explanation || ''
+              : response.type === 'clarification'
+              ? response.clarification?.question || ''
               : response.error?.message || 'An error occurred',
           intent,
           mutationPlanId: response.mutationPlan?.requestId,
           createdAt: new Date().toISOString(),
+          clarification: response.type === 'clarification' ? response.clarification : undefined,
         };
 
         // Update conversation with assistant response
@@ -242,6 +266,11 @@ export const useAIStore = create<AIState>()(
           set({
             conversation: finalConversation,
             error: response.error?.message || 'An error occurred',
+            isSendingMessage: false,
+          });
+        } else if (response.type === 'clarification') {
+          set({
+            conversation: finalConversation,
             isSendingMessage: false,
           });
         } else {
@@ -457,6 +486,11 @@ export const useAIStore = create<AIState>()(
           originalPlan: plan,
         },
       });
+    },
+
+    initEditableProgramDraft: (plan: AIMutationPlan) => {
+      const draft = buildProgramDraftFromPlan(plan);
+      set({ editableProgramDraft: draft });
     },
 
     updateExerciseName: (localExerciseId: string, newExerciseDbId: string, newName: string) => {
@@ -675,6 +709,100 @@ export const useAIStore = create<AIState>()(
       set({ editableWorkout: null });
     },
 
+    updateProgramDraft: (updates) => {
+      const { editableProgramDraft } = get();
+      if (!editableProgramDraft) return;
+      set({
+        editableProgramDraft: {
+          ...editableProgramDraft,
+          ...updates,
+        },
+      });
+    },
+
+    updateProgramWorkout: (workoutId, updates) => {
+      const { editableProgramDraft } = get();
+      if (!editableProgramDraft) return;
+      const updatedWorkouts = editableProgramDraft.workouts.map((workout) =>
+        workout.id === workoutId ? { ...workout, ...updates } : workout
+      );
+      set({
+        editableProgramDraft: {
+          ...editableProgramDraft,
+          workouts: updatedWorkouts,
+        },
+      });
+    },
+
+    updateProgramExercise: (workoutId, exerciseId, updates) => {
+      const { editableProgramDraft } = get();
+      if (!editableProgramDraft) return;
+      const updatedWorkouts = editableProgramDraft.workouts.map((workout) => {
+        if (workout.id !== workoutId) return workout;
+        const updatedExercises = workout.exercises.map((exercise) =>
+          exercise.id === exerciseId ? { ...exercise, ...updates } : exercise
+        );
+        return { ...workout, exercises: updatedExercises };
+      });
+      set({
+        editableProgramDraft: {
+          ...editableProgramDraft,
+          workouts: updatedWorkouts,
+        },
+      });
+    },
+
+    deleteProgramExercise: (workoutId, exerciseId) => {
+      const { editableProgramDraft } = get();
+      if (!editableProgramDraft) return;
+      const updatedWorkouts = editableProgramDraft.workouts.map((workout) => {
+        if (workout.id !== workoutId) return workout;
+        const updatedExercises = workout.exercises.filter((exercise) => exercise.id !== exerciseId);
+        return { ...workout, exercises: updatedExercises };
+      });
+      set({
+        editableProgramDraft: {
+          ...editableProgramDraft,
+          workouts: updatedWorkouts,
+        },
+      });
+    },
+
+    applyEditableProgramDraft: async () => {
+      const { editableProgramDraft, loadMutationHistory } = get();
+      if (!editableProgramDraft) return false;
+
+      set({ isApplyingMutation: true, error: null });
+
+      try {
+        const newPlan = buildPlanFromProgramDraft(editableProgramDraft);
+        const result = await aiService.applyMutationPlan(newPlan);
+        if (result.success) {
+          set({
+            editableProgramDraft: null,
+            currentMutationPlan: null,
+            isApplyingMutation: false,
+          });
+          loadMutationHistory();
+          useProgramsStore.getState().fetchPrograms();
+          return true;
+        }
+        set({
+          error: result.error || 'Failed to apply changes',
+          isApplyingMutation: false,
+        });
+        return false;
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to apply changes';
+        set({ error: errorMessage, isApplyingMutation: false });
+        return false;
+      }
+    },
+
+    clearEditableProgramDraft: () => {
+      set({ editableProgramDraft: null });
+    },
+
     // Mutation history (undo)
     loadMutationHistory: async () => {
       try {
@@ -772,6 +900,7 @@ export const useAIStore = create<AIState>()(
         currentMutationPlan: null,
         mutationHistory: [],
         editableWorkout: null,
+        editableProgramDraft: null,
         rateLimitStatus: null,
         error: null,
       });

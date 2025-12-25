@@ -177,6 +177,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
             processPendingStickyNotesQueue().catch(error => {
               console.warn('Failed to process pending sticky notes sync queue:', error);
             });
+
+            // Refresh programs after sign-in to ensure server data is loaded.
+            useProgramsStore.getState().fetchPrograms({ force: true }).catch(error => {
+              console.warn('Failed to refresh programs after sign-in:', error);
+            });
           }
         })();
       } else {

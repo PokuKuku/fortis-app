@@ -107,20 +107,15 @@ export default function WorkoutDetailScreen() {
     setDeleteModal({ ...deleteModal, visible: false });
   }, [deleteModal]);
 
-  // Loading state
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <StainlessSteelPattern />
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Not found state
+  // Not found state (avoid loading splash)
   if (!workout) {
+    if (loading) {
+      return (
+        <SafeAreaView style={styles.container} edges={['top']}>
+          <StainlessSteelPattern />
+        </SafeAreaView>
+      );
+    }
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <StainlessSteelPattern />

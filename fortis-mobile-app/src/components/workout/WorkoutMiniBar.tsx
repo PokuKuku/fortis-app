@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { usePathname, useSegments, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +32,9 @@ export function WorkoutMiniBar() {
   const elapsedSeconds = useElapsedTime();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [suppressMiniBar, setSuppressMiniBar] = useState(false);
+  const wasWorkoutActive = useRef(isWorkoutActive);
+  const suppressTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Check if on splash screen (not inside tabs group) or on active workout screen
   const isOnSplashScreen = segments.length === 0 || (segments[0] !== '(tabs)' && pathname === '/');
@@ -77,6 +80,38 @@ export function WorkoutMiniBar() {
     });
   }, [hasTabBar, homeLeftPosition, centeredLeftPosition, bottomWithTabBar, bottomWithoutTabBar, isOnFullscreenRoute]);
 
+  useEffect(() => {
+    if (!isWorkoutActive || !activeSession) {
+      wasWorkoutActive.current = false;
+      setSuppressMiniBar(false);
+      if (suppressTimer.current) {
+        clearTimeout(suppressTimer.current);
+        suppressTimer.current = null;
+      }
+      return;
+    }
+
+    if (!wasWorkoutActive.current && isWorkoutActive) {
+      setSuppressMiniBar(true);
+      if (suppressTimer.current) {
+        clearTimeout(suppressTimer.current);
+      }
+      suppressTimer.current = setTimeout(() => {
+        setSuppressMiniBar(false);
+        suppressTimer.current = null;
+      }, 600);
+    }
+
+    wasWorkoutActive.current = true;
+  }, [isWorkoutActive, activeSession]);
+
+  useEffect(() => () => {
+    if (suppressTimer.current) {
+      clearTimeout(suppressTimer.current);
+      suppressTimer.current = null;
+    }
+  }, []);
+
   // Animate opacity: only fade in when RETURNING from fullscreen routes, not on initial mount
   // This prevents the flash when navigating TO fullscreen routes
   useEffect(() => {
@@ -120,7 +155,7 @@ export function WorkoutMiniBar() {
   }));
 
   // Unmount completely when no workout or on splash screen
-  if (!isWorkoutActive || isOnSplashScreen) {
+  if (!isWorkoutActive || !activeSession || isOnSplashScreen || suppressMiniBar) {
     return null;
   }
 

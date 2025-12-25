@@ -96,6 +96,7 @@ export default function TabLayout() {
   });
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [startConfigVisible, setStartConfigVisible] = useState(false);
+  const [draftStartPreset, setDraftStartPreset] = useState<StartPreset | null>(null);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const nameShake = useRef(new Animated.Value(0)).current;
   const primaryShake = useRef(new Animated.Value(0)).current;
@@ -126,6 +127,10 @@ export default function TabLayout() {
     return templateMatch?.name ?? 'Workout template';
   }, [startPreset, programs]);
 
+  const startButtonColors = startPreset
+    ? ['#2dd4bf', '#14b8a6']
+    : undefined;
+
   // Track exercise detail modal visibility to disable FAB interactions
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('exerciseDetailVisible', (visible: boolean) => {
@@ -142,6 +147,7 @@ export default function TabLayout() {
   const openStartConfig = async () => {
     if (startConfigVisible || isWorkoutActive) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    setDraftStartPreset(startPreset);
     setStartConfigVisible(true);
     if (!programs.length) {
       await fetchPrograms();
@@ -225,13 +231,13 @@ export default function TabLayout() {
     openStartConfig();
   };
 
-  const handleSelectStartPreset = async (preset: StartPreset) => {
-    await setStartPreset(preset);
-    setStartConfigVisible(false);
+  const handleChangeStartPreset = (preset: StartPreset | null) => {
+    setDraftStartPreset(preset);
   };
 
-  const handleUnsetStartPreset = async () => {
-    await setStartPreset(null);
+  const handleConfirmStartPreset = async () => {
+    await setStartPreset(draftStartPreset ?? null);
+    setStartConfigVisible(false);
   };
 
   const resetExerciseForm = () => {
@@ -438,12 +444,12 @@ export default function TabLayout() {
                 circular
                 size={46}
                 style={[styles.centerButton, isWorkoutActive && styles.centerButtonDisabled]}
+                gradientColors={startButtonColors}
                 onPress={() => void handleStartPress()}
                 onLongPress={handleStartLongPress}
                 disabled={isWorkoutActive}
               >
                 <DumbbellIcon color="#fff" size={18} fill="#fff" />
-                {!!startPreset && <View style={styles.startIndicator} />}
               </GlassButton>
             </View>
           ),
@@ -481,12 +487,13 @@ export default function TabLayout() {
     <StartButtonConfigModal
       visible={startConfigVisible}
       currentPreset={startPreset}
+      draftPreset={draftStartPreset}
       currentLabel={startPresetLabel}
       templates={templates}
       programs={programPlans}
       isLoading={isProgramsLoading}
-      onSelect={handleSelectStartPreset}
-      onUnset={handleUnsetStartPreset}
+      onChange={handleChangeStartPreset}
+      onConfirm={handleConfirmStartPreset}
       onClose={() => setStartConfigVisible(false)}
     />
 
@@ -705,17 +712,6 @@ const styles = StyleSheet.create({
   },
   centerButtonDisabled: {
     opacity: 0.4,
-  },
-  startIndicator: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#22c55e',
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.4)',
   },
   plusButtonContainer: {
     position: 'absolute',

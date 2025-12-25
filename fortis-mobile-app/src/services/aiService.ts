@@ -358,6 +358,10 @@ export async function applyMutationPlan(
   const actionType = ACTION_TYPE_BY_INTENT[plan.intent];
   const canLog = Boolean(userId && actionType);
 
+  if (plan.mutations.some((mutation) => mutation.operation !== 'INSERT')) {
+    return { success: false, error: 'Only create actions are allowed right now.' };
+  }
+
   try {
     // Sort mutations by order and process dependencies
     const sortedMutations = [...plan.mutations].sort((a, b) => a.order - b.order);
@@ -375,7 +379,7 @@ export async function applyMutationPlan(
       }
 
       // Apply the mutation
-      const result = await applyMutation(mutation, createdEntities);
+      const result = await applyMutation(mutation, createdEntities, userId, plan.intent);
       if (!result.success) {
         throw new Error(result.error);
       }
@@ -432,7 +436,9 @@ export async function applyMutationPlan(
 
 async function applyMutation(
   mutation: AIMutationPlan['mutations'][0],
-  createdEntities: Record<string, string>
+  createdEntities: Record<string, string>,
+  userId: string | null,
+  intent: AIIntent
 ): Promise<{
   success: boolean;
   error?: string;
@@ -459,6 +465,28 @@ async function applyMutation(
     case 'INSERT': {
       if (!proposedState) {
         return { success: false, error: 'Missing proposed state for insert' };
+      }
+      if (mutation.entityType === 'workout_program') {
+        if (!userId) {
+          return { success: false, error: 'Not authenticated' };
+        }
+        proposedState = {
+          ...proposedState,
+          created_by: proposedState.created_by ?? userId,
+          is_ai_created: true,
+          is_template:
+            proposedState.is_template ??
+            (intent === 'CREATE_TEMPLATE' ? true : intent === 'CREATE_PROGRAM' ? false : undefined),
+        };
+      }
+      if (mutation.entityType === 'workout_session') {
+        if (!userId) {
+          return { success: false, error: 'Not authenticated' };
+        }
+        proposedState = {
+          ...proposedState,
+          user_id: proposedState.user_id ?? userId,
+        };
       }
       const { data, error } = await supabase
         .from(tableName)
