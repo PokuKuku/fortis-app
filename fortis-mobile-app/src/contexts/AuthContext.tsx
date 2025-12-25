@@ -17,6 +17,7 @@ import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import Constants from 'expo-constants';
+import * as Linking from 'expo-linking';
 
 // Key for storing OAuth state parameter (CSRF protection)
 const OAUTH_STATE_KEY = 'oauth_state';
@@ -225,11 +226,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signInWithGoogle = useCallback(async () => {
     try {
       const isExpoGo = Constants.appOwnership === 'expo';
-      const redirectTo = makeRedirectUri({
-        scheme: 'fortis',
-        path: 'auth/callback',
-        useProxy: isExpoGo,
-      });
+      let redirectTo = isExpoGo
+        ? makeRedirectUri({
+            path: 'auth/callback',
+            useProxy: true,
+          })
+        : makeRedirectUri({
+            scheme: 'fortis',
+            path: 'auth/callback',
+          });
+
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)/.test(redirectTo)) {
+        // Fallback for dev cases where localhost leaks into the redirect URI.
+        redirectTo = Linking.createURL('auth/callback');
+      }
 
       // Generate CSRF state parameter for security
       const stateBytes = await Crypto.getRandomBytesAsync(32);

@@ -2,8 +2,64 @@ import 'react-native-url-polyfill/auto';
 import { createClient } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
+import * as Linking from 'expo-linking';
+import Constants from 'expo-constants';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
+const parseHost = (value: string | null | undefined) => {
+  if (!value) return null;
+  try {
+    if (value.includes('://')) {
+      return new URL(value).hostname;
+    }
+    return value.split(':')[0] || null;
+  } catch {
+    return null;
+  }
+};
+
+const getDevServerHost = () => {
+  return (
+    parseHost((Constants.expoConfig as any)?.hostUri) ??
+    parseHost((Constants.manifest as any)?.hostUri) ??
+    parseHost((Constants.manifest2 as any)?.extra?.expoClient?.hostUri) ??
+    parseHost((Constants.manifest as any)?.debuggerHost) ??
+    null
+  );
+};
+
+const resolveSupabaseUrl = (rawUrl: string) => {
+  if (!rawUrl) return rawUrl;
+
+  try {
+    const url = new URL(rawUrl);
+    const isLocalhost = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+
+    if (!isLocalhost) return rawUrl;
+
+    // Use the dev server host when running on a device so localhost isn't the phone.
+    const devHost =
+      getDevServerHost() ??
+      (() => {
+        try {
+          const devUrl = Linking.createURL('/');
+          return new URL(devUrl).hostname;
+        } catch {
+          return null;
+        }
+      })();
+
+    if (!devHost || devHost === 'localhost' || devHost === '127.0.0.1') {
+      return rawUrl;
+    }
+
+    url.hostname = devHost;
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return rawUrl;
+  }
+};
+
+const supabaseUrl = resolveSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL!);
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Key for storing refresh token securely
