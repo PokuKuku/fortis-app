@@ -1,3 +1,21 @@
+# Google OAuth Debug - localhost Redirect Issue
+
+## Problem
+Safari shows "can't open the page because it couldn't connect to the server" when trying to sign in with Google. The title bar shows "localhost" which indicates the redirect URL is pointing to localhost instead of using the custom URL scheme.
+
+## Root Cause
+In `src/contexts/AuthContext.tsx:226-229`, `makeRedirectUri` generates different URLs based on environment:
+- **Expo Go**: Returns `exp://localhost:8081/--/auth/callback` (localhost URL)
+- **Development Build**: Returns `fortis://auth/callback`
+
+Since Safari shows "localhost", the app is running in **Expo Go**, not a development build.
+
+## Todo
+- [ ] Confirm whether user is running in Expo Go or development build
+- [ ] Implement fix based on environment
+
+---
+
 # Testing Setup Plan
 
 ## Overview
