@@ -53,6 +53,14 @@ const loadProgramsStore = async () => {
   }
 };
 
+const loadProgramProgressStore = async () => {
+  try {
+    return await import('./programProgressStore');
+  } catch {
+    return require('./programProgressStore');
+  }
+};
+
 interface WorkoutState {
   // Active session
   activeSession: WorkoutSession | null;
@@ -105,6 +113,7 @@ interface WorkoutState {
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string, backdateToDate?: Date) => void;
   startWorkoutFromTemplate: (templateId: string) => Promise<boolean>;
+  startWorkoutFromProgram: (programId: string, programWorkoutId: string) => Promise<boolean>;
   finishWorkout: () => Promise<WorkoutSession | null>;
   cancelWorkout: () => void;
   updateWorkoutName: (name: string) => void;
@@ -374,6 +383,93 @@ export const useWorkoutStore = create<WorkoutState>()(
       }
     },
 
+    startWorkoutFromProgram: async (programId: string, programWorkoutId: string) => {
+      if (isStartingWorkout || get().isWorkoutActive) return false;
+      isStartingWorkout = true;
+
+      try {
+        const { useProgramsStore } = await loadProgramsStore();
+        const programs = useProgramsStore.getState().programs;
+
+        const program = programs.find((p) => p.id === programId && !p.isTemplate);
+        const workout = program?.workouts.find((w) => w.id === programWorkoutId);
+
+        if (!program || !workout) {
+          isStartingWorkout = false;
+          return false;
+        }
+
+        const { useProgramProgressStore } = await loadProgramProgressStore();
+        useProgramProgressStore.getState().startProgram(programId);
+
+        const exercises: WorkoutExercise[] = workout.exercises.map((programEx, exIndex) => {
+          const sets: WorkoutSet[] = [];
+          const numSets = programEx.sets;
+
+          for (let i = 0; i < numSets; i++) {
+            sets.push({
+              localId: generateId(),
+              setNumber: i + 1,
+              setType: 'normal',
+              weight: null,
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: i,
+            });
+          }
+
+          return {
+            localId: generateId(),
+            exerciseId: programEx.exerciseId,
+            exerciseName: programEx.exerciseName,
+            sets,
+            notes: programEx.notes || '',
+            orderIndex: exIndex,
+          };
+        });
+
+        const session: WorkoutSession = {
+          localId: generateId(),
+          name: workout.name,
+          programName: program.name,
+          notes: '',
+          startedAt: new Date(),
+          completedAt: null,
+          exercises,
+          isSynced: false,
+          programId,
+          programWorkoutId,
+          originalExerciseIds: exercises.map((ex) => ex.exerciseId),
+        };
+
+        set({
+          activeSession: session,
+          isWorkoutActive: true,
+          workoutStartTime: Date.now(),
+          isWorkoutTimerPaused: false,
+          pausedElapsedSeconds: 0,
+          restTimer: {
+            isActive: false,
+            remainingSeconds: 0,
+            totalSeconds: 0,
+            setType: 'normal',
+          },
+        });
+
+        get().persistSession();
+        useProgramsStore.getState().updateLastPerformed(programId);
+
+        return true;
+      } catch (error) {
+        console.error('Failed to start workout from program:', error);
+        isStartingWorkout = false;
+        return false;
+      }
+    },
+
     finishWorkout: async () => {
       const { activeSession, completedSessions, backdatedDate } = get();
       if (!activeSession) return null;
@@ -416,6 +512,31 @@ export const useWorkoutStore = create<WorkoutState>()(
       }
 
       await get().clearPersistedSession();
+
+      if (completedSession.programId && completedSession.programWorkoutId) {
+        try {
+          const { useProgramsStore } = await loadProgramsStore();
+          const { useProgramProgressStore } = await loadProgramProgressStore();
+          const program = useProgramsStore
+            .getState()
+            .programs.find((p) => p.id === completedSession.programId && !p.isTemplate);
+          const workout = program?.workouts.find((w) => w.id === completedSession.programWorkoutId);
+
+          if (program && workout) {
+            useProgramProgressStore
+              .getState()
+              .markWorkoutComplete(
+                program.id,
+                workout.dayNumber,
+                program.workouts.length,
+                completedSession.completedAt?.toISOString()
+              );
+            useProgramsStore.getState().updateLastPerformed(program.id);
+          }
+        } catch (error) {
+          console.warn('Failed to update program progress:', error);
+        }
+      }
 
       // Sync to Supabase (async, non-blocking)
       // If offline or not authenticated, it will be queued for later

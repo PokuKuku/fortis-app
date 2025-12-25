@@ -6,6 +6,7 @@ export const EXERCISE_CACHE_TIMESTAMP_KEY = 'exercise_cache_timestamp_v5';
 // Programs
 export const PROGRAMS_KEY = 'fortis_programs_v1';
 export const LOCAL_TEMPLATES_KEY = 'fortis_local_templates';
+export const PROGRAM_PROGRESS_KEY = 'program_progress_v1';
 
 // Workout templates
 export const WORKOUTS_KEY = 'fortis_workouts_v1';
@@ -32,6 +33,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   PROGRAMS_KEY,
   WORKOUTS_KEY,
   LOCAL_TEMPLATES_KEY,
+  PROGRAM_PROGRESS_KEY,
   ACTIVE_WORKOUT_KEY,
   COMPLETED_WORKOUTS_KEY,
   PENDING_SYNC_QUEUE_KEY,

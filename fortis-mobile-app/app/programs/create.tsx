@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,19 @@ import {
   TextInput,
   FlatList,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { XMarkIcon, PlusIcon, PencilIcon, TrashIcon } from 'react-native-heroicons/outline';
+import {
+  XMarkIcon,
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+  ChevronUpIcon,
+  ChevronDownIcon,
+  ExclamationTriangleIcon,
+} from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -18,19 +27,19 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
 import { useProgramsStore } from '@/src/store/programsStore';
-import type { ProgramWorkout } from '@/src/types/workout';
+import { ProgramLimitModal } from '@/src/components/workout/modals/ProgramLimitModal';
+import { MAX_WORKOUTS_PER_PROGRAM } from '@/src/constants/programs';
+import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { useProgramProgressStore } from '@/src/store/programProgressStore';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 
 // Editor workout type for local state
 interface EditorWorkout {
   id: string;
+  templateId: string | null;
   name: string;
-  exercises: Array<{
-    id: string;
-    exerciseId: string;
-    exerciseName: string;
-    sets: number;
-    reps: string;
-  }>;
+  programWorkoutId?: string;
 }
 
 export default function CreateProgramScreen() {
@@ -45,8 +54,21 @@ export default function CreateProgramScreen() {
   const programId = Array.isArray(programIdParam) ? programIdParam[0] : programIdParam;
   const isEditing = mode === 'edit' && !!programId;
 
-  // Store actions
-  const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
+  // Store actions/data
+  const createProgram = useProgramsStore(s => s.createProgram);
+  const updateProgram = useProgramsStore(s => s.updateProgram);
+  const fetchPrograms = useProgramsStore(s => s.fetchPrograms);
+  const programs = useProgramsStore(s => s.programs);
+  const templates = useMemo(() => programs.filter(p => p.isTemplate), [programs]);
+  const templateMap = useMemo(
+    () => new Map(templates.map(template => [template.id, template])),
+    [templates]
+  );
+  const editingProgram = programs.find(p => p.id === programId && !p.isTemplate);
+  const loadProgress = useProgramProgressStore(s => s.loadProgress);
+  const progressEntry = useProgramProgressStore(s => (programId ? s.progressByProgram[programId] : undefined));
+  const restartProgram = useProgramProgressStore(s => s.restartProgram);
+  const trimCompletedDays = useProgramProgressStore(s => s.trimCompletedDays);
 
   // Local editor state
   const [programName, setProgramName] = useState('');
@@ -54,16 +76,81 @@ export default function CreateProgramScreen() {
   const [workouts, setWorkouts] = useState<EditorWorkout[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isNameFocused, setIsNameFocused] = useState(false);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [showEditIntentModal, setShowEditIntentModal] = useState(false);
+  const hasInitializedEdit = useRef(false);
+
+  useEffect(() => {
+    fetchPrograms();
+  }, [fetchPrograms]);
+
+  useEffect(() => {
+    loadProgress();
+  }, [loadProgress]);
+
+  useEffect(() => {
+    if (!isEditing || !editingProgram) return;
+    if (hasInitializedEdit.current) return;
+
+    setProgramName(editingProgram.name);
+    setProgramDescription(editingProgram.description || '');
+
+    const mappedWorkouts = editingProgram.workouts.map((workout) => {
+      const matchingTemplate = templates.find((template) => {
+        const templateWorkout = template.workouts[0];
+        if (!templateWorkout) return false;
+        const templateIds = templateWorkout.exercises.map(ex => ex.exerciseId).join(',');
+        const workoutIds = workout.exercises.map(ex => ex.exerciseId).join(',');
+        if (templateIds === workoutIds) return true;
+        return template.name.toLowerCase() === workout.name.toLowerCase();
+      });
+
+      return {
+        id: `workout-${workout.id}`,
+        templateId: matchingTemplate?.id ?? null,
+        name: workout.name,
+        programWorkoutId: workout.id,
+      } as EditorWorkout;
+    });
+
+    setWorkouts(mappedWorkouts);
+    hasInitializedEdit.current = true;
+  }, [editingProgram, isEditing, templates]);
 
   // Stats
   const workoutCount = workouts.length;
   const totalExercises = useMemo(
-    () => workouts.reduce((sum, w) => sum + w.exercises.length, 0),
-    [workouts]
+    () => workouts.reduce((sum, workout) => {
+      if (!workout.templateId) return sum;
+      const template = templateMap.get(workout.templateId);
+      return sum + (template?.workouts[0]?.exercises.length || 0);
+    }, 0),
+    [templateMap, workouts]
   );
+  const programExerciseIds = useMemo(() => {
+    const ids = new Set<string>();
+    workouts.forEach((workout) => {
+      if (!workout.templateId) return;
+      const template = templateMap.get(workout.templateId);
+      if (!template) return;
+      template.workouts.forEach((templateWorkout) => {
+        templateWorkout.exercises.forEach((exercise) => {
+          if (exercise.exerciseId) {
+            ids.add(exercise.exerciseId);
+          }
+        });
+      });
+    });
+    return Array.from(ids);
+  }, [templateMap, workouts]);
+  const exercisesWithMuscles = useExercisesWithMuscles(programExerciseIds);
+  const hasMuscles = exercisesWithMuscles.length > 0;
+  const hasMissingTemplates = workouts.some(workout => !workout.templateId);
 
   // Check if we can save
-  const canSave = programName.trim().length > 0 && workouts.length > 0 && !isSaving;
+  const canSave = programName.trim().length > 0 && workouts.length > 0 && !hasMissingTemplates && !isSaving;
 
   // Handle close
   const handleClose = () => {
@@ -74,12 +161,12 @@ export default function CreateProgramScreen() {
   // Handle add workout
   const handleAddWorkout = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const newWorkout: EditorWorkout = {
-      id: `workout-${Date.now()}`,
-      name: `Day ${workouts.length + 1}`,
-      exercises: [],
-    };
-    setWorkouts(prev => [...prev, newWorkout]);
+    if (workouts.length >= MAX_WORKOUTS_PER_PROGRAM) {
+      setShowLimitModal(true);
+      return;
+    }
+    setActiveWorkoutId(null);
+    setShowTemplatePicker(true);
   }, [workouts.length]);
 
   // Handle remove workout
@@ -95,80 +182,212 @@ export default function CreateProgramScreen() {
     ));
   }, []);
 
+  const handleMoveWorkout = useCallback((workoutId: string, direction: 'up' | 'down') => {
+    setWorkouts((prev) => {
+      const index = prev.findIndex((workout) => workout.id === workoutId);
+      if (index < 0) return prev;
+      const nextIndex = direction === 'up' ? index - 1 : index + 1;
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+      const updated = [...prev];
+      const [moved] = updated.splice(index, 1);
+      updated.splice(nextIndex, 0, moved);
+      return updated;
+    });
+  }, []);
+
+  const handleSelectTemplate = useCallback((templateId: string) => {
+    const template = templateMap.get(templateId);
+    if (!template) return;
+
+    setWorkouts((prev) => {
+      if (activeWorkoutId) {
+        return prev.map((workout) =>
+          workout.id === activeWorkoutId
+            ? {
+              ...workout,
+              templateId,
+              name: template.name,
+            }
+            : workout
+        );
+      }
+
+      return [
+        ...prev,
+        {
+          id: `workout-${Date.now()}`,
+          templateId,
+          name: template.name,
+        },
+      ];
+    });
+
+    setActiveWorkoutId(null);
+    setShowTemplatePicker(false);
+  }, [activeWorkoutId, templateMap]);
+
   // Handle save
-  const handleSave = async () => {
-    if (!canSave) return;
+  const performSave = async (editIntent?: 'keep' | 'restart') => {
+    if (!canSave) return false;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsSaving(true);
 
     try {
-      // Create a program (non-template) using the existing store method
-      // For now, we'll create it as a template with the workouts
-      // TODO: Add proper createProgram action to store
+      const payload = workouts
+        .filter((workout) => !!workout.templateId)
+        .map((workout) => ({
+          templateId: workout.templateId as string,
+          name: workout.name,
+          workoutId: workout.programWorkoutId,
+        }));
 
-      // For now, just go back - full implementation in Phase 3
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.back();
+      const options = {
+        description: programDescription.trim() || undefined,
+      };
+
+      const result = isEditing && programId
+        ? await updateProgram(programId, programName.trim(), payload, options)
+        : await createProgram(programName.trim(), payload, options);
+
+      if (result) {
+        if (isEditing && programId && editIntent === 'restart') {
+          restartProgram(programId);
+        }
+        if (isEditing && programId && editIntent === 'keep') {
+          trimCompletedDays(programId, payload.length);
+        }
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.back();
+        return true;
+      }
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setIsSaving(false);
+      return false;
     } catch (error) {
       console.error('Failed to save program:', error);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsSaving(false);
+      return false;
     }
   };
 
+  const handleSave = () => {
+    if (!canSave) return;
+
+    if (isEditing && programId && progressEntry) {
+      setShowEditIntentModal(true);
+      return;
+    }
+
+    performSave();
+  };
+
   // Render workout card
-  const renderWorkoutCard = useCallback(({ item, index }: { item: EditorWorkout; index: number }) => (
-    <View style={styles.workoutCard}>
-      <View style={styles.workoutCardHeader}>
-        <TextInput
-          style={styles.workoutNameInput}
-          value={item.name}
-          onChangeText={(text) => handleUpdateWorkoutName(item.id, text)}
-          placeholder="Workout Name"
-          placeholderTextColor={Colors.textSecondary}
-          autoCorrect={false}
-          autoCapitalize="words"
-        />
-        <Pressable
-          onPress={() => handleRemoveWorkout(item.id)}
-          style={({ pressed }) => [
-            styles.deleteButton,
-            pressed && styles.deleteButtonPressed,
-          ]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <TrashIcon size={18} color={Colors.error} strokeWidth={2} />
-        </Pressable>
+  const renderWorkoutCard = useCallback(({ item, index }: { item: EditorWorkout; index: number }) => {
+    const template = item.templateId ? templateMap.get(item.templateId) : null;
+    const exerciseCount = template?.workouts[0]?.exercises.length || 0;
+    const canMoveUp = index > 0;
+    const canMoveDown = index < workouts.length - 1;
+
+    return (
+      <View style={styles.workoutCard}>
+        <View style={styles.workoutCardHeader}>
+          <TextInput
+            style={styles.workoutNameInput}
+            value={item.name}
+            onChangeText={(text) => handleUpdateWorkoutName(item.id, text)}
+            placeholder="Workout Name"
+            placeholderTextColor={Colors.textSecondary}
+            autoCorrect={false}
+            autoCapitalize="words"
+          />
+          <View style={styles.workoutActions}>
+            <Pressable
+              onPress={() => handleMoveWorkout(item.id, 'up')}
+              disabled={!canMoveUp}
+              style={({ pressed }) => [
+                styles.reorderButton,
+                !canMoveUp && styles.reorderButtonDisabled,
+                pressed && canMoveUp && styles.reorderButtonPressed,
+              ]}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <ChevronUpIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
+            </Pressable>
+            <Pressable
+              onPress={() => handleMoveWorkout(item.id, 'down')}
+              disabled={!canMoveDown}
+              style={({ pressed }) => [
+                styles.reorderButton,
+                !canMoveDown && styles.reorderButtonDisabled,
+                pressed && canMoveDown && styles.reorderButtonPressed,
+              ]}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <ChevronDownIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
+            </Pressable>
+            <Pressable
+              onPress={() => handleRemoveWorkout(item.id)}
+              style={({ pressed }) => [
+                styles.deleteButton,
+                pressed && styles.deleteButtonPressed,
+              ]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <TrashIcon size={18} color={Colors.error} strokeWidth={2} />
+            </Pressable>
+          </View>
+        </View>
+        <View style={styles.workoutCardContent}>
+          <View style={styles.workoutCardInfo}>
+            <Text style={styles.workoutExerciseCount} numberOfLines={1}>
+              {template ? `${exerciseCount} exercises` : 'Template not selected'}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveWorkoutId(item.id);
+              setShowTemplatePicker(true);
+            }}
+            style={({ pressed }) => [
+              styles.addExerciseButton,
+              pressed && styles.addExerciseButtonPressed,
+            ]}
+          >
+            <PlusIcon size={16} color={Colors.success} strokeWidth={2} />
+            <Text style={styles.addExerciseText}>
+              {template ? 'Change Template' : 'Select Template'}
+            </Text>
+          </Pressable>
+        </View>
       </View>
-      <View style={styles.workoutCardContent}>
-        <Text style={styles.workoutExerciseCount}>
-          {item.exercises.length} exercises
-        </Text>
-        <Pressable
-          onPress={() => {
-            // TODO: Open add exercise modal for this workout
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-          style={({ pressed }) => [
-            styles.addExerciseButton,
-            pressed && styles.addExerciseButtonPressed,
-          ]}
-        >
-          <PlusIcon size={16} color={Colors.success} strokeWidth={2} />
-          <Text style={styles.addExerciseText}>Add Exercise</Text>
-        </Pressable>
-      </View>
-    </View>
-  ), [handleUpdateWorkoutName, handleRemoveWorkout]);
+    );
+  }, [handleMoveWorkout, handleRemoveWorkout, handleUpdateWorkoutName, templateMap, workouts.length]);
 
   // Render empty state
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyStateText}>No workouts added yet</Text>
       <Text style={styles.emptyStateSubtext}>
-        Tap "Add Workout" to get started
+        {templates.length > 0
+          ? 'Tap "Add Workout" to choose from your templates'
+          : 'Create a workout template to build programs'}
       </Text>
+      {templates.length === 0 && (
+        <Pressable
+          onPress={() => router.push('/workout/create')}
+          style={({ pressed }) => [
+            styles.createTemplateButton,
+            pressed && styles.createTemplateButtonPressed,
+          ]}
+        >
+          <PlusIcon size={16} color={Colors.success} strokeWidth={2} />
+          <Text style={styles.createTemplateText}>Create Workout Template</Text>
+        </Pressable>
+      )}
     </View>
   );
 
@@ -232,6 +451,20 @@ export default function CreateProgramScreen() {
           </GlassButton>
         </View>
 
+        {/* Description */}
+        <View style={styles.descriptionWrapper}>
+          <TextInput
+            style={styles.descriptionInput}
+            placeholder="Program Description (optional)"
+            placeholderTextColor={Colors.textSecondary}
+            value={programDescription}
+            onChangeText={setProgramDescription}
+            multiline
+            maxLength={180}
+            textAlignVertical="top"
+          />
+        </View>
+
         {/* Stats Row */}
         {workoutCount > 0 && (
           <View style={styles.statsCard}>
@@ -245,7 +478,15 @@ export default function CreateProgramScreen() {
                 <Text style={styles.statValue}>{totalExercises}</Text>
               </View>
             </View>
+            {hasMuscles && (
+              <MuscleHeatmap exercises={exercisesWithMuscles} scale={0.22} compact />
+            )}
           </View>
+        )}
+        {hasMissingTemplates && (
+          <Text style={styles.missingTemplateWarning}>
+            Select a template for every workout to save this program.
+          </Text>
         )}
 
         {/* Workouts List */}
@@ -260,6 +501,64 @@ export default function CreateProgramScreen() {
           keyboardShouldPersistTaps="handled"
         />
 
+        <Modal
+          transparent
+          visible={showTemplatePicker}
+          animationType="fade"
+          onRequestClose={() => {
+            setShowTemplatePicker(false);
+            setActiveWorkoutId(null);
+          }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select a workout template</Text>
+                <Pressable
+                  onPress={() => {
+                    setShowTemplatePicker(false);
+                    setActiveWorkoutId(null);
+                  }}
+                  style={({ pressed }) => [
+                    styles.modalCloseButton,
+                    pressed && styles.modalCloseButtonPressed,
+                  ]}
+                >
+                  <XMarkIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+              </View>
+              <FlatList
+                data={templates}
+                keyExtractor={(template) => template.id}
+                contentContainerStyle={styles.modalList}
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => (
+                  <Pressable
+                    onPress={() => handleSelectTemplate(item.id)}
+                    style={({ pressed }) => [
+                      styles.modalOption,
+                      pressed && styles.modalOptionPressed,
+                    ]}
+                  >
+                    <View>
+                      <Text style={styles.modalOptionTitle}>{item.name}</Text>
+                      <Text style={styles.modalOptionSubtitle}>
+                        {item.workouts[0]?.exercises.length || 0} exercises
+                      </Text>
+                    </View>
+                    <PlusIcon size={16} color={Colors.success} strokeWidth={2} />
+                  </Pressable>
+                )}
+                ListEmptyComponent={
+                  <Text style={styles.modalEmptyText}>
+                    No templates available yet.
+                  </Text>
+                }
+              />
+            </View>
+          </View>
+        </Modal>
+
         {/* Add Workout Button */}
         <View style={styles.addButtonContainer}>
           <Pressable
@@ -273,6 +572,65 @@ export default function CreateProgramScreen() {
             <Text style={styles.addWorkoutText}>Add Workout</Text>
           </Pressable>
         </View>
+        <ProgramLimitModal
+          visible={showLimitModal}
+          programName={programName || 'This program'}
+          onClose={() => setShowLimitModal(false)}
+        />
+        <BaseModal
+          visible={showEditIntentModal}
+          onClose={() => setShowEditIntentModal(false)}
+          title="Edit Active Program?"
+          icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
+        >
+          <Text style={modalStyles.message}>
+            This program is in progress. How should we handle your edits?
+          </Text>
+          <View style={[modalStyles.actions, styles.modalActions]}>
+            <Pressable
+              onPress={async () => {
+                setShowEditIntentModal(false);
+                await performSave('keep');
+              }}
+              style={({ pressed }) => [
+                modalStyles.successButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
+                Apply to future workouts
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                setShowEditIntentModal(false);
+                await performSave('restart');
+              }}
+              style={({ pressed }) => [
+                modalStyles.warningButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
+                Restart program
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowEditIntentModal(false)}
+              style={({ pressed }) => [
+                modalStyles.cancelButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </BaseModal>
       </SafeAreaView>
     </View>
   );
@@ -335,6 +693,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flex: 1,
     minWidth: 100,
+    paddingVertical: Spacing.sm,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   saveButton: {
     height: 40,
@@ -356,10 +717,31 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     marginBottom: Spacing.sm,
   },
+  descriptionWrapper: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing.md,
+  },
+  descriptionInput: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    minHeight: 72,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
   statsLeft: {
     flex: 1,
     flexDirection: 'row',
     gap: Spacing['4xl'],
+  },
+  missingTemplateWarning: {
+    ...Typography.bodySmall,
+    color: Colors.warning ?? '#f59e0b',
+    paddingHorizontal: Spacing['2xl'],
+    marginBottom: Spacing.sm,
   },
   statItem: {
     alignItems: 'flex-start',
@@ -368,7 +750,8 @@ const styles = StyleSheet.create({
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 28,
     color: Colors.success,
-    lineHeight: 32,
+    lineHeight: 34,
+    paddingBottom: 2,
   },
   statLabel: {
     fontSize: 11,
@@ -411,12 +794,33 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.md,
   },
+  workoutActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
   workoutNameInput: {
     ...Typography.h4,
     color: Colors.textPrimary,
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     paddingVertical: Spacing.xs,
     marginRight: Spacing.md,
+  },
+  reorderButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  reorderButtonPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  reorderButtonDisabled: {
+    opacity: 0.4,
   },
   deleteButton: {
     width: 32,
@@ -434,9 +838,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  workoutCardInfo: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: Spacing.md,
+  },
   workoutExerciseCount: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
+  },
+  templateLabel: {
+    ...Typography.bodySmall,
+    color: Colors.textTertiary,
+    marginTop: 4,
   },
   addExerciseButton: {
     flexDirection: 'row',
@@ -448,6 +862,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(34, 197, 94, 0.3)',
     backgroundColor: 'rgba(34, 197, 94, 0.05)',
+    flexShrink: 0,
   },
   addExerciseButtonPressed: {
     backgroundColor: 'rgba(34, 197, 94, 0.15)',
@@ -456,6 +871,93 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.success,
     fontWeight: '600',
+  },
+  createTemplateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.3)',
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+  },
+  createTemplateButtonPressed: {
+    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+  },
+  createTemplateText: {
+    ...Typography.bodySmall,
+    color: Colors.success,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlayHeavy,
+    justifyContent: 'center',
+    paddingHorizontal: Spacing['2xl'],
+  },
+  modalCard: {
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    maxHeight: '70%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    ...Typography.h4,
+    color: Colors.textPrimary,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalCloseButtonPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  modalList: {
+    paddingBottom: Spacing.md,
+  },
+  modalOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    marginBottom: Spacing.sm,
+  },
+  modalOptionPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  modalOptionTitle: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    fontWeight: '600',
+  },
+  modalOptionSubtitle: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  modalEmptyText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    paddingVertical: Spacing.lg,
   },
   addButtonContainer: {
     position: 'absolute',
@@ -487,5 +989,16 @@ const styles = StyleSheet.create({
   addWorkoutText: {
     ...Typography.button,
     color: Colors.success,
+  },
+  modalActions: {
+    flexDirection: 'column',
+    gap: Spacing.sm,
+  },
+  modalActionButton: {
+    width: '100%',
+    flex: 0,
+  },
+  modalActionText: {
+    textAlign: 'center',
   },
 });

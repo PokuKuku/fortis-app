@@ -88,16 +88,20 @@ async function addToPendingQueue(program: Program): Promise<void> {
   const queue = await loadPendingQueue();
 
   // Check if already in queue (by id)
-  const exists = queue.some(item => item.program.id === program.id);
-  if (exists) {
-    return;
+  const existingIndex = queue.findIndex(item => item.program.id === program.id);
+  if (existingIndex >= 0) {
+    queue[existingIndex] = {
+      ...queue[existingIndex],
+      program,
+      queuedAt: new Date().toISOString(),
+    };
+  } else {
+    queue.push({
+      program,
+      queuedAt: new Date().toISOString(),
+      retryCount: 0,
+    });
   }
-
-  queue.push({
-    program,
-    queuedAt: new Date().toISOString(),
-    retryCount: 0,
-  });
 
   await savePendingQueue(queue);
 }

@@ -7,10 +7,8 @@ import {
   HubStats,
 } from '@/src/types/program';
 import { PROGRAMS_KEY, WORKOUTS_KEY } from '@/src/constants/storageKeys';
+import { MAX_WORKOUTS_PER_PROGRAM } from '@/src/constants/programs';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
-
-// Maximum number of workouts allowed per program
-export const MAX_WORKOUTS_PER_PROGRAM = 7;
 
 // In-memory cache
 let programsCache: ProgramDetail[] | null = null;

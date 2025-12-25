@@ -14,7 +14,6 @@ import { HubHeader, HubExerciseRow } from '@/src/components/hub';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
-import * as ProgramService from '@/src/services/programService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 
@@ -26,6 +25,7 @@ export default function WorkoutDetailScreen() {
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const template = useProgramsStore(s => s.programs.find(p => p.id === id && p.isTemplate));
   const canEditTemplate = !!template;
+  const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
 
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -81,14 +81,27 @@ export default function WorkoutDetailScreen() {
 
   const handleConfirmDelete = useCallback(async () => {
     if (!id) return;
+    if (!template || !template.workouts[0]) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    await ProgramService.removeExerciseFromWorkout(id, deleteModal.exerciseId);
+    const workout = template.workouts[0];
+    const updatedExercises = workout.exercises
+      .filter((exercise) => exercise.id !== deleteModal.exerciseId)
+      .map((exercise) => ({
+        exerciseId: exercise.exerciseId,
+        exerciseName: exercise.exerciseName,
+        sets: exercise.sets,
+        reps: exercise.reps,
+        restSeconds: exercise.restSeconds,
+        setDetails: exercise.setDetails,
+      }));
+
+    await updateWorkoutTemplate(template.id, template.name, updatedExercises);
 
     // Close modal and refresh
     setDeleteModal({ ...deleteModal, visible: false });
     refreshWorkout();
-  }, [id, deleteModal, refreshWorkout]);
+  }, [id, deleteModal, refreshWorkout, template, updateWorkoutTemplate]);
 
   const handleCancelDelete = useCallback(() => {
     setDeleteModal({ ...deleteModal, visible: false });

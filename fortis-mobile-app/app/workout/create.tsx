@@ -424,6 +424,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flex: 1,
     minWidth: 100,
+    paddingVertical: Spacing.xs,
+    textAlignVertical: 'center',
   },
   saveButton: {
     height: 40,

@@ -1,0 +1,1 @@
+export const MAX_WORKOUTS_PER_PROGRAM = 7;

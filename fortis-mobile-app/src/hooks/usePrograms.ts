@@ -7,7 +7,6 @@ import {
   ProgramWorkout as HubProgramWorkout,
   ProgramExercise as HubProgramExercise,
 } from '@/src/types/program';
-import * as ProgramService from '@/src/services/programService';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { getExerciseById } from '@/src/services/exerciseService';
 import {
@@ -23,79 +22,113 @@ export function usePrograms() {
   const [programs, setPrograms] = useState<ProgramDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-
-  const loadPrograms = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await ProgramService.getAllPrograms();
-      setPrograms(data);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const storePrograms = useProgramsStore((state) => state.programs);
+  const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
 
   useEffect(() => {
-    loadPrograms();
-  }, [loadPrograms]);
+    fetchPrograms();
+  }, [fetchPrograms]);
 
-  return { programs, loading, error, refresh: loadPrograms };
+  useEffect(() => {
+    let isMounted = true;
+    const loadPrograms = async () => {
+      try {
+        setLoading(true);
+        const programDetails = await Promise.all(
+          storePrograms
+            .filter((program) => !program.isTemplate)
+            .map((program) => convertStoreProgramToDetail(program))
+        );
+        if (isMounted) {
+          setPrograms(programDetails);
+          setError(null);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err as Error);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadPrograms();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storePrograms]);
+
+  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+
+  return { programs, loading, error, refresh };
 }
 
 /**
  * Hook to load a single program by ID with refresh capability
- * Searches both ProgramService (sample programs) and programsStore (user programs)
+ * Searches programsStore (defaults and user programs)
  */
 export function useProgram(id: string | undefined) {
   const [program, setProgram] = useState<ProgramDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const storePrograms = useProgramsStore((state) => state.programs);
-
-  const loadProgram = useCallback(async () => {
-    if (!id) {
-      setProgram(null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // First try ProgramService (sample/default programs)
-      const data = await ProgramService.getProgramById(id);
-      if (data) {
-        setProgram(data);
-        setError(null);
-        return;
-      }
-
-      // If not found, search programsStore (user-created programs)
-      const foundProgram = storePrograms.find((p) => p.id === id);
-      if (foundProgram) {
-        const converted = await convertStoreProgramToDetail(foundProgram);
-        setProgram(converted);
-        setError(null);
-        return;
-      }
-
-      // Not found in either source
-      setProgram(null);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  }, [id, storePrograms]);
+  const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
 
   useEffect(() => {
-    loadProgram();
-  }, [loadProgram]);
+    fetchPrograms();
+  }, [fetchPrograms]);
 
-  return { program, loading, error, refresh: loadProgram };
+  useEffect(() => {
+    let isMounted = true;
+    const loadProgram = async () => {
+      if (!id) {
+        if (isMounted) {
+          setProgram(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const foundProgram = storePrograms.find((p) => p.id === id && !p.isTemplate);
+        if (foundProgram) {
+          const converted = await convertStoreProgramToDetail(foundProgram);
+          if (isMounted) {
+            setProgram(converted);
+            setError(null);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setProgram(null);
+          setError(null);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err as Error);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProgram();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, storePrograms]);
+
+  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+
+  return { program, loading, error, refresh };
 }
 
 /**
@@ -105,25 +138,51 @@ export function useWorkouts() {
   const [workouts, setWorkouts] = useState<WorkoutDetail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-
-  const loadWorkouts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await ProgramService.getAllWorkouts();
-      setWorkouts(data);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const storePrograms = useProgramsStore((state) => state.programs);
+  const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
 
   useEffect(() => {
-    loadWorkouts();
-  }, [loadWorkouts]);
+    fetchPrograms();
+  }, [fetchPrograms]);
 
-  return { workouts, loading, error, refresh: loadWorkouts };
+  useEffect(() => {
+    let isMounted = true;
+    const loadWorkouts = async () => {
+      try {
+        setLoading(true);
+        const templateDetails = await Promise.all(
+          storePrograms
+            .filter((program) => program.isTemplate && program.workouts[0])
+            .map((template) => convertProgramWorkoutToDetail(
+              template.workouts[0],
+              template.lastPerformedAt
+            ))
+        );
+        if (isMounted) {
+          setWorkouts(templateDetails);
+          setError(null);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err as Error);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadWorkouts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [storePrograms]);
+
+  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+
+  return { workouts, loading, error, refresh };
 }
 
 /**
@@ -146,6 +205,7 @@ async function convertStoreExerciseToHub(
     restSeconds: exercise.restSeconds,
     notes: exercise.notes,
     primaryMuscles: exerciseData?.primaryMuscles ?? [],
+    secondaryMuscles: exerciseData?.secondaryMuscles ?? [],
     images: exerciseData?.images ?? [],
   };
 }
@@ -222,6 +282,7 @@ async function convertProgramWorkoutToDetail(
         targetSets: ex.sets,
         targetReps: ex.reps,
         primaryMuscles: exerciseData?.primaryMuscles ?? [],
+        secondaryMuscles: exerciseData?.secondaryMuscles ?? [],
         images: exerciseData?.images ?? [],
       } as WorkoutExerciseDetail;
     })
@@ -247,74 +308,86 @@ async function convertProgramWorkoutToDetail(
 
 /**
  * Hook to load a single workout by ID with refresh capability
- * Searches both ProgramService (sample workouts) and programsStore (user workouts)
+ * Searches programsStore templates and program workouts
  */
 export function useWorkout(id: string | undefined) {
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const programs = useProgramsStore((state) => state.programs);
-
-  const loadWorkout = useCallback(async () => {
-    if (!id) {
-      setWorkout(null);
-      setLoading(false);
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      // First try ProgramService (sample/default workouts)
-      const data = await ProgramService.getWorkoutById(id);
-      if (data) {
-        setWorkout(data);
-        setError(null);
-        return;
-      }
-
-      // If not found, search programsStore (user-created workouts)
-      for (const program of programs) {
-        const foundWorkout = program.workouts.find((w) => w.id === id);
-        if (foundWorkout) {
-          const converted = await convertProgramWorkoutToDetail(
-            foundWorkout,
-            program.lastPerformedAt
-          );
-          setWorkout(converted);
-          setError(null);
-          return;
-        }
-      }
-
-      // Check if ID matches a template (program with isTemplate: true)
-      const template = programs.find((p) => p.id === id && p.isTemplate);
-      if (template && template.workouts[0]) {
-        const converted = await convertProgramWorkoutToDetail(
-          template.workouts[0],
-          template.lastPerformedAt
-        );
-        // Use template name instead of workout name
-        converted.name = template.name;
-        converted.id = template.id;
-        setWorkout(converted);
-        setError(null);
-        return;
-      }
-
-      // Not found in either source
-      setWorkout(null);
-      setError(null);
-    } catch (err) {
-      setError(err as Error);
-    } finally {
-      setLoading(false);
-    }
-  }, [id, programs]);
+  const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
 
   useEffect(() => {
-    loadWorkout();
-  }, [loadWorkout]);
+    fetchPrograms();
+  }, [fetchPrograms]);
 
-  return { workout, loading, error, refresh: loadWorkout };
+  useEffect(() => {
+    let isMounted = true;
+    const loadWorkout = async () => {
+      if (!id) {
+        if (isMounted) {
+          setWorkout(null);
+          setLoading(false);
+        }
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        for (const program of programs) {
+          const foundWorkout = program.workouts.find((w) => w.id === id);
+          if (foundWorkout) {
+            const converted = await convertProgramWorkoutToDetail(
+              foundWorkout,
+              program.lastPerformedAt
+            );
+            if (isMounted) {
+              setWorkout(converted);
+              setError(null);
+            }
+            return;
+          }
+        }
+
+        const template = programs.find((p) => p.id === id && p.isTemplate);
+        if (template && template.workouts[0]) {
+          const converted = await convertProgramWorkoutToDetail(
+            template.workouts[0],
+            template.lastPerformedAt
+          );
+          converted.name = template.name;
+          converted.id = template.id;
+          if (isMounted) {
+            setWorkout(converted);
+            setError(null);
+          }
+          return;
+        }
+
+        if (isMounted) {
+          setWorkout(null);
+          setError(null);
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(err as Error);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadWorkout();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id, programs]);
+
+  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+
+  return { workout, loading, error, refresh };
 }

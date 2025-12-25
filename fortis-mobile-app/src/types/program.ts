@@ -42,6 +42,7 @@ export interface ProgramExercise {
   restSeconds?: number;
   notes?: string;
   primaryMuscles: string[];
+  secondaryMuscles?: string[];
   images: string[];
 }
 
@@ -84,6 +85,7 @@ export interface WorkoutExerciseDetail {
   targetSets: number;
   targetReps: string;
   primaryMuscles: string[];
+  secondaryMuscles?: string[];
   images: string[];
 }
 

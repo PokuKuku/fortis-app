@@ -25,6 +25,9 @@ import * as Haptics from 'expo-haptics';
 
 type TabType = 'About' | 'History' | 'Charts' | 'Records';
 
+const stripInstructionPrefix = (value: string) =>
+  value.replace(/^step\s*[:#-]?\s*\d+\s*[:.)-]?\s*/i, '');
+
 function formatVolume(volume: number): string {
   if (volume >= 1000) {
     return `${(volume / 1000).toFixed(1)}k`;
@@ -179,7 +182,9 @@ export default function ExerciseDetailsScreen() {
                     >
                       <Text style={styles.instructionNumberText}>{index + 1}</Text>
                     </LinearGradient>
-                    <Text style={styles.instructionText}>{instruction}</Text>
+                    <Text style={styles.instructionText}>
+                      {stripInstructionPrefix(instruction)}
+                    </Text>
                   </View>
                 ))
               )}

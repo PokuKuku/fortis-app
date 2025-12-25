@@ -1,9 +1,8 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { PlayIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { PlayIcon, TrashIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -15,7 +14,11 @@ import { HubHeader, HubExerciseRow, HubStatsSection } from '@/src/components/hub
 import { ProgramWorkout } from '@/src/types/program';
 import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
-import * as ProgramService from '@/src/services/programService';
+import { useProgramsStore } from '@/src/store/programsStore';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useProgramProgressStore } from '@/src/store/programProgressStore';
+import { WorkoutStackPreview } from '@/src/components/program/WorkoutStackPreview';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 
 // Difficulty badge colors
 const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
@@ -30,6 +33,31 @@ const GOAL_LABELS: Record<string, string> = {
   hypertrophy: 'Hypertrophy',
   powerlifting: 'Powerlifting',
   general_fitness: 'General Fitness',
+};
+
+const DIFFICULTY_SHORT_LABELS: Record<string, string> = {
+  beginner: 'Beg',
+  intermediate: 'Inter',
+  advanced: 'Adv',
+};
+
+const formatShortRelativeTime = (dateString?: string | null) => {
+  if (!dateString) return 'Never';
+  const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return 'Never';
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return '1d';
+  if (diffDays < 7) return `${diffDays}d`;
+  const diffWeeks = Math.floor(diffDays / 7);
+  if (diffWeeks < 4) return `${diffWeeks}w`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `${diffMonths}mo`;
+  const diffYears = Math.floor(diffDays / 365);
+  return `${diffYears}y`;
 };
 
 // Collapsible workout section component
@@ -115,6 +143,17 @@ export default function ProgramDetailScreen() {
   const router = useRouter();
   const { program, loading, refresh: refreshProgram } = useProgram(id);
   const isNavigating = useRef(false);
+  const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
+  const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
+  const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
+  const bodyType = useWorkoutStore(s => s.bodyType);
+  const loadProgress = useProgramProgressStore(s => s.loadProgress);
+  const progressEntry = useProgramProgressStore(
+    s => (id ? s.progressByProgram[id] : undefined)
+  );
+  const getNextDayNumber = useProgramProgressStore(s => s.getNextDayNumber);
+  const restartProgram = useProgramProgressStore(s => s.restartProgram);
+  const trimCompletedDays = useProgramProgressStore(s => s.trimCompletedDays);
 
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -124,6 +163,12 @@ export default function ProgramDetailScreen() {
     exerciseId?: string;
     name: string;
   }>({ visible: false, type: 'workout', workoutId: '', name: '' });
+  const [editIntentModalVisible, setEditIntentModalVisible] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{
+    type: 'workout' | 'exercise';
+    workoutId: string;
+    exerciseId?: string;
+  } | null>(null);
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -134,15 +179,30 @@ export default function ProgramDetailScreen() {
 
   const handleEdit = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // TODO: Navigate to edit screen
+    if (id) {
+      router.push(`/programs/create?mode=edit&programId=${id}`);
+    }
   };
 
   const handleStartProgram = () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    // TODO: Start first workout of the program
-    router.push('/workout/active');
+    const workouts = program?.workouts ? [...program.workouts] : [];
+    workouts.sort((a, b) => a.dayNumber - b.dayNumber);
+    const totalDays = workouts.length;
+    const nextDayNumber = totalDays > 0 && id
+      ? getNextDayNumber(id, totalDays)
+      : 1;
+    const nextWorkout = workouts.find(w => w.dayNumber === nextDayNumber) || workouts[0];
+
+    if (id && nextWorkout) {
+      startWorkoutFromProgram(id, nextWorkout.id).then((success) => {
+        if (success) {
+          router.push('/workout/active');
+        }
+      });
+    }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
@@ -173,35 +233,82 @@ export default function ProgramDetailScreen() {
     });
   }, []);
 
+  const applyDelete = useCallback(async (payload: {
+    type: 'workout' | 'exercise';
+    workoutId: string;
+    exerciseId?: string;
+  }) => {
+    if (!id) return;
+
+    if (payload.type === 'workout') {
+      await removeWorkoutFromProgram(id, payload.workoutId);
+    } else if (payload.exerciseId) {
+      await removeExerciseFromProgramWorkout(
+        id,
+        payload.workoutId,
+        payload.exerciseId
+      );
+    }
+  }, [id, removeExerciseFromProgramWorkout, removeWorkoutFromProgram]);
+
   const handleConfirmDelete = useCallback(async () => {
     if (!id) return;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
-    if (deleteModal.type === 'workout') {
-      await ProgramService.removeWorkoutFromProgram(id, deleteModal.workoutId);
-    } else if (deleteModal.exerciseId) {
-      await ProgramService.removeExerciseFromProgramWorkout(
-        id,
-        deleteModal.workoutId,
-        deleteModal.exerciseId
-      );
+    const deletePayload = {
+      type: deleteModal.type,
+      workoutId: deleteModal.workoutId,
+      exerciseId: deleteModal.exerciseId,
+    };
+
+    if (progressEntry) {
+      setPendingDelete(deletePayload);
+      setDeleteModal({ ...deleteModal, visible: false });
+      setEditIntentModalVisible(true);
+      return;
     }
 
-    // Close modal and refresh
+    await applyDelete(deletePayload);
     setDeleteModal({ ...deleteModal, visible: false });
     refreshProgram();
-  }, [id, deleteModal, refreshProgram]);
+  }, [applyDelete, deleteModal, id, progressEntry, refreshProgram]);
 
   const handleCancelDelete = useCallback(() => {
     setDeleteModal({ ...deleteModal, visible: false });
   }, [deleteModal]);
 
-  // Calculate total exercises across all workouts
-  const totalExercises = program?.workouts.reduce(
-    (sum, w) => sum + w.exercises.length,
-    0
-  ) || 0;
+  const handleEditIntent = useCallback(async (intent: 'keep' | 'restart') => {
+    if (!pendingDelete || !id || !program) {
+      setEditIntentModalVisible(false);
+      return;
+    }
+
+    await applyDelete(pendingDelete);
+
+    const nextTotalDays = pendingDelete.type === 'workout'
+      ? Math.max(0, program.workouts.length - 1)
+      : program.workouts.length;
+
+    if (intent === 'restart') {
+      restartProgram(id);
+    } else {
+      trimCompletedDays(id, nextTotalDays);
+    }
+
+    setPendingDelete(null);
+    setEditIntentModalVisible(false);
+    refreshProgram();
+  }, [applyDelete, id, pendingDelete, program, refreshProgram, restartProgram, trimCompletedDays]);
+
+  const heatmapExercises = useMemo(
+    () => program?.workouts.flatMap(workout => workout.exercises) ?? [],
+    [program]
+  );
+
+  useEffect(() => {
+    loadProgress();
+  }, [loadProgress]);
 
   // Loading state
   if (loading) {
@@ -231,6 +338,15 @@ export default function ProgramDetailScreen() {
   }
 
   const difficultyColors = DIFFICULTY_COLORS[program.difficulty] || DIFFICULTY_COLORS.beginner;
+  const completedDayNumbers = progressEntry?.completedDayNumbers || [];
+  const completedIds = program.workouts
+    .filter(workout => completedDayNumbers.includes(workout.dayNumber))
+    .map(workout => workout.id);
+  const nextDayNumber = id
+    ? getNextDayNumber(id, program.workouts.length)
+    : 1;
+  const currentCycle = progressEntry?.currentCycle || 1;
+  const completedCycles = progressEntry?.history.length || 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -264,23 +380,13 @@ export default function ProgramDetailScreen() {
           style={styles.metaTagsContainer}
         >
           {/* Duration */}
-          <View style={styles.metaTag}>
-            <Text style={styles.metaTagText}>
-              {program.durationWeeks} weeks
-            </Text>
-          </View>
-
-          {/* Difficulty */}
-          <View
-            style={[
-              styles.metaTag,
-              { backgroundColor: difficultyColors.bg },
-            ]}
-          >
-            <Text style={[styles.metaTagText, { color: difficultyColors.text }]}>
-              {program.difficulty.charAt(0).toUpperCase() + program.difficulty.slice(1)}
-            </Text>
-          </View>
+          {program.durationWeeks ? (
+            <View style={styles.metaTag}>
+              <Text style={styles.metaTagText}>
+                {program.durationWeeks} weeks
+              </Text>
+            </View>
+          ) : null}
 
           {/* Goal */}
           {program.goal && (
@@ -297,21 +403,21 @@ export default function ProgramDetailScreen() {
           entering={FadeIn.delay(200).duration(300)}
           style={styles.creatorContainer}
         >
-          {program.createdBy && (
-            <Text style={styles.creatorText}>
-              Created by {program.createdBy}
-            </Text>
-          )}
-          {program.lastPerformed && (
-            <Text style={styles.lastPerformedText}>
-              Last performed: {program.lastPerformed}
-            </Text>
-          )}
+          <Text style={styles.progressText}>
+            Cycle {currentCycle} - Next Day {nextDayNumber}
+          </Text>
+        </Animated.View>
+
+        <Animated.View
+          entering={FadeInDown.delay(250).duration(400)}
+          style={styles.section}
+        >
+          <MuscleHeatmap exercises={heatmapExercises} gender={bodyType} />
         </Animated.View>
 
         {/* Start Program Button */}
         <Animated.View
-          entering={FadeInDown.delay(250).duration(400)}
+          entering={FadeInDown.delay(300).duration(400)}
           style={styles.startButtonContainer}
         >
           <GlassButton
@@ -320,25 +426,46 @@ export default function ProgramDetailScreen() {
           >
             <View style={styles.startButtonContent}>
               <PlayIcon color={Colors.white} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={styles.startButtonText}>Start Program</Text>
+              <Text style={styles.startButtonText}>Start Next Workout</Text>
             </View>
           </GlassButton>
         </Animated.View>
 
-        {/* Stats Section */}
         <Animated.View
           entering={FadeInDown.delay(350).duration(400)}
           style={styles.section}
         >
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Progress</Text>
+            <Text style={styles.sectionCount}>
+              {completedDayNumbers.length}/{program.workouts.length} workouts
+            </Text>
+          </View>
+          <WorkoutStackPreview
+            workouts={program.workouts}
+            completedIds={completedIds}
+            currentDayNumber={nextDayNumber}
+          />
+          {completedCycles > 0 && (
+            <Text style={styles.progressHistoryText}>
+              {completedCycles} cycle{completedCycles === 1 ? '' : 's'} completed
+            </Text>
+          )}
+        </Animated.View>
+
+        {/* Stats Section */}
+        <Animated.View
+          entering={FadeInDown.delay(400).duration(400)}
+          style={styles.section}
+        >
           <HubStatsSection
             stats={program.stats}
-            totalExercises={totalExercises}
           />
         </Animated.View>
 
         {/* Workouts Section */}
         <Animated.View
-          entering={FadeInDown.delay(450).duration(400)}
+          entering={FadeInDown.delay(500).duration(400)}
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
@@ -391,6 +518,61 @@ export default function ProgramDetailScreen() {
             ]}
           >
             <Text style={modalStyles.errorButtonText}>Delete</Text>
+          </Pressable>
+        </View>
+      </BaseModal>
+
+      <BaseModal
+        visible={editIntentModalVisible}
+        onClose={() => {
+          setEditIntentModalVisible(false);
+          setPendingDelete(null);
+        }}
+        title="Edit Active Program?"
+        icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
+      >
+        <Text style={modalStyles.message}>
+          This program is in progress. How should we handle your edits?
+        </Text>
+        <View style={[modalStyles.actions, styles.modalActions]}>
+          <Pressable
+            onPress={() => handleEditIntent('keep')}
+            style={({ pressed }) => [
+              modalStyles.successButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
+              Apply to future workouts
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleEditIntent('restart')}
+            style={({ pressed }) => [
+              modalStyles.warningButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
+              Restart program
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => {
+              setEditIntentModalVisible(false);
+              setPendingDelete(null);
+            }}
+            style={({ pressed }) => [
+              modalStyles.cancelButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
+              Cancel
+            </Text>
           </Pressable>
         </View>
       </BaseModal>
@@ -477,6 +659,17 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '500',
     color: 'rgba(163, 163, 163, 0.7)',
+  },
+  progressText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+  },
+  progressHistoryText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    marginTop: Spacing.sm,
   },
   startButtonContainer: {
     marginBottom: Spacing['2xl'],
@@ -574,5 +767,16 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingTop: 0,
     gap: Spacing.sm,
+  },
+  modalActions: {
+    flexDirection: 'column',
+    gap: Spacing.sm,
+  },
+  modalActionButton: {
+    width: '100%',
+    flex: 0,
+  },
+  modalActionText: {
+    textAlign: 'center',
   },
 });

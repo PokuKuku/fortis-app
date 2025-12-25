@@ -9,6 +9,7 @@ import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { WorkoutSession, WorkoutExercise, WorkoutSet } from '@/src/types/workout';
+import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
 
 // Types for Supabase DTOs
@@ -143,8 +144,8 @@ async function uploadSession(
       started_at: session.startedAt.toISOString(),
       completed_at: session.completedAt?.toISOString() || null,
       duration_seconds: calculateDuration(session),
-      program_id: session.programId?.startsWith('local-') ? null : session.programId,
-      program_workout_id: session.programWorkoutId?.startsWith('local-') ? null : session.programWorkoutId,
+      program_id: isLocalId(session.programId) ? null : session.programId,
+      program_workout_id: isLocalId(session.programWorkoutId) ? null : session.programWorkoutId,
       is_synced: true,
     };
 

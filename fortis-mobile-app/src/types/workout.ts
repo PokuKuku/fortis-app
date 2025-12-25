@@ -61,6 +61,7 @@ export interface WorkoutSession {
   notes: string;
   startedAt: Date;
   completedAt: Date | null;
+  programName?: string;
   programId?: string;        // Optional program reference
   programWorkoutId?: string; // Optional template reference
   originalExerciseIds?: string[]; // Exercise IDs at start (for modification detection)

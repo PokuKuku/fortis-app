@@ -8,6 +8,7 @@ import React from 'react';
 import { Text, Pressable } from 'react-native';
 import { ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { MAX_WORKOUTS_PER_PROGRAM } from '@/src/constants/programs';
 
 interface ProgramLimitModalProps {
   visible: boolean;
@@ -28,7 +29,7 @@ export function ProgramLimitModal({
       icon={<ExclamationTriangleIcon size={24} color="#f59e0b" />}
     >
       <Text style={modalStyles.message}>
-        "{programName}" already has 7 workouts, which is the maximum allowed. To add a new workout, please remove an existing one first.
+        "{programName}" already has {MAX_WORKOUTS_PER_PROGRAM} workouts, which is the maximum allowed. To add a new workout, please remove an existing one first.
       </Text>
       <Pressable
         onPress={onClose}
