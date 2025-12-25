@@ -17,6 +17,7 @@ interface WorkoutCompleteModalProps {
   onClose: () => void;
   onConfirm: () => void;
   onSaveAsTemplate?: () => void;
+  saveTemplateLabel?: string;
   session: WorkoutSession | null;
 }
 
@@ -27,6 +28,7 @@ export function WorkoutCompleteModal({
   onClose,
   onConfirm,
   onSaveAsTemplate,
+  saveTemplateLabel,
   session,
 }: WorkoutCompleteModalProps) {
   const confettiRef = useRef<ConfettiCannon>(null);
@@ -117,7 +119,9 @@ export function WorkoutCompleteModal({
                       ]}
                       onPress={handleSaveAsTemplate}
                     >
-                      <Text style={styles.saveTemplateButtonText}>Save as Template</Text>
+                      <Text style={styles.saveTemplateButtonText}>
+                        {saveTemplateLabel || 'Save as Template'}
+                      </Text>
                     </Pressable>
                   )}
                   <GlassButton style={styles.doneButton} onPress={handleConfirm}>

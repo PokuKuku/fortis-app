@@ -362,7 +362,16 @@ export default function ActiveWorkoutScreen() {
         visible={showFinishModal}
         onClose={() => setShowFinishModal(false)}
         onConfirm={handleConfirmFinish}
-        onSaveAsTemplate={hasTemplateModifications(activeSession) ? handleSaveAsTemplate : undefined}
+        onSaveAsTemplate={
+          hasTemplateModifications(activeSession) && !activeSession?.programWorkoutId
+            ? handleSaveAsTemplate
+            : undefined
+        }
+        saveTemplateLabel={
+          activeSession?.programId && !activeSession?.programWorkoutId
+            ? 'Save as New Template'
+            : undefined
+        }
         session={activeSession}
       />
 

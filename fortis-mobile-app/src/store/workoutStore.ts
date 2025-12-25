@@ -359,6 +359,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           isSynced: false,
           programId: template.id,
           originalExerciseIds: exercises.map(ex => ex.exerciseId),
+          originalSetCounts: exercises.map(ex => ex.sets.length),
         };
 
         set({
@@ -448,6 +449,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           programId,
           programWorkoutId,
           originalExerciseIds: exercises.map((ex) => ex.exerciseId),
+          originalSetCounts: exercises.map((ex) => ex.sets.length),
         };
 
         set({
@@ -1951,7 +1953,17 @@ export const hasTemplateModifications = (session: WorkoutSession | null): boolea
 
   // Check if any exercise was replaced (same count but different IDs)
   const hasChanges = currentIds.some((id, index) => id !== originalIds[index]);
-  return hasChanges;
+  if (hasChanges) return true;
+
+  // Check if any set count changed for an exercise
+  if (session.originalSetCounts && session.originalSetCounts.length === session.exercises.length) {
+    const hasSetChanges = session.exercises.some(
+      (ex, index) => ex.sets.length !== session.originalSetCounts![index]
+    );
+    if (hasSetChanges) return true;
+  }
+
+  return false;
 };
 
 /**
