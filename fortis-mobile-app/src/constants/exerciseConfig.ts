@@ -10,7 +10,7 @@ type ApiProvider = 'opensource' | 'rapidapi';
 // ============================================
 // SWITCH API HERE
 // ============================================
-const activeApi = 'opensource' as ApiProvider;
+const activeApi = 'rapidapi' as ApiProvider;
 
 // Open source ExerciseDB v1 (free, includes GIFs)
 const OPENSOURCE_CONFIG = {

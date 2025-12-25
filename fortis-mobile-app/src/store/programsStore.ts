@@ -741,6 +741,46 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         }
       }
 
+      const createdTemplate: Program = {
+        id: program.id,
+        name: program.name,
+        description: program.description ?? undefined,
+        difficulty: program.difficulty,
+        goal: program.goal ?? undefined,
+        durationWeeks: program.duration_weeks ?? undefined,
+        isPublic: program.is_public,
+        isDefault: program.is_default,
+        isAiCreated: program.is_ai_created ?? false,
+        isTemplate: program.is_template ?? true,
+        lastPerformedAt: program.last_performed_at,
+        createdBy: program.created_by,
+        createdAt: program.created_at,
+        updatedAt: program.updated_at,
+        workouts: [{
+          id: workout.id,
+          name: workout.name,
+          dayNumber: workout.day_number,
+          exercises: exercises.map((ex, index) => ({
+            id: `${workout.id}-ex-${index + 1}`,
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName || 'Unknown Exercise',
+            sets: ex.sets,
+            reps: ex.reps,
+            restSeconds: ex.restSeconds || 120,
+            notes: undefined,
+            orderIndex: index,
+            setDetails: ex.setDetails,
+          })),
+        }],
+      };
+
+      set((state) => {
+        if (state.programs.some((p) => p.id === program.id)) {
+          return state;
+        }
+        return { programs: [createdTemplate, ...state.programs] };
+      });
+
       // Refresh programs list to include the new template
       get().fetchPrograms({ force: true });
 

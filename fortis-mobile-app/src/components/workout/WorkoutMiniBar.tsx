@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { usePathname, useSegments, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronUp, Pause, Play } from 'lucide-react-native';
+import { Pause, Play, X } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import Animated, { FadeOut, useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { CancelWorkoutModal } from '@/src/components/workout/modals/CancelWorkoutModal';
 
 export const MINI_BAR_HEIGHT = 60;
 
@@ -28,11 +29,18 @@ function getCurrentExerciseName(session: ReturnType<typeof useWorkoutStore>['act
 export function WorkoutMiniBar() {
   const pathname = usePathname();
   const segments = useSegments();
-  const { activeSession, isWorkoutActive, isWorkoutTimerPaused, toggleWorkoutTimer } = useWorkoutStore();
+  const {
+    activeSession,
+    isWorkoutActive,
+    isWorkoutTimerPaused,
+    toggleWorkoutTimer,
+    cancelWorkout,
+  } = useWorkoutStore();
   const elapsedSeconds = useElapsedTime();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const [suppressMiniBar, setSuppressMiniBar] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
   const wasWorkoutActive = useRef(isWorkoutActive);
   const suppressTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -169,6 +177,16 @@ export function WorkoutMiniBar() {
     toggleWorkoutTimer();
   };
 
+  const handleCancelPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = () => {
+    cancelWorkout();
+    setShowCancelModal(false);
+  };
+
   const workoutName = activeSession?.name || 'Workout in progress';
   const currentExercise = getCurrentExerciseName(activeSession);
   const elapsed = formatElapsedTime(elapsedSeconds);
@@ -216,9 +234,21 @@ export function WorkoutMiniBar() {
           <Text style={[styles.timerText, isWorkoutTimerPaused && styles.timerTextPaused]}>
             {elapsed}
           </Text>
-          <ChevronUp size={20} color={Colors.textSecondary} strokeWidth={2} />
+          <TouchableOpacity
+            onPress={handleCancelPress}
+            style={styles.cancelButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <X size={18} color={Colors.error} strokeWidth={2.5} />
+          </TouchableOpacity>
         </View>
       </Pressable>
+
+      <CancelWorkoutModal
+        visible={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+      />
     </Animated.View>
   );
 }
@@ -280,6 +310,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   pauseButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButton: {
     width: 28,
     height: 28,
     alignItems: 'center',
