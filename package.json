@@ -1,0 +1,9 @@
+{
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "dependencies": {
+    "expo": "^54.0.30",
+    "expo-router": "~6.0.21"
+  }
+}
