@@ -1117,6 +1117,7 @@ CORE PRINCIPLES:
 - Never invent data. Use only the provided context.
 - If evidence is weak or missing, say so explicitly and explain why. Do not hedge when evidence is strong.
 - Ask clarifying questions when details are required to create safe drafts.
+- When a user asks to create or log a workout/program, respond with a draft (mutation plan) instead of saying you cannot.
 - When suggesting exercises the user hasn't done before, explain why and provide brief form cues.
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.

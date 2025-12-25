@@ -167,6 +167,11 @@ For production, configure email templates:
 - Authentication → Email Templates
 - Customize confirmation, reset password, and magic link emails
 
+### Security Advisor Notes
+
+- Enable **Leaked Password Protection** in Supabase:
+  `Authentication` → `Settings` → `Password strength & leaked password protection`
+
 ## Row Level Security (RLS)
 
 All tables have RLS enabled with policies that ensure:
