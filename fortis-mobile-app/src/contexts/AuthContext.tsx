@@ -8,6 +8,7 @@ import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAIStore } from '@/src/store/aiStore';
+import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { clearUserScopedStorage, migrateGuestStorageToUser } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { resetProgramServiceCache } from '@/src/services/programService';
@@ -362,6 +363,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     useWorkoutStore.getState().resetStore();
     useProgramsStore.getState().resetStore();
     useAIStore.getState().resetStore();
+    useStartPresetStore.getState().resetStore();
     invalidateCustomCache();
     resetProgramServiceCache();
 

@@ -12,6 +12,7 @@ import { syncLocalProgram, processPendingProgramQueue, removeFromPendingQueue } 
 import { getDefaultPrograms, getDefaultTemplates } from '../data/defaultPrograms';
 import { isLocalProgramId } from '../utils/localIds';
 import { useProgramProgressStore } from './programProgressStore';
+import { useStartPresetStore } from './startPresetStore';
 
 import {
   Program,
@@ -32,12 +33,13 @@ interface ProgramsState {
   // Loading states
   isLoading: boolean;
   isDeleting: boolean;
+  hasFetchedPrograms: boolean;
 
   // Error state
   error: string | null;
 
   // Actions
-  fetchPrograms: () => Promise<void>;
+  fetchPrograms: (options?: { force?: boolean }) => Promise<void>;
   deleteProgram: (id: string) => Promise<boolean>;
   duplicateProgram: (id: string) => Promise<string | null>;
   duplicateWorkoutTemplate: (id: string) => Promise<string | null>;
@@ -203,26 +205,33 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   programs: [],
   isLoading: false,
   isDeleting: false,
+  hasFetchedPrograms: false,
   error: null,
 
   // Fetch all programs for current user (includes local templates)
-  fetchPrograms: async () => {
+  fetchPrograms: async (options) => {
+    const { isLoading, hasFetchedPrograms } = get();
+    const shouldForce = options?.force === true;
+    if (isLoading) return;
+    if (hasFetchedPrograms && !shouldForce) return;
+
+    // Lock fetch early to prevent duplicate calls in quick succession.
+    set({ isLoading: true, error: null });
+
     // Always load local programs first (fast)
     await get().loadLocalPrograms();
 
     if (!isSupabaseConfigured()) {
       // If Supabase not configured, just use local programs
+      set({ isLoading: false, hasFetchedPrograms: true });
       return;
     }
-
-    // Set loading only after local data is loaded
-    set({ isLoading: true, error: null });
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         // Keep local programs when not authenticated
-        set({ isLoading: false });
+        set({ isLoading: false, hasFetchedPrograms: true });
         return;
       }
 
@@ -247,7 +256,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       if (error) {
         console.error('Error fetching programs:', error);
-        set({ error: error.message, isLoading: false });
+        set({ error: error.message, isLoading: false, hasFetchedPrograms: true });
         return;
       }
 
@@ -291,19 +300,24 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const filteredLocalPrograms = hasServerDefaults
           ? localPrograms.filter((p) => p.isTemplate || !p.isDefault)
           : localPrograms;
-        return { programs: [...programs, ...filteredLocalPrograms], isLoading: false };
+        return {
+          programs: [...programs, ...filteredLocalPrograms],
+          isLoading: false,
+          hasFetchedPrograms: true,
+        };
       });
     } catch (err: any) {
       // Don't show error for timeout/abort - just stop loading
       if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
         console.warn('Programs fetch timed out');
-        set({ isLoading: false });
+        set({ isLoading: false, hasFetchedPrograms: true });
         return;
       }
       console.error('Error fetching programs:', err);
       set({
         error: err instanceof Error ? err.message : 'Failed to fetch programs',
         isLoading: false,
+        hasFetchedPrograms: true,
       });
     }
   },
@@ -419,7 +433,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       // Refresh programs list
-      get().fetchPrograms();
+      get().fetchPrograms({ force: true });
 
       return newProgram.id;
     } catch (err) {
@@ -728,7 +742,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       // Refresh programs list to include the new template
-      get().fetchPrograms();
+      get().fetchPrograms({ force: true });
 
       return program.id;
     } catch (err) {
@@ -899,7 +913,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         }
       }
 
-      get().fetchPrograms();
+      get().fetchPrograms({ force: true });
       return program.id;
     } catch (err) {
       set({
@@ -1565,6 +1579,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     // Re-persist to remove from local storage (no longer has local- prefix)
     get().persistLocalPrograms();
     useProgramProgressStore.getState().migrateProgramId(localId, serverId);
+    useStartPresetStore.getState().migrateLocalId(localId, serverId);
   },
 
   resetStore: () => {
@@ -1572,6 +1587,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       programs: [],
       isLoading: false,
       isDeleting: false,
+      hasFetchedPrograms: false,
       error: null,
     });
   },

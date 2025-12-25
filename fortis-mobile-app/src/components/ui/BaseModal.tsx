@@ -112,15 +112,16 @@ export function BaseModal({
         exiting={FadeOut.duration(150)}
         style={styles.backdrop}
       >
-        <Pressable style={styles.centeredView} onPress={handleBackdropPress}>
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={handleBackdropPress}
+        />
+        <View style={styles.centeredView} pointerEvents="box-none">
           <Animated.View
             entering={ZoomIn.duration(250)}
             exiting={ZoomOut.duration(200)}
           >
-            <Pressable
-              style={[styles.container, { width }]}
-              onPress={(e) => e.stopPropagation()}
-            >
+            <View style={[styles.container, { width }]}>
               <StainlessSteelPattern />
 
               {/* Header */}
@@ -142,9 +143,9 @@ export function BaseModal({
 
               {/* Content */}
               <View style={styles.content}>{children}</View>
-            </Pressable>
+            </View>
           </Animated.View>
-        </Pressable>
+        </View>
       </Animated.View>
     </Modal>
   );

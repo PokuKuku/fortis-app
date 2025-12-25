@@ -302,14 +302,15 @@ export const useWorkoutStore = create<WorkoutState>()(
         const { useProgramsStore } = await loadProgramsStore();
         const programs = useProgramsStore.getState().programs;
 
-        // Find the template
-        const template = programs.find(p => p.id === templateId && p.isTemplate);
-        if (!template || !template.workouts[0]) {
+        // Find the template by program ID or workout ID
+        const template = programs.find(p => p.isTemplate && p.id === templateId)
+          || programs.find(p => p.isTemplate && p.workouts.some(w => w.id === templateId));
+
+        const workout = template?.workouts.find(w => w.id === templateId) || template?.workouts[0];
+        if (!template || !workout) {
           isStartingWorkout = false;
           return false;
         }
-
-        const workout = template.workouts[0];
 
         // Create exercises with pre-filled sets from template
         const exercises: WorkoutExercise[] = workout.exercises.map((templateEx, exIndex) => {
@@ -352,7 +353,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           completedAt: null,
           exercises,
           isSynced: false,
-          programId: templateId,
+          programId: template.id,
           originalExerciseIds: exercises.map(ex => ex.exerciseId),
         };
 
@@ -373,7 +374,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         get().persistSession();
 
         // Update last performed timestamp on template
-        useProgramsStore.getState().updateLastPerformed(templateId);
+        useProgramsStore.getState().updateLastPerformed(template.id);
 
         return true;
       } catch (error) {

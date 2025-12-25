@@ -9,6 +9,11 @@ import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { AIContainer } from '@/src/components/ai';
 
+const PAGE_TRANSITION = {
+  animation: 'fade_from_bottom' as const,
+  animationDuration: 220,
+};
+
 export default function RootLayout() {
   const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
   const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
@@ -40,7 +45,7 @@ export default function RootLayout() {
             screenOptions={{
               headerShown: false,
               contentStyle: { backgroundColor: '#0a0a0a' },
-              animation: 'fade',
+              ...PAGE_TRANSITION,
             }}
           >
             <Stack.Screen name="index" />
@@ -48,13 +53,13 @@ export default function RootLayout() {
             <Stack.Screen
               name="auth/index"
               options={{
-                animation: 'fade',
+                ...PAGE_TRANSITION,
               }}
             />
             <Stack.Screen
               name="auth/email"
               options={{
-                animation: 'slide_from_right',
+                ...PAGE_TRANSITION,
                 gestureEnabled: true,
                 gestureDirection: 'horizontal',
               }}
@@ -62,7 +67,7 @@ export default function RootLayout() {
             <Stack.Screen
               name="onboarding/index"
               options={{
-                animation: 'fade',
+                ...PAGE_TRANSITION,
               }}
             />
             <Stack.Screen
@@ -108,7 +113,7 @@ export default function RootLayout() {
             <Stack.Screen
               name="exercise/[id]"
               options={{
-                animation: 'slide_from_right',
+                ...PAGE_TRANSITION,
                 gestureEnabled: true,
                 gestureDirection: 'horizontal',
               }}
@@ -116,7 +121,7 @@ export default function RootLayout() {
             <Stack.Screen
               name="workouts/[id]"
               options={{
-                animation: 'slide_from_right',
+                ...PAGE_TRANSITION,
                 gestureEnabled: true,
                 gestureDirection: 'horizontal',
               }}
@@ -124,7 +129,7 @@ export default function RootLayout() {
             <Stack.Screen
               name="programs/[id]"
               options={{
-                animation: 'slide_from_right',
+                ...PAGE_TRANSITION,
                 gestureEnabled: true,
                 gestureDirection: 'horizontal',
               }}
@@ -141,7 +146,7 @@ export default function RootLayout() {
             <Stack.Screen
               name="settings"
               options={{
-                animation: 'slide_from_right',
+                ...PAGE_TRANSITION,
                 gestureEnabled: true,
                 gestureDirection: 'horizontal',
               }}

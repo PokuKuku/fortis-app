@@ -20,17 +20,15 @@ import {
   TrashIcon,
   SparklesIcon,
   PlusIcon,
-  ClockIcon,
   ExclamationTriangleIcon,
 } from 'react-native-heroicons/outline';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import Reanimated, { useAnimatedStyle } from 'react-native-reanimated';
+import Reanimated, { FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
-import { GlassCard } from '../../components/GlassCard';
 import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { useWorkoutStore } from '../../src/store/workoutStore';
@@ -636,8 +634,6 @@ function CollapsibleSection({
   );
 }
 
-const AnimatedTouchable = Reanimated.createAnimatedComponent(TouchableOpacity);
-
 function ProgramDropCard({
   item,
   isActive,
@@ -651,19 +647,14 @@ function ProgramDropCard({
   onKebabPress: (event: any) => void;
   enableDropZone: boolean;
 }) {
-  const { ref, onLayout, isHovered } = useDropZone({
+  const { ref, onLayout } = useDropZone({
     id: `program-${item.id}`,
     type: 'program',
     enabled: enableDropZone,
   });
 
-  const hoverStyle = useAnimatedStyle(() => ({
-    borderColor: isHovered.value ? 'rgba(34, 197, 94, 0.6)' : 'rgba(255, 255, 255, 0.15)',
-    backgroundColor: isHovered.value ? 'rgba(34, 197, 94, 0.12)' : 'rgba(255, 255, 255, 0.08)',
-  }), [isHovered]);
-
   return (
-    <AnimatedTouchable
+    <TouchableOpacity
       ref={ref}
       onLayout={onLayout}
       activeOpacity={0.8}
@@ -671,7 +662,6 @@ function ProgramDropCard({
       style={[
         styles.programCard,
         isActive && styles.cardActive,
-        hoverStyle,
       ]}
     >
       <View style={styles.cardHeader}>
@@ -694,9 +684,17 @@ function ProgramDropCard({
       <Text style={styles.cardMetaText}>
         {item.workouts} workouts · {item.lastPerformed}
       </Text>
-    </AnimatedTouchable>
+    </TouchableOpacity>
   );
 }
+
+const buildDropIn = (index: number) =>
+  FadeInDown
+    .delay(index * 40)
+    .springify()
+    .damping(18)
+    .stiffness(160)
+    .mass(0.6);
 
 export default function ProgramsScreen() {
   const router = useRouter();
@@ -1037,40 +1035,42 @@ export default function ProgramsScreen() {
       const animState = animatingCards[cardKey];
 
       return (
-        <AnimatedCard
-          animationState={animState}
-          onAnimationComplete={() => handleAnimationComplete('workout', item.id)}
-        >
-          <TouchableOpacity
-            activeOpacity={0.8}
-            onPress={() => handleWorkoutCardPress(item.id)}
-            style={[
-              styles.workoutCard,
-              isActive && styles.cardActive,
-            ]}
+        <Reanimated.View entering={buildDropIn(index)}>
+          <AnimatedCard
+            animationState={animState}
+            onAnimationComplete={() => handleAnimationComplete('workout', item.id)}
           >
-            <View style={styles.cardHeader}>
-              <View style={styles.cardTitleRow}>
-                <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
-                  {item.name}
-                </Text>
-                {item.isAiCreated && (
-                  <SparklesIcon color="#22c55e" size={14} strokeWidth={2} style={styles.aiBadge} />
-                )}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => handleWorkoutCardPress(item.id)}
+              style={[
+                styles.workoutCard,
+                isActive && styles.cardActive,
+              ]}
+            >
+              <View style={styles.cardHeader}>
+                <View style={styles.cardTitleRow}>
+                  <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
+                    {item.name}
+                  </Text>
+                  {item.isAiCreated && (
+                    <SparklesIcon color="#22c55e" size={14} strokeWidth={2} style={styles.aiBadge} />
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={styles.cardKebabButton}
+                  onPress={(event) => handleKebabPress('workout', item.id, event)}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity
-                style={styles.cardKebabButton}
-                onPress={(event) => handleKebabPress('workout', item.id, event)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
-              </TouchableOpacity>
-            </View>
-            <Text style={styles.cardMetaText}>
-              {item.exercises} exercises · {item.lastPerformed}
-            </Text>
-          </TouchableOpacity>
-        </AnimatedCard>
+              <Text style={styles.cardMetaText}>
+                {item.exercises} exercises · {item.lastPerformed}
+              </Text>
+            </TouchableOpacity>
+          </AnimatedCard>
+        </Reanimated.View>
       );
     },
     [animatingCards, handleAnimationComplete, handleKebabPress, handleWorkoutCardPress]
@@ -1083,18 +1083,20 @@ export default function ProgramsScreen() {
       const animState = animatingCards[cardKey];
 
       return (
-        <AnimatedCard
-          animationState={animState}
-          onAnimationComplete={() => handleAnimationComplete('program', item.id)}
-        >
-          <ProgramDropCard
-            item={item}
-            isActive={isActive}
-            enableDropZone={showPrograms}
-            onPress={() => handleProgramCardPress(item.id)}
-            onKebabPress={(event) => handleKebabPress('program', item.id, event)}
-          />
-        </AnimatedCard>
+        <Reanimated.View entering={buildDropIn(index)}>
+          <AnimatedCard
+            animationState={animState}
+            onAnimationComplete={() => handleAnimationComplete('program', item.id)}
+          >
+            <ProgramDropCard
+              item={item}
+              isActive={isActive}
+              enableDropZone={showPrograms}
+              onPress={() => handleProgramCardPress(item.id)}
+              onKebabPress={(event) => handleKebabPress('program', item.id, event)}
+            />
+          </AnimatedCard>
+        </Reanimated.View>
       );
     },
     [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress, showPrograms]
@@ -1124,7 +1126,7 @@ export default function ProgramsScreen() {
           <View style={styles.quickStartSection}>
             <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout} disabled={isWorkoutActive}>
               <View style={styles.startButtonInner}>
-                <PlayIcon color="#fff" size={20} />
+                <PlayIcon color="#fff" size={20} strokeWidth={2} />
                 <Text style={styles.startButtonText}>Start a Blank Workout</Text>
               </View>
             </GlassButton>
@@ -1250,6 +1252,79 @@ export default function ProgramsScreen() {
           onAddProgram={handleAddProgramPress}
           position={programsKebabPosition}
         />
+
+        <BaseModal
+          visible={editIntentModalVisible}
+          onClose={() => {
+            setEditIntentModalVisible(false);
+            setPendingProgramDrop(null);
+          }}
+          title="Edit Active Program?"
+          icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
+        >
+          <Text style={modalStyles.message}>
+            This program is in progress. How should we handle your edits?
+          </Text>
+          <View style={[modalStyles.actions, styles.modalActions]}>
+            <Pressable
+              onPress={async () => {
+                if (!pendingProgramDrop) return;
+                setEditIntentModalVisible(false);
+                await applyProgramAppend(
+                  pendingProgramDrop.programId,
+                  pendingProgramDrop.templateId,
+                  'keep'
+                );
+                setPendingProgramDrop(null);
+              }}
+              style={({ pressed }) => [
+                modalStyles.successButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
+                Apply to future workouts
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                if (!pendingProgramDrop) return;
+                setEditIntentModalVisible(false);
+                await applyProgramAppend(
+                  pendingProgramDrop.programId,
+                  pendingProgramDrop.templateId,
+                  'restart'
+                );
+                setPendingProgramDrop(null);
+              }}
+              style={({ pressed }) => [
+                modalStyles.warningButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
+                Restart program
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                setEditIntentModalVisible(false);
+                setPendingProgramDrop(null);
+              }}
+              style={({ pressed }) => [
+                modalStyles.cancelButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
+                Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </BaseModal>
       </SafeAreaView>
 
       {/* Delete Confirmation Modal */}
@@ -1582,6 +1657,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#ef4444',
+  },
+  modalActions: {
+    flexDirection: 'column',
+    gap: 8,
+  },
+  modalActionButton: {
+    width: '100%',
+    flex: 0,
+  },
+  modalActionText: {
+    textAlign: 'center',
   },
   toastWrapper: {
     position: 'absolute',

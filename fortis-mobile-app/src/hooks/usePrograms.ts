@@ -61,7 +61,7 @@ export function usePrograms() {
     };
   }, [storePrograms]);
 
-  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+  const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
   return { programs, loading, error, refresh };
 }
@@ -126,7 +126,7 @@ export function useProgram(id: string | undefined) {
     };
   }, [id, storePrograms]);
 
-  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+  const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
   return { program, loading, error, refresh };
 }
@@ -180,7 +180,7 @@ export function useWorkouts() {
     };
   }, [storePrograms]);
 
-  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+  const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
   return { workouts, loading, error, refresh };
 }
@@ -387,7 +387,7 @@ export function useWorkout(id: string | undefined) {
     };
   }, [id, programs]);
 
-  const refresh = useCallback(() => fetchPrograms(), [fetchPrograms]);
+  const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
   return { workout, loading, error, refresh };
 }

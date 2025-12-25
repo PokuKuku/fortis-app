@@ -19,6 +19,7 @@ export type AIIntent =
   | 'QUERY_STATS'
   | 'QUERY_HISTORY'
   | 'ANALYZE_PLATEAU'
+  | 'ANALYZE_OVERLOAD'
   | 'ANALYZE_PROGRAM'
   | 'EXPLAIN_EXERCISE'
   // Write intents (require confirmation)
@@ -69,6 +70,15 @@ export const INTENT_CONFIG: Record<AIIntent, {
     includeExerciseDb: true,
     includeAnalytics: true,
     exerciseLimit: 50,
+  },
+  ANALYZE_OVERLOAD: {
+    type: 'read',
+    defaultContextWeeks: 12,
+    includeHistory: true,
+    includeNotes: true,
+    includeProgram: true,
+    includeExerciseDb: false,
+    includeAnalytics: true,
   },
   ANALYZE_PROGRAM: {
     type: 'read',

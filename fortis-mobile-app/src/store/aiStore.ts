@@ -85,6 +85,7 @@ interface AIState {
   // Actions - Quick queries (shortcuts for common intents)
   askAboutStats: (question: string) => Promise<AIResponse>;
   askAboutPlateau: (question: string, exerciseId?: string) => Promise<AIResponse>;
+  askAboutOverload: (question: string) => Promise<AIResponse>;
   explainExercise: (exerciseId: string) => Promise<AIResponse>;
   requestProgram: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
   requestTemplate: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
@@ -285,6 +286,10 @@ export const useAIStore = create<AIState>()(
       return get().sendMessage('ANALYZE_PLATEAU', question, { exerciseId });
     },
 
+    askAboutOverload: async (question) => {
+      return get().sendMessage('ANALYZE_OVERLOAD', question);
+    },
+
     explainExercise: async (exerciseId) => {
       return get().sendMessage(
         'EXPLAIN_EXERCISE',
@@ -384,7 +389,7 @@ export const useAIStore = create<AIState>()(
             intent === 'MODIFY_PROGRAM' ||
             intent === 'MODIFY_TEMPLATE'
           ) {
-            useProgramsStore.getState().fetchPrograms();
+            useProgramsStore.getState().fetchPrograms({ force: true });
           }
 
           return true;

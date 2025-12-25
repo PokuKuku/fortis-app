@@ -1,5 +1,5 @@
 import { Tabs, usePathname, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -20,16 +20,45 @@ import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 import { useAIStore } from '../../src/store/aiStore';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useProgramsStore } from '@/src/store/programsStore';
+import { useProgramProgressStore } from '@/src/store/programProgressStore';
+import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
+import { StartButtonConfigModal } from '@/src/components/workout/modals/StartButtonConfigModal';
 import {
   PRIMARY_MUSCLES,
   CATEGORIES,
   EQUIPMENT_TYPES,
 } from '@/src/constants/exerciseOptions';
+
+const tabSceneInterpolator = ({ current }: { current: { progress: Animated.AnimatedInterpolation<number> } }) => {
+  const opacity = current.progress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [0, 1, 0],
+  });
+
+  return {
+    sceneStyle: {
+      opacity,
+    },
+  };
+};
+
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
   const isExercises = pathname?.includes('/exercises');
+  const startWorkout = useWorkoutStore(s => s.startWorkout);
+  const startWorkoutFromTemplate = useWorkoutStore(s => s.startWorkoutFromTemplate);
+  const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
+  const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
+  const { programs, fetchPrograms, isLoading: isProgramsLoading } = useProgramsStore();
+  const getNextDayNumber = useProgramProgressStore(s => s.getNextDayNumber);
+  const loadProgramProgress = useProgramProgressStore(s => s.loadProgress);
+  const startPreset = useStartPresetStore(s => s.preset);
+  const loadStartPreset = useStartPresetStore(s => s.loadPreset);
+  const setStartPreset = useStartPresetStore(s => s.setPreset);
   // Tab bar stays at fixed position
   const tabBarBottom = 12;
 
@@ -38,6 +67,16 @@ export default function TabLayout() {
       router.replace('/auth');
     }
   }, [isLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      loadStartPreset();
+    }
+  }, [isLoading, isAuthenticated, loadStartPreset]);
+
+  useEffect(() => {
+    loadProgramProgress();
+  }, [loadProgramProgress]);
 
   // AI Store
   const { pendingActions } = useAIStore();
@@ -56,10 +95,36 @@ export default function TabLayout() {
     category: false,
   });
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [startConfigVisible, setStartConfigVisible] = useState(false);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const nameShake = useRef(new Animated.Value(0)).current;
   const primaryShake = useRef(new Animated.Value(0)).current;
   const categoryShake = useRef(new Animated.Value(0)).current;
+  const startActionLock = useRef(false);
+
+  const templates = useMemo(
+    () => programs.filter((program) => program.isTemplate),
+    [programs]
+  );
+  const programPlans = useMemo(
+    () => programs.filter((program) => !program.isTemplate),
+    [programs]
+  );
+
+  const startPresetLabel = useMemo(() => {
+    if (!startPreset) return 'Not set';
+    if (startPreset.type === 'blank') return 'Blank workout';
+    if (startPreset.type === 'program') {
+      return programs.find((program) => program.id === startPreset.programId)?.name ?? 'Program';
+    }
+    const templateMatch = programs.find((program) =>
+      program.isTemplate && (
+        program.id === startPreset.templateId ||
+        program.workouts.some((workout) => workout.id === startPreset.templateWorkoutId)
+      )
+    );
+    return templateMatch?.name ?? 'Workout template';
+  }, [startPreset, programs]);
 
   // Track exercise detail modal visibility to disable FAB interactions
   useEffect(() => {
@@ -72,6 +137,101 @@ export default function TabLayout() {
   const handleFabPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/ai/chat');
+  };
+
+  const openStartConfig = async () => {
+    if (startConfigVisible || isWorkoutActive) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+    setStartConfigVisible(true);
+    if (!programs.length) {
+      await fetchPrograms();
+    }
+  };
+
+  const handleStartPress = async () => {
+    if (isWorkoutActive) return;
+    if (!startPreset) {
+      await openStartConfig();
+      return;
+    }
+
+    if (startActionLock.current) return;
+    startActionLock.current = true;
+
+    try {
+      if (startPreset.type === 'blank') {
+        startWorkout();
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+        router.push('/workout/active');
+        return;
+      }
+
+      if (!programs.length) {
+        await fetchPrograms();
+      }
+
+      if (startPreset.type === 'template') {
+        const hasTemplateWorkout = !!startPreset.templateWorkoutId
+          && templates.some((template) =>
+            template.workouts.some((workout) => workout.id === startPreset.templateWorkoutId)
+          );
+        const templateId = hasTemplateWorkout
+          ? startPreset.templateWorkoutId
+          : startPreset.templateId;
+        if (!templateId) {
+          await setStartPreset(null);
+          openStartConfig();
+          return;
+        }
+        const success = await startWorkoutFromTemplate(templateId);
+        if (success) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+          router.push('/workout/active');
+          return;
+        }
+      }
+
+      if (startPreset.type === 'program') {
+        const program = programs.find((item) => item.id === startPreset.programId);
+        const workouts = program?.workouts ? [...program.workouts] : [];
+        workouts.sort((a, b) => a.dayNumber - b.dayNumber);
+        const totalDays = workouts.length;
+        const nextDayNumber = program && totalDays > 0
+          ? getNextDayNumber(program.id, totalDays)
+          : 1;
+        const nextWorkout = workouts.find((w) => w.dayNumber === nextDayNumber) || workouts[0];
+
+        if (program && nextWorkout) {
+          const success = await startWorkoutFromProgram(program.id, nextWorkout.id);
+          if (success) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+            router.push('/workout/active');
+            return;
+          }
+        }
+      }
+
+      await setStartPreset(null);
+      openStartConfig();
+    } finally {
+      setTimeout(() => {
+        startActionLock.current = false;
+      }, 500);
+    }
+  };
+
+  const handleStartLongPress = () => {
+    if (isWorkoutActive) return;
+    openStartConfig();
+  };
+
+  const handleSelectStartPreset = async (preset: StartPreset) => {
+    await setStartPreset(preset);
+    setStartConfigVisible(false);
+  };
+
+  const handleUnsetStartPreset = async () => {
+    await setStartPreset(null);
   };
 
   const resetExerciseForm = () => {
@@ -189,45 +349,52 @@ export default function TabLayout() {
     <>
       <Tabs
         screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: '#22c55e',
-        tabBarInactiveTintColor: '#9CA3AF',
-        animationEnabled: true,
-        lazy: false,
-        unmountOnBlur: false,
-        freezeOnBlur: false,
-        tabBarStyle: {
-          backgroundColor: 'rgba(36, 36, 36, 0.9)',
-          borderTopColor: 'rgba(255,255,255,0.1)',
-          borderTopWidth: 1,
-          borderColor: 'rgba(255,255,255,0.1)',
-          borderWidth: 1,
-          paddingHorizontal: 16,
-          paddingVertical: 0,
-          height: 56,
-          position: 'absolute',
-          width: '90%',
-          maxWidth: 420,
-          marginHorizontal: '5%',
-          bottom: tabBarBottom,
-          borderRadius: 28,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.4,
-          shadowRadius: 32,
-          elevation: 10,
-        },
-        tabBarLabelStyle: {
-          fontSize: 8,
-          fontWeight: '600',
-          marginTop: 0,
-        },
-        tabBarItemStyle: {
-          flex: 1,
-          gap: 2,
-          maxWidth: 70,
-        },
-      }}
+          headerShown: false,
+          tabBarActiveTintColor: '#22c55e',
+          tabBarInactiveTintColor: '#9CA3AF',
+          animation: 'fade',
+          animationEnabled: true,
+          transitionSpec: {
+            animation: 'timing',
+            config: { duration: 320 },
+          },
+          sceneStyleInterpolator: tabSceneInterpolator,
+          sceneStyle: { backgroundColor: '#0a0a0a' },
+          lazy: false,
+          unmountOnBlur: false,
+          freezeOnBlur: false,
+          tabBarStyle: {
+            backgroundColor: 'rgba(36, 36, 36, 0.9)',
+            borderTopColor: 'rgba(255,255,255,0.1)',
+            borderTopWidth: 1,
+            borderColor: 'rgba(255,255,255,0.1)',
+            borderWidth: 1,
+            paddingHorizontal: 16,
+            paddingVertical: 0,
+            height: 56,
+            position: 'absolute',
+            width: '90%',
+            maxWidth: 420,
+            marginHorizontal: '5%',
+            bottom: tabBarBottom,
+            borderRadius: 28,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 8 },
+            shadowOpacity: 0.4,
+            shadowRadius: 32,
+            elevation: 10,
+          },
+          tabBarLabelStyle: {
+            fontSize: 8,
+            fontWeight: '600',
+            marginTop: 0,
+          },
+          tabBarItemStyle: {
+            flex: 1,
+            gap: 2,
+            maxWidth: 70,
+          },
+        }}
     >
       <Tabs.Screen
         name="history"
@@ -253,12 +420,30 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="start"
+        listeners={{
+          tabPress: (e) => {
+            e.preventDefault();
+            void handleStartPress();
+          },
+          tabLongPress: (e) => {
+            e.preventDefault();
+            handleStartLongPress();
+          },
+        }}
         options={{
           title: 'Start',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={styles.centerButtonContainer}>
-              <GlassButton circular size={46} style={styles.centerButton}>
+              <GlassButton
+                circular
+                size={46}
+                style={[styles.centerButton, isWorkoutActive && styles.centerButtonDisabled]}
+                onPress={() => void handleStartPress()}
+                onLongPress={handleStartLongPress}
+                disabled={isWorkoutActive}
+              >
                 <DumbbellIcon color="#fff" size={18} fill="#fff" />
+                {!!startPreset && <View style={styles.startIndicator} />}
               </GlassButton>
             </View>
           ),
@@ -292,6 +477,18 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+
+    <StartButtonConfigModal
+      visible={startConfigVisible}
+      currentPreset={startPreset}
+      currentLabel={startPresetLabel}
+      templates={templates}
+      programs={programPlans}
+      isLoading={isProgramsLoading}
+      onSelect={handleSelectStartPreset}
+      onUnset={handleUnsetStartPreset}
+      onClose={() => setStartConfigVisible(false)}
+    />
 
     {/* Plus Button */}
     <Animated.View
@@ -505,6 +702,20 @@ const styles = StyleSheet.create({
   centerButton: {
     borderWidth: 2,
     borderColor: 'rgba(36, 36, 36, 0.9)',
+  },
+  centerButtonDisabled: {
+    opacity: 0.4,
+  },
+  startIndicator: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22c55e',
+    borderWidth: 1,
+    borderColor: 'rgba(34, 197, 94, 0.4)',
   },
   plusButtonContainer: {
     position: 'absolute',

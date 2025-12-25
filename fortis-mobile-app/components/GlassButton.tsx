@@ -11,6 +11,7 @@ import { ReactNode } from 'react';
 interface GlassButtonProps {
   children: ReactNode;
   onPress?: () => void;
+  onLongPress?: () => void;
   style?: ViewStyle;
   gradientColors?: string[];
   circular?: boolean;
@@ -21,6 +22,7 @@ interface GlassButtonProps {
 export function GlassButton({
   children,
   onPress,
+  onLongPress,
   style,
   gradientColors = ['#4ade80', '#22c55e'],
   circular = false,
@@ -55,6 +57,7 @@ export function GlassButton({
       <TouchableOpacity
         style={styles.touchable}
         onPress={onPress}
+        onLongPress={onLongPress}
         activeOpacity={0.8}
         disabled={disabled}
       >

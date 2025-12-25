@@ -22,6 +22,7 @@ export const EXERCISE_ORDER_KEY = 'exercise_order_v1';
 export const EXERCISE_STICKY_NOTES_KEY = 'exercise_sticky_notes_v1';
 export const EXERCISE_WEIGHT_UNITS_KEY = 'exercise_weight_units_v1';
 export const BODY_TYPE_KEY = 'body_type_v1';
+export const START_BUTTON_PRESET_KEY = 'start_button_preset_v1';
 
 // AI assistant
 export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
@@ -44,6 +45,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   EXERCISE_STICKY_NOTES_KEY,
   EXERCISE_WEIGHT_UNITS_KEY,
   BODY_TYPE_KEY,
+  START_BUTTON_PRESET_KEY,
   AI_CONVERSATION_KEY,
   AI_PENDING_ACTIONS_KEY,
 ] as const;

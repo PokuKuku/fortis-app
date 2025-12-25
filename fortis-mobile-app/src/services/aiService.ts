@@ -161,6 +161,15 @@ export async function analyzePlateau(
 }
 
 /**
+ * Analyze progressive overload patterns
+ */
+export async function analyzeOverload(
+  question: string
+): Promise<AIResponse> {
+  return sendAIMessage('ANALYZE_OVERLOAD', question);
+}
+
+/**
  * Analyze current program effectiveness
  */
 export async function analyzeProgram(
@@ -703,6 +712,7 @@ export function getIntentLabel(intent: AIIntent): string {
     QUERY_STATS: 'Query Stats',
     QUERY_HISTORY: 'Query History',
     ANALYZE_PLATEAU: 'Analyze Plateau',
+    ANALYZE_OVERLOAD: 'Analyze Overload',
     ANALYZE_PROGRAM: 'Analyze Program',
     EXPLAIN_EXERCISE: 'Explain Exercise',
     CREATE_PROGRAM: 'Create Program',

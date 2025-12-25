@@ -23,6 +23,7 @@ type AIIntent =
   | 'QUERY_STATS'
   | 'QUERY_HISTORY'
   | 'ANALYZE_PLATEAU'
+  | 'ANALYZE_OVERLOAD'
   | 'ANALYZE_PROGRAM'
   | 'EXPLAIN_EXERCISE'
   | 'CREATE_PROGRAM'
@@ -91,6 +92,15 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeExerciseDb: true,
     includeAnalytics: true,
     exerciseLimit: 50,
+  },
+  ANALYZE_OVERLOAD: {
+    type: 'read',
+    defaultContextWeeks: 12,
+    includeHistory: true,
+    includeNotes: true,
+    includeProgram: true,
+    includeExerciseDb: false,
+    includeAnalytics: true,
   },
   ANALYZE_PROGRAM: {
     type: 'read',
@@ -174,9 +184,7 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
 
 const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
   CREATE_PROGRAM: 'create_program',
-  MODIFY_PROGRAM: 'modify_program',
   CREATE_TEMPLATE: 'create_template',
-  MODIFY_TEMPLATE: 'modify_template',
   LOG_WORKOUT: 'log_workout',
 };
 
@@ -188,10 +196,13 @@ const ALLOWED_ENTITY_TYPES = new Set<string>([
   'workout_set',
 ]);
 
+const ALLOWED_MUTATION_OPERATIONS = new Set(['INSERT']);
+
 function sanitizeProposedState(
   entityType: string,
   proposedState: Record<string, unknown> | undefined,
-  userId: string
+  userId: string,
+  intent?: AIIntent
 ): Record<string, unknown> {
   const sanitized: Record<string, unknown> = { ...(proposedState || {}) };
 
@@ -199,6 +210,13 @@ function sanitizeProposedState(
     sanitized.created_by = userId;
     sanitized.is_default = false; // Prevent privilege escalation
     sanitized.is_public = false; // Default to private for security
+    sanitized.is_ai_created = true;
+    if (intent === 'CREATE_TEMPLATE') {
+      sanitized.is_template = true;
+    }
+    if (intent === 'CREATE_PROGRAM') {
+      sanitized.is_template = false;
+    }
   }
 
   if (entityType === 'workout_session') {
@@ -220,6 +238,7 @@ async function persistPendingActions(params: {
   requestId: string;
   mutationPlan: {
     mutations: Array<{
+      operation?: string;
       entityType: string;
       entityId?: string;
       proposedState?: Record<string, unknown>;
@@ -256,7 +275,11 @@ async function persistPendingActions(params: {
     : new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
   const rows = params.mutationPlan.mutations
-    .filter((mutation) => ALLOWED_ENTITY_TYPES.has(mutation.entityType))
+    .filter(
+      (mutation) =>
+        ALLOWED_ENTITY_TYPES.has(mutation.entityType) &&
+        ALLOWED_MUTATION_OPERATIONS.has(mutation.operation || '')
+    )
     .map((mutation) => ({
       user_id: params.userId,
       action_type: actionType,
@@ -265,7 +288,8 @@ async function persistPendingActions(params: {
       proposed_state: sanitizeProposedState(
         mutation.entityType,
         mutation.proposedState,
-        params.userId
+        params.userId,
+        params.intent
       ),
       description: mutation.description || params.mutationPlan.summary || 'Pending AI change',
       expires_at: expiresAt,
@@ -338,6 +362,19 @@ Deno.serve(async (req: Request) => {
 
     const aiRequest = body as AIRequest;
     const config = INTENT_CONFIG[aiRequest.intent];
+    const requestId = crypto.randomUUID();
+
+    if (aiRequest.intent === 'MODIFY_PROGRAM' || aiRequest.intent === 'MODIFY_TEMPLATE') {
+      return jsonResponse({
+        type: 'answer',
+        requestId,
+        answer: {
+          text:
+            'Editing existing programs and templates is not enabled yet. I can create a new draft instead. What would you like to build?',
+          citations: [],
+        },
+      });
+    }
 
     // Check rate limits
     const rateLimitResult = await checkRateLimit(supabase, user.id);
@@ -351,14 +388,11 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Generate request ID for tracking
-    const requestId = crypto.randomUUID();
-
     // Assemble context based on intent
     const context = await assembleContext(supabase, user.id, aiRequest, config);
 
-    // Call Claude API
-    const response = await callClaude(aiRequest, context, config, requestId);
+    // Call AI provider
+    const response = await callAIProvider(aiRequest, context, config, requestId);
 
     if (
       adminClient &&
@@ -493,7 +527,16 @@ async function checkRateLimit(
 // ============================================
 
 interface AIContext {
-  user: { preferredUnits: string; timezone: string };
+  user: {
+    preferredUnits: string;
+    timezone: string;
+    goals: unknown[];
+    latestBodyWeight: {
+      weight: number;
+      unit: string;
+      recordedAt: string;
+    } | null;
+  };
   history?: unknown;
   notes?: unknown;
   currentProgram?: unknown;
@@ -514,10 +557,22 @@ async function assembleContext(
     p_user_id: userId,
   });
 
+  const prefs = userPrefs?.[0] ?? {};
+  const latestWeight =
+    prefs.latest_body_weight !== undefined && prefs.latest_body_weight !== null
+      ? {
+          weight: Number(prefs.latest_body_weight),
+          unit: String(prefs.latest_body_weight_unit || 'lb'),
+          recordedAt: String(prefs.latest_body_weight_at || ''),
+        }
+      : null;
+
   const context: AIContext = {
     user: {
-      preferredUnits: userPrefs?.[0]?.preferred_units || 'imperial',
-      timezone: userPrefs?.[0]?.timezone || 'UTC',
+      preferredUnits: prefs.preferred_units || 'imperial',
+      timezone: prefs.timezone || 'UTC',
+      goals: Array.isArray(prefs.goals) ? prefs.goals : [],
+      latestBodyWeight: latestWeight,
     },
   };
 
@@ -846,15 +901,51 @@ async function fetchAnalytics(
 }
 
 // ============================================
-// Claude API Integration
+// Model Provider Integration
 // ============================================
 
-async function callClaude(
+type AIProvider = 'anthropic' | 'openai';
+
+function resolveAIProvider(): AIProvider {
+  const configured = Deno.env.get('AI_PROVIDER');
+  if (configured === 'openai' || configured === 'anthropic') {
+    return configured;
+  }
+
+  if (Deno.env.get('ANTHROPIC_API_KEY')) {
+    return 'anthropic';
+  }
+
+  if (Deno.env.get('OPENAI_API_KEY')) {
+    return 'openai';
+  }
+
+  return 'anthropic';
+}
+
+async function callAIProvider(
   request: AIRequest,
   context: AIContext,
   config: IntentConfig,
   requestId: string
 ): Promise<unknown> {
+  const provider = resolveAIProvider();
+  const systemPrompt = buildSystemPrompt(request.intent, config, context);
+  const userMessage = buildUserMessage(request, context);
+
+  const responseText =
+    provider === 'openai'
+      ? await callOpenAIText(request, systemPrompt, userMessage)
+      : await callClaudeText(request, systemPrompt, userMessage);
+
+  return parseModelResponse(responseText, request.intent, config, requestId);
+}
+
+async function callClaudeText(
+  request: AIRequest,
+  systemPrompt: string,
+  userMessage: string
+): Promise<string> {
   // Security: Validate API key exists before using
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
   if (!apiKey) {
@@ -862,9 +953,6 @@ async function callClaude(
   }
 
   const anthropic = new Anthropic({ apiKey });
-
-  const systemPrompt = buildSystemPrompt(request.intent, config, context);
-  const userMessage = buildUserMessage(request, context);
 
   // Build message content - text only or multi-modal with image
   type ContentBlock =
@@ -893,7 +981,7 @@ async function callClaude(
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: contentBlocks }],
@@ -905,11 +993,77 @@ async function callClaude(
       throw new Error('Unexpected response type from Claude');
     }
 
-    return parseClaudeResponse(content.text, request.intent, config, requestId);
+    return content.text;
   } catch (error) {
     console.error('Claude API error:', error);
     throw new Error('Failed to get AI response');
   }
+}
+
+async function callOpenAIText(
+  request: AIRequest,
+  systemPrompt: string,
+  userMessage: string
+): Promise<string> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) {
+    throw new Error('AI service configuration error');
+  }
+
+  const model = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini';
+  const messages: Array<Record<string, unknown>> = [
+    { role: 'system', content: systemPrompt },
+  ];
+
+  if (request.image) {
+    messages.push({
+      role: 'user',
+      content: [
+        { type: 'text', text: userMessage },
+        {
+          type: 'image_url',
+          image_url: {
+            url: `data:${request.image.mimeType};base64,${request.image.base64}`,
+          },
+        },
+      ],
+    });
+  } else {
+    messages.push({ role: 'user', content: userMessage });
+  }
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature: 0.2,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('OpenAI API error:', errorText);
+    throw new Error('Failed to get AI response');
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error('Unexpected response from OpenAI');
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (part?.type === 'text' ? part.text : ''))
+      .join('');
+  }
+
+  return String(content);
 }
 
 function buildSystemPrompt(
@@ -917,24 +1071,42 @@ function buildSystemPrompt(
   config: IntentConfig,
   context: AIContext
 ): string {
+  const intentGuidance =
+    intent === 'ANALYZE_PLATEAU'
+      ? '\nPLATEAU ANALYSIS:\n- Explain likely causes using trends in volume, intensity, frequency, and exercise variation.\n- Call out missing data if the evidence is incomplete.'
+      : intent === 'ANALYZE_OVERLOAD'
+      ? '\nOVERLOAD ANALYSIS:\n- Assess progressive overload using changes in volume, estimated 1RM, or rep PRs over time.\n- If the signal is weak or inconsistent, say so and explain what would improve confidence.'
+      : '';
+
   const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights and creating workout programs.
 
 CORE PRINCIPLES:
-- You are a tool, not a coach. Provide information and suggestions, don't command.
-- Base all recommendations on the user's actual training data.
-- When suggesting exercises the user hasn't done before, always explain why and provide form cues.
+- Be a helpful data analyst. Surface patterns, trends, and evidence-backed insights.
+- Never invent data. Use only the provided context.
+- If evidence is weak or missing, say so explicitly and explain why. Do not hedge when evidence is strong.
+- Ask clarifying questions when details are required to create safe drafts.
+- When suggesting exercises the user hasn't done before, explain why and provide brief form cues.
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
-- Timezone: ${context.user.timezone}`;
+- Timezone: ${context.user.timezone}${intentGuidance}`;
 
   if (config.type === 'read') {
     return `${basePrompt}
 
 RESPONSE FORMAT:
-For this read-only query, respond with a JSON object:
+If you need more details to answer safely, respond with:
+{
+  "type": "clarification",
+  "clarification": {
+    "question": "Your question here",
+    "options": ["optional", "choices"]
+  }
+}
+
+Otherwise, respond with:
 {
   "type": "answer",
   "answer": {
@@ -950,21 +1122,28 @@ Citations are optional but encouraged when referencing specific data points.`;
   return `${basePrompt}
 
 RESPONSE FORMAT:
-For this write operation, respond with a JSON object containing a mutation plan:
+If you need more details to build a safe draft, respond with:
+{
+  "type": "clarification",
+  "clarification": {
+    "question": "Your question here",
+    "options": ["optional", "choices"]
+  }
+}
+
+Otherwise, respond with a JSON object containing a mutation plan:
 {
   "type": "mutation_plan",
   "mutationPlan": {
-    "summary": "Brief 1-line summary of what will be created/modified",
+    "summary": "Brief 1-line summary of what will be created",
     "explanation": "2-3 sentence explanation of your approach and reasoning",
     "mutations": [
       {
         "mutationId": "unique-id",
         "order": 1,
-        "operation": "INSERT|UPDATE|DELETE",
+        "operation": "INSERT",
         "entityType": "workout_program|program_workout|program_exercise|workout_session|workout_set",
-        "entityId": "uuid (for UPDATE/DELETE only)",
         "proposedState": { /* new values */ },
-        "previousState": { /* old values for UPDATE only */ },
         "description": "Human-readable description of this change",
         "dependsOn": ["other-mutation-ids"]
       }
@@ -981,13 +1160,17 @@ For this write operation, respond with a JSON object containing a mutation plan:
   }
 }
 
+WRITE RULES:
+- Create-only. Do not include UPDATE or DELETE mutations.
+- If the user asks to edit or delete existing programs or workouts, respond with a clarification or explain that editing is not available yet.
+
 EXERCISE SELECTION RULES:
 1. Prefer exercises from the user's history when possible
 2. If suggesting a new exercise, you MUST provide justification (variation, injury workaround, equipment swap, or stimulus gap)
 3. Always explain unfamiliar exercises with brief form cues
 
 ENTITY SCHEMAS:
-- workout_program: { name, description, difficulty (beginner|intermediate|advanced), duration_weeks, goal (strength|hypertrophy|powerlifting|general_fitness) }
+- workout_program: { name, description, difficulty (beginner|intermediate|advanced), duration_weeks, goal (strength|hypertrophy|powerlifting|general_fitness), is_template (boolean), is_ai_created (boolean) }
 - program_workout: { name, description, day_number }
 - program_exercise: { exercise_id, order_index, sets (number), reps (string like "5-8"), rest_seconds, notes }`;
 }
@@ -995,23 +1178,63 @@ ENTITY SCHEMAS:
 function buildUserMessage(request: AIRequest, context: AIContext): string {
   let message = `Intent: ${request.intent}\n\nUser message: ${request.message}`;
 
-  // Image-to-template extraction instructions
-  if (request.image && (request.intent === 'CREATE_TEMPLATE' || request.intent === 'CREATE_PROGRAM')) {
-    message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS ---
-You have been provided an image of a workout plan. Extract a workout template from this image:
+  if (request.image && request.intent === 'CREATE_TEMPLATE') {
+    message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (TEMPLATE) ---
+You have been provided an image of a workout plan. Extract a single workout template:
 
 1. **Exercises**: Identify all exercises shown. Match to exercise names in the AVAILABLE EXERCISES list below.
 2. **Sets/Reps**: Extract the prescribed sets and reps for each exercise (use format like "3" for sets, "8-12" for reps).
 3. **Order**: Maintain the order of exercises as shown in the image (top to bottom, left to right).
 4. **Rest periods**: If shown, include rest times in seconds. Otherwise omit.
-5. **Name**: Create a descriptive name for the template based on the content (e.g., "Upper Body Push", "Leg Day").
+5. **Name**: Create a descriptive name for the template (e.g., "Upper Body Push", "Leg Day").
 
 Create mutations for:
-- One workout_program (the template container, set is_ai_created: true)
+- One workout_program (set is_template: true, is_ai_created: true)
 - One program_workout (the single workout day)
 - Multiple program_exercise entries (one per exercise found)
 
-If any exercise names are unclear or abbreviated, make your best interpretation and match to the closest exercise in the database. Note any ambiguities in the exerciseResolution justification.`;
+If key details are missing, return a clarification question instead of guessing.`;
+  }
+
+  if (request.image && request.intent === 'CREATE_PROGRAM') {
+    message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (PROGRAM) ---
+You have been provided an image of a multi-day program. Extract the full program:
+
+1. **Days**: Identify each training day or workout shown.
+2. **Exercises**: For each day, list exercises and match names to the AVAILABLE EXERCISES list below.
+3. **Sets/Reps**: Extract prescribed sets and reps for each exercise.
+4. **Order**: Preserve exercise order for each day.
+5. **Name**: Create a descriptive program name and a short description.
+
+Create mutations for:
+- One workout_program (set is_template: false, is_ai_created: true)
+- One program_workout per day (with day_number)
+- Multiple program_exercise entries per workout
+
+If the image only shows one day or lacks program schedule (days per week, duration), return a clarification question before creating a program.`;
+  }
+
+  if (request.image && request.intent === 'LOG_WORKOUT') {
+    message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (LOG WORKOUT) ---
+You have been provided an image of a completed workout (whiteboard, notes, or screenshot). Extract:
+
+1. **Exercises**: Identify exercises and match names to the AVAILABLE EXERCISES list below.
+2. **Sets/Reps/Weight**: Extract as precisely as possible.
+3. **Order**: Keep the order shown in the image.
+
+Create mutations for:
+- One workout_session
+- Multiple workout_set entries
+
+If key details are unclear, return a clarification question instead of guessing.`;
+  }
+
+  if (context.user.goals && context.user.goals.length > 0) {
+    message += `\n\n--- USER GOALS ---\n${JSON.stringify(context.user.goals, null, 2)}`;
+  }
+
+  if (context.user.latestBodyWeight) {
+    message += `\n\n--- LATEST BODY WEIGHT ---\n${JSON.stringify(context.user.latestBodyWeight, null, 2)}`;
   }
 
   if (context.history) {
@@ -1037,7 +1260,7 @@ If any exercise names are unclear or abbreviated, make your best interpretation 
   return message;
 }
 
-function parseClaudeResponse(
+function parseModelResponse(
   text: string,
   intent: AIIntent,
   config: IntentConfig,
@@ -1053,28 +1276,124 @@ function parseClaudeResponse(
 
     const parsed = JSON.parse(jsonStr);
 
-    // Add requestId to response
-    return {
-      ...parsed,
-      requestId,
-      ...(parsed.mutationPlan && {
+    if (!parsed || typeof parsed !== 'object') {
+      return buildModelError(requestId, 'Invalid AI response format');
+    }
+
+    if (parsed.type === 'clarification') {
+      return { ...parsed, requestId };
+    }
+
+    if (parsed.type === 'answer') {
+      return { ...parsed, requestId };
+    }
+
+    if (parsed.type === 'mutation_plan') {
+      if (config.type !== 'write') {
+        return buildModelError(requestId, 'Mutation plan not allowed for read intent');
+      }
+
+      const validationError = validateMutationPlan(intent, parsed.mutationPlan);
+      if (validationError) {
+        return buildModelError(requestId, validationError);
+      }
+
+      return {
+        ...parsed,
+        requestId,
         mutationPlan: {
           ...parsed.mutationPlan,
           requestId,
           intent,
           expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
         },
-      }),
-    };
+      };
+    }
+
+    return buildModelError(requestId, 'Unsupported AI response type');
   } catch {
-    // If JSON parsing fails, wrap as answer
-    return {
-      type: 'answer',
-      requestId,
-      answer: {
-        text: text,
-        citations: [],
-      },
-    };
+    if (config.type === 'read') {
+      return {
+        type: 'answer',
+        requestId,
+        answer: {
+          text: text,
+          citations: [],
+        },
+      };
+    }
+
+    return buildModelError(requestId, 'Failed to parse AI response');
   }
+}
+
+function buildModelError(requestId: string, message: string) {
+  return {
+    type: 'error',
+    requestId,
+    error: {
+      code: 'LLM_ERROR',
+      message,
+      retryable: false,
+    },
+  };
+}
+
+function validateMutationPlan(intent: AIIntent, plan: any): string | null {
+  if (!plan || typeof plan !== 'object') {
+    return 'Missing mutation plan';
+  }
+
+  if (!Array.isArray(plan.mutations) || plan.mutations.length === 0) {
+    return 'Mutation plan must include at least one mutation';
+  }
+
+  const hasProgram = plan.mutations.some(
+    (mutation: any) => mutation?.entityType === 'workout_program'
+  );
+
+  if ((intent === 'CREATE_TEMPLATE' || intent === 'CREATE_PROGRAM') && !hasProgram) {
+    return 'Workout program mutation is required';
+  }
+
+  for (const mutation of plan.mutations) {
+    if (!mutation || typeof mutation !== 'object') {
+      return 'Invalid mutation format';
+    }
+
+    if (!ALLOWED_MUTATION_OPERATIONS.has(mutation.operation)) {
+      return 'Only INSERT operations are allowed';
+    }
+
+    if (!ALLOWED_ENTITY_TYPES.has(mutation.entityType)) {
+      return `Unsupported entity type: ${String(mutation.entityType)}`;
+    }
+
+    if (!mutation.proposedState || typeof mutation.proposedState !== 'object') {
+      return 'Missing proposedState for mutation';
+    }
+
+    if (mutation.entityType === 'workout_program') {
+      if (!mutation.proposedState.name || !mutation.proposedState.difficulty) {
+        return 'Workout program requires name and difficulty';
+      }
+    }
+
+    if (mutation.entityType === 'program_workout') {
+      if (!mutation.proposedState.name || mutation.proposedState.day_number === undefined) {
+        return 'Program workout requires name and day_number';
+      }
+    }
+
+    if (mutation.entityType === 'program_exercise') {
+      if (!mutation.proposedState.exercise_id || mutation.proposedState.order_index === undefined) {
+        return 'Program exercise requires exercise_id and order_index';
+      }
+      if (mutation.proposedState.sets === undefined) {
+        return 'Program exercise requires sets';
+      }
+    }
+  }
+
+  return null;
 }
