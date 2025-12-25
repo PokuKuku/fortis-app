@@ -118,23 +118,24 @@ export function StartButtonConfigModal({
         ) : templates.length === 0 ? (
           <Text style={styles.emptyText}>No saved workouts yet.</Text>
         ) : (
-          templates.map((template) =>
-            renderOption({
-              label: template.name,
-              subtitle: 'Saved workout template',
-              selected:
-                draftPreset?.type === 'template' &&
-                (draftPreset.templateId === template.id ||
-                  template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
-              icon: <Squares2X2Icon size={18} color={Colors.textPrimary} strokeWidth={2} />,
-              onPress: () =>
-                onChange({
-                  type: 'template',
-                  templateId: template.id,
-                  templateWorkoutId: template.workouts[0]?.id,
-                }),
-            })
-          )
+          templates.map((template) => (
+            <View key={`template-${template.id}`}>
+              {renderOption({
+                label: template.name,
+                subtitle: 'Saved workout template',
+                selected:
+                  (draftPreset.templateId === template.id ||
+                    template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
+                icon: <Squares2X2Icon size={18} color={Colors.textPrimary} strokeWidth={2} />,
+                onPress: () =>
+                  onChange({
+                    type: 'template',
+                    templateId: template.id,
+                    templateWorkoutId: template.workouts[0]?.id,
+                  }),
+              })}
+            </View>
+          ))
         )}
 
         <Text style={styles.sectionTitle}>Programs</Text>
@@ -143,15 +144,17 @@ export function StartButtonConfigModal({
         ) : programs.length === 0 ? (
           <Text style={styles.emptyText}>No programs created yet.</Text>
         ) : (
-          programs.map((program) =>
-            renderOption({
-              label: program.name,
-              subtitle: 'Continue to the next workout',
-              selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
-              icon: <CalendarDaysIcon size={18} color={Colors.textPrimary} strokeWidth={2} />,
-              onPress: () => onChange({ type: 'program', programId: program.id }),
-            })
-          )
+          programs.map((program) => (
+            <View key={`program-${program.id}`}>
+              {renderOption({
+                label: program.name,
+                subtitle: 'Continue to the next workout',
+                selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
+                icon: <CalendarDaysIcon size={18} color={Colors.textPrimary} strokeWidth={2} />,
+                onPress: () => onChange({ type: 'program', programId: program.id }),
+              })}
+            </View>
+          ))
         )}
       </ScrollView>
 

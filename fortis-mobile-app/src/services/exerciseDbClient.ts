@@ -46,13 +46,25 @@ class ExerciseDbClient {
     while (hasMore) {
       const url = `${EXERCISE_CONFIG.apiBaseUrl}/exercises?offset=${offset}&limit=${limit}`;
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: this.getHeaders(),
-      });
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: 'GET',
+          headers: this.getHeaders(),
+        });
+      } catch (error) {
+        throw new Error(`ExerciseDB network error: ${(error as Error).message}`);
+      }
 
       if (!response.ok) {
-        throw new Error(`ExerciseDB API error: ${response.status} ${response.statusText}`);
+        let responseText = '';
+        try {
+          responseText = await response.text();
+        } catch {
+          responseText = '';
+        }
+        const suffix = responseText ? ` - ${responseText.slice(0, 200)}` : '';
+        throw new Error(`ExerciseDB API error: ${response.status} ${response.statusText}${suffix}`);
       }
 
       let exercises: ExerciseDbResponse[];

@@ -18,6 +18,7 @@ export function useExercises() {
       setExercises(data);
       setError(null);
     } catch (err) {
+      console.error('Failed to load exercises:', err);
       setError(err as Error);
     } finally {
       setLoading(false);

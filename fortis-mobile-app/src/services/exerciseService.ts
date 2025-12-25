@@ -182,7 +182,8 @@ async function getBaseExercises(): Promise<Exercise[]> {
     }
 
     // 5. No cache available - throw error
-    throw new Error('Internet connection required to load exercises. Please check your connection and try again.');
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Unable to load exercises: ${message}`);
   }
 }
 
