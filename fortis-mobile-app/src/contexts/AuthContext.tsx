@@ -16,6 +16,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
+import Constants from 'expo-constants';
 
 // Key for storing OAuth state parameter (CSRF protection)
 const OAUTH_STATE_KEY = 'oauth_state';
@@ -223,9 +224,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Google sign in with CSRF protection
   const signInWithGoogle = useCallback(async () => {
     try {
+      const isExpoGo = Constants.appOwnership === 'expo';
       const redirectTo = makeRedirectUri({
         scheme: 'fortis',
         path: 'auth/callback',
+        useProxy: isExpoGo,
       });
 
       // Generate CSRF state parameter for security
