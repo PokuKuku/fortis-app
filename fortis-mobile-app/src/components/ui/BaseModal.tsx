@@ -43,7 +43,14 @@ import {
   TextStyle,
 } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
-import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  SlideInRight,
+  SlideOutRight,
+  ZoomIn,
+  ZoomOut,
+} from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
@@ -70,6 +77,8 @@ export interface BaseModalProps {
   hapticOnClose?: boolean;
   /** Container width (default: 320) */
   width?: number;
+  /** Modal content animation (default: 'zoom') */
+  animation?: 'zoom' | 'slide_from_right';
 }
 
 export function BaseModal({
@@ -83,6 +92,7 @@ export function BaseModal({
   closeOnBackdropPress = true,
   hapticOnClose = true,
   width = 320,
+  animation = 'zoom',
 }: BaseModalProps) {
   const handleClose = () => {
     if (hapticOnClose) {
@@ -98,6 +108,15 @@ export function BaseModal({
   };
 
   if (!visible) return null;
+
+  const contentEntering =
+    animation === 'slide_from_right'
+      ? SlideInRight.duration(250)
+      : ZoomIn.duration(250);
+  const contentExiting =
+    animation === 'slide_from_right'
+      ? SlideOutRight.duration(200)
+      : ZoomOut.duration(200);
 
   return (
     <Modal
@@ -118,8 +137,8 @@ export function BaseModal({
         />
         <View style={styles.centeredView} pointerEvents="box-none">
           <Animated.View
-            entering={ZoomIn.duration(250)}
-            exiting={ZoomOut.duration(200)}
+            entering={contentEntering}
+            exiting={contentExiting}
           >
             <View style={[styles.container, { width }]}>
               <StainlessSteelPattern />

@@ -120,7 +120,8 @@ export default function RootLayout() {
           <Stack.Screen
             name="exercise/[id]"
             options={{
-              ...PAGE_TRANSITION,
+              animation: 'slide_from_right',
+              animationDuration: 220,
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}
@@ -128,7 +129,8 @@ export default function RootLayout() {
           <Stack.Screen
             name="workouts/[id]"
             options={{
-              ...PAGE_TRANSITION,
+              animation: 'slide_from_right',
+              animationDuration: 220,
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}
@@ -136,7 +138,8 @@ export default function RootLayout() {
           <Stack.Screen
             name="programs/[id]"
             options={{
-              ...PAGE_TRANSITION,
+              animation: 'slide_from_right',
+              animationDuration: 220,
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}

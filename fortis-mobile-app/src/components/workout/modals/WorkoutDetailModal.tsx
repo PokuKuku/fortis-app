@@ -51,6 +51,7 @@ export function WorkoutDetailModal({
       onClose={onClose}
       title={workout.name}
       width={350}
+      animation="slide_from_right"
       showCloseButton={true}
     >
       {/* Exercise Count */}

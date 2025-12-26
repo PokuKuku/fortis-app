@@ -431,11 +431,11 @@ export default function TabLayout() {
         name="start"
         listeners={{
           tabPress: (e) => {
-            e.preventDefault();
+            e.preventDefault?.();
             void handleStartPress();
           },
           tabLongPress: (e) => {
-            e.preventDefault();
+            e.preventDefault?.();
             handleStartLongPress();
           },
         }}
