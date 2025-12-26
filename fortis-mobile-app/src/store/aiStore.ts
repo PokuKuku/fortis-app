@@ -408,6 +408,12 @@ export const useAIStore = create<AIState>()(
       try {
         const result = await aiService.applyMutationPlan(currentMutationPlan);
         if (result.success) {
+          const pendingToConfirm = get().pendingActions.filter(
+            (action) => action.requestId === currentMutationPlan.requestId
+          );
+          await Promise.all(
+            pendingToConfirm.map((action) => get().confirmPendingAction(action.id))
+          );
           set({
             currentMutationPlan: null,
             isApplyingMutation: false,
@@ -641,13 +647,13 @@ export const useAIStore = create<AIState>()(
             id: sessionId,
             started_at: new Date().toISOString(),
             completed_at: new Date().toISOString(),
-            status: 'completed',
           },
           description: 'Create workout session from AI extraction',
         };
         mutations.push(sessionMutation);
 
         // Then, create workout_set mutations for each exercise and set
+        let globalOrderIndex = 1;
         for (const exercise of editableWorkout.exercises) {
           // Skip exercises with no sets
           if (exercise.sets.length === 0) continue;
@@ -666,6 +672,7 @@ export const useAIStore = create<AIState>()(
                 reps: setData.reps,
                 weight: setData.weight,
                 rpe: setData.rpe,
+                order_index: globalOrderIndex++,
                 set_type: 'working',
               },
               description: `${exercise.exerciseName}: ${setData.reps} reps @ ${setData.weight} lbs`,
@@ -689,6 +696,12 @@ export const useAIStore = create<AIState>()(
         // Apply the plan
         const result = await aiService.applyMutationPlan(newPlan);
         if (result.success) {
+          const pendingToConfirm = get().pendingActions.filter(
+            (action) => action.requestId === editableWorkout.originalPlan.requestId
+          );
+          await Promise.all(
+            pendingToConfirm.map((action) => get().confirmPendingAction(action.id))
+          );
           set({
             editableWorkout: null,
             currentMutationPlan: null,
@@ -794,6 +807,12 @@ export const useAIStore = create<AIState>()(
         const newPlan = buildPlanFromProgramDraft(editableProgramDraft);
         const result = await aiService.applyMutationPlan(newPlan);
         if (result.success) {
+          const pendingToConfirm = get().pendingActions.filter(
+            (action) => action.requestId === editableProgramDraft.originalPlan.requestId
+          );
+          await Promise.all(
+            pendingToConfirm.map((action) => get().confirmPendingAction(action.id))
+          );
           set({
             editableProgramDraft: null,
             currentMutationPlan: null,

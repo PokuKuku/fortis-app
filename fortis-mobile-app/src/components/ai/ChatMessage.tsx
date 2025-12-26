@@ -1,0 +1,367 @@
+/**
+ * ChatMessage Component
+ *
+ * ChatGPT-style message display with:
+ * - Full-width centered layout
+ * - Markdown rendering for AI responses
+ * - Copy button for AI messages
+ * - Streaming text animation support
+ */
+
+import React, { useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+} from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import Markdown from 'react-native-markdown-display';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
+import {
+  SparklesIcon,
+  DocumentDuplicateIcon,
+  CheckIcon,
+} from 'react-native-heroicons/outline';
+import { Colors } from '@/constants/Colors';
+import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
+import { Typography, FontFamily } from '@/constants/Typography';
+import { AIConversationMessage } from '@/src/types/ai';
+import { StreamingText } from './StreamingText';
+
+interface ChatMessageProps {
+  message: AIConversationMessage;
+  /** Whether this message should stream (for new AI messages) */
+  isStreaming?: boolean;
+  /** Callback when streaming completes */
+  onStreamComplete?: () => void;
+  /** Animation delay for staggered entrance */
+  delay?: number;
+}
+
+export function ChatMessage({
+  message,
+  isStreaming = false,
+  onStreamComplete,
+  delay = 0,
+}: ChatMessageProps) {
+  const [copied, setCopied] = useState(false);
+  const isUser = message.role === 'user';
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await Clipboard.setStringAsync(message.content);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [message.content]);
+
+  // Markdown styles matching the design system
+  const markdownStyles = {
+    body: {
+      ...Typography.body,
+      color: Colors.textPrimary,
+      lineHeight: 24,
+    },
+    heading1: {
+      ...Typography.h3,
+      color: Colors.textPrimary,
+      marginTop: Spacing.lg,
+      marginBottom: Spacing.sm,
+    },
+    heading2: {
+      ...Typography.h4,
+      color: Colors.textPrimary,
+      marginTop: Spacing.md,
+      marginBottom: Spacing.xs,
+    },
+    heading3: {
+      ...Typography.h5,
+      color: Colors.textPrimary,
+      marginTop: Spacing.md,
+      marginBottom: Spacing.xs,
+    },
+    strong: {
+      fontFamily: FontFamily.semibold,
+      fontWeight: '600' as const,
+      color: Colors.textPrimary,
+    },
+    em: {
+      fontStyle: 'italic' as const,
+      color: Colors.textPrimary,
+    },
+    link: {
+      color: Colors.info,
+      textDecorationLine: 'underline' as const,
+    },
+    blockquote: {
+      borderLeftWidth: 3,
+      borderLeftColor: Colors.success,
+      paddingLeft: Spacing.md,
+      marginVertical: Spacing.sm,
+      backgroundColor: 'rgba(34, 197, 94, 0.08)',
+      borderRadius: BorderRadius.sm,
+      paddingVertical: Spacing.sm,
+    },
+    code_inline: {
+      fontFamily: FontFamily.mono,
+      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      color: Colors.success,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      fontSize: 14,
+    },
+    code_block: {
+      fontFamily: FontFamily.mono,
+      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+      color: Colors.textPrimary,
+      padding: Spacing.md,
+      borderRadius: BorderRadius.md,
+      fontSize: 13,
+      lineHeight: 20,
+      marginVertical: Spacing.sm,
+    },
+    fence: {
+      fontFamily: FontFamily.mono,
+      backgroundColor: 'rgba(255, 255, 255, 0.06)',
+      color: Colors.textPrimary,
+      padding: Spacing.md,
+      borderRadius: BorderRadius.md,
+      fontSize: 13,
+      lineHeight: 20,
+      marginVertical: Spacing.sm,
+    },
+    bullet_list: {
+      marginVertical: Spacing.xs,
+    },
+    ordered_list: {
+      marginVertical: Spacing.xs,
+    },
+    list_item: {
+      marginVertical: 2,
+    },
+    bullet_list_icon: {
+      color: Colors.success,
+      fontSize: 8,
+      lineHeight: 24,
+      marginRight: Spacing.sm,
+    },
+    ordered_list_icon: {
+      color: Colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 24,
+      marginRight: Spacing.sm,
+    },
+    hr: {
+      backgroundColor: Colors.border,
+      height: 1,
+      marginVertical: Spacing.lg,
+    },
+    table: {
+      borderWidth: 1,
+      borderColor: Colors.border,
+      borderRadius: BorderRadius.sm,
+      marginVertical: Spacing.sm,
+    },
+    thead: {
+      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    },
+    th: {
+      ...Typography.labelSmall,
+      color: Colors.textSecondary,
+      padding: Spacing.sm,
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: Colors.border,
+    },
+    td: {
+      ...Typography.bodySmall,
+      color: Colors.textPrimary,
+      padding: Spacing.sm,
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: Colors.border,
+    },
+  };
+
+  return (
+    <Animated.View
+      entering={FadeIn.duration(300).delay(delay)}
+      style={[styles.container, isUser ? styles.userContainer : styles.aiContainer]}
+    >
+      {/* AI Avatar */}
+      {!isUser && (
+        <View style={styles.avatarContainer}>
+          <View style={styles.avatar}>
+            <SparklesIcon color={Colors.success} size={IconSizes.sm} />
+          </View>
+        </View>
+      )}
+
+      {/* Message Content */}
+      <View style={[styles.content, isUser ? styles.userContent : styles.aiContent]}>
+        {/* Image attachment if present */}
+        {message.image && (
+          <Image
+            source={{ uri: message.image.uri }}
+            style={styles.messageImage}
+            resizeMode="cover"
+          />
+        )}
+
+        {/* Message text */}
+        {isUser ? (
+          <Text style={styles.userText}>{message.content}</Text>
+        ) : isStreaming ? (
+          <StreamingText
+            text={message.content}
+            speed={10}
+            streaming={true}
+            onComplete={onStreamComplete}
+            style={markdownStyles.body}
+            showCursor={true}
+          />
+        ) : (
+          <Markdown style={markdownStyles}>{message.content}</Markdown>
+        )}
+
+        {/* Copy button for AI messages */}
+        {!isUser && !isStreaming && message.content.length > 0 && (
+          <TouchableOpacity
+            style={styles.copyButton}
+            onPress={handleCopy}
+            activeOpacity={0.7}
+          >
+            {copied ? (
+              <CheckIcon color={Colors.success} size={IconSizes.sm} />
+            ) : (
+              <DocumentDuplicateIcon color={Colors.textTertiary} size={IconSizes.sm} />
+            )}
+            <Text style={[styles.copyText, copied && styles.copyTextSuccess]}>
+              {copied ? 'Copied' : 'Copy'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Clarification options */}
+        {message.clarification?.options && message.clarification.options.length > 0 && (
+          <View style={styles.clarificationOptions}>
+            {message.clarification.options.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={styles.clarificationOption}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.clarificationOptionText}>{option}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* User indicator */}
+      {isUser && (
+        <View style={styles.userIndicator}>
+          <Text style={styles.userIndicatorText}>You</Text>
+        </View>
+      )}
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    maxWidth: 768,
+    alignSelf: 'center',
+    width: '100%',
+  },
+  userContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+  },
+  aiContainer: {
+    backgroundColor: 'transparent',
+  },
+  avatarContainer: {
+    marginRight: Spacing.md,
+    paddingTop: 2,
+  },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  content: {
+    flex: 1,
+  },
+  userContent: {
+    paddingLeft: 40, // Offset to align with AI messages
+  },
+  aiContent: {},
+  userText: {
+    ...Typography.body,
+    color: Colors.textPrimary,
+    lineHeight: 24,
+  },
+  messageImage: {
+    width: '100%',
+    maxWidth: 280,
+    height: 180,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+    paddingVertical: Spacing.xs,
+    alignSelf: 'flex-start',
+  },
+  copyText: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+  },
+  copyTextSuccess: {
+    color: Colors.success,
+  },
+  userIndicator: {
+    marginLeft: Spacing.sm,
+    paddingTop: 2,
+  },
+  userIndicatorText: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+  },
+  clarificationOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
+  },
+  clarificationOption: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  clarificationOptionText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+  },
+});
+
+export default ChatMessage;

@@ -3,11 +3,15 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
+import { PostHogProvider } from 'posthog-react-native';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { AIContainer } from '@/src/components/ai';
+import { PostHogScreenTracker } from '@/src/components/analytics/PostHogScreenTracker';
+import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
+import { isPostHogConfigured, posthogApiKey, posthogHost } from '@/src/lib/posthog';
 
 const PAGE_TRANSITION = {
   animation: 'fade_from_bottom' as const,
@@ -36,136 +40,155 @@ export default function RootLayout() {
     return null;
   }
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <DragDropProvider>
-          <StatusBar style="light" />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: '#0a0a0a' },
+  const posthogEnabled = isPostHogConfigured();
+  const appContent = (
+    <AuthProvider>
+      <DragDropProvider>
+        {posthogEnabled && <PostHogAuthSync />}
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: '#0a0a0a' },
+            ...PAGE_TRANSITION,
+          }}
+        >
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="auth/index"
+            options={{
               ...PAGE_TRANSITION,
             }}
-          >
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="auth/index"
-              options={{
-                ...PAGE_TRANSITION,
-              }}
-            />
-            <Stack.Screen
-              name="auth/email"
-              options={{
-                ...PAGE_TRANSITION,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-              }}
-            />
-            <Stack.Screen
-              name="onboarding/index"
-              options={{
-                ...PAGE_TRANSITION,
-              }}
-            />
-            <Stack.Screen
-              name="onboarding/units"
-              options={{
-                animation: 'slide_from_right',
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen
-              name="onboarding/complete"
-              options={{
-                animation: 'slide_from_right',
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen
-              name="workout/active"
-              options={{
-                animation: 'slide_from_bottom',
-                animationDuration: 500,
-                gestureEnabled: true,
-                gestureDirection: 'vertical',
-              }}
-            />
-            <Stack.Screen
-              name="workout/create"
-              options={{
-                animation: 'slide_from_bottom',
-                gestureEnabled: true,
-                gestureDirection: 'vertical',
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="ai/chat"
-              options={{
-                animation: 'slide_from_bottom',
-                animationDuration: 500,
-                gestureEnabled: true,
-                gestureDirection: 'vertical',
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="exercise/[id]"
-              options={{
-                ...PAGE_TRANSITION,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-              }}
-            />
-            <Stack.Screen
-              name="workouts/[id]"
-              options={{
-                ...PAGE_TRANSITION,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-              }}
-            />
-            <Stack.Screen
-              name="programs/[id]"
-              options={{
-                ...PAGE_TRANSITION,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-              }}
-            />
-            <Stack.Screen
-              name="programs/create"
-              options={{
-                animation: 'slide_from_bottom',
-                gestureEnabled: true,
-                gestureDirection: 'vertical',
-                headerShown: false,
-              }}
-            />
-            <Stack.Screen
-              name="settings"
-              options={{
-                ...PAGE_TRANSITION,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-              }}
-            />
-            <Stack.Screen
-              name="goals"
-              options={{
-                ...PAGE_TRANSITION,
-                gestureEnabled: true,
-                gestureDirection: 'horizontal',
-              }}
-            />
-          </Stack>
-          <WorkoutMiniBar />
-          <AIContainer />
-        </DragDropProvider>
-      </AuthProvider>
+          />
+          <Stack.Screen
+            name="auth/email"
+            options={{
+              ...PAGE_TRANSITION,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/index"
+            options={{
+              ...PAGE_TRANSITION,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/units"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/complete"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
+            name="workout/active"
+            options={{
+              animation: 'slide_from_bottom',
+              animationDuration: 500,
+              gestureEnabled: true,
+              gestureDirection: 'vertical',
+            }}
+          />
+          <Stack.Screen
+            name="workout/create"
+            options={{
+              animation: 'slide_from_bottom',
+              gestureEnabled: true,
+              gestureDirection: 'vertical',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="ai/chat"
+            options={{
+              animation: 'slide_from_bottom',
+              animationDuration: 500,
+              gestureEnabled: true,
+              gestureDirection: 'vertical',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="exercise/[id]"
+            options={{
+              ...PAGE_TRANSITION,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
+            name="workouts/[id]"
+            options={{
+              ...PAGE_TRANSITION,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
+            name="programs/[id]"
+            options={{
+              ...PAGE_TRANSITION,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
+            name="programs/create"
+            options={{
+              animation: 'slide_from_bottom',
+              gestureEnabled: true,
+              gestureDirection: 'vertical',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="settings"
+            options={{
+              ...PAGE_TRANSITION,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
+            name="goals"
+            options={{
+              ...PAGE_TRANSITION,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+        </Stack>
+        {posthogEnabled && <PostHogScreenTracker />}
+        <WorkoutMiniBar />
+        <AIContainer />
+      </DragDropProvider>
+    </AuthProvider>
+  );
+
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      {posthogEnabled ? (
+        <PostHogProvider
+          apiKey={posthogApiKey}
+          options={{
+            host: posthogHost,
+            captureApplicationLifecycleEvents: true,
+          }}
+        >
+          {appContent}
+        </PostHogProvider>
+      ) : (
+        appContent
+      )}
     </GestureHandlerRootView>
   );
 }

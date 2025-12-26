@@ -194,6 +194,7 @@ const ALLOWED_ENTITY_TYPES = new Set<string>([
   'program_exercise',
   'workout_session',
   'workout_set',
+  'training_summary',
 ]);
 
 const ALLOWED_MUTATION_OPERATIONS = new Set(['INSERT']);
@@ -220,6 +221,10 @@ function sanitizeProposedState(
   }
 
   if (entityType === 'workout_session') {
+    sanitized.user_id = userId;
+  }
+
+  if (entityType === 'training_summary') {
     sanitized.user_id = userId;
   }
 
@@ -1205,7 +1210,10 @@ EXERCISE SELECTION RULES:
 ENTITY SCHEMAS:
 - workout_program: { name, description, difficulty (beginner|intermediate|advanced), duration_weeks, goal (strength|hypertrophy|powerlifting|general_fitness), is_template (boolean), is_ai_created (boolean) }
 - program_workout: { name, description, day_number }
-- program_exercise: { exercise_id, order_index, sets (number), reps (string like "5-8"), rest_seconds, notes }`;
+- program_exercise: { exercise_id, order_index, sets (number), reps (string like "5-8"), rest_seconds, notes }
+- workout_session: { started_at, completed_at }
+- workout_set: { session_id, exercise_id, set_number, order_index, reps, weight, rpe, set_type }
+- training_summary: { period_start, period_end, title, summary_text, metrics }`;
 }
 
 function buildUserMessage(request: AIRequest, context: AIContext): string {
@@ -1477,6 +1485,39 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
       }
       if (mutation.proposedState.sets === undefined) {
         return 'Program exercise requires sets';
+      }
+    }
+
+    if (mutation.entityType === 'workout_session') {
+      if (!mutation.proposedState.started_at) {
+        return 'Workout session requires started_at';
+      }
+    }
+
+    if (mutation.entityType === 'workout_set') {
+      if (!mutation.proposedState.session_id) {
+        return 'Workout set requires session_id';
+      }
+      if (!mutation.proposedState.exercise_id) {
+        return 'Workout set requires exercise_id';
+      }
+      if (mutation.proposedState.set_number === undefined) {
+        return 'Workout set requires set_number';
+      }
+      if (mutation.proposedState.order_index === undefined) {
+        return 'Workout set requires order_index';
+      }
+    }
+
+    if (mutation.entityType === 'training_summary') {
+      if (!mutation.proposedState.period_start || !mutation.proposedState.period_end) {
+        return 'Training summary requires period_start and period_end';
+      }
+      if (!mutation.proposedState.title || !mutation.proposedState.summary_text) {
+        return 'Training summary requires title and summary_text';
+      }
+      if (!mutation.proposedState.metrics) {
+        return 'Training summary requires metrics';
       }
     }
   }

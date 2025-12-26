@@ -1,79 +1,91 @@
 /**
  * AI Chat Screen
  *
- * Fullscreen chat interface for AI conversations.
- * Displays conversation history and allows sending messages.
- * Uses native route animations for smooth bottom sheet experience.
+ * Premium ChatGPT-style interface with:
+ * - Smooth streaming text animations
+ * - Clean, minimal design
+ * - Full-width centered messages
+ * - Refined input experience
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  TextInput,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Image,
-  Alert,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, {
   FadeIn,
+  FadeOut,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  Easing,
 } from 'react-native-reanimated';
-import {
-  XMarkIcon,
-  PaperAirplaneIcon,
-  SparklesIcon,
-  ChatBubbleLeftRightIcon,
-  ArrowTrendingUpIcon,
-  QuestionMarkCircleIcon,
-  ChevronRightIcon,
-  CameraIcon,
-  PhotoIcon,
-} from 'react-native-heroicons/outline';
-import { DumbbellIcon } from '@/src/components/icons/DumbbellIcon';
+import { XMarkIcon, SparklesIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAIStore } from '@/src/store/aiStore';
-import { AIIntent, AIConversationMessage, AIImageMimeType } from '@/src/types/ai';
+import { AIIntent, AIImageMimeType } from '@/src/types/ai';
+import { ChatMessage } from '@/src/components/ai/ChatMessage';
+import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
+import { ChatInput } from '@/src/components/ai/ChatInput';
 
-// Quick action suggestions
-const QUICK_ACTIONS = [
-  {
-    intent: 'QUERY_STATS' as AIIntent,
-    icon: ArrowTrendingUpIcon,
-    label: 'Check my stats',
-    prompt: "What's my best bench press?",
-  },
-  {
-    intent: 'ANALYZE_PLATEAU' as AIIntent,
-    icon: QuestionMarkCircleIcon,
-    label: 'Analyze plateau',
-    prompt: 'Why has my progress stalled?',
-  },
-  {
-    intent: 'CREATE_TEMPLATE' as AIIntent,
-    icon: DumbbellIcon,
-    label: 'Create workout',
-    prompt: 'Create a push day workout',
-  },
-  {
-    intent: 'CREATE_PROGRAM' as AIIntent,
-    icon: ChatBubbleLeftRightIcon,
-    label: 'Create program',
-    prompt: 'Build me a 4-day program',
-  },
-];
+// Typing indicator component
+function TypingIndicator() {
+  const dot1 = useSharedValue(0);
+  const dot2 = useSharedValue(0);
+  const dot3 = useSharedValue(0);
 
+  useEffect(() => {
+    dot1.value = withRepeat(
+      withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+    setTimeout(() => {
+      dot2.value = withRepeat(
+        withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    }, 150);
+    setTimeout(() => {
+      dot3.value = withRepeat(
+        withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+        -1,
+        true
+      );
+    }, 300);
+  }, [dot1, dot2, dot3]);
+
+  const dotStyle1 = useAnimatedStyle(() => ({ opacity: 0.3 + dot1.value * 0.7 }));
+  const dotStyle2 = useAnimatedStyle(() => ({ opacity: 0.3 + dot2.value * 0.7 }));
+  const dotStyle3 = useAnimatedStyle(() => ({ opacity: 0.3 + dot3.value * 0.7 }));
+
+  return (
+    <View style={styles.typingIndicator}>
+      <Animated.View style={[styles.typingDot, dotStyle1]} />
+      <Animated.View style={[styles.typingDot, dotStyle2]} />
+      <Animated.View style={[styles.typingDot, dotStyle3]} />
+    </View>
+  );
+}
+
+// Intent inference helper
 const inferIntentFromMessage = (
   message: string,
   hasImage: boolean
@@ -124,229 +136,145 @@ export default function AIChatScreen() {
   const router = useRouter();
   const [inputText, setInputText] = useState('');
   const [selectedIntent, setSelectedIntent] = useState<AIIntent>('QUERY_STATS');
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const shouldAutoScrollRef = useRef(true);
 
+  // Store state
   const conversation = useAIStore((state) => state.conversation);
   const isSendingMessage = useAIStore((state) => state.isSendingMessage);
-  const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
   const error = useAIStore((state) => state.error);
   const sendMessage = useAIStore((state) => state.sendMessage);
   const clearError = useAIStore((state) => state.clearError);
   const clearConversation = useAIStore((state) => state.clearConversation);
+  const loadConversation = useAIStore((state) => state.loadConversation);
+  const loadPendingActions = useAIStore((state) => state.loadPendingActions);
   const selectedImage = useAIStore((state) => state.selectedImage);
   const setSelectedImage = useAIStore((state) => state.setSelectedImage);
   const clearSelectedImage = useAIStore((state) => state.clearSelectedImage);
 
   const messages = conversation?.messages || [];
 
-  // Scroll to bottom when new messages arrive
+  useEffect(() => {
+    loadConversation();
+    loadPendingActions();
+  }, [loadConversation, loadPendingActions]);
+
+  // Auto-scroll to bottom
+  const scrollToBottom = useCallback((animated = true) => {
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated });
+    }, 50);
+  }, []);
+
+  useEffect(() => {
+    if (messages.length > 0 && shouldAutoScrollRef.current) {
+      scrollToBottom(true);
+    }
+  }, [messages.length, scrollToBottom]);
+
+  // Track streaming state for latest AI message
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.role === 'assistant' && !streamingMessageId) {
+        setStreamingMessageId(lastMessage.id);
+      }
     }
-  }, [messages.length]);
+  }, [messages, streamingMessageId]);
 
   const handleClose = () => {
     router.back();
   };
 
+  const handleClear = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    clearConversation();
+  };
+
   const handleSend = async () => {
-    // Allow send if there's text OR an image attached
     if ((!inputText.trim() && !selectedImage) || isSendingMessage) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const message = inputText.trim() || (selectedImage ? 'Log this workout from the image' : '');
     const inferredIntent = inferIntentFromMessage(message, Boolean(selectedImage));
     const intentToSend = inferredIntent || selectedIntent;
+
     if (inferredIntent && inferredIntent !== selectedIntent) {
       setSelectedIntent(inferredIntent);
     }
-    setInputText('');
 
+    setInputText('');
+    setStreamingMessageId(null);
     await sendMessage(intentToSend, message);
   };
 
-  const handleQuickAction = (action: (typeof QUICK_ACTIONS)[number]) => {
-    setSelectedIntent(action.intent);
-    setInputText(action.prompt);
+  const handleQuickAction = (intent: AIIntent, prompt: string) => {
+    setSelectedIntent(intent);
+    setInputText(prompt);
   };
 
-  const pickImage = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-
-    // Show options for camera or gallery
-    Alert.alert(
-      'Add Image',
-      'Choose an image source',
-      [
-        {
-          text: 'Camera',
-          onPress: async () => {
-            const { status } = await ImagePicker.requestCameraPermissionsAsync();
-            if (status !== 'granted') {
-              Alert.alert('Permission needed', 'Camera access is required to take photos.');
-              return;
-            }
-
-            const result = await ImagePicker.launchCameraAsync({
-              mediaTypes: ['images'],
-              quality: 0.8,
-              base64: true,
-              exif: false,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-              const asset = result.assets[0];
-              if (asset.base64) {
-                const mimeType = (asset.mimeType || 'image/jpeg') as AIImageMimeType;
-                setSelectedImage({
-                  uri: asset.uri,
-                  base64: asset.base64,
-                  mimeType,
-                });
-                // Auto-switch to LOG_WORKOUT intent when image is added
-                setSelectedIntent('LOG_WORKOUT');
-              }
-            }
-          },
-        },
-        {
-          text: 'Photo Library',
-          onPress: async () => {
-            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (status !== 'granted') {
-              Alert.alert('Permission needed', 'Photo library access is required to select images.');
-              return;
-            }
-
-            const result = await ImagePicker.launchImageLibraryAsync({
-              mediaTypes: ['images'],
-              quality: 0.8,
-              base64: true,
-              exif: false,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-              const asset = result.assets[0];
-              if (asset.base64) {
-                const mimeType = (asset.mimeType || 'image/jpeg') as AIImageMimeType;
-                setSelectedImage({
-                  uri: asset.uri,
-                  base64: asset.base64,
-                  mimeType,
-                });
-                // Auto-switch to LOG_WORKOUT intent when image is added
-                setSelectedIntent('LOG_WORKOUT');
-              }
-            }
-          },
-        },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  const handleImageSelect = (image: {
+    uri: string;
+    base64: string;
+    mimeType: AIImageMimeType;
+  }) => {
+    setSelectedImage(image);
+    setSelectedIntent('LOG_WORKOUT');
   };
 
-  const renderMessage = (message: AIConversationMessage, index: number) => {
-    const isUser = message.role === 'user';
-
-    return (
-      <Animated.View
-        key={message.id}
-        entering={FadeIn.duration(200)}
-        style={[
-          styles.messageContainer,
-          isUser ? styles.userMessage : styles.assistantMessage,
-        ]}
-      >
-        {!isUser && (
-          <View style={styles.assistantAvatar}>
-            <SparklesIcon color={Colors.success} size={IconSizes.sm} />
-          </View>
-        )}
-        <View
-          style={[
-            styles.messageBubble,
-            isUser ? styles.userBubble : styles.assistantBubble,
-          ]}
-        >
-          {/* Show image thumbnail if present */}
-          {message.image && (
-            <Image
-              source={{ uri: message.image.uri }}
-              style={styles.messageImage}
-              resizeMode="cover"
-            />
-          )}
-          <Text
-            style={[
-              styles.messageText,
-              isUser && styles.userMessageText,
-            ]}
-          >
-            {message.content}
-          </Text>
-          {message.intent && (
-            <Text style={styles.intentTag}>{message.intent}</Text>
-          )}
-          {message.clarification?.options && message.clarification.options.length > 0 && (
-            <View style={styles.clarificationOptions}>
-              {message.clarification.options.map((option) => (
-                <TouchableOpacity
-                  key={option}
-                  style={styles.clarificationOption}
-                  onPress={() => {
-                    setSelectedIntent(message.intent || selectedIntent);
-                    setInputText(option);
-                  }}
-                >
-                  <Text style={styles.clarificationOptionText}>{option}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-      </Animated.View>
-    );
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, layoutMeasurement, contentSize } = event.nativeEvent;
+    const paddingToBottom = 100;
+    shouldAutoScrollRef.current =
+      contentOffset.y + layoutMeasurement.height >= contentSize.height - paddingToBottom;
   };
+
+  const handleStreamComplete = useCallback(() => {
+    setStreamingMessageId(null);
+  }, []);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StainlessSteelPattern />
 
-      {/* Drag handle for visual indication of bottom sheet */}
-      <View style={styles.dragHandleContainer}>
-        <View style={styles.dragHandle} />
+      {/* Minimal drag handle */}
+      <View style={styles.dragHandle}>
+        <View style={styles.dragHandleBar} />
       </View>
 
-      {/* Header with "Fortis Analyst" title */}
+      {/* Clean header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.aiIcon}>
-            <SparklesIcon color={Colors.success} size={IconSizes.md} />
+          <View style={styles.headerIcon}>
+            <SparklesIcon color={Colors.success} size={18} />
           </View>
           <View>
-            <Text style={styles.fortisText}>Fortis</Text>
-            <Text style={styles.headerSubtitle}>
-              {isSendingMessage ? 'Thinking...' : 'Ask me anything'}
-            </Text>
+            <Text style={styles.headerTitle}>Fortis AI</Text>
+            {isSendingMessage && <TypingIndicator />}
           </View>
         </View>
-        <View style={styles.headerActions}>
+        <View style={styles.headerRight}>
+          {messages.length > 0 && (
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={handleClear}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.clearText}>Clear</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            style={styles.clearButton}
-            onPress={clearConversation}
+            style={styles.closeButton}
+            onPress={handleClose}
+            activeOpacity={0.7}
           >
-            <Text style={styles.clearButtonText}>Clear</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
             <XMarkIcon color={Colors.textSecondary} size={IconSizes.lg} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Messages and Input */}
+      {/* Messages */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
@@ -357,135 +285,71 @@ export default function AIChatScreen() {
           style={styles.messagesContainer}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          onContentSizeChange={() => {
+            if (shouldAutoScrollRef.current) {
+              scrollToBottom(false);
+            }
+          }}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
         >
           {messages.length === 0 ? (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIcon}>
-                <SparklesIcon color={Colors.success} size={32} />
-              </View>
-              <Text style={styles.emptyTitle}>
-                How can I help you train?
-              </Text>
-              <Text style={styles.emptySubtitle}>
-                Ask about your stats, create programs, or analyze your
-                progress.
-              </Text>
-
-              {/* Quick Actions */}
-              <View style={styles.quickActions}>
-                {QUICK_ACTIONS.map((action) => (
-                  <TouchableOpacity
-                    key={action.intent}
-                    style={styles.quickAction}
-                    onPress={() => handleQuickAction(action)}
-                  >
-                    <action.icon
-                      color={Colors.textSecondary}
-                      size={IconSizes.md}
-                    />
-                    <Text style={styles.quickActionText}>
-                      {action.label}
-                    </Text>
-                    <ChevronRightIcon
-                      color={Colors.textTertiary}
-                      size={IconSizes.sm}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
+            <ChatEmptyState onQuickAction={handleQuickAction} />
           ) : (
-            messages.map(renderMessage)
+            <>
+              {messages.map((message, index) => (
+                <ChatMessage
+                  key={message.id}
+                  message={message}
+                  isStreaming={
+                    message.role === 'assistant' &&
+                    message.id === streamingMessageId
+                  }
+                  onStreamComplete={handleStreamComplete}
+                  delay={index === messages.length - 1 ? 0 : 0}
+                />
+              ))}
+
+              {/* Loading indicator */}
+              {isSendingMessage && (
+                <Animated.View
+                  entering={FadeIn.duration(200)}
+                  exiting={FadeOut.duration(150)}
+                  style={styles.loadingContainer}
+                >
+                  <View style={styles.loadingAvatar}>
+                    <SparklesIcon color={Colors.success} size={IconSizes.sm} />
+                  </View>
+                  <ActivityIndicator color={Colors.success} size="small" />
+                </Animated.View>
+              )}
+            </>
           )}
 
-          {isSendingMessage && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator color={Colors.success} size="small" />
-              <Text style={styles.loadingText}>Thinking...</Text>
-            </View>
-          )}
-
+          {/* Error display */}
           {error && (
             <TouchableOpacity
               style={styles.errorContainer}
               onPress={clearError}
+              activeOpacity={0.8}
             >
               <Text style={styles.errorText}>{error}</Text>
-              <Text style={styles.errorDismiss}>Tap to dismiss</Text>
+              <Text style={styles.errorHint}>Tap to dismiss</Text>
             </TouchableOpacity>
           )}
         </ScrollView>
 
         {/* Input */}
-        <View style={styles.inputContainer}>
-          {/* Image preview */}
-          {selectedImage && (
-            <Animated.View
-              entering={FadeIn.duration(200)}
-              style={styles.imagePreviewContainer}
-            >
-              <Image
-                source={{ uri: selectedImage.uri }}
-                style={styles.imagePreview}
-                resizeMode="cover"
-              />
-              <TouchableOpacity
-                style={styles.removeImageButton}
-                onPress={clearSelectedImage}
-              >
-                <XMarkIcon color={Colors.white} size={IconSizes.sm} />
-              </TouchableOpacity>
-            </Animated.View>
-          )}
-
-          <View style={styles.inputWrapper}>
-            {/* Camera button */}
-            <TouchableOpacity
-              style={styles.cameraButton}
-              onPress={pickImage}
-              disabled={isSendingMessage}
-            >
-              <CameraIcon
-                color={isSendingMessage ? Colors.textTertiary : Colors.textSecondary}
-                size={IconSizes.md}
-              />
-            </TouchableOpacity>
-
-            <TextInput
-              style={styles.input}
-              placeholder={selectedImage ? "Describe the workout (optional)..." : "Ask about your training..."}
-              placeholderTextColor={Colors.textTertiary}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={2000}
-              editable={!isSendingMessage}
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
-            />
-            <TouchableOpacity
-              style={[
-                styles.sendButton,
-                ((!inputText.trim() && !selectedImage) || isSendingMessage) &&
-                  styles.sendButtonDisabled,
-              ]}
-              onPress={handleSend}
-              disabled={(!inputText.trim() && !selectedImage) || isSendingMessage}
-            >
-              <PaperAirplaneIcon
-                color={
-                  (inputText.trim() || selectedImage) && !isSendingMessage
-                    ? Colors.white
-                    : Colors.textTertiary
-                }
-                size={IconSizes.md}
-              />
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.inputHint}>
-            Intent: {selectedIntent.replace('_', ' ')}{selectedImage ? ' (with image)' : ''}
-          </Text>
-        </View>
+        <ChatInput
+          value={inputText}
+          onChangeText={setInputText}
+          onSend={handleSend}
+          onImageSelect={handleImageSelect}
+          onImageClear={clearSelectedImage}
+          selectedImage={selectedImage}
+          disabled={isSendingMessage}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -496,64 +360,70 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  dragHandleContainer: {
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
   dragHandle: {
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+  },
+  dragHandleBar: {
     width: 36,
     height: 4,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
-  aiIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+  headerIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(34, 197, 94, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fortisText: {
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: 18,
+  headerTitle: {
+    ...Typography.h5,
     color: Colors.textPrimary,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
-  headerSubtitle: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  headerActions: {
+  headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
   },
   clearButton: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
   },
-  clearButtonText: {
-    ...Typography.label,
-    color: Colors.textSecondary,
+  clearText: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
   },
   closeButton: {
     padding: Spacing.xs,
+  },
+  typingIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 2,
+  },
+  typingDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.success,
   },
   content: {
     flex: 1,
@@ -562,217 +432,39 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   messagesContent: {
-    padding: Spacing.lg,
-    paddingBottom: Spacing['3xl'],
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingTop: Spacing['4xl'],
-  },
-  emptyIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.lg,
-  },
-  emptyTitle: {
-    ...Typography.h3,
-    color: Colors.textPrimary,
-    textAlign: 'center',
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    maxWidth: 280,
-    marginBottom: Spacing['2xl'],
-  },
-  quickActions: {
-    width: '100%',
-    gap: Spacing.sm,
-  },
-  quickAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-  quickActionText: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-    flex: 1,
-  },
-  messageContainer: {
-    flexDirection: 'row',
-    marginBottom: Spacing.md,
-  },
-  userMessage: {
-    justifyContent: 'flex-end',
-  },
-  assistantMessage: {
-    justifyContent: 'flex-start',
-  },
-  assistantAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.sm,
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  userBubble: {
-    backgroundColor: Colors.success,
-    borderBottomRightRadius: BorderRadius.xs,
-  },
-  assistantBubble: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderBottomLeftRadius: BorderRadius.xs,
-  },
-  messageText: {
-    ...Typography.body,
-    color: Colors.textPrimary,
-  },
-  userMessageText: {
-    color: Colors.white,
-  },
-  intentTag: {
-    ...Typography.caption,
-    color: Colors.textTertiary,
-    marginTop: Spacing.xs,
-    fontSize: 10,
-  },
-  clarificationOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-    marginTop: Spacing.sm,
-  },
-  clarificationOption: {
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  clarificationOptionText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+    paddingBottom: Spacing.lg,
   },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    paddingVertical: Spacing.md,
-  },
-  loadingText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-  },
-  errorContainer: {
-    backgroundColor: 'rgba(220, 38, 38, 0.15)',
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.error,
-    padding: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  errorText: {
-    ...Typography.body,
-    color: Colors.error,
-  },
-  errorDismiss: {
-    ...Typography.caption,
-    color: Colors.textTertiary,
-    marginTop: Spacing.xs,
-  },
-  inputContainer: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
-    backgroundColor: Colors.background,
   },
-  inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  input: {
-    flex: 1,
-    ...Typography.body,
-    color: Colors.textPrimary,
-    maxHeight: 100,
-    paddingVertical: Spacing.xs,
-  },
-  sendButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.success,
+  loadingAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: Spacing.sm,
   },
-  sendButtonDisabled: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  errorContainer: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.md,
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(220, 38, 38, 0.2)',
+    padding: Spacing.md,
   },
-  inputHint: {
+  errorText: {
+    ...Typography.bodySmall,
+    color: Colors.error,
+  },
+  errorHint: {
     ...Typography.caption,
     color: Colors.textTertiary,
     marginTop: Spacing.xs,
-    marginLeft: Spacing.xs,
-    textTransform: 'capitalize',
-  },
-  messageImage: {
-    width: '100%',
-    height: 150,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
-  },
-  imagePreviewContainer: {
-    marginBottom: Spacing.sm,
-    position: 'relative',
-  },
-  imagePreview: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.md,
-  },
-  removeImageButton: {
-    position: 'absolute',
-    top: -8,
-    right: -8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: Colors.error,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cameraButton: {
-    padding: Spacing.xs,
-    marginRight: Spacing.xs,
   },
 });

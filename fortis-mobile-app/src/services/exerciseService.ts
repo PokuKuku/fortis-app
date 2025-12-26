@@ -1,64 +1,39 @@
-import { Exercise, ExerciseWithSource, ExerciseSource, ExerciseDbResponse } from '@/src/types/exercise';
+import { Exercise, ExerciseWithSource, ExerciseSource } from '@/src/types/exercise';
 import { EXERCISE_CONFIG } from '@/src/constants/exerciseConfig';
 import { CUSTOM_EXERCISES_KEY, EXERCISE_CACHE_KEY, EXERCISE_CACHE_TIMESTAMP_KEY } from '@/src/constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { exerciseDbClient } from './exerciseDbClient';
 import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
 let customExerciseCache: Exercise[] | null = null;
 
-// --- Helpers ---
-
-function toTitleCase(str: string): string {
-  return str
-    .toLowerCase()
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
-}
-
 // --- Data Transformation ---
 
-function transformExerciseDbToExercise(apiExercise: ExerciseDbResponse): Exercise {
-  const isOpenSource = EXERCISE_CONFIG.activeApi === 'opensource';
+type SupabaseExerciseRow = {
+  id: string;
+  name: string;
+  equipment: string | null;
+  category: string | null;
+  primary_muscles: string[] | null;
+  secondary_muscles: string[] | null;
+  instructions: string[] | null;
+  images: string[] | null;
+};
 
-  if (isOpenSource) {
-    // Open source API: exerciseId, targetMuscles[], bodyParts[], equipments[], gifUrl
-    return {
-      id: apiExercise.exerciseId || '',
-      name: toTitleCase(apiExercise.name || ''),
-      primaryMuscles: normalizeMuscleArray(apiExercise.targetMuscles || []),
-      secondaryMuscles: normalizeMuscleArray(apiExercise.secondaryMuscles || []),
-      equipment: apiExercise.equipments?.[0] || 'body only',
-      category: apiExercise.bodyParts?.[0] || 'strength',
-      instructions: apiExercise.instructions || [],
-      images: apiExercise.gifUrl ? [apiExercise.gifUrl] : [],
-    };
-  } else {
-    // RapidAPI: id, target (string), bodyPart (string), equipment (string)
-    const exerciseId = apiExercise.id || '';
-    const apiKey = process.env.EXPO_PUBLIC_EXERCISEDB_API_KEY || '';
-    const resolution = (EXERCISE_CONFIG as any).imageResolution || 360;
-    const gifUrl = exerciseId
-      ? `https://exercisedb.p.rapidapi.com/image?exerciseId=${exerciseId}&resolution=${resolution}&rapidapi-key=${apiKey}`
-      : '';
-
-    const primaryMuscles = apiExercise.target ? [apiExercise.target] : [];
-
-    return {
-      id: exerciseId,
-      name: toTitleCase(apiExercise.name || ''),
-      primaryMuscles: normalizeMuscleArray(primaryMuscles),
-      secondaryMuscles: normalizeMuscleArray(apiExercise.secondaryMuscles || []),
-      equipment: apiExercise.equipment || 'body only',
-      category: apiExercise.bodyPart || 'strength',
-      instructions: apiExercise.instructions || [],
-      images: gifUrl ? [gifUrl] : [],
-    };
-  }
+function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise {
+  return {
+    id: row.id,
+    name: row.name,
+    primaryMuscles: normalizeMuscleArray(row.primary_muscles ?? []),
+    secondaryMuscles: normalizeMuscleArray(row.secondary_muscles ?? []),
+    equipment: row.equipment ?? 'body only',
+    category: row.category ?? 'strength',
+    instructions: row.instructions ?? [],
+    images: row.images ?? [],
+  };
 }
 
 // --- Cache Management ---
@@ -146,7 +121,7 @@ export async function filterExercises(filters: {
   });
 }
 
-// --- Base Exercise Loading (API-only with caching) ---
+// --- Base Exercise Loading (Supabase-backed with caching) ---
 
 async function getBaseExercises(): Promise<Exercise[]> {
   // 1. Check in-memory cache
@@ -163,10 +138,23 @@ async function getBaseExercises(): Promise<Exercise[]> {
     }
   }
 
-  // 3. Fetch from API
+  // 3. Fetch from Supabase
   try {
-    const apiExercises = await exerciseDbClient.fetchAllExercises();
-    const transformed = apiExercises.map(transformExerciseDbToExercise);
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase is not configured for exercise loading');
+    }
+
+    const { data, error } = await supabase
+      .from('exercises')
+      .select('id, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
+      .eq('is_custom', false)
+      .order('name', { ascending: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const transformed = (data || []).map(transformSupabaseExerciseToExercise);
 
     baseExerciseCache = transformed;
     await saveCachedExercises(transformed);

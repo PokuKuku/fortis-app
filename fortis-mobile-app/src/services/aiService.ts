@@ -488,6 +488,15 @@ async function applyMutation(
           user_id: proposedState.user_id ?? userId,
         };
       }
+      if (mutation.entityType === 'training_summary') {
+        if (!userId) {
+          return { success: false, error: 'Not authenticated' };
+        }
+        proposedState = {
+          ...proposedState,
+          user_id: proposedState.user_id ?? userId,
+        };
+      }
       const { data, error } = await supabase
         .from(tableName)
         .insert(proposedState)
