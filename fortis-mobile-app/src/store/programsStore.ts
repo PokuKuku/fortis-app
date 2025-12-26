@@ -165,9 +165,101 @@ const isValidUUID = (str: string): boolean => {
   return uuidRegex.test(str);
 };
 
+const normalizeExerciseKey = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+
+const resolveExerciseIdMap = async (
+  exercises: Array<{ exerciseId: string; exerciseName?: string | null }>
+): Promise<Map<string, string>> => {
+  const map = new Map<string, string>();
+  const slugKeys = new Set<string>();
+  const nameKeys = new Set<string>();
+
+  exercises.forEach((ex) => {
+    if (isValidUUID(ex.exerciseId)) {
+      map.set(ex.exerciseId, ex.exerciseId);
+      return;
+    }
+    slugKeys.add(ex.exerciseId);
+    if (ex.exerciseName) {
+      nameKeys.add(ex.exerciseName);
+    }
+  });
+
+  if (slugKeys.size === 0 && nameKeys.size === 0) {
+    return map;
+  }
+
+  const [slugResult, nameResult] = await Promise.all([
+    slugKeys.size > 0
+      ? supabase
+          .from('exercises')
+          .select('id, slug, name')
+          .in('slug', Array.from(slugKeys))
+      : Promise.resolve({ data: [], error: null }),
+    nameKeys.size > 0
+      ? supabase
+          .from('exercises')
+          .select('id, slug, name')
+          .in('name', Array.from(nameKeys))
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (slugResult.error) {
+    throw new Error(slugResult.error.message);
+  }
+  if (nameResult.error) {
+    throw new Error(nameResult.error.message);
+  }
+
+  const rows = [...(slugResult.data || []), ...(nameResult.data || [])];
+  rows.forEach((row: { id: string; slug?: string | null; name?: string | null }) => {
+    if (row.slug) {
+      map.set(row.slug, row.id);
+    }
+    if (row.name) {
+      map.set(normalizeExerciseKey(row.name), row.id);
+    }
+  });
+
+  return map;
+};
+
+const resolveExerciseIdsForSupabase = async <
+  T extends { exerciseId: string; exerciseName?: string | null }
+>(
+  exercises: T[]
+): Promise<Array<T & { resolvedExerciseId: string }>> => {
+  if (exercises.length === 0) return [];
+  const idMap = await resolveExerciseIdMap(exercises);
+
+  return exercises.map((exercise) => {
+    const resolvedId = isValidUUID(exercise.exerciseId)
+      ? exercise.exerciseId
+      : idMap.get(exercise.exerciseId) ||
+        (exercise.exerciseName ? idMap.get(normalizeExerciseKey(exercise.exerciseName)) : null);
+
+    if (!resolvedId) {
+      throw new Error(`Unable to resolve exercise: ${exercise.exerciseName || exercise.exerciseId}`);
+    }
+
+    return { ...exercise, resolvedExerciseId: resolvedId };
+  });
+};
+
 const hasLocalExerciseIds = (
   exercises: Array<{ exerciseId: string }>
-): boolean => exercises.some(ex => !isValidUUID(ex.exerciseId));
+): boolean =>
+  exercises.some(
+    (ex) =>
+      ex.exerciseId.startsWith('custom-') ||
+      ex.exerciseId.startsWith('local-') ||
+      ex.exerciseId.trim().length === 0
+  );
 
 const buildProgramWorkoutFromTemplate = (
   template: Program,
@@ -417,9 +509,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         if (workoutError || !newWorkout) continue;
 
         // Duplicate exercises
-        const exercisesToInsert = workout.exercises.map((ex) => ({
+        const resolvedExercises = await resolveExerciseIdsForSupabase(workout.exercises);
+        const exercisesToInsert = resolvedExercises.map((ex) => ({
           program_workout_id: newWorkout.id,
-          exercise_id: ex.exerciseId,
+          exercise_id: ex.resolvedExerciseId,
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds,
@@ -558,9 +651,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       if (templateWorkout.exercises.length > 0) {
-        const exercisesToInsert = templateWorkout.exercises.map((exercise, index) => ({
+        const resolvedExercises = await resolveExerciseIdsForSupabase(templateWorkout.exercises);
+        const exercisesToInsert = resolvedExercises.map((exercise, index) => ({
           program_workout_id: workout.id,
-          exercise_id: exercise.exerciseId,
+          exercise_id: exercise.resolvedExerciseId,
           sets: exercise.sets,
           reps: exercise.reps,
           rest_seconds: exercise.restSeconds ?? 120,
@@ -722,9 +816,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       // Insert exercises
       if (exercises.length > 0) {
-        const exercisesToInsert = exercises.map((ex, index) => ({
+        const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
+        const exercisesToInsert = resolvedExercises.map((ex, index) => ({
           program_workout_id: workout.id,
-          exercise_id: ex.exerciseId,
+          exercise_id: ex.resolvedExerciseId,
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds || 120,
@@ -933,9 +1028,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
         const exercises = template.workouts[0]?.exercises || [];
         if (exercises.length > 0) {
-          const exercisesToInsert = exercises.map((exercise, exerciseIndex) => ({
+          const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
+          const exercisesToInsert = resolvedExercises.map((exercise, exerciseIndex) => ({
             program_workout_id: workout.id,
-            exercise_id: exercise.exerciseId,
+            exercise_id: exercise.resolvedExerciseId,
             sets: exercise.sets,
             reps: exercise.reps,
             rest_seconds: exercise.restSeconds ?? 120,
@@ -1133,9 +1229,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
           const exercises = template.workouts[0]?.exercises || [];
           if (exercises.length > 0) {
-            const exercisesToInsert = exercises.map((exercise, exerciseIndex) => ({
+            const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
+            const exercisesToInsert = resolvedExercises.map((exercise, exerciseIndex) => ({
               program_workout_id: entry.workoutId,
-              exercise_id: exercise.exerciseId,
+              exercise_id: exercise.resolvedExerciseId,
               sets: exercise.sets,
               reps: exercise.reps,
               rest_seconds: exercise.restSeconds ?? 120,
@@ -1171,9 +1268,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
           const exercises = template.workouts[0]?.exercises || [];
           if (exercises.length > 0) {
-            const exercisesToInsert = exercises.map((exercise, exerciseIndex) => ({
+            const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
+            const exercisesToInsert = resolvedExercises.map((exercise, exerciseIndex) => ({
               program_workout_id: workout.id,
-              exercise_id: exercise.exerciseId,
+              exercise_id: exercise.resolvedExerciseId,
               sets: exercise.sets,
               reps: exercise.reps,
               rest_seconds: exercise.restSeconds ?? 120,
@@ -1319,9 +1417,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       if (targetWorkout.exercises.length > 0) {
-        const exercisesToInsert = targetWorkout.exercises.map((exercise, index) => ({
+        const resolvedExercises = await resolveExerciseIdsForSupabase(targetWorkout.exercises);
+        const exercisesToInsert = resolvedExercises.map((exercise, index) => ({
           program_workout_id: workoutId,
-          exercise_id: exercise.exerciseId,
+          exercise_id: exercise.resolvedExerciseId,
           sets: exercise.sets,
           reps: exercise.reps,
           rest_seconds: exercise.restSeconds ?? 120,
@@ -1472,9 +1571,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       let idsByOrder: Map<number, string> | undefined;
       if (exercises.length > 0) {
-        const exercisesToInsert = exercises.map((ex, index) => ({
+        const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
+        const exercisesToInsert = resolvedExercises.map((ex, index) => ({
           program_workout_id: workoutId,
-          exercise_id: ex.exerciseId,
+          exercise_id: ex.resolvedExerciseId,
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds ?? 120,

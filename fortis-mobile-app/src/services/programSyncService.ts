@@ -51,8 +51,73 @@ function isValidUUID(str: string): boolean {
  */
 function hasLocalExercises(program: Program): boolean {
   return program.workouts.some(workout =>
-    workout.exercises.some(ex => !isValidUUID(ex.exerciseId))
+    workout.exercises.some(ex =>
+      ex.exerciseId.startsWith('custom-') || ex.exerciseId.startsWith('local-')
+    )
   );
+}
+
+function normalizeExerciseKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
+
+async function resolveExerciseIdMap(exercises: ProgramExercise[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const slugKeys = new Set<string>();
+  const nameKeys = new Set<string>();
+
+  exercises.forEach((ex) => {
+    if (isValidUUID(ex.exerciseId)) {
+      map.set(ex.exerciseId, ex.exerciseId);
+      return;
+    }
+    slugKeys.add(ex.exerciseId);
+    if (ex.exerciseName) {
+      nameKeys.add(ex.exerciseName);
+    }
+  });
+
+  if (slugKeys.size === 0 && nameKeys.size === 0) {
+    return map;
+  }
+
+  const [slugResult, nameResult] = await Promise.all([
+    slugKeys.size > 0
+      ? supabase
+          .from('exercises')
+          .select('id, slug, name')
+          .in('slug', Array.from(slugKeys))
+      : Promise.resolve({ data: [], error: null }),
+    nameKeys.size > 0
+      ? supabase
+          .from('exercises')
+          .select('id, slug, name')
+          .in('name', Array.from(nameKeys))
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (slugResult.error) {
+    throw new Error(slugResult.error.message);
+  }
+  if (nameResult.error) {
+    throw new Error(nameResult.error.message);
+  }
+
+  const rows = [...(slugResult.data || []), ...(nameResult.data || [])];
+  rows.forEach((row: { id: string; slug?: string | null; name?: string | null }) => {
+    if (row.slug) {
+      map.set(row.slug, row.id);
+    }
+    if (row.name) {
+      map.set(normalizeExerciseKey(row.name), row.id);
+    }
+  });
+
+  return map;
 }
 
 /**
@@ -175,15 +240,27 @@ async function uploadProgram(
 
       // Insert exercises for this workout
       if (workout.exercises.length > 0) {
-        const exercisesToInsert = workout.exercises.map((ex, index) => ({
+        const exerciseIdMap = await resolveExerciseIdMap(workout.exercises);
+        const exercisesToInsert = workout.exercises.map((ex, index) => {
+          const resolvedId = isValidUUID(ex.exerciseId)
+            ? ex.exerciseId
+            : exerciseIdMap.get(ex.exerciseId) ||
+              (ex.exerciseName ? exerciseIdMap.get(normalizeExerciseKey(ex.exerciseName)) : null);
+
+          if (!resolvedId) {
+            throw new Error(`Unable to resolve exercise: ${ex.exerciseName || ex.exerciseId}`);
+          }
+
+          return {
           program_workout_id: insertedWorkout.id,
-          exercise_id: ex.exerciseId,
+          exercise_id: resolvedId,
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds || 120,
           notes: ex.notes,
           order_index: ex.orderIndex ?? index,
-        }));
+          };
+        });
 
         const { error: exercisesError } = await supabase
           .from('program_exercises')

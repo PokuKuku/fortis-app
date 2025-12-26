@@ -45,7 +45,9 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
 import {
   DocumentDuplicateIcon,
   CheckIcon,
+  PencilIcon,
 } from 'react-native-heroicons/outline';
+import { GlassButton } from '@/components/GlassButton';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography, FontFamily } from '@/constants/Typography';
@@ -62,6 +64,10 @@ interface ChatMessageProps {
   onStreamComplete?: () => void;
   /** Animation delay for staggered entrance */
   delay?: number;
+  /** Callback when user taps Save button (for actionable messages) */
+  onSaveAction?: () => void;
+  /** Callback when user taps Customize button (for actionable messages) */
+  onCustomizeAction?: () => void;
 }
 
 export function ChatMessage({
@@ -70,6 +76,8 @@ export function ChatMessage({
   isAILoading = false,
   onStreamComplete,
   delay = 0,
+  onSaveAction,
+  onCustomizeAction,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
@@ -265,6 +273,33 @@ export function ChatMessage({
           </TouchableOpacity>
         )}
 
+        {/* Action buttons for actionable messages (workouts/programs) */}
+        {!isUser && !isStreaming && message.mutationPlanId && onSaveAction && onCustomizeAction && (
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity
+              style={styles.customizeButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onCustomizeAction();
+              }}
+              activeOpacity={0.7}
+            >
+              <PencilIcon color={Colors.textPrimary} size={IconSizes.sm} />
+              <Text style={styles.customizeButtonText}>Customize</Text>
+            </TouchableOpacity>
+            <GlassButton
+              style={styles.saveButton}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onSaveAction();
+              }}
+            >
+              <CheckIcon color={Colors.white} size={IconSizes.sm} />
+              <Text style={styles.saveButtonText}>Save</Text>
+            </GlassButton>
+          </View>
+        )}
+
         {/* Clarification options */}
         {message.clarification?.options && message.clarification.options.length > 0 && (
           <View style={styles.clarificationOptions}>
@@ -345,6 +380,40 @@ const styles = StyleSheet.create({
   userIndicatorText: {
     ...Typography.caption,
     color: Colors.textTertiary,
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  customizeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  customizeButtonText: {
+    ...Typography.bodySmall,
+    color: Colors.textPrimary,
+  },
+  saveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    height: 36,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  saveButtonText: {
+    ...Typography.bodySmall,
+    color: Colors.white,
+    fontWeight: '600',
   },
   clarificationOptions: {
     flexDirection: 'row',

@@ -19,6 +19,7 @@ let customExerciseCache: Exercise[] | null = null;
 
 type SupabaseExerciseRow = {
   id: string;
+  slug: string | null;
   name: string;
   equipment: string | null;
   category: string | null;
@@ -31,6 +32,7 @@ type SupabaseExerciseRow = {
 function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise {
   return {
     id: row.id,
+    slug: row.slug ?? undefined,
     name: row.name,
     primaryMuscles: normalizeMuscleArray(row.primary_muscles ?? []),
     secondaryMuscles: normalizeMuscleArray(row.secondary_muscles ?? []),
@@ -126,7 +128,13 @@ export async function getAllExercises(): Promise<ExerciseWithSource[]> {
 
 export async function getExerciseById(id: string): Promise<ExerciseWithSource | null> {
   const exercises = await getAllExercises();
-  return exercises.find(e => e.id === id) || null;
+  const normalizedId = normalizeExerciseKey(id);
+  return (
+    exercises.find(e => e.id === id) ||
+    exercises.find(e => e.slug === id) ||
+    exercises.find(e => normalizeExerciseKey(e.name) === normalizedId) ||
+    null
+  );
 }
 
 export async function searchExercises(query: string): Promise<ExerciseWithSource[]> {
@@ -192,7 +200,7 @@ async function getBaseExercises(): Promise<Exercise[]> {
       fetchLibraryVersion(),
       supabase
         .from('exercises')
-        .select('id, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
+        .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
         .eq('is_custom', false)
         .order('name', { ascending: true }),
     ]);
@@ -302,4 +310,12 @@ export function getExerciseImageUrl(imagePath: string): string {
  */
 export function isCustomExercise(id: string): boolean {
   return id.startsWith('custom-');
+}
+
+function normalizeExerciseKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
 }

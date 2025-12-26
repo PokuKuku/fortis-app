@@ -38,6 +38,20 @@ import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
+import { QuickReplies } from '@/src/components/ai/QuickReplies';
+import { getQuickReplySuggestions } from '@/src/utils/aiSuggestions';
+import { AIMutationPreviewModal } from '@/src/components/ai/AIMutationPreviewModal';
+
+// Motivational loading messages
+const LOADING_MESSAGES = [
+  "Analyzing your gains...",
+  "Crunching the numbers...",
+  "Building something epic...",
+  "Consulting the iron gods...",
+  "Calculating optimal reps...",
+  "Reviewing your progress...",
+  "Designing your next PR...",
+];
 
 // Animated sparkles for loading indicator
 function AnimatedLoadingSparkles() {
@@ -151,6 +165,8 @@ export default function AIChatScreen() {
   const [inputText, setInputText] = useState('');
   const [selectedIntent, setSelectedIntent] = useState<AIIntent>('QUERY_STATS');
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
 
@@ -167,6 +183,8 @@ export default function AIChatScreen() {
   const selectedImage = useAIStore((state) => state.selectedImage);
   const setSelectedImage = useAIStore((state) => state.setSelectedImage);
   const clearSelectedImage = useAIStore((state) => state.clearSelectedImage);
+  const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
+  const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
 
   const messages = conversation?.messages || [];
 
@@ -198,6 +216,14 @@ export default function AIChatScreen() {
       }
     }
   }, [messages, streamingMessageId]);
+
+  // Select random loading message when AI starts responding
+  useEffect(() => {
+    if (isSendingMessage) {
+      const randomIndex = Math.floor(Math.random() * LOADING_MESSAGES.length);
+      setLoadingMessage(LOADING_MESSAGES[randomIndex]);
+    }
+  }, [isSendingMessage]);
 
   const handleClose = () => {
     router.back();
@@ -258,6 +284,30 @@ export default function AIChatScreen() {
   const handleStreamComplete = useCallback(() => {
     setStreamingMessageId(null);
   }, []);
+
+  // Save action - directly apply the mutation plan
+  const handleSaveAction = useCallback(async () => {
+    const success = await applyCurrentMutationPlan();
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+  }, [applyCurrentMutationPlan]);
+
+  // Customize action - open preview modal
+  const handleCustomizeAction = useCallback(() => {
+    setShowPreviewModal(true);
+  }, []);
+
+  // Preview modal confirm
+  const handlePreviewConfirm = useCallback(async () => {
+    const success = await applyCurrentMutationPlan();
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowPreviewModal(false);
+    }
+  }, [applyCurrentMutationPlan]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -323,8 +373,24 @@ export default function AIChatScreen() {
                   message={message}
                   isStreaming={false}
                   isAILoading={isSendingMessage && message.role === 'assistant'}
+                  onSaveAction={handleSaveAction}
+                  onCustomizeAction={handleCustomizeAction}
                 />
               ))}
+
+              {/* Quick Replies - show after last AI message when not loading */}
+              {!isSendingMessage && messages.length > 0 && (
+                <QuickReplies
+                  suggestions={getQuickReplySuggestions(
+                    messages[messages.length - 1]?.intent,
+                    !!currentMutationPlan
+                  )}
+                  onSelect={(suggestion) => {
+                    setInputText(suggestion);
+                  }}
+                  disabled={isSendingMessage}
+                />
+              )}
 
               {/* Loading indicator */}
               {isSendingMessage && (
@@ -334,6 +400,7 @@ export default function AIChatScreen() {
                   style={styles.loadingContainer}
                 >
                   <AnimatedLoadingSparkles />
+                  <Text style={styles.loadingText}>{loadingMessage}</Text>
                 </Animated.View>
               )}
             </>
@@ -363,6 +430,13 @@ export default function AIChatScreen() {
           disabled={isSendingMessage}
         />
       </KeyboardAvoidingView>
+
+      {/* Mutation Preview Modal */}
+      <AIMutationPreviewModal
+        visible={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+        onConfirm={handlePreviewConfirm}
+      />
     </SafeAreaView>
   );
 }
@@ -435,6 +509,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+  },
+  loadingText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
+    marginLeft: Spacing.sm,
   },
   errorContainer: {
     marginHorizontal: Spacing.lg,

@@ -515,6 +515,16 @@ Deno.serve(async (req: Request) => {
     const config = INTENT_CONFIG[aiRequest.intent];
     const requestId = crypto.randomUUID();
 
+    if (!aiRequest.image && isLowSignalMessage(aiRequest.message)) {
+      return jsonResponse({
+        type: 'clarification',
+        requestId,
+        clarification: {
+          question: 'What would you like help with? You can ask about your stats, a specific exercise, or request a program.',
+        },
+      });
+    }
+
     if (aiRequest.intent === 'MODIFY_PROGRAM' || aiRequest.intent === 'MODIFY_TEMPLATE') {
       return jsonResponse({
         type: 'answer',
@@ -661,6 +671,36 @@ function validateRequest(body: unknown): string | null {
   }
 
   return null;
+}
+
+const LOW_SIGNAL_TERMS = new Set([
+  'test',
+  'testing',
+  'hello',
+  'hi',
+  'hey',
+  'yo',
+  'sup',
+  'ok',
+  'okay',
+  'k',
+  'thanks',
+  'thx',
+  'cool',
+  'nice',
+  'lol',
+  'hmm',
+  'idk',
+  'help',
+]);
+
+function isLowSignalMessage(message: string): boolean {
+  const cleaned = message.toLowerCase().trim();
+  if (cleaned.length <= 4) return true;
+  const tokens = cleaned.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const meaningful = tokens.filter((token) => token.length > 2 && !LOW_SIGNAL_TERMS.has(token));
+  return meaningful.length === 0;
 }
 
 // ============================================

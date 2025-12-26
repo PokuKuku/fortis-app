@@ -39,30 +39,30 @@ const QUICK_ACTIONS: QuickAction[] = [
   {
     intent: 'QUERY_STATS',
     icon: ArrowTrendingUpIcon,
-    label: 'Check Stats',
-    description: 'View your progress',
-    prompt: "What's my best bench press?",
+    label: 'Track My Gains',
+    description: 'See your progress',
+    prompt: "How am I doing this month?",
   },
   {
     intent: 'ANALYZE_PLATEAU',
     icon: QuestionMarkCircleIcon,
-    label: 'Analyze Plateau',
-    description: 'Break through limits',
-    prompt: 'Why has my progress stalled?',
+    label: 'Break Through',
+    description: 'Smash that plateau',
+    prompt: 'Help me break through my plateau',
   },
   {
     intent: 'CREATE_TEMPLATE',
     icon: DumbbellIcon,
-    label: 'Create Workout',
-    description: 'Build a session',
-    prompt: 'Create a push day workout',
+    label: 'Build a Workout',
+    description: 'Custom session',
+    prompt: 'Design me a killer push day',
   },
   {
     intent: 'CREATE_PROGRAM',
     icon: CalendarDaysIcon,
-    label: 'Build Program',
-    description: 'Plan your training',
-    prompt: 'Build me a 4-day strength program',
+    label: 'Full Program',
+    description: 'Weekly plan',
+    prompt: 'Create a 4-week strength program',
   },
 ];
 
@@ -84,9 +84,9 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
         entering={FadeIn.duration(400)}
         style={styles.header}
       >
-        <Text style={styles.title}>How can I help you train?</Text>
+        <Text style={styles.title}>Ready to Level Up?</Text>
         <Text style={styles.subtitle}>
-          Ask about your stats, create workouts, or analyze your progress
+          Your AI coach is here to build workouts, crush plateaus, and track your gains
         </Text>
       </Animated.View>
 
