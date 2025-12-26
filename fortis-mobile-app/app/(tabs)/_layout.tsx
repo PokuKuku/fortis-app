@@ -79,8 +79,11 @@ export default function TabLayout() {
   }, [loadProgramProgress]);
 
   // AI Store
-  const { pendingActions } = useAIStore();
+  const { pendingActions, conversation } = useAIStore();
   const hasPendingActions = pendingActions.length > 0;
+  const hasActiveChat =
+    pathname !== '/ai/chat' &&
+    (conversation?.messages.length ?? 0) > 0;
   const fabOpacity = useRef(new Animated.Value(1)).current;
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [exerciseName, setExerciseName] = useState('');
@@ -521,6 +524,7 @@ export default function TabLayout() {
         circular
         size={60}
         style={styles.plusButton}
+        gradientColors={hasActiveChat ? ['#2dd4bf', '#14b8a6'] : undefined}
         onPress={handleFabPress}
         pointerEvents={detailModalVisible ? 'none' : 'auto'}
       >

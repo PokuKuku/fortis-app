@@ -36,6 +36,7 @@ const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
   CREATE_TEMPLATE: 'create_template',
   MODIFY_TEMPLATE: 'modify_template',
   LOG_WORKOUT: 'log_workout',
+  UPDATE_GOALS: 'update_goals',
 };
 
 const LOGGABLE_ENTITY_TYPES = new Set<string>([
@@ -44,6 +45,7 @@ const LOGGABLE_ENTITY_TYPES = new Set<string>([
   'program_exercise',
   'workout_session',
   'workout_set',
+  'user_goal',
 ]);
 
 // ============================================
@@ -261,6 +263,15 @@ export async function generateSummary(
   );
 }
 
+/**
+ * Update user goals
+ */
+export async function updateGoals(
+  request: string
+): Promise<AIResponse> {
+  return sendAIMessage('UPDATE_GOALS', request);
+}
+
 // ============================================
 // Pending Actions Management
 // ============================================
@@ -358,8 +369,19 @@ export async function applyMutationPlan(
   const actionType = ACTION_TYPE_BY_INTENT[plan.intent];
   const canLog = Boolean(userId && actionType);
 
-  if (plan.mutations.some((mutation) => mutation.operation !== 'INSERT')) {
-    return { success: false, error: 'Only create actions are allowed right now.' };
+  const allowedOperations =
+    plan.intent === 'UPDATE_GOALS'
+      ? new Set(['INSERT', 'UPDATE', 'DELETE'])
+      : new Set(['INSERT']);
+  const invalidOperation = plan.mutations.find((mutation) => !allowedOperations.has(mutation.operation));
+  if (invalidOperation) {
+    return { success: false, error: 'This request includes unsupported actions.' };
+  }
+  if (plan.intent === 'UPDATE_GOALS') {
+    const nonGoalMutation = plan.mutations.find((mutation) => mutation.entityType !== 'user_goal');
+    if (nonGoalMutation) {
+      return { success: false, error: 'Goal updates can only modify user goals.' };
+    }
   }
 
   try {
@@ -547,6 +569,7 @@ function entityTypeToTable(entityType: string): string {
     workout_session: 'workout_sessions',
     workout_set: 'workout_sets',
     training_summary: 'training_summaries',
+    user_goal: 'user_goals',
   };
   return mapping[entityType] || entityType;
 }
@@ -758,6 +781,7 @@ export function getIntentLabel(intent: AIIntent): string {
     MODIFY_TEMPLATE: 'Modify Template',
     LOG_WORKOUT: 'Log Workout',
     GENERATE_SUMMARY: 'Generate Summary',
+    UPDATE_GOALS: 'Update Goals',
   };
   return labels[intent];
 }

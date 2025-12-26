@@ -1,6 +1,11 @@
 import { Exercise, ExerciseWithSource, ExerciseSource } from '@/src/types/exercise';
 import { EXERCISE_CONFIG } from '@/src/constants/exerciseConfig';
-import { CUSTOM_EXERCISES_KEY, EXERCISE_CACHE_KEY, EXERCISE_CACHE_TIMESTAMP_KEY } from '@/src/constants/storageKeys';
+import {
+  CUSTOM_EXERCISES_KEY,
+  EXERCISE_CACHE_KEY,
+  EXERCISE_CACHE_TIMESTAMP_KEY,
+  EXERCISE_LIBRARY_VERSION_KEY,
+} from '@/src/constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
@@ -59,6 +64,14 @@ async function loadCachedExercises(): Promise<Exercise[] | null> {
   }
 }
 
+async function loadCachedLibraryVersion(): Promise<string | null> {
+  try {
+    return await AsyncStorage.getItem(EXERCISE_LIBRARY_VERSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
 async function saveCachedExercises(exercises: Exercise[]): Promise<void> {
   try {
     await AsyncStorage.setItem(EXERCISE_CACHE_KEY, JSON.stringify(exercises));
@@ -66,6 +79,31 @@ async function saveCachedExercises(exercises: Exercise[]): Promise<void> {
   } catch (error) {
     console.warn('Failed to cache exercises:', error);
   }
+}
+
+async function saveCachedLibraryVersion(version: string | null): Promise<void> {
+  if (!version) return;
+  try {
+    await AsyncStorage.setItem(EXERCISE_LIBRARY_VERSION_KEY, version);
+  } catch (error) {
+    console.warn('Failed to cache exercise library version:', error);
+  }
+}
+
+async function fetchLibraryVersion(): Promise<string | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  const { data, error } = await supabase
+    .from('exercise_library_meta')
+    .select('version')
+    .eq('id', 1)
+    .single();
+
+  if (error) {
+    return null;
+  }
+
+  return data?.version ? String(data.version) : null;
 }
 
 // --- Core Functions ---
@@ -129,12 +167,18 @@ async function getBaseExercises(): Promise<Exercise[]> {
     return baseExerciseCache;
   }
 
-  // 2. Check persistent cache
+  // 2. Check persistent cache + server version to avoid stale data
   if (await isCacheValid()) {
-    const cached = await loadCachedExercises();
+    const [cached, cachedVersion, remoteVersion] = await Promise.all([
+      loadCachedExercises(),
+      loadCachedLibraryVersion(),
+      fetchLibraryVersion(),
+    ]);
     if (cached && cached.length > 0) {
-      baseExerciseCache = cached;
-      return cached;
+      if (!remoteVersion || !cachedVersion || cachedVersion === remoteVersion) {
+        baseExerciseCache = cached;
+        return cached;
+      }
     }
   }
 
@@ -144,11 +188,14 @@ async function getBaseExercises(): Promise<Exercise[]> {
       throw new Error('Supabase is not configured for exercise loading');
     }
 
-    const { data, error } = await supabase
-      .from('exercises')
-      .select('id, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
-      .eq('is_custom', false)
-      .order('name', { ascending: true });
+    const [version, { data, error }] = await Promise.all([
+      fetchLibraryVersion(),
+      supabase
+        .from('exercises')
+        .select('id, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
+        .eq('is_custom', false)
+        .order('name', { ascending: true }),
+    ]);
 
     if (error) {
       throw new Error(error.message);
@@ -158,6 +205,7 @@ async function getBaseExercises(): Promise<Exercise[]> {
 
     baseExerciseCache = transformed;
     await saveCachedExercises(transformed);
+    await saveCachedLibraryVersion(version);
 
     return transformed;
   } catch (error) {
@@ -176,12 +224,13 @@ async function getBaseExercises(): Promise<Exercise[]> {
 }
 
 /**
- * Force refresh the exercise cache from API.
+ * Force refresh the exercise cache from Supabase.
  */
 export async function refreshExerciseCache(): Promise<void> {
   baseExerciseCache = null;
   await AsyncStorage.removeItem(EXERCISE_CACHE_KEY);
   await AsyncStorage.removeItem(EXERCISE_CACHE_TIMESTAMP_KEY);
+  await AsyncStorage.removeItem(EXERCISE_LIBRARY_VERSION_KEY);
   await getBaseExercises();
 }
 

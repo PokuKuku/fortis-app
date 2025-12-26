@@ -12,14 +12,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Animated, {
   FadeInUp,
   FadeIn,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
   Easing,
 } from 'react-native-reanimated';
 import {
-  SparklesIcon,
   ArrowTrendingUpIcon,
   QuestionMarkCircleIcon,
   ChevronRightIcon,
@@ -75,35 +70,6 @@ interface ChatEmptyStateProps {
   onQuickAction: (intent: AIIntent, prompt: string) => void;
 }
 
-// Animated sparkles component with subtle pulse
-function AnimatedSparkles() {
-  const scale = useSharedValue(1);
-  const opacity = useSharedValue(0.8);
-
-  React.useEffect(() => {
-    scale.value = withRepeat(
-      withTiming(1.08, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-    opacity.value = withRepeat(
-      withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
-    );
-  }, [scale, opacity]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-    opacity: opacity.value,
-  }));
-
-  return (
-    <Animated.View style={[styles.iconContainer, animatedStyle]}>
-      <SparklesIcon color={Colors.success} size={36} />
-    </Animated.View>
-  );
-}
 
 export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
   const handleQuickAction = (action: QuickAction) => {
@@ -118,7 +84,6 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
         entering={FadeIn.duration(400)}
         style={styles.header}
       >
-        <AnimatedSparkles />
         <Text style={styles.title}>How can I help you train?</Text>
         <Text style={styles.subtitle}>
           Ask about your stats, create workouts, or analyze your progress
@@ -174,17 +139,6 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: Spacing['3xl'],
-  },
-  iconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.2)',
   },
   title: {
     ...Typography.h2,

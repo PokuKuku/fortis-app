@@ -136,6 +136,10 @@ async function fetchExerciseDb(): Promise<ExerciseDbResponse[]> {
   const apiKey = Deno.env.get('EXERCISE_DB_API_KEY') || '';
   const apiHost = Deno.env.get('EXERCISE_DB_API_HOST') || 'exercisedb.p.rapidapi.com';
 
+  if (isRapidApi(provider) && !apiKey) {
+    throw new Error('EXERCISE_DB_API_KEY is required for RapidAPI');
+  }
+
   const headers: HeadersInit = isRapidApi(provider)
     ? {
         'X-RapidAPI-Key': apiKey,
@@ -295,19 +299,32 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: deleteError } = await supabase
-      .from('exercises')
-      .delete()
-      .eq('is_custom', false)
-      .not('slug', 'in', `(${slugs.map((slug) => `"${slug}"`).join(',')})`);
+    let pruned = 0;
+    if (Deno.env.get('EXERCISE_DB_PRUNE') === 'true') {
+      const { data: prunedCount, error: pruneError } = await supabase
+        .rpc('prune_public_exercises', { p_slugs: slugs });
+      if (pruneError) {
+        throw new Error(pruneError.message);
+      }
+      pruned = Number(prunedCount ?? 0);
+    }
 
-    if (deleteError) {
-      throw new Error(deleteError.message);
+    const { error: metaError } = await supabase
+      .from('exercise_library_meta')
+      .upsert({
+        id: 1,
+        version: Date.now(),
+        updated_at: new Date().toISOString(),
+      });
+
+    if (metaError) {
+      throw new Error(metaError.message);
     }
 
     return jsonResponse({
       status: 'ok',
       imported: normalizedExercises.length,
+      pruned,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

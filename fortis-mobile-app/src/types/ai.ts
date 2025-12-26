@@ -28,7 +28,8 @@ export type AIIntent =
   | 'CREATE_TEMPLATE'
   | 'MODIFY_TEMPLATE'
   | 'LOG_WORKOUT'
-  | 'GENERATE_SUMMARY';
+  | 'GENERATE_SUMMARY'
+  | 'UPDATE_GOALS';
 
 /**
  * Intent metadata for context assembly
@@ -157,6 +158,15 @@ export const INTENT_CONFIG: Record<AIIntent, {
     includeProgram: false,
     includeExerciseDb: false,
     includeAnalytics: true,
+  },
+  UPDATE_GOALS: {
+    type: 'write',
+    defaultContextWeeks: 4,
+    includeHistory: false,
+    includeNotes: false,
+    includeProgram: false,
+    includeExerciseDb: false,
+    includeAnalytics: false,
   },
 };
 
@@ -313,7 +323,8 @@ export type AIEntityType =
   | 'program_exercise'
   | 'workout_session'
   | 'workout_set'
-  | 'training_summary';
+  | 'training_summary'
+  | 'user_goal';
 
 /**
  * Exercise resolution showing how AI mapped exercises

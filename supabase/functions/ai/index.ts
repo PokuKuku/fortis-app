@@ -31,7 +31,8 @@ type AIIntent =
   | 'CREATE_TEMPLATE'
   | 'MODIFY_TEMPLATE'
   | 'LOG_WORKOUT'
-  | 'GENERATE_SUMMARY';
+  | 'GENERATE_SUMMARY'
+  | 'UPDATE_GOALS';
 
 type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
@@ -180,12 +181,22 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeExerciseDb: false,
     includeAnalytics: true,
   },
+  UPDATE_GOALS: {
+    type: 'write',
+    defaultContextWeeks: 4,
+    includeHistory: false,
+    includeNotes: false,
+    includeProgram: false,
+    includeExerciseDb: false,
+    includeAnalytics: false,
+  },
 };
 
 const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
   CREATE_PROGRAM: 'create_program',
   CREATE_TEMPLATE: 'create_template',
   LOG_WORKOUT: 'log_workout',
+  UPDATE_GOALS: 'update_goals',
 };
 
 const ALLOWED_ENTITY_TYPES = new Set<string>([
@@ -195,9 +206,10 @@ const ALLOWED_ENTITY_TYPES = new Set<string>([
   'workout_session',
   'workout_set',
   'training_summary',
+  'user_goal',
 ]);
 
-const ALLOWED_MUTATION_OPERATIONS = new Set(['INSERT']);
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function sanitizeProposedState(
   entityType: string,
@@ -228,12 +240,146 @@ function sanitizeProposedState(
     sanitized.user_id = userId;
   }
 
+  if (entityType === 'user_goal') {
+    sanitized.user_id = userId;
+  }
+
   // Remove any server-controlled fields that shouldn't be set by AI
   delete sanitized.id;
   delete sanitized.created_at;
   delete sanitized.updated_at;
 
   return sanitized;
+}
+
+function isValidUuid(value: unknown): boolean {
+  return typeof value === 'string' && UUID_REGEX.test(value);
+}
+
+function extractSearchPhrases(message: string, maxPhrases = 6): string[] {
+  const cleaned = message
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return [];
+  const words = cleaned.split(' ').filter((word) => word.length >= 3);
+  const phrases: string[] = [];
+  for (let size = Math.min(3, words.length); size >= 1; size -= 1) {
+    for (let i = 0; i <= words.length - size; i += 1) {
+      const phrase = words.slice(i, i + size).join(' ');
+      if (!phrases.includes(phrase)) {
+        phrases.push(phrase);
+      }
+      if (phrases.length >= maxPhrases) {
+        return phrases;
+      }
+    }
+  }
+  return phrases;
+}
+
+async function resolveExerciseMatches(
+  supabase: SupabaseClient,
+  userId: string,
+  message: string
+): Promise<{ ids: string[]; matched: { id: string; name: string; source: 'history' | 'catalog' }[] }> {
+  const phrases = extractSearchPhrases(message);
+  const matched = new Map<string, { id: string; name: string; source: 'history' | 'catalog' }>();
+
+  for (const phrase of phrases) {
+    if (matched.size >= 8) break;
+
+    const { data: historyMatches } = await supabase
+      .from('workout_sets')
+      .select('exercise_id, exercises(id, name), workout_sessions!inner(user_id)')
+      .eq('workout_sessions.user_id', userId)
+      .ilike('exercises.name', `%${phrase}%`)
+      .limit(8);
+
+    historyMatches?.forEach((row) => {
+      if (matched.size >= 8) return;
+      const exercise = row.exercises as { id?: string; name?: string } | null;
+      if (exercise?.id && exercise.name && !matched.has(exercise.id)) {
+        matched.set(exercise.id, { id: exercise.id, name: exercise.name, source: 'history' });
+      }
+    });
+
+    if (matched.size >= 8) break;
+
+    const { data: catalogMatches } = await supabase
+      .from('exercises')
+      .select('id, name')
+      .ilike('name', `%${phrase}%`)
+      .limit(8);
+
+    catalogMatches?.forEach((row) => {
+      if (matched.size >= 8) return;
+      if (row.id && row.name && !matched.has(row.id)) {
+        matched.set(row.id, { id: row.id, name: row.name, source: 'catalog' });
+      }
+    });
+  }
+
+  return {
+    ids: Array.from(matched.keys()),
+    matched: Array.from(matched.values()),
+  };
+}
+
+function uniqueExerciseIds(ids: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  ids.forEach((id) => {
+    if (id && !seen.has(id)) {
+      seen.add(id);
+      result.push(id);
+    }
+  });
+  return result;
+}
+
+function mergeExerciseIds(primary: string[], secondary: string[]): string[] {
+  return uniqueExerciseIds([...primary, ...secondary]);
+}
+
+function limitExerciseIds(ids: string[], limit: number): string[] {
+  return ids.slice(0, limit);
+}
+
+function allowedOperationsForIntent(intent: AIIntent): Set<string> {
+  if (intent === 'UPDATE_GOALS') {
+    return new Set(['INSERT', 'UPDATE', 'DELETE']);
+  }
+  return new Set(['INSERT']);
+}
+
+function collectExerciseIdsFromPlan(plan: {
+  mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }>;
+}): string[] {
+  const ids: string[] = [];
+  for (const mutation of plan.mutations ?? []) {
+    if (
+      mutation?.entityType === 'program_exercise' ||
+      mutation?.entityType === 'workout_set'
+    ) {
+      const exerciseId = mutation.proposedState?.exercise_id;
+      if (typeof exerciseId === 'string') {
+        ids.push(exerciseId);
+      }
+    }
+  }
+  return ids;
+}
+
+function getUnknownExerciseIds(plan: { mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }> }, availableExercises?: unknown[]): string[] {
+  if (!Array.isArray(availableExercises) || availableExercises.length === 0) return [];
+  const availableIds = new Set(
+    availableExercises
+      .map((ex) => (ex && typeof ex === 'object' ? (ex as { id?: string }).id : undefined))
+      .filter((id): id is string => typeof id === 'string')
+  );
+  return collectExerciseIdsFromPlan(plan).filter((id) => !availableIds.has(id));
 }
 
 async function persistPendingActions(params: {
@@ -283,7 +429,7 @@ async function persistPendingActions(params: {
     .filter(
       (mutation) =>
         ALLOWED_ENTITY_TYPES.has(mutation.entityType) &&
-        ALLOWED_MUTATION_OPERATIONS.has(mutation.operation || '')
+        allowedOperationsForIntent(params.intent).has(mutation.operation || '')
     )
     .map((mutation) => ({
       user_id: params.userId,
@@ -398,6 +544,27 @@ Deno.serve(async (req: Request) => {
 
     // Call AI provider
     const response = await callAIProvider(aiRequest, context, config, requestId);
+
+    if (
+      response &&
+      typeof response === 'object' &&
+      'type' in response &&
+      (response as { type?: string }).type === 'mutation_plan' &&
+      (response as { mutationPlan?: unknown }).mutationPlan
+    ) {
+      const mutationPlan = (response as { mutationPlan: any }).mutationPlan;
+      const unknownExerciseIds = getUnknownExerciseIds(mutationPlan, context.exerciseDb);
+      if (unknownExerciseIds.length > 0) {
+        return jsonResponse({
+          type: 'clarification',
+          requestId,
+          clarification: {
+            question:
+              'I couldn’t match a few exercises to your database. Can you pick replacements from your exercise list?',
+          },
+        });
+      }
+    }
 
     if (
       adminClient &&
@@ -542,6 +709,10 @@ interface AIContext {
       recordedAt: string;
     } | null;
   };
+  exerciseQuery?: {
+    query: string;
+    matchedExercises: { id: string; name: string; source: 'history' | 'catalog' }[];
+  };
   history?: unknown;
   notes?: unknown;
   currentProgram?: unknown;
@@ -556,6 +727,13 @@ async function assembleContext(
   config: IntentConfig
 ): Promise<AIContext> {
   const periodWeeks = request.context?.periodWeeks || config.defaultContextWeeks;
+  const resolvedFromMessage = request.message
+    ? await resolveExerciseMatches(supabase, userId, request.message)
+    : { ids: [], matched: [] };
+  const resolvedExerciseIds = mergeExerciseIds(
+    request.context?.exerciseId ? [request.context.exerciseId] : [],
+    resolvedFromMessage.ids
+  );
 
   // Always fetch user preferences (small, fast)
   const { data: userPrefs } = await supabase.rpc('get_user_preferences_for_ai', {
@@ -580,6 +758,12 @@ async function assembleContext(
       latestBodyWeight: latestWeight,
     },
   };
+  if (resolvedFromMessage.matched.length > 0) {
+    context.exerciseQuery = {
+      query: request.message,
+      matchedExercises: resolvedFromMessage.matched,
+    };
+  }
 
   // Parallel fetch based on config
   const fetchPromises: Promise<void>[] = [];
@@ -594,7 +778,11 @@ async function assembleContext(
 
   if (config.includeNotes) {
     fetchPromises.push(
-      fetchUserNotes(supabase, userId, request.context?.exerciseId).then((data) => {
+      fetchUserNotes(
+        supabase,
+        userId,
+        resolvedExerciseIds.length > 0 ? limitExerciseIds(resolvedExerciseIds, 5) : undefined
+      ).then((data) => {
         context.notes = data;
       })
     );
@@ -615,7 +803,7 @@ async function assembleContext(
         userId,
         config.exerciseLimit || 50,
         request.context?.historyOnly || false,
-        request.context?.exerciseId
+        resolvedExerciseIds.length > 0 ? limitExerciseIds(resolvedExerciseIds, 10) : undefined
       ).then((data) => {
         context.exerciseDb = data;
       })
@@ -737,10 +925,27 @@ async function fetchHistorySummary(
 async function fetchUserNotes(
   supabase: SupabaseClient,
   userId: string,
-  exerciseId?: string
+  exerciseId?: string | string[]
 ): Promise<unknown> {
-  if (exerciseId) {
-    // Fetch notes for specific exercise
+  if (Array.isArray(exerciseId) && exerciseId.length > 0) {
+    const limitedIds = exerciseId.slice(0, 5);
+    const results = await Promise.all(
+      limitedIds.map((id) =>
+        supabase.rpc('get_exercise_notes_for_ai', {
+          p_user_id: userId,
+          p_exercise_id: id,
+        })
+      )
+    );
+    return {
+      exerciseNotes: limitedIds.map((id, index) => ({
+        exerciseId: id,
+        notes: results[index]?.data ?? [],
+      })),
+    };
+  }
+
+  if (typeof exerciseId === 'string') {
     const { data } = await supabase.rpc('get_exercise_notes_for_ai', {
       p_user_id: userId,
       p_exercise_id: exerciseId,
@@ -841,10 +1046,17 @@ async function fetchExerciseSubset(
   userId: string,
   limit: number,
   historyOnly: boolean,
-  specificExerciseId?: string
+  specificExerciseId?: string | string[]
 ): Promise<unknown[]> {
-  // If specific exercise requested, just fetch that one
-  if (specificExerciseId) {
+  if (Array.isArray(specificExerciseId) && specificExerciseId.length > 0) {
+    const { data } = await supabase
+      .from('exercises')
+      .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
+      .in('id', specificExerciseId);
+    return data || [];
+  }
+
+  if (typeof specificExerciseId === 'string') {
     const { data } = await supabase
       .from('exercises')
       .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
@@ -1126,6 +1338,7 @@ CORE PRINCIPLES:
 - When suggesting exercises the user hasn't done before, explain why and provide brief form cues.
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
+- If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to and use them for analysis unless the user asks for a specific variation.
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
@@ -1199,13 +1412,18 @@ Otherwise, respond with a JSON object containing a mutation plan:
 }
 
 WRITE RULES:
-- Create-only. Do not include UPDATE or DELETE mutations.
+- If intent is UPDATE_GOALS, you may use INSERT, UPDATE, or DELETE mutations on user_goal only.
+- Otherwise, create-only. Do not include UPDATE or DELETE mutations.
 - If the user asks to edit or delete existing programs or workouts, respond with a clarification or explain that editing is not available yet.
+GOAL UPDATE NOTES (UPDATE_GOALS):
+- Use the USER GOALS list in context to find existing goal ids.
+- For updates or deletes, include entityId for the goal being changed.
 
 EXERCISE SELECTION RULES:
 1. Prefer exercises from the user's history when possible
 2. If suggesting a new exercise, you MUST provide justification (variation, injury workaround, equipment swap, or stimulus gap)
 3. Always explain unfamiliar exercises with brief form cues
+4. Use ONLY exercises from the AVAILABLE EXERCISES list. Copy the exercise_id exactly; do not invent new exercises or ids.
 
 ENTITY SCHEMAS:
 - workout_program: { name, description, difficulty (beginner|intermediate|advanced), duration_weeks, goal (strength|hypertrophy|powerlifting|general_fitness), is_template (boolean), is_ai_created (boolean) }
@@ -1213,7 +1431,8 @@ ENTITY SCHEMAS:
 - program_exercise: { exercise_id, order_index, sets (number), reps (string like "5-8"), rest_seconds, notes }
 - workout_session: { started_at, completed_at }
 - workout_set: { session_id, exercise_id, set_number, order_index, reps, weight, rpe, set_type }
-- training_summary: { period_start, period_end, title, summary_text, metrics }`;
+- training_summary: { period_start, period_end, title, summary_text, metrics }
+- user_goal: { goal_name, goal_type, description, target_metrics, target_date, priority, is_active }`;
 }
 
 function buildUserMessage(request: AIRequest, context: AIContext): string {
@@ -1276,6 +1495,10 @@ If key details are unclear, return a clarification question instead of guessing.
 
   if (context.user.latestBodyWeight) {
     message += `\n\n--- LATEST BODY WEIGHT ---\n${JSON.stringify(context.user.latestBodyWeight, null, 2)}`;
+  }
+
+  if (context.exerciseQuery) {
+    message += `\n\n--- EXERCISE QUERY MATCHES ---\n${JSON.stringify(context.exerciseQuery, null, 2)}`;
   }
 
   if (context.history) {
@@ -1425,6 +1648,16 @@ function buildWriteClarification(intent: AIIntent, requestId: string) {
     };
   }
 
+  if (intent === 'UPDATE_GOALS') {
+    return {
+      ...base,
+      clarification: {
+        question:
+          'I can update your goals. What should I add, change, or remove?',
+      },
+    };
+  }
+
   return {
     ...base,
     clarification: {
@@ -1442,6 +1675,7 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
     return 'Mutation plan must include at least one mutation';
   }
 
+  const allowedOperations = allowedOperationsForIntent(intent);
   const hasProgram = plan.mutations.some(
     (mutation: any) => mutation?.entityType === 'workout_program'
   );
@@ -1455,16 +1689,30 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
       return 'Invalid mutation format';
     }
 
-    if (!ALLOWED_MUTATION_OPERATIONS.has(mutation.operation)) {
-      return 'Only INSERT operations are allowed';
+    if (!allowedOperations.has(mutation.operation)) {
+      return intent === 'UPDATE_GOALS'
+        ? 'Goal updates must use INSERT, UPDATE, or DELETE operations'
+        : 'Only INSERT operations are allowed';
     }
 
     if (!ALLOWED_ENTITY_TYPES.has(mutation.entityType)) {
       return `Unsupported entity type: ${String(mutation.entityType)}`;
     }
 
-    if (!mutation.proposedState || typeof mutation.proposedState !== 'object') {
+    if (mutation.operation !== 'DELETE' && (!mutation.proposedState || typeof mutation.proposedState !== 'object')) {
       return 'Missing proposedState for mutation';
+    }
+
+    if (mutation.operation !== 'INSERT' && !mutation.entityId) {
+      return 'Update and delete mutations require entityId';
+    }
+
+    if (intent === 'UPDATE_GOALS' && mutation.entityType !== 'user_goal') {
+      return 'Goal updates can only modify user_goal entities';
+    }
+
+    if (intent !== 'UPDATE_GOALS' && mutation.entityType === 'user_goal') {
+      return 'User goals can only be modified via UPDATE_GOALS intent';
     }
 
     if (mutation.entityType === 'workout_program') {
@@ -1482,6 +1730,9 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
     if (mutation.entityType === 'program_exercise') {
       if (!mutation.proposedState.exercise_id || mutation.proposedState.order_index === undefined) {
         return 'Program exercise requires exercise_id and order_index';
+      }
+      if (!isValidUuid(mutation.proposedState.exercise_id)) {
+        return 'Program exercise requires a valid exercise_id';
       }
       if (mutation.proposedState.sets === undefined) {
         return 'Program exercise requires sets';
@@ -1501,11 +1752,20 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
       if (!mutation.proposedState.exercise_id) {
         return 'Workout set requires exercise_id';
       }
+      if (!isValidUuid(mutation.proposedState.exercise_id)) {
+        return 'Workout set requires a valid exercise_id';
+      }
       if (mutation.proposedState.set_number === undefined) {
         return 'Workout set requires set_number';
       }
       if (mutation.proposedState.order_index === undefined) {
         return 'Workout set requires order_index';
+      }
+    }
+
+    if (mutation.entityType === 'user_goal' && mutation.operation === 'INSERT') {
+      if (!mutation.proposedState.goal_name) {
+        return 'User goal requires goal_name';
       }
     }
 

@@ -17,22 +17,16 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Animated as RNAnimated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { XMarkIcon, SparklesIcon } from 'react-native-heroicons/outline';
+import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
@@ -43,44 +37,50 @@ import { AIIntent, AIImageMimeType } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
+import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
 
-// Typing indicator component
-function TypingIndicator() {
-  const dot1 = useSharedValue(0);
-  const dot2 = useSharedValue(0);
-  const dot3 = useSharedValue(0);
+// Animated sparkles for loading indicator
+function AnimatedLoadingSparkles() {
+  const fadeAnim = useRef(new RNAnimated.Value(1)).current;
+  const loopRef = useRef<RNAnimated.CompositeAnimation | null>(null);
 
   useEffect(() => {
-    dot1.value = withRepeat(
-      withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
-      -1,
-      true
+    loopRef.current = RNAnimated.loop(
+      RNAnimated.sequence([
+        RNAnimated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        RNAnimated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
     );
-    setTimeout(() => {
-      dot2.value = withRepeat(
-        withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-    }, 150);
-    setTimeout(() => {
-      dot3.value = withRepeat(
-        withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        true
-      );
-    }, 300);
-  }, [dot1, dot2, dot3]);
+    loopRef.current.start();
 
-  const dotStyle1 = useAnimatedStyle(() => ({ opacity: 0.3 + dot1.value * 0.7 }));
-  const dotStyle2 = useAnimatedStyle(() => ({ opacity: 0.3 + dot2.value * 0.7 }));
-  const dotStyle3 = useAnimatedStyle(() => ({ opacity: 0.3 + dot3.value * 0.7 }));
+    return () => {
+      loopRef.current?.stop();
+    };
+  }, [fadeAnim]);
+
+  const outlineOpacity = fadeAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
 
   return (
-    <View style={styles.typingIndicator}>
-      <Animated.View style={[styles.typingDot, dotStyle1]} />
-      <Animated.View style={[styles.typingDot, dotStyle2]} />
-      <Animated.View style={[styles.typingDot, dotStyle3]} />
+    <View style={styles.loadingIconWrapper}>
+      <RNAnimated.View style={[styles.loadingIconAbsolute, { opacity: fadeAnim }]}>
+        <SparklesSolid color={Colors.success} size={IconSizes.md} />
+      </RNAnimated.View>
+      <RNAnimated.View style={[styles.loadingIconAbsolute, { opacity: outlineOpacity }]}>
+        <SparklesIcon color={Colors.success} size={IconSizes.md} />
+      </RNAnimated.View>
     </View>
   );
 }
@@ -94,6 +94,20 @@ const inferIntentFromMessage = (
 
   if (text.includes('plateau')) return 'ANALYZE_PLATEAU';
   if (text.includes('overload')) return 'ANALYZE_OVERLOAD';
+
+  const wantsGoals =
+    text.includes('goal') ||
+    text.includes('goals');
+  const wantsGoalUpdate =
+    text.includes('update') ||
+    text.includes('change') ||
+    text.includes('edit') ||
+    text.includes('set') ||
+    text.includes('add') ||
+    text.includes('remove') ||
+    text.includes('delete') ||
+    text.includes('replace');
+  if (wantsGoals && wantsGoalUpdate) return 'UPDATE_GOALS';
 
   const wantsProgram =
     text.includes('program') ||
@@ -190,6 +204,15 @@ export default function AIChatScreen() {
   const handleClear = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     clearConversation();
+    clearError();
+    clearSelectedImage();
+    setInputText('');
+    setSelectedIntent('QUERY_STATS');
+    setStreamingMessageId(null);
+    shouldAutoScrollRef.current = true;
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: false });
+    }, 50);
   };
 
   const handleSend = async () => {
@@ -246,13 +269,7 @@ export default function AIChatScreen() {
       {/* Clean header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.headerIcon}>
-            <SparklesIcon color={Colors.success} size={18} />
-          </View>
-          <View>
-            <Text style={styles.headerTitle}>Fortis AI</Text>
-            {isSendingMessage && <TypingIndicator />}
-          </View>
+          <ChatHeaderLogo isLoading={isSendingMessage} />
         </View>
         <View style={styles.headerRight}>
           {messages.length > 0 && (
@@ -303,6 +320,7 @@ export default function AIChatScreen() {
                   key={message.id}
                   message={message}
                   isStreaming={false}
+                  isAILoading={isSendingMessage && message.role === 'assistant'}
                 />
               ))}
 
@@ -313,10 +331,7 @@ export default function AIChatScreen() {
                   exiting={FadeOut.duration(150)}
                   style={styles.loadingContainer}
                 >
-                  <View style={styles.loadingAvatar}>
-                    <SparklesIcon color={Colors.success} size={IconSizes.sm} />
-                  </View>
-                  <ActivityIndicator color={Colors.success} size="small" />
+                  <AnimatedLoadingSparkles />
                 </Animated.View>
               )}
             </>
@@ -377,20 +392,6 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    ...Typography.h5,
-    color: Colors.textPrimary,
-    letterSpacing: 0.3,
   },
   headerRight: {
     flexDirection: 'row',
@@ -408,18 +409,6 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: Spacing.xs,
   },
-  typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 2,
-  },
-  typingDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.success,
-  },
   content: {
     flex: 1,
   },
@@ -432,17 +421,18 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  loadingAvatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+  loadingIconWrapper: {
+    width: IconSizes.md,
+    height: IconSizes.md,
+    position: 'relative',
+  },
+  loadingIconAbsolute: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
   errorContainer: {
     marginHorizontal: Spacing.lg,

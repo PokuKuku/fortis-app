@@ -117,6 +117,7 @@ export function AIMutationPreviewModal({
   const isProgramDraft =
     currentMutationPlan?.intent === 'CREATE_PROGRAM' ||
     currentMutationPlan?.intent === 'CREATE_TEMPLATE';
+  const isGoalUpdate = currentMutationPlan?.intent === 'UPDATE_GOALS';
 
   // Initialize editable workout when modal opens with LOG_WORKOUT plan
   useEffect(() => {
@@ -655,6 +656,8 @@ export function AIMutationPreviewModal({
     ? 'Save Workout'
     : isProgramDraft
     ? `Create ${draftLabel}`
+    : isGoalUpdate
+    ? 'Update Goals'
     : 'Apply Changes';
 
   return (
@@ -717,6 +720,8 @@ export function AIMutationPreviewModal({
                   ? 'Review and edit the extracted workout before saving'
                   : isProgramDraft
                   ? 'Review and edit the draft before saving'
+                  : isGoalUpdate
+                  ? 'Review and confirm your goal updates before saving'
                   : currentMutationPlan.explanation
                 }
               </Text>

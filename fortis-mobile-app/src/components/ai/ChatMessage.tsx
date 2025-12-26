@@ -5,7 +5,7 @@
  * - Full-width centered layout
  * - Markdown rendering for AI responses
  * - Copy button for AI messages
- * - Streaming text animation support
+ * - Animated sparkles icon when loading
  */
 
 import React, { useState, useCallback } from 'react';
@@ -16,9 +16,8 @@ import {
   TouchableOpacity,
   Image,
   Share,
-  Platform,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import ReAnimated, { FadeIn } from 'react-native-reanimated';
 import Markdown from 'react-native-markdown-display';
 import * as Haptics from 'expo-haptics';
 
@@ -44,7 +43,6 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 };
 import {
-  SparklesIcon,
   DocumentDuplicateIcon,
   CheckIcon,
 } from 'react-native-heroicons/outline';
@@ -58,6 +56,8 @@ interface ChatMessageProps {
   message: AIConversationMessage;
   /** Whether this message should stream (for new AI messages) */
   isStreaming?: boolean;
+  /** Whether the AI is currently loading/generating */
+  isAILoading?: boolean;
   /** Callback when streaming completes */
   onStreamComplete?: () => void;
   /** Animation delay for staggered entrance */
@@ -67,6 +67,7 @@ interface ChatMessageProps {
 export function ChatMessage({
   message,
   isStreaming = false,
+  isAILoading = false,
   onStreamComplete,
   delay = 0,
 }: ChatMessageProps) {
@@ -214,18 +215,10 @@ export function ChatMessage({
   };
 
   return (
-    <Animated.View
+    <ReAnimated.View
       entering={FadeIn.duration(300).delay(delay)}
       style={[styles.container, isUser ? styles.userContainer : styles.aiContainer]}
     >
-      {/* AI Avatar */}
-      {!isUser && (
-        <View style={styles.avatarContainer}>
-          <View style={styles.avatar}>
-            <SparklesIcon color={Colors.success} size={IconSizes.sm} />
-          </View>
-        </View>
-      )}
 
       {/* Message Content */}
       <View style={[styles.content, isUser ? styles.userContent : styles.aiContent]}>
@@ -294,7 +287,7 @@ export function ChatMessage({
           <Text style={styles.userIndicatorText}>You</Text>
         </View>
       )}
-    </Animated.View>
+    </ReAnimated.View>
   );
 }
 
@@ -313,24 +306,10 @@ const styles = StyleSheet.create({
   aiContainer: {
     backgroundColor: 'transparent',
   },
-  avatarContainer: {
-    marginRight: Spacing.md,
-    paddingTop: 2,
-  },
-  avatar: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   content: {
     flex: 1,
   },
-  userContent: {
-    paddingLeft: 40, // Offset to align with AI messages
-  },
+  userContent: {},
   aiContent: {},
   userText: {
     ...Typography.body,
