@@ -42,6 +42,9 @@ export function QuickReplies({ suggestions, onSelect, disabled = false }: QuickR
             onPress={() => handleSelect(suggestion)}
             activeOpacity={0.7}
             disabled={disabled}
+            accessibilityLabel={`Quick reply: ${suggestion}`}
+            accessibilityRole="button"
+            accessibilityState={{ disabled }}
           >
             <Text style={[styles.chipText, disabled && styles.chipTextDisabled]}>
               {suggestion}

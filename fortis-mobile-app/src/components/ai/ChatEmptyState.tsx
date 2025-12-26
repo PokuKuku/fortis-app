@@ -104,6 +104,9 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
               style={styles.card}
               onPress={() => handleQuickAction(action)}
               activeOpacity={0.85}
+              accessibilityLabel={`${action.label}: ${action.description}`}
+              accessibilityHint={`Sends: ${action.prompt}`}
+              accessibilityRole="button"
             >
               <View style={styles.cardHeader}>
                 <View style={styles.cardIcon}>

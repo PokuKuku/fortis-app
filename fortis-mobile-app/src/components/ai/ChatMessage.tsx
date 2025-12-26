@@ -17,6 +17,7 @@ import {
   Image,
   Share,
 } from 'react-native';
+import { formatDistanceToNow } from 'date-fns';
 import ReAnimated, { FadeIn } from 'react-native-reanimated';
 import Markdown from 'react-native-markdown-display';
 import * as Haptics from 'expo-haptics';
@@ -236,6 +237,8 @@ export function ChatMessage({
             source={{ uri: message.image.uri }}
             style={styles.messageImage}
             resizeMode="cover"
+            accessibilityLabel="Attached image"
+            accessibilityRole="image"
           />
         )}
 
@@ -255,22 +258,36 @@ export function ChatMessage({
           <Markdown style={markdownStyles}>{message.content}</Markdown>
         )}
 
-        {/* Copy button for AI messages */}
+        {/* Copy button and timestamp for AI messages */}
         {!isUser && !isStreaming && message.content.length > 0 && (
-          <TouchableOpacity
-            style={styles.copyButton}
-            onPress={handleCopy}
-            activeOpacity={0.7}
-          >
-            {copied ? (
-              <CheckIcon color={Colors.success} size={IconSizes.sm} />
-            ) : (
-              <DocumentDuplicateIcon color={Colors.textTertiary} size={IconSizes.sm} />
-            )}
-            <Text style={[styles.copyText, copied && styles.copyTextSuccess]}>
-              {copied ? 'Copied' : 'Copy'}
+          <View style={styles.messageFooter}>
+            <TouchableOpacity
+              style={styles.copyButton}
+              onPress={handleCopy}
+              activeOpacity={0.7}
+              accessibilityLabel={copied ? "Copied to clipboard" : "Copy message"}
+              accessibilityRole="button"
+            >
+              {copied ? (
+                <CheckIcon color={Colors.success} size={IconSizes.sm} />
+              ) : (
+                <DocumentDuplicateIcon color={Colors.textTertiary} size={IconSizes.sm} />
+              )}
+              <Text style={[styles.copyText, copied && styles.copyTextSuccess]}>
+                {copied ? 'Copied' : 'Copy'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.timestamp}>
+              {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
             </Text>
-          </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Timestamp for user messages */}
+        {isUser && (
+          <Text style={styles.timestamp}>
+            {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+          </Text>
         )}
 
         {/* Action buttons for actionable messages (workouts/programs) */}
@@ -283,6 +300,9 @@ export function ChatMessage({
                 onCustomizeAction();
               }}
               activeOpacity={0.7}
+              accessibilityLabel="Customize workout"
+              accessibilityHint="Review and edit before saving"
+              accessibilityRole="button"
             >
               <PencilIcon color={Colors.textPrimary} size={IconSizes.sm} />
               <Text style={styles.customizeButtonText}>Customize</Text>
@@ -293,6 +313,8 @@ export function ChatMessage({
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 onSaveAction();
               }}
+              accessibilityLabel="Save workout"
+              accessibilityRole="button"
             >
               <CheckIcon color={Colors.white} size={IconSizes.sm} />
               <Text style={styles.saveButtonText}>Save</Text>
@@ -308,6 +330,8 @@ export function ChatMessage({
                 key={option}
                 style={styles.clarificationOption}
                 activeOpacity={0.7}
+                accessibilityLabel={`Select option: ${option}`}
+                accessibilityRole="button"
               >
                 <Text style={styles.clarificationOptionText}>{option}</Text>
               </TouchableOpacity>
@@ -358,13 +382,17 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
   },
+  messageFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md,
+  },
   copyButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    marginTop: Spacing.md,
     paddingVertical: Spacing.xs,
-    alignSelf: 'flex-start',
   },
   copyText: {
     ...Typography.caption,
@@ -372,6 +400,12 @@ const styles = StyleSheet.create({
   },
   copyTextSuccess: {
     color: Colors.success,
+  },
+  timestamp: {
+    ...Typography.caption,
+    color: Colors.textTertiary,
+    fontSize: 11,
+    marginTop: Spacing.xs,
   },
   userIndicator: {
     marginLeft: Spacing.sm,

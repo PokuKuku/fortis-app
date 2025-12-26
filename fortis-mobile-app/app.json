@@ -18,7 +18,9 @@
       "bundleIdentifier": "com.fortis.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -36,7 +38,8 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-speech-recognition"
     ],
     "experiments": {
       "typedRoutes": true

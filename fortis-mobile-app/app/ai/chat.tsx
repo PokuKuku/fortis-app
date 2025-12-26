@@ -39,7 +39,7 @@ import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
 import { QuickReplies } from '@/src/components/ai/QuickReplies';
-import { getQuickReplySuggestions } from '@/src/utils/aiSuggestions';
+import { getContextAwareSuggestions } from '@/src/utils/aiSuggestions';
 import { AIMutationPreviewModal } from '@/src/components/ai/AIMutationPreviewModal';
 
 // Motivational loading messages
@@ -185,6 +185,9 @@ export default function AIChatScreen() {
   const clearSelectedImage = useAIStore((state) => state.clearSelectedImage);
   const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
   const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
+  const lastFailedMessage = useAIStore((state) => state.lastFailedMessage);
+  const retryLastMessage = useAIStore((state) => state.retryLastMessage);
+  const checkRateLimits = useAIStore((state) => state.checkRateLimits);
 
   const messages = conversation?.messages || [];
 
@@ -192,7 +195,8 @@ export default function AIChatScreen() {
     loadConversation();
     loadPendingActions();
     loadMutationPlan();
-  }, [loadConversation, loadPendingActions, loadMutationPlan]);
+    checkRateLimits();
+  }, [loadConversation, loadPendingActions, loadMutationPlan, checkRateLimits]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((animated = true) => {
@@ -309,6 +313,13 @@ export default function AIChatScreen() {
     }
   }, [applyCurrentMutationPlan]);
 
+  // Retry failed message
+  const handleRetry = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStreamingMessageId(null);
+    await retryLastMessage();
+  }, [retryLastMessage]);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StainlessSteelPattern />
@@ -378,13 +389,10 @@ export default function AIChatScreen() {
                 />
               ))}
 
-              {/* Quick Replies - show after last AI message when not loading */}
+              {/* Quick Replies - context-aware suggestions */}
               {!isSendingMessage && messages.length > 0 && (
                 <QuickReplies
-                  suggestions={getQuickReplySuggestions(
-                    messages[messages.length - 1]?.intent,
-                    !!currentMutationPlan
-                  )}
+                  suggestions={getContextAwareSuggestions()}
                   onSelect={(suggestion) => {
                     setInputText(suggestion);
                   }}
@@ -410,11 +418,15 @@ export default function AIChatScreen() {
           {error && (
             <TouchableOpacity
               style={styles.errorContainer}
-              onPress={clearError}
+              onPress={lastFailedMessage ? handleRetry : clearError}
               activeOpacity={0.8}
+              accessibilityLabel={lastFailedMessage ? "Retry failed message" : "Dismiss error"}
+              accessibilityRole="button"
             >
               <Text style={styles.errorText}>{error}</Text>
-              <Text style={styles.errorHint}>Tap to dismiss</Text>
+              <Text style={styles.errorHint}>
+                {lastFailedMessage ? 'Tap to retry' : 'Tap to dismiss'}
+              </Text>
             </TouchableOpacity>
           )}
         </ScrollView>

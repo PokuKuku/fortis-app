@@ -1109,7 +1109,7 @@ async function fetchExerciseSubset(
   const { data: userExercises } = await supabase
     .from('workout_sets')
     .select('exercise_id, exercises(id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions)')
-    .eq('session_id', supabase.from('workout_sessions').select('id').eq('user_id', userId))
+    .in('session_id', supabase.from('workout_sessions').select('id').eq('user_id', userId))
     .order('created_at', { ascending: false })
     .limit(limit);
 

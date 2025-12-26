@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, Easing, StyleSheet } from 'react-native';
+import { View, Text, Animated, Easing, StyleSheet } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -17,7 +17,9 @@ import Svg, {
 import { SparklesIcon as SparklesOutline } from 'react-native-heroicons/outline';
 import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
 import { Colors } from '@/constants/Colors';
-import { Spacing } from '@/constants/Sizes';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Typography } from '@/constants/Typography';
+import { useAIStore } from '@/src/store/aiStore';
 
 const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
 
@@ -33,9 +35,17 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const sparkleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
+  const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
+
   const logoWidth = 90;
   const logoHeight = 24;
   const iconSize = 22;
+
+  // Calculate remaining requests
+  const remaining = rateLimitStatus
+    ? rateLimitStatus.maxPerDay - rateLimitStatus.actionsThisDay
+    : null;
+  const isLowRemaining = remaining !== null && remaining < 5;
 
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
@@ -168,6 +178,26 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
           </G>
         </Svg>
       </Animated.View>
+
+      {/* Rate limit badge */}
+      {remaining !== null && (
+        <View
+          style={[
+            styles.rateLimitBadge,
+            isLowRemaining && styles.rateLimitBadgeWarning,
+          ]}
+          accessibilityLabel={`${remaining} requests remaining today`}
+        >
+          <Text
+            style={[
+              styles.rateLimitText,
+              isLowRemaining && styles.rateLimitTextWarning,
+            ]}
+          >
+            {remaining}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -187,6 +217,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+  },
+  rateLimitBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: 2,
+    marginLeft: Spacing.xs,
+  },
+  rateLimitBadgeWarning: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+  },
+  rateLimitText: {
+    ...Typography.caption,
+    fontSize: 10,
+    color: Colors.textTertiary,
+  },
+  rateLimitTextWarning: {
+    color: Colors.warning,
   },
 });
 

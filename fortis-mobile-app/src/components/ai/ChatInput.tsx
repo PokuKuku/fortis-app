@@ -8,7 +8,7 @@
  * - Auto-expanding text input
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   TextInput,
@@ -17,6 +17,7 @@ import {
   Image,
   Alert,
   Platform,
+  Text,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -31,6 +32,10 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 import {
   PaperAirplaneIcon,
   CameraIcon,
@@ -196,12 +201,66 @@ export function ChatInput({
     ]);
   };
 
-  const handleVoiceToggle = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsRecording(!isRecording);
-    // Note: Voice recording implementation would go here
-    // Using expo-speech or expo-av for actual recording
-  };
+  // Speech recognition event handlers
+  useSpeechRecognitionEvent('result', (event) => {
+    if (event.results && event.results.length > 0) {
+      const transcript = event.results[0]?.transcript || '';
+      if (transcript) {
+        // Append to existing text or replace
+        onChangeText(value ? `${value} ${transcript}` : transcript);
+      }
+    }
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    setIsRecording(false);
+  });
+
+  useSpeechRecognitionEvent('error', (event) => {
+    console.error('Speech recognition error:', event.error);
+    setIsRecording(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+  });
+
+  const handleVoiceToggle = useCallback(async () => {
+    if (isRecording) {
+      // Stop recording
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      try {
+        await ExpoSpeechRecognitionModule.stop();
+      } catch {
+        // Ignore errors when stopping
+      }
+      setIsRecording(false);
+    } else {
+      // Start recording
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Check permissions
+      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!result.granted) {
+        Alert.alert(
+          'Microphone Permission',
+          'Voice input requires microphone access. Please enable it in Settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+
+      // Start recognition
+      try {
+        await ExpoSpeechRecognitionModule.start({
+          lang: 'en-US',
+          interimResults: true,
+          continuous: false,
+        });
+        setIsRecording(true);
+      } catch (error) {
+        console.error('Failed to start speech recognition:', error);
+        Alert.alert('Error', 'Failed to start voice input. Please try again.');
+      }
+    }
+  }, [isRecording]);
 
   return (
     <View style={styles.wrapper}>
@@ -222,10 +281,23 @@ export function ChatInput({
               style={styles.removeImageButton}
               onPress={onImageClear}
               activeOpacity={0.8}
+              accessibilityLabel="Remove attached image"
+              accessibilityRole="button"
             >
               <XMarkIcon color={Colors.white} size={12} />
             </TouchableOpacity>
           </View>
+        </Animated.View>
+      )}
+
+      {/* Listening indicator */}
+      {isRecording && (
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          exiting={FadeOut.duration(150)}
+          style={styles.listeningIndicator}
+        >
+          <Text style={styles.listeningText}>Listening...</Text>
         </Animated.View>
       )}
 
@@ -237,6 +309,9 @@ export function ChatInput({
           onPress={handleImagePick}
           disabled={disabled}
           activeOpacity={0.7}
+          accessibilityLabel="Attach image"
+          accessibilityRole="button"
+          accessibilityHint="Choose from camera or photo library"
         >
           <CameraIcon
             color={disabled ? Colors.textTertiary : Colors.textSecondary}
@@ -250,6 +325,9 @@ export function ChatInput({
           onPress={handleVoiceToggle}
           disabled={disabled}
           activeOpacity={0.7}
+          accessibilityLabel={isRecording ? "Stop recording" : "Start voice input"}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isRecording }}
         >
           <Animated.View style={isRecording ? micPulseStyle : undefined}>
             {isRecording ? (
@@ -286,6 +364,9 @@ export function ChatInput({
           onPress={handleSend}
           disabled={!canSend}
           activeOpacity={0.8}
+          accessibilityLabel="Send message"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: !canSend }}
         >
           <Animated.View style={sendButtonStyle}>
             <PaperAirplaneIcon
@@ -352,6 +433,13 @@ const styles = StyleSheet.create({
   },
   recordingButton: {
     backgroundColor: 'rgba(220, 38, 38, 0.15)',
+  },
+  listeningIndicator: {
+    marginBottom: Spacing.sm,
+  },
+  listeningText: {
+    ...Typography.caption,
+    color: Colors.success,
   },
   input: {
     flex: 1,

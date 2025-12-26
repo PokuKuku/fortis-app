@@ -114,6 +114,20 @@ interface AIState {
   // Error state
   error: string | null;
 
+  // Last failed message (for retry)
+  lastFailedMessage: {
+    intent: AIIntent;
+    message: string;
+    context?: {
+      exerciseId?: string;
+      programId?: string;
+      templateId?: string;
+      periodWeeks?: number;
+      historyOnly?: boolean;
+    };
+    image?: { uri: string; base64: string; mimeType: AIImageMimeType };
+  } | null;
+
   // Actions - Conversation
   openConversation: () => void;
   closeConversation: () => void;
@@ -185,6 +199,10 @@ interface AIState {
 
   // Actions - Error handling
   clearError: () => void;
+
+  // Actions - Retry
+  retryLastMessage: () => Promise<AIResponse | null>;
+  clearLastFailedMessage: () => void;
 }
 
 export const useAIStore = create<AIState>()(
@@ -203,6 +221,7 @@ export const useAIStore = create<AIState>()(
     editableProgramDraft: null,
     rateLimitStatus: null,
     error: null,
+    lastFailedMessage: null,
 
     // Conversation actions
     openConversation: () => {
@@ -270,6 +289,14 @@ export const useAIStore = create<AIState>()(
         ? { base64: selectedImage.base64, mimeType: selectedImage.mimeType }
         : undefined;
 
+      // Store message params for potential retry (before clearing image)
+      const messageParams = {
+        intent,
+        message,
+        context,
+        image: selectedImage ? { ...selectedImage } : undefined,
+      };
+
       // Clear selected image after capturing for send
       set({ selectedImage: null });
 
@@ -313,6 +340,7 @@ export const useAIStore = create<AIState>()(
             conversation: finalConversation,
             error: response.error?.message || 'An error occurred',
             isSendingMessage: false,
+            lastFailedMessage: messageParams,
           });
         } else if (response.type === 'clarification') {
           set({
@@ -330,7 +358,7 @@ export const useAIStore = create<AIState>()(
         return response;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-        set({ error: errorMessage, isSendingMessage: false });
+        set({ error: errorMessage, isSendingMessage: false, lastFailedMessage: messageParams });
         return {
           type: 'error',
           requestId: generateId(),
@@ -985,6 +1013,30 @@ export const useAIStore = create<AIState>()(
       set({ error: null });
     },
 
+    retryLastMessage: async () => {
+      const { lastFailedMessage, sendMessage } = get();
+      if (!lastFailedMessage) return null;
+
+      // Restore image if it was part of the failed message
+      if (lastFailedMessage.image) {
+        set({ selectedImage: lastFailedMessage.image });
+      }
+
+      // Clear the failed message before retrying
+      set({ lastFailedMessage: null, error: null });
+
+      // Retry the message
+      return sendMessage(
+        lastFailedMessage.intent,
+        lastFailedMessage.message,
+        lastFailedMessage.context
+      );
+    },
+
+    clearLastFailedMessage: () => {
+      set({ lastFailedMessage: null });
+    },
+
     resetStore: () => {
       set({
         conversation: null,
@@ -1000,6 +1052,7 @@ export const useAIStore = create<AIState>()(
         editableProgramDraft: null,
         rateLimitStatus: null,
         error: null,
+        lastFailedMessage: null,
       });
       removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
         console.error('Error clearing mutation plan:', err);

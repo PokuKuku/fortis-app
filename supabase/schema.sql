@@ -94,8 +94,8 @@ CREATE TABLE exercises (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
 
   -- Core exercise data
-  name TEXT UNIQUE NOT NULL,
-  slug TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL,
 
   -- Exercise classification
   force TEXT CHECK (force IN ('push', 'pull', 'static')),
@@ -126,17 +126,44 @@ CREATE INDEX idx_exercises_level ON exercises(level);
 CREATE INDEX idx_exercises_equipment ON exercises(equipment);
 CREATE INDEX idx_exercises_primary_muscles ON exercises USING GIN(primary_muscles);
 
+-- Public exercises remain globally unique
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_name_public
+  ON exercises(name)
+  WHERE is_custom = FALSE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_slug_public
+  ON exercises(slug)
+  WHERE is_custom = FALSE;
+
+-- Custom exercises are unique per user
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_name_custom
+  ON exercises(created_by, name)
+  WHERE is_custom = TRUE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_slug_custom
+  ON exercises(created_by, slug)
+  WHERE is_custom = TRUE;
+
 ALTER TABLE exercises ENABLE ROW LEVEL SECURITY;
 
--- Everyone can view exercises
-CREATE POLICY "Exercises are viewable by everyone"
+-- Public exercises or own custom exercises
+CREATE POLICY "Exercises are viewable if public or owned"
   ON exercises FOR SELECT
-  USING (true);
+  USING (is_custom = FALSE OR created_by = auth.uid());
 
 -- Only authenticated users can create custom exercises
 CREATE POLICY "Users can create custom exercises"
   ON exercises FOR INSERT
   WITH CHECK (auth.uid() = created_by AND is_custom = true);
+
+CREATE POLICY "Users can update own custom exercises"
+  ON exercises FOR UPDATE
+  USING (auth.uid() = created_by AND is_custom = TRUE)
+  WITH CHECK (auth.uid() = created_by AND is_custom = TRUE);
+
+CREATE POLICY "Users can delete own custom exercises"
+  ON exercises FOR DELETE
+  USING (auth.uid() = created_by AND is_custom = TRUE);
 
 -- =====================================================
 -- WORKOUT PROGRAMS (TEMPLATES)
@@ -412,6 +439,30 @@ CREATE TRIGGER update_workout_sets_updated_at
   BEFORE UPDATE ON workout_sets
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+-- =====================================================
+-- DATA INTEGRITY CONSTRAINTS
+-- =====================================================
+
+ALTER TABLE workout_sessions
+  ADD CONSTRAINT workout_sessions_duration_non_negative
+  CHECK (duration_seconds IS NULL OR duration_seconds >= 0);
+
+ALTER TABLE workout_sets
+  ADD CONSTRAINT workout_sets_set_number_positive
+  CHECK (set_number > 0);
+
+ALTER TABLE workout_sets
+  ADD CONSTRAINT workout_sets_reps_non_negative
+  CHECK (reps IS NULL OR reps >= 0);
+
+ALTER TABLE workout_sets
+  ADD CONSTRAINT workout_sets_weight_non_negative
+  CHECK (weight IS NULL OR weight >= 0);
+
+ALTER TABLE workout_sets
+  ADD CONSTRAINT workout_sets_rest_seconds_non_negative
+  CHECK (rest_seconds IS NULL OR rest_seconds >= 0);
+
 -- Function to auto-create profile on user signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
@@ -532,3 +583,23 @@ COMMENT ON COLUMN workout_sessions.local_id IS 'Client-generated UUID for offlin
 COMMENT ON COLUMN workout_sessions.is_synced IS 'Tracks if offline data has been synced';
 COMMENT ON COLUMN workout_sets.rpe IS 'Rate of Perceived Exertion (1-10 scale)';
 COMMENT ON COLUMN workout_sets.weight IS 'Weight in user preferred unit (lbs or kg)';
+
+-- =====================================================
+-- EXERCISE LIBRARY META
+-- =====================================================
+
+CREATE TABLE exercise_library_meta (
+  id INTEGER PRIMARY KEY,
+  version BIGINT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+INSERT INTO exercise_library_meta (id, version)
+VALUES (1, 1)
+ON CONFLICT (id) DO NOTHING;
+
+ALTER TABLE exercise_library_meta ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "exercise_library_meta_read"
+  ON exercise_library_meta FOR SELECT
+  USING (true);
