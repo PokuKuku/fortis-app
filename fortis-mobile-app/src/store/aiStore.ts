@@ -31,6 +31,7 @@ import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { buildProgramDraftFromPlan, buildPlanFromProgramDraft } from '../utils/aiProgramDraft';
+import { isWriteIntent } from '../services/aiService';
 
 // Simple UUID generator
 const generateId = (): string => {
@@ -44,6 +45,41 @@ const generateId = (): string => {
 const isValidUUID = (value: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   return uuidRegex.test(value);
+};
+
+const makeFriendlyClarification = (question: string | undefined, intent: AIIntent): string => {
+  const normalized = (question || '').toLowerCase();
+  const looksSystemy =
+    normalized.includes('cannot proceed') ||
+    normalized.includes('requirements') ||
+    normalized.includes('mutation') ||
+    normalized.includes('clarif');
+
+  if (!isWriteIntent(intent)) {
+    return question || 'Could you share a bit more detail so I can help?';
+  }
+
+  if (intent === 'CREATE_TEMPLATE') {
+    return looksSystemy || !question
+      ? 'Got it — I can build a template. Quick questions: what’s your main goal, how many days per week, and any equipment or preferences?'
+      : `Got it — ${question}`;
+  }
+
+  if (intent === 'CREATE_PROGRAM') {
+    return looksSystemy || !question
+      ? 'Awesome — I can draft a program. What’s your goal, how many days per week, and how long should it run?'
+      : `Awesome — ${question}`;
+  }
+
+  if (intent === 'LOG_WORKOUT') {
+    return looksSystemy || !question
+      ? 'I can log that. Can you confirm the exercises and any unclear sets or weights?'
+      : `Quick check — ${question}`;
+  }
+
+  return looksSystemy || !question
+    ? 'I can help with that — what details should I use?'
+    : `Quick check — ${question}`;
 };
 
 interface AIState {
@@ -246,7 +282,7 @@ export const useAIStore = create<AIState>()(
               : response.type === 'mutation_plan'
               ? response.mutationPlan?.explanation || ''
               : response.type === 'clarification'
-              ? response.clarification?.question || ''
+              ? makeFriendlyClarification(response.clarification?.question, intent)
               : response.error?.message || 'An error occurred',
           intent,
           mutationPlanId: response.mutationPlan?.requestId,

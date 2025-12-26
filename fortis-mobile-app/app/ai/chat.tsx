@@ -298,16 +298,11 @@ export default function AIChatScreen() {
             <ChatEmptyState onQuickAction={handleQuickAction} />
           ) : (
             <>
-              {messages.map((message, index) => (
+              {messages.map((message) => (
                 <ChatMessage
                   key={message.id}
                   message={message}
-                  isStreaming={
-                    message.role === 'assistant' &&
-                    message.id === streamingMessageId
-                  }
-                  onStreamComplete={handleStreamComplete}
-                  delay={index === messages.length - 1 ? 0 : 0}
+                  isStreaming={false}
                 />
               ))}
 

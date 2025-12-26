@@ -15,11 +15,34 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Share,
+  Platform,
 } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import Markdown from 'react-native-markdown-display';
-import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
+
+// Clipboard helper - uses Share as fallback for Expo Go
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    // Try expo-clipboard first (works in dev client builds)
+    const Clipboard = await import('expo-clipboard').catch(() => null);
+    if (Clipboard?.setStringAsync) {
+      await Clipboard.setStringAsync(text);
+      return true;
+    }
+  } catch {
+    // Fallback for Expo Go - use Share
+  }
+
+  // Fallback: use Share API
+  try {
+    await Share.share({ message: text });
+    return true;
+  } catch {
+    return false;
+  }
+};
 import {
   SparklesIcon,
   DocumentDuplicateIcon,
@@ -51,12 +74,12 @@ export function ChatMessage({
   const isUser = message.role === 'user';
 
   const handleCopy = useCallback(async () => {
-    try {
-      await Clipboard.setStringAsync(message.content);
+    const success = await copyToClipboard(message.content);
+    if (success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch {
+    } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   }, [message.content]);
