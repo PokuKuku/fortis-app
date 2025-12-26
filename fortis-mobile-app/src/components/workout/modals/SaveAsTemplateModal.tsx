@@ -250,9 +250,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.sm,
     fontSize: FontSizes.base,
     color: Colors.textPrimary,
+    textAlignVertical: 'center',
   },
   summarySection: {
     marginBottom: Spacing.xl,

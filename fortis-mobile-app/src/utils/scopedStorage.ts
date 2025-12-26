@@ -48,11 +48,16 @@ export const removeScopedItem = async (baseKey: string): Promise<void> => {
   await AsyncStorage.multiRemove([scopedKey, baseKey]);
 };
 
-export const clearUserScopedStorage = async (userId?: string | null): Promise<void> => {
-  const scopedKeys = USER_SCOPED_STORAGE_KEYS.map((key) =>
+export const clearUserScopedStorage = async (
+  userId?: string | null,
+  excludeKeys: readonly string[] = []
+): Promise<void> => {
+  const excluded = new Set(excludeKeys);
+  const keysToClear = USER_SCOPED_STORAGE_KEYS.filter((key) => !excluded.has(key));
+  const scopedKeys = keysToClear.map((key) =>
     getUserScopedKeySync(key, userId ?? null)
   );
-  await AsyncStorage.multiRemove([...scopedKeys, ...USER_SCOPED_STORAGE_KEYS]);
+  await AsyncStorage.multiRemove([...scopedKeys, ...keysToClear]);
 };
 
 export const migrateGuestStorageToUser = async (userId: string): Promise<void> => {

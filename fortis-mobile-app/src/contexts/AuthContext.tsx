@@ -9,6 +9,14 @@ import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesServic
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAIStore } from '@/src/store/aiStore';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
+import {
+  ACTIVE_WORKOUT_KEY,
+  COMPLETED_WORKOUTS_KEY,
+  LOCAL_TEMPLATES_KEY,
+  PROGRAMS_KEY,
+  PROGRAM_PROGRESS_KEY,
+  WORKOUTS_KEY,
+} from '@/src/constants/storageKeys';
 import { clearUserScopedStorage, migrateGuestStorageToUser } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { resetProgramServiceCache } from '@/src/services/programService';
@@ -359,11 +367,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     invalidateCustomCache();
     resetProgramServiceCache();
 
+    const storagePreserveKeys = [
+      PROGRAMS_KEY,
+      WORKOUTS_KEY,
+      LOCAL_TEMPLATES_KEY,
+      COMPLETED_WORKOUTS_KEY,
+      PROGRAM_PROGRESS_KEY,
+      ACTIVE_WORKOUT_KEY,
+    ] as const;
+
     try {
       if (currentUserId) {
-        await clearUserScopedStorage(currentUserId);
+        await clearUserScopedStorage(currentUserId, storagePreserveKeys);
       }
-      await clearUserScopedStorage(null);
+      await clearUserScopedStorage(null, storagePreserveKeys);
     } catch (error) {
       console.warn('Failed to clear local storage on sign out:', error);
     }
