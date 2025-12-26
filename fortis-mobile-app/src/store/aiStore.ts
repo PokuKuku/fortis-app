@@ -6,7 +6,7 @@
  */
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { getScopedItem, setScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
 import {
   AIIntent,
   AIImage,
@@ -27,7 +27,7 @@ import {
   EditableProgramExercise,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
-import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
+import { AI_CONVERSATION_KEY, AI_MUTATION_PLAN_KEY } from '../constants/storageKeys';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { buildProgramDraftFromPlan, buildPlanFromProgramDraft } from '../utils/aiProgramDraft';
@@ -179,6 +179,7 @@ interface AIState {
 
   // Actions - Persistence
   loadConversation: () => Promise<void>;
+  loadMutationPlan: () => Promise<void>;
   persistConversation: () => Promise<void>;
   resetStore: () => void;
 
@@ -205,11 +206,12 @@ export const useAIStore = create<AIState>()(
 
     // Conversation actions
     openConversation: () => {
-      const { conversation, loadConversation, loadPendingActions } = get();
+      const { conversation, loadConversation, loadPendingActions, loadMutationPlan } = get();
       if (!conversation) {
         loadConversation();
       }
       loadPendingActions();
+      loadMutationPlan();
       set({ isConversationOpen: true });
     },
 
@@ -226,6 +228,9 @@ export const useAIStore = create<AIState>()(
       };
       set({ conversation: newConversation, currentMutationPlan: null, error: null });
       get().persistConversation();
+      removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
+        console.error('Error clearing mutation plan:', err);
+      });
     },
 
     sendMessage: async (intent, message, context) => {
@@ -434,6 +439,15 @@ export const useAIStore = create<AIState>()(
 
     setCurrentMutationPlan: (plan) => {
       set({ currentMutationPlan: plan });
+      if (plan) {
+        setScopedItem(AI_MUTATION_PLAN_KEY, JSON.stringify(plan)).catch((err) => {
+          console.error('Error persisting mutation plan:', err);
+        });
+      } else {
+        removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
+          console.error('Error clearing mutation plan:', err);
+        });
+      }
     },
 
     applyCurrentMutationPlan: async () => {
@@ -954,6 +968,18 @@ export const useAIStore = create<AIState>()(
       }
     },
 
+    loadMutationPlan: async () => {
+      try {
+        const stored = await getScopedItem(AI_MUTATION_PLAN_KEY);
+        if (stored) {
+          const plan = JSON.parse(stored) as AIMutationPlan;
+          set({ currentMutationPlan: plan });
+        }
+      } catch (err) {
+        console.error('Error loading mutation plan:', err);
+      }
+    },
+
     // Error handling
     clearError: () => {
       set({ error: null });
@@ -974,6 +1000,9 @@ export const useAIStore = create<AIState>()(
         editableProgramDraft: null,
         rateLimitStatus: null,
         error: null,
+      });
+      removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
+        console.error('Error clearing mutation plan:', err);
       });
     },
   }))

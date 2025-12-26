@@ -28,6 +28,7 @@ export const START_BUTTON_PRESET_KEY = 'start_button_preset_v1';
 // AI assistant
 export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
 export const AI_PENDING_ACTIONS_KEY = 'ai_pending_actions_v1';
+export const AI_MUTATION_PLAN_KEY = 'ai_mutation_plan_v1';
 
 // Keys that should be scoped per user and cleared on sign-out
 export const USER_SCOPED_STORAGE_KEYS = [
@@ -49,4 +50,5 @@ export const USER_SCOPED_STORAGE_KEYS = [
   START_BUTTON_PRESET_KEY,
   AI_CONVERSATION_KEY,
   AI_PENDING_ACTIONS_KEY,
+  AI_MUTATION_PLAN_KEY,
 ] as const;

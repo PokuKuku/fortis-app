@@ -162,6 +162,7 @@ export default function AIChatScreen() {
   const clearError = useAIStore((state) => state.clearError);
   const clearConversation = useAIStore((state) => state.clearConversation);
   const loadConversation = useAIStore((state) => state.loadConversation);
+  const loadMutationPlan = useAIStore((state) => state.loadMutationPlan);
   const loadPendingActions = useAIStore((state) => state.loadPendingActions);
   const selectedImage = useAIStore((state) => state.selectedImage);
   const setSelectedImage = useAIStore((state) => state.setSelectedImage);
@@ -172,7 +173,8 @@ export default function AIChatScreen() {
   useEffect(() => {
     loadConversation();
     loadPendingActions();
-  }, [loadConversation, loadPendingActions]);
+    loadMutationPlan();
+  }, [loadConversation, loadPendingActions, loadMutationPlan]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((animated = true) => {

@@ -774,6 +774,17 @@ export function AIMutationPreviewModal({
               </TouchableOpacity>
             )}
 
+            {isProgramDraft && (
+              <View style={styles.confirmPrompt}>
+                <Text style={styles.confirmPromptTitle}>
+                  Add this {draftLabel.toLowerCase()} to your {draftLabel.toLowerCase()} cards?
+                </Text>
+                <Text style={styles.confirmPromptBody}>
+                  Tap Create to add it, or Cancel to discard.
+                </Text>
+              </View>
+            )}
+
             {/* Actions */}
             <View style={styles.actions}>
               <TouchableOpacity
@@ -1129,6 +1140,25 @@ const styles = StyleSheet.create({
   confirmButtonText: {
     ...Typography.button,
     color: Colors.white,
+  },
+  confirmPrompt: {
+    marginHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'rgba(20, 184, 166, 0.35)',
+    backgroundColor: 'rgba(20, 184, 166, 0.08)',
+  },
+  confirmPromptTitle: {
+    ...Typography.label,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  confirmPromptBody: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
   },
 
   // Editable workout styles
