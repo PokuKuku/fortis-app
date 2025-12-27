@@ -8,6 +8,7 @@ import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
+import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { AIContainer } from '@/src/components/ai';
 import { PostHogScreenTracker } from '@/src/components/analytics/PostHogScreenTracker';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
@@ -18,38 +19,21 @@ const PAGE_TRANSITION = {
   animationDuration: 220,
 };
 
-export default function RootLayout() {
-  const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
-  const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
-  const loadCompletedSessions = useWorkoutStore((s) => s.loadCompletedSessions);
-  const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
+/**
+ * Themed content wrapper - uses theme context for StatusBar and Stack styling
+ */
+function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
+  const { colors, isDark } = useTheme();
 
-  const [fontsLoaded] = useFonts({
-    'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
-  });
-
-  // Load persisted preferences on app start
-  useEffect(() => {
-    loadStickyNotes();
-    loadWeightUnits();
-    loadCompletedSessions();
-    loadBodyType();
-  }, [loadStickyNotes, loadWeightUnits, loadCompletedSessions, loadBodyType]);
-
-  if (!fontsLoaded) {
-    return null;
-  }
-
-  const posthogEnabled = isPostHogConfigured();
-  const appContent = (
+  return (
     <AuthProvider>
       <DragDropProvider>
         {posthogEnabled && <PostHogAuthSync />}
-        <StatusBar style="light" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
             headerShown: false,
-            contentStyle: { backgroundColor: '#0a0a0a' },
+            contentStyle: { backgroundColor: colors.background },
             ...PAGE_TRANSITION,
           }}
         >
@@ -175,6 +159,36 @@ export default function RootLayout() {
         <AIContainer />
       </DragDropProvider>
     </AuthProvider>
+  );
+}
+
+export default function RootLayout() {
+  const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
+  const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
+  const loadCompletedSessions = useWorkoutStore((s) => s.loadCompletedSessions);
+  const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
+
+  const [fontsLoaded] = useFonts({
+    'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
+  });
+
+  // Load persisted preferences on app start
+  useEffect(() => {
+    loadStickyNotes();
+    loadWeightUnits();
+    loadCompletedSessions();
+    loadBodyType();
+  }, [loadStickyNotes, loadWeightUnits, loadCompletedSessions, loadBodyType]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
+
+  const posthogEnabled = isPostHogConfigured();
+  const appContent = (
+    <ThemeProvider>
+      <ThemedAppContent posthogEnabled={posthogEnabled} />
+    </ThemeProvider>
   );
 
   return (

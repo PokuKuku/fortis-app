@@ -135,7 +135,6 @@ fortis-mobile-app/
 ## Services (`src/services/`)
 
 - **exerciseService.ts**: Exercise CRUD, search, filtering, custom exercises
-- **programService.ts**: Program/template management, workout scheduling
 - **programProgressService.ts**: Track program completion and progress
 - **programSyncService.ts**: Sync programs between local storage and Supabase
 - **workoutHistoryService.ts**: Past workout queries, volume calculations

@@ -2,6 +2,22 @@ import { Program, ProgramExercise, ProgramWorkout } from '@/src/types/workout';
 
 const DEFAULT_CREATED_AT = '2024-01-01T00:00:00Z';
 
+const EXERCISE_IDS = {
+  inclineDumbbellPress: 'd36f3ccd-de7c-43ba-a780-043bdc0e0b37',
+  latPulldown: '7d6c217e-766f-4db0-b828-56fff447c05b',
+  seatedCableRow: '7104f0f6-5b36-462e-bfc9-68a4090e201e',
+  dumbbellCurl: 'ce22ba14-303d-450f-9125-a6ae66557fe4',
+  overheadTricepsExtension: '4cc0b407-cca2-4ed7-954f-c29a5cc0fe7b',
+  lateralRaises: '18d654bb-e732-4f48-a402-ac0477920fc1',
+  dumbbellShoulderPress: '61792bdb-aaba-43c8-96cf-b039c1bd9b95',
+  bulgarianSplitSquat: '3611ff7b-1745-485d-b344-ab1009661816',
+  legExtension: '69126ffd-b3e5-4333-ba39-c84fdfaaf4bc',
+  romanianDeadlift: '201f53ed-d0d7-4e4b-97ef-498f96acd3b1',
+  legCurl: 'dae998d9-3882-4eb2-bf2b-6d7f207459ba',
+  hangingLegRaises: '288aaa4c-cfcc-4f0d-87bc-6abab8a89479',
+  hipThrust: '7ff3e1a1-fda8-4800-9063-aee09358e6ce',
+} as const;
+
 type TemplateSeedExercise = {
   exerciseId: string;
   exerciseName: string;
@@ -18,158 +34,92 @@ type TemplateSeed = {
 
 const TEMPLATE_SEEDS: TemplateSeed[] = [
   {
-    id: 'default-template-push-a',
-    name: 'Push Day A',
+    id: 'default-template-upper-1',
+    name: 'Upper 1',
     exercises: [
       {
-        exerciseId: 'barbell-bench-press',
-        exerciseName: 'Barbell Bench Press',
-        sets: 4,
-        reps: '6-8',
-        restSeconds: 180,
-      },
-      {
-        exerciseId: 'incline-dumbbell-press',
+        exerciseId: EXERCISE_IDS.inclineDumbbellPress,
         exerciseName: 'Incline Dumbbell Press',
-        sets: 3,
-        reps: '8-10',
-        restSeconds: 120,
+        sets: 1,
+        reps: '4-8',
       },
       {
-        exerciseId: 'overhead-press',
-        exerciseName: 'Overhead Press',
-        sets: 4,
-        reps: '6-8',
-        restSeconds: 150,
-      },
-      {
-        exerciseId: 'cable-crossover',
-        exerciseName: 'Cable Crossover',
-        sets: 3,
-        reps: '12-15',
-        restSeconds: 90,
-      },
-      {
-        exerciseId: 'lateral-raises',
-        exerciseName: 'Lateral Raises',
-        sets: 3,
-        reps: '12-15',
-        restSeconds: 60,
-      },
-    ],
-  },
-  {
-    id: 'default-template-pull-a',
-    name: 'Pull Day A',
-    exercises: [
-      {
-        exerciseId: 'barbell-deadlift',
-        exerciseName: 'Barbell Deadlift',
-        sets: 4,
-        reps: '5',
-        restSeconds: 180,
-      },
-      {
-        exerciseId: 'barbell-row',
-        exerciseName: 'Barbell Row',
-        sets: 4,
-        reps: '6-8',
-        restSeconds: 150,
-      },
-      {
-        exerciseId: 'lat-pulldown',
+        exerciseId: EXERCISE_IDS.latPulldown,
         exerciseName: 'Lat Pulldown',
-        sets: 3,
-        reps: '8-10',
-        restSeconds: 120,
+        sets: 1,
+        reps: '4-8',
       },
       {
-        exerciseId: 'barbell-curl',
-        exerciseName: 'Barbell Curl',
-        sets: 3,
-        reps: '10-12',
-        restSeconds: 90,
-      },
-    ],
-  },
-  {
-    id: 'default-template-legs-a',
-    name: 'Legs Day A',
-    exercises: [
-      {
-        exerciseId: 'barbell-squat',
-        exerciseName: 'Barbell Squat',
-        sets: 4,
-        reps: '6-8',
-        restSeconds: 180,
+        exerciseId: EXERCISE_IDS.seatedCableRow,
+        exerciseName: 'Seated Cable Row',
+        sets: 2,
+        reps: '4-8',
       },
       {
-        exerciseId: 'leg-press',
-        exerciseName: 'Leg Press',
-        sets: 3,
-        reps: '10-12',
-        restSeconds: 120,
+        exerciseId: EXERCISE_IDS.dumbbellCurl,
+        exerciseName: 'Dumbbell Curl',
+        sets: 2,
+        reps: '4-8',
       },
       {
-        exerciseId: 'leg-extension',
-        exerciseName: 'Leg Extension',
-        sets: 3,
-        reps: '12-15',
-        restSeconds: 90,
+        exerciseId: EXERCISE_IDS.overheadTricepsExtension,
+        exerciseName: 'Overhead Triceps Extension',
+        sets: 2,
+        reps: '4-8',
       },
       {
-        exerciseId: 'calf-raises',
-        exerciseName: 'Calf Raises',
-        sets: 4,
-        reps: '12-15',
-        restSeconds: 60,
-      },
-    ],
-  },
-  {
-    id: 'default-template-upper-a',
-    name: 'Upper A',
-    exercises: [
-      {
-        exerciseId: 'barbell-bench-press',
-        exerciseName: 'Barbell Bench Press',
-        sets: 4,
-        reps: '5',
-        restSeconds: 180,
+        exerciseId: EXERCISE_IDS.lateralRaises,
+        exerciseName: 'Lateral Raises',
+        sets: 2,
+        reps: '4-8',
       },
       {
-        exerciseId: 'barbell-row',
-        exerciseName: 'Barbell Row',
-        sets: 4,
-        reps: '5',
-        restSeconds: 180,
-      },
-      {
-        exerciseId: 'dumbbell-shoulder-press',
+        exerciseId: EXERCISE_IDS.dumbbellShoulderPress,
         exerciseName: 'Dumbbell Shoulder Press',
-        sets: 3,
-        reps: '8-10',
-        restSeconds: 120,
+        sets: 2,
+        reps: '4-8',
       },
     ],
   },
   {
-    id: 'default-template-lower-a',
-    name: 'Lower A',
+    id: 'default-template-lower-1',
+    name: 'Lower 1',
     exercises: [
       {
-        exerciseId: 'barbell-squat',
-        exerciseName: 'Barbell Squat',
-        sets: 4,
-        reps: '5',
-        restSeconds: 180,
+        exerciseId: EXERCISE_IDS.bulgarianSplitSquat,
+        exerciseName: 'Bulgarian Split Squat',
+        sets: 2,
+        reps: '4-8',
       },
       {
-        exerciseId: 'romanian-deadlift',
+        exerciseId: EXERCISE_IDS.legExtension,
+        exerciseName: 'Leg Extension',
+        sets: 2,
+        reps: '4-8',
+      },
+      {
+        exerciseId: EXERCISE_IDS.romanianDeadlift,
         exerciseName: 'Romanian Deadlift',
-        sets: 3,
-        reps: '8-10',
-        restSeconds: 150,
+        sets: 2,
+        reps: '4-8',
+      },
+      {
+        exerciseId: EXERCISE_IDS.legCurl,
+        exerciseName: 'Leg Curl',
+        sets: 2,
+        reps: '4-8',
+      },
+      {
+        exerciseId: EXERCISE_IDS.hangingLegRaises,
+        exerciseName: 'Hanging Leg Raises',
+        sets: 2,
+        reps: '4-8',
+      },
+      {
+        exerciseId: EXERCISE_IDS.hipThrust,
+        exerciseName: 'Hip Thrust',
+        sets: 2,
+        reps: '4-8',
       },
     ],
   },
@@ -193,7 +143,7 @@ const buildTemplateProgram = (seed: TemplateSeed): Program => {
     name: seed.name,
     description: undefined,
     difficulty: 'intermediate',
-    goal: undefined,
+    goal: 'strength',
     durationWeeks: undefined,
     isPublic: true,
     isDefault: true,
@@ -232,46 +182,14 @@ export const getDefaultTemplates = (): Program[] =>
   TEMPLATE_SEEDS.map(buildTemplateProgram);
 
 export const getDefaultPrograms = (): Program[] => {
-  const pplSeeds = [
-    TEMPLATE_SEEDS.find(seed => seed.id === 'default-template-push-a'),
-    TEMPLATE_SEEDS.find(seed => seed.id === 'default-template-pull-a'),
-    TEMPLATE_SEEDS.find(seed => seed.id === 'default-template-legs-a'),
-  ].filter((seed): seed is TemplateSeed => !!seed);
-
-  const upperLowerSeeds = [
-    TEMPLATE_SEEDS.find(seed => seed.id === 'default-template-upper-a'),
-    TEMPLATE_SEEDS.find(seed => seed.id === 'default-template-lower-a'),
-  ].filter((seed): seed is TemplateSeed => !!seed);
-
-  const pplProgramId = 'default-program-ppl';
-  const upperLowerProgramId = 'default-program-upper-lower';
+  const programId = 'default-program-upper-lower-1';
 
   return [
     {
-      id: pplProgramId,
-      name: 'Push Pull Legs',
+      id: programId,
+      name: 'Upper / Lower 1',
       description:
-        'Classic split optimized for muscle hypertrophy. Each muscle group is trained twice per week with progressive overload.',
-      difficulty: 'intermediate',
-      goal: 'hypertrophy',
-      durationWeeks: 12,
-      isPublic: true,
-      isDefault: true,
-      isAiCreated: false,
-      isTemplate: false,
-      lastPerformedAt: null,
-      createdBy: 'Fortis',
-      createdAt: DEFAULT_CREATED_AT,
-      updatedAt: DEFAULT_CREATED_AT,
-      workouts: pplSeeds.map((seed, index) =>
-        buildProgramWorkout(seed, pplProgramId, index + 1)
-      ),
-    },
-    {
-      id: upperLowerProgramId,
-      name: 'Upper Lower Split',
-      description:
-        'Efficient split hitting each muscle group twice per week. Great for intermediate lifters with limited time.',
+        'Two-day upper/lower split focused on controlled strength work in the 4-8 rep range.',
       difficulty: 'intermediate',
       goal: 'strength',
       durationWeeks: 8,
@@ -283,8 +201,8 @@ export const getDefaultPrograms = (): Program[] => {
       createdBy: 'Fortis',
       createdAt: DEFAULT_CREATED_AT,
       updatedAt: DEFAULT_CREATED_AT,
-      workouts: upperLowerSeeds.map((seed, index) =>
-        buildProgramWorkout(seed, upperLowerProgramId, index + 1)
+      workouts: TEMPLATE_SEEDS.map((seed, index) =>
+        buildProgramWorkout(seed, programId, index + 1)
       ),
     },
   ];

@@ -21,9 +21,11 @@ import {
   ArrowUpTrayIcon,
   ChevronRightIcon,
   SparklesIcon,
+  SunIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useTheme, type ThemeMode } from '@/src/contexts/ThemeContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { parseWorkoutCsv, type ImportSource } from '@/src/utils/importWorkouts';
@@ -38,9 +40,11 @@ interface SettingsRowProps {
   onPress?: () => void;
   showChevron?: boolean;
   isLoading?: boolean;
+  colors: ReturnType<typeof useTheme>['colors'];
+  isDark: boolean;
 }
 
-function SettingsRow({ icon, label, value, onPress, showChevron, isLoading }: SettingsRowProps) {
+function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colors, isDark }: SettingsRowProps) {
   return (
     <TouchableOpacity
       style={styles.settingsRow}
@@ -50,16 +54,16 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading }: Se
     >
       <View style={styles.settingsRowLeft}>
         {icon}
-        <Text style={styles.settingsLabel}>{label}</Text>
+        <Text style={[styles.settingsLabel, { color: colors.textPrimary }]}>{label}</Text>
       </View>
       <View style={styles.settingsRowRight}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={Colors.textSecondary} />
+          <ActivityIndicator size="small" color={colors.textSecondary} />
         ) : (
           <>
-            {value && <Text style={styles.settingsValue}>{value}</Text>}
+            {value && <Text style={[styles.settingsValue, { color: colors.textSecondary }]}>{value}</Text>}
             {showChevron && (
-              <ChevronRightIcon color={Colors.textTertiary} size={16} strokeWidth={2} />
+              <ChevronRightIcon color={colors.textTertiary} size={16} strokeWidth={2} />
             )}
           </>
         )}
@@ -70,6 +74,7 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading }: Se
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const { colors, isDark, mode, setMode } = useTheme();
   const { profile, updateProfile, signOut } = useAuth();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
@@ -82,6 +87,20 @@ export default function SettingsScreen() {
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
   const workoutCount = completedSessions.length;
+
+  // Theme mode labels
+  const themeModeLabel: Record<ThemeMode, string> = {
+    system: 'System',
+    light: 'Light',
+    dark: 'Dark',
+  };
+
+  const handleToggleTheme = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Cycle: system → light → dark → system
+    const nextMode: ThemeMode = mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system';
+    await setMode(nextMode);
+  };
 
   const handleToggleUnits = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -216,8 +235,18 @@ export default function SettingsScreen() {
     );
   };
 
+  // Theme-aware card styles
+  const cardStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const dividerStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -228,9 +257,9 @@ export default function SettingsScreen() {
             onPress={() => router.back()}
             activeOpacity={0.7}
           >
-            <ChevronLeftIcon color={Colors.textPrimary} size={24} strokeWidth={2} />
+            <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Settings</Text>
+          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Settings</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -239,82 +268,108 @@ export default function SettingsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Appearance Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Appearance</Text>
+
+            <View style={[styles.settingsCard, cardStyle]}>
+              <SettingsRow
+                icon={<SunIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Theme"
+                value={themeModeLabel[mode]}
+                onPress={handleToggleTheme}
+                colors={colors}
+                isDark={isDark}
+              />
+            </View>
+          </View>
+
           {/* Preferences Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>Preferences</Text>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Preferences</Text>
 
-            <View style={styles.settingsCard}>
+            <View style={[styles.settingsCard, cardStyle]}>
               <SettingsRow
-                icon={<ScaleIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                icon={<ScaleIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Weight Units"
                 value={unitLabel}
                 onPress={handleToggleUnits}
+                colors={colors}
+                isDark={isDark}
               />
 
-              <View style={styles.settingsDivider} />
+              <View style={[styles.settingsDivider, dividerStyle]} />
 
               <SettingsRow
-                icon={<UserIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                icon={<UserIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Body Type"
                 value={bodyTypeLabel}
                 onPress={handleToggleBodyType}
+                colors={colors}
+                isDark={isDark}
               />
             </View>
           </View>
 
           {/* AI Personalization */}
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>Personalization</Text>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Personalization</Text>
 
-            <View style={styles.settingsCard}>
+            <View style={[styles.settingsCard, cardStyle]}>
               <SettingsRow
-                icon={<SparklesIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                icon={<SparklesIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Goals & Metrics"
                 onPress={() => router.push('/goals')}
                 showChevron
+                colors={colors}
+                isDark={isDark}
               />
             </View>
           </View>
 
           {/* Data Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>Data</Text>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Data</Text>
 
-            <View style={styles.settingsCard}>
+            <View style={[styles.settingsCard, cardStyle]}>
               <SettingsRow
-                icon={<ArrowUpTrayIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                icon={<ArrowUpTrayIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Import from CSV"
                 onPress={handleImportData}
                 showChevron
                 isLoading={isImporting}
+                colors={colors}
+                isDark={isDark}
               />
 
-              <View style={styles.settingsDivider} />
+              <View style={[styles.settingsDivider, dividerStyle]} />
 
               <SettingsRow
-                icon={<ArrowDownTrayIcon color={Colors.textSecondary} size={20} strokeWidth={2} />}
+                icon={<ArrowDownTrayIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Export to CSV"
                 value={`${workoutCount} workout${workoutCount !== 1 ? 's' : ''}`}
                 onPress={handleExportData}
                 showChevron
                 isLoading={isExporting}
+                colors={colors}
+                isDark={isDark}
               />
             </View>
           </View>
 
           {/* App Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>App</Text>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>App</Text>
 
-            <View style={styles.settingsCard}>
+            <View style={[styles.settingsCard, cardStyle]}>
               <TouchableOpacity
                 style={styles.signOutButton}
                 onPress={handleSignOut}
                 disabled={isSigningOut}
                 activeOpacity={0.7}
               >
-                <ArrowRightOnRectangleIcon color={Colors.error} size={20} strokeWidth={2} />
-                <Text style={styles.signOutText}>
+                <ArrowRightOnRectangleIcon color={colors.error} size={20} strokeWidth={2} />
+                <Text style={[styles.signOutText, { color: colors.error }]}>
                   {isSigningOut ? 'Signing out...' : 'Sign Out'}
                 </Text>
               </TouchableOpacity>
@@ -322,7 +377,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* Version */}
-          <Text style={styles.version}>Fortis v1.0.0</Text>
+          <Text style={[styles.version, { color: colors.textSecondary }]}>Fortis v1.0.0</Text>
         </ScrollView>
       </SafeAreaView>
     </View>

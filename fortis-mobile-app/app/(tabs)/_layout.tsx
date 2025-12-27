@@ -19,6 +19,7 @@ import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 import { useAIStore } from '../../src/store/aiStore';
 import { Colors } from '../../constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -47,6 +48,7 @@ const tabSceneInterpolator = ({ current }: { current: { progress: Animated.Anima
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const { colors, isDark } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
   const isExercises = pathname?.includes('/exercises');
   const startWorkout = useWorkoutStore(s => s.startWorkout);
@@ -359,8 +361,8 @@ export default function TabLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: '#22c55e',
-          tabBarInactiveTintColor: '#9CA3AF',
+          tabBarActiveTintColor: colors.tabActive,
+          tabBarInactiveTintColor: colors.tabInactive,
           animation: 'fade',
           animationEnabled: true,
           transitionSpec: {
@@ -368,15 +370,15 @@ export default function TabLayout() {
             config: { duration: 320 },
           },
           sceneStyleInterpolator: tabSceneInterpolator,
-          sceneStyle: { backgroundColor: '#0a0a0a' },
+          sceneStyle: { backgroundColor: colors.background },
           lazy: false,
           unmountOnBlur: false,
           freezeOnBlur: false,
           tabBarStyle: {
-            backgroundColor: 'rgba(36, 36, 36, 0.9)',
-            borderTopColor: 'rgba(255,255,255,0.1)',
+            backgroundColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+            borderTopColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
             borderTopWidth: 1,
-            borderColor: 'rgba(255,255,255,0.1)',
+            borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
             borderWidth: 1,
             paddingHorizontal: 16,
             paddingVertical: 0,
@@ -389,7 +391,7 @@ export default function TabLayout() {
             borderRadius: 28,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 8 },
-            shadowOpacity: 0.4,
+            shadowOpacity: isDark ? 0.4 : 0.15,
             shadowRadius: 32,
             elevation: 10,
           },
@@ -446,7 +448,11 @@ export default function TabLayout() {
               <GlassButton
                 circular
                 size={46}
-                style={[styles.centerButton, isWorkoutActive && styles.centerButtonDisabled]}
+                style={[
+                  styles.centerButton,
+                  { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
+                  isWorkoutActive && styles.centerButtonDisabled,
+                ]}
                 gradientColors={startButtonColors}
                 onPress={() => void handleStartPress()}
                 onLongPress={handleStartLongPress}
@@ -523,7 +529,10 @@ export default function TabLayout() {
       <GlassButton
         circular
         size={60}
-        style={styles.plusButton}
+        style={[
+          styles.plusButton,
+          { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
+        ]}
         gradientColors={hasActiveChat ? ['#2dd4bf', '#14b8a6'] : undefined}
         onPress={handleFabPress}
         pointerEvents={detailModalVisible ? 'none' : 'auto'}
@@ -712,7 +721,6 @@ const styles = StyleSheet.create({
   },
   centerButton: {
     borderWidth: 2,
-    borderColor: 'rgba(36, 36, 36, 0.9)',
   },
   centerButtonDisabled: {
     opacity: 0.4,
@@ -725,7 +733,6 @@ const styles = StyleSheet.create({
   },
   plusButton: {
     borderWidth: 2,
-    borderColor: 'rgba(36, 36, 36, 0.9)',
   },
   aiBadge: {
     position: 'absolute',

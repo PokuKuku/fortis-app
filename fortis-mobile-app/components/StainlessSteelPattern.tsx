@@ -1,9 +1,10 @@
 /**
  * StainlessSteelPattern.tsx
  *
- * A reusable background component that creates a dark stainless steel aesthetic
+ * A reusable background component that creates a stainless steel aesthetic
  * with diagonal slash pattern, horizontal grain texture, and vignette effects.
  *
+ * Supports both dark mode (forge black) and light mode (titanium).
  * Used across all screens for visual consistency.
  */
 import { View, StyleSheet, Dimensions } from 'react-native';
@@ -17,22 +18,33 @@ import Svg, {
   Stop,
   G,
 } from 'react-native-svg';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
 export function StainlessSteelPattern() {
+  const { colors, isDark } = useTheme();
+
+  // Theme-specific colors
+  const baseColor = colors.patternBase;
+  const strokeColor = colors.patternStroke;
+  const strokeAccent = colors.patternStrokeAccent;
+
+  // Vignette color (dark edges on both themes, just different opacity)
+  const vignetteColor = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.15)';
+  const vignetteGradientEnd = isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)';
 
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      {/* Base - Off-Black */}
+      {/* Base - Theme-aware background */}
       <LinearGradient
-        colors={['#0a0a0a', '#0a0a0a']}
+        colors={[baseColor, baseColor]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
       />
 
-      {/* Brushed Metal Texture Base - Vertical lines (opacity 20%) */}
+      {/* Brushed Metal Texture Base - Horizontal lines */}
       <View
         style={{
           ...StyleSheet.absoluteFillObject,
@@ -49,7 +61,7 @@ export function StainlessSteelPattern() {
                 y1={i * 2}
                 x2={width}
                 y2={i * 2}
-                stroke="rgba(255,255,255,0.1)"
+                stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}
                 strokeWidth={1}
               />
             ))}
@@ -57,7 +69,7 @@ export function StainlessSteelPattern() {
         </Svg>
       </View>
 
-      {/* Brushed Metal Texture - Horizontal gradient streaks (opacity 10%) */}
+      {/* Brushed Metal Texture - Horizontal gradient streaks */}
       <View
         style={{
           ...StyleSheet.absoluteFillObject,
@@ -75,7 +87,13 @@ export function StainlessSteelPattern() {
               height="1"
               patternUnits="userSpaceOnUse"
             >
-              <Rect x="0" y="0" width="2" height="1" fill="rgba(255,255,255,0.05)" />
+              <Rect
+                x="0"
+                y="0"
+                width="2"
+                height="1"
+                fill={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}
+              />
               <Rect x="2" y="0" width="2" height="1" fill="transparent" />
             </Pattern>
           </Defs>
@@ -104,7 +122,7 @@ export function StainlessSteelPattern() {
               y1="9"
               x2="9"
               y2="3"
-              stroke="rgba(255,255,255,0.03)"
+              stroke={strokeColor}
               strokeWidth="1.5"
               strokeLinecap="round"
             />
@@ -113,7 +131,7 @@ export function StainlessSteelPattern() {
               y1="15"
               x2="21"
               y2="21"
-              stroke="rgba(255,255,255,0.03)"
+              stroke={strokeColor}
               strokeWidth="1.5"
               strokeLinecap="round"
             />
@@ -121,7 +139,7 @@ export function StainlessSteelPattern() {
 
           <RadialGradient id="vignette" cx="50%" cy="50%" r="70%">
             <Stop offset="0%" stopColor="rgba(0,0,0,0)" />
-            <Stop offset="100%" stopColor="rgba(0,0,0,0.4)" />
+            <Stop offset="100%" stopColor={vignetteColor} />
           </RadialGradient>
         </Defs>
 
@@ -130,7 +148,7 @@ export function StainlessSteelPattern() {
 
       {/* Subtle vignette effects */}
       <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.1)']}
+        colors={['transparent', vignetteGradientEnd]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}

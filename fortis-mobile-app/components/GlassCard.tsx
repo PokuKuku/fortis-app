@@ -3,10 +3,13 @@
  *
  * Reusable glass-style card component with fog overlay, state overlay,
  * and consistent styling for Program and Workout cards.
+ *
+ * Supports both dark and light themes with appropriate glass effects.
  */
 import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface GlassCardProps {
   children: ReactNode;
@@ -17,11 +20,21 @@ interface GlassCardProps {
 }
 
 export function GlassCard({ children, onPress, width = '100%', style, padding = 16 }: GlassCardProps) {
+  const { colors, isDark } = useTheme();
+
+  const fogOverlay = colors.glassFog as unknown as string[];
+
+  // Theme-aware card styling
+  const cardStyle = {
+    borderColor: colors.glassBorder,
+    backgroundColor: isDark ? colors.glassBackground : 'rgba(255,255,255,0.85)',
+  };
+
   return (
-    <View style={[styles.card, { width, padding }, style]}>
-      {/* Enhanced Fog Overlay with gradient */}
+    <View style={[styles.card, cardStyle, { width, padding }, style]}>
+      {/* Enhanced Fog Overlay with gradient - theme-aware */}
       <LinearGradient
-        colors={['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)']}
+        colors={fogOverlay}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -46,14 +59,12 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 3,
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   stateOverlay: {
     ...StyleSheet.absoluteFillObject,

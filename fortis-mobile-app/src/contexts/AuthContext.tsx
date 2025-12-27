@@ -19,7 +19,6 @@ import {
 } from '@/src/constants/storageKeys';
 import { clearUserScopedStorage, migrateGuestStorageToUser } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
-import { resetProgramServiceCache } from '@/src/services/programService';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
@@ -365,7 +364,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     useAIStore.getState().resetStore();
     useStartPresetStore.getState().resetStore();
     invalidateCustomCache();
-    resetProgramServiceCache();
 
     const storagePreserveKeys = [
       PROGRAMS_KEY,

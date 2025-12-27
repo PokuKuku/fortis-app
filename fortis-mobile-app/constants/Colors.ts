@@ -1,115 +1,119 @@
 /**
  * Fortis Design System - Colors
- * Extracted from Figma prototypes
- * Dark theme optimized for mobile
+ * Supports light and dark themes with glass morphism aesthetics
+ *
+ * Usage:
+ * - For theme-aware components: import { useTheme } from '@/src/contexts/ThemeContext'
+ *   const { colors } = useTheme();
+ *
+ * - For backward compatibility: import { Colors } from '@/constants/Colors'
+ *   (defaults to dark theme)
  */
 
+import { DarkTheme, LightTheme, BaseColors, type ThemeColors } from '@/src/contexts/ThemeContext';
+
+// Re-export theme palettes for direct access
+export { DarkTheme, LightTheme, BaseColors };
+export type { ThemeColors };
+
+/**
+ * Default Colors export - backward compatible with existing code
+ * Points to DarkTheme for compatibility during migration
+ *
+ * For theme-aware code, use:
+ *   const { colors } = useTheme();
+ */
 export const Colors = {
-  // Base colors (dark theme)
-  background: '#0a0a0a', // oklch(0.145 0 0) - Almost black
-  foreground: '#fafafa', // oklch(0.985 0 0) - Almost white
+  // Base colors (dark theme defaults for backward compatibility)
+  background: DarkTheme.background,
+  foreground: DarkTheme.foreground,
 
   // UI Colors
-  card: '#0a0a0a',
-  cardForeground: '#fafafa',
+  card: DarkTheme.card,
+  cardForeground: DarkTheme.cardForeground,
+  popover: DarkTheme.popover,
+  popoverForeground: DarkTheme.popoverForeground,
 
-  popover: '#0a0a0a',
-  popoverForeground: '#fafafa',
-
-  // Primary (main brand color)
-  primary: '#fafafa', // White for dark theme
-  primaryForeground: '#1a1a1a',
+  // Primary
+  primary: DarkTheme.primary,
+  primaryForeground: DarkTheme.primaryForeground,
 
   // Secondary
-  secondary: '#2a2a2a', // oklch(0.269 0 0) - Dark gray
-  secondaryForeground: '#fafafa',
+  secondary: DarkTheme.secondary,
+  secondaryForeground: DarkTheme.secondaryForeground,
 
   // Muted
-  muted: '#2a2a2a',
-  mutedForeground: '#a3a3a3', // oklch(0.708 0 0) - Medium gray
+  muted: DarkTheme.muted,
+  mutedForeground: DarkTheme.mutedForeground,
 
-  // Accent (highlights, focus states)
-  accent: '#2a2a2a',
-  accentForeground: '#fafafa',
+  // Accent
+  accent: DarkTheme.accent,
+  accentForeground: DarkTheme.accentForeground,
 
-  // Destructive (errors, delete actions)
-  destructive: '#dc2626', // oklch(0.396 0.141 25.723) - Red
-  destructiveForeground: '#fafafa',
+  // Destructive
+  destructive: DarkTheme.destructive,
+  destructiveForeground: DarkTheme.destructiveForeground,
 
   // Border & Input
-  border: '#2a2a2a',
-  input: '#2a2a2a',
-  inputBackground: '#1a1a1a',
-  ring: '#525252', // oklch(0.439 0 0) - Medium-dark gray
+  border: DarkTheme.border,
+  input: DarkTheme.input,
+  inputBackground: DarkTheme.inputBackground,
+  ring: DarkTheme.ring,
 
-  // Chart colors (for analytics)
-  chart1: '#6366f1', // oklch(0.488 0.243 264.376) - Indigo
-  chart2: '#10b981', // oklch(0.696 0.17 162.48) - Emerald
-  chart3: '#f59e0b', // oklch(0.769 0.188 70.08) - Amber
-  chart4: '#8b5cf6', // oklch(0.627 0.265 303.9) - Violet
-  chart5: '#ef4444', // oklch(0.645 0.246 16.439) - Red
+  // Chart colors
+  chart1: BaseColors.chart1,
+  chart2: BaseColors.chart2,
+  chart3: BaseColors.chart3,
+  chart4: BaseColors.chart4,
+  chart5: BaseColors.chart5,
 
   // Status colors
-  success: '#22c55e', // Green-600 (matches main page)
-  warning: '#f59e0b', // Amber
-  error: '#dc2626', // Red
-  info: '#0ea5e9', // Sky blue
+  success: BaseColors.success,
+  warning: BaseColors.warning,
+  error: BaseColors.error,
+  info: BaseColors.info,
 
   // Text hierarchy
-  textPrimary: '#fafafa',
-  textSecondary: '#a3a3a3',
-  textTertiary: '#525252',
-  textDisabled: '#3a3a3a',
+  textPrimary: DarkTheme.textPrimary,
+  textSecondary: DarkTheme.textSecondary,
+  textTertiary: DarkTheme.textTertiary,
+  textDisabled: DarkTheme.textDisabled,
 
   // Semantic colors for workout app
-  rpe: {
-    low: '#10b981', // RPE 1-3 (green)
-    medium: '#f59e0b', // RPE 4-7 (amber)
-    high: '#ef4444', // RPE 8-10 (red)
-  },
-
-  // Muscle group colors
-  muscle: {
-    chest: '#ef4444',
-    back: '#0ea5e9',
-    shoulders: '#8b5cf6',
-    arms: '#10b981',
-    legs: '#f59e0b',
-    core: '#ec4899',
-  },
+  rpe: BaseColors.rpe,
+  muscle: BaseColors.muscle,
 
   // Special effects
-  overlay: 'rgba(0, 0, 0, 0.5)',
-  overlayLight: 'rgba(0, 0, 0, 0.3)',
-  overlayHeavy: 'rgba(0, 0, 0, 0.7)',
-
-  backdrop: 'rgba(10, 10, 10, 0.8)',
+  overlay: DarkTheme.overlay,
+  overlayLight: DarkTheme.overlayLight,
+  overlayHeavy: DarkTheme.overlayHeavy,
+  backdrop: DarkTheme.backdrop,
 
   // Surface variations (glass effect)
-  surfaceOverlay: 'rgba(255, 255, 255, 0.08)',
-  surfaceElevated: 'rgba(255, 255, 255, 0.12)',
+  surfaceOverlay: DarkTheme.surfaceOverlay,
+  surfaceElevated: DarkTheme.surfaceElevated,
 
   // Border variations
-  borderLight: 'rgba(255, 255, 255, 0.15)',
-  borderMedium: 'rgba(255, 255, 255, 0.25)',
+  borderLight: DarkTheme.borderLight,
+  borderMedium: DarkTheme.borderMedium,
 
   // Success state overlays
-  successOverlay: 'rgba(34, 197, 94, 0.1)',
-  successBorder: 'rgba(34, 197, 94, 0.3)',
+  successOverlay: DarkTheme.successOverlay,
+  successBorder: DarkTheme.successBorder,
 
   // Error state overlays
-  errorOverlay: 'rgba(239, 68, 68, 0.15)',
-  errorBorder: 'rgba(239, 68, 68, 0.3)',
+  errorOverlay: DarkTheme.errorOverlay,
+  errorBorder: DarkTheme.errorBorder,
 
   // Set type overlays (industrial color coding)
-  warmupOverlay: 'rgba(234, 179, 8, 0.12)',
-  dropsetOverlay: 'rgba(59, 130, 246, 0.12)',
-  failureOverlay: 'rgba(239, 68, 68, 0.12)',
+  warmupOverlay: DarkTheme.warmupOverlay,
+  dropsetOverlay: DarkTheme.dropsetOverlay,
+  failureOverlay: DarkTheme.failureOverlay,
 
   // Transparent variants
-  transparent: 'transparent',
-  white: '#ffffff',
-  black: '#000000',
+  transparent: BaseColors.transparent,
+  white: BaseColors.white,
+  black: BaseColors.black,
 } as const;
 
 export type ColorName = keyof typeof Colors;

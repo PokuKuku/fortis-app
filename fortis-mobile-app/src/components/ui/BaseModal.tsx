@@ -4,6 +4,8 @@
  * Reusable modal component that encapsulates the app's consistent modal styling.
  * Includes StainlessSteelPattern background, animations, and standard header layout.
  *
+ * Supports both dark and light themes.
+ *
  * @example
  * // Simple confirmation modal
  * <BaseModal visible={visible} onClose={onClose} title="Confirm Action">
@@ -19,20 +21,18 @@
  * </BaseModal>
  *
  * @example
- * // Warning modal with icon
- * <BaseModal
- *   visible={visible}
- *   onClose={onClose}
- *   title="Warning"
- *   icon={<ExclamationTriangleIcon size={24} color="#f59e0b" />}
- * >
- *   <Text style={modalStyles.message}>Something went wrong.</Text>
- *   <Pressable style={modalStyles.warningButton} onPress={onClose}>
- *     <Text style={modalStyles.warningButtonText}>Got it</Text>
- *   </Pressable>
+ * // Theme-aware modal (recommended)
+ * const styles = useModalStyles();
+ * <BaseModal visible={visible} onClose={onClose} title="Confirm">
+ *   <Text style={styles.message}>Are you sure?</Text>
+ *   <View style={styles.actions}>
+ *     <Pressable style={styles.cancelButton} onPress={onClose}>
+ *       <Text style={styles.cancelButtonText}>Cancel</Text>
+ *     </Pressable>
+ *   </View>
  * </BaseModal>
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -54,6 +54,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 
 export interface BaseModalProps {
@@ -67,7 +68,7 @@ export interface BaseModalProps {
   icon?: React.ReactNode;
   /** Whether to show the close button (default: true) */
   showCloseButton?: boolean;
-  /** Close button icon color (default: Colors.textSecondary) */
+  /** Close button icon color (default: theme-aware) */
   closeButtonColor?: string;
   /** Modal content */
   children: React.ReactNode;
@@ -87,13 +88,20 @@ export function BaseModal({
   title,
   icon,
   showCloseButton = true,
-  closeButtonColor = Colors.textSecondary,
+  closeButtonColor,
   children,
   closeOnBackdropPress = true,
   hapticOnClose = true,
   width = 320,
   animation = 'zoom',
 }: BaseModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Theme-aware colors
+  const themedCloseButtonColor = closeButtonColor || colors.textSecondary;
+  const containerBg = isDark ? '#222222' : '#FFFFFF';
+  const closeButtonBg = isDark ? '#2a2a2a' : '#F0F0F0';
+
   const handleClose = () => {
     if (hapticOnClose) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -129,7 +137,7 @@ export function BaseModal({
       <Animated.View
         entering={FadeIn.duration(200)}
         exiting={FadeOut.duration(150)}
-        style={styles.backdrop}
+        style={[styles.backdrop, { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)' }]}
       >
         <Pressable
           style={StyleSheet.absoluteFillObject}
@@ -140,7 +148,7 @@ export function BaseModal({
             entering={contentEntering}
             exiting={contentExiting}
           >
-            <View style={[styles.container, { width }]}>
+            <View style={[styles.container, { width, backgroundColor: containerBg }]}>
               <StainlessSteelPattern />
 
               {/* Header */}
@@ -150,14 +158,15 @@ export function BaseModal({
                     onPress={handleClose}
                     style={({ pressed }) => [
                       styles.closeButton,
+                      { backgroundColor: closeButtonBg },
                       pressed && styles.closeButtonPressed,
                     ]}
                   >
-                    <XMarkIcon size={20} color={closeButtonColor} strokeWidth={2} />
+                    <XMarkIcon size={20} color={themedCloseButtonColor} strokeWidth={2} />
                   </Pressable>
                 )}
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
-                <Text style={styles.title}>{title}</Text>
+                <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
               </View>
 
               {/* Content */}
@@ -173,7 +182,6 @@ export function BaseModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -184,7 +192,6 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   container: {
-    backgroundColor: '#222222',
     borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',
     shadowColor: '#000',
@@ -208,14 +215,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.textPrimary,
     textAlign: 'center',
   },
   closeButton: {
     position: 'absolute',
     top: Spacing.lg,
     right: Spacing.lg,
-    backgroundColor: '#2a2a2a',
     borderRadius: BorderRadius.lg,
     padding: 4,
   },
@@ -230,8 +235,104 @@ const styles = StyleSheet.create({
 });
 
 /**
+ * Hook for theme-aware modal button and text styles.
+ * Use this instead of the static modalStyles for proper theme support.
+ */
+export function useModalStyles() {
+  const { colors, isDark } = useTheme();
+
+  return useMemo(() => ({
+    // Message text
+    message: {
+      fontSize: FontSizes.base,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginBottom: Spacing['2xl'],
+      lineHeight: 22,
+    } as TextStyle,
+
+    // Button container for two-button layouts
+    actions: {
+      flexDirection: 'row',
+      gap: Spacing.md,
+    } as ViewStyle,
+
+    // Base button style
+    buttonBase: {
+      flex: 1,
+      paddingVertical: 12,
+      borderRadius: BorderRadius.xl,
+      alignItems: 'center',
+    } as ViewStyle,
+
+    // Cancel/neutral button
+    cancelButton: {
+      flex: 1,
+      backgroundColor: isDark ? '#333333' : '#E5E5E5',
+      paddingVertical: 12,
+      borderRadius: BorderRadius.xl,
+      alignItems: 'center',
+    } as ViewStyle,
+    cancelButtonText: {
+      fontSize: FontSizes.base,
+      fontWeight: '700',
+      color: colors.textPrimary,
+    } as TextStyle,
+
+    // Success button (green)
+    successButton: {
+      flex: 1,
+      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.15)',
+      paddingVertical: 12,
+      borderRadius: BorderRadius.xl,
+      alignItems: 'center',
+    } as ViewStyle,
+    successButtonText: {
+      fontSize: FontSizes.base,
+      fontWeight: '700',
+      color: colors.success,
+    } as TextStyle,
+
+    // Warning button (amber)
+    warningButton: {
+      backgroundColor: isDark ? 'rgba(245, 158, 11, 0.2)' : 'rgba(245, 158, 11, 0.15)',
+      paddingVertical: 12,
+      borderRadius: BorderRadius.xl,
+      alignItems: 'center',
+    } as ViewStyle,
+    warningButtonText: {
+      fontSize: FontSizes.base,
+      fontWeight: '700',
+      color: colors.warning,
+    } as TextStyle,
+
+    // Error/destructive button (red)
+    errorButton: {
+      flex: 1,
+      backgroundColor: isDark ? 'rgba(239, 68, 68, 0.2)' : 'rgba(239, 68, 68, 0.15)',
+      paddingVertical: 12,
+      borderRadius: BorderRadius.xl,
+      alignItems: 'center',
+    } as ViewStyle,
+    errorButtonText: {
+      fontSize: FontSizes.base,
+      fontWeight: '700',
+      color: colors.error,
+    } as TextStyle,
+
+    // Pressed state
+    buttonPressed: {
+      opacity: 0.7,
+    } as ViewStyle,
+  }), [colors, isDark]);
+}
+
+/**
  * Pre-built modal button and text styles for consistent styling across modals.
  * Use these with Pressable components inside BaseModal.
+ *
+ * @deprecated Use useModalStyles() hook for theme-aware styles.
  */
 export const modalStyles = StyleSheet.create({
   // Message text
