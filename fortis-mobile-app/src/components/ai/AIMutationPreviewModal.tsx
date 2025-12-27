@@ -2,8 +2,6 @@
  * AI Mutation Preview Modal
  *
  * Shows a preview of AI-proposed changes and allows user to confirm or reject.
- * For LOG_WORKOUT intent, provides editable workout preview with inline editing.
- * For other intents, displays exercise resolutions with justifications.
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
@@ -34,7 +32,6 @@ import {
   Trash2,
   Sparkles,
   Info,
-  ChevronDown,
   Dumbbell,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
@@ -47,8 +44,6 @@ import { useAIStore } from '../../store/aiStore';
 import {
   AIMutation,
   AIExerciseResolution,
-  EditableExercise,
-  EditableWorkoutSet,
   EditableProgramWorkout,
 } from '../../types/ai';
 import { buildProgramDraftFromPlan } from '../../utils/aiProgramDraft';
@@ -82,16 +77,6 @@ export function AIMutationPreviewModal({
   const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
   const setCurrentMutationPlan = useAIStore((state) => state.setCurrentMutationPlan);
 
-  // Editable workout state and actions
-  const editableWorkout = useAIStore((state) => state.editableWorkout);
-  const initEditableWorkout = useAIStore((state) => state.initEditableWorkout);
-  const updateSet = useAIStore((state) => state.updateSet);
-  const deleteSet = useAIStore((state) => state.deleteSet);
-  const addSet = useAIStore((state) => state.addSet);
-  const deleteExercise = useAIStore((state) => state.deleteExercise);
-  const applyEditableWorkout = useAIStore((state) => state.applyEditableWorkout);
-  const clearEditableWorkout = useAIStore((state) => state.clearEditableWorkout);
-
   // Editable program draft state and actions
   const editableProgramDraft = useAIStore((state) => state.editableProgramDraft);
   const initEditableProgramDraft = useAIStore((state) => state.initEditableProgramDraft);
@@ -106,25 +91,16 @@ export function AIMutationPreviewModal({
 
   // Exercise picker state
   const [exercisePickerVisible, setExercisePickerVisible] = useState(false);
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [selectedProgramExercise, setSelectedProgramExercise] = useState<{
     workoutId: string;
     exerciseId: string;
   } | null>(null);
 
-  // Check if this is a LOG_WORKOUT mutation
-  const isLogWorkout = currentMutationPlan?.intent === 'LOG_WORKOUT';
   const isProgramDraft =
     currentMutationPlan?.intent === 'CREATE_PROGRAM' ||
-    currentMutationPlan?.intent === 'CREATE_TEMPLATE';
-  const isGoalUpdate = currentMutationPlan?.intent === 'UPDATE_GOALS';
-
-  // Initialize editable workout when modal opens with LOG_WORKOUT plan
-  useEffect(() => {
-    if (visible && currentMutationPlan && isLogWorkout && !editableWorkout) {
-      initEditableWorkout(currentMutationPlan);
-    }
-  }, [visible, currentMutationPlan, isLogWorkout, editableWorkout, initEditableWorkout]);
+    currentMutationPlan?.intent === 'MODIFY_PROGRAM' ||
+    currentMutationPlan?.intent === 'CREATE_TEMPLATE' ||
+    currentMutationPlan?.intent === 'MODIFY_TEMPLATE';
 
   useEffect(() => {
     if (visible && currentMutationPlan && isProgramDraft && !editableProgramDraft) {
@@ -143,10 +119,7 @@ export function AIMutationPreviewModal({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
 
     let success: boolean;
-    if (isLogWorkout && editableWorkout) {
-      // Use edited workout for LOG_WORKOUT
-      success = await applyEditableWorkout();
-    } else if (isProgramDraft && editableProgramDraft) {
+    if (isProgramDraft && editableProgramDraft) {
       // Use edited draft for CREATE_PROGRAM / CREATE_TEMPLATE
       success = await applyEditableProgramDraft();
     } else {
@@ -158,13 +131,14 @@ export function AIMutationPreviewModal({
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
       onConfirm();
     } else {
+      // Keep modal open on failure - error will be shown in error banner
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
+      // Error is already set in store, user can tap to retry
     }
   };
 
   const handleReject = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    clearEditableWorkout();
     clearEditableProgramDraft();
     clearError();
     setCurrentMutationPlan(null);
@@ -172,20 +146,12 @@ export function AIMutationPreviewModal({
   };
 
   const handleClose = () => {
-    clearEditableWorkout();
     clearEditableProgramDraft();
     clearError();
     onClose();
   };
 
-  const handleOpenExercisePicker = (exerciseLocalId: string) => {
-    setSelectedProgramExercise(null);
-    setSelectedExerciseId(exerciseLocalId);
-    setExercisePickerVisible(true);
-  };
-
   const handleOpenProgramExercisePicker = (workoutId: string, exerciseId: string) => {
-    setSelectedExerciseId(null);
     setSelectedProgramExercise({ workoutId, exerciseId });
     setExercisePickerVisible(true);
   };
@@ -193,114 +159,6 @@ export function AIMutationPreviewModal({
   const newExercises = currentMutationPlan.exerciseResolution.filter(
     (e) => !e.fromHistory
   );
-
-  // Render editable workout view for LOG_WORKOUT
-  const renderEditableWorkout = () => {
-    if (!editableWorkout) return null;
-
-    return (
-      <View style={styles.editableContainer}>
-        {editableWorkout.exercises.map((exercise, exerciseIndex) => (
-          <View key={exercise.id} style={styles.exerciseCard}>
-            {/* Exercise Header */}
-            <View style={styles.exerciseHeader}>
-              <TouchableOpacity
-                style={styles.exerciseNameButton}
-                onPress={() => handleOpenExercisePicker(exercise.id)}
-              >
-                <Dumbbell color={Colors.success} size={IconSizes.sm} />
-                <Text style={styles.exerciseName} numberOfLines={1}>
-                  {exercise.exerciseName}
-                </Text>
-                <ChevronDown color={Colors.textSecondary} size={IconSizes.sm} />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.deleteExerciseButton}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-                  deleteExercise(exercise.id);
-                }}
-              >
-                <Trash2 color={Colors.error} size={IconSizes.sm} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Set Table Header */}
-            <View style={styles.setTableHeader}>
-              <Text style={[styles.setHeaderText, styles.setColumn]}>Set</Text>
-              <Text style={[styles.setHeaderText, styles.repsColumn]}>Reps</Text>
-              <Text style={[styles.setHeaderText, styles.weightColumn]}>Weight</Text>
-              <View style={styles.deleteColumn} />
-            </View>
-
-            {/* Set Rows */}
-            {exercise.sets.map((set, setIndex) => (
-              <View key={set.id} style={styles.setRow}>
-                <Text style={[styles.setText, styles.setColumn]}>{setIndex + 1}</Text>
-                <TextInput
-                  style={[styles.setInput, styles.repsColumn]}
-                  value={set.reps > 0 ? String(set.reps) : ''}
-                  onChangeText={(text) => {
-                    const reps = parseInt(text, 10);
-                    updateSet(exercise.id, set.id, { reps: isNaN(reps) ? 0 : reps });
-                  }}
-                  keyboardType="number-pad"
-                  placeholder="0"
-                  placeholderTextColor={Colors.textTertiary}
-                  selectTextOnFocus
-                />
-                <TextInput
-                  style={[styles.setInput, styles.weightColumn]}
-                  value={set.weight > 0 ? String(set.weight) : ''}
-                  onChangeText={(text) => {
-                    const weight = parseFloat(text);
-                    updateSet(exercise.id, set.id, { weight: isNaN(weight) ? 0 : weight });
-                  }}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
-                  placeholderTextColor={Colors.textTertiary}
-                  selectTextOnFocus
-                />
-                <TouchableOpacity
-                  style={styles.deleteColumn}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-                    deleteSet(exercise.id, set.id);
-                  }}
-                >
-                  <Trash2 color={Colors.textTertiary} size={IconSizes.xs} />
-                </TouchableOpacity>
-              </View>
-            ))}
-
-            {/* Add Set Button */}
-            <TouchableOpacity
-              style={styles.addSetButton}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-                addSet(exercise.id);
-              }}
-            >
-              <Plus color={Colors.textSecondary} size={IconSizes.sm} />
-              <Text style={styles.addSetText}>Add Set</Text>
-            </TouchableOpacity>
-          </View>
-        ))}
-
-        {/* Add Exercise Button */}
-        <TouchableOpacity
-          style={styles.addExerciseButton}
-          onPress={() => {
-            setSelectedExerciseId(null);
-            setExercisePickerVisible(true);
-          }}
-        >
-          <Plus color={Colors.success} size={IconSizes.md} />
-          <Text style={styles.addExerciseText}>Add Exercise</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
 
   const formatDiffValue = (value: unknown) => {
     if (value === null || value === undefined) return '—';
@@ -633,32 +491,15 @@ export function AIMutationPreviewModal({
     );
   };
 
-  const totalSets = editableWorkout?.exercises.reduce(
-    (sum, ex) => sum + ex.sets.length,
+  const totalExercises = editableProgramDraft?.workouts.reduce(
+    (sum, workout) => sum + workout.exercises.length,
     0
   ) ??
-    editableProgramDraft?.workouts.reduce(
-      (sum, workout) => sum + workout.exercises.reduce((acc, ex) => acc + ex.sets, 0),
-      0
-    ) ??
-    currentMutationPlan.mutations.filter((m) => m.entityType === 'workout_set').length;
-
-  const totalExercises = editableWorkout?.exercises.length ??
-    editableProgramDraft?.workouts.reduce((sum, workout) => sum + workout.exercises.length, 0) ??
-    new Set(currentMutationPlan.mutations
-      .filter((m) => m.entityType === 'workout_set')
-      .map((m) => (m.proposedState as Record<string, unknown>)?.exercise_id)
-    ).size;
+    currentMutationPlan.mutations.filter((m) => m.entityType === 'program_exercise').length;
 
   const totalWorkouts = editableProgramDraft?.workouts.length ?? 0;
   const draftLabel = editableProgramDraft?.isTemplate ? 'Template' : 'Program';
-  const confirmLabel = isLogWorkout
-    ? 'Save Workout'
-    : isProgramDraft
-    ? `Create ${draftLabel}`
-    : isGoalUpdate
-    ? 'Update Goals'
-    : 'Apply Changes';
+  const confirmLabel = isProgramDraft ? `Create ${draftLabel}` : 'Apply Changes';
 
   return (
     <Modal
@@ -694,11 +535,7 @@ export function AIMutationPreviewModal({
                 <Sparkles color={Colors.success} size={IconSizes.lg} />
               </View>
               <Text style={styles.headerTitle}>
-                {isLogWorkout
-                  ? 'Review Workout'
-                  : isProgramDraft
-                  ? `Review ${draftLabel}`
-                  : 'Review Changes'}
+                {isProgramDraft ? `Review ${draftLabel}` : 'Review Changes'}
               </Text>
               <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                 <X color={Colors.textSecondary} size={IconSizes.md} />
@@ -708,22 +545,14 @@ export function AIMutationPreviewModal({
             {/* Summary */}
             <View style={styles.summary}>
               <Text style={styles.summaryTitle}>
-                {isLogWorkout
-                  ? `${totalExercises} exercises • ${totalSets} sets`
-                  : isProgramDraft
+                {isProgramDraft
                   ? `${totalWorkouts || 1} workouts • ${totalExercises} exercises`
-                  : currentMutationPlan.summary
-                }
+                  : currentMutationPlan.summary}
               </Text>
               <Text style={styles.summaryExplanation}>
-                {isLogWorkout
-                  ? 'Review and edit the extracted workout before saving'
-                  : isProgramDraft
+                {isProgramDraft
                   ? 'Review and edit the draft before saving'
-                  : isGoalUpdate
-                  ? 'Review and confirm your goal updates before saving'
-                  : currentMutationPlan.explanation
-                }
+                  : currentMutationPlan.explanation}
               </Text>
             </View>
 
@@ -734,43 +563,46 @@ export function AIMutationPreviewModal({
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
             >
-              {isLogWorkout
-                ? renderEditableWorkout()
-                : isProgramDraft
-                ? renderProgramDraft()
-                : (
-                  <>
-                    {/* New Exercises Warning */}
-                    {newExercises.length > 0 && (
-                      <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>
-                          New Exercises ({newExercises.length})
-                        </Text>
-                        {currentMutationPlan.exerciseResolution.map(
-                          renderExerciseResolution
-                        )}
-                      </View>
-                    )}
-
-                    {/* Mutations */}
+              {isProgramDraft ? (
+                renderProgramDraft()
+              ) : (
+                <>
+                  {/* New Exercises Warning */}
+                  {newExercises.length > 0 && (
                     <View style={styles.section}>
                       <Text style={styles.sectionTitle}>
-                        Changes ({currentMutationPlan.mutations.length})
+                        New Exercises ({newExercises.length})
                       </Text>
-                      {currentMutationPlan.mutations.map(renderMutation)}
+                      {currentMutationPlan.exerciseResolution.map(
+                        renderExerciseResolution
+                      )}
                     </View>
-                  </>
-                )
-              }
+                  )}
+
+                  {/* Mutations */}
+                  <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>
+                      Changes ({currentMutationPlan.mutations.length})
+                    </Text>
+                    {currentMutationPlan.mutations.map(renderMutation)}
+                  </View>
+                </>
+              )}
             </ScrollView>
 
             {error && (
               <TouchableOpacity
                 style={styles.errorBanner}
-                onPress={clearError}
+                onPress={() => {
+                  clearError();
+                  handleConfirm();
+                }}
+                disabled={isApplyingMutation}
               >
                 <Text style={styles.errorBannerText}>{error}</Text>
-                <Text style={styles.errorBannerHint}>Tap to dismiss</Text>
+                <Text style={styles.errorBannerHint}>
+                  {isApplyingMutation ? 'Retrying...' : 'Tap to retry'}
+                </Text>
               </TouchableOpacity>
             )}
 
@@ -822,21 +654,15 @@ export function AIMutationPreviewModal({
         visible={exercisePickerVisible}
         onClose={() => setExercisePickerVisible(false)}
         onSelect={(exerciseId, exerciseName) => {
-          if (selectedProgramExercise) {
-            updateProgramExercise(selectedProgramExercise.workoutId, selectedProgramExercise.exerciseId, {
-              exerciseId,
-              exerciseName,
-            });
-            setSelectedProgramExercise(null);
-          } else if (selectedExerciseId) {
-            // Updating existing exercise
-            const { updateExerciseName } = useAIStore.getState();
-            updateExerciseName(selectedExerciseId, exerciseId, exerciseName);
-          } else {
-            // Adding new exercise
-            const { addExercise } = useAIStore.getState();
-            addExercise(exerciseId, exerciseName);
+          if (!selectedProgramExercise) {
+            setExercisePickerVisible(false);
+            return;
           }
+          updateProgramExercise(selectedProgramExercise.workoutId, selectedProgramExercise.exerciseId, {
+            exerciseId,
+            exerciseName,
+          });
+          setSelectedProgramExercise(null);
           setExercisePickerVisible(false);
         }}
       />

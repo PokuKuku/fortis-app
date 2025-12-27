@@ -69,6 +69,8 @@ interface ChatMessageProps {
   onSaveAction?: () => void;
   /** Callback when user taps Customize button (for actionable messages) */
   onCustomizeAction?: () => void;
+  /** Callback when user taps a clarification option */
+  onClarificationSelect?: (option: string) => void;
 }
 
 export function ChatMessage({
@@ -79,6 +81,7 @@ export function ChatMessage({
   delay = 0,
   onSaveAction,
   onCustomizeAction,
+  onClarificationSelect,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
@@ -329,6 +332,10 @@ export function ChatMessage({
               <TouchableOpacity
                 key={option}
                 style={styles.clarificationOption}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  onClarificationSelect?.(option);
+                }}
                 activeOpacity={0.7}
                 accessibilityLabel={`Select option: ${option}`}
                 accessibilityRole="button"

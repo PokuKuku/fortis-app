@@ -35,17 +35,12 @@ const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
   MODIFY_PROGRAM: 'modify_program',
   CREATE_TEMPLATE: 'create_template',
   MODIFY_TEMPLATE: 'modify_template',
-  LOG_WORKOUT: 'log_workout',
-  UPDATE_GOALS: 'update_goals',
 };
 
 const LOGGABLE_ENTITY_TYPES = new Set<string>([
   'workout_program',
   'program_workout',
   'program_exercise',
-  'workout_session',
-  'workout_set',
-  'user_goal',
 ]);
 
 // ============================================
@@ -163,39 +158,6 @@ export async function analyzePlateau(
 }
 
 /**
- * Analyze progressive overload patterns
- */
-export async function analyzeOverload(
-  question: string
-): Promise<AIResponse> {
-  return sendAIMessage('ANALYZE_OVERLOAD', question);
-}
-
-/**
- * Analyze current program effectiveness
- */
-export async function analyzeProgram(
-  question: string,
-  programId: string
-): Promise<AIResponse> {
-  return sendAIMessage('ANALYZE_PROGRAM', question, { programId });
-}
-
-/**
- * Explain an exercise
- */
-export async function explainExercise(
-  exerciseId: string,
-  question?: string
-): Promise<AIResponse> {
-  return sendAIMessage(
-    'EXPLAIN_EXERCISE',
-    question || 'Explain this exercise, including proper form and common mistakes.',
-    { exerciseId }
-  );
-}
-
-/**
  * Create a new workout program
  */
 export async function createProgram(
@@ -235,41 +197,6 @@ export async function modifyTemplate(
   historyOnly?: boolean
 ): Promise<AIResponse> {
   return sendAIMessage('MODIFY_TEMPLATE', modifications, { templateId, historyOnly });
-}
-
-/**
- * Log a workout from natural language or image
- * @param description - Text description of the workout (can be minimal if image provided)
- * @param image - Optional image of workout (whiteboard, screenshot, notes)
- */
-export async function logWorkout(
-  description: string,
-  image?: AIImage
-): Promise<AIResponse> {
-  return sendAIMessage('LOG_WORKOUT', description, undefined, image);
-}
-
-/**
- * Generate a shareable training summary
- */
-export async function generateSummary(
-  periodWeeks: number,
-  customPrompt?: string
-): Promise<AIResponse> {
-  return sendAIMessage(
-    'GENERATE_SUMMARY',
-    customPrompt || `Generate a training summary for the last ${periodWeeks} weeks.`,
-    { periodWeeks }
-  );
-}
-
-/**
- * Update user goals
- */
-export async function updateGoals(
-  request: string
-): Promise<AIResponse> {
-  return sendAIMessage('UPDATE_GOALS', request);
 }
 
 // ============================================
@@ -370,18 +297,12 @@ export async function applyMutationPlan(
   const canLog = Boolean(userId && actionType);
 
   const allowedOperations =
-    plan.intent === 'UPDATE_GOALS'
-      ? new Set(['INSERT', 'UPDATE', 'DELETE'])
+    plan.intent === 'MODIFY_PROGRAM' || plan.intent === 'MODIFY_TEMPLATE'
+      ? new Set(['INSERT', 'UPDATE'])
       : new Set(['INSERT']);
   const invalidOperation = plan.mutations.find((mutation) => !allowedOperations.has(mutation.operation));
   if (invalidOperation) {
     return { success: false, error: 'This request includes unsupported actions.' };
-  }
-  if (plan.intent === 'UPDATE_GOALS') {
-    const nonGoalMutation = plan.mutations.find((mutation) => mutation.entityType !== 'user_goal');
-    if (nonGoalMutation) {
-      return { success: false, error: 'Goal updates can only modify user goals.' };
-    }
   }
 
   try {
@@ -772,16 +693,10 @@ export function getIntentLabel(intent: AIIntent): string {
     QUERY_STATS: 'Query Stats',
     QUERY_HISTORY: 'Query History',
     ANALYZE_PLATEAU: 'Analyze Plateau',
-    ANALYZE_OVERLOAD: 'Analyze Overload',
-    ANALYZE_PROGRAM: 'Analyze Program',
-    EXPLAIN_EXERCISE: 'Explain Exercise',
     CREATE_PROGRAM: 'Create Program',
     MODIFY_PROGRAM: 'Modify Program',
     CREATE_TEMPLATE: 'Create Template',
     MODIFY_TEMPLATE: 'Modify Template',
-    LOG_WORKOUT: 'Log Workout',
-    GENERATE_SUMMARY: 'Generate Summary',
-    UPDATE_GOALS: 'Update Goals',
   };
   return labels[intent];
 }

@@ -107,21 +107,6 @@ const inferIntentFromMessage = (
   const text = message.toLowerCase();
 
   if (text.includes('plateau')) return 'ANALYZE_PLATEAU';
-  if (text.includes('overload')) return 'ANALYZE_OVERLOAD';
-
-  const wantsGoals =
-    text.includes('goal') ||
-    text.includes('goals');
-  const wantsGoalUpdate =
-    text.includes('update') ||
-    text.includes('change') ||
-    text.includes('edit') ||
-    text.includes('set') ||
-    text.includes('add') ||
-    text.includes('remove') ||
-    text.includes('delete') ||
-    text.includes('replace');
-  if (wantsGoals && wantsGoalUpdate) return 'UPDATE_GOALS';
 
   const wantsProgram =
     text.includes('program') ||
@@ -142,17 +127,9 @@ const inferIntentFromMessage = (
     text.includes('generate') ||
     text.includes('design');
 
-  const wantsLog =
-    text.includes('log') ||
-    text.includes('record') ||
-    text.includes('i did') ||
-    text.includes('i completed') ||
-    text.includes('just finished');
-
-  if (hasImage && wantsLog) return 'LOG_WORKOUT';
   if (hasImage && wantsProgram) return 'CREATE_PROGRAM';
   if (hasImage && wantsTemplate) return 'CREATE_TEMPLATE';
-  if (hasImage) return 'LOG_WORKOUT';
+  if (hasImage) return null;
 
   if (wantsProgram && wantsCreate) return 'CREATE_PROGRAM';
   if (wantsTemplate && wantsCreate) return 'CREATE_TEMPLATE';
@@ -251,7 +228,8 @@ export default function AIChatScreen() {
     if ((!inputText.trim() && !selectedImage) || isSendingMessage) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const message = inputText.trim() || (selectedImage ? 'Log this workout from the image' : '');
+    const message =
+      inputText.trim() || (selectedImage ? 'Create a template from this image' : '');
     const inferredIntent = inferIntentFromMessage(message, Boolean(selectedImage));
     const intentToSend = inferredIntent || selectedIntent;
 
@@ -275,7 +253,7 @@ export default function AIChatScreen() {
     mimeType: AIImageMimeType;
   }) => {
     setSelectedImage(image);
-    setSelectedIntent('LOG_WORKOUT');
+    setSelectedIntent('CREATE_TEMPLATE');
   };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -386,11 +364,16 @@ export default function AIChatScreen() {
                   isAILoading={isSendingMessage && message.role === 'assistant'}
                   onSaveAction={handleSaveAction}
                   onCustomizeAction={handleCustomizeAction}
+                  onClarificationSelect={(option) => {
+                    setInputText(option);
+                  }}
                 />
               ))}
 
               {/* Quick Replies - context-aware suggestions */}
-              {!isSendingMessage && messages.length > 0 && (
+              {/* Hide when last message has clarification options to prevent duplicates */}
+              {!isSendingMessage && messages.length > 0 &&
+               !(messages[messages.length - 1]?.clarification?.options?.length > 0) && (
                 <QuickReplies
                   suggestions={getContextAwareSuggestions()}
                   onSelect={(suggestion) => {

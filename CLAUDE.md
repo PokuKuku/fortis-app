@@ -55,6 +55,10 @@ npm run lint           # ESLint
 supabase start         # Start local instance
 supabase db reset      # Reset and apply migrations
 supabase functions deploy ai  # Deploy AI edge function
+
+# Remote (production)
+supabase db push --dns-resolver https      # Push migrations to remote
+supabase db lint --linked --dns-resolver https  # Lint remote schema
 ```
 
 ## Architecture
@@ -163,6 +167,12 @@ fortis-mobile-app/
 - `007_fix_share_token_rng.sql` - Fix share token random generation
 - `008_ops_security_hardening.sql` - Operations security policies
 
+**Adding New User Tables:**
+- Enable RLS + FORCE
+- Add SELECT/INSERT/UPDATE/DELETE policies with USING and WITH CHECK
+- Add ownership columns (`user_id` or `created_by`)
+- Add indexes on `user_id + created_at` for common access patterns
+
 **AI Edge Function** (`supabase/functions/ai/index.ts`):
 - Rate limiting via `ai_rate_limits` table
 - Claude 3.5 Sonnet via Anthropic API
@@ -172,6 +182,11 @@ fortis-mobile-app/
 supabase functions deploy ai
 supabase secrets set ANTHROPIC_API_KEY=<key>
 ```
+
+**Adding New AI Mutation Types:**
+- Update allowlists in `supabase/functions/ai/index.ts`
+- Update `ACTION_TYPE_BY_INTENT` and `LOGGABLE_ENTITY_TYPES` in `src/services/aiService.ts`
+- Update CHECK constraints on `ai_pending_actions` and `ai_mutations` tables if needed
 
 **Environment:** Copy `.env.example` to `.env.local` with Supabase URL/key.
 
@@ -322,3 +337,8 @@ rm -rf node_modules && npm install && npm start
 # iOS: Cmd + D (Simulator) or Shake device
 # Android: Cmd + M (Emulator) or Shake device
 ```
+
+## Git Conventions
+
+- Commit messages: short, imperative verbs in sentence case
+- Examples: "Add workout history", "Fix missing SVG paths", "Refactor auth UI"

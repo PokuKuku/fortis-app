@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Mutation Modal - Before vs After</title>
+  <style>
+    :root {
+      --background: #0a0a0a;
+      --surface-elevated: rgba(255, 255, 255, 0.06);
+      --surface-subtle: rgba(255, 255, 255, 0.03);
+      --border-light: rgba(255, 255, 255, 0.06);
+      --border-medium: rgba(255, 255, 255, 0.10);
+      --border-old: rgba(255, 255, 255, 0.08);
+      --text-primary: #fafafa;
+      --text-secondary: #a3a3a3;
+      --text-tertiary: #737373;
+      --success: #22c55e;
+      --success-bg: rgba(34, 197, 94, 0.12);
+      --success-border: rgba(34, 197, 94, 0.25);
+      --teal: #14b8a6;
+      --teal-bg: rgba(20, 184, 166, 0.08);
+      --teal-border: rgba(20, 184, 166, 0.35);
+      --overlay: rgba(0, 0, 0, 0.8);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+      background: #111;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .page-header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+    }
+
+    .page-header p {
+      font-size: 16px;
+      color: var(--text-secondary);
+    }
+
+    .comparison {
+      display: flex;
+      gap: 48px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .version {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .version-label {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 20px;
+      padding: 8px 20px;
+      border-radius: 20px;
+    }
+
+    .version-label.before {
+      background: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+    }
+
+    .version-label.after {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    /* Modal Container */
+    .modal {
+      width: 360px;
+      height: 680px;
+      background: var(--background);
+      border-radius: 20px;
+      border: 1px solid var(--border-medium);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+    }
+
+    /* Glass Fog Overlay - Only for After */
+    .glass-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        rgba(140, 140, 140, 0.06) 0%,
+        rgba(100, 100, 100, 0.04) 33%,
+        rgba(60, 60, 60, 0.03) 66%,
+        rgba(20, 20, 20, 0.02) 100%
+      );
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Steel Pattern */
+    .steel-pattern {
+      position: absolute;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(
+          45deg,
+          transparent,
+          transparent 2px,
+          rgba(255, 255, 255, 0.008) 2px,
+          rgba(255, 255, 255, 0.008) 4px
+        );
+      pointer-events: none;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-old);
+      gap: 10px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .header-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 18px;
+      background: rgba(34, 197, 94, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .header-icon.enhanced {
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      background: var(--success-bg);
+      box-shadow: 0 2px 12px rgba(34, 197, 94, 0.2);
+    }
+
+    .header-icon svg {
+      width: 20px;
+      height: 20px;
+      color: var(--success);
+    }
+
+    .header-title {
+      flex: 1;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .close-btn {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .close-btn svg {
+      width: 18px;
+      height: 18px;
+      color: var(--text-secondary);
+    }
+
+    /* Summary Section - Before */
+    .summary-before {
+      padding: 14px 16px;
+      background: rgba(34, 197, 94, 0.08);
+      border-bottom: 1px solid var(--border-old);
+      position: relative;
+      z-index: 2;
+    }
+
+    .summary-before .title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 4px;
+    }
+
+    /* Summary Section - After */
+    .summary-after {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-light);
+      position: relative;
+      z-index: 2;
+    }
+
+    .summary-badge {
+      display: inline-flex;
+      align-items: center;
+      background: var(--success-bg);
+      padding: 5px 12px;
+      border-radius: 14px;
+      margin-bottom: 8px;
+    }
+
+    .summary-badge-text {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--success);
+    }
+
+    .summary-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    /* Content Area */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* Form Card - Before */
+    .form-card-before {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-old);
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    /* Form Card - After */
+    .form-card-after {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .input-group {
+      margin-bottom: 12px;
+    }
+
+    .input-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .input-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    /* Input - Before (flat) */
+    .input-before {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.06);
+      border: none;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 14px;
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    /* Input - After (with border + depth) */
+    .input-after {
+      width: 100%;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border-light);
+      border-radius: 10px;
+      padding: 11px 13px;
+      font-size: 14px;
+      color: var(--text-primary);
+      outline: none;
+      min-height: 42px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .input-row .input-group {
+      flex: 1;
+    }
+
+    /* CTA Card - Before (TEAL) */
+    .cta-before {
+      background: var(--teal-bg);
+      border: 1px solid var(--teal-border);
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 6px;
+    }
+
+    .cta-before .title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    /* CTA Card - After (GREEN) */
+    .cta-after {
+      background: rgba(34, 197, 94, 0.06);
+      border: 1px solid var(--success-border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-top: 6px;
+    }
+
+    .cta-after .title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 4px;
+    }
+
+    .cta-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    /* Actions */
+    .actions {
+      display: flex;
+      gap: 10px;
+      padding: 14px;
+      border-top: 1px solid var(--border-old);
+      position: relative;
+      z-index: 2;
+    }
+
+    .btn {
+      flex: 1;
+      height: 44px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      border: none;
+    }
+
+    /* Button - Before (same weight) */
+    .btn-cancel-before {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text-secondary);
+    }
+
+    /* Button - After (ghost/lighter) */
+    .btn-cancel-after {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-light);
+      color: var(--text-tertiary);
+    }
+
+    .btn-primary {
+      background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+      color: white;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Callouts */
+    .callout {
+      position: absolute;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+      white-space: nowrap;
+      z-index: 10;
+    }
+
+    .callout.issue {
+      background: rgba(239, 68, 68, 0.2);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .callout.fix {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid var(--success-border);
+    }
+
+    /* Annotations for Before */
+    .annotation-teal {
+      right: -8px;
+      top: 450px;
+      transform: translateX(100%);
+    }
+
+    .annotation-flat {
+      right: -8px;
+      top: 280px;
+      transform: translateX(100%);
+    }
+
+    .annotation-buttons {
+      right: -8px;
+      bottom: 60px;
+      transform: translateX(100%);
+    }
+
+    /* Annotations for After */
+    .annotation-glass {
+      left: -8px;
+      top: 100px;
+      transform: translateX(-100%);
+    }
+
+    .annotation-badge {
+      left: -8px;
+      top: 180px;
+      transform: translateX(-100%);
+    }
+
+    .annotation-green {
+      left: -8px;
+      top: 450px;
+      transform: translateX(-100%);
+    }
+
+    .features {
+      margin-top: 60px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+      max-width: 1000px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .feature-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border-light);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .feature-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--success);
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-header">
+    <h1>AI Mutation Preview Modal</h1>
+    <p>Before vs After Comparison</p>
+  </div>
+
+  <div class="comparison">
+    <!-- BEFORE -->
+    <div class="version">
+      <div class="version-label before">Before</div>
+      <div class="modal" style="position: relative;">
+        <div class="steel-pattern"></div>
+        <!-- NO glass overlay -->
+
+        <div class="header">
+          <div class="header-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.813 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.813a2 2 0 00-1.272-1.272L3 12l5.813-1.912a2 2 0 001.272-1.272L12 3z"/>
+            </svg>
+          </div>
+          <span class="header-title">Review Template</span>
+          <div class="close-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
+        </div>
+
+        <div class="summary-before">
+          <p class="title">3 workouts &bull; 0 exercises</p>
+          <p class="summary-desc">Review and edit the draft before saving</p>
+        </div>
+
+        <div class="content">
+          <div class="form-card-before">
+            <div class="input-group">
+              <label class="input-label">Template name</label>
+              <input type="text" class="input-before" value="General Fitness 3-Day" readonly>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Description</label>
+              <input type="text" class="input-before" value="Balanced full-body program..." readonly>
+            </div>
+            <div class="input-row">
+              <div class="input-group">
+                <label class="input-label">Difficulty</label>
+                <input type="text" class="input-before" value="intermediate" readonly>
+              </div>
+              <div class="input-group">
+                <label class="input-label">Weeks</label>
+                <input type="text" class="input-before" value="12" readonly>
+              </div>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Goal</label>
+              <input type="text" class="input-before" value="general_fitness" readonly>
+            </div>
+          </div>
+
+          <!-- TEAL CTA -->
+          <div class="cta-before">
+            <p class="title">Add this template to your template cards?</p>
+            <p class="cta-desc">Tap Create to add it, or Cancel to discard.</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-cancel-before">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            Cancel
+          </button>
+          <button class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Create Template
+          </button>
+        </div>
+
+        <div class="callout issue annotation-flat">Flat inputs</div>
+        <div class="callout issue annotation-teal">Teal clashes!</div>
+        <div class="callout issue annotation-buttons">Same weight</div>
+      </div>
+    </div>
+
+    <!-- AFTER -->
+    <div class="version">
+      <div class="version-label after">After</div>
+      <div class="modal" style="position: relative;">
+        <div class="steel-pattern"></div>
+        <div class="glass-overlay"></div>
+
+        <div class="header">
+          <div class="header-icon enhanced">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3l1.912 5.813a2 2 0 001.272 1.272L21 12l-5.813 1.912a2 2 0 00-1.272 1.272L12 21l-1.912-5.813a2 2 0 00-1.272-1.272L3 12l5.813-1.912a2 2 0 001.272-1.272L12 3z"/>
+            </svg>
+          </div>
+          <span class="header-title">Review Template</span>
+          <div class="close-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </div>
+        </div>
+
+        <div class="summary-after">
+          <div class="summary-badge">
+            <span class="summary-badge-text">3 workouts &bull; 0 exercises</span>
+          </div>
+          <p class="summary-desc">Review and edit the draft before saving</p>
+        </div>
+
+        <div class="content">
+          <div class="form-card-after">
+            <div class="input-group">
+              <label class="input-label">Template name</label>
+              <input type="text" class="input-after" value="General Fitness 3-Day" readonly>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Description</label>
+              <input type="text" class="input-after" value="Balanced full-body program..." readonly>
+            </div>
+            <div class="input-row">
+              <div class="input-group">
+                <label class="input-label">Difficulty</label>
+                <input type="text" class="input-after" value="intermediate" readonly>
+              </div>
+              <div class="input-group">
+                <label class="input-label">Weeks</label>
+                <input type="text" class="input-after" value="12" readonly>
+              </div>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Goal</label>
+              <input type="text" class="input-after" value="general_fitness" readonly>
+            </div>
+          </div>
+
+          <!-- GREEN CTA -->
+          <div class="cta-after">
+            <p class="title">Add this template to your template cards?</p>
+            <p class="cta-desc">Tap Create to add it, or Cancel to discard.</p>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-cancel-after">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            Cancel
+          </button>
+          <button class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Create Template
+          </button>
+        </div>
+
+        <div class="callout fix annotation-glass">Glass overlay</div>
+        <div class="callout fix annotation-badge">Pill badge</div>
+        <div class="callout fix annotation-green">Green theme!</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="features">
+    <div class="feature-card">
+      <h3>Glass Fog Overlay</h3>
+      <p>Subtle gradient overlay adds depth and matches GlassCard/GlassButton components throughout the app.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Green Theme Consistency</h3>
+      <p>Teal CTA box replaced with green (#22c55e) to match the app's primary accent color.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Refined Form Fields</h3>
+      <p>Inputs now have visible borders, slightly larger padding, and min-height for consistent touch targets.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Visual Hierarchy</h3>
+      <p>Stats displayed in a green pill badge, making key info scannable at a glance.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Ghost Cancel Button</h3>
+      <p>Lighter cancel button creates clear visual hierarchy between dismiss and confirm actions.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Enhanced Header Icon</h3>
+      <p>Larger icon container with subtle green glow shadow for premium feel.</p>
+    </div>
+  </div>
+</body>
+</html>

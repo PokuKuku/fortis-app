@@ -19,17 +19,11 @@ export type AIIntent =
   | 'QUERY_STATS'
   | 'QUERY_HISTORY'
   | 'ANALYZE_PLATEAU'
-  | 'ANALYZE_OVERLOAD'
-  | 'ANALYZE_PROGRAM'
-  | 'EXPLAIN_EXERCISE'
   // Write intents (require confirmation)
   | 'CREATE_PROGRAM'
   | 'MODIFY_PROGRAM'
   | 'CREATE_TEMPLATE'
-  | 'MODIFY_TEMPLATE'
-  | 'LOG_WORKOUT'
-  | 'GENERATE_SUMMARY'
-  | 'UPDATE_GOALS';
+  | 'MODIFY_TEMPLATE';
 
 /**
  * Intent metadata for context assembly
@@ -72,34 +66,6 @@ export const INTENT_CONFIG: Record<AIIntent, {
     includeAnalytics: true,
     exerciseLimit: 50,
   },
-  ANALYZE_OVERLOAD: {
-    type: 'read',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  ANALYZE_PROGRAM: {
-    type: 'read',
-    defaultContextWeeks: 24,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  EXPLAIN_EXERCISE: {
-    type: 'read',
-    defaultContextWeeks: 4,
-    includeHistory: false,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: false,
-    exerciseLimit: 1,
-  },
   CREATE_PROGRAM: {
     type: 'write',
     defaultContextWeeks: 12,
@@ -139,34 +105,6 @@ export const INTENT_CONFIG: Record<AIIntent, {
     includeExerciseDb: true,
     includeAnalytics: true,
     exerciseLimit: 50,
-  },
-  LOG_WORKOUT: {
-    type: 'write',
-    defaultContextWeeks: 4,
-    includeHistory: true,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: false,
-    exerciseLimit: 100,
-  },
-  GENERATE_SUMMARY: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  UPDATE_GOALS: {
-    type: 'write',
-    defaultContextWeeks: 4,
-    includeHistory: false,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: false,
   },
 };
 
@@ -638,38 +576,6 @@ export interface AIRateLimitStatus {
   maxPerHour: number;
   maxPerDay: number;
   retryAfterSeconds?: number;
-}
-
-// ============================================
-// Editable Workout Types (for editing AI-extracted workouts)
-// ============================================
-
-/**
- * Editable workout set for inline editing in preview modal
- */
-export interface EditableWorkoutSet {
-  id: string;           // Local ID for tracking
-  reps: number;
-  weight: number;
-  rpe?: number;
-}
-
-/**
- * Editable exercise with its sets
- */
-export interface EditableExercise {
-  id: string;           // Local ID for tracking
-  exerciseId: string;   // Exercise DB ID
-  exerciseName: string;
-  sets: EditableWorkoutSet[];
-}
-
-/**
- * Complete editable workout extracted from AI mutation plan
- */
-export interface EditableWorkout {
-  exercises: EditableExercise[];
-  originalPlan: AIMutationPlan;  // Keep original for reference
 }
 
 // ============================================

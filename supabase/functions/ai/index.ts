@@ -23,16 +23,10 @@ type AIIntent =
   | 'QUERY_STATS'
   | 'QUERY_HISTORY'
   | 'ANALYZE_PLATEAU'
-  | 'ANALYZE_OVERLOAD'
-  | 'ANALYZE_PROGRAM'
-  | 'EXPLAIN_EXERCISE'
   | 'CREATE_PROGRAM'
   | 'MODIFY_PROGRAM'
   | 'CREATE_TEMPLATE'
-  | 'MODIFY_TEMPLATE'
-  | 'LOG_WORKOUT'
-  | 'GENERATE_SUMMARY'
-  | 'UPDATE_GOALS';
+  | 'MODIFY_TEMPLATE';
 
 type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
@@ -94,34 +88,6 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeAnalytics: true,
     exerciseLimit: 50,
   },
-  ANALYZE_OVERLOAD: {
-    type: 'read',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  ANALYZE_PROGRAM: {
-    type: 'read',
-    defaultContextWeeks: 24,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  EXPLAIN_EXERCISE: {
-    type: 'read',
-    defaultContextWeeks: 4,
-    includeHistory: false,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: false,
-    exerciseLimit: 1,
-  },
   CREATE_PROGRAM: {
     type: 'write',
     defaultContextWeeks: 12,
@@ -162,51 +128,19 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeAnalytics: true,
     exerciseLimit: 50,
   },
-  LOG_WORKOUT: {
-    type: 'write',
-    defaultContextWeeks: 4,
-    includeHistory: true,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: false,
-    exerciseLimit: 100,
-  },
-  GENERATE_SUMMARY: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  UPDATE_GOALS: {
-    type: 'write',
-    defaultContextWeeks: 4,
-    includeHistory: false,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: false,
-  },
 };
 
 const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
   CREATE_PROGRAM: 'create_program',
+  MODIFY_PROGRAM: 'modify_program',
   CREATE_TEMPLATE: 'create_template',
-  LOG_WORKOUT: 'log_workout',
-  UPDATE_GOALS: 'update_goals',
+  MODIFY_TEMPLATE: 'modify_template',
 };
 
 const ALLOWED_ENTITY_TYPES = new Set<string>([
   'workout_program',
   'program_workout',
   'program_exercise',
-  'workout_session',
-  'workout_set',
-  'training_summary',
-  'user_goal',
 ]);
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -230,18 +164,6 @@ function sanitizeProposedState(
     if (intent === 'CREATE_PROGRAM') {
       sanitized.is_template = false;
     }
-  }
-
-  if (entityType === 'workout_session') {
-    sanitized.user_id = userId;
-  }
-
-  if (entityType === 'training_summary') {
-    sanitized.user_id = userId;
-  }
-
-  if (entityType === 'user_goal') {
-    sanitized.user_id = userId;
   }
 
   // Remove any server-controlled fields that shouldn't be set by AI
@@ -348,8 +270,8 @@ function limitExerciseIds(ids: string[], limit: number): string[] {
 }
 
 function allowedOperationsForIntent(intent: AIIntent): Set<string> {
-  if (intent === 'UPDATE_GOALS') {
-    return new Set(['INSERT', 'UPDATE', 'DELETE']);
+  if (intent === 'MODIFY_PROGRAM' || intent === 'MODIFY_TEMPLATE') {
+    return new Set(['INSERT', 'UPDATE']);
   }
   return new Set(['INSERT']);
 }
@@ -359,10 +281,7 @@ function collectExerciseIdsFromPlan(plan: {
 }): string[] {
   const ids: string[] = [];
   for (const mutation of plan.mutations ?? []) {
-    if (
-      mutation?.entityType === 'program_exercise' ||
-      mutation?.entityType === 'workout_set'
-    ) {
+    if (mutation?.entityType === 'program_exercise') {
       const exerciseId = mutation.proposedState?.exercise_id;
       if (typeof exerciseId === 'string') {
         ids.push(exerciseId);
@@ -521,18 +440,6 @@ Deno.serve(async (req: Request) => {
         requestId,
         clarification: {
           question: 'What would you like help with? You can ask about your stats, a specific exercise, or request a program.',
-        },
-      });
-    }
-
-    if (aiRequest.intent === 'MODIFY_PROGRAM' || aiRequest.intent === 'MODIFY_TEMPLATE') {
-      return jsonResponse({
-        type: 'answer',
-        requestId,
-        answer: {
-          text:
-            'Editing existing programs and templates is not enabled yet. I can create a new draft instead. What would you like to build?',
-          citations: [],
         },
       });
     }
@@ -1363,8 +1270,6 @@ function buildSystemPrompt(
   const intentGuidance =
     intent === 'ANALYZE_PLATEAU'
       ? '\nPLATEAU ANALYSIS:\n- Explain likely causes using trends in volume, intensity, frequency, and exercise variation.\n- Call out missing data if the evidence is incomplete.'
-      : intent === 'ANALYZE_OVERLOAD'
-      ? '\nOVERLOAD ANALYSIS:\n- Assess progressive overload using changes in volume, estimated 1RM, or rep PRs over time.\n- If the signal is weak or inconsistent, say so and explain what would improve confidence.'
       : '';
 
   const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights and creating workout programs.
@@ -1433,7 +1338,7 @@ Otherwise, respond with a JSON object containing a mutation plan:
         "mutationId": "unique-id",
         "order": 1,
         "operation": "INSERT",
-        "entityType": "workout_program|program_workout|program_exercise|workout_session|workout_set",
+        "entityType": "workout_program|program_workout|program_exercise",
         "proposedState": { /* new values */ },
         "description": "Human-readable description of this change",
         "dependsOn": ["other-mutation-ids"]
@@ -1452,12 +1357,8 @@ Otherwise, respond with a JSON object containing a mutation plan:
 }
 
 WRITE RULES:
-- If intent is UPDATE_GOALS, you may use INSERT, UPDATE, or DELETE mutations on user_goal only.
-- Otherwise, create-only. Do not include UPDATE or DELETE mutations.
-- If the user asks to edit or delete existing programs or workouts, respond with a clarification or explain that editing is not available yet.
-GOAL UPDATE NOTES (UPDATE_GOALS):
-- Use the USER GOALS list in context to find existing goal ids.
-- For updates or deletes, include entityId for the goal being changed.
+- For MODIFY_PROGRAM or MODIFY_TEMPLATE, you may use INSERT or UPDATE mutations.
+- For other write intents, create-only. Do not include UPDATE or DELETE mutations.
 
 EXERCISE SELECTION RULES:
 1. Prefer exercises from the user's history when possible
@@ -1468,17 +1369,13 @@ EXERCISE SELECTION RULES:
 ENTITY SCHEMAS:
 - workout_program: { name, description, difficulty (beginner|intermediate|advanced), duration_weeks, goal (strength|hypertrophy|powerlifting|general_fitness), is_template (boolean), is_ai_created (boolean) }
 - program_workout: { name, description, day_number }
-- program_exercise: { exercise_id, order_index, sets (number), reps (string like "5-8"), rest_seconds, notes }
-- workout_session: { started_at, completed_at }
-- workout_set: { session_id, exercise_id, set_number, order_index, reps, weight, rpe, set_type }
-- training_summary: { period_start, period_end, title, summary_text, metrics }
-- user_goal: { goal_name, goal_type, description, target_metrics, target_date, priority, is_active }`;
+- program_exercise: { exercise_id, order_index, sets (number), reps (string like "5-8"), rest_seconds, notes }`;
 }
 
 function buildUserMessage(request: AIRequest, context: AIContext): string {
   let message = `Intent: ${request.intent}\n\nUser message: ${request.message}`;
 
-  if (request.image && request.intent === 'CREATE_TEMPLATE') {
+  if (request.image && (request.intent === 'CREATE_TEMPLATE' || request.intent === 'MODIFY_TEMPLATE')) {
     message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (TEMPLATE) ---
 You have been provided an image of a workout plan. Extract a single workout template:
 
@@ -1496,7 +1393,7 @@ Create mutations for:
 If key details are missing, return a clarification question instead of guessing.`;
   }
 
-  if (request.image && request.intent === 'CREATE_PROGRAM') {
+  if (request.image && (request.intent === 'CREATE_PROGRAM' || request.intent === 'MODIFY_PROGRAM')) {
     message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (PROGRAM) ---
 You have been provided an image of a multi-day program. Extract the full program:
 
@@ -1512,21 +1409,6 @@ Create mutations for:
 - Multiple program_exercise entries per workout
 
 If the image only shows one day or lacks program schedule (days per week, duration), return a clarification question before creating a program.`;
-  }
-
-  if (request.image && request.intent === 'LOG_WORKOUT') {
-    message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (LOG WORKOUT) ---
-You have been provided an image of a completed workout (whiteboard, notes, or screenshot). Extract:
-
-1. **Exercises**: Identify exercises and match names to the AVAILABLE EXERCISES list below.
-2. **Sets/Reps/Weight**: Extract as precisely as possible.
-3. **Order**: Keep the order shown in the image.
-
-Create mutations for:
-- One workout_session
-- Multiple workout_set entries
-
-If key details are unclear, return a clarification question instead of guessing.`;
   }
 
   if (context.user.goals && context.user.goals.length > 0) {
@@ -1678,22 +1560,24 @@ function buildWriteClarification(intent: AIIntent, requestId: string) {
     };
   }
 
-  if (intent === 'LOG_WORKOUT') {
+  if (intent === 'MODIFY_PROGRAM') {
     return {
       ...base,
       clarification: {
         question:
-          'I can log this workout, but I need the exercises and sets/reps/weight. Can you list them?',
+          'I can edit your program. What should I change (exercises, sets/reps, days, or focus)?',
+        options: ['Swap squats for leg press', 'Make it 4 days/week'],
       },
     };
   }
 
-  if (intent === 'UPDATE_GOALS') {
+  if (intent === 'MODIFY_TEMPLATE') {
     return {
       ...base,
       clarification: {
         question:
-          'I can update your goals. What should I add, change, or remove?',
+          'I can edit this template. What should I adjust (exercises, sets/reps, or rest)?',
+        options: ['Add a superset', 'Increase reps to 8-12'],
       },
     };
   }
@@ -1720,7 +1604,13 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
     (mutation: any) => mutation?.entityType === 'workout_program'
   );
 
-  if ((intent === 'CREATE_TEMPLATE' || intent === 'CREATE_PROGRAM') && !hasProgram) {
+  if (
+    (intent === 'CREATE_TEMPLATE' ||
+      intent === 'CREATE_PROGRAM' ||
+      intent === 'MODIFY_TEMPLATE' ||
+      intent === 'MODIFY_PROGRAM') &&
+    !hasProgram
+  ) {
     return 'Workout program mutation is required';
   }
 
@@ -1730,8 +1620,8 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
     }
 
     if (!allowedOperations.has(mutation.operation)) {
-      return intent === 'UPDATE_GOALS'
-        ? 'Goal updates must use INSERT, UPDATE, or DELETE operations'
+      return intent === 'MODIFY_PROGRAM' || intent === 'MODIFY_TEMPLATE'
+        ? 'Only INSERT or UPDATE operations are allowed'
         : 'Only INSERT operations are allowed';
     }
 
@@ -1745,14 +1635,6 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
 
     if (mutation.operation !== 'INSERT' && !mutation.entityId) {
       return 'Update and delete mutations require entityId';
-    }
-
-    if (intent === 'UPDATE_GOALS' && mutation.entityType !== 'user_goal') {
-      return 'Goal updates can only modify user_goal entities';
-    }
-
-    if (intent !== 'UPDATE_GOALS' && mutation.entityType === 'user_goal') {
-      return 'User goals can only be modified via UPDATE_GOALS intent';
     }
 
     if (mutation.entityType === 'workout_program') {

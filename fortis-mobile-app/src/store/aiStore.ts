@@ -16,12 +16,8 @@ import {
   AIConversationMessage,
   AIPendingAction,
   AIMutationPlan,
-  AIMutation,
   AIMutationRecord,
   AIRateLimitStatus,
-  EditableWorkout,
-  EditableExercise,
-  EditableWorkoutSet,
   EditableProgramDraft,
   EditableProgramWorkout,
   EditableProgramExercise,
@@ -71,10 +67,16 @@ const makeFriendlyClarification = (question: string | undefined, intent: AIInten
       : `Awesome — ${question}`;
   }
 
-  if (intent === 'LOG_WORKOUT') {
+  if (intent === 'MODIFY_TEMPLATE') {
     return looksSystemy || !question
-      ? 'I can log that. Can you confirm the exercises and any unclear sets or weights?'
-      : `Quick check — ${question}`;
+      ? 'Got it — what should I change in your template (exercises, sets/reps, or rest)?'
+      : `Got it — ${question}`;
+  }
+
+  if (intent === 'MODIFY_PROGRAM') {
+    return looksSystemy || !question
+      ? 'Got it — what should I change in your program (exercises, sets/reps, days, or focus)?'
+      : `Got it — ${question}`;
   }
 
   return looksSystemy || !question
@@ -102,10 +104,7 @@ interface AIState {
   // Mutation history (for undo)
   mutationHistory: AIMutationRecord[];
 
-  // Editable workout (for editing AI-extracted workouts before saving)
-  editableWorkout: EditableWorkout | null;
-
-  // Editable program/template draft (for CREATE_* intents)
+  // Editable program/template draft (for program/template intents)
   editableProgramDraft: EditableProgramDraft | null;
 
   // Rate limiting
@@ -147,11 +146,9 @@ interface AIState {
   // Actions - Quick queries (shortcuts for common intents)
   askAboutStats: (question: string) => Promise<AIResponse>;
   askAboutPlateau: (question: string, exerciseId?: string) => Promise<AIResponse>;
-  askAboutOverload: (question: string) => Promise<AIResponse>;
-  explainExercise: (exerciseId: string) => Promise<AIResponse>;
+  requestProgramUpdate: (programId: string, modifications: string, historyOnly?: boolean) => Promise<AIResponse>;
   requestProgram: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
   requestTemplate: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
-  logWorkout: (description: string) => Promise<AIResponse>;
 
   // Actions - Pending actions
   loadPendingActions: () => Promise<void>;
@@ -160,17 +157,7 @@ interface AIState {
   setCurrentMutationPlan: (plan: AIMutationPlan | null) => void;
   applyCurrentMutationPlan: () => Promise<boolean>;
 
-  // Actions - Editable workout (for LOG_WORKOUT mutations)
-  initEditableWorkout: (plan: AIMutationPlan) => void;
   initEditableProgramDraft: (plan: AIMutationPlan) => void;
-  updateExerciseName: (localExerciseId: string, newExerciseDbId: string, newName: string) => void;
-  deleteExercise: (localExerciseId: string) => void;
-  addExercise: (exerciseDbId: string, exerciseName: string) => void;
-  updateSet: (localExerciseId: string, setId: string, updates: Partial<EditableWorkoutSet>) => void;
-  deleteSet: (localExerciseId: string, setId: string) => void;
-  addSet: (localExerciseId: string) => void;
-  applyEditableWorkout: () => Promise<boolean>;
-  clearEditableWorkout: () => void;
 
   // Editable program draft actions
   updateProgramDraft: (updates: Partial<EditableProgramDraft>) => void;
@@ -217,7 +204,6 @@ export const useAIStore = create<AIState>()(
     pendingActions: [],
     currentMutationPlan: null,
     mutationHistory: [],
-    editableWorkout: null,
     editableProgramDraft: null,
     rateLimitStatus: null,
     error: null,
@@ -389,16 +375,8 @@ export const useAIStore = create<AIState>()(
       return get().sendMessage('ANALYZE_PLATEAU', question, { exerciseId });
     },
 
-    askAboutOverload: async (question) => {
-      return get().sendMessage('ANALYZE_OVERLOAD', question);
-    },
-
-    explainExercise: async (exerciseId) => {
-      return get().sendMessage(
-        'EXPLAIN_EXERCISE',
-        'Explain this exercise with proper form and common mistakes.',
-        { exerciseId }
-      );
+    requestProgramUpdate: async (programId, modifications, historyOnly) => {
+      return get().sendMessage('MODIFY_PROGRAM', modifications, { programId, historyOnly });
     },
 
     requestProgram: async (description, historyOnly) => {
@@ -407,11 +385,6 @@ export const useAIStore = create<AIState>()(
 
     requestTemplate: async (description, historyOnly) => {
       return get().sendMessage('CREATE_TEMPLATE', description, { historyOnly });
-    },
-
-    logWorkout: async (description) => {
-      // Uses selectedImage if set, sendMessage will handle it
-      return get().sendMessage('LOG_WORKOUT', description);
     },
 
     // Pending actions
@@ -503,8 +476,8 @@ export const useAIStore = create<AIState>()(
           const intent = currentMutationPlan.intent;
           if (
             intent === 'CREATE_PROGRAM' ||
-            intent === 'CREATE_TEMPLATE' ||
             intent === 'MODIFY_PROGRAM' ||
+            intent === 'CREATE_TEMPLATE' ||
             intent === 'MODIFY_TEMPLATE'
           ) {
             useProgramsStore.getState().fetchPrograms({ force: true });
@@ -525,284 +498,9 @@ export const useAIStore = create<AIState>()(
       }
     },
 
-    // Editable workout actions (for LOG_WORKOUT mutations)
-    initEditableWorkout: (plan: AIMutationPlan) => {
-      // Parse mutation plan into editable workout structure
-      // Group workout_set mutations by exercise_id
-      const setMutations = plan.mutations.filter(
-        (m) => m.entityType === 'workout_set' && m.operation === 'INSERT'
-      );
-
-      // Group by exercise_id
-      const exerciseMap = new Map<string, { exerciseName: string; sets: EditableWorkoutSet[] }>();
-
-      for (const mutation of setMutations) {
-        const state = mutation.proposedState as Record<string, unknown>;
-        const exerciseId = state.exercise_id as string;
-
-        // Find exercise name from resolution or proposed state
-        const resolution = plan.exerciseResolution.find((r) => r.exerciseId === exerciseId);
-        const exerciseName = resolution?.exerciseName || (state.exercise_name as string) || 'Unknown Exercise';
-
-        if (!exerciseMap.has(exerciseId)) {
-          exerciseMap.set(exerciseId, { exerciseName, sets: [] });
-        }
-
-        const setData: EditableWorkoutSet = {
-          id: generateId(),
-          reps: (state.reps as number) || 0,
-          weight: (state.weight as number) || 0,
-          rpe: state.rpe as number | undefined,
-        };
-
-        exerciseMap.get(exerciseId)!.sets.push(setData);
-      }
-
-      // Convert to EditableExercise array
-      const exercises: EditableExercise[] = [];
-      exerciseMap.forEach((data, exerciseId) => {
-        exercises.push({
-          id: generateId(),
-          exerciseId,
-          exerciseName: data.exerciseName,
-          sets: data.sets,
-        });
-      });
-
-      set({
-        editableWorkout: {
-          exercises,
-          originalPlan: plan,
-        },
-      });
-    },
-
     initEditableProgramDraft: (plan: AIMutationPlan) => {
       const draft = buildProgramDraftFromPlan(plan);
       set({ editableProgramDraft: draft });
-    },
-
-    updateExerciseName: (localExerciseId: string, newExerciseDbId: string, newName: string) => {
-      const { editableWorkout } = get();
-      if (!editableWorkout) return;
-
-      const updatedExercises = editableWorkout.exercises.map((exercise) =>
-        exercise.id === localExerciseId
-          ? { ...exercise, exerciseId: newExerciseDbId, exerciseName: newName }
-          : exercise
-      );
-
-      set({
-        editableWorkout: {
-          ...editableWorkout,
-          exercises: updatedExercises,
-        },
-      });
-    },
-
-    deleteExercise: (localExerciseId: string) => {
-      const { editableWorkout } = get();
-      if (!editableWorkout) return;
-
-      const updatedExercises = editableWorkout.exercises.filter(
-        (exercise) => exercise.id !== localExerciseId
-      );
-
-      set({
-        editableWorkout: {
-          ...editableWorkout,
-          exercises: updatedExercises,
-        },
-      });
-    },
-
-    addExercise: (exerciseDbId: string, exerciseName: string) => {
-      const { editableWorkout } = get();
-      if (!editableWorkout) return;
-
-      const newExercise: EditableExercise = {
-        id: generateId(),
-        exerciseId: exerciseDbId,
-        exerciseName,
-        sets: [{ id: generateId(), reps: 0, weight: 0 }],
-      };
-
-      set({
-        editableWorkout: {
-          ...editableWorkout,
-          exercises: [...editableWorkout.exercises, newExercise],
-        },
-      });
-    },
-
-    updateSet: (localExerciseId: string, setId: string, updates: Partial<EditableWorkoutSet>) => {
-      const { editableWorkout } = get();
-      if (!editableWorkout) return;
-
-      const updatedExercises = editableWorkout.exercises.map((exercise) => {
-        if (exercise.id !== localExerciseId) return exercise;
-
-        const updatedSets = exercise.sets.map((s) =>
-          s.id === setId ? { ...s, ...updates } : s
-        );
-
-        return { ...exercise, sets: updatedSets };
-      });
-
-      set({
-        editableWorkout: {
-          ...editableWorkout,
-          exercises: updatedExercises,
-        },
-      });
-    },
-
-    deleteSet: (localExerciseId: string, setId: string) => {
-      const { editableWorkout } = get();
-      if (!editableWorkout) return;
-
-      const updatedExercises = editableWorkout.exercises.map((exercise) => {
-        if (exercise.id !== localExerciseId) return exercise;
-
-        const updatedSets = exercise.sets.filter((s) => s.id !== setId);
-        return { ...exercise, sets: updatedSets };
-      });
-
-      set({
-        editableWorkout: {
-          ...editableWorkout,
-          exercises: updatedExercises,
-        },
-      });
-    },
-
-    addSet: (localExerciseId: string) => {
-      const { editableWorkout } = get();
-      if (!editableWorkout) return;
-
-      const updatedExercises = editableWorkout.exercises.map((exercise) => {
-        if (exercise.id !== localExerciseId) return exercise;
-
-        // Copy values from last set as defaults
-        const lastSet = exercise.sets[exercise.sets.length - 1];
-        const newSet: EditableWorkoutSet = {
-          id: generateId(),
-          reps: lastSet?.reps || 0,
-          weight: lastSet?.weight || 0,
-          rpe: lastSet?.rpe,
-        };
-
-        return { ...exercise, sets: [...exercise.sets, newSet] };
-      });
-
-      set({
-        editableWorkout: {
-          ...editableWorkout,
-          exercises: updatedExercises,
-        },
-      });
-    },
-
-    applyEditableWorkout: async () => {
-      const { editableWorkout, loadMutationHistory } = get();
-      if (!editableWorkout) return false;
-
-      set({ isApplyingMutation: true, error: null });
-
-      try {
-        // Build new mutation plan from edited workout
-        const mutations: AIMutation[] = [];
-        let order = 0;
-
-        // First, create the workout_session mutation
-        const sessionId = generateId();
-        const sessionMutation: AIMutation = {
-          mutationId: generateId(),
-          order: order++,
-          operation: 'INSERT',
-          entityType: 'workout_session',
-          proposedState: {
-            id: sessionId,
-            started_at: new Date().toISOString(),
-            completed_at: new Date().toISOString(),
-          },
-          description: 'Create workout session from AI extraction',
-        };
-        mutations.push(sessionMutation);
-
-        // Then, create workout_set mutations for each exercise and set
-        let globalOrderIndex = 1;
-        for (const exercise of editableWorkout.exercises) {
-          // Skip exercises with no sets
-          if (exercise.sets.length === 0) continue;
-
-          for (let i = 0; i < exercise.sets.length; i++) {
-            const setData = exercise.sets[i];
-            const setMutation: AIMutation = {
-              mutationId: generateId(),
-              order: order++,
-              operation: 'INSERT',
-              entityType: 'workout_set',
-              proposedState: {
-                session_id: `ref:${sessionMutation.mutationId}`,
-                exercise_id: exercise.exerciseId,
-                set_number: i + 1,
-                reps: setData.reps,
-                weight: setData.weight,
-                rpe: setData.rpe,
-                order_index: globalOrderIndex++,
-                set_type: 'working',
-              },
-              description: `${exercise.exerciseName}: ${setData.reps} reps @ ${setData.weight} lbs`,
-              dependsOn: [sessionMutation.mutationId],
-            };
-            mutations.push(setMutation);
-          }
-        }
-
-        // Build new plan
-        const newPlan: AIMutationPlan = {
-          ...editableWorkout.originalPlan,
-          mutations,
-          exerciseResolution: editableWorkout.exercises.map((e) => ({
-            exerciseId: e.exerciseId,
-            exerciseName: e.exerciseName,
-            fromHistory: true, // Assume user-edited exercises are valid
-          })),
-        };
-
-        // Apply the plan
-        const result = await aiService.applyMutationPlan(newPlan);
-        if (result.success) {
-          const pendingToConfirm = get().pendingActions.filter(
-            (action) => action.requestId === editableWorkout.originalPlan.requestId
-          );
-          await Promise.all(
-            pendingToConfirm.map((action) => get().confirmPendingAction(action.id))
-          );
-          set({
-            editableWorkout: null,
-            currentMutationPlan: null,
-            isApplyingMutation: false,
-          });
-          loadMutationHistory();
-          return true;
-        } else {
-          set({
-            error: result.error || 'Failed to save workout',
-            isApplyingMutation: false,
-          });
-          return false;
-        }
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to save workout';
-        set({ error: errorMessage, isApplyingMutation: false });
-        return false;
-      }
-    },
-
-    clearEditableWorkout: () => {
-      set({ editableWorkout: null });
     },
 
     updateProgramDraft: (updates) => {
@@ -871,6 +569,16 @@ export const useAIStore = create<AIState>()(
       set({ isApplyingMutation: true, error: null });
 
       try {
+        // Check authentication before attempting save
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          set({
+            error: 'Please sign in to save templates and programs.',
+            isApplyingMutation: false,
+          });
+          return false;
+        }
+
         const invalidExercise = editableProgramDraft.workouts
           .flatMap((workout) => workout.exercises)
           .find((exercise) => !isValidUUID(exercise.exerciseId));
@@ -897,7 +605,16 @@ export const useAIStore = create<AIState>()(
             isApplyingMutation: false,
           });
           loadMutationHistory();
-          useProgramsStore.getState().fetchPrograms();
+
+          // Refresh programs store to show newly created template/program
+          try {
+            await useProgramsStore.getState().fetchPrograms({ force: true });
+          } catch (refreshErr) {
+            // Mutations were applied successfully, but refresh failed
+            // User can manually refresh or restart app
+            console.warn('Programs refresh failed after save:', refreshErr);
+          }
+
           return true;
         }
         set({
@@ -1048,7 +765,6 @@ export const useAIStore = create<AIState>()(
         pendingActions: [],
         currentMutationPlan: null,
         mutationHistory: [],
-        editableWorkout: null,
         editableProgramDraft: null,
         rateLimitStatus: null,
         error: null,

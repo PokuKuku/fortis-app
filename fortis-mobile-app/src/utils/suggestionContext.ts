@@ -16,19 +16,16 @@ import { WorkoutSession } from '../types/workout';
  */
 function getMutationPlanType(
   intent?: AIIntent
-): 'program' | 'template' | 'workout' | 'goals' | undefined {
+): 'program' | 'template' | undefined {
   if (!intent) return undefined;
 
   switch (intent) {
     case 'CREATE_PROGRAM':
-    case 'ANALYZE_PROGRAM':
+    case 'MODIFY_PROGRAM':
       return 'program';
     case 'CREATE_TEMPLATE':
+    case 'MODIFY_TEMPLATE':
       return 'template';
-    case 'LOG_WORKOUT':
-      return 'workout';
-    case 'UPDATE_GOALS':
-      return 'goals';
     default:
       return undefined;
   }

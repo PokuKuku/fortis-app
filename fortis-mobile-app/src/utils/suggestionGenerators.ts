@@ -224,14 +224,6 @@ export function generateDefaultSuggestions(
       );
       break;
 
-    case 'ANALYZE_OVERLOAD':
-      suggestions.push(
-        { text: 'Show recovery tips', score: 0.4, source: 'default' },
-        { text: 'Reduce my volume', score: 0.35, source: 'default' },
-        { text: 'When should I deload?', score: 0.3, source: 'default' }
-      );
-      break;
-
     case 'CREATE_TEMPLATE':
       suggestions.push(
         { text: 'Add a superset', score: 0.4, source: 'default' },
@@ -248,19 +240,11 @@ export function generateDefaultSuggestions(
       );
       break;
 
-    case 'LOG_WORKOUT':
+    case 'QUERY_HISTORY':
       suggestions.push(
-        { text: 'Show my progress', score: 0.4, source: 'default' },
-        { text: 'Compare to last week', score: 0.35, source: 'default' },
-        { text: "What's next?", score: 0.3, source: 'default' }
-      );
-      break;
-
-    case 'UPDATE_GOALS':
-      suggestions.push(
-        { text: 'Show my current goals', score: 0.4, source: 'default' },
-        { text: 'Track my progress', score: 0.35, source: 'default' },
-        { text: 'Adjust my targets', score: 0.3, source: 'default' }
+        { text: 'What did I train last week?', score: 0.4, source: 'default' },
+        { text: 'Show my most recent session', score: 0.35, source: 'default' },
+        { text: 'List my top exercises', score: 0.3, source: 'default' }
       );
       break;
 
@@ -269,7 +253,7 @@ export function generateDefaultSuggestions(
       suggestions.push(
         { text: 'Create a workout', score: 0.35, source: 'default' },
         { text: 'Show my stats', score: 0.3, source: 'default' },
-        { text: 'Analyze my progress', score: 0.25, source: 'default' }
+        { text: 'Analyze a plateau', score: 0.25, source: 'default' }
       );
   }
 
