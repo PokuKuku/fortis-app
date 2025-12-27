@@ -32,6 +32,7 @@ interface WorkoutSetInsert {
   set_number: number;
   reps: number | null;
   weight: number | null;
+  weight_unit: 'lbs' | 'kg' | null;
   rpe: number | null;
   rest_seconds: number | null;
   notes: string;
@@ -182,6 +183,7 @@ async function uploadSession(
           set_number: set.setNumber,
           reps: set.reps,
           weight: set.weight,
+          weight_unit: set.weightUnit ?? null,
           rpe: set.rpe,
           rest_seconds: set.restSeconds,
           notes: set.notes || '',
@@ -360,6 +362,7 @@ export async function fetchWorkoutHistory(
           set_number,
           reps,
           weight,
+          weight_unit,
           rpe,
           rest_seconds,
           notes,
@@ -403,6 +406,7 @@ export async function fetchWorkoutHistory(
           notes: set.notes || '',
           isCompleted: true, // All synced sets are completed
           orderIndex: set.order_index,
+          weightUnit: set.weight_unit ?? null,
         });
       }
 

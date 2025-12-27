@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -74,7 +74,16 @@ export function ExerciseCard({
   const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
 
   // Fetch last performance for this exercise from previous sessions
-  const { lastPerformance } = useLastExercisePerformance(exercise?.exerciseId);
+  const performanceContext = useMemo(() => ({
+    programWorkoutId: session?.programWorkoutId,
+    programId: session?.programId,
+    workoutName: session?.name,
+  }), [session?.programWorkoutId, session?.programId, session?.name]);
+
+  const { lastPerformance } = useLastExercisePerformance(
+    exercise?.exerciseId,
+    performanceContext
+  );
 
   if (!exercise) return null;
 
@@ -358,7 +367,7 @@ const styles = StyleSheet.create({
     width: 40,
   },
   previousCol: {
-    width: 56,
+    width: 80,
   },
   weightCol: {
     width: 40,

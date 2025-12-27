@@ -68,7 +68,7 @@ export function SetTypeSelector({
     {
       type: 'normal' as SetType,
       label: 'Normal',
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
       getIcon: (index: number) => (index + 1).toString(),
       duration: restTimerSettings.normalSeconds,
     },

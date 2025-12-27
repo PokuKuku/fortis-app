@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 
 import { WorkoutSet, SetType, SET_TYPE_CONFIG, RPE_COLORS } from '../../../types/workout';
 import { Colors } from '../../../../constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface SetRowProps {
   set: WorkoutSet;
@@ -43,9 +44,27 @@ export function SetRow({
   onSetTypePress,
   onRpePress,
 }: SetRowProps) {
+  const { colors, isDark } = useTheme();
   const [weightError, setWeightError] = useState(false);
   const [repsError, setRepsError] = useState(false);
   const shakeAnim = useRef(new Animated.Value(0)).current;
+
+  // Theme-aware styles
+  const themedStyles = {
+    input: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+      color: colors.textPrimary,
+    },
+    rpeButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    setTypeText: { color: colors.textPrimary },
+    previousText: { color: colors.textTertiary },
+    rpeText: { color: colors.textTertiary },
+    checkIcon: isDark ? '#ffffff' : colors.textSecondary,
+  };
 
   const triggerShake = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -130,7 +149,7 @@ export function SetRow({
   const getSetTypeDisplay = () => {
     const config = SET_TYPE_CONFIG[set.setType];
     if (set.setType === 'normal') {
-      return { label: String(setIndex + 1), color: '#ffffff' };
+      return { label: String(setIndex + 1), color: colors.textPrimary };
     }
     return { label: config.label, color: config.color };
   };
@@ -165,7 +184,7 @@ export function SetRow({
 
       {/* Previous Value */}
       <View style={styles.previousCell}>
-        <Animated.Text style={styles.previousText}>—</Animated.Text>
+        <Animated.Text style={[styles.previousText, themedStyles.previousText]}>—</Animated.Text>
       </View>
 
       {/* Weight Input */}
@@ -173,13 +192,14 @@ export function SetRow({
         <TextInput
           style={[
             styles.input,
+            themedStyles.input,
             set.isCompleted && styles.completedInput,
             weightError && styles.errorInput,
           ]}
           value={set.weight !== null ? String(set.weight) : ''}
           onChangeText={handleWeightChange}
           placeholder={placeholderWeight}
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.textTertiary}
           keyboardType="decimal-pad"
           selectTextOnFocus
         />
@@ -190,13 +210,14 @@ export function SetRow({
         <TextInput
           style={[
             styles.input,
+            themedStyles.input,
             set.isCompleted && styles.completedInput,
             repsError && styles.errorInput,
           ]}
           value={set.reps !== null ? String(set.reps) : ''}
           onChangeText={handleRepsChange}
           placeholder={placeholderReps}
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.textTertiary}
           keyboardType="number-pad"
           selectTextOnFocus
         />
@@ -207,6 +228,7 @@ export function SetRow({
         <View
           style={[
             styles.rpeButton,
+            themedStyles.rpeButton,
             set.isCompleted && styles.completedInput,
             set.rpe && { backgroundColor: `${RPE_COLORS[set.rpe]}20` },
           ]}
@@ -214,6 +236,7 @@ export function SetRow({
           <Animated.Text
             style={[
               styles.rpeText,
+              themedStyles.rpeText,
               set.rpe && { color: RPE_COLORS[set.rpe] },
             ]}
           >
@@ -232,7 +255,7 @@ export function SetRow({
       >
         <CheckIcon
           size={20}
-          color="#ffffff"
+          color={themedStyles.checkIcon}
           strokeWidth={2}
         />
       </Pressable>

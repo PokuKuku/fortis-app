@@ -496,6 +496,7 @@ export const parseWorkoutCsv = async (
           setNumber: set.setNumber,
           setType: set.setType,
           weight: set.weight,
+          weightUnit: null,
           reps: set.reps,
           rpe: set.rpe,
           restSeconds: set.restSeconds,

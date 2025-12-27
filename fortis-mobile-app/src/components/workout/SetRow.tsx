@@ -274,7 +274,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       case 'dropset':
         return { label: 'D', color: '#3b82f6' };
       default:
-        return { label: (setIndex + 1).toString(), color: Colors.textPrimary };
+        return { label: (setIndex + 1).toString(), color: colors.textPrimary };
     }
   };
 
@@ -293,7 +293,27 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     }
   };
 
+  const weightUnits = useWorkoutStore(s => s.weightUnits);
+
   const setDisplay = getSetDisplay();
+  const formatValue = (value: number | null) => {
+    if (value === null || value === undefined) return '';
+    const stringValue = value.toString();
+    return stringValue.includes('.')
+      ? stringValue.replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
+      : stringValue;
+  };
+
+  const currentWeightUnit = exercise
+    ? (weightUnits[exercise.exerciseId] || 'lbs')
+    : 'lbs';
+  const recordedWeightUnit = lastPerformance?.weightUnit || currentWeightUnit;
+  const previousText = (() => {
+    if (lastPerformance?.weight == null) return '—';
+    const weightText = formatValue(lastPerformance.weight);
+    if (!weightText) return '—';
+    return `${lastPerformance.setCount}x${weightText} ${recordedWeightUnit}`;
+  })();
 
   const handleDelete = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -387,10 +407,8 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
 
         {/* Previous set indicator - shows last session performance */}
         <View style={styles.previousCol}>
-          <Text style={[styles.previousText, themedStyles.previousText]}>
-            {lastPerformance
-              ? `${lastPerformance.setCount}x${lastPerformance.weight}`
-              : '—'}
+          <Text style={[styles.previousText, themedStyles.previousText]} numberOfLines={1}>
+            {previousText}
           </Text>
         </View>
 
@@ -568,7 +586,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   previousCol: {
-    width: 56,
+    width: 80,
     alignItems: 'center',
   },
   previousText: {

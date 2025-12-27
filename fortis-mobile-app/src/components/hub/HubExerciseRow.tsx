@@ -5,6 +5,7 @@ import Animated, { FadeInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { getExerciseImageUrl } from '@/src/services/exerciseService';
 
 interface HubExerciseRowProps {
@@ -52,9 +53,19 @@ export function HubExerciseRow({
   onPress,
   rightAction,
 }: HubExerciseRowProps) {
+  const { colors, isDark } = useTheme();
   const imageUrl = images.length > 0
     ? getExerciseImageUrl(images[0])
     : null;
+
+  // Theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    exerciseName: { color: colors.textPrimary },
+  };
 
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -71,7 +82,7 @@ export function HubExerciseRow({
       <TouchableOpacity
         onPress={handlePress}
         activeOpacity={0.7}
-        style={styles.container}
+        style={[styles.container, themedStyles.container]}
         disabled={!onPress}
       >
         {/* Exercise Image */}
@@ -104,7 +115,7 @@ export function HubExerciseRow({
           </Text>
 
           {/* Exercise Name */}
-          <Text style={styles.exerciseName} numberOfLines={1}>
+          <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
             {exerciseName}
           </Text>
 

@@ -3,6 +3,7 @@ import { XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
@@ -13,6 +14,24 @@ interface FinishConfirmationModalProps {
 }
 
 export function FinishConfirmationModal({ visible, onClose, onConfirm }: FinishConfirmationModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? '#222222' : '#FFFFFF',
+    },
+    title: { color: colors.textPrimary },
+    message: { color: colors.textSecondary },
+    closeButton: {
+      backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.08)',
+    },
+    keepButton: {
+      backgroundColor: isDark ? '#333333' : 'rgba(0, 0, 0, 0.08)',
+    },
+    keepButtonText: { color: colors.textPrimary },
+  };
+
   const handleConfirm = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onConfirm();
@@ -31,26 +50,27 @@ export function FinishConfirmationModal({ visible, onClose, onConfirm }: FinishC
       <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
         <Pressable style={styles.centeredView} onPress={onClose} activeOpacity={1}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
-            <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+            <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
               <StainlessSteelPattern />
 
               {/* Header */}
               <View style={styles.header}>
-                <Text style={styles.title}>Finish Workout?</Text>
+                <Text style={[styles.title, themedStyles.title]}>Finish Workout?</Text>
                 <Pressable
                   onPress={onClose}
                   style={({ pressed }) => [
                     styles.closeButton,
+                    themedStyles.closeButton,
                     pressed && styles.closeButtonPressed,
                   ]}
                 >
-                  <XMarkIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+                  <XMarkIcon size={20} color={colors.textSecondary} strokeWidth={2} />
                 </Pressable>
               </View>
 
               {/* Content */}
               <View style={styles.content}>
-                <Text style={styles.message}>
+                <Text style={[styles.message, themedStyles.message]}>
                   Are you sure you want to finish this workout?
                 </Text>
 
@@ -60,10 +80,11 @@ export function FinishConfirmationModal({ visible, onClose, onConfirm }: FinishC
                     onPress={onClose}
                     style={({ pressed }) => [
                       styles.keepButton,
+                      themedStyles.keepButton,
                       pressed && styles.buttonPressed,
                     ]}
                   >
-                    <Text style={styles.keepButtonText}>Keep Going</Text>
+                    <Text style={[styles.keepButtonText, themedStyles.keepButtonText]}>Keep Going</Text>
                   </Pressable>
 
                   <Pressable

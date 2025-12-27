@@ -22,6 +22,7 @@ export interface WorkoutSet {
   setNumber: number;         // Display order (1, 2, 3...)
   setType: SetType;
   weight: number | null;     // Decimal (e.g., 135.5) in user's preferred unit
+  weightUnit?: WeightUnit | null; // Unit recorded for this set
   reps: number | null;       // Integer
   rpe: RpeValue;
   restSeconds: number | null;
@@ -122,6 +123,7 @@ export interface WorkoutSetDTO {
   set_number: number;
   reps: number | null;
   weight: number | null;
+  weight_unit: WeightUnit | null;
   rpe: number | null;
   rest_seconds: number | null;
   notes: string;

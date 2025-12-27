@@ -333,6 +333,7 @@ CREATE TABLE workout_sets (
   set_number INTEGER NOT NULL,
   reps INTEGER,
   weight DECIMAL(10, 2), -- Supports decimals like 135.5 lbs
+  weight_unit TEXT,
   rpe DECIMAL(3, 1) CHECK (rpe >= 1 AND rpe <= 10), -- Rate of Perceived Exertion (1-10)
   rest_seconds INTEGER,
 
@@ -460,6 +461,10 @@ ALTER TABLE workout_sets
   CHECK (weight IS NULL OR weight >= 0);
 
 ALTER TABLE workout_sets
+  ADD CONSTRAINT workout_sets_weight_unit_valid
+  CHECK (weight_unit IN ('lbs', 'kg') OR weight_unit IS NULL);
+
+ALTER TABLE workout_sets
   ADD CONSTRAINT workout_sets_rest_seconds_non_negative
   CHECK (rest_seconds IS NULL OR rest_seconds >= 0);
 
@@ -583,6 +588,7 @@ COMMENT ON COLUMN workout_sessions.local_id IS 'Client-generated UUID for offlin
 COMMENT ON COLUMN workout_sessions.is_synced IS 'Tracks if offline data has been synced';
 COMMENT ON COLUMN workout_sets.rpe IS 'Rate of Perceived Exertion (1-10 scale)';
 COMMENT ON COLUMN workout_sets.weight IS 'Weight in user preferred unit (lbs or kg)';
+COMMENT ON COLUMN workout_sets.weight_unit IS 'Unit recorded for weight (lbs or kg)';
 
 -- =====================================================
 -- EXERCISE LIBRARY META

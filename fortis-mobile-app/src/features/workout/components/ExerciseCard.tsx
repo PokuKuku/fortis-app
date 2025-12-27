@@ -23,6 +23,7 @@ import Animated, {
 import { WorkoutExercise, WorkoutSet, SetType, RPE_COLORS } from '../../../types/workout';
 import { SetRow } from './SetRow';
 import { useWorkoutStore } from '../../../store/workoutStore';
+import { useTheme } from '../../../contexts/ThemeContext';
 import { Colors } from '../../../../constants/Colors';
 
 interface ExerciseCardProps {
@@ -36,8 +37,30 @@ export function ExerciseCard({
   exerciseIndex,
   onRemove,
 }: ExerciseCardProps) {
+  const { colors, isDark } = useTheme();
   const [showSetTypeModal, setShowSetTypeModal] = useState<string | null>(null);
   const [showRpeModal, setShowRpeModal] = useState<string | null>(null);
+
+  // Theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? '#303030' : 'rgba(255, 255, 255, 0.95)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    exerciseName: { color: Colors.success }, // Green in both themes
+    notesInput: { color: colors.textSecondary },
+    headerCell: { color: colors.textSecondary },
+    tableHeaderBorder: { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)' },
+    modalContent: {
+      backgroundColor: isDark ? '#222222' : '#FFFFFF',
+    },
+    modalTitle: { color: colors.textPrimary },
+    modalDivider: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)' },
+    rpeModalContent: {
+      backgroundColor: isDark ? '#1c1c1e' : '#FFFFFF',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+  };
 
   const {
     addSet,
@@ -113,37 +136,37 @@ export function ExerciseCard({
       entering={FadeIn.duration(200)}
       exiting={FadeOut.duration(200)}
       layout={Layout.springify()}
-      style={styles.container}
+      style={[styles.container, themedStyles.container]}
     >
       {/* Exercise Header */}
       <View style={styles.header}>
-        <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+        <Text style={[styles.exerciseName, themedStyles.exerciseName]}>{exercise.exerciseName}</Text>
         <Pressable
           style={styles.deleteButton}
           onPress={onRemove}
           hitSlop={8}
         >
-          <TrashIcon size={20} color="#b9bec7" />
+          <TrashIcon size={20} color={colors.textTertiary} />
         </Pressable>
       </View>
 
       {/* Notes Input */}
       <TextInput
-        style={styles.notesInput}
+        style={[styles.notesInput, themedStyles.notesInput]}
         value={exercise.notes}
         onChangeText={handleNotesChange}
         placeholder="Add notes..."
-        placeholderTextColor="#979ca6"
+        placeholderTextColor={colors.textTertiary}
         multiline={false}
       />
 
       {/* Sets Table Header */}
-      <View style={styles.tableHeader}>
-        <Text style={[styles.headerCell, styles.setCell]}>Set</Text>
-        <Text style={[styles.headerCell, styles.previousCell]}>Previous</Text>
-        <Text style={[styles.headerCell, styles.inputCell]}>lbs</Text>
-        <Text style={[styles.headerCell, styles.inputCell]}>Reps</Text>
-        <Text style={[styles.headerCell, styles.rpeCell]}>RPE</Text>
+      <View style={[styles.tableHeader, themedStyles.tableHeaderBorder]}>
+        <Text style={[styles.headerCell, styles.setCell, themedStyles.headerCell]}>Set</Text>
+        <Text style={[styles.headerCell, styles.previousCell, themedStyles.headerCell]}>Previous</Text>
+        <Text style={[styles.headerCell, styles.inputCell, themedStyles.headerCell]}>lbs</Text>
+        <Text style={[styles.headerCell, styles.inputCell, themedStyles.headerCell]}>Reps</Text>
+        <Text style={[styles.headerCell, styles.rpeCell, themedStyles.headerCell]}>RPE</Text>
         <View style={styles.checkCell} />
       </View>
 
@@ -182,8 +205,8 @@ export function ExerciseCard({
           style={styles.modalOverlay}
           onPress={() => setShowSetTypeModal(null)}
         >
-          <View style={styles.setTypeModalContent}>
-            <Text style={styles.modalTitle}>Select Set Type</Text>
+          <View style={[styles.setTypeModalContent, themedStyles.modalContent]}>
+            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Select Set Type</Text>
             {(['normal', 'warmup', 'failure', 'dropset'] as SetType[]).map(
               (type) => {
                 const currentSet = exercise.sets.find(
@@ -193,7 +216,7 @@ export function ExerciseCard({
                   (s) => s.localId === showSetTypeModal
                 );
                 const config = {
-                  normal: { label: `${setIndex + 1} Normal`, color: '#ffffff' },
+                  normal: { label: `${setIndex + 1} Normal`, color: colors.textPrimary },
                   warmup: { label: 'W Warm Up', color: '#eab308' },
                   failure: { label: 'F Failure', color: '#ef4444' },
                   dropset: { label: 'D Drop Set', color: '#3b82f6' },
@@ -214,7 +237,7 @@ export function ExerciseCard({
                 );
               }
             )}
-            <View style={styles.modalDivider} />
+            <View style={[styles.modalDivider, themedStyles.modalDivider]} />
             <Pressable
               style={styles.setTypeOption}
               onPress={() => {
@@ -243,7 +266,7 @@ export function ExerciseCard({
           style={styles.modalOverlay}
           onPress={() => setShowRpeModal(null)}
         >
-          <View style={styles.rpeModalContent}>
+          <View style={[styles.rpeModalContent, themedStyles.rpeModalContent]}>
             <View style={styles.rpeButtonsRow}>
               {([6, 7, 8, 9, 10] as const).map((rpe) => (
                 <Pressable

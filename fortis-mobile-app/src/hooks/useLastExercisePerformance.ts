@@ -1,10 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/src/lib/supabase';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import type { WorkoutSession, WorkoutExercise, WeightUnit } from '@/src/types/workout';
+
+interface LastPerformanceSet {
+  weight: number | null;
+  reps: number | null;
+  weightUnit: WeightUnit | null;
+}
 
 export interface LastPerformance {
   setCount: number;
-  weight: number;
+  weight: number | null;
+  reps: number | null;
   exerciseId: string;
+  weightUnit: WeightUnit | null;
+  sets: LastPerformanceSet[];
+}
+
+interface WorkoutContext {
+  programWorkoutId?: string;
+  programId?: string;
+  workoutName?: string;
 }
 
 // Helper to check if a string is a valid UUID
@@ -15,27 +32,44 @@ function isValidUUID(str: string): boolean {
 
 /**
  * Hook to fetch the user's last performance for a specific exercise.
- * Returns the number of sets and the weight from the last set of the most recent session.
- * Only queries Supabase if exerciseId is a valid UUID (skips local exercise IDs).
+ * Returns the last session's sets (weight/reps) and summary details.
+ * Prefers local completed sessions, falling back to Supabase for UUID exercises.
  */
-export function useLastExercisePerformance(exerciseId: string | undefined) {
+export function useLastExercisePerformance(
+  exerciseId: string | undefined,
+  context?: WorkoutContext
+) {
   const [lastPerformance, setLastPerformance] = useState<LastPerformance | null>(null);
   const [loading, setLoading] = useState(true);
+  const completedSessions = useWorkoutStore((s) => s.completedSessions);
+
+  const localPerformance = useMemo(
+    () => getLatestExercisePerformance(completedSessions, exerciseId, context),
+    [completedSessions, exerciseId, context]
+  );
 
   useEffect(() => {
-    // Skip if no exerciseId or if it's not a valid UUID (local exercise)
+    if (localPerformance) {
+      setLastPerformance(localPerformance);
+      setLoading(false);
+      return;
+    }
+
+    // Skip if no exerciseId or if it's not a valid UUID (local exercise without history)
     if (!exerciseId || !isValidUUID(exerciseId)) {
       setLastPerformance(null);
       setLoading(false);
       return;
     }
 
+    let isActive = true;
     const fetchLastPerformance = async () => {
       setLoading(true);
 
       try {
         // Get the current user
         const { data: { user } } = await supabase.auth.getUser();
+        if (!isActive) return;
         if (!user) {
           setLastPerformance(null);
           setLoading(false);
@@ -44,13 +78,18 @@ export function useLastExercisePerformance(exerciseId: string | undefined) {
 
         // Find the most recent completed session containing this exercise
         // Then get all non-warmup sets for that exercise in that session
-        const { data: sets, error } = await supabase
+        let query = supabase
           .from('workout_sets')
           .select(`
             id,
             weight,
+            reps,
+            weight_unit,
             set_number,
+            order_index,
             is_warmup,
+            is_dropset,
+            is_failure,
             session_id,
             workout_sessions!inner (
               id,
@@ -63,8 +102,19 @@ export function useLastExercisePerformance(exerciseId: string | undefined) {
           .not('workout_sessions.completed_at', 'is', null)
           .eq('is_warmup', false)
           .order('workout_sessions(completed_at)', { ascending: false })
-          .order('set_number', { ascending: false });
+          .order('set_number', { ascending: true });
 
+        if (context?.programWorkoutId) {
+          query = query.eq('workout_sessions.program_workout_id', context.programWorkoutId);
+        } else if (context?.programId) {
+          query = query.eq('workout_sessions.program_id', context.programId);
+        } else if (context?.workoutName) {
+          query = query.eq('workout_sessions.name', context.workoutName);
+        }
+
+        const { data: sets, error } = await query;
+
+        if (!isActive) return;
         if (error) {
           console.error('Error fetching last performance:', error);
           setLastPerformance(null);
@@ -84,25 +134,102 @@ export function useLastExercisePerformance(exerciseId: string | undefined) {
         // Filter sets to only include those from the most recent session
         const setsFromLastSession = sets.filter(s => s.session_id === mostRecentSessionId);
 
-        // Count sets and get weight from the last set (highest set_number)
-        const setCount = setsFromLastSession.length;
-        const lastSetWeight = setsFromLastSession[0]?.weight ?? 0;
-
-        setLastPerformance({
-          setCount,
-          weight: lastSetWeight,
-          exerciseId,
+        const orderedSets = [...setsFromLastSession].sort((a, b) => {
+          const aOrder = a.order_index ?? a.set_number ?? 0;
+          const bOrder = b.order_index ?? b.set_number ?? 0;
+          return aOrder - bOrder;
         });
+
+        if (!isActive) return;
+        setLastPerformance(buildLastPerformance(exerciseId, orderedSets.map((set) => ({
+          weight: set.weight ?? null,
+          reps: set.reps ?? null,
+          weightUnit: (set as { weight_unit?: WeightUnit | null }).weight_unit ?? null,
+        }))));
       } catch (err) {
         console.error('Error in useLastExercisePerformance:', err);
+        if (!isActive) return;
         setLastPerformance(null);
       } finally {
+        if (!isActive) return;
         setLoading(false);
       }
     };
 
     fetchLastPerformance();
-  }, [exerciseId]);
+
+    return () => {
+      isActive = false;
+    };
+  }, [exerciseId, localPerformance, context]);
 
   return { lastPerformance, loading };
 }
+
+export function getLatestExercisePerformance(
+  completedSessions: WorkoutSession[],
+  exerciseId: string | undefined,
+  context?: WorkoutContext
+): LastPerformance | null {
+  if (!exerciseId) return null;
+
+  const isMatchingWorkout = (session: WorkoutSession) => {
+    if (context?.programWorkoutId) {
+      return session.programWorkoutId === context.programWorkoutId;
+    }
+    if (context?.programId) {
+      return session.programId === context.programId;
+    }
+    if (context?.workoutName) {
+      return session.name === context.workoutName;
+    }
+    return true;
+  };
+
+  let latestExercise: WorkoutExercise | null = null;
+  let latestTimestamp = -1;
+
+  completedSessions.forEach((session) => {
+    if (!isMatchingWorkout(session)) return;
+    const exercise = session.exercises.find((ex) => ex.exerciseId === exerciseId);
+    if (!exercise) return;
+
+    const timestamp = (session.completedAt ?? session.startedAt).getTime();
+    if (timestamp > latestTimestamp) {
+      latestTimestamp = timestamp;
+      latestExercise = exercise;
+    }
+  });
+
+  if (!latestExercise) return null;
+
+  const orderedSets = [...latestExercise.sets]
+    .filter((set) => set.setType !== 'warmup')
+    .sort((a, b) => a.orderIndex - b.orderIndex);
+
+  if (orderedSets.length === 0) return null;
+
+  return buildLastPerformance(
+    exerciseId,
+    orderedSets.map((set) => ({
+      weight: set.weight ?? null,
+      reps: set.reps ?? null,
+      weightUnit: set.weightUnit ?? null,
+    }))
+  );
+}
+
+const buildLastPerformance = (
+  exerciseId: string,
+  sets: LastPerformanceSet[]
+): LastPerformance => {
+  const lastSet = sets[sets.length - 1];
+  return {
+    exerciseId,
+    setCount: sets.length,
+    weight: lastSet?.weight ?? null,
+    reps: lastSet?.reps ?? null,
+    weightUnit: lastSet?.weightUnit ?? null,
+    sets,
+  };
+};

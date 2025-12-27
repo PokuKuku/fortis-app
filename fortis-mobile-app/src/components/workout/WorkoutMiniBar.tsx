@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pause, Play, X } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import Animated, { FadeOut, useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
@@ -29,6 +30,7 @@ function getCurrentExerciseName(session: ReturnType<typeof useWorkoutStore>['act
 export function WorkoutMiniBar() {
   const pathname = usePathname();
   const segments = useSegments();
+  const { colors, isDark } = useTheme();
   const {
     activeSession,
     isWorkoutActive,
@@ -36,6 +38,17 @@ export function WorkoutMiniBar() {
     toggleWorkoutTimer,
     cancelWorkout,
   } = useWorkoutStore();
+
+  // Theme-aware styles
+  const themedStyles = {
+    bar: {
+      backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    workoutName: { color: colors.textPrimary },
+    exerciseName: { color: colors.textSecondary },
+    timerTextPaused: { color: colors.textSecondary },
+  };
   const elapsedSeconds = useElapsedTime();
   const { width: screenWidth } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -205,15 +218,16 @@ export function WorkoutMiniBar() {
         onPress={handlePress}
         style={({ pressed }) => [
           styles.bar,
+          themedStyles.bar,
           pressed && styles.barPressed,
         ]}
       >
         {/* Left section: workout info */}
         <View style={styles.infoSection}>
-          <Text style={styles.workoutName} numberOfLines={1}>
+          <Text style={[styles.workoutName, themedStyles.workoutName]} numberOfLines={1}>
             {workoutName}
           </Text>
-          <Text style={styles.exerciseName} numberOfLines={1}>
+          <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
             {currentExercise}
           </Text>
         </View>
@@ -228,10 +242,10 @@ export function WorkoutMiniBar() {
             {isWorkoutTimerPaused ? (
               <Play size={18} color={Colors.success} fill={Colors.success} />
             ) : (
-              <Pause size={18} color={Colors.textSecondary} />
+              <Pause size={18} color={colors.textSecondary} />
             )}
           </TouchableOpacity>
-          <Text style={[styles.timerText, isWorkoutTimerPaused && styles.timerTextPaused]}>
+          <Text style={[styles.timerText, isWorkoutTimerPaused && themedStyles.timerTextPaused]}>
             {elapsed}
           </Text>
           <TouchableOpacity

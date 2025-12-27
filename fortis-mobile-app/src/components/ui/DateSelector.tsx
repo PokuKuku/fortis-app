@@ -22,6 +22,7 @@ import { Colors } from '../../../constants/Colors';
 import { Spacing, BorderRadius } from '../../../constants/Sizes';
 import { Typography } from '../../../constants/Typography';
 import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -80,11 +81,15 @@ function MiniCalendarDay({
   isSelected,
   isToday,
   onPress,
+  textColor,
+  todayBorderColor,
 }: {
   day: number | null;
   isSelected: boolean;
   isToday: boolean;
   onPress: () => void;
+  textColor: string;
+  todayBorderColor: string;
 }) {
   const scale = useSharedValue(1);
 
@@ -113,13 +118,14 @@ function MiniCalendarDay({
         style={[
           styles.dayButton,
           isSelected && styles.dayButtonSelected,
-          isToday && !isSelected && styles.dayButtonToday,
+          isToday && !isSelected && [styles.dayButtonToday, { borderColor: todayBorderColor }],
           animatedStyle,
         ]}
       >
         <Text
           style={[
             styles.dayButtonText,
+            { color: textColor },
             isSelected && styles.dayButtonTextSelected,
             isToday && !isSelected && styles.dayButtonTextToday,
           ]}
@@ -138,11 +144,36 @@ export function DateSelector({
   currentDate,
   selectedDate,
 }: DateSelectorProps) {
+  const { colors, isDark } = useTheme();
   const [viewMonth, setViewMonth] = useState(currentDate.getMonth());
   const [viewYear, setViewYear] = useState(currentDate.getFullYear());
   const [tempSelectedDay, setTempSelectedDay] = useState(selectedDate.getDate());
   const [showMonthPicker, setShowMonthPicker] = useState(false);
   const [showYearPicker, setShowYearPicker] = useState(false);
+
+  // Theme-aware styles
+  const themedStyles = {
+    modalContent: {
+      backgroundColor: isDark ? '#222222' : '#FFFFFF',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    selector: {
+      backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.05)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    selectorText: { color: colors.textPrimary },
+    dropdown: {
+      backgroundColor: isDark ? '#2a2a2a' : '#FFFFFF',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    dropdownItemText: { color: colors.textPrimary },
+    calendarContainer: {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)',
+    },
+    dayHeaderText: { color: colors.textTertiary },
+    dayText: colors.textPrimary,
+    todayBorder: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+  };
 
   // Update state when currentDate changes
   useEffect(() => {
@@ -241,7 +272,7 @@ export function DateSelector({
         <Animated.View
           entering={SlideInDown.duration(250)}
           exiting={SlideOutDown.duration(200)}
-          style={styles.modalContent}
+          style={[styles.modalContent, themedStyles.modalContent]}
         >
           <StainlessSteelPattern />
 
@@ -251,12 +282,12 @@ export function DateSelector({
               {/* Month Selector */}
               <View style={[styles.selectorContainer, { zIndex: showMonthPicker ? 20 : 10 }]}>
                 <Pressable
-                  style={[styles.selector, showMonthPicker && styles.selectorActive]}
+                  style={[styles.selector, themedStyles.selector, showMonthPicker && styles.selectorActive]}
                   onPress={toggleMonthPicker}
                 >
-                  <Text style={styles.selectorText}>{MONTHS[viewMonth]}</Text>
+                  <Text style={[styles.selectorText, themedStyles.selectorText]}>{MONTHS[viewMonth]}</Text>
                   <ChevronDownIcon
-                    color={Colors.textSecondary}
+                    color={colors.textSecondary}
                     size={14}
                     style={showMonthPicker ? styles.chevronRotated : undefined}
                   />
@@ -265,7 +296,7 @@ export function DateSelector({
                 {showMonthPicker && (
                   <Animated.View
                     entering={FadeIn.duration(150)}
-                    style={styles.dropdown}
+                    style={[styles.dropdown, themedStyles.dropdown]}
                   >
                     <ScrollView
                       style={styles.dropdownScroll}
@@ -284,6 +315,7 @@ export function DateSelector({
                           <Text
                             style={[
                               styles.dropdownItemText,
+                              themedStyles.dropdownItemText,
                               viewMonth === index && styles.dropdownItemTextSelected,
                             ]}
                           >
@@ -299,12 +331,12 @@ export function DateSelector({
               {/* Year Selector */}
               <View style={[styles.selectorContainer, { zIndex: showYearPicker ? 20 : 10 }]}>
                 <Pressable
-                  style={[styles.selector, showYearPicker && styles.selectorActive]}
+                  style={[styles.selector, themedStyles.selector, showYearPicker && styles.selectorActive]}
                   onPress={toggleYearPicker}
                 >
-                  <Text style={styles.selectorText}>{viewYear}</Text>
+                  <Text style={[styles.selectorText, themedStyles.selectorText]}>{viewYear}</Text>
                   <ChevronDownIcon
-                    color={Colors.textSecondary}
+                    color={colors.textSecondary}
                     size={14}
                     style={showYearPicker ? styles.chevronRotated : undefined}
                   />
@@ -313,7 +345,7 @@ export function DateSelector({
                 {showYearPicker && (
                   <Animated.View
                     entering={FadeIn.duration(150)}
-                    style={styles.dropdown}
+                    style={[styles.dropdown, themedStyles.dropdown]}
                   >
                     <ScrollView
                       style={styles.dropdownScroll}
@@ -332,6 +364,7 @@ export function DateSelector({
                           <Text
                             style={[
                               styles.dropdownItemText,
+                              themedStyles.dropdownItemText,
                               viewYear === year && styles.dropdownItemTextSelected,
                             ]}
                           >
@@ -346,12 +379,12 @@ export function DateSelector({
             </View>
 
             {/* Mini Calendar */}
-            <View style={styles.calendarContainer}>
+            <View style={[styles.calendarContainer, themedStyles.calendarContainer]}>
               {/* Day headers */}
               <View style={styles.dayHeaderRow}>
                 {DAYS_OF_WEEK.map((day) => (
                   <View key={day} style={styles.dayHeaderCell}>
-                    <Text style={styles.dayHeaderText}>{day}</Text>
+                    <Text style={[styles.dayHeaderText, themedStyles.dayHeaderText]}>{day}</Text>
                   </View>
                 ))}
               </View>
@@ -365,6 +398,8 @@ export function DateSelector({
                     isSelected={isSelectedDay(day)}
                     isToday={isToday(day)}
                     onPress={() => day && handleDayPress(day)}
+                    textColor={themedStyles.dayText}
+                    todayBorderColor={themedStyles.todayBorder}
                   />
                 ))}
               </View>

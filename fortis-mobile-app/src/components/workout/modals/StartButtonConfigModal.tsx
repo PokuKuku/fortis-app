@@ -50,7 +50,6 @@ export function StartButtonConfigModal({
     optionLabel: { color: colors.textPrimary },
     optionSubtitle: { color: colors.textSecondary },
     emptyText: { color: colors.textTertiary },
-    hintText: { color: colors.textTertiary },
     confirmButtonDisabled: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
@@ -102,7 +101,7 @@ export function StartButtonConfigModal({
           ? `Currently set to ${presetLabel}.`
           : 'Choose what the Start button should launch.'}
       </Text>
-      <Text style={[styles.hintText, themedStyles.hintText]}>
+      <Text style={styles.hintText}>
         Press and hold the Start button to reconfigure.
       </Text>
 
@@ -278,7 +277,8 @@ const styles = StyleSheet.create({
   },
   hintText: {
     fontSize: FontSizes.sm,
-    color: Colors.textTertiary,
+    fontWeight: '700',
+    color: Colors.success,
     textAlign: 'center',
     marginTop: -Spacing.lg,
     marginBottom: Spacing.lg,

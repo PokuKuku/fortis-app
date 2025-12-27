@@ -98,7 +98,7 @@ fortis-mobile-app/
 │   ├── store/              # Zustand stores (workoutStore, programsStore, aiStore)
 │   ├── types/              # TypeScript definitions (exercise, program, workout, ai)
 │   ├── constants/          # Storage keys, exerciseOptions
-│   ├── contexts/           # React contexts (DragDropContext)
+│   ├── contexts/           # React contexts (ThemeContext, DragDropContext)
 │   └── lib/                # Supabase client
 │
 ├── components/             # Root-level glass morphism components
@@ -202,24 +202,33 @@ supabase secrets set ANTHROPIC_API_KEY=<key>
 ### Pre-Implementation Checklist
 
 Before implementing ANY UI:
-- [ ] Using `Colors.ts` constants (NO hardcoded hex/rgba)
+- [ ] **Theming:** Using `useTheme()` hook for dynamic colors (NOT static `Colors.textPrimary`)
+- [ ] **Theming:** Glass effects use `isDark` conditional (see quick reference table below)
+- [ ] **Theming:** Created `themedStyles` object for theme-dependent values
 - [ ] Using `Spacing` from `Sizes.ts` (NO magic numbers)
 - [ ] Using `Typography.ts` style objects
-- [ ] Background uses `Colors.background` + `<StainlessSteelPattern>`
+- [ ] Background uses `colors.background` + `<StainlessSteelPattern>`
 - [ ] Checked `app/(tabs)/index.tsx` for similar patterns
 - [ ] Using `GlassButton`/`GlassCard` instead of custom implementations
 - [ ] Using `BaseModal` for all centered dialog modals
 
 ### Design Tokens
 
-**Colors** (`constants/Colors.ts`):
+**Colors** - Two ways to access:
+
 ```tsx
-Colors.background      // #0a0a0a
-Colors.textPrimary     // #fafafa
-Colors.textSecondary   // #a3a3a3
-Colors.success         // #22c55e (THE green)
-Colors.error           // #dc2626
-Colors.warning         // #f59e0b
+// 1. DYNAMIC (theme-aware) - USE THIS FOR TEXT/BACKGROUNDS
+import { useTheme } from '@/src/contexts/ThemeContext';
+const { colors } = useTheme();
+colors.textPrimary    // #fafafa (dark) OR #1A1A1A (light)
+colors.textSecondary  // adapts to theme
+colors.background     // adapts to theme
+
+// 2. STATIC (backward compat) - USE ONLY FOR SEMANTIC COLORS
+import { Colors } from '@/constants/Colors';
+Colors.success        // #22c55e (THE green) - same in both themes
+Colors.error          // #dc2626 - same in both themes
+Colors.warning        // #f59e0b - same in both themes
 ```
 
 **Spacing** (`constants/Sizes.ts`):
@@ -230,13 +239,15 @@ Spacing['2xl'] (24), Spacing['3xl'] (32), Spacing['4xl'] (40)
 
 **Border Radius:** `BorderRadius.sm (6), .md (8), .lg (10), .xl (14), ['2xl'] (16)`
 
-**Typography:** Spread complete style objects: `style={{ ...Typography.h2, color: Colors.textPrimary }}`
+**Typography:** Spread complete style objects: `style={{ ...Typography.h2, color: colors.textPrimary }}`
 
 ### Component Patterns
 
 **Screen Structure:**
 ```tsx
-<SafeAreaView style={{ flex: 1, backgroundColor: Colors.background }}>
+const { colors } = useTheme();
+
+<SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
   <StainlessSteelPattern />
   <ScrollView contentContainerStyle={{ paddingHorizontal: Spacing['2xl'] }}>
     {/* Content */}
@@ -330,6 +341,20 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
 
 The app supports both dark and light modes via `ThemeContext`. **All new components MUST support both themes.**
 
+**Key Files:**
+- `src/contexts/ThemeContext.tsx` - ThemeProvider, useTheme hook, DarkTheme/LightTheme palettes
+- `constants/Colors.ts` - Backward-compatible Colors export (always dark theme)
+
+**Architecture:**
+```
+ThemeProvider (app/_layout.tsx)
+    │
+    ├── mode: 'system' | 'light' | 'dark'  ← User preference (persisted to AsyncStorage)
+    ├── resolvedTheme: 'light' | 'dark'    ← Actual theme displayed
+    ├── colors: ThemeColors                 ← Active color palette
+    └── isDark: boolean                     ← Convenience boolean
+```
+
 #### 1. Import and use the theme hook
 
 ```tsx
@@ -361,6 +386,19 @@ export default function MyComponent() {
 - `colors.success`, `colors.error`, `colors.warning` - Semantic colors (same in both themes)
 
 #### 3. Invert glass/overlay effects for light mode
+
+**Quick Reference - RGBA Inversions:**
+
+| Element | Dark Mode | Light Mode |
+|---------|-----------|------------|
+| Glass background (subtle) | `rgba(255,255,255, 0.04)` | `rgba(0,0,0, 0.04)` |
+| Glass background (normal) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.04)` |
+| Glass background (elevated) | `rgba(255,255,255, 0.12)` | `rgba(0,0,0, 0.06)` |
+| Border (subtle) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.06)` |
+| Border (normal) | `rgba(255,255,255, 0.1)` | `rgba(0,0,0, 0.1)` |
+| Border (prominent) | `rgba(255,255,255, 0.15)` | `rgba(0,0,0, 0.08)` |
+| Solid modal background | `#222222` | `#FFFFFF` |
+| Popover background | `rgba(36,36,36, 0.95)` | `rgba(255,255,255, 0.95)` |
 
 ```tsx
 // Glass card backgrounds

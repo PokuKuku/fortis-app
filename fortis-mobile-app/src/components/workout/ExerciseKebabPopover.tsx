@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { InformationCircleIcon, ArrowPathIcon, TrashIcon, DocumentTextIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface ExerciseKebabPopoverProps {
   visible: boolean;
@@ -35,9 +36,20 @@ export function ExerciseKebabPopover({
   hasNote,
   position,
 }: ExerciseKebabPopoverProps) {
+  const { colors, isDark } = useTheme();
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  // Theme-aware styles
+  const themedStyles = {
+    popover: {
+      backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    optionText: { color: colors.textPrimary },
+    divider: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)' },
+  };
 
   useEffect(() => {
     if (visible) {
@@ -97,6 +109,7 @@ export function ExerciseKebabPopover({
       <Animated.View
         style={[
           styles.popover,
+          themedStyles.popover,
           {
             top: position.top,
             left: position.left,
@@ -109,10 +122,10 @@ export function ExerciseKebabPopover({
           style={styles.option}
           onPress={() => handleAction(onViewDetails)}
         >
-          <InformationCircleIcon color="#DFE2E6" size={18} strokeWidth={2} />
-          <Text style={styles.optionText}>View Details</Text>
+          <InformationCircleIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+          <Text style={[styles.optionText, themedStyles.optionText]}>View Details</Text>
         </TouchableOpacity>
-        <View style={styles.divider} />
+        <View style={[styles.divider, themedStyles.divider]} />
         <TouchableOpacity
           style={styles.option}
           onPress={() => handleAction(onStickyNote)}
@@ -124,25 +137,25 @@ export function ExerciseKebabPopover({
         </TouchableOpacity>
         {!hasNote && (
           <>
-            <View style={styles.divider} />
+            <View style={[styles.divider, themedStyles.divider]} />
             <TouchableOpacity
               style={styles.option}
               onPress={() => handleAction(onAddNote)}
             >
-              <DocumentTextIcon color="#DFE2E6" size={18} strokeWidth={2} />
-              <Text style={styles.optionText}>Add Note</Text>
+              <DocumentTextIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+              <Text style={[styles.optionText, themedStyles.optionText]}>Add Note</Text>
             </TouchableOpacity>
           </>
         )}
-        <View style={styles.divider} />
+        <View style={[styles.divider, themedStyles.divider]} />
         <TouchableOpacity
           style={styles.option}
           onPress={() => handleAction(onReplace)}
         >
-          <ArrowPathIcon color="#DFE2E6" size={18} strokeWidth={2} />
-          <Text style={styles.optionText}>Replace Exercise</Text>
+          <ArrowPathIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+          <Text style={[styles.optionText, themedStyles.optionText]}>Replace Exercise</Text>
         </TouchableOpacity>
-        <View style={styles.divider} />
+        <View style={[styles.divider, themedStyles.divider]} />
         <TouchableOpacity
           style={styles.option}
           onPress={() => handleAction(onDelete)}

@@ -5,6 +5,7 @@ import Animated, { FadeIn } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { StatsTabType } from '@/src/types/program';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface StatsPlaceholderProps {
   selectedTab: StatsTabType;
@@ -26,12 +27,26 @@ const TAB_CONTENT: Record<StatsTabType, { title: string; subtitle: string }> = {
 };
 
 export function StatsPlaceholder({ selectedTab }: StatsPlaceholderProps) {
+  const { colors, isDark } = useTheme();
   const content = TAB_CONTENT[selectedTab];
+
+  // Theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    iconGradient: {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    title: { color: colors.textSecondary },
+    subtitle: { color: colors.textTertiary },
+  };
 
   return (
     <Animated.View
       entering={FadeIn.duration(300)}
-      style={styles.container}
+      style={[styles.container, themedStyles.container]}
     >
       {/* Decorative chart bars background */}
       <View style={styles.chartBarsContainer}>
@@ -58,19 +73,22 @@ export function StatsPlaceholder({ selectedTab }: StatsPlaceholderProps) {
       <View style={styles.contentOverlay}>
         <View style={styles.iconContainer}>
           <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
-            style={styles.iconGradient}
+            colors={isDark
+              ? ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']
+              : ['rgba(0, 0, 0, 0.08)', 'rgba(0, 0, 0, 0.03)']
+            }
+            style={[styles.iconGradient, themedStyles.iconGradient]}
           >
             <ChartBarIcon
               size={32}
-              color={Colors.textSecondary}
+              color={colors.textSecondary}
               strokeWidth={1.5}
             />
           </LinearGradient>
         </View>
 
-        <Text style={styles.title}>{content.title}</Text>
-        <Text style={styles.subtitle}>{content.subtitle}</Text>
+        <Text style={[styles.title, themedStyles.title]}>{content.title}</Text>
+        <Text style={[styles.subtitle, themedStyles.subtitle]}>{content.subtitle}</Text>
       </View>
     </Animated.View>
   );

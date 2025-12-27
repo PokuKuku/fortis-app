@@ -317,7 +317,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
 
         // Create exercises with pre-filled sets from template
+        const { weightUnits } = get();
         const exercises: WorkoutExercise[] = workout.exercises.map((templateEx, exIndex) => {
+          const exerciseWeightUnit = weightUnits[templateEx.exerciseId] || 'lbs';
           // Create sets based on template's setDetails or default empty sets
           const sets: WorkoutSet[] = [];
           const numSets = templateEx.setDetails?.length || templateEx.sets;
@@ -329,6 +331,7 @@ export const useWorkoutStore = create<WorkoutState>()(
               setNumber: i + 1,
               setType: 'normal',
               weight: setDetail?.weight ?? null,
+              weightUnit: exerciseWeightUnit,
               reps: setDetail?.reps ?? null,
               rpe: null,
               restSeconds: null,
@@ -408,7 +411,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         const { useProgramProgressStore } = await loadProgramProgressStore();
         useProgramProgressStore.getState().startProgram(programId);
 
+        const { weightUnits } = get();
         const exercises: WorkoutExercise[] = workout.exercises.map((programEx, exIndex) => {
+          const exerciseWeightUnit = weightUnits[programEx.exerciseId] || 'lbs';
           const sets: WorkoutSet[] = [];
           const numSets = programEx.sets;
 
@@ -418,6 +423,7 @@ export const useWorkoutStore = create<WorkoutState>()(
               setNumber: i + 1,
               setType: 'normal',
               weight: null,
+              weightUnit: exerciseWeightUnit,
               reps: null,
               rpe: null,
               restSeconds: null,
@@ -631,8 +637,9 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     addExercise: (exerciseId, exerciseName) => {
-      const { activeSession } = get();
+      const { activeSession, weightUnits } = get();
       if (!activeSession) return;
+      const exerciseWeightUnit = weightUnits[exerciseId] || 'lbs';
 
       const newExercise: WorkoutExercise = {
         localId: generateId(),
@@ -644,6 +651,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             setNumber: 1,
             setType: 'normal',
             weight: null,
+            weightUnit: exerciseWeightUnit,
             reps: null,
             rpe: null,
             restSeconds: null,
@@ -666,7 +674,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     addExercises: (exercises) => {
-      const { activeSession } = get();
+      const { activeSession, weightUnits } = get();
       if (!activeSession) return;
 
       const startIndex = activeSession.exercises.length;
@@ -680,6 +688,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             setNumber: 1,
             setType: 'normal',
             weight: null,
+            weightUnit: weightUnits[ex.id] || 'lbs',
             reps: null,
             rpe: null,
             restSeconds: null,
@@ -721,8 +730,9 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     replaceExercise: (localId, newExerciseId, newExerciseName) => {
-      const { activeSession } = get();
+      const { activeSession, weightUnits } = get();
       if (!activeSession) return;
+      const exerciseWeightUnit = weightUnits[newExerciseId] || 'lbs';
 
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== localId) return ex;
@@ -738,6 +748,7 @@ export const useWorkoutStore = create<WorkoutState>()(
               setNumber: 1,
               setType: 'normal' as const,
               weight: null,
+              weightUnit: exerciseWeightUnit,
               reps: null,
               rpe: null,
               restSeconds: null,
@@ -801,7 +812,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     addSet: (exerciseLocalId) => {
-      const { activeSession } = get();
+      const { activeSession, weightUnits } = get();
       if (!activeSession) return;
 
       const exercises = activeSession.exercises.map((ex) => {
@@ -813,6 +824,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           setNumber: ex.sets.length + 1,
           setType: 'normal',
           weight: null,
+          weightUnit: weightUnits[ex.exerciseId] || 'lbs',
           reps: null,
           rpe: null,
           restSeconds: null,
@@ -861,14 +873,21 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     updateSet: (exerciseLocalId, setLocalId, updates) => {
-      const { activeSession } = get();
+      const { activeSession, weightUnits } = get();
       if (!activeSession) return;
 
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
 
+        const hasWeightUpdate = Object.prototype.hasOwnProperty.call(updates, 'weight');
+        const shouldSetUnit = hasWeightUpdate && !Object.prototype.hasOwnProperty.call(updates, 'weightUnit');
+        const currentWeightUnit = weightUnits[ex.exerciseId] || 'lbs';
+        const nextUpdates = shouldSetUnit
+          ? { ...updates, weightUnit: updates.weight === null ? null : currentWeightUnit }
+          : updates;
+
         const sets = ex.sets.map((s) =>
-          s.localId === setLocalId ? { ...s, ...updates } : s
+          s.localId === setLocalId ? { ...s, ...nextUpdates } : s
         );
 
         return { ...ex, sets };
@@ -1293,7 +1312,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             // Round to 1 decimal place
             convertedWeight = Math.round(convertedWeight * 10) / 10;
 
-            return { ...s, weight: convertedWeight };
+            return { ...s, weight: convertedWeight, weightUnit: newUnit };
           });
 
           return { ...ex, sets };
@@ -1473,7 +1492,9 @@ export const useWorkoutStore = create<WorkoutState>()(
           (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
         );
 
+        const { weightUnits } = get();
         const exercises: WorkoutExercise[] = sortedExercises.map((templateEx, exIndex) => {
+          const exerciseWeightUnit = weightUnits[templateEx.exerciseId] || 'lbs';
           const numSets = Math.max(1, templateEx.setDetails?.length ?? templateEx.sets ?? 1);
           const sets: WorkoutSet[] = [];
 
@@ -1484,6 +1505,7 @@ export const useWorkoutStore = create<WorkoutState>()(
               setNumber: i + 1,
               setType: 'normal',
               weight: setDetail?.weight ?? null,
+              weightUnit: exerciseWeightUnit,
               reps: setDetail?.reps ?? null,
               rpe: null,
               restSeconds: null,
@@ -1558,7 +1580,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     addEditorExercises: (exercises) => {
-      const { editorSession } = get();
+      const { editorSession, weightUnits } = get();
       if (!editorSession) return;
 
       const startIndex = editorSession.exercises.length;
@@ -1572,6 +1594,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             setNumber: 1,
             setType: 'normal',
             weight: null,
+            weightUnit: weightUnits[ex.id] || 'lbs',
             reps: null,
             rpe: null,
             restSeconds: null,
@@ -1610,7 +1633,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     addEditorSet: (exerciseLocalId) => {
-      const { editorSession } = get();
+      const { editorSession, weightUnits } = get();
       if (!editorSession) return;
 
       const exercises = editorSession.exercises.map((ex) => {
@@ -1621,6 +1644,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           setNumber: ex.sets.length + 1,
           setType: 'normal',
           weight: null,
+          weightUnit: weightUnits[ex.exerciseId] || 'lbs',
           reps: null,
           rpe: null,
           restSeconds: null,
@@ -1666,14 +1690,21 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     updateEditorSet: (exerciseLocalId, setLocalId, updates) => {
-      const { editorSession } = get();
+      const { editorSession, weightUnits } = get();
       if (!editorSession) return;
 
       const exercises = editorSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
 
+        const hasWeightUpdate = Object.prototype.hasOwnProperty.call(updates, 'weight');
+        const shouldSetUnit = hasWeightUpdate && !Object.prototype.hasOwnProperty.call(updates, 'weightUnit');
+        const currentWeightUnit = weightUnits[ex.exerciseId] || 'lbs';
+        const nextUpdates = shouldSetUnit
+          ? { ...updates, weightUnit: updates.weight === null ? null : currentWeightUnit }
+          : updates;
+
         const sets = ex.sets.map((s) =>
-          s.localId === setLocalId ? { ...s, ...updates } : s
+          s.localId === setLocalId ? { ...s, ...nextUpdates } : s
         );
 
         return { ...ex, sets };
