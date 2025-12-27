@@ -21,10 +21,8 @@ function getMutationPlanType(
 
   switch (intent) {
     case 'CREATE_PROGRAM':
-    case 'MODIFY_PROGRAM':
       return 'program';
     case 'CREATE_TEMPLATE':
-    case 'MODIFY_TEMPLATE':
       return 'template';
     default:
       return undefined;

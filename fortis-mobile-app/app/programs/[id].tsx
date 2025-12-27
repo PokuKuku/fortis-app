@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { PlayIcon, SparklesIcon, TrashIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
+import { PlayIcon, TrashIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -222,14 +222,6 @@ export default function ProgramDetailScreen() {
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
-  const handleAIEdit = () => {
-    if (!program || isNavigating.current) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    router.push({
-      pathname: '/ai/chat',
-      params: { intent: 'MODIFY_PROGRAM', programId: program.id },
-    });
-  };
 
   const handleExercisePress = (exerciseId: string) => {
     if (isNavigating.current) return;
@@ -447,15 +439,6 @@ export default function ProgramDetailScreen() {
             <View style={styles.startButtonContent}>
               <PlayIcon color={Colors.white} size={IconSizes.lg} strokeWidth={2.5} />
               <Text style={styles.startButtonText}>Start Next Workout</Text>
-            </View>
-          </GlassButton>
-          <GlassButton
-            style={styles.aiEditButton}
-            onPress={handleAIEdit}
-          >
-            <View style={styles.aiEditButtonContent}>
-              <SparklesIcon color={Colors.textPrimary} size={IconSizes.md} />
-              <Text style={styles.aiEditButtonText}>Edit with AI</Text>
             </View>
           </GlassButton>
         </Animated.View>
@@ -703,7 +686,6 @@ const styles = StyleSheet.create({
   },
   startButtonContainer: {
     marginBottom: Spacing['2xl'],
-    gap: Spacing.md,
   },
   startButton: {
     height: ButtonHeights.xl,
@@ -719,22 +701,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.white,
-  },
-  aiEditButton: {
-    height: ButtonHeights.lg,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  aiEditButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
-  aiEditButtonText: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.textPrimary,
   },
   section: {
     marginBottom: Spacing['2xl'],

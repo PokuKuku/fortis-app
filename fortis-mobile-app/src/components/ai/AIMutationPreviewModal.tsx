@@ -79,8 +79,7 @@ export function AIMutationPreviewModal({
 
   const isProgramDraft =
     currentMutationPlan?.intent === 'CREATE_PROGRAM' ||
-    currentMutationPlan?.intent === 'CREATE_TEMPLATE' ||
-    currentMutationPlan?.intent === 'MODIFY_TEMPLATE';
+    currentMutationPlan?.intent === 'CREATE_TEMPLATE';
 
   useEffect(() => {
     if (visible && currentMutationPlan && isProgramDraft && !editableProgramDraft) {

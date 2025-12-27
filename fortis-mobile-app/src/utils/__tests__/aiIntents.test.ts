@@ -6,9 +6,7 @@ const ALL_INTENTS: AIIntent[] = [
   'QUERY_HISTORY',
   'ANALYZE_PLATEAU',
   'CREATE_PROGRAM',
-  'MODIFY_PROGRAM',
   'CREATE_TEMPLATE',
-  'MODIFY_TEMPLATE',
 ];
 
 const READ_INTENTS: AIIntent[] = [
@@ -19,9 +17,7 @@ const READ_INTENTS: AIIntent[] = [
 
 const WRITE_INTENTS: AIIntent[] = [
   'CREATE_PROGRAM',
-  'MODIFY_PROGRAM',
   'CREATE_TEMPLATE',
-  'MODIFY_TEMPLATE',
 ];
 
 describe('AI intents', () => {

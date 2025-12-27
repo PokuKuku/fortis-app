@@ -32,9 +32,7 @@ async function getAuthenticatedUserId(): Promise<string | null> {
 
 const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
   CREATE_PROGRAM: 'create_program',
-  MODIFY_PROGRAM: 'modify_program',
   CREATE_TEMPLATE: 'create_template',
-  MODIFY_TEMPLATE: 'modify_template',
 };
 
 const LOGGABLE_ENTITY_TYPES = new Set<string>([
@@ -170,14 +168,6 @@ export async function createProgram(
 /**
  * Modify an existing program
  */
-export async function modifyProgram(
-  programId: string,
-  modifications: string,
-  historyOnly?: boolean
-): Promise<AIResponse> {
-  return sendAIMessage('MODIFY_PROGRAM', modifications, { programId, historyOnly });
-}
-
 /**
  * Create a single workout template
  */
@@ -191,14 +181,6 @@ export async function createTemplate(
 /**
  * Modify an existing template
  */
-export async function modifyTemplate(
-  templateId: string,
-  modifications: string,
-  historyOnly?: boolean
-): Promise<AIResponse> {
-  return sendAIMessage('MODIFY_TEMPLATE', modifications, { templateId, historyOnly });
-}
-
 // ============================================
 // Pending Actions Management
 // ============================================
@@ -296,10 +278,7 @@ export async function applyMutationPlan(
   const actionType = ACTION_TYPE_BY_INTENT[plan.intent];
   const canLog = Boolean(userId && actionType);
 
-  const allowedOperations =
-    plan.intent === 'MODIFY_PROGRAM' || plan.intent === 'MODIFY_TEMPLATE'
-      ? new Set(['INSERT', 'UPDATE'])
-      : new Set(['INSERT']);
+  const allowedOperations = new Set(['INSERT']);
   const invalidOperation = plan.mutations.find((mutation) => !allowedOperations.has(mutation.operation));
   if (invalidOperation) {
     return { success: false, error: 'This request includes unsupported actions.' };
@@ -694,9 +673,7 @@ export function getIntentLabel(intent: AIIntent): string {
     QUERY_HISTORY: 'Query History',
     ANALYZE_PLATEAU: 'Analyze Plateau',
     CREATE_PROGRAM: 'Create Program',
-    MODIFY_PROGRAM: 'Modify Program',
     CREATE_TEMPLATE: 'Create Template',
-    MODIFY_TEMPLATE: 'Modify Template',
   };
   return labels[intent];
 }

@@ -2,7 +2,7 @@ import { useRef, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { PlayIcon, SparklesIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { PlayIcon, TrashIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -49,14 +49,6 @@ export default function WorkoutDetailScreen() {
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
-  const handleAIEdit = () => {
-    if (!id || !canEditTemplate || isNavigating.current) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    router.push({
-      pathname: '/ai/chat',
-      params: { intent: 'MODIFY_TEMPLATE', templateId: id },
-    });
-  };
 
   const startWorkoutFromTemplate = useWorkoutStore(s => s.startWorkoutFromTemplate);
 
@@ -186,17 +178,6 @@ export default function WorkoutDetailScreen() {
               <Text style={styles.startButtonText}>Start Workout</Text>
             </View>
           </GlassButton>
-          {canEditTemplate && (
-            <GlassButton
-              style={styles.aiEditButton}
-              onPress={handleAIEdit}
-            >
-              <View style={styles.aiEditButtonContent}>
-                <SparklesIcon color={Colors.textPrimary} size={IconSizes.md} />
-                <Text style={styles.aiEditButtonText}>Edit with AI</Text>
-              </View>
-            </GlassButton>
-          )}
         </Animated.View>
 
         {/* Exercises Section */}
@@ -328,7 +309,6 @@ const styles = StyleSheet.create({
   },
   startButtonContainer: {
     marginBottom: Spacing['2xl'],
-    gap: Spacing.md,
   },
   startButton: {
     height: ButtonHeights.xl,
@@ -344,22 +324,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
     color: Colors.white,
-  },
-  aiEditButton: {
-    height: ButtonHeights.lg,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  aiEditButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
-  aiEditButtonText: {
-    fontSize: FontSizes.md,
-    fontWeight: '600',
-    color: Colors.textPrimary,
   },
   section: {
     marginBottom: Spacing['2xl'],

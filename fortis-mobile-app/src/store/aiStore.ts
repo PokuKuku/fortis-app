@@ -67,18 +67,6 @@ const makeFriendlyClarification = (question: string | undefined, intent: AIInten
       : `Awesome — ${question}`;
   }
 
-  if (intent === 'MODIFY_TEMPLATE') {
-    return looksSystemy || !question
-      ? 'Got it — what should I change in your template (exercises, sets/reps, or rest)?'
-      : `Got it — ${question}`;
-  }
-
-  if (intent === 'MODIFY_PROGRAM') {
-    return looksSystemy || !question
-      ? 'Got it — what should I change in your program (exercises, sets/reps, days, or focus)?'
-      : `Got it — ${question}`;
-  }
-
   return looksSystemy || !question
     ? 'I can help with that — what details should I use?'
     : `Quick check — ${question}`;
@@ -146,7 +134,6 @@ interface AIState {
   // Actions - Quick queries (shortcuts for common intents)
   askAboutStats: (question: string) => Promise<AIResponse>;
   askAboutPlateau: (question: string, exerciseId?: string) => Promise<AIResponse>;
-  requestProgramUpdate: (programId: string, modifications: string, historyOnly?: boolean) => Promise<AIResponse>;
   requestProgram: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
   requestTemplate: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
 
@@ -375,10 +362,6 @@ export const useAIStore = create<AIState>()(
       return get().sendMessage('ANALYZE_PLATEAU', question, { exerciseId });
     },
 
-    requestProgramUpdate: async (programId, modifications, historyOnly) => {
-      return get().sendMessage('MODIFY_PROGRAM', modifications, { programId, historyOnly });
-    },
-
     requestProgram: async (description, historyOnly) => {
       return get().sendMessage('CREATE_PROGRAM', description, { historyOnly });
     },
@@ -476,9 +459,7 @@ export const useAIStore = create<AIState>()(
           const intent = currentMutationPlan.intent;
           if (
             intent === 'CREATE_PROGRAM' ||
-            intent === 'MODIFY_PROGRAM' ||
-            intent === 'CREATE_TEMPLATE' ||
-            intent === 'MODIFY_TEMPLATE'
+            intent === 'CREATE_TEMPLATE'
           ) {
             useProgramsStore.getState().fetchPrograms({ force: true });
           }

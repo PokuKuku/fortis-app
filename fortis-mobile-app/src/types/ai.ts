@@ -21,9 +21,7 @@ export type AIIntent =
   | 'ANALYZE_PLATEAU'
   // Write intents (require confirmation)
   | 'CREATE_PROGRAM'
-  | 'MODIFY_PROGRAM'
-  | 'CREATE_TEMPLATE'
-  | 'MODIFY_TEMPLATE';
+  | 'CREATE_TEMPLATE';
 
 /**
  * Intent metadata for context assembly
@@ -76,32 +74,12 @@ export const INTENT_CONFIG: Record<AIIntent, {
     includeAnalytics: true,
     exerciseLimit: 100,
   },
-  MODIFY_PROGRAM: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 50,
-  },
   CREATE_TEMPLATE: {
     type: 'write',
     defaultContextWeeks: 12,
     includeHistory: true,
     includeNotes: true,
     includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 50,
-  },
-  MODIFY_TEMPLATE: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
     includeExerciseDb: true,
     includeAnalytics: true,
     exerciseLimit: 50,

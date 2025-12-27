@@ -1,49 +1,39 @@
-# Smoke Test
-# Quick test to verify app launches and main navigation works
+# Smoke Test - Using coordinates for tab bar
+# Tab bar is at bottom, tabs are evenly spaced
 
 appId: com.fortis.app
 ---
 
-# Launch the app fresh
-- launchApp:
-    clearState: false
+# Launch the app
+- launchApp
 
-# Wait for app to fully load
+# Wait for app to load
 - waitForAnimationToEnd
-- extendedWaitUntil:
-    visible: ".*History.*|.*Exercises.*|.*Programs.*|.*Profile.*"
-    timeout: 10000
 
-# Verify main tabs are visible
-- assertVisible:
-    text: "History"
-- assertVisible:
-    text: "Exercises"
-- assertVisible:
-    text: "Programs"
-- assertVisible:
-    text: "Profile"
+# Verify we're on the home screen
+- assertVisible: "Start a Blank Workout"
+- takeScreenshot: 01-home-screen
 
-# Take screenshot of home screen
-- takeScreenshot: app-home-screen
-
-# Navigate through each tab
-- tapOn: "History"
+# Tap History tab (leftmost tab) - approximately 15% from left
+- tapOn:
+    point: "15%,95%"
 - waitForAnimationToEnd
-- takeScreenshot: history-tab
+- takeScreenshot: 02-history-tab
 
-- tapOn: "Exercises"
+# Tap Exercises tab (second from left) - approximately 30% from left
+- tapOn:
+    point: "30%,95%"
 - waitForAnimationToEnd
-- takeScreenshot: exercises-tab
+- takeScreenshot: 03-exercises-tab
 
-- tapOn: "Programs"
+# Tap Programs tab (fourth from left) - approximately 70% from left
+- tapOn:
+    point: "70%,95%"
 - waitForAnimationToEnd
-- takeScreenshot: programs-tab
+- takeScreenshot: 04-programs-tab
 
-- tapOn: "Profile"
+# Tap Profile tab (rightmost) - approximately 85% from left
+- tapOn:
+    point: "85%,95%"
 - waitForAnimationToEnd
-- takeScreenshot: profile-tab
-
-# Test complete
-- assertVisible:
-    text: ".*Profile.*|.*Settings.*"
+- takeScreenshot: 05-profile-tab

@@ -1,20 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Modal,
   View,
   Text,
-  Modal,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
   TextInput,
-  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
-import { Dumbbell, X } from 'lucide-react-native';
+import { X, Dumbbell } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
-import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
 import { useExercises } from '../../hooks/useExercises';
 import { styles } from './AIMutationPreviewModal.styles';
 
@@ -42,19 +40,10 @@ export function AIMutationExercisePickerModal({
       return sortedExercises.slice(0, 50);
     }
 
-    return sortedExercises.filter((exercise) => {
-      if (exercise.name.toLowerCase().includes(query)) return true;
-      if (exercise.primaryMuscles?.some((muscle) => muscle.toLowerCase().includes(query))) {
-        return true;
-      }
-      if (exercise.equipment?.toLowerCase().includes(query)) {
-        return true;
-      }
-      return false;
-    });
-  }, [sortedExercises, searchQuery]);
-
-  if (!visible) return null;
+    return sortedExercises.filter((exercise) =>
+      exercise.name.toLowerCase().includes(query)
+    );
+  }, [searchQuery, sortedExercises]);
 
   return (
     <Modal
@@ -64,25 +53,18 @@ export function AIMutationExercisePickerModal({
       onRequestClose={onClose}
     >
       <Animated.View
-        entering={FadeIn.duration(150)}
-        exiting={FadeOut.duration(100)}
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
         style={styles.pickerOverlay}
       >
-        <TouchableOpacity
-          style={StyleSheet.absoluteFill}
-          activeOpacity={1}
-          onPress={onClose}
-        />
         <Animated.View
           entering={ZoomIn.duration(200)}
           exiting={ZoomOut.duration(150)}
           style={styles.pickerContainer}
         >
-          <StainlessSteelPattern />
-
           <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Select Exercise</Text>
-            <TouchableOpacity onPress={onClose}>
+            <Text style={styles.pickerTitle}>Choose exercise</Text>
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <X color={Colors.textSecondary} size={IconSizes.md} />
             </TouchableOpacity>
           </View>

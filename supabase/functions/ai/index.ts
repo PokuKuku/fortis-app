@@ -24,9 +24,7 @@ type AIIntent =
   | 'QUERY_HISTORY'
   | 'ANALYZE_PLATEAU'
   | 'CREATE_PROGRAM'
-  | 'MODIFY_PROGRAM'
-  | 'CREATE_TEMPLATE'
-  | 'MODIFY_TEMPLATE';
+  | 'CREATE_TEMPLATE';
 
 type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
@@ -98,16 +96,6 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeAnalytics: true,
     exerciseLimit: 100,
   },
-  MODIFY_PROGRAM: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 50,
-  },
   CREATE_TEMPLATE: {
     type: 'write',
     defaultContextWeeks: 12,
@@ -118,23 +106,11 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeAnalytics: true,
     exerciseLimit: 50,
   },
-  MODIFY_TEMPLATE: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 50,
-  },
 };
 
 const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
   CREATE_PROGRAM: 'create_program',
-  MODIFY_PROGRAM: 'modify_program',
   CREATE_TEMPLATE: 'create_template',
-  MODIFY_TEMPLATE: 'modify_template',
 };
 
 const ALLOWED_ENTITY_TYPES = new Set<string>([
@@ -270,9 +246,6 @@ function limitExerciseIds(ids: string[], limit: number): string[] {
 }
 
 function allowedOperationsForIntent(intent: AIIntent): Set<string> {
-  if (intent === 'MODIFY_PROGRAM' || intent === 'MODIFY_TEMPLATE') {
-    return new Set(['INSERT', 'UPDATE']);
-  }
   return new Set(['INSERT']);
 }
 
@@ -1357,9 +1330,7 @@ Otherwise, respond with a JSON object containing a mutation plan:
 }
 
 WRITE RULES:
-- For MODIFY_PROGRAM or MODIFY_TEMPLATE, you may use INSERT or UPDATE mutations.
-- For other write intents, create-only. Do not include UPDATE or DELETE mutations.
-- For UPDATE mutations, you must include entityId from the current program/template context.
+- Create-only. Do not include UPDATE or DELETE mutations.
 
 EXERCISE SELECTION RULES:
 1. Prefer exercises from the user's history when possible
@@ -1376,7 +1347,7 @@ ENTITY SCHEMAS:
 function buildUserMessage(request: AIRequest, context: AIContext): string {
   let message = `Intent: ${request.intent}\n\nUser message: ${request.message}`;
 
-  if (request.image && (request.intent === 'CREATE_TEMPLATE' || request.intent === 'MODIFY_TEMPLATE')) {
+  if (request.image && request.intent === 'CREATE_TEMPLATE') {
     message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (TEMPLATE) ---
 You have been provided an image of a workout plan. Extract a single workout template:
 
@@ -1394,7 +1365,7 @@ Create mutations for:
 If key details are missing, return a clarification question instead of guessing.`;
   }
 
-  if (request.image && (request.intent === 'CREATE_PROGRAM' || request.intent === 'MODIFY_PROGRAM')) {
+  if (request.image && request.intent === 'CREATE_PROGRAM') {
     message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (PROGRAM) ---
 You have been provided an image of a multi-day program. Extract the full program:
 
@@ -1561,28 +1532,6 @@ function buildWriteClarification(intent: AIIntent, requestId: string) {
     };
   }
 
-  if (intent === 'MODIFY_PROGRAM') {
-    return {
-      ...base,
-      clarification: {
-        question:
-          'I can edit your program. What should I change (exercises, sets/reps, days, or focus)?',
-        options: ['Swap squats for leg press', 'Make it 4 days/week'],
-      },
-    };
-  }
-
-  if (intent === 'MODIFY_TEMPLATE') {
-    return {
-      ...base,
-      clarification: {
-        question:
-          'I can edit this template. What should I adjust (exercises, sets/reps, or rest)?',
-        options: ['Add a superset', 'Increase reps to 8-12'],
-      },
-    };
-  }
-
   return {
     ...base,
     clarification: {
@@ -1615,9 +1564,7 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
     }
 
     if (!allowedOperations.has(mutation.operation)) {
-      return intent === 'MODIFY_PROGRAM' || intent === 'MODIFY_TEMPLATE'
-        ? 'Only INSERT or UPDATE operations are allowed'
-        : 'Only INSERT operations are allowed';
+      return 'Only INSERT operations are allowed';
     }
 
     if (!ALLOWED_ENTITY_TYPES.has(mutation.entityType)) {

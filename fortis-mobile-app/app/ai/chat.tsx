@@ -23,7 +23,7 @@ import {
   Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { XMarkIcon, SparklesIcon } from 'react-native-heroicons/outline';
 import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
@@ -127,19 +127,9 @@ const inferIntentFromMessage = (
     text.includes('generate') ||
     text.includes('design');
 
-  const wantsModify =
-    text.includes('modify') ||
-    text.includes('edit') ||
-    text.includes('update') ||
-    text.includes('change') ||
-    text.includes('adjust');
-
   if (hasImage && wantsProgram) return 'CREATE_PROGRAM';
   if (hasImage && wantsTemplate) return 'CREATE_TEMPLATE';
   if (hasImage) return null;
-
-  if (wantsProgram && wantsModify) return 'MODIFY_PROGRAM';
-  if (wantsTemplate && wantsModify) return 'MODIFY_TEMPLATE';
 
   if (wantsProgram && wantsCreate) return 'CREATE_PROGRAM';
   if (wantsTemplate && wantsCreate) return 'CREATE_TEMPLATE';
@@ -147,21 +137,8 @@ const inferIntentFromMessage = (
   return null;
 };
 
-const isAIIntent = (value: string): value is AIIntent => {
-  return [
-    'QUERY_STATS',
-    'QUERY_HISTORY',
-    'ANALYZE_PLATEAU',
-    'CREATE_PROGRAM',
-    'MODIFY_PROGRAM',
-    'CREATE_TEMPLATE',
-    'MODIFY_TEMPLATE',
-  ].includes(value as AIIntent);
-};
-
 export default function AIChatScreen() {
   const router = useRouter();
-  const searchParams = useLocalSearchParams();
   const [inputText, setInputText] = useState('');
   const [selectedIntent, setSelectedIntent] = useState<AIIntent>('QUERY_STATS');
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -190,20 +167,6 @@ export default function AIChatScreen() {
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
 
   const messages = conversation?.messages || [];
-  const intentParam =
-    typeof searchParams.intent === 'string' && isAIIntent(searchParams.intent)
-      ? (searchParams.intent as AIIntent)
-      : null;
-  const programIdParam =
-    typeof searchParams.programId === 'string' ? searchParams.programId : null;
-  const templateIdParam =
-    typeof searchParams.templateId === 'string' ? searchParams.templateId : null;
-
-  useEffect(() => {
-    if (intentParam) {
-      setSelectedIntent(intentParam);
-    }
-  }, [intentParam]);
 
   useEffect(() => {
     loadConversation();
@@ -276,13 +239,7 @@ export default function AIChatScreen() {
 
     setInputText('');
     setStreamingMessageId(null);
-    const context =
-      intentToSend === 'MODIFY_PROGRAM' && programIdParam
-        ? { programId: programIdParam }
-        : intentToSend === 'MODIFY_TEMPLATE' && templateIdParam
-        ? { templateId: templateIdParam }
-        : undefined;
-    await sendMessage(intentToSend, message, context);
+    await sendMessage(intentToSend, message);
   };
 
   const handleQuickAction = (intent: AIIntent, prompt: string) => {
