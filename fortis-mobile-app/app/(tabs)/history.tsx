@@ -21,6 +21,7 @@ import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { useWorkoutStore, getWorkoutSummary } from '../../src/store/workoutStore';
 import { fetchWorkoutHistory, getPendingSyncCount } from '../../src/services/workoutHistoryService';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { WorkoutSession } from '../../src/types/workout';
 import { Colors } from '../../constants/Colors';
 import { Spacing, BorderRadius } from '../../constants/Sizes';
@@ -93,6 +94,7 @@ function AnimatedDay({
   isSelected: boolean;
   onPress: (date: DateData) => void;
 }) {
+  const { colors } = useTheme();
   const scale = useSharedValue(1);
   const isDisabled = state === 'disabled';
   const intensity = marking?.intensity;
@@ -129,15 +131,16 @@ function AnimatedDay({
         style={[
           styles.dayContainer,
           { backgroundColor },
-          isSelected && styles.selectedDayContainer,
+          isSelected && [styles.selectedDayContainer, { borderColor: colors.success }],
           animatedStyle,
         ]}
       >
         <Text
           style={[
             styles.dayText,
-            isDisabled && styles.dayTextDisabled,
-            isSelected && styles.dayTextSelected,
+            { color: colors.textPrimary },
+            isDisabled && { color: colors.textSecondary, opacity: 0.3 },
+            isSelected && { color: colors.success, fontWeight: '700' },
           ]}
         >
           {date.day}
@@ -149,9 +152,15 @@ function AnimatedDay({
 
 // Workout History Card Component
 function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onPress: () => void }) {
+  const { colors, isDark } = useTheme();
   const summary = getWorkoutSummary(session);
   const formattedDate = format(session.startedAt, 'MMM d, yyyy');
   const formattedTime = format(session.startedAt, 'h:mm a');
+
+  const cardTheme = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+  };
 
   return (
     <Pressable onPress={onPress}>
@@ -159,42 +168,42 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
         entering={FadeIn.duration(300)}
         exiting={FadeOut.duration(200)}
         layout={Layout.duration(200)}
-        style={styles.card}
+        style={[styles.card, cardTheme]}
       >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
-          <Text style={styles.workoutName} numberOfLines={1}>
+          <Text style={[styles.workoutName, { color: colors.textPrimary }]} numberOfLines={1}>
             {session.name}
           </Text>
           {session.isSynced && (
-            <CloudIcon color={Colors.success} size={14} strokeWidth={2} />
+            <CloudIcon color={colors.success} size={14} strokeWidth={2} />
           )}
         </View>
-        <Text style={styles.workoutDate}>{formattedDate}</Text>
+        <Text style={[styles.workoutDate, { color: colors.textSecondary }]}>{formattedDate}</Text>
       </View>
 
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <ClockIcon color={Colors.success} size={16} strokeWidth={2} />
-          <Text style={styles.statValue}>{formatDuration(summary.durationSeconds)}</Text>
+          <ClockIcon color={colors.success} size={16} strokeWidth={2} />
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDuration(summary.durationSeconds)}</Text>
         </View>
 
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
         <View style={styles.stat}>
-          <FireIcon color={Colors.success} size={16} strokeWidth={2} />
-          <Text style={styles.statValue}>{summary.totalSets} sets</Text>
+          <FireIcon color={colors.success} size={16} strokeWidth={2} />
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{summary.totalSets} sets</Text>
         </View>
 
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
         <View style={styles.stat}>
-          <TrophyIcon color={Colors.success} size={16} strokeWidth={2} />
-          <Text style={styles.statValue}>{formatVolume(summary.totalVolume)} lbs</Text>
+          <TrophyIcon color={colors.success} size={16} strokeWidth={2} />
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatVolume(summary.totalVolume)} lbs</Text>
         </View>
       </View>
 
-      <Text style={styles.exerciseCount}>
+      <Text style={[styles.exerciseCount, { color: colors.textSecondary }]}>
         {summary.totalExercises} exercise{summary.totalExercises !== 1 ? 's' : ''} • Started at {formattedTime}
       </Text>
       </Animated.View>
@@ -204,11 +213,12 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
 
 // Empty state for no workouts ever
 function EmptyState() {
+  const { colors } = useTheme();
   return (
     <View style={styles.emptyContainer}>
-      <TrophyIcon color={Colors.textSecondary} size={48} strokeWidth={1.5} />
-      <Text style={styles.emptyTitle}>No workouts yet</Text>
-      <Text style={styles.emptySubtitle}>
+      <TrophyIcon color={colors.textSecondary} size={48} strokeWidth={1.5} />
+      <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No workouts yet</Text>
+      <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
         Complete your first workout to see it here
       </Text>
     </View>
@@ -217,18 +227,25 @@ function EmptyState() {
 
 // Empty state for no workouts on selected date
 function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) {
+  const { colors, isDark } = useTheme();
+
+  const containerTheme = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+  };
+
   return (
     <Animated.View
       entering={FadeIn.duration(300)}
-      style={styles.emptyDateContainer}
+      style={[styles.emptyDateContainer, containerTheme]}
     >
-      <CalendarDaysIcon color={Colors.textSecondary} size={32} strokeWidth={1.5} />
-      <Text style={styles.emptyDateText}>No workouts logged on this day</Text>
+      <CalendarDaysIcon color={colors.textSecondary} size={32} strokeWidth={1.5} />
+      <Text style={[styles.emptyDateText, { color: colors.textSecondary }]}>No workouts logged on this day</Text>
       <Pressable
         style={({ pressed }) => [styles.logPastButton, pressed && styles.logPastButtonPressed]}
         onPress={onLogPastWorkout}
       >
-        <Text style={styles.logPastButtonText}>Log Past Workout</Text>
+        <Text style={[styles.logPastButtonText, { color: colors.success }]}>Log Past Workout</Text>
       </Pressable>
     </Animated.View>
   );
@@ -236,6 +253,7 @@ function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) 
 
 // Animated Date Header Component
 function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: () => void }) {
+  const { colors } = useTheme();
   const formattedDate = format(date, 'EEEE, MMMM d');
 
   return (
@@ -244,12 +262,12 @@ function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: 
       entering={FadeIn.duration(200)}
       style={styles.dateHeader}
     >
-      <Text style={styles.dateHeaderText}>{formattedDate}</Text>
+      <Text style={[styles.dateHeaderText, { color: colors.textSecondary }]}>{formattedDate}</Text>
       <Pressable
         style={({ pressed }) => [styles.logWorkoutButton, pressed && styles.logWorkoutButtonPressed]}
         onPress={onLogPastWorkout}
       >
-        <Text style={styles.logWorkoutButtonText}>Log Workout</Text>
+        <Text style={[styles.logWorkoutButtonText, { color: colors.success }]}>Log Workout</Text>
       </Pressable>
     </Animated.View>
   );
@@ -258,6 +276,7 @@ function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: 
 export default function HistoryScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
+  const { colors, isDark } = useTheme();
   const localSessions = useWorkoutStore((s) => s.completedSessions);
   const [remoteSessions, setRemoteSessions] = useState<WorkoutSession[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
@@ -361,8 +380,19 @@ export default function HistoryScreen() {
   const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
   const displayedMonthKey = format(displayedMonth, 'yyyy-MM-dd');
 
+  // Theme-aware calendar card style
+  const calendarCardTheme = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+  };
+
+  const calendarHeaderTheme = {
+    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -371,13 +401,13 @@ export default function HistoryScreen() {
         </View>
 
         <View style={styles.titleContainer}>
-          <Text style={styles.sectionTitle}>History</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
         </View>
 
         {isLoading && allSessions.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={Colors.success} />
-            <Text style={styles.loadingText}>Loading history...</Text>
+            <ActivityIndicator size="small" color={colors.success} />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading history...</Text>
           </View>
         ) : allSessions.length === 0 ? (
           <EmptyState />
@@ -388,7 +418,7 @@ export default function HistoryScreen() {
             renderItem={({ item }) => <WorkoutHistoryCard session={item} onPress={() => handleCardPress(item)} />}
             ListHeaderComponent={
               <>
-                <View style={styles.calendarCard}>
+                <View style={[styles.calendarCard, calendarCardTheme]}>
                   <Calendar
                     key={displayedMonthKey}
                     current={displayedMonthKey}
@@ -396,11 +426,11 @@ export default function HistoryScreen() {
                     onMonthChange={handleMonthChange}
                     theme={{
                       calendarBackground: 'transparent',
-                      monthTextColor: Colors.textPrimary,
+                      monthTextColor: colors.textPrimary,
                       textMonthFontFamily: 'BankGothicBT-Medium',
                       textMonthFontSize: 20,
-                      arrowColor: Colors.success,
-                      textSectionTitleColor: Colors.textSecondary,
+                      arrowColor: colors.success,
+                      textSectionTitleColor: colors.textSecondary,
                       textDayHeaderFontSize: 11,
                       textDayHeaderFontWeight: '600' as const,
                     }}
@@ -408,11 +438,12 @@ export default function HistoryScreen() {
                       <Pressable
                         style={({ pressed }) => [
                           styles.calendarHeader,
+                          calendarHeaderTheme,
                           pressed && styles.calendarHeaderPressed,
                         ]}
                         onPress={openDateSelector}
                       >
-                        <Text style={styles.calendarHeaderText}>
+                        <Text style={[styles.calendarHeaderText, { color: colors.textPrimary }]}>
                           {format(new Date(date), 'MMMM yyyy')}
                         </Text>
                       </Pressable>
@@ -443,8 +474,8 @@ export default function HistoryScreen() {
               <RefreshControl
                 refreshing={isRefreshing}
                 onRefresh={onRefresh}
-                tintColor={Colors.success}
-                colors={[Colors.success]}
+                tintColor={colors.success}
+                colors={[colors.success]}
               />
             }
           />

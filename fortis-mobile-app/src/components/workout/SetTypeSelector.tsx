@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { SetType } from '@/src/types/workout';
@@ -29,7 +29,29 @@ export function SetTypeSelector({
   anchorPosition,
   hideFailure = false,
 }: SetTypeSelectorProps) {
+  const { colors, isDark } = useTheme();
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: colors.background,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    optionSelected: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    optionPressed: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    label: { color: colors.textSecondary },
+    labelSelected: { color: colors.textPrimary },
+    duration: { color: colors.textTertiary },
+    divider: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    removeLabel: { color: colors.error },
+  };
 
   // Format seconds to display string
   const formatDuration = (seconds: number) => {
@@ -104,7 +126,7 @@ export function SetTypeSelector({
             },
           ]}
         >
-          <View style={styles.container}>
+          <View style={[styles.container, themedStyles.container]}>
             <StainlessSteelPattern />
 
             <View style={styles.content}>
@@ -114,8 +136,8 @@ export function SetTypeSelector({
                   onPress={() => handleSelect(option.type)}
                   style={({ pressed }) => [
                     styles.option,
-                    currentType === option.type && styles.optionSelected,
-                    pressed && styles.optionPressed,
+                    currentType === option.type && themedStyles.optionSelected,
+                    pressed && themedStyles.optionPressed,
                   ]}
                 >
                   <Text style={[styles.icon, { color: option.color }]}>
@@ -123,29 +145,30 @@ export function SetTypeSelector({
                   </Text>
                   <Text style={[
                     styles.label,
-                    currentType === option.type && styles.labelSelected
+                    themedStyles.label,
+                    currentType === option.type && themedStyles.labelSelected
                   ]}>
                     {option.label}
                   </Text>
-                  <Text style={styles.duration}>
+                  <Text style={[styles.duration, themedStyles.duration]}>
                     {formatDuration(option.duration)}
                   </Text>
                 </Pressable>
               ))}
 
               {/* Divider */}
-              <View style={styles.divider} />
+              <View style={[styles.divider, themedStyles.divider]} />
 
               {/* Remove option */}
               <Pressable
                 onPress={handleRemove}
                 style={({ pressed }) => [
                   styles.option,
-                  pressed && styles.optionPressed,
+                  pressed && themedStyles.optionPressed,
                 ]}
               >
-                <Trash2 size={16} color={Colors.error} strokeWidth={2} />
-                <Text style={[styles.label, styles.removeLabel]}>Remove</Text>
+                <Trash2 size={16} color={colors.error} strokeWidth={2} />
+                <Text style={[styles.label, themedStyles.removeLabel]}>Remove</Text>
               </Pressable>
             </View>
           </View>

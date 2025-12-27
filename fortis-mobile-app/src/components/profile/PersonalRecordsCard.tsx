@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { TrophyIcon } from 'react-native-heroicons/outline';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { format } from 'date-fns';
@@ -15,19 +15,24 @@ interface PRRowProps {
   reps: number;
   date: Date;
   unit: string;
+  colors: ReturnType<typeof useTheme>['colors'];
+  isDark: boolean;
 }
 
-function PRRow({ rank, exerciseName, weight, reps, date, unit }: PRRowProps) {
+function PRRow({ rank, exerciseName, weight, reps, date, unit, colors, isDark }: PRRowProps) {
   return (
     <View style={styles.prRow}>
-      <View style={styles.rankBadge}>
-        <Text style={styles.rankText}>{rank}</Text>
+      <View style={[
+        styles.rankBadge,
+        { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)' }
+      ]}>
+        <Text style={[styles.rankText, { color: colors.textSecondary }]}>{rank}</Text>
       </View>
       <View style={styles.prInfo}>
-        <Text style={styles.exerciseName} numberOfLines={1}>
+        <Text style={[styles.exerciseName, { color: colors.textPrimary }]} numberOfLines={1}>
           {exerciseName}
         </Text>
-        <Text style={styles.prDetails}>
+        <Text style={[styles.prDetails, { color: colors.textSecondary }]}>
           {weight} {unit} × {reps} reps • {format(date, 'MMM d')}
         </Text>
       </View>
@@ -47,19 +52,30 @@ function PRRow({ rank, exerciseName, weight, reps, date, unit }: PRRowProps) {
  */
 export function PersonalRecordsCard() {
   const { profile } = useAuth();
+  const { colors, isDark } = useTheme();
   const prs = useTopPersonalRecords(5);
   const units = profile?.preferred_units || 'imperial';
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
 
+  // Theme-aware card styles
+  const cardStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const dividerStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionHeader}>Personal Records</Text>
+    <View style={[styles.container, cardStyle]}>
+      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Personal Records</Text>
 
       {prs.length === 0 ? (
         <View style={styles.emptyState}>
-          <TrophyIcon color={Colors.textSecondary} size={32} strokeWidth={1.5} />
-          <Text style={styles.emptyStateText}>No PRs yet</Text>
-          <Text style={styles.emptyStateSubtext}>
+          <TrophyIcon color={colors.textSecondary} size={32} strokeWidth={1.5} />
+          <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>No PRs yet</Text>
+          <Text style={[styles.emptyStateSubtext, { color: colors.textTertiary }]}>
             Complete workouts to track your heaviest lifts
           </Text>
         </View>
@@ -74,8 +90,10 @@ export function PersonalRecordsCard() {
                 reps={pr.reps}
                 date={pr.date}
                 unit={unitLabel}
+                colors={colors}
+                isDark={isDark}
               />
-              {index < prs.length - 1 && <View style={styles.divider} />}
+              {index < prs.length - 1 && <View style={[styles.divider, dividerStyle]} />}
             </React.Fragment>
           ))}
         </View>
@@ -86,15 +104,12 @@ export function PersonalRecordsCard() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: Spacing.xl,
   },
   sectionHeader: {
     ...Typography.caption,
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: Spacing.lg,
@@ -111,14 +126,12 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
   rankText: {
     ...Typography.caption,
-    color: Colors.textSecondary,
     fontWeight: '700',
   },
   prInfo: {
@@ -127,16 +140,13 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     ...Typography.body,
-    color: Colors.textPrimary,
     marginBottom: 2,
   },
   prDetails: {
     ...Typography.caption,
-    color: Colors.textSecondary,
   },
   divider: {
     height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   emptyState: {
     alignItems: 'center',
@@ -144,13 +154,11 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     ...Typography.body,
-    color: Colors.textSecondary,
     marginTop: Spacing.md,
     marginBottom: Spacing.xs,
   },
   emptyStateSubtext: {
     ...Typography.caption,
-    color: Colors.textTertiary,
     textAlign: 'center',
   },
 });

@@ -20,7 +20,7 @@ import {
   PlusIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -44,6 +44,7 @@ interface BodyMetric {
 export default function GoalsScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  const { colors, isDark } = useTheme();
   const [goals, setGoals] = useState<UserGoal[]>([]);
   const [latestWeight, setLatestWeight] = useState<BodyMetric | null>(null);
   const [weightInput, setWeightInput] = useState('');
@@ -214,21 +215,59 @@ export default function GoalsScreen() {
     );
   };
 
+  // Theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    headerBorder: { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)' },
+    headerTitle: { color: colors.textPrimary },
+    sectionHeader: { color: colors.textSecondary },
+    card: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    cardLabel: { color: colors.textPrimary },
+    weightInput: {
+      color: colors.textPrimary,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    helperText: { color: colors.textTertiary },
+    goalTitle: { color: colors.textPrimary },
+    goalSubtitle: { color: colors.textTertiary },
+    goalDescription: { color: colors.textSecondary },
+    emptyTitle: { color: colors.textPrimary },
+    emptyText: { color: colors.textSecondary },
+    loadingText: { color: colors.textSecondary },
+    modalCard: {
+      backgroundColor: isDark ? colors.background : colors.card,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    modalTitle: { color: colors.textPrimary },
+    modalLabel: { color: colors.textSecondary },
+    modalInput: {
+      color: colors.textPrimary,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    secondaryButton: { borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)' },
+    secondaryButtonText: { color: colors.textSecondary },
+    toggleOff: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)' },
+    toggleText: { color: colors.textSecondary },
+  };
+
   if (!isSupabaseConfigured()) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, themedStyles.container]}>
         <StainlessSteelPattern />
         <SafeAreaView style={styles.safeArea} edges={['top']}>
-          <View style={styles.header}>
+          <View style={[styles.header, themedStyles.headerBorder]}>
             <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-              <ChevronLeftIcon color={Colors.textPrimary} size={24} strokeWidth={2} />
+              <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Goals & Metrics</Text>
+            <Text style={[styles.headerTitle, themedStyles.headerTitle]}>Goals & Metrics</Text>
             <View style={styles.headerSpacer} />
           </View>
           <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>Supabase not configured</Text>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyTitle, themedStyles.emptyTitle]}>Supabase not configured</Text>
+            <Text style={[styles.emptyText, themedStyles.emptyText]}>
               Connect Supabase to save goals and metrics.
             </Text>
           </View>
@@ -238,14 +277,14 @@ export default function GoalsScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.header}>
+        <View style={[styles.header, themedStyles.headerBorder]}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <ChevronLeftIcon color={Colors.textPrimary} size={24} strokeWidth={2} />
+            <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Goals & Metrics</Text>
+          <Text style={[styles.headerTitle, themedStyles.headerTitle]}>Goals & Metrics</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -255,18 +294,18 @@ export default function GoalsScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>Body Weight</Text>
-            <View style={styles.card}>
-              <Text style={styles.cardLabel}>
+            <Text style={[styles.sectionHeader, themedStyles.sectionHeader]}>Body Weight</Text>
+            <View style={[styles.card, themedStyles.card]}>
+              <Text style={[styles.cardLabel, themedStyles.cardLabel]}>
                 Latest: {latestWeight ? `${latestWeight.weight} ${latestWeight.unit}` : 'No entry yet'}
               </Text>
               <View style={styles.inlineRow}>
                 <TextInput
-                  style={styles.weightInput}
+                  style={[styles.weightInput, themedStyles.weightInput]}
                   value={weightInput}
                   onChangeText={setWeightInput}
                   placeholder={`Weight (${unitLabel})`}
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   keyboardType="decimal-pad"
                 />
                 <TouchableOpacity
@@ -275,13 +314,13 @@ export default function GoalsScreen() {
                   disabled={isSavingWeight}
                 >
                   {isSavingWeight ? (
-                    <ActivityIndicator color={Colors.white} size="small" />
+                    <ActivityIndicator color={colors.white} size="small" />
                   ) : (
                     <Text style={styles.primaryButtonText}>Save</Text>
                   )}
                 </TouchableOpacity>
               </View>
-              <Text style={styles.helperText}>
+              <Text style={[styles.helperText, themedStyles.helperText]}>
                 Used for AI personalization and progress analysis.
               </Text>
             </View>
@@ -289,7 +328,7 @@ export default function GoalsScreen() {
 
           <View style={styles.section}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionHeader}>Goals</Text>
+              <Text style={[styles.sectionHeader, themedStyles.sectionHeader]}>Goals</Text>
               <TouchableOpacity
                 style={styles.addButton}
                 onPress={() => {
@@ -297,41 +336,41 @@ export default function GoalsScreen() {
                   setGoalModalVisible(true);
                 }}
               >
-                <PlusIcon color={Colors.success} size={16} strokeWidth={2} />
+                <PlusIcon color={colors.success} size={16} strokeWidth={2} />
                 <Text style={styles.addButtonText}>Add Goal</Text>
               </TouchableOpacity>
             </View>
 
             {isLoading ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color={Colors.success} size="small" />
-                <Text style={styles.loadingText}>Loading goals...</Text>
+                <ActivityIndicator color={colors.success} size="small" />
+                <Text style={[styles.loadingText, themedStyles.loadingText]}>Loading goals...</Text>
               </View>
             ) : goals.length === 0 ? (
-              <View style={styles.card}>
-                <Text style={styles.emptyText}>No goals yet. Add one to personalize the AI.</Text>
+              <View style={[styles.card, themedStyles.card]}>
+                <Text style={[styles.emptyText, themedStyles.emptyText]}>No goals yet. Add one to personalize the AI.</Text>
               </View>
             ) : (
               goals.map((goal) => (
-                <View key={goal.id} style={styles.goalCard}>
+                <View key={goal.id} style={[styles.goalCard, themedStyles.card]}>
                   <View style={styles.goalHeader}>
                     <View style={styles.goalMeta}>
-                      <Text style={styles.goalTitle}>{goal.goal_name}</Text>
-                      <Text style={styles.goalSubtitle}>
+                      <Text style={[styles.goalTitle, themedStyles.goalTitle]}>{goal.goal_name}</Text>
+                      <Text style={[styles.goalSubtitle, themedStyles.goalSubtitle]}>
                         Priority {goal.priority} • {goal.is_active ? 'Active' : 'Paused'}
                       </Text>
                     </View>
                     <View style={styles.goalActions}>
                       <TouchableOpacity onPress={() => openEditGoal(goal)}>
-                        <PencilSquareIcon color={Colors.textSecondary} size={18} strokeWidth={2} />
+                        <PencilSquareIcon color={colors.textSecondary} size={18} strokeWidth={2} />
                       </TouchableOpacity>
                       <TouchableOpacity onPress={() => handleDeleteGoal(goal)}>
-                        <TrashIcon color={Colors.error} size={18} strokeWidth={2} />
+                        <TrashIcon color={colors.error} size={18} strokeWidth={2} />
                       </TouchableOpacity>
                     </View>
                   </View>
                   {goal.description ? (
-                    <Text style={styles.goalDescription}>{goal.description}</Text>
+                    <Text style={[styles.goalDescription, themedStyles.goalDescription]}>{goal.description}</Text>
                   ) : null}
                 </View>
               ))
@@ -351,49 +390,49 @@ export default function GoalsScreen() {
               resetGoalForm();
             }}
           />
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>
+          <View style={[styles.modalCard, themedStyles.modalCard]}>
+            <Text style={[styles.modalTitle, themedStyles.modalTitle]}>
               {editingGoalId ? 'Edit Goal' : 'New Goal'}
             </Text>
-            <Text style={styles.modalLabel}>Goal name</Text>
+            <Text style={[styles.modalLabel, themedStyles.modalLabel]}>Goal name</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, themedStyles.modalInput]}
               value={goalForm.name}
               onChangeText={(text) => setGoalForm((prev) => ({ ...prev, name: text }))}
               placeholder="e.g. Build strength baseline"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
             />
-            <Text style={styles.modalLabel}>Description</Text>
+            <Text style={[styles.modalLabel, themedStyles.modalLabel]}>Description</Text>
             <TextInput
-              style={[styles.modalInput, styles.modalTextarea]}
+              style={[styles.modalInput, styles.modalTextarea, themedStyles.modalInput]}
               value={goalForm.description}
               onChangeText={(text) => setGoalForm((prev) => ({ ...prev, description: text }))}
               placeholder="Optional details or constraints"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               multiline
             />
             <View style={styles.modalRow}>
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Priority</Text>
+                <Text style={[styles.modalLabel, themedStyles.modalLabel]}>Priority</Text>
                 <TextInput
-                  style={styles.modalInput}
+                  style={[styles.modalInput, themedStyles.modalInput]}
                   value={goalForm.priority}
                   onChangeText={(text) => setGoalForm((prev) => ({ ...prev, priority: text }))}
                   keyboardType="number-pad"
                 />
               </View>
               <View style={styles.modalField}>
-                <Text style={styles.modalLabel}>Active</Text>
+                <Text style={[styles.modalLabel, themedStyles.modalLabel]}>Active</Text>
                 <TouchableOpacity
                   style={[
                     styles.toggleButton,
-                    goalForm.isActive ? styles.toggleOn : styles.toggleOff,
+                    goalForm.isActive ? styles.toggleOn : themedStyles.toggleOff,
                   ]}
                   onPress={() =>
                     setGoalForm((prev) => ({ ...prev, isActive: !prev.isActive }))
                   }
                 >
-                  <Text style={styles.toggleText}>
+                  <Text style={[styles.toggleText, themedStyles.toggleText]}>
                     {goalForm.isActive ? 'Yes' : 'No'}
                   </Text>
                 </TouchableOpacity>
@@ -402,13 +441,13 @@ export default function GoalsScreen() {
 
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.secondaryButton}
+                style={[styles.secondaryButton, themedStyles.secondaryButton]}
                 onPress={() => {
                   setGoalModalVisible(false);
                   resetGoalForm();
                 }}
               >
-                <Text style={styles.secondaryButtonText}>Cancel</Text>
+                <Text style={[styles.secondaryButtonText, themedStyles.secondaryButtonText]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.primaryButton}
@@ -416,7 +455,7 @@ export default function GoalsScreen() {
                 disabled={isSavingGoal}
               >
                 {isSavingGoal ? (
-                  <ActivityIndicator color={Colors.white} size="small" />
+                  <ActivityIndicator color={colors.white} size="small" />
                 ) : (
                   <Text style={styles.primaryButtonText}>Save</Text>
                 )}

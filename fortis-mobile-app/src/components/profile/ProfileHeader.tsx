@@ -13,6 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWeeklyActivity } from '@/src/hooks/useWeeklyActivity';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
@@ -45,21 +46,25 @@ function formatVolume(volume: number): string {
  * Simple bar chart fallback when Skia is not available
  */
 function SimpleBarsView({ data }: { data: Array<{ day: string; volume: number }> }) {
+  const { colors, isDark } = useTheme();
   const maxVolume = Math.max(...data.map(d => d.volume), 1);
 
   return (
     <View style={styles.simpleBarsContainer}>
       {data.map((item, index) => (
         <View key={index} style={styles.simpleBarWrapper}>
-          <View style={styles.simpleBarTrack}>
+          <View style={[
+            styles.simpleBarTrack,
+            { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }
+          ]}>
             <View
               style={[
                 styles.simpleBar,
-                { height: `${(item.volume / maxVolume) * 100}%` }
+                { height: `${(item.volume / maxVolume) * 100}%`, backgroundColor: colors.success }
               ]}
             />
           </View>
-          <Text style={styles.simpleBarLabel}>{item.day}</Text>
+          <Text style={[styles.simpleBarLabel, { color: colors.textSecondary }]}>{item.day}</Text>
         </View>
       ))}
     </View>
@@ -72,6 +77,7 @@ function SimpleBarsView({ data }: { data: Array<{ day: string; volume: number }>
  */
 export function ProfileHeader() {
   const { user, profile, updateProfile, uploadAvatar } = useAuth();
+  const { colors, isDark } = useTheme();
   const weeklyData = useWeeklyActivity();
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(profile?.full_name || '');
@@ -160,8 +166,22 @@ export function ProfileHeader() {
     }
   };
 
+  // Theme-aware card styles
+  const cardStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const inputStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+  };
+
+  const dividerStyle = {
+    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, cardStyle]}>
       {/* Top row: Avatar + User Info */}
       <View style={styles.topRow}>
         {/* Avatar */}
@@ -173,15 +193,15 @@ export function ProfileHeader() {
         >
           {isUploadingAvatar ? (
             <View style={styles.avatarLoading}>
-              <ActivityIndicator color={Colors.success} size="small" />
+              <ActivityIndicator color={colors.success} size="small" />
             </View>
           ) : profile?.avatar_url ? (
             <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
           ) : (
-            <UserCircleIcon color={Colors.success} size={56} strokeWidth={1} />
+            <UserCircleIcon color={colors.success} size={56} strokeWidth={1} />
           )}
-          <View style={styles.cameraIconBadge}>
-            <CameraIcon color={Colors.white} size={12} strokeWidth={2.5} />
+          <View style={[styles.cameraIconBadge, { borderColor: colors.background }]}>
+            <CameraIcon color={colors.white} size={12} strokeWidth={2.5} />
           </View>
         </TouchableOpacity>
 
@@ -191,13 +211,13 @@ export function ProfileHeader() {
             <View style={styles.nameEditContainer}>
               <TextInput
                 ref={nameInputRef}
-                style={styles.nameInput}
+                style={[styles.nameInput, inputStyle, { color: colors.textPrimary }]}
                 value={editedName}
                 onChangeText={setEditedName}
                 onBlur={handleNameBlur}
                 onSubmitEditing={handleNameSave}
                 placeholder="Enter your name"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
                 autoCapitalize="words"
                 autoCorrect={false}
                 returnKeyType="done"
@@ -209,9 +229,9 @@ export function ProfileHeader() {
                 disabled={isSavingName}
               >
                 {isSavingName ? (
-                  <ActivityIndicator color={Colors.success} size="small" />
+                  <ActivityIndicator color={colors.success} size="small" />
                 ) : (
-                  <CheckIcon color={Colors.success} size={20} strokeWidth={2.5} />
+                  <CheckIcon color={colors.success} size={20} strokeWidth={2.5} />
                 )}
               </TouchableOpacity>
             </View>
@@ -221,29 +241,29 @@ export function ProfileHeader() {
               onPress={handleNamePress}
               activeOpacity={0.7}
             >
-              <Text style={styles.userName}>
+              <Text style={[styles.userName, { color: colors.textPrimary }]}>
                 {profile?.full_name || 'Tap to add name'}
               </Text>
-              <PencilIcon color={Colors.textSecondary} size={14} strokeWidth={2} />
+              <PencilIcon color={colors.textSecondary} size={14} strokeWidth={2} />
             </TouchableOpacity>
           )}
 
-          <Text style={styles.userEmail}>{user?.email}</Text>
+          <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
         </View>
       </View>
 
       {/* Weekly Activity Chart */}
-      <View style={styles.chartSection}>
+      <View style={[styles.chartSection, dividerStyle]}>
         <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>Weekly Activity</Text>
+          <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Weekly Activity</Text>
           {hasActivity && (
-            <Text style={styles.unitLabel}>{unitLabel}</Text>
+            <Text style={[styles.unitLabel, { color: colors.textSecondary }]}>{unitLabel}</Text>
           )}
         </View>
 
         {!hasActivity ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No workouts this week</Text>
+            <Text style={[styles.emptyStateText, { color: colors.textTertiary }]}>No workouts this week</Text>
           </View>
         ) : !ChartsAvailable ? (
           <SimpleBarsView data={chartData} />
@@ -257,9 +277,9 @@ export function ProfileHeader() {
               domainPadding={{ top: 20, bottom: 10, left: 20, right: 20 }}
               axisOptions={{
                 tickCount: { x: 7, y: 4 },
-                labelColor: Colors.textSecondary,
+                labelColor: colors.textSecondary,
                 lineColor: {
-                  grid: { x: 'transparent', y: 'rgba(255,255,255,0.08)' },
+                  grid: { x: 'transparent', y: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
                   frame: 'transparent',
                 },
                 formatXLabel: (value: number) => chartData[value]?.day || '',
@@ -270,7 +290,7 @@ export function ProfileHeader() {
                 <Bar
                   points={points.volume}
                   chartBounds={chartBounds}
-                  color={Colors.success}
+                  color={colors.success}
                   barWidth={24}
                   roundedCorners={{ topLeft: 4, topRight: 4 }}
                   animate={{ type: 'timing', duration: 500 }}
@@ -286,10 +306,8 @@ export function ProfileHeader() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: Spacing.xl,
   },
   topRow: {
@@ -325,11 +343,10 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.success,
+    backgroundColor: '#22c55e', // colors.success - static for performance
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: Colors.background,
   },
   userInfo: {
     flex: 1,
@@ -342,7 +359,6 @@ const styles = StyleSheet.create({
   },
   userName: {
     ...Typography.h3,
-    color: Colors.textPrimary,
   },
   nameEditContainer: {
     flexDirection: 'row',
@@ -352,8 +368,6 @@ const styles = StyleSheet.create({
   nameInput: {
     flex: 1,
     ...Typography.h3,
-    color: Colors.textPrimary,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -369,14 +383,12 @@ const styles = StyleSheet.create({
   },
   userEmail: {
     ...Typography.caption,
-    color: Colors.textSecondary,
   },
   // Chart section
   chartSection: {
     marginTop: Spacing.xl,
     paddingTop: Spacing.lg,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   chartHeader: {
     flexDirection: 'row',
@@ -386,13 +398,11 @@ const styles = StyleSheet.create({
   },
   chartTitle: {
     ...Typography.caption,
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
   unitLabel: {
     ...Typography.caption,
-    color: Colors.textSecondary,
   },
   chartContainer: {
     height: 160,
@@ -404,7 +414,6 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     ...Typography.caption,
-    color: Colors.textTertiary,
   },
   // Simple bars fallback
   simpleBarsContainer: {
@@ -421,20 +430,17 @@ const styles = StyleSheet.create({
   simpleBarTrack: {
     width: 20,
     height: 80,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: BorderRadius.sm,
     justifyContent: 'flex-end',
     overflow: 'hidden',
   },
   simpleBar: {
     width: '100%',
-    backgroundColor: Colors.success,
     borderTopLeftRadius: BorderRadius.sm,
     borderTopRightRadius: BorderRadius.sm,
   },
   simpleBarLabel: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
     marginTop: Spacing.sm,
   },
 });

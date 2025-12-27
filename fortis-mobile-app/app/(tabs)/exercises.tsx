@@ -7,9 +7,11 @@ import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 export default function ExercisesScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -84,6 +86,29 @@ export default function ExercisesScreen() {
     return Array.from(equipment).sort();
   }, [allExercises]);
 
+  // Theme-aware styles
+  const searchWrapperTheme = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+  };
+
+  const filterButtonTheme = {
+    backgroundColor: isDark ? '#2C2C2E' : 'rgba(0,0,0,0.06)',
+  };
+
+  const exerciseCardTheme = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const popoverTheme = {
+    backgroundColor: isDark ? '#0a0a0a' : '#FFFFFF',
+    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+  };
+
+  const popoverHeaderBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
+  const muscleOptionBorder = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
+
   const filteredExercises = allExercises.filter(exercise => {
     const matchesSearch =
       exercise.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -137,16 +162,16 @@ export default function ExercisesScreen() {
 
   const renderExerciseCard = ({ item }: { item: Exercise }) => (
     <TouchableOpacity
-      style={styles.exerciseCard}
+      style={[styles.exerciseCard, exerciseCardTheme]}
       onPress={() => handleExercisePress(item.id)}
       activeOpacity={0.7}
     >
       <View style={styles.exerciseCardContent}>
-        <Text style={styles.exerciseName} numberOfLines={1}>
+        <Text style={[styles.exerciseName, { color: colors.textSecondary }]} numberOfLines={1}>
           {item.name}
         </Text>
         {item.primaryMuscles && item.primaryMuscles.length > 0 && (
-          <Text style={styles.exerciseMetaText} numberOfLines={1}>
+          <Text style={[styles.exerciseMetaText, { color: colors.textTertiary }]} numberOfLines={1}>
             {item.primaryMuscles.join(', ')}
           </Text>
         )}
@@ -155,7 +180,7 @@ export default function ExercisesScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -166,17 +191,17 @@ export default function ExercisesScreen() {
 
         {/* Title */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Exercises</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Exercises</Text>
         </View>
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
-          <View style={styles.searchWrapper}>
-            <MagnifyingGlassIcon color="#9CA3AF" size={20} style={styles.searchIcon} />
+          <View style={[styles.searchWrapper, searchWrapperTheme]}>
+            <MagnifyingGlassIcon color={colors.textTertiary} size={20} style={styles.searchIcon} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.textSecondary }]}
               placeholder="Search exercises..."
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textTertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
@@ -188,10 +213,10 @@ export default function ExercisesScreen() {
         {/* Filter Buttons */}
         <View style={styles.filterContainer}>
           <TouchableOpacity
-            style={styles.filterButton}
+            style={[styles.filterButton, filterButtonTheme]}
             onPress={() => setShowMuscleModal(true)}
           >
-            <Text style={styles.filterButtonText} numberOfLines={1}>
+            <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
               {selectedMuscles.length > 0
                 ? `${selectedMuscles.length} Body Part${selectedMuscles.length > 1 ? 's' : ''}`
                 : 'Any Muscle Group'}
@@ -199,10 +224,10 @@ export default function ExercisesScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.filterButton}
+            style={[styles.filterButton, filterButtonTheme]}
             onPress={() => setShowCategoryModal(true)}
           >
-            <Text style={styles.filterButtonText} numberOfLines={1}>
+            <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
               {selectedCategories.length > 0
                 ? `${selectedCategories.length} Categor${selectedCategories.length > 1 ? 'ies' : 'y'}`
                 : 'Any Category'}
@@ -210,24 +235,24 @@ export default function ExercisesScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.filterButton}
+            style={[styles.filterButton, filterButtonTheme]}
             onPress={() => setShowEquipmentModal(true)}
           >
-            <Text style={styles.filterButtonText} numberOfLines={1}>
+            <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
               {selectedEquipment.length > 0
                 ? `${selectedEquipment.length} Equipment`
                 : 'Any Equipment'}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.sortButton}>
-            <ArrowsUpDownIcon color="#9CA3AF" size={20} strokeWidth={2} />
+          <TouchableOpacity style={[styles.sortButton, filterButtonTheme]}>
+            <ArrowsUpDownIcon color={colors.textTertiary} size={20} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
         {/* Exercise Count */}
         <View style={styles.countContainer}>
-          <Text style={styles.countText}>
+          <Text style={[styles.countText, { color: colors.textTertiary }]}>
             {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'}
           </Text>
         </View>
@@ -252,18 +277,18 @@ export default function ExercisesScreen() {
           pointerEvents={showMuscleModal ? 'auto' : 'none'}
         >
           <TouchableOpacity
-            style={styles.popoverBackdrop}
+            style={[styles.popoverBackdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)' }]}
             activeOpacity={1}
             onPress={() => setShowMuscleModal(false)}
           />
-          <Animated.View style={[styles.popoverContent, styles.popoverRight, {
+          <Animated.View style={[styles.popoverContent, styles.popoverRight, popoverTheme, {
             transform: [{ scale: filterPopoverScale }]
           }]}>
             <StainlessSteelPattern />
 
             {/* Popover Header */}
-            <View style={styles.popoverHeader}>
-              <Text style={styles.popoverTitle}>Filter by Muscle Group</Text>
+            <View style={[styles.popoverHeader, { borderBottomColor: popoverHeaderBorder }]}>
+              <Text style={[styles.popoverTitle, { color: colors.textSecondary }]}>Filter by Muscle Group</Text>
             </View>
 
             {/* Clear All Button */}
@@ -272,7 +297,7 @@ export default function ExercisesScreen() {
                 onPress={() => setSelectedMuscles([])}
                 style={styles.clearButton}
               >
-                <Text style={styles.clearButtonText}>Clear All</Text>
+                <Text style={[styles.clearButtonText, { color: colors.success }]}>Clear All</Text>
               </TouchableOpacity>
             )}
 
@@ -283,6 +308,7 @@ export default function ExercisesScreen() {
                   key={muscle}
                   style={[
                     styles.muscleOption,
+                    { borderBottomColor: muscleOptionBorder },
                     selectedMuscles.includes(muscle) && styles.muscleOptionSelected
                   ]}
                   onPress={() => toggleMuscle(muscle)}
@@ -290,13 +316,14 @@ export default function ExercisesScreen() {
                   <Text
                     style={[
                       styles.muscleOptionText,
-                      selectedMuscles.includes(muscle) && styles.muscleOptionTextSelected
+                      { color: colors.textSecondary },
+                      selectedMuscles.includes(muscle) && { color: colors.success, fontWeight: '600' }
                     ]}
                   >
                     {muscle}
                   </Text>
                   {selectedMuscles.includes(muscle) && (
-                    <View style={styles.checkmark}>
+                    <View style={[styles.checkmark, { backgroundColor: colors.success }]}>
                       <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                   )}
@@ -314,18 +341,18 @@ export default function ExercisesScreen() {
           pointerEvents={showCategoryModal ? 'auto' : 'none'}
         >
           <TouchableOpacity
-            style={styles.popoverBackdrop}
+            style={[styles.popoverBackdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)' }]}
             activeOpacity={1}
             onPress={() => setShowCategoryModal(false)}
           />
-          <Animated.View style={[styles.popoverContent, styles.popoverRight, {
+          <Animated.View style={[styles.popoverContent, styles.popoverRight, popoverTheme, {
             transform: [{ scale: filterPopoverScale }]
           }]}>
             <StainlessSteelPattern />
 
             {/* Popover Header */}
-            <View style={styles.popoverHeader}>
-              <Text style={styles.popoverTitle}>Filter by Category</Text>
+            <View style={[styles.popoverHeader, { borderBottomColor: popoverHeaderBorder }]}>
+              <Text style={[styles.popoverTitle, { color: colors.textSecondary }]}>Filter by Category</Text>
             </View>
 
             {/* Clear All Button */}
@@ -334,7 +361,7 @@ export default function ExercisesScreen() {
                 onPress={() => setSelectedCategories([])}
                 style={styles.clearButton}
               >
-                <Text style={styles.clearButtonText}>Clear All</Text>
+                <Text style={[styles.clearButtonText, { color: colors.success }]}>Clear All</Text>
               </TouchableOpacity>
             )}
 
@@ -345,6 +372,7 @@ export default function ExercisesScreen() {
                   key={category}
                   style={[
                     styles.muscleOption,
+                    { borderBottomColor: muscleOptionBorder },
                     selectedCategories.includes(category) && styles.muscleOptionSelected
                   ]}
                   onPress={() => toggleCategory(category)}
@@ -352,13 +380,14 @@ export default function ExercisesScreen() {
                   <Text
                     style={[
                       styles.muscleOptionText,
-                      selectedCategories.includes(category) && styles.muscleOptionTextSelected
+                      { color: colors.textSecondary },
+                      selectedCategories.includes(category) && { color: colors.success, fontWeight: '600' }
                     ]}
                   >
                     {category}
                   </Text>
                   {selectedCategories.includes(category) && (
-                    <View style={styles.checkmark}>
+                    <View style={[styles.checkmark, { backgroundColor: colors.success }]}>
                       <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                   )}
@@ -376,18 +405,18 @@ export default function ExercisesScreen() {
           pointerEvents={showEquipmentModal ? 'auto' : 'none'}
         >
           <TouchableOpacity
-            style={styles.popoverBackdrop}
+            style={[styles.popoverBackdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)' }]}
             activeOpacity={1}
             onPress={() => setShowEquipmentModal(false)}
           />
-          <Animated.View style={[styles.popoverContent, styles.popoverRight, {
+          <Animated.View style={[styles.popoverContent, styles.popoverRight, popoverTheme, {
             transform: [{ scale: filterPopoverScale }]
           }]}>
             <StainlessSteelPattern />
 
             {/* Popover Header */}
-            <View style={styles.popoverHeader}>
-              <Text style={styles.popoverTitle}>Filter by Equipment</Text>
+            <View style={[styles.popoverHeader, { borderBottomColor: popoverHeaderBorder }]}>
+              <Text style={[styles.popoverTitle, { color: colors.textSecondary }]}>Filter by Equipment</Text>
             </View>
 
             {/* Clear All Button */}
@@ -396,7 +425,7 @@ export default function ExercisesScreen() {
                 onPress={() => setSelectedEquipment([])}
                 style={styles.clearButton}
               >
-                <Text style={styles.clearButtonText}>Clear All</Text>
+                <Text style={[styles.clearButtonText, { color: colors.success }]}>Clear All</Text>
               </TouchableOpacity>
             )}
 
@@ -407,6 +436,7 @@ export default function ExercisesScreen() {
                   key={equipment}
                   style={[
                     styles.muscleOption,
+                    { borderBottomColor: muscleOptionBorder },
                     selectedEquipment.includes(equipment) && styles.muscleOptionSelected
                   ]}
                   onPress={() => toggleEquipment(equipment)}
@@ -414,13 +444,14 @@ export default function ExercisesScreen() {
                   <Text
                     style={[
                       styles.muscleOptionText,
-                      selectedEquipment.includes(equipment) && styles.muscleOptionTextSelected
+                      { color: colors.textSecondary },
+                      selectedEquipment.includes(equipment) && { color: colors.success, fontWeight: '600' }
                     ]}
                   >
                     {equipment}
                   </Text>
                   {selectedEquipment.includes(equipment) && (
-                    <View style={styles.checkmark}>
+                    <View style={[styles.checkmark, { backgroundColor: colors.success }]}>
                       <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                   )}

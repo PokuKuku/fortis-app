@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { XMarkIcon, MagnifyingGlassIcon, PlusIcon, CheckIcon } from 'react-native-heroicons/outline';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -38,6 +38,34 @@ export function AddExerciseModal({
   onAddExercisesCallback,
   existingExerciseIds: externalExistingIds,
 }: AddExerciseModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: colors.background,
+    },
+    title: { color: colors.textPrimary },
+    searchContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    searchInput: { color: colors.textPrimary },
+    replaceHint: { color: colors.textSecondary },
+    exerciseItem: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    exerciseName: { color: colors.textPrimary },
+    exerciseNameSelected: { color: colors.success },
+    iconContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    addButtonContainer: {
+      backgroundColor: colors.background,
+    },
+  };
+
   const addExercises = useWorkoutStore(s => s.addExercises);
   const replaceExercise = useWorkoutStore(s => s.replaceExercise);
   const activeSession = useWorkoutStore(s => s.activeSession);
@@ -157,18 +185,19 @@ export function AddExerciseModal({
         onPress={() => toggleExercise(item.id)}
         style={({ pressed }) => [
           styles.exerciseItem,
+          themedStyles.exerciseItem,
           selected && styles.exerciseItemSelected,
           pressed && styles.exerciseItemPressed,
         ]}
       >
-        <Text style={[styles.exerciseName, selected && styles.exerciseNameSelected]}>
+        <Text style={[styles.exerciseName, themedStyles.exerciseName, selected && themedStyles.exerciseNameSelected]}>
           {item.name}
         </Text>
-        <View style={[styles.iconContainer, selected && styles.iconContainerSelected]}>
+        <View style={[styles.iconContainer, themedStyles.iconContainer, selected && styles.iconContainerSelected]}>
           {selected ? (
-            <CheckIcon size={18} color={Colors.success} strokeWidth={2} />
+            <CheckIcon size={18} color={colors.success} strokeWidth={2} />
           ) : (
-            <PlusIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
+            <PlusIcon size={18} color={colors.textSecondary} strokeWidth={2} />
           )}
         </View>
       </Pressable>
@@ -189,13 +218,13 @@ export function AddExerciseModal({
         <Animated.View
           entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
           exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
-          style={styles.container}
+          style={[styles.container, themedStyles.container]}
         >
           <StainlessSteelPattern />
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>
+            <Text style={[styles.title, themedStyles.title]}>
               {replaceMode ? 'Replace Exercise' : 'Exercises'}
             </Text>
             <Pressable
@@ -205,7 +234,7 @@ export function AddExerciseModal({
                 pressed && styles.closeButtonPressed,
               ]}
             >
-              <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
+              <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
 
@@ -226,7 +255,7 @@ export function AddExerciseModal({
                       onPress={() => removeFromSelection(exerciseId)}
                       hitSlop={8}
                     >
-                      <XMarkIcon size={14} color={Colors.textSecondary} strokeWidth={2} />
+                      <XMarkIcon size={14} color={colors.textSecondary} strokeWidth={2} />
                     </Pressable>
                   </View>
                 ))}
@@ -236,18 +265,18 @@ export function AddExerciseModal({
 
           {/* Replace mode hint */}
           {replaceMode && (
-            <Text style={styles.replaceHint}>
+            <Text style={[styles.replaceHint, themedStyles.replaceHint]}>
               Tap an exercise to replace the current one
             </Text>
           )}
 
           {/* Search Input */}
-          <View style={styles.searchContainer}>
-            <MagnifyingGlassIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
+          <View style={[styles.searchContainer, themedStyles.searchContainer]}>
+            <MagnifyingGlassIcon size={18} color={colors.textSecondary} strokeWidth={2} />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, themedStyles.searchInput]}
               placeholder="Search exercises..."
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCorrect={false}
@@ -255,7 +284,7 @@ export function AddExerciseModal({
             />
             {searchQuery.length > 0 && (
               <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-                <XMarkIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
+                <XMarkIcon size={16} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             )}
           </View>
@@ -272,7 +301,7 @@ export function AddExerciseModal({
 
           {/* Add Button (only in add mode) */}
           {!replaceMode && selectedExercises.length > 0 && (
-            <View style={styles.addButtonContainer}>
+            <View style={[styles.addButtonContainer, themedStyles.addButtonContainer]}>
               <GlassButton style={styles.addButton} onPress={handleAddExercises}>
                 <Text style={styles.addButtonText}>
                   Add {selectedExercises.length} Exercise{selectedExercises.length > 1 ? 's' : ''}

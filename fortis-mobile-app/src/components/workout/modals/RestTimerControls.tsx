@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { PlayIcon, PauseIcon, ForwardIcon, ArrowUturnLeftIcon, PlusIcon, MinusIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore, getRestTimerColor } from '@/src/store/workoutStore';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
@@ -15,6 +15,7 @@ interface RestTimerControlsProps {
 }
 
 export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) {
+  const { colors, isDark } = useTheme();
   const restTimer = useWorkoutStore(s => s.restTimer);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
   const pauseRestTimer = useWorkoutStore(s => s.pauseRestTimer);
@@ -23,6 +24,34 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
   const startRestTimer = useWorkoutStore(s => s.startRestTimer);
   const adjustRestTimer = useWorkoutStore(s => s.adjustRestTimer);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: colors.background,
+      borderColor: isDark ? colors.borderLight : 'rgba(0, 0, 0, 0.08)',
+    },
+    grooveLight: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    grooveDark: {
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.15)',
+    },
+    playButtonRing: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderTopColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.05)',
+      borderLeftColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.04)',
+      borderRightColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.06)',
+      borderBottomColor: isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    iconButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    iconButtonPressed: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+  };
 
   if (!visible) return null;
 
@@ -78,7 +107,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
 
   const timerColor = restTimer.isActive
     ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
-    : Colors.textSecondary;
+    : colors.textSecondary;
   const timeString = formatRestTime(displaySeconds);
   const timerFontSize = displaySeconds >= 600 ? 16 : 18;
   const isRunning = restTimer.isActive;
@@ -98,7 +127,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
           exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
         >
           <Pressable
-            style={styles.container}
+            style={[styles.container, themedStyles.container]}
             onPress={(e) => e.stopPropagation()}
           >
             <StainlessSteelPattern />
@@ -114,8 +143,8 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
 
             {/* Groove Divider */}
             <View style={styles.grooveDivider}>
-              <View style={styles.grooveLight} />
-              <View style={styles.grooveDark} />
+              <View style={[styles.grooveLight, themedStyles.grooveLight]} />
+              <View style={[styles.grooveDark, themedStyles.grooveDark]} />
             </View>
 
             {/* Main Controls */}
@@ -128,12 +157,12 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.adjustButtonPressed,
                 ]}
               >
-                <MinusIcon size={14} color={Colors.textPrimary} strokeWidth={2.5} />
+                <MinusIcon size={14} color={colors.textPrimary} strokeWidth={2.5} />
               </Pressable>
 
               {/* Play/Pause - Hero Button with Metallic Ring */}
               <View style={styles.playButtonContainer}>
-                <View style={styles.playButtonRing}>
+                <View style={[styles.playButtonRing, themedStyles.playButtonRing]}>
                   <Pressable
                     onPress={handlePlayPause}
                     style={({ pressed }) => [
@@ -171,14 +200,14 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.adjustButtonPressed,
                 ]}
               >
-                <PlusIcon size={14} color={Colors.textPrimary} strokeWidth={2.5} />
+                <PlusIcon size={14} color={colors.textPrimary} strokeWidth={2.5} />
               </Pressable>
             </View>
 
             {/* Groove Divider */}
             <View style={styles.grooveDivider}>
-              <View style={styles.grooveLight} />
-              <View style={styles.grooveDark} />
+              <View style={[styles.grooveLight, themedStyles.grooveLight]} />
+              <View style={[styles.grooveDark, themedStyles.grooveDark]} />
             </View>
 
             {/* Secondary Controls */}
@@ -188,10 +217,11 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                 onPress={handleReset}
                 style={({ pressed }) => [
                   styles.iconButton,
-                  pressed && styles.iconButtonPressed,
+                  themedStyles.iconButton,
+                  pressed && themedStyles.iconButtonPressed,
                 ]}
               >
-                <ArrowUturnLeftIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
+                <ArrowUturnLeftIcon size={18} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
 
               {/* Skip Button */}
@@ -199,10 +229,11 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                 onPress={handleSkip}
                 style={({ pressed }) => [
                   styles.iconButton,
-                  pressed && styles.iconButtonPressed,
+                  themedStyles.iconButton,
+                  pressed && themedStyles.iconButtonPressed,
                 ]}
               >
-                <ForwardIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
+                <ForwardIcon size={18} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
           </Pressable>

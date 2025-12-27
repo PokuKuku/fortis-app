@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { ClockIcon, XMarkIcon, CalendarDaysIcon } from 'react-native-heroicons/outline';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
@@ -18,10 +18,26 @@ export function WorkoutHeader({
   onTimerSettingsPress,
   onRestTimerPress
 }: WorkoutHeaderProps) {
+  const { colors, isDark } = useTheme();
   const elapsed = useElapsedTime();
   const activeSession = useWorkoutStore(s => s.activeSession);
   const restTimer = useWorkoutStore(s => s.restTimer);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    clockButton: {
+      backgroundColor: isDark ? 'rgba(163, 163, 163, 0.2)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    cancelButton: {
+      backgroundColor: isDark ? colors.errorOverlay : 'rgba(239, 68, 68, 0.1)',
+    },
+    elapsedTime: { color: colors.textPrimary },
+    separator: { color: colors.textTertiary },
+    dateText: { color: colors.textSecondary },
+    programName: { color: colors.success },
+    workoutName: { color: colors.textPrimary },
+  };
 
   const today = new Date().toLocaleDateString('en-US', {
     month: 'short',
@@ -36,7 +52,7 @@ export function WorkoutHeader({
 
   const restTimerColor = restTimer.isActive
     ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
-    : Colors.textSecondary;
+    : colors.textSecondary;
 
   const restTimerBgColor = restTimer.isActive
     ? getRestTimerBackgroundColor(restTimer.remainingSeconds, restTimer.totalSeconds)
@@ -63,10 +79,11 @@ export function WorkoutHeader({
           }}
           style={({ pressed }) => [
             styles.clockButton,
+            themedStyles.clockButton,
             pressed && styles.pressed
           ]}
         >
-          <ClockIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+          <ClockIcon size={20} color={colors.textSecondary} strokeWidth={2} />
         </Pressable>
 
         {/* Cancel Button - Top Right */}
@@ -77,10 +94,11 @@ export function WorkoutHeader({
           }}
           style={({ pressed }) => [
             styles.cancelButton,
+            themedStyles.cancelButton,
             pressed && styles.pressed
           ]}
         >
-          <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
+          <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -90,7 +108,7 @@ export function WorkoutHeader({
         <View style={styles.leftColumn}>
           {/* Workout Title */}
           {workoutName && (
-            <Text style={styles.workoutName}>{workoutName}</Text>
+            <Text style={[styles.workoutName, themedStyles.workoutName]}>{workoutName}</Text>
           )}
 
           {/* Timers Row */}
@@ -98,13 +116,14 @@ export function WorkoutHeader({
             {/* Elapsed Time */}
             <Text style={[
               styles.elapsedTime,
+              themedStyles.elapsedTime,
               elapsed >= 3600 && styles.elapsedTimeSmall
             ]}>
               {formatElapsedTime(elapsed)}
             </Text>
 
             {/* Separator */}
-            <Text style={styles.separator}>|</Text>
+            <Text style={[styles.separator, themedStyles.separator]}>|</Text>
 
             {/* Rest Timer Button */}
             <Pressable
@@ -122,15 +141,15 @@ export function WorkoutHeader({
 
           {/* Date Row */}
           <View style={styles.dateRow}>
-            <CalendarDaysIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
-            <Text style={styles.dateText}>{today}</Text>
+            <CalendarDaysIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+            <Text style={[styles.dateText, themedStyles.dateText]}>{today}</Text>
           </View>
         </View>
 
         {/* Right Column - Program Name */}
         <View style={styles.rightColumn}>
           {programName && (
-            <Text style={styles.programName}>{programName}</Text>
+            <Text style={[styles.programName, themedStyles.programName]}>{programName}</Text>
           )}
         </View>
       </View>

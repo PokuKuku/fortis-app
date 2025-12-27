@@ -53,13 +53,35 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
 export default function AuthWelcomeScreen() {
   const router = useRouter();
   const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding } = useAuth();
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    tagline: { color: colors.textSecondary },
+    glassCard: {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.6)',
+    },
+    glassCardTitle: { color: isDark ? '#DFE2E6' : colors.textSecondary },
+    oauthButton: {
+      backgroundColor: isDark ? 'rgba(24, 24, 27, 0.9)' : 'rgba(255, 255, 255, 0.9)',
+      borderColor: isDark ? 'rgba(63, 63, 70, 0.8)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    oauthButtonText: { color: isDark ? colors.white : colors.textPrimary },
+    dividerText: { color: colors.textSecondary },
+    emailButtonText: { color: colors.white },
+    errorText: { color: colors.error },
+    terms: { color: colors.textSecondary },
+  };
+
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
@@ -124,7 +146,7 @@ export default function AuthWelcomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -132,37 +154,40 @@ export default function AuthWelcomeScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <AnimatedLogo size="large" centered />
-            <Text style={styles.tagline}>Track your strength journey</Text>
+            <Text style={[styles.tagline, themedStyles.tagline]}>Track your strength journey</Text>
           </View>
 
           {/* Glass Card Container */}
-          <View style={styles.glassCard}>
+          <View style={[styles.glassCard, themedStyles.glassCard]}>
             {/* Fog Overlay */}
             <LinearGradient
-              colors={['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)', 'transparent']}
+              colors={isDark
+                ? ['rgba(255,255,255,0.05)', 'rgba(255,255,255,0.02)', 'transparent']
+                : ['rgba(0,0,0,0.03)', 'rgba(0,0,0,0.01)', 'transparent']
+              }
               style={styles.fogOverlay}
             />
 
             <View style={styles.glassCardContent}>
-              <Text style={styles.glassCardTitle}>Create an account or sign in</Text>
+              <Text style={[styles.glassCardTitle, themedStyles.glassCardTitle]}>Create an account or sign in</Text>
 
               {/* OAuth Buttons */}
               <View style={styles.oauthButtons}>
                 {/* Google Sign In */}
                 <TouchableOpacity
-                  style={styles.oauthButton}
+                  style={[styles.oauthButton, themedStyles.oauthButton]}
                   onPress={handleGoogleSignIn}
                   disabled={isLoadingGoogle || isLoadingApple}
                   activeOpacity={0.8}
                 >
                   {isLoadingGoogle ? (
-                    <ActivityIndicator color="#fff" size="small" />
+                    <ActivityIndicator color={colors.textPrimary} size="small" />
                   ) : (
                     <>
                       <View style={styles.oauthIconContainer}>
                         <GoogleLogo size={20} />
                       </View>
-                      <Text style={styles.oauthButtonText}>Continue with Google</Text>
+                      <Text style={[styles.oauthButtonText, themedStyles.oauthButtonText]}>Continue with Google</Text>
                     </>
                   )}
                 </TouchableOpacity>
@@ -170,19 +195,19 @@ export default function AuthWelcomeScreen() {
                 {/* Apple Sign In (iOS only) */}
                 {isAppleAvailable && (
                   <TouchableOpacity
-                    style={styles.oauthButton}
+                    style={[styles.oauthButton, themedStyles.oauthButton]}
                     onPress={handleAppleSignIn}
                     disabled={isLoadingApple || isLoadingGoogle}
                     activeOpacity={0.8}
                   >
                     {isLoadingApple ? (
-                      <ActivityIndicator color="#fff" size="small" />
+                      <ActivityIndicator color={colors.textPrimary} size="small" />
                     ) : (
                       <>
                         <View style={styles.oauthIconContainer}>
-                          <AppleLogo size={20} />
+                          <AppleLogo size={20} color={isDark ? '#FFFFFF' : '#000000'} />
                         </View>
-                        <Text style={styles.oauthButtonText}>Continue with Apple</Text>
+                        <Text style={[styles.oauthButtonText, themedStyles.oauthButtonText]}>Continue with Apple</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -192,14 +217,20 @@ export default function AuthWelcomeScreen() {
               {/* Divider */}
               <View style={styles.divider}>
                 <LinearGradient
-                  colors={['transparent', 'rgba(113,113,122,0.5)', 'transparent']}
+                  colors={isDark
+                    ? ['transparent', 'rgba(113,113,122,0.5)', 'transparent']
+                    : ['transparent', 'rgba(0,0,0,0.15)', 'transparent']
+                  }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.dividerGradient}
                 />
-                <Text style={styles.dividerText}>or</Text>
+                <Text style={[styles.dividerText, themedStyles.dividerText]}>or</Text>
                 <LinearGradient
-                  colors={['transparent', 'rgba(113,113,122,0.5)', 'transparent']}
+                  colors={isDark
+                    ? ['transparent', 'rgba(113,113,122,0.5)', 'transparent']
+                    : ['transparent', 'rgba(0,0,0,0.15)', 'transparent']
+                  }
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
                   style={styles.dividerGradient}
@@ -211,20 +242,20 @@ export default function AuthWelcomeScreen() {
                 style={styles.emailButton}
                 onPress={handleEmailPress}
               >
-                <Text style={styles.emailButtonText}>Continue with Email</Text>
+                <Text style={[styles.emailButtonText, themedStyles.emailButtonText]}>Continue with Email</Text>
               </GlassButton>
 
               {/* Error Message */}
               {error && (
                 <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
+                  <Text style={[styles.errorText, themedStyles.errorText]}>{error}</Text>
                 </View>
               )}
             </View>
           </View>
 
           {/* Terms */}
-          <Text style={styles.terms}>
+          <Text style={[styles.terms, themedStyles.terms]}>
             By continuing, you agree to our Terms of Service and Privacy Policy
           </Text>
         </View>

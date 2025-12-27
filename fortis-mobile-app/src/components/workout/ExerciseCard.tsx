@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-heroicons/outline';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
@@ -30,6 +30,24 @@ export function ExerciseCard({
   onReplace,
   onViewDetails,
 }: ExerciseCardProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? colors.surfaceOverlay : 'rgba(255, 255, 255, 0.85)',
+      borderColor: isDark ? colors.borderLight : 'rgba(0, 0, 0, 0.08)',
+    },
+    exerciseName: { color: colors.textPrimary },
+    notesInput: { color: colors.textPrimary },
+    headerDivider: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    headerText: { color: colors.textSecondary },
+    addSetLine: { backgroundColor: colors.successBorder },
+    addSetText: { color: colors.success },
+  };
+
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
   const shouldShowCheckboxes = showCheckboxes ?? !useEditor;
   // Use editor session or active session based on mode
@@ -129,7 +147,7 @@ export function ExerciseCard({
 
   return (
     <Animated.View
-      style={styles.container}
+      style={[styles.container, themedStyles.container]}
       entering={FadeIn.duration(300).easing(Easing.out(Easing.cubic))
         .delay(50)}
       exiting={FadeOut.duration(250).easing(Easing.in(Easing.cubic))}
@@ -138,7 +156,7 @@ export function ExerciseCard({
       <View style={styles.content}>
         {/* Exercise Header */}
         <View style={styles.header}>
-          <Text style={styles.exerciseName}>{exercise.exerciseName}</Text>
+          <Text style={[styles.exerciseName, themedStyles.exerciseName]}>{exercise.exerciseName}</Text>
           <View ref={kebabRef} collapsable={false}>
             <Pressable
               onPress={handleKebabPress}
@@ -147,7 +165,7 @@ export function ExerciseCard({
                 pressed && styles.pressed
               ]}
             >
-              <EllipsisVerticalIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+              <EllipsisVerticalIcon size={20} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
         </View>
@@ -200,8 +218,8 @@ export function ExerciseCard({
               onChangeText={(text) => updateExerciseNotes(exerciseLocalId, text)}
               onBlur={handleNotesBlur}
               placeholder="Add notes..."
-              placeholderTextColor={Colors.textTertiary}
-              style={styles.notesInput}
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.notesInput, themedStyles.notesInput]}
               multiline
             />
           </Animated.View>
@@ -211,15 +229,15 @@ export function ExerciseCard({
         <View style={styles.setsTable}>
           {/* Header Row */}
           <View style={styles.tableHeader}>
-            <Text style={[styles.headerText, styles.setCol]}>Set</Text>
-            <Text style={[styles.headerText, styles.previousCol]}>Prev</Text>
-            <Text style={[styles.headerText, styles.weightCol, !shouldShowCheckboxes && styles.flexCol]}>{weightUnit}</Text>
-            <Text style={[styles.headerText, styles.repsCol, !shouldShowCheckboxes && styles.flexCol]}>Reps</Text>
+            <Text style={[styles.headerText, themedStyles.headerText, styles.setCol]}>Set</Text>
+            <Text style={[styles.headerText, themedStyles.headerText, styles.previousCol]}>Prev</Text>
+            <Text style={[styles.headerText, themedStyles.headerText, styles.weightCol, !shouldShowCheckboxes && styles.flexCol]}>{weightUnit}</Text>
+            <Text style={[styles.headerText, themedStyles.headerText, styles.repsCol, !shouldShowCheckboxes && styles.flexCol]}>Reps</Text>
             {shouldShowCheckboxes && <View style={styles.checkCol} />}
           </View>
 
           {/* Header Divider */}
-          <View style={styles.headerDivider} />
+          <View style={[styles.headerDivider, themedStyles.headerDivider]} />
 
           {/* Set Rows */}
           {exercise.sets.map((set, index) => (
@@ -244,9 +262,9 @@ export function ExerciseCard({
             pressed && styles.pressed
           ]}
         >
-          <View style={styles.addSetLine} />
-          <Text style={styles.addSetText}>+ Add Set</Text>
-          <View style={styles.addSetLine} />
+          <View style={[styles.addSetLine, themedStyles.addSetLine]} />
+          <Text style={[styles.addSetText, themedStyles.addSetText]}>+ Add Set</Text>
+          <View style={[styles.addSetLine, themedStyles.addSetLine]} />
         </Pressable>
       </View>
 

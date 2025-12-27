@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Modal, Pressable, Dimensions } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
@@ -31,7 +31,29 @@ export function WorkoutCompleteModal({
   saveTemplateLabel,
   session,
 }: WorkoutCompleteModalProps) {
+  const { colors, isDark } = useTheme();
   const confettiRef = useRef<ConfettiCannon>(null);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? '#222222' : '#FFFFFF',
+    },
+    title: { color: colors.textPrimary },
+    closeButton: {
+      backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.05)',
+    },
+    congratsText: { color: colors.success },
+    statsCard: {
+      backgroundColor: isDark ? '#1a1a1a' : 'rgba(0, 0, 0, 0.04)',
+    },
+    statLabel: { color: colors.textSecondary },
+    statValue: { color: colors.textPrimary },
+    saveTemplateButton: {
+      borderColor: colors.success,
+    },
+    saveTemplateButtonText: { color: colors.success },
+  };
 
   // Fire fireworks when modal opens
   useEffect(() => {
@@ -70,42 +92,43 @@ export function WorkoutCompleteModal({
       <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
         <Pressable style={styles.centeredView} onPress={onClose} activeOpacity={1}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
-            <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+            <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
               <StainlessSteelPattern />
 
               {/* Header */}
               <View style={styles.header}>
-                <Text style={styles.title}>Workout Complete!</Text>
+                <Text style={[styles.title, themedStyles.title]}>Workout Complete!</Text>
                 <Pressable
                   onPress={onClose}
                   style={({ pressed }) => [
                     styles.closeButton,
+                    themedStyles.closeButton,
                     pressed && styles.closeButtonPressed,
                   ]}
                 >
-                  <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
+                  <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
                 </Pressable>
               </View>
 
               {/* Content */}
               <View style={styles.content}>
-                <Text style={styles.congratsText}>
+                <Text style={[styles.congratsText, themedStyles.congratsText]}>
                   Great work! You crushed it!
                 </Text>
 
                 {/* Stats Card */}
-                <View style={styles.statsCard}>
+                <View style={[styles.statsCard, themedStyles.statsCard]}>
                   <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Exercises</Text>
-                    <Text style={styles.statValue}>{summary.totalExercises}</Text>
+                    <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
+                    <Text style={[styles.statValue, themedStyles.statValue]}>{summary.totalExercises}</Text>
                   </View>
                   <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Sets</Text>
-                    <Text style={styles.statValue}>{summary.totalSets}</Text>
+                    <Text style={[styles.statLabel, themedStyles.statLabel]}>Sets</Text>
+                    <Text style={[styles.statValue, themedStyles.statValue]}>{summary.totalSets}</Text>
                   </View>
                   <View style={styles.statRow}>
-                    <Text style={styles.statLabel}>Duration</Text>
-                    <Text style={styles.statValue}>{duration}</Text>
+                    <Text style={[styles.statLabel, themedStyles.statLabel]}>Duration</Text>
+                    <Text style={[styles.statValue, themedStyles.statValue]}>{duration}</Text>
                   </View>
                 </View>
 
@@ -115,11 +138,12 @@ export function WorkoutCompleteModal({
                     <Pressable
                       style={({ pressed }) => [
                         styles.saveTemplateButton,
+                        themedStyles.saveTemplateButton,
                         pressed && styles.saveTemplateButtonPressed,
                       ]}
                       onPress={handleSaveAsTemplate}
                     >
-                      <Text style={styles.saveTemplateButtonText}>
+                      <Text style={[styles.saveTemplateButtonText, themedStyles.saveTemplateButtonText]}>
                         {saveTemplateLabel || 'Save as Template'}
                       </Text>
                     </Pressable>

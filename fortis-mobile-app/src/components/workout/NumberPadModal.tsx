@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { BackspaceIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -38,6 +38,34 @@ export function NumberPadModal({
   inputType,
   useEditor = false,
 }: NumberPadModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    padWrapper: {
+      backgroundColor: colors.background,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    dragHandle: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+    },
+    numberButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    buttonPressed: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    numberText: { color: colors.textPrimary },
+    controlButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    rpeButtonText: { color: colors.textPrimary },
+    unitButtonText: { color: colors.textPrimary },
+    incrementButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+  };
+
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
   // Use editor session or active session based on mode
   const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
@@ -178,10 +206,11 @@ export function NumberPadModal({
       onPress={() => handleNumberPress(num)}
       style={({ pressed }) => [
         styles.numberButton,
-        pressed && styles.buttonPressed,
+        themedStyles.numberButton,
+        pressed && themedStyles.buttonPressed,
       ]}
     >
-      <Text style={styles.numberText}>{num}</Text>
+      <Text style={[styles.numberText, themedStyles.numberText]}>{num}</Text>
     </Pressable>
   );
 
@@ -199,12 +228,12 @@ export function NumberPadModal({
           exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
           style={[styles.container, containerAnimatedStyle]}
         >
-          <View style={styles.padWrapper}>
+          <View style={[styles.padWrapper, themedStyles.padWrapper]}>
             <StainlessSteelPattern />
 
           {/* Drag Handle */}
           <View style={styles.dragHandleContainer}>
-            <View style={styles.dragHandle} />
+            <View style={[styles.dragHandle, themedStyles.dragHandle]} />
           </View>
 
           {/* Number Pad Grid */}
@@ -230,7 +259,7 @@ export function NumberPadModal({
                 {inputType === 'weight' ? (
                   renderNumberButton('.')
                 ) : (
-                  <View style={styles.numberButton} />
+                  <View style={[styles.numberButton, themedStyles.numberButton]} />
                 )}
                 {renderNumberButton('0')}
                 <Pressable
@@ -239,10 +268,11 @@ export function NumberPadModal({
                   delayLongPress={500}
                   style={({ pressed }) => [
                     styles.numberButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.numberButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <BackspaceIcon size={24} color={Colors.textPrimary} strokeWidth={2} />
+                  <BackspaceIcon size={24} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               </View>
             </View>
@@ -254,10 +284,11 @@ export function NumberPadModal({
                 onPress={handleKeyboardToggle}
                 style={({ pressed }) => [
                   styles.controlButton,
-                  pressed && styles.buttonPressed,
+                  themedStyles.controlButton,
+                  pressed && themedStyles.buttonPressed,
                 ]}
               >
-                <XMarkIcon size={22} color={Colors.textSecondary} strokeWidth={2} />
+                <XMarkIcon size={22} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
 
               {/* Context-aware button: Weight unit toggle or RPE */}
@@ -266,23 +297,25 @@ export function NumberPadModal({
                   onPress={handleWeightUnitToggle}
                   style={({ pressed }) => [
                     styles.controlButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.controlButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <Text style={styles.unitButtonText}>{currentWeightUnit === 'lbs' ? 'kg' : 'lbs'}</Text>
+                  <Text style={[styles.unitButtonText, themedStyles.unitButtonText]}>{currentWeightUnit === 'lbs' ? 'kg' : 'lbs'}</Text>
                 </Pressable>
               ) : !useEditor ? (
                 <Pressable
                   onPress={handleRpePress}
                   style={({ pressed }) => [
                     styles.controlButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.controlButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <Text style={styles.rpeButtonText}>RPE</Text>
+                  <Text style={[styles.rpeButtonText, themedStyles.rpeButtonText]}>RPE</Text>
                 </Pressable>
               ) : (
-                <View style={styles.controlButton} />
+                <View style={[styles.controlButton, themedStyles.controlButton]} />
               )}
 
               {/* Increment/Decrement buttons */}
@@ -291,19 +324,21 @@ export function NumberPadModal({
                   onPress={handleDecrement}
                   style={({ pressed }) => [
                     styles.incrementButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.incrementButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <MinusIcon size={20} color={Colors.textPrimary} strokeWidth={2} />
+                  <MinusIcon size={20} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
                 <Pressable
                   onPress={handleIncrement}
                   style={({ pressed }) => [
                     styles.incrementButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.incrementButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <PlusIcon size={20} color={Colors.textPrimary} strokeWidth={2} />
+                  <PlusIcon size={20} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               </View>
 

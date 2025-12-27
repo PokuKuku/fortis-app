@@ -8,6 +8,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights, IconSizes } from '@/constants/Sizes';
 import { useProgram } from '@/src/hooks/usePrograms';
@@ -77,13 +78,20 @@ function WorkoutSection({
   onDeleteWorkout: (workoutId: string, workoutName: string) => void;
   onDeleteExercise: (workoutId: string, exerciseId: string, exerciseName: string) => void;
 }) {
+  const { colors, isDark } = useTheme();
   const handleToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onToggle();
   };
 
+  // Theme-aware card styles
+  const cardStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  };
+
   return (
-    <View style={styles.workoutSection}>
+    <View style={[styles.workoutSection, cardStyle]}>
       {/* Section Header */}
       <View style={styles.workoutSectionHeader}>
         <TouchableOpacity
@@ -96,8 +104,8 @@ function WorkoutSection({
               <Text style={styles.dayBadgeText}>Day {workout.dayNumber}</Text>
             </View>
             <View style={styles.workoutSectionInfo}>
-              <Text style={styles.workoutSectionTitle}>{workout.name}</Text>
-              <Text style={styles.workoutSectionSubtitle}>
+              <Text style={[styles.workoutSectionTitle, { color: colors.textPrimary }]}>{workout.name}</Text>
+              <Text style={[styles.workoutSectionSubtitle, { color: colors.textSecondary }]}>
                 {workout.exercises.length} exercises
               </Text>
             </View>
@@ -142,6 +150,7 @@ function WorkoutSection({
 export default function ProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { program, loading, refresh: refreshProgram } = useProgram(id);
   const isNavigating = useRef(false);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
@@ -327,22 +336,27 @@ export default function ProgramDetailScreen() {
     loadProgress();
   }, [loadProgress]);
 
+  // Theme-aware meta tag styles
+  const metaTagStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+  };
+
   // Not found state (avoid loading splash)
   if (!program) {
     if (loading) {
       return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
           <StainlessSteelPattern />
         </SafeAreaView>
       );
     }
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <StainlessSteelPattern />
         <View style={styles.notFoundContainer}>
-          <Text style={styles.notFoundText}>Program not found</Text>
+          <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>Program not found</Text>
           <Pressable onPress={handleBack} style={styles.backLink}>
-            <Text style={styles.backLinkText}>Go back</Text>
+            <Text style={[styles.backLinkText, { color: colors.success }]}>Go back</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -361,7 +375,7 @@ export default function ProgramDetailScreen() {
   const completedCycles = progressEntry?.history.length || 0;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <StainlessSteelPattern />
 
       {/* Header */}
@@ -382,7 +396,7 @@ export default function ProgramDetailScreen() {
             entering={FadeIn.delay(100).duration(300)}
             style={styles.descriptionContainer}
           >
-            <Text style={styles.description}>{program.description}</Text>
+            <Text style={[styles.description, { color: colors.textSecondary }]}>{program.description}</Text>
           </Animated.View>
         )}
 
@@ -393,8 +407,8 @@ export default function ProgramDetailScreen() {
         >
           {/* Duration */}
           {program.durationWeeks ? (
-            <View style={styles.metaTag}>
-              <Text style={styles.metaTagText}>
+            <View style={[styles.metaTag, metaTagStyle]}>
+              <Text style={[styles.metaTagText, { color: colors.textPrimary }]}>
                 {program.durationWeeks} weeks
               </Text>
             </View>
@@ -402,8 +416,8 @@ export default function ProgramDetailScreen() {
 
           {/* Goal */}
           {program.goal && (
-            <View style={styles.metaTag}>
-              <Text style={styles.metaTagText}>
+            <View style={[styles.metaTag, metaTagStyle]}>
+              <Text style={[styles.metaTagText, { color: colors.textPrimary }]}>
                 {GOAL_LABELS[program.goal] || program.goal}
               </Text>
             </View>
@@ -415,7 +429,7 @@ export default function ProgramDetailScreen() {
           entering={FadeIn.delay(200).duration(300)}
           style={styles.creatorContainer}
         >
-          <Text style={styles.progressText}>
+          <Text style={[styles.progressText, { color: colors.textSecondary }]}>
             Cycle {currentCycle} - Next Day {nextDayNumber}
           </Text>
         </Animated.View>
@@ -437,8 +451,8 @@ export default function ProgramDetailScreen() {
             onPress={handleStartProgram}
           >
             <View style={styles.startButtonContent}>
-              <PlayIcon color={Colors.white} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={styles.startButtonText}>Start Next Workout</Text>
+              <PlayIcon color={colors.white} size={IconSizes.lg} strokeWidth={2.5} />
+              <Text style={[styles.startButtonText, { color: colors.white }]}>Start Workout</Text>
             </View>
           </GlassButton>
         </Animated.View>
@@ -449,9 +463,9 @@ export default function ProgramDetailScreen() {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Workouts</Text>
-            <Text style={styles.sectionCount}>
-              {program.workouts.length} workouts
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Exercises</Text>
+            <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
+              {program.workouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
             </Text>
           </View>
 
@@ -475,8 +489,8 @@ export default function ProgramDetailScreen() {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Progress</Text>
-            <Text style={styles.sectionCount}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Progress</Text>
+            <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
               {completedDayNumbers.length}/{program.workouts.length} workouts
             </Text>
           </View>
@@ -486,7 +500,7 @@ export default function ProgramDetailScreen() {
             currentDayNumber={nextDayNumber}
           />
           {completedCycles > 0 && (
-            <Text style={styles.progressHistoryText}>
+            <Text style={[styles.progressHistoryText, { color: colors.textSecondary }]}>
               {completedCycles} cycle{completedCycles === 1 ? '' : 's'} completed
             </Text>
           )}
@@ -596,7 +610,6 @@ export default function ProgramDetailScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   scrollView: {
     flex: 1,
@@ -612,7 +625,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: FontSizes.base,
-    color: Colors.textSecondary,
   },
   notFoundContainer: {
     flex: 1,
@@ -623,7 +635,6 @@ const styles = StyleSheet.create({
   notFoundText: {
     fontSize: FontSizes.xl,
     fontWeight: '700',
-    color: Colors.textSecondary,
   },
   backLink: {
     padding: Spacing.md,
@@ -631,7 +642,6 @@ const styles = StyleSheet.create({
   backLinkText: {
     fontSize: FontSizes.base,
     fontWeight: '600',
-    color: Colors.success,
   },
   descriptionContainer: {
     marginBottom: Spacing.md,
@@ -639,7 +649,6 @@ const styles = StyleSheet.create({
   description: {
     fontSize: FontSizes.base,
     fontWeight: '500',
-    color: Colors.textSecondary,
     lineHeight: 22,
   },
   metaTagsContainer: {
@@ -649,7 +658,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   metaTag: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.sm,
@@ -657,7 +665,6 @@ const styles = StyleSheet.create({
   metaTagText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   creatorContainer: {
     marginBottom: Spacing.lg,
@@ -666,22 +673,18 @@ const styles = StyleSheet.create({
   creatorText: {
     fontSize: FontSizes.sm,
     fontWeight: '500',
-    color: 'rgba(163, 163, 163, 0.7)',
   },
   lastPerformedText: {
     fontSize: FontSizes.sm,
     fontWeight: '500',
-    color: 'rgba(163, 163, 163, 0.7)',
   },
   progressText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.textSecondary,
   },
   progressHistoryText: {
     fontSize: FontSizes.sm,
     fontWeight: '500',
-    color: Colors.textSecondary,
     marginTop: Spacing.sm,
   },
   startButtonContainer: {
@@ -700,7 +703,6 @@ const styles = StyleSheet.create({
   startButtonText: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: Colors.white,
   },
   section: {
     marginBottom: Spacing['2xl'],
@@ -714,21 +716,17 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: Colors.textPrimary,
   },
   sectionCount: {
     fontSize: FontSizes.sm,
     fontWeight: '500',
-    color: Colors.textSecondary,
   },
   workoutsList: {
     gap: Spacing.md,
   },
   workoutSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
     overflow: 'hidden',
   },
   workoutSectionHeader: {
@@ -769,12 +767,10 @@ const styles = StyleSheet.create({
   workoutSectionTitle: {
     fontSize: FontSizes.base,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
   workoutSectionSubtitle: {
     fontSize: FontSizes.sm,
     fontWeight: '500',
-    color: Colors.textSecondary,
   },
   workoutExercises: {
     padding: Spacing.md,

@@ -28,6 +28,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
@@ -35,7 +36,7 @@ import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useProgramsStore } from '../../src/store/programsStore';
 import { useProgramProgressStore } from '../../src/store/programProgressStore';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../../src/constants/programs';
-import { BaseModal, modalStyles } from '../../src/components/ui/BaseModal';
+import { BaseModal, useModalStyles } from '../../src/components/ui/BaseModal';
 import { useDropZone } from '../../src/hooks/useDropZone';
 
 // Types for drag-and-drop
@@ -87,9 +88,19 @@ function KebabPopover({
   onDelete: () => void;
   position: { top: number; left: number };
 }) {
+  const { colors, isDark } = useTheme();
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const popoverThemeStyle = {
+    backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const dividerStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+  };
 
   useEffect(() => {
     if (visible) {
@@ -148,6 +159,7 @@ function KebabPopover({
       <Animated.View
         style={[
           styles.kebabPopover,
+          popoverThemeStyle,
           {
             top: position.top,
             left: position.left,
@@ -161,16 +173,16 @@ function KebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onDuplicate)}
         >
-          <DocumentDuplicateIcon color="#DFE2E6" size={16} strokeWidth={2} />
-          <Text style={styles.kebabOptionText}>Duplicate</Text>
+          <DocumentDuplicateIcon color={colors.textSecondary} size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: colors.textSecondary }]}>Duplicate</Text>
         </TouchableOpacity>
-        <View style={styles.kebabDivider} />
+        <View style={[styles.kebabDivider, dividerStyle]} />
         <TouchableOpacity
           style={styles.kebabOption}
           onPress={() => handleAction(onDelete)}
         >
-          <TrashIcon color="#ef4444" size={16} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, styles.kebabDeleteText]}>Delete</Text>
+          <TrashIcon color={colors.error} size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: colors.error }]}>Delete</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -189,9 +201,15 @@ function ProgramsKebabPopover({
   onAddProgram: () => void;
   position: { top: number; left: number };
 }) {
+  const { colors, isDark } = useTheme();
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const popoverThemeStyle = {
+    backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
 
   useEffect(() => {
     if (visible) {
@@ -249,6 +267,7 @@ function ProgramsKebabPopover({
       <Animated.View
         style={[
           styles.kebabPopover,
+          popoverThemeStyle,
           {
             top: position.top,
             left: position.left,
@@ -262,8 +281,8 @@ function ProgramsKebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onAddProgram)}
         >
-          <PlusIcon color="#22c55e" size={16} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, { color: '#22c55e' }]}>Add Program</Text>
+          <PlusIcon color={colors.success} size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: colors.success }]}>Add Program</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -282,9 +301,15 @@ function WorkoutsKebabPopover({
   onAddWorkout: () => void;
   position: { top: number; left: number };
 }) {
+  const { colors, isDark } = useTheme();
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
+  const popoverThemeStyle = {
+    backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
 
   useEffect(() => {
     if (visible) {
@@ -342,6 +367,7 @@ function WorkoutsKebabPopover({
       <Animated.View
         style={[
           styles.kebabPopover,
+          popoverThemeStyle,
           {
             top: position.top,
             left: position.left,
@@ -355,8 +381,8 @@ function WorkoutsKebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onAddWorkout)}
         >
-          <PlusIcon color="#22c55e" size={16} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, { color: '#22c55e' }]}>Add Workout</Text>
+          <PlusIcon color={colors.success} size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: colors.success }]}>Add Workout</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -503,7 +529,7 @@ function ToastNotification({
 // MODAL TEMPLATE: All modals in the app should follow this pattern:
 // 1. Use StainlessSteelPattern for background
 // 2. Include pop-in/pop-out animations (spring for scale, timing for opacity)
-// 3. Use #222222 background color with overflow: 'hidden'
+// 3. Use theme-aware background color with overflow: 'hidden'
 // 4. Wrap content in a container with padding and z-index: 1
 function DeleteConfirmationModal({
   visible,
@@ -516,8 +542,22 @@ function DeleteConfirmationModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { colors, isDark } = useTheme();
   const modalOpacity = useRef(new Animated.Value(0)).current;
   const modalScale = useRef(new Animated.Value(0.9)).current;
+
+  // Theme-aware modal styles
+  const modalThemeStyle = {
+    backgroundColor: isDark ? '#222222' : '#FFFFFF',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const cancelButtonThemeStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const backdropColor = isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)';
 
   useEffect(() => {
     if (visible) {
@@ -552,7 +592,7 @@ function DeleteConfirmationModal({
 
   return (
     <Modal transparent visible={visible} animationType="none">
-      <Animated.View style={[styles.modalOverlay, { opacity: modalOpacity }]}>
+      <Animated.View style={[styles.modalOverlay, { opacity: modalOpacity, backgroundColor: backdropColor }]}>
         <TouchableOpacity
           style={StyleSheet.absoluteFill}
           activeOpacity={1}
@@ -561,6 +601,7 @@ function DeleteConfirmationModal({
         <Animated.View
           style={[
             styles.confirmationModal,
+            modalThemeStyle,
             {
               opacity: modalOpacity,
               transform: [{ scale: modalScale }],
@@ -569,13 +610,13 @@ function DeleteConfirmationModal({
         >
           <StainlessSteelPattern />
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Delete {itemName}?</Text>
-            <Text style={styles.modalMessage}>
+            <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Delete {itemName}?</Text>
+            <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
               This action cannot be undone. Are you sure you want to delete this item?
             </Text>
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalCancelButton} onPress={onCancel}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
+              <TouchableOpacity style={[styles.modalCancelButton, cancelButtonThemeStyle]} onPress={onCancel}>
+                <Text style={[styles.modalCancelText, { color: colors.textPrimary }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.modalDeleteButton} onPress={onConfirm}>
                 <Text style={styles.modalDeleteText}>Delete</Text>
@@ -647,11 +688,17 @@ function ProgramDropCard({
   onKebabPress: (event: any) => void;
   enableDropZone: boolean;
 }) {
+  const { colors, isDark } = useTheme();
   const { ref, onLayout } = useDropZone({
     id: `program-${item.id}`,
     type: 'program',
     enabled: enableDropZone,
   });
+
+  const cardThemeStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
 
   return (
     <TouchableOpacity
@@ -661,16 +708,17 @@ function ProgramDropCard({
       onPress={onPress}
       style={[
         styles.programCard,
+        cardThemeStyle,
         isActive && styles.cardActive,
       ]}
     >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
-          <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={[styles.cardTitle, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
             {item.name}
           </Text>
           {item.isAiCreated && (
-            <SparklesIcon color="#22c55e" size={14} strokeWidth={2} style={styles.aiBadge} />
+            <SparklesIcon color={colors.success} size={14} strokeWidth={2} style={styles.aiBadge} />
           )}
         </View>
         <TouchableOpacity
@@ -678,10 +726,10 @@ function ProgramDropCard({
           onPress={onKebabPress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
+          <EllipsisHorizontalIcon color={colors.success} size={16} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
-      <Text style={styles.cardMetaText}>
+      <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
         {item.workouts} workouts · {item.lastPerformed}
       </Text>
     </TouchableOpacity>
@@ -698,6 +746,8 @@ const buildDropIn = (index: number) =>
 
 export default function ProgramsScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
+  const modalStyles = useModalStyles();
   const startWorkout = useWorkoutStore(s => s.startWorkout);
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
 
@@ -1028,6 +1078,12 @@ export default function ProgramsScreen() {
     }, 100);
   };
 
+  // Theme-aware card style for workout cards
+  const workoutCardThemeStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
   // Draggable workout card renderer for DraggableGrid
   const renderWorkoutGridItem = useCallback(
     (item: WorkoutItem, index: number, isActive: boolean) => {
@@ -1045,16 +1101,17 @@ export default function ProgramsScreen() {
               onPress={() => handleWorkoutCardPress(item.id)}
               style={[
                 styles.workoutCard,
+                workoutCardThemeStyle,
                 isActive && styles.cardActive,
               ]}
             >
               <View style={styles.cardHeader}>
                 <View style={styles.cardTitleRow}>
-                  <Text style={styles.cardTitle} numberOfLines={1} ellipsizeMode="tail">
+                  <Text style={[styles.cardTitle, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                     {item.name}
                   </Text>
                   {item.isAiCreated && (
-                    <SparklesIcon color="#22c55e" size={14} strokeWidth={2} style={styles.aiBadge} />
+                    <SparklesIcon color={colors.success} size={14} strokeWidth={2} style={styles.aiBadge} />
                   )}
                 </View>
                 <TouchableOpacity
@@ -1062,10 +1119,10 @@ export default function ProgramsScreen() {
                   onPress={(event) => handleKebabPress('workout', item.id, event)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <EllipsisHorizontalIcon color="#22c55e" size={16} strokeWidth={2.5} />
+                  <EllipsisHorizontalIcon color={colors.success} size={16} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.cardMetaText}>
+              <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
                 {item.exercises} exercises · {item.lastPerformed}
               </Text>
             </TouchableOpacity>
@@ -1073,7 +1130,7 @@ export default function ProgramsScreen() {
         </Reanimated.View>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress, handleWorkoutCardPress]
+    [animatingCards, handleAnimationComplete, handleKebabPress, handleWorkoutCardPress, colors, isDark, workoutCardThemeStyle]
   );
 
   // Draggable program card renderer for DraggableGrid
@@ -1102,8 +1159,19 @@ export default function ProgramsScreen() {
     [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress, showPrograms]
   );
 
+  // Theme-aware styles for glass cards and popovers
+  const glassCardStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const popoverStyle = {
+    backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -1114,7 +1182,7 @@ export default function ProgramsScreen() {
 
         {/* Title */}
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>Programs</Text>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>Programs</Text>
         </View>
 
         <NestableScrollContainer
@@ -1149,14 +1217,14 @@ export default function ProgramsScreen() {
                     ]}
                   />
                 </GlassButton>
-                <Text style={styles.sectionTitle}>Programs</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Programs</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleProgramsKebabPress}
                 style={styles.sectionKebabButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <EllipsisHorizontalIcon color="#9CA3AF" size={20} strokeWidth={2} />
+                <EllipsisHorizontalIcon color={colors.textTertiary} size={20} strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -1196,14 +1264,14 @@ export default function ProgramsScreen() {
                     ]}
                   />
                 </GlassButton>
-                <Text style={styles.sectionTitle}>Workouts</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Workouts</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleWorkoutsKebabPress}
                 style={styles.sectionKebabButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <EllipsisHorizontalIcon color="#9CA3AF" size={20} strokeWidth={2} />
+                <EllipsisHorizontalIcon color={colors.textTertiary} size={20} strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -1260,7 +1328,7 @@ export default function ProgramsScreen() {
             setPendingProgramDrop(null);
           }}
           title="Edit Active Program?"
-          icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
+          icon={<ExclamationTriangleIcon size={24} color={colors.warning} />}
         >
           <Text style={modalStyles.message}>
             This program is in progress. How should we handle your edits?

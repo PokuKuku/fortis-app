@@ -166,7 +166,7 @@ export const LightTheme = {
 
   // Muted
   muted: '#EFEDE8',
-  mutedForeground: '#5C5C5C',
+  mutedForeground: '#454545',
 
   // Accent
   accent: '#F0F0F0',
@@ -184,8 +184,8 @@ export const LightTheme = {
 
   // Text hierarchy
   textPrimary: '#1A1A1A',
-  textSecondary: '#5C5C5C',
-  textTertiary: '#8A8A8A',
+  textSecondary: '#454545',  // Darkened from #5C5C5C for better contrast
+  textTertiary: '#6E6E6E',   // Darkened from #8A8A8A for better contrast
   textDisabled: '#BEBEBE',
 
   // Overlays

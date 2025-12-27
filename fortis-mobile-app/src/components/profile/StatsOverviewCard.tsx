@@ -7,7 +7,7 @@ import {
 } from 'react-native-heroicons/outline';
 import { useProfileStats } from '@/src/hooks/useProfileStats';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
@@ -41,16 +41,17 @@ interface StatItemProps {
   icon: React.ReactNode;
   value: string;
   label: string;
+  colors: ReturnType<typeof useTheme>['colors'];
 }
 
-function StatItem({ icon, value, label }: StatItemProps) {
+function StatItem({ icon, value, label, colors }: StatItemProps) {
   return (
     <View style={styles.statItem}>
       <View style={styles.statIcon}>{icon}</View>
-      <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+      <Text style={[styles.statValue, { color: colors.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
-      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{label}</Text>
     </View>
   );
 }
@@ -60,27 +61,37 @@ function StatItem({ icon, value, label }: StatItemProps) {
  */
 export function StatsOverviewCard() {
   const { profile } = useAuth();
+  const { colors, isDark } = useTheme();
   const stats = useProfileStats();
   const units = profile?.preferred_units || 'imperial';
 
+  // Theme-aware card styles
+  const cardStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionHeader}>Your Stats</Text>
+    <View style={[styles.container, cardStyle]}>
+      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
       <View style={styles.statsRow}>
         <StatItem
-          icon={<FireIcon color={Colors.success} size={20} strokeWidth={2} />}
+          icon={<FireIcon color={colors.success} size={20} strokeWidth={2} />}
           value={formatVolume(stats.totalVolume, units)}
           label="Volume Lifted"
+          colors={colors}
         />
         <StatItem
-          icon={<TrophyIcon color={Colors.success} size={20} strokeWidth={2} />}
+          icon={<TrophyIcon color={colors.success} size={20} strokeWidth={2} />}
           value={stats.totalWorkouts.toString()}
           label="Workouts"
+          colors={colors}
         />
         <StatItem
-          icon={<ClockIcon color={Colors.success} size={20} strokeWidth={2} />}
+          icon={<ClockIcon color={colors.success} size={20} strokeWidth={2} />}
           value={formatTime(stats.totalTimeSeconds)}
           label="Time Trained"
+          colors={colors}
         />
       </View>
     </View>
@@ -89,15 +100,12 @@ export function StatsOverviewCard() {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: Spacing.xl,
   },
   sectionHeader: {
     ...Typography.caption,
-    color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: Spacing.lg,
@@ -121,13 +129,11 @@ const styles = StyleSheet.create({
   },
   statValue: {
     ...Typography.h4,
-    color: Colors.textPrimary,
     marginBottom: Spacing.xs,
     textAlign: 'center',
   },
   statLabel: {
     ...Typography.caption,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
 });
