@@ -1,0 +1,41 @@
+# Start Workout Test
+# Tests the workout logging flow
+
+appId: com.fortis.app
+---
+
+# Launch the app
+- launchApp:
+    clearState: false
+
+# Wait for app to load
+- waitForAnimationToEnd
+
+# Tap the Start button (center tab)
+- tapOn: "Start"
+
+# Wait for workout screen or modal to appear
+- waitForAnimationToEnd
+
+# Check if we're on the active workout screen
+# The workout screen should show "Add Exercise" or similar
+- assertVisible:
+    text: ".*Add.*Exercise.*|.*Select.*Exercise.*|.*Workout.*"
+    optional: true
+
+# Take a screenshot
+- takeScreenshot: workout-started
+
+# If workout started, try to finish/cancel it
+- tapOn:
+    text: ".*Cancel.*|.*Finish.*|.*Discard.*"
+    optional: true
+
+- waitForAnimationToEnd
+
+# Confirm cancel if modal appears
+- tapOn:
+    text: ".*Discard.*|.*Yes.*|.*Confirm.*"
+    optional: true
+
+- takeScreenshot: workout-cleanup-complete

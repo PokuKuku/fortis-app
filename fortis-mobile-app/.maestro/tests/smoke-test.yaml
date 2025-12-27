@@ -1,0 +1,49 @@
+# Smoke Test
+# Quick test to verify app launches and main navigation works
+
+appId: com.fortis.app
+---
+
+# Launch the app fresh
+- launchApp:
+    clearState: false
+
+# Wait for app to fully load
+- waitForAnimationToEnd
+- extendedWaitUntil:
+    visible: ".*History.*|.*Exercises.*|.*Programs.*|.*Profile.*"
+    timeout: 10000
+
+# Verify main tabs are visible
+- assertVisible:
+    text: "History"
+- assertVisible:
+    text: "Exercises"
+- assertVisible:
+    text: "Programs"
+- assertVisible:
+    text: "Profile"
+
+# Take screenshot of home screen
+- takeScreenshot: app-home-screen
+
+# Navigate through each tab
+- tapOn: "History"
+- waitForAnimationToEnd
+- takeScreenshot: history-tab
+
+- tapOn: "Exercises"
+- waitForAnimationToEnd
+- takeScreenshot: exercises-tab
+
+- tapOn: "Programs"
+- waitForAnimationToEnd
+- takeScreenshot: programs-tab
+
+- tapOn: "Profile"
+- waitForAnimationToEnd
+- takeScreenshot: profile-tab
+
+# Test complete
+- assertVisible:
+    text: ".*Profile.*|.*Settings.*"

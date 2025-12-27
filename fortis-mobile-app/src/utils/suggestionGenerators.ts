@@ -232,11 +232,27 @@ export function generateDefaultSuggestions(
       );
       break;
 
+    case 'MODIFY_TEMPLATE':
+      suggestions.push(
+        { text: 'Adjust sets and reps', score: 0.4, source: 'default' },
+        { text: 'Add a finisher', score: 0.35, source: 'default' },
+        { text: 'Change rest times', score: 0.3, source: 'default' }
+      );
+      break;
+
     case 'CREATE_PROGRAM':
       suggestions.push(
         { text: 'Add a rest day', score: 0.4, source: 'default' },
         { text: 'Make it 3 days/week', score: 0.35, source: 'default' },
         { text: 'Focus more on legs', score: 0.3, source: 'default' }
+      );
+      break;
+
+    case 'MODIFY_PROGRAM':
+      suggestions.push(
+        { text: 'Swap one exercise', score: 0.4, source: 'default' },
+        { text: 'Add a deload week', score: 0.35, source: 'default' },
+        { text: 'Adjust volume', score: 0.3, source: 'default' }
       );
       break;
 

@@ -1,0 +1,16 @@
+# Maestro Configuration for Fortis App
+# https://maestro.mobile.dev/
+
+appId: com.fortis.app
+name: Fortis E2E Tests
+
+# Default settings
+env:
+  APP_ID: com.fortis.app
+
+# Test execution settings
+executionOrder:
+  continueOnFailure: false
+  flowsOrder:
+    - tests/exercises/browse-exercises.yaml
+    - tests/workout/start-workout.yaml

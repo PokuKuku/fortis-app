@@ -1359,6 +1359,7 @@ Otherwise, respond with a JSON object containing a mutation plan:
 WRITE RULES:
 - For MODIFY_PROGRAM or MODIFY_TEMPLATE, you may use INSERT or UPDATE mutations.
 - For other write intents, create-only. Do not include UPDATE or DELETE mutations.
+- For UPDATE mutations, you must include entityId from the current program/template context.
 
 EXERCISE SELECTION RULES:
 1. Prefer exercises from the user's history when possible
@@ -1604,13 +1605,7 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
     (mutation: any) => mutation?.entityType === 'workout_program'
   );
 
-  if (
-    (intent === 'CREATE_TEMPLATE' ||
-      intent === 'CREATE_PROGRAM' ||
-      intent === 'MODIFY_TEMPLATE' ||
-      intent === 'MODIFY_PROGRAM') &&
-    !hasProgram
-  ) {
+  if ((intent === 'CREATE_TEMPLATE' || intent === 'CREATE_PROGRAM') && !hasProgram) {
     return 'Workout program mutation is required';
   }
 

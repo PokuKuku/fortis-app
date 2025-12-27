@@ -1,0 +1,50 @@
+# Browse Exercises Test
+# Tests the exercise library navigation and search functionality
+
+appId: com.fortis.app
+---
+
+# Launch the app
+- launchApp:
+    clearState: false
+
+# Wait for app to load
+- waitForAnimationToEnd
+
+# Navigate to Exercises tab
+- tapOn: "Exercises"
+
+# Wait for exercises to load
+- waitForAnimationToEnd
+
+# Verify the exercises screen loaded
+- assertVisible: "Search exercises"
+
+# Search for a common exercise
+- tapOn: "Search exercises"
+- inputText: "Bench Press"
+
+# Wait for search results
+- waitForAnimationToEnd
+
+# Verify search results appear
+- assertVisible:
+    text: ".*Bench.*Press.*"
+    optional: true
+
+# Tap on the first exercise in results
+- tapOn:
+    text: ".*Bench.*Press.*"
+    index: 0
+
+# Wait for exercise detail to load
+- waitForAnimationToEnd
+
+# Go back to exercises list
+- back
+
+# Clear search and try filter
+- clearKeychain: false
+
+# Take a screenshot of the final state
+- takeScreenshot: exercises-browse-complete

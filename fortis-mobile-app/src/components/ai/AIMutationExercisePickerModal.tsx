@@ -1,0 +1,141 @@
+import React, { useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  Modal,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  TextInput,
+  StyleSheet,
+} from 'react-native';
+import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import { Dumbbell, X } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import { Colors } from '../../../constants/Colors';
+import { IconSizes } from '../../../constants/Sizes';
+import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
+import { useExercises } from '../../hooks/useExercises';
+import { styles } from './AIMutationPreviewModal.styles';
+
+interface AIMutationExercisePickerModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (exerciseId: string, exerciseName: string) => void;
+}
+
+export function AIMutationExercisePickerModal({
+  visible,
+  onClose,
+  onSelect,
+}: AIMutationExercisePickerModalProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const { exercises, loading, error } = useExercises();
+
+  const sortedExercises = useMemo(() => {
+    return [...exercises].sort((a, b) => a.name.localeCompare(b.name));
+  }, [exercises]);
+
+  const filteredExercises = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return sortedExercises.slice(0, 50);
+    }
+
+    return sortedExercises.filter((exercise) => {
+      if (exercise.name.toLowerCase().includes(query)) return true;
+      if (exercise.primaryMuscles?.some((muscle) => muscle.toLowerCase().includes(query))) {
+        return true;
+      }
+      if (exercise.equipment?.toLowerCase().includes(query)) {
+        return true;
+      }
+      return false;
+    });
+  }, [sortedExercises, searchQuery]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="none"
+      transparent
+      onRequestClose={onClose}
+    >
+      <Animated.View
+        entering={FadeIn.duration(150)}
+        exiting={FadeOut.duration(100)}
+        style={styles.pickerOverlay}
+      >
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+        <Animated.View
+          entering={ZoomIn.duration(200)}
+          exiting={ZoomOut.duration(150)}
+          style={styles.pickerContainer}
+        >
+          <StainlessSteelPattern />
+
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Select Exercise</Text>
+            <TouchableOpacity onPress={onClose}>
+              <X color={Colors.textSecondary} size={IconSizes.md} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search exercises..."
+              placeholderTextColor={Colors.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          <ScrollView
+            style={styles.exerciseList}
+            contentContainerStyle={styles.exerciseListContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {loading && (
+              <View style={styles.loadingState}>
+                <ActivityIndicator color={Colors.success} size="small" />
+                <Text style={styles.loadingText}>Loading exercises...</Text>
+              </View>
+            )}
+            {!loading && error && (
+              <Text style={styles.noResultsText}>
+                Unable to load exercises. Please check your connection.
+              </Text>
+            )}
+            {!loading && !error && filteredExercises.map((exercise) => (
+              <TouchableOpacity
+                key={exercise.id}
+                style={styles.exerciseOption}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+                  onSelect(exercise.id, exercise.name);
+                  setSearchQuery('');
+                }}
+              >
+                <Dumbbell color={Colors.textSecondary} size={IconSizes.sm} />
+                <Text style={styles.exerciseOptionText}>{exercise.name}</Text>
+              </TouchableOpacity>
+            ))}
+            {!loading && !error && filteredExercises.length === 0 && (
+              <Text style={styles.noResultsText}>No exercises found</Text>
+            )}
+          </ScrollView>
+        </Animated.View>
+      </Animated.View>
+    </Modal>
+  );
+}
