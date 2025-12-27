@@ -7,6 +7,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetTypeSelector } from './SetTypeSelector';
@@ -188,13 +189,12 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
 
   const applyCompletionToRemainingSets = () => {
     if (!shouldShowCheckboxes || !exercise) return false;
-    const targetState = !set.isCompleted;
     const remainingSets = exercise.sets.slice(setIndex);
-    const setsToUpdate = remainingSets.filter((s) => s.isCompleted !== targetState);
+    const setsToUpdate = remainingSets.filter((s) => !s.isCompleted);
     if (setsToUpdate.length === 0) return false;
 
     setsToUpdate.forEach((s) => {
-      updateSet(exerciseLocalId, s.localId, { isCompleted: targetState });
+      updateSet(exerciseLocalId, s.localId, { isCompleted: true });
     });
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -283,19 +283,35 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     if (set.isCompleted) return null; // Completed state takes priority
     switch (set.setType) {
       case 'warmup':
-        return { backgroundColor: Colors.warmupOverlay };
+        return { backgroundColor: colors.warmupOverlay, borderColor: colors.warmupBorder };
       case 'dropset':
-        return { backgroundColor: Colors.dropsetOverlay };
+        return { backgroundColor: colors.dropsetOverlay, borderColor: colors.dropsetBorder };
       case 'failure':
-        return { backgroundColor: Colors.failureOverlay };
+        return { backgroundColor: colors.failureOverlay, borderColor: colors.failureBorder };
       default:
         return null;
     }
   };
 
   const weightUnits = useWorkoutStore(s => s.weightUnits);
-
+  const currentWeightUnit = exercise
+    ? (weightUnits[exercise.exerciseId] || 'lbs')
+    : 'lbs';
   const setDisplay = getSetDisplay();
+  const previousUnitRef = useRef<WeightUnit | null>(null);
+  const previousExerciseRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lastPerformance) return;
+    if (previousExerciseRef.current !== lastPerformance.exerciseId) {
+      previousExerciseRef.current = lastPerformance.exerciseId;
+      previousUnitRef.current = null;
+    }
+    const resolvedUnit = lastPerformance.weightUnit ?? previousUnitRef.current ?? currentWeightUnit;
+    if (resolvedUnit) {
+      previousUnitRef.current = resolvedUnit;
+    }
+  }, [currentWeightUnit, lastPerformance?.exerciseId, lastPerformance?.weightUnit]);
+
   const formatValue = (value: number | null) => {
     if (value === null || value === undefined) return '';
     const stringValue = value.toString();
@@ -304,10 +320,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       : stringValue;
   };
 
-  const currentWeightUnit = exercise
-    ? (weightUnits[exercise.exerciseId] || 'lbs')
-    : 'lbs';
-  const recordedWeightUnit = lastPerformance?.weightUnit || currentWeightUnit;
+  const recordedWeightUnit = lastPerformance?.weightUnit || previousUnitRef.current || currentWeightUnit;
   const previousText = (() => {
     if (lastPerformance?.weight == null) return '—';
     const weightText = formatValue(lastPerformance.weight);
@@ -429,7 +442,11 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
               themedStyles.inputText,
               (isWeightActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.weight != null) && themedStyles.placeholderText,
               (!isWeightActive && set.weight === null && allowAutoFill) && themedStyles.placeholderText
-            ]}>
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+            >
               {isWeightActive
                 ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.weight?.toString() : '') || '')
                 : (set.weight !== null ? set.weight.toString() : (allowAutoFill ? previousSet?.weight?.toString() || '' : ''))}
@@ -449,17 +466,21 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
                 isRepsActive && styles.inputActive,
                 isRepsActive && activeNumberPad?.hasError && styles.inputError
               ]}
-            >
-              <Text style={[
-                styles.inputText,
-                themedStyles.inputText,
-                (isRepsActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
-                (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
-              ]}>
-                {isRepsActive
-                  ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
-                  : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
-            </Text>
+              >
+                <Text style={[
+                  styles.inputText,
+                  themedStyles.inputText,
+                  (isRepsActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
+                  (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
+                ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
+                >
+                  {isRepsActive
+                    ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
+                    : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
+                </Text>
           </Pressable>
             {/* RPE Badge */}
             {set.rpe !== null && (
@@ -560,11 +581,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xs,
   },
   containerSetType: {
-    borderRadius: BorderRadius.md,
-    marginLeft: -Spacing.sm,
-    paddingLeft: Spacing.sm,
-    marginRight: -Spacing.xs,
-    paddingRight: Spacing.xs,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    paddingHorizontal: Spacing.xs,
   },
   setBadge: {
     width: 40,

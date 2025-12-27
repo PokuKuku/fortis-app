@@ -109,6 +109,9 @@ export const Colors = {
   warmupOverlay: DarkTheme.warmupOverlay,
   dropsetOverlay: DarkTheme.dropsetOverlay,
   failureOverlay: DarkTheme.failureOverlay,
+  warmupBorder: DarkTheme.warmupBorder,
+  dropsetBorder: DarkTheme.dropsetBorder,
+  failureBorder: DarkTheme.failureBorder,
 
   // Transparent variants
   transparent: BaseColors.transparent,

@@ -50,6 +50,13 @@ maestro test .maestro/tests/smoke-test.yaml  # Run smoke test
 maestro test .maestro/tests/                 # Run all E2E tests
 maestro studio                               # Interactive test builder
 
+# Writing Maestro Tests:
+# - Place tests in .maestro/tests/*.yaml
+# - Use `maestro studio` to record interactions
+# - Common commands: tapOn, assertVisible, inputText, scroll, waitForAnimationToEnd
+# - Add testID props to components for reliable selectors
+# - Example: tapOn: { id: "start-workout-button" }
+
 # Web Dashboard (fortis-dashboard-web/)
 cd fortis-dashboard-web
 npm run dev            # Start Next.js dev server (http://localhost:3000)
@@ -65,6 +72,25 @@ supabase functions deploy ai  # Deploy AI edge function
 supabase db push --dns-resolver https      # Push migrations to remote
 supabase db lint --linked --dns-resolver https  # Lint remote schema
 ```
+
+## Quick Reference
+
+| I want to... | Use this |
+|--------------|----------|
+| Create a green action button | `<GlassButton>` from `components/GlassButton.tsx` |
+| Create a card container | `<GlassCard>` from `components/GlassCard.tsx` |
+| Show a centered dialog | `<BaseModal>` from `src/components/ui/BaseModal.tsx` |
+| Add screen background | `<StainlessSteelPattern />` + `colors.background` |
+| Get theme colors | `const { colors, isDark } = useTheme()` |
+| Persist state offline | Zustand store with AsyncStorage (see `src/store/`) |
+| Navigate between screens | Expo Router: `router.push()`, `router.back()` |
+| Add an icon | `react-native-heroicons/outline` or `DumbbellIcon` |
+| Make API calls | Supabase client from `src/lib/supabase.ts` |
+| Add haptic feedback | `Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)` |
+| Animate a component | `react-native-reanimated` with `entering`/`exiting` props |
+| Style with spacing | `Spacing.xs/sm/md/lg/xl` from `constants/Sizes.ts` |
+| Use typography | Spread `Typography.h1/h2/body` from `constants/Typography.ts` |
+| Emit cross-component events | `DeviceEventEmitter.emit('event-name', data)` |
 
 ## Architecture
 
@@ -164,15 +190,9 @@ fortis-mobile-app/
 - Syncs to Supabase when online
 
 **Migrations** (`supabase/migrations/`):
-- `000_initial_schema.sql` - Core tables
-- `001_add_import_support.sql` - Strong/Hevy imports
-- `002_core_features_and_ai_security.sql` - AI, programs, RLS
-- `003_program_ai_tracking.sql` - AI-generated program tracking
-- `004_add_program_delete_update_policies.sql` - Program deletion/update RLS policies
-- `005_security_hardening.sql` - Enhanced security policies
-- `006_additional_security_hardening.sql` - Additional security policies
-- `007_fix_share_token_rng.sql` - Fix share token random generation
-- `008_ops_security_hardening.sql` - Operations security policies
+- Naming: `NNN_description.sql` (e.g., `000_initial_schema.sql`)
+- Run `ls supabase/migrations/` to see all migrations
+- Each migration is idempotent and can be re-run safely
 
 **Adding New User Tables:**
 - Enable RLS + FORCE
@@ -450,15 +470,6 @@ These work on both backgrounds:
 - `Colors.success` (#22c55e green)
 - `Colors.error` (#dc2626 red)
 - `Colors.warning` (#f59e0b amber)
-
-#### Pre-Implementation Theming Checklist
-
-- [ ] Added `useTheme` hook
-- [ ] Text uses `colors.textPrimary/Secondary/Tertiary` (not `Colors.*`)
-- [ ] Glass overlays use `isDark ? rgba(255,...) : rgba(0,...)` pattern
-- [ ] Container backgrounds use `colors.background`
-- [ ] Created `themedStyles` object for dynamic values
-- [ ] Applied via `style={[styles.static, themedStyles.dynamic]}`
 
 ## Troubleshooting
 

@@ -1,3 +1,43 @@
+# CLAUDE.md Improvements
+
+## Todo
+- [x] Consolidate duplicate theming checklists
+- [x] Replace stale migration list with directory pointer
+- [x] Add quick-reference table for common patterns
+- [x] Add E2E testing guidance for Maestro tests
+
+## Review
+
+### Summary
+Improved CLAUDE.md by removing redundant content, adding quick-lookup reference, and enhancing testing documentation.
+
+### Changes Made
+
+1. **Consolidated theming checklists** - Removed duplicate "Pre-Implementation Theming Checklist" section (was at lines 454-461), keeping only the main checklist in the Design System section.
+
+2. **Replaced migration list** - Changed the static list of 9 migration files to a dynamic pointer:
+   - Added naming convention note
+   - Added command to list migrations
+   - Noted idempotency
+
+3. **Added Quick Reference table** - New section after Development Commands with 14 common patterns:
+   - UI components (GlassButton, GlassCard, BaseModal)
+   - Theming, navigation, state, icons, APIs
+   - Animations, haptics, typography, events
+
+4. **Added E2E testing guidance** - Extended Maestro section with:
+   - Where to place test files
+   - How to use `maestro studio`
+   - Common commands list
+   - testID prop pattern for reliable selectors
+
+### Net Result
+- Reduced ~15 lines (duplicate checklist + stale migrations)
+- Added ~25 lines (quick reference + testing guidance)
+- More maintainable and actionable documentation
+
+---
+
 # Google OAuth Debug - localhost Redirect Issue
 
 ## Problem

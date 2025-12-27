@@ -124,6 +124,9 @@ export const DarkTheme = {
   warmupOverlay: 'rgba(234, 179, 8, 0.12)',
   dropsetOverlay: 'rgba(59, 130, 246, 0.12)',
   failureOverlay: 'rgba(239, 68, 68, 0.12)',
+  warmupBorder: 'rgba(234, 179, 8, 0.3)',
+  dropsetBorder: 'rgba(59, 130, 246, 0.3)',
+  failureBorder: 'rgba(239, 68, 68, 0.3)',
 
   // Button gradients
   buttonGradient: ['#4ade80', '#22c55e'] as readonly string[],
@@ -217,6 +220,9 @@ export const LightTheme = {
   warmupOverlay: 'rgba(234, 179, 8, 0.10)',
   dropsetOverlay: 'rgba(59, 130, 246, 0.10)',
   failureOverlay: 'rgba(239, 68, 68, 0.10)',
+  warmupBorder: 'rgba(234, 179, 8, 0.25)',
+  dropsetBorder: 'rgba(59, 130, 246, 0.25)',
+  failureBorder: 'rgba(239, 68, 68, 0.25)',
 
   // Button gradients (slightly darker for contrast on light)
   buttonGradient: ['#22c55e', '#16a34a'] as readonly string[],
