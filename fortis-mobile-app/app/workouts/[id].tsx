@@ -9,6 +9,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights, IconSizes } from '@/constants/Sizes';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWorkout } from '@/src/hooks/usePrograms';
 import { HubHeader, HubExerciseRow } from '@/src/components/hub';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
@@ -20,8 +21,20 @@ import { useProgramsStore } from '@/src/store/programsStore';
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    loadingText: { color: colors.textSecondary },
+    notFoundText: { color: colors.textSecondary },
+    description: { color: colors.textSecondary },
+    metaText: { color: colors.textTertiary },
+    sectionTitle: { color: colors.textPrimary },
+    sectionCount: { color: colors.textSecondary },
+  };
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const template = useProgramsStore(s => s.programs.find(p => p.id === id && p.isTemplate));
   const canEditTemplate = !!template;
@@ -112,16 +125,16 @@ export default function WorkoutDetailScreen() {
   if (!workout) {
     if (loading) {
       return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
           <StainlessSteelPattern />
         </SafeAreaView>
       );
     }
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
         <StainlessSteelPattern />
         <View style={styles.notFoundContainer}>
-          <Text style={styles.notFoundText}>Workout not found</Text>
+          <Text style={[styles.notFoundText, themedStyles.notFoundText]}>Workout not found</Text>
           <Pressable onPress={handleBack} style={styles.backLink}>
             <Text style={styles.backLinkText}>Go back</Text>
           </Pressable>
@@ -131,7 +144,7 @@ export default function WorkoutDetailScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
       <StainlessSteelPattern />
 
       {/* Header */}
@@ -152,7 +165,7 @@ export default function WorkoutDetailScreen() {
             entering={FadeIn.delay(100).duration(300)}
             style={styles.descriptionContainer}
           >
-            <Text style={styles.description}>{workout.description}</Text>
+            <Text style={[styles.description, themedStyles.description]}>{workout.description}</Text>
           </Animated.View>
         )}
 
@@ -186,8 +199,8 @@ export default function WorkoutDetailScreen() {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Exercises</Text>
-            <Text style={styles.sectionCount}>
+            <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Exercises</Text>
+            <Text style={[styles.sectionCount, themedStyles.sectionCount]}>
               {workout.exercises.length} exercises
             </Text>
           </View>

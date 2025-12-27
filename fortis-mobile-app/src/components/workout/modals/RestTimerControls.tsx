@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { PlayIcon, PauseIcon, ForwardIcon, ArrowUturnLeftIcon, PlusIcon, MinusIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore, getRestTimerColor } from '@/src/store/workoutStore';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';

@@ -1,6 +1,7 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { ClockIcon, XMarkIcon, CalendarDaysIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';

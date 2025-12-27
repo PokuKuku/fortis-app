@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import * as Haptics from 'expo-haptics';

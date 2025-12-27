@@ -15,16 +15,36 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 type UnitSystem = 'imperial' | 'metric';
 
 export default function OnboardingUnitsScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { updateProfile } = useAuth();
   const [selectedUnit, setSelectedUnit] = useState<UnitSystem>('imperial');
   const [isLoading, setIsLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    title: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+    optionCard: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    optionTitle: { color: colors.textPrimary },
+    optionDescription: { color: colors.textSecondary },
+    exampleUnit: { color: colors.textSecondary },
+    radioOuter: {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+    },
+    continueText: { color: colors.white },
+    dot: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' },
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -61,7 +81,7 @@ export default function OnboardingUnitsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -76,8 +96,8 @@ export default function OnboardingUnitsScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Choose Your Units</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, themedStyles.title]}>Choose Your Units</Text>
+            <Text style={[styles.subtitle, themedStyles.subtitle]}>
               Select your preferred weight measurement system
             </Text>
           </View>
@@ -87,22 +107,24 @@ export default function OnboardingUnitsScreen() {
             <TouchableOpacity
               style={[
                 styles.optionCard,
+                themedStyles.optionCard,
                 selectedUnit === 'imperial' && styles.optionCardSelected,
               ]}
               onPress={() => handleUnitSelect('imperial')}
               activeOpacity={0.8}
             >
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Imperial</Text>
-                <Text style={styles.optionDescription}>Pounds (lbs)</Text>
+                <Text style={[styles.optionTitle, themedStyles.optionTitle]}>Imperial</Text>
+                <Text style={[styles.optionDescription, themedStyles.optionDescription]}>Pounds (lbs)</Text>
               </View>
               <View style={styles.optionExample}>
                 <Text style={styles.exampleWeight}>135</Text>
-                <Text style={styles.exampleUnit}>lbs</Text>
+                <Text style={[styles.exampleUnit, themedStyles.exampleUnit]}>lbs</Text>
               </View>
               <View
                 style={[
                   styles.radioOuter,
+                  themedStyles.radioOuter,
                   selectedUnit === 'imperial' && styles.radioOuterSelected,
                 ]}
               >
@@ -115,22 +137,24 @@ export default function OnboardingUnitsScreen() {
             <TouchableOpacity
               style={[
                 styles.optionCard,
+                themedStyles.optionCard,
                 selectedUnit === 'metric' && styles.optionCardSelected,
               ]}
               onPress={() => handleUnitSelect('metric')}
               activeOpacity={0.8}
             >
               <View style={styles.optionContent}>
-                <Text style={styles.optionTitle}>Metric</Text>
-                <Text style={styles.optionDescription}>Kilograms (kg)</Text>
+                <Text style={[styles.optionTitle, themedStyles.optionTitle]}>Metric</Text>
+                <Text style={[styles.optionDescription, themedStyles.optionDescription]}>Kilograms (kg)</Text>
               </View>
               <View style={styles.optionExample}>
                 <Text style={styles.exampleWeight}>60</Text>
-                <Text style={styles.exampleUnit}>kg</Text>
+                <Text style={[styles.exampleUnit, themedStyles.exampleUnit]}>kg</Text>
               </View>
               <View
                 style={[
                   styles.radioOuter,
+                  themedStyles.radioOuter,
                   selectedUnit === 'metric' && styles.radioOuterSelected,
                 ]}
               >
@@ -148,16 +172,16 @@ export default function OnboardingUnitsScreen() {
               onPress={handleContinue}
               disabled={isLoading}
             >
-              <Text style={styles.continueText}>
+              <Text style={[styles.continueText, themedStyles.continueText]}>
                 {isLoading ? 'Saving...' : 'Continue'}
               </Text>
             </GlassButton>
 
             {/* Progress Dots */}
             <View style={styles.progressDots}>
-              <View style={styles.dot} />
+              <View style={[styles.dot, themedStyles.dot]} />
               <View style={[styles.dot, styles.dotActive]} />
-              <View style={styles.dot} />
+              <View style={[styles.dot, themedStyles.dot]} />
             </View>
           </View>
         </Animated.View>

@@ -9,6 +9,7 @@ import {
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import type { StartPreset } from '@/src/store/startPresetStore';
 import type { Program } from '@/src/types/workout';
 
@@ -37,6 +38,26 @@ export function StartButtonConfigModal({
   onClose,
   currentLabel,
 }: StartButtonConfigModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    sectionTitle: { color: colors.textSecondary },
+    option: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    optionLabel: { color: colors.textPrimary },
+    optionSubtitle: { color: colors.textSecondary },
+    emptyText: { color: colors.textTertiary },
+    hintText: { color: colors.textTertiary },
+    confirmButtonDisabled: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    confirmButtonTextDisabled: { color: colors.textTertiary },
+  };
+
   const renderOption = (props: {
     label: string;
     subtitle?: string;
@@ -48,6 +69,7 @@ export function StartButtonConfigModal({
       onPress={props.onPress}
       style={({ pressed }) => [
         styles.option,
+        themedStyles.option,
         props.selected && styles.optionSelected,
         pressed && styles.optionPressed,
       ]}
@@ -55,9 +77,9 @@ export function StartButtonConfigModal({
       <View style={styles.optionContent}>
         {props.icon && <View style={styles.optionIcon}>{props.icon}</View>}
         <View style={styles.optionText}>
-          <Text style={styles.optionLabel}>{props.label}</Text>
+          <Text style={[styles.optionLabel, themedStyles.optionLabel]}>{props.label}</Text>
           {props.subtitle ? (
-            <Text style={styles.optionSubtitle}>{props.subtitle}</Text>
+            <Text style={[styles.optionSubtitle, themedStyles.optionSubtitle]}>{props.subtitle}</Text>
           ) : null}
         </View>
       </View>
@@ -80,7 +102,7 @@ export function StartButtonConfigModal({
           ? `Currently set to ${presetLabel}.`
           : 'Choose what the Start button should launch.'}
       </Text>
-      <Text style={styles.hintText}>
+      <Text style={[styles.hintText, themedStyles.hintText]}>
         Press and hold the Start button to reconfigure.
       </Text>
 
@@ -103,20 +125,20 @@ export function StartButtonConfigModal({
         showsVerticalScrollIndicator={false}
         nestedScrollEnabled
       >
-        <Text style={styles.sectionTitle}>Blank Workout</Text>
+        <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Blank Workout</Text>
         {renderOption({
           label: 'Blank Workout',
           subtitle: 'Start a fresh workout log',
           selected: draftPreset?.type === 'blank',
-          icon: <PlayIcon size={18} color={Colors.textPrimary} strokeWidth={2} />,
+          icon: <PlayIcon size={18} color={Colors.success} strokeWidth={2} />,
           onPress: () => onChange({ type: 'blank' }),
         })}
 
-        <Text style={styles.sectionTitle}>Workouts</Text>
+        <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Workouts</Text>
         {isLoading && templates.length === 0 ? (
-          <Text style={styles.emptyText}>Loading workouts...</Text>
+          <Text style={[styles.emptyText, themedStyles.emptyText]}>Loading workouts...</Text>
         ) : templates.length === 0 ? (
-          <Text style={styles.emptyText}>No saved workouts yet.</Text>
+          <Text style={[styles.emptyText, themedStyles.emptyText]}>No saved workouts yet.</Text>
         ) : (
           templates.map((template) => (
             <View key={`template-${template.id}`}>
@@ -127,7 +149,7 @@ export function StartButtonConfigModal({
                   draftPreset?.type === 'template' &&
                   (draftPreset.templateId === template.id ||
                     template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
-                icon: <Squares2X2Icon size={18} color={Colors.textPrimary} strokeWidth={2} />,
+                icon: <Squares2X2Icon size={18} color={Colors.success} strokeWidth={2} />,
                 onPress: () =>
                   onChange({
                     type: 'template',
@@ -139,11 +161,11 @@ export function StartButtonConfigModal({
           ))
         )}
 
-        <Text style={styles.sectionTitle}>Programs</Text>
+        <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Programs</Text>
         {isLoading && programs.length === 0 ? (
-          <Text style={styles.emptyText}>Loading programs...</Text>
+          <Text style={[styles.emptyText, themedStyles.emptyText]}>Loading programs...</Text>
         ) : programs.length === 0 ? (
-          <Text style={styles.emptyText}>No programs created yet.</Text>
+          <Text style={[styles.emptyText, themedStyles.emptyText]}>No programs created yet.</Text>
         ) : (
           programs.map((program) => (
             <View key={`program-${program.id}`}>
@@ -151,7 +173,7 @@ export function StartButtonConfigModal({
                 label: program.name,
                 subtitle: 'Continue to the next workout',
                 selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
-                icon: <CalendarDaysIcon size={18} color={Colors.textPrimary} strokeWidth={2} />,
+                icon: <CalendarDaysIcon size={18} color={Colors.success} strokeWidth={2} />,
                 onPress: () => onChange({ type: 'program', programId: program.id }),
               })}
             </View>
@@ -164,11 +186,11 @@ export function StartButtonConfigModal({
         disabled={!hasChanges}
         style={({ pressed }) => [
           styles.confirmButton,
-          !hasChanges && styles.confirmButtonDisabled,
+          !hasChanges && themedStyles.confirmButtonDisabled,
           pressed && hasChanges && modalStyles.buttonPressed,
         ]}
       >
-        <Text style={[modalStyles.successButtonText, !hasChanges && styles.confirmButtonTextDisabled]}>
+        <Text style={[modalStyles.successButtonText, !hasChanges && themedStyles.confirmButtonTextDisabled]}>
           Confirm
         </Text>
       </Pressable>

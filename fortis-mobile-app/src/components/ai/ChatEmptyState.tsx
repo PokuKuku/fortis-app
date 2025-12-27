@@ -26,6 +26,7 @@ import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { DumbbellIcon } from '@/src/components/icons/DumbbellIcon';
 import { AIIntent } from '@/src/types/ai';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface QuickAction {
   intent: AIIntent;
@@ -72,6 +73,24 @@ interface ChatEmptyStateProps {
 
 
 export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    title: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+    card: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    cardIcon: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    cardLabel: { color: colors.textPrimary },
+    cardDescription: { color: colors.textSecondary },
+    hint: { color: colors.textTertiary },
+  };
+
   const handleQuickAction = (action: QuickAction) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onQuickAction(action.intent, action.prompt);
@@ -84,8 +103,8 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
         entering={FadeIn.duration(400)}
         style={styles.header}
       >
-        <Text style={styles.title}>Ready to Level Up?</Text>
-        <Text style={styles.subtitle}>
+        <Text style={[styles.title, themedStyles.title]}>Ready to Level Up?</Text>
+        <Text style={[styles.subtitle, themedStyles.subtitle]}>
           Your AI coach is here to build workouts, crush plateaus, and track your gains
         </Text>
       </Animated.View>
@@ -101,7 +120,7 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
             style={styles.gridItem}
           >
             <TouchableOpacity
-              style={styles.card}
+              style={[styles.card, themedStyles.card]}
               onPress={() => handleQuickAction(action)}
               activeOpacity={0.85}
               accessibilityLabel={`${action.label}: ${action.description}`}
@@ -109,13 +128,13 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
               accessibilityRole="button"
             >
               <View style={styles.cardHeader}>
-                <View style={styles.cardIcon}>
-                  <action.icon color={Colors.textSecondary} size={IconSizes.md} />
+                <View style={[styles.cardIcon, themedStyles.cardIcon]}>
+                  <action.icon color={colors.textSecondary} size={IconSizes.md} />
                 </View>
-                <ChevronRightIcon color={Colors.textTertiary} size={IconSizes.sm} />
+                <ChevronRightIcon color={colors.textTertiary} size={IconSizes.sm} />
               </View>
-              <Text style={styles.cardLabel}>{action.label}</Text>
-              <Text style={styles.cardDescription}>{action.description}</Text>
+              <Text style={[styles.cardLabel, themedStyles.cardLabel]}>{action.label}</Text>
+              <Text style={[styles.cardDescription, themedStyles.cardDescription]}>{action.description}</Text>
             </TouchableOpacity>
           </Animated.View>
         ))}
@@ -124,7 +143,7 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
       {/* Hint text */}
       <Animated.Text
         entering={FadeIn.duration(400).delay(500)}
-        style={styles.hint}
+        style={[styles.hint, themedStyles.hint]}
       >
         Tap a suggestion or type your own question
       </Animated.Text>

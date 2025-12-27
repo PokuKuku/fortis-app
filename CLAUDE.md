@@ -326,6 +326,102 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
 - `src/components/shared/`: Cross-feature
 - `src/components/[feature]/`: Feature-specific
 
+### Theming Guidelines (MANDATORY)
+
+The app supports both dark and light modes via `ThemeContext`. **All new components MUST support both themes.**
+
+#### 1. Import and use the theme hook
+
+```tsx
+import { useTheme } from '@/src/contexts/ThemeContext';
+
+export default function MyComponent() {
+  const { colors, isDark } = useTheme();
+  // ...
+}
+```
+
+#### 2. Use dynamic colors for text (NOT static Colors.*)
+
+```tsx
+// ✅ CORRECT - responds to theme changes
+<Text style={{ color: colors.textPrimary }}>Hello</Text>
+<Text style={{ color: colors.textSecondary }}>Subtitle</Text>
+
+// ❌ WRONG - always shows dark theme colors
+<Text style={{ color: Colors.textPrimary }}>Hello</Text>
+```
+
+**Available dynamic colors:**
+- `colors.textPrimary` - Main text (#fafafa dark / #1A1A1A light)
+- `colors.textSecondary` - Secondary text
+- `colors.textTertiary` - Tertiary/muted text
+- `colors.background` - Screen background
+- `colors.white` - Pure white (for button text on green)
+- `colors.success`, `colors.error`, `colors.warning` - Semantic colors (same in both themes)
+
+#### 3. Invert glass/overlay effects for light mode
+
+```tsx
+// Glass card backgrounds
+backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
+
+// Glass borders
+borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'
+
+// Progress dots, dividers
+backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)'
+```
+
+#### 4. Use the themedStyles pattern
+
+Since `StyleSheet.create()` runs at module load time (before theme is available), create a `themedStyles` object inside your component:
+
+```tsx
+export default function MyScreen() {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic styles that depend on theme
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    title: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+    card: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+  };
+
+  return (
+    <View style={[styles.container, themedStyles.container]}>
+      <Text style={[styles.title, themedStyles.title]}>Title</Text>
+    </View>
+  );
+}
+
+// Static styles (layout, sizing - theme-independent)
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  title: { ...Typography.h1, marginBottom: Spacing.md },
+});
+```
+
+#### 5. Keep semantic colors static
+
+These work on both backgrounds:
+- `Colors.success` (#22c55e green)
+- `Colors.error` (#dc2626 red)
+- `Colors.warning` (#f59e0b amber)
+
+#### Pre-Implementation Theming Checklist
+
+- [ ] Added `useTheme` hook
+- [ ] Text uses `colors.textPrimary/Secondary/Tertiary` (not `Colors.*`)
+- [ ] Glass overlays use `isDark ? rgba(255,...) : rgba(0,...)` pattern
+- [ ] Container backgrounds use `colors.background`
+- [ ] Created `themedStyles` object for dynamic values
+- [ ] Applied via `style={[styles.static, themedStyles.dynamic]}`
+
 ## Troubleshooting
 
 ```bash

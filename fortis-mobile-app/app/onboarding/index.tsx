@@ -20,13 +20,25 @@ import { GlassButton } from '@/components/GlassButton';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    welcomeTitle: { color: colors.textPrimary },
+    welcomeSubtitle: { color: colors.textSecondary },
+    featureText: { color: colors.textPrimary },
+    getStartedText: { color: colors.white },
+    dot: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' },
+  };
 
   useEffect(() => {
     Animated.parallel([
@@ -49,7 +61,7 @@ export default function OnboardingWelcomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -89,8 +101,8 @@ export default function OnboardingWelcomeScreen() {
 
           {/* Welcome Message */}
           <View style={styles.messageContainer}>
-            <Text style={styles.welcomeTitle}>Welcome to Fortis</Text>
-            <Text style={styles.welcomeSubtitle}>
+            <Text style={[styles.welcomeTitle, themedStyles.welcomeTitle]}>Welcome to Fortis</Text>
+            <Text style={[styles.welcomeSubtitle, themedStyles.welcomeSubtitle]}>
               Your personal strength training companion. Track workouts, monitor progress, and achieve your fitness goals.
             </Text>
           </View>
@@ -99,15 +111,15 @@ export default function OnboardingWelcomeScreen() {
           <View style={styles.featuresContainer}>
             <View style={styles.featureItem}>
               <View style={styles.featureDot} />
-              <Text style={styles.featureText}>Track every rep and set</Text>
+              <Text style={[styles.featureText, themedStyles.featureText]}>Track every rep and set</Text>
             </View>
             <View style={styles.featureItem}>
               <View style={styles.featureDot} />
-              <Text style={styles.featureText}>Follow structured programs</Text>
+              <Text style={[styles.featureText, themedStyles.featureText]}>Follow structured programs</Text>
             </View>
             <View style={styles.featureItem}>
               <View style={styles.featureDot} />
-              <Text style={styles.featureText}>Visualize your progress</Text>
+              <Text style={[styles.featureText, themedStyles.featureText]}>Visualize your progress</Text>
             </View>
           </View>
 
@@ -117,14 +129,14 @@ export default function OnboardingWelcomeScreen() {
               style={styles.getStartedButton}
               onPress={handleGetStarted}
             >
-              <Text style={styles.getStartedText}>Get Started</Text>
+              <Text style={[styles.getStartedText, themedStyles.getStartedText]}>Get Started</Text>
             </GlassButton>
 
             {/* Progress Dots */}
             <View style={styles.progressDots}>
               <View style={[styles.dot, styles.dotActive]} />
-              <View style={styles.dot} />
-              <View style={styles.dot} />
+              <View style={[styles.dot, themedStyles.dot]} />
+              <View style={[styles.dot, themedStyles.dot]} />
             </View>
           </View>
         </Animated.View>

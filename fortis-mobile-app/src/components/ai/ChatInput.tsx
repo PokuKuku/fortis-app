@@ -35,7 +35,9 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
+  RecognizerIntentEnableLanguageSwitch,
 } from 'expo-speech-recognition';
+import type { ExpoSpeechRecognitionResultEvent } from 'expo-speech-recognition';
 import {
   PaperAirplaneIcon,
   CameraIcon,
@@ -47,6 +49,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { AIImageMimeType } from '@/src/types/ai';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface SelectedImage {
   uri: string;
@@ -67,6 +70,131 @@ interface ChatInputProps {
 
 const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
+const DICTATION_LANGUAGE_TAGS = [
+  'en-US',
+  'en-GB',
+  'en-AU',
+  'en-CA',
+  'es-ES',
+  'es-MX',
+  'fr-FR',
+  'pt-BR',
+];
+
+const DICTATION_CONTEXT_STRINGS = [
+  'workout',
+  'training',
+  'session',
+  'warm up',
+  'cool down',
+  'set',
+  'sets',
+  'rep',
+  'reps',
+  'RPE',
+  'RIR',
+  'AMRAP',
+  'EMOM',
+  'HIIT',
+  'PR',
+  'PB',
+  '1RM',
+  '5RM',
+  'superset',
+  'dropset',
+  'tempo',
+  'rest',
+  'rest day',
+  'deload',
+  'volume',
+  'intensity',
+  'bench press',
+  'deadlift',
+  'squat',
+  'front squat',
+  'back squat',
+  'overhead press',
+  'shoulder press',
+  'row',
+  'barbell row',
+  'dumbbell row',
+  'pull up',
+  'pullup',
+  'chin up',
+  'push up',
+  'pushup',
+  'dip',
+  'lunge',
+  'split squat',
+  'hip thrust',
+  'glute bridge',
+  'romanian deadlift',
+  'RDL',
+  'lat pulldown',
+  'leg press',
+  'calf raise',
+  'kettlebell',
+  'dumbbell',
+  'barbell',
+  'plate',
+  'kg',
+  'kgs',
+  'kilogram',
+  'kilograms',
+  'lb',
+  'lbs',
+  'pound',
+  'pounds',
+  'interval',
+  'cardio',
+  'mobility',
+  'stretch',
+  'stretching',
+  'core',
+  'plank',
+  'burpee',
+  'bike',
+  'rower',
+  'treadmill',
+  'zone 2',
+  'entrenamiento',
+  'series',
+  'repeticiones',
+  'sentadilla',
+  'peso muerto',
+  'press de banca',
+  'dominadas',
+  'flexiones',
+  'zancadas',
+];
+
+const normalizeTranscript = (transcript: string) => transcript.trim();
+
+const buildDictationValue = (baseText: string, transcript: string) => {
+  const trimmedTranscript = normalizeTranscript(transcript);
+  if (!trimmedTranscript) return baseText;
+  if (!baseText) return trimmedTranscript;
+  const needsSpace = !/\s$/.test(baseText);
+  return `${baseText}${needsSpace ? ' ' : ''}${trimmedTranscript}`;
+};
+
+const pickBestTranscript = (event: ExpoSpeechRecognitionResultEvent) => {
+  if (!event?.results?.length) return '';
+  let best = event.results[0];
+
+  for (const result of event.results) {
+    if (result.confidence > best.confidence) {
+      best = result;
+      continue;
+    }
+    if (result.confidence === best.confidence && result.transcript.length > best.transcript.length) {
+      best = result;
+    }
+  }
+
+  return best.transcript;
+};
+
 export function ChatInput({
   value,
   onChangeText,
@@ -77,9 +205,32 @@ export function ChatInput({
   disabled = false,
   placeholder = 'Ask about your training...',
 }: ChatInputProps) {
+  const { colors, isDark } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const inputRef = useRef<TextInput>(null);
+  const dictationActiveRef = useRef(false);
+  const dictationLastTranscriptRef = useRef('');
+  const dictationBaseTextRef = useRef('');
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    wrapper: {
+      backgroundColor: colors.background,
+      borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    container: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    input: { color: colors.textPrimary },
+    sendButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    removeImageButton: {
+      borderColor: colors.background,
+    },
+  };
 
   // Animation values
   const borderOpacity = useSharedValue(0);
@@ -203,21 +354,30 @@ export function ChatInput({
 
   // Speech recognition event handlers
   useSpeechRecognitionEvent('result', (event) => {
-    if (event.results && event.results.length > 0) {
-      const transcript = event.results[0]?.transcript || '';
-      if (transcript) {
-        // Append to existing text or replace
-        onChangeText(value ? `${value} ${transcript}` : transcript);
-      }
-    }
+    if (!dictationActiveRef.current) return;
+    const transcript = normalizeTranscript(pickBestTranscript(event));
+    if (!transcript || transcript === dictationLastTranscriptRef.current) return;
+    dictationLastTranscriptRef.current = transcript;
+    const nextValue = buildDictationValue(dictationBaseTextRef.current, transcript);
+    onChangeText(nextValue);
   });
 
   useSpeechRecognitionEvent('end', () => {
+    dictationActiveRef.current = false;
+    dictationLastTranscriptRef.current = '';
     setIsRecording(false);
   });
 
   useSpeechRecognitionEvent('error', (event) => {
+    if (event.error === 'no-speech' || event.error === 'speech-timeout') {
+      dictationActiveRef.current = false;
+      dictationLastTranscriptRef.current = '';
+      setIsRecording(false);
+      return;
+    }
     console.error('Speech recognition error:', event.error);
+    dictationActiveRef.current = false;
+    dictationLastTranscriptRef.current = '';
     setIsRecording(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
   });
@@ -233,6 +393,7 @@ export function ChatInput({
       }
       setIsRecording(false);
     } else {
+      if (dictationActiveRef.current) return;
       // Start recording
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -250,20 +411,33 @@ export function ChatInput({
       // Start recognition
       try {
         await ExpoSpeechRecognitionModule.start({
-          lang: 'en-US',
+          lang: DICTATION_LANGUAGE_TAGS[0],
           interimResults: true,
           continuous: false,
+          addsPunctuation: true,
+          contextualStrings: DICTATION_CONTEXT_STRINGS,
+          androidIntentOptions: {
+            EXTRA_ENABLE_LANGUAGE_DETECTION: true,
+            EXTRA_ENABLE_LANGUAGE_SWITCH:
+              RecognizerIntentEnableLanguageSwitch.LANGUAGE_SWITCH_BALANCED,
+            EXTRA_LANGUAGE_DETECTION_ALLOWED_LANGUAGES: DICTATION_LANGUAGE_TAGS,
+            EXTRA_LANGUAGE_SWITCH_ALLOWED_LANGUAGES: DICTATION_LANGUAGE_TAGS,
+          },
         });
+        dictationActiveRef.current = true;
+        dictationLastTranscriptRef.current = '';
+        dictationBaseTextRef.current = value;
         setIsRecording(true);
       } catch (error) {
         console.error('Failed to start speech recognition:', error);
+        dictationActiveRef.current = false;
         Alert.alert('Error', 'Failed to start voice input. Please try again.');
       }
     }
-  }, [isRecording]);
+  }, [isRecording, onChangeText, value]);
 
   return (
-    <View style={styles.wrapper}>
+    <View style={[styles.wrapper, themedStyles.wrapper]}>
       {/* Floating Image Preview */}
       {selectedImage && (
         <Animated.View
@@ -278,7 +452,7 @@ export function ChatInput({
               resizeMode="cover"
             />
             <TouchableOpacity
-              style={styles.removeImageButton}
+              style={[styles.removeImageButton, themedStyles.removeImageButton]}
               onPress={onImageClear}
               activeOpacity={0.8}
               accessibilityLabel="Remove attached image"
@@ -302,7 +476,7 @@ export function ChatInput({
       )}
 
       {/* Main Input Container */}
-      <Animated.View style={[styles.container, containerStyle]}>
+      <Animated.View style={[styles.container, themedStyles.container, containerStyle]}>
         {/* Camera Button */}
         <TouchableOpacity
           style={styles.iconButton}
@@ -314,7 +488,7 @@ export function ChatInput({
           accessibilityHint="Choose from camera or photo library"
         >
           <CameraIcon
-            color={disabled ? Colors.textTertiary : Colors.textSecondary}
+            color={disabled ? colors.textTertiary : colors.textSecondary}
             size={IconSizes.md}
           />
         </TouchableOpacity>
@@ -334,7 +508,7 @@ export function ChatInput({
               <StopIcon color={Colors.error} size={IconSizes.md} />
             ) : (
               <MicrophoneIcon
-                color={disabled ? Colors.textTertiary : Colors.textSecondary}
+                color={disabled ? colors.textTertiary : colors.textSecondary}
                 size={IconSizes.md}
               />
             )}
@@ -344,9 +518,9 @@ export function ChatInput({
         {/* Text Input */}
         <TextInput
           ref={inputRef}
-          style={styles.input}
+          style={[styles.input, themedStyles.input]}
           placeholder={selectedImage ? 'Describe the workout (optional)...' : placeholder}
-          placeholderTextColor={Colors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={value}
           onChangeText={onChangeText}
           onFocus={() => setIsFocused(true)}
@@ -360,7 +534,7 @@ export function ChatInput({
 
         {/* Send Button */}
         <AnimatedTouchableOpacity
-          style={[styles.sendButton, canSend && styles.sendButtonActive]}
+          style={[styles.sendButton, themedStyles.sendButton, canSend && styles.sendButtonActive]}
           onPress={handleSend}
           disabled={!canSend}
           activeOpacity={0.8}
@@ -370,7 +544,7 @@ export function ChatInput({
         >
           <Animated.View style={sendButtonStyle}>
             <PaperAirplaneIcon
-              color={canSend ? Colors.white : Colors.textTertiary}
+              color={canSend ? Colors.white : colors.textTertiary}
               size={IconSizes.md}
             />
           </Animated.View>
@@ -430,6 +604,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'flex-start',
   },
   recordingButton: {
     backgroundColor: 'rgba(220, 38, 38, 0.15)',

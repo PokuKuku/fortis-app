@@ -24,6 +24,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -44,6 +45,51 @@ interface EditorWorkout {
 
 export default function CreateProgramScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    dragHandle: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
+    },
+    closeButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    headerTitleInput: { color: colors.textPrimary },
+    descriptionInput: {
+      color: colors.textPrimary,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+    },
+    statLabel: { color: colors.textTertiary },
+    workoutCard: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    workoutNameInput: { color: colors.textPrimary },
+    reorderButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    workoutExerciseCount: { color: colors.textSecondary },
+    templateLabel: { color: colors.textTertiary },
+    emptyStateText: { color: colors.textSecondary },
+    emptyStateSubtext: { color: colors.textSecondary },
+    modalOverlay: { backgroundColor: colors.overlayHeavy },
+    modalCard: { backgroundColor: colors.background },
+    modalTitle: { color: colors.textPrimary },
+    modalCloseButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    modalOption: {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+    },
+    modalOptionTitle: { color: colors.textPrimary },
+    modalOptionSubtitle: { color: colors.textSecondary },
+    modalEmptyText: { color: colors.textSecondary },
+    addButtonContainer: { backgroundColor: colors.background },
+  };
   const {
     mode,
     programId: programIdParam,
@@ -292,14 +338,14 @@ export default function CreateProgramScreen() {
     const canMoveDown = index < workouts.length - 1;
 
     return (
-      <View style={styles.workoutCard}>
+      <View style={[styles.workoutCard, themedStyles.workoutCard]}>
         <View style={styles.workoutCardHeader}>
           <TextInput
-            style={styles.workoutNameInput}
+            style={[styles.workoutNameInput, themedStyles.workoutNameInput]}
             value={item.name}
             onChangeText={(text) => handleUpdateWorkoutName(item.id, text)}
             placeholder="Workout Name"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             autoCorrect={false}
             autoCapitalize="words"
           />
@@ -309,24 +355,26 @@ export default function CreateProgramScreen() {
               disabled={!canMoveUp}
               style={({ pressed }) => [
                 styles.reorderButton,
+                themedStyles.reorderButton,
                 !canMoveUp && styles.reorderButtonDisabled,
                 pressed && canMoveUp && styles.reorderButtonPressed,
               ]}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <ChevronUpIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
+              <ChevronUpIcon size={16} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
             <Pressable
               onPress={() => handleMoveWorkout(item.id, 'down')}
               disabled={!canMoveDown}
               style={({ pressed }) => [
                 styles.reorderButton,
+                themedStyles.reorderButton,
                 !canMoveDown && styles.reorderButtonDisabled,
                 pressed && canMoveDown && styles.reorderButtonPressed,
               ]}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
-              <ChevronDownIcon size={16} color={Colors.textSecondary} strokeWidth={2} />
+              <ChevronDownIcon size={16} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
             <Pressable
               onPress={() => handleRemoveWorkout(item.id)}
@@ -342,7 +390,7 @@ export default function CreateProgramScreen() {
         </View>
         <View style={styles.workoutCardContent}>
           <View style={styles.workoutCardInfo}>
-            <Text style={styles.workoutExerciseCount} numberOfLines={1}>
+            <Text style={[styles.workoutExerciseCount, themedStyles.workoutExerciseCount]} numberOfLines={1}>
               {template ? `${exerciseCount} exercises` : 'Template not selected'}
             </Text>
           </View>
@@ -365,13 +413,13 @@ export default function CreateProgramScreen() {
         </View>
       </View>
     );
-  }, [handleMoveWorkout, handleRemoveWorkout, handleUpdateWorkoutName, templateMap, workouts.length]);
+  }, [handleMoveWorkout, handleRemoveWorkout, handleUpdateWorkoutName, templateMap, workouts.length, colors, themedStyles]);
 
   // Render empty state
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyStateText}>No workouts added yet</Text>
-      <Text style={styles.emptyStateSubtext}>
+      <Text style={[styles.emptyStateText, themedStyles.emptyStateText]}>No workouts added yet</Text>
+      <Text style={[styles.emptyStateSubtext, themedStyles.emptyStateSubtext]}>
         {templates.length > 0
           ? 'Tap "Add Workout" to choose from your templates'
           : 'Create a workout template to build programs'}
@@ -394,12 +442,12 @@ export default function CreateProgramScreen() {
   const saveButtonText = isEditing ? 'Update' : 'Save';
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Drag Handle */}
         <View style={styles.dragHandleContainer}>
-          <View style={styles.dragHandle} />
+          <View style={[styles.dragHandle, themedStyles.dragHandle]} />
         </View>
 
         {/* Header */}
@@ -408,16 +456,17 @@ export default function CreateProgramScreen() {
             onPress={handleClose}
             style={({ pressed }) => [
               styles.closeButton,
+              themedStyles.closeButton,
               pressed && styles.closeButtonPressed,
             ]}
           >
-            <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
+            <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
           </Pressable>
           <View style={styles.titleInputWrapper}>
             <TextInput
-              style={styles.headerTitleInput}
+              style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
               placeholder="Program Name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={programName}
               onChangeText={setProgramName}
               autoCorrect={false}
@@ -431,7 +480,7 @@ export default function CreateProgramScreen() {
             />
             <View style={styles.editIconSlot}>
               {!isNameFocused && (
-                <PencilIcon size={14} color={Colors.textTertiary} strokeWidth={2} />
+                <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
               )}
             </View>
           </View>
@@ -454,9 +503,9 @@ export default function CreateProgramScreen() {
         {/* Description */}
         <View style={styles.descriptionWrapper}>
           <TextInput
-            style={styles.descriptionInput}
+            style={[styles.descriptionInput, themedStyles.descriptionInput]}
             placeholder="Program Description (optional)"
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={colors.textSecondary}
             value={programDescription}
             onChangeText={setProgramDescription}
             multiline
@@ -470,11 +519,11 @@ export default function CreateProgramScreen() {
           <View style={styles.statsCard}>
             <View style={styles.statsLeft}>
               <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Workouts</Text>
+                <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
                 <Text style={styles.statValue}>{workoutCount}</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Exercises</Text>
+                <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
                 <Text style={styles.statValue}>{totalExercises}</Text>
               </View>
             </View>
@@ -510,10 +559,10 @@ export default function CreateProgramScreen() {
             setActiveWorkoutId(null);
           }}
         >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalCard}>
+          <View style={[styles.modalOverlay, themedStyles.modalOverlay]}>
+            <View style={[styles.modalCard, themedStyles.modalCard]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select a workout template</Text>
+                <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Select a workout template</Text>
                 <Pressable
                   onPress={() => {
                     setShowTemplatePicker(false);
@@ -521,10 +570,11 @@ export default function CreateProgramScreen() {
                   }}
                   style={({ pressed }) => [
                     styles.modalCloseButton,
+                    themedStyles.modalCloseButton,
                     pressed && styles.modalCloseButtonPressed,
                   ]}
                 >
-                  <XMarkIcon size={18} color={Colors.textSecondary} strokeWidth={2} />
+                  <XMarkIcon size={18} color={colors.textSecondary} strokeWidth={2} />
                 </Pressable>
               </View>
               <FlatList
@@ -537,12 +587,13 @@ export default function CreateProgramScreen() {
                     onPress={() => handleSelectTemplate(item.id)}
                     style={({ pressed }) => [
                       styles.modalOption,
+                      themedStyles.modalOption,
                       pressed && styles.modalOptionPressed,
                     ]}
                   >
                     <View>
-                      <Text style={styles.modalOptionTitle}>{item.name}</Text>
-                      <Text style={styles.modalOptionSubtitle}>
+                      <Text style={[styles.modalOptionTitle, themedStyles.modalOptionTitle]}>{item.name}</Text>
+                      <Text style={[styles.modalOptionSubtitle, themedStyles.modalOptionSubtitle]}>
                         {item.workouts[0]?.exercises.length || 0} exercises
                       </Text>
                     </View>
@@ -550,7 +601,7 @@ export default function CreateProgramScreen() {
                   </Pressable>
                 )}
                 ListEmptyComponent={
-                  <Text style={styles.modalEmptyText}>
+                  <Text style={[styles.modalEmptyText, themedStyles.modalEmptyText]}>
                     No templates available yet.
                   </Text>
                 }
@@ -560,7 +611,7 @@ export default function CreateProgramScreen() {
         </Modal>
 
         {/* Add Workout Button */}
-        <View style={styles.addButtonContainer}>
+        <View style={[styles.addButtonContainer, themedStyles.addButtonContainer]}>
           <Pressable
             onPress={handleAddWorkout}
             style={({ pressed }) => [

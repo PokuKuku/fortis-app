@@ -54,6 +54,7 @@ import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography, FontFamily } from '@/constants/Typography';
 import { AIConversationMessage } from '@/src/types/ai';
 import { StreamingText } from './StreamingText';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
@@ -83,8 +84,30 @@ export function ChatMessage({
   onCustomizeAction,
   onClarificationSelect,
 }: ChatMessageProps) {
+  const { colors, isDark } = useTheme();
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    userContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+    },
+    userText: { color: colors.textPrimary },
+    copyText: { color: colors.textTertiary },
+    timestamp: { color: colors.textTertiary },
+    userIndicatorText: { color: colors.textTertiary },
+    customizeButton: {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    customizeButtonText: { color: colors.textPrimary },
+    clarificationOption: {
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    clarificationOptionText: { color: colors.textSecondary },
+  };
 
   const handleCopy = useCallback(async () => {
     const success = await copyToClipboard(message.content);
@@ -97,39 +120,39 @@ export function ChatMessage({
     }
   }, [message.content]);
 
-  // Markdown styles matching the design system
+  // Markdown styles matching the design system (dynamic for theme)
   const markdownStyles = {
     body: {
       ...Typography.body,
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
       lineHeight: 24,
     },
     heading1: {
       ...Typography.h3,
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
       marginTop: Spacing.lg,
       marginBottom: Spacing.sm,
     },
     heading2: {
       ...Typography.h4,
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
       marginTop: Spacing.md,
       marginBottom: Spacing.xs,
     },
     heading3: {
       ...Typography.h5,
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
       marginTop: Spacing.md,
       marginBottom: Spacing.xs,
     },
     strong: {
       fontFamily: FontFamily.semibold,
       fontWeight: '600' as const,
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
     },
     em: {
       fontStyle: 'italic' as const,
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
     },
     link: {
       color: Colors.info,
@@ -146,7 +169,7 @@ export function ChatMessage({
     },
     code_inline: {
       fontFamily: FontFamily.mono,
-      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
       color: Colors.success,
       paddingHorizontal: 6,
       paddingVertical: 2,
@@ -155,8 +178,8 @@ export function ChatMessage({
     },
     code_block: {
       fontFamily: FontFamily.mono,
-      backgroundColor: 'rgba(255, 255, 255, 0.06)',
-      color: Colors.textPrimary,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      color: colors.textPrimary,
       padding: Spacing.md,
       borderRadius: BorderRadius.md,
       fontSize: 13,
@@ -165,8 +188,8 @@ export function ChatMessage({
     },
     fence: {
       fontFamily: FontFamily.mono,
-      backgroundColor: 'rgba(255, 255, 255, 0.06)',
-      color: Colors.textPrimary,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      color: colors.textPrimary,
       padding: Spacing.md,
       borderRadius: BorderRadius.md,
       fontSize: 13,
@@ -189,47 +212,47 @@ export function ChatMessage({
       marginRight: Spacing.sm,
     },
     ordered_list_icon: {
-      color: Colors.textSecondary,
+      color: colors.textSecondary,
       fontSize: 14,
       lineHeight: 24,
       marginRight: Spacing.sm,
     },
     hr: {
-      backgroundColor: Colors.border,
+      backgroundColor: colors.border,
       height: 1,
       marginVertical: Spacing.lg,
     },
     table: {
       borderWidth: 1,
-      borderColor: Colors.border,
+      borderColor: colors.border,
       borderRadius: BorderRadius.sm,
       marginVertical: Spacing.sm,
     },
     thead: {
-      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
     },
     th: {
       ...Typography.labelSmall,
-      color: Colors.textSecondary,
+      color: colors.textSecondary,
       padding: Spacing.sm,
       borderRightWidth: 1,
       borderBottomWidth: 1,
-      borderColor: Colors.border,
+      borderColor: colors.border,
     },
     td: {
       ...Typography.bodySmall,
-      color: Colors.textPrimary,
+      color: colors.textPrimary,
       padding: Spacing.sm,
       borderRightWidth: 1,
       borderBottomWidth: 1,
-      borderColor: Colors.border,
+      borderColor: colors.border,
     },
   };
 
   return (
     <ReAnimated.View
       entering={FadeIn.duration(300).delay(delay)}
-      style={[styles.container, isUser ? styles.userContainer : styles.aiContainer]}
+      style={[styles.container, isUser ? [styles.userContainer, themedStyles.userContainer] : styles.aiContainer]}
     >
 
       {/* Message Content */}
@@ -247,7 +270,7 @@ export function ChatMessage({
 
         {/* Message text */}
         {isUser ? (
-          <Text style={styles.userText}>{message.content}</Text>
+          <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
         ) : isStreaming ? (
           <StreamingText
             text={message.content}
@@ -274,13 +297,13 @@ export function ChatMessage({
               {copied ? (
                 <CheckIcon color={Colors.success} size={IconSizes.sm} />
               ) : (
-                <DocumentDuplicateIcon color={Colors.textTertiary} size={IconSizes.sm} />
+                <DocumentDuplicateIcon color={colors.textTertiary} size={IconSizes.sm} />
               )}
-              <Text style={[styles.copyText, copied && styles.copyTextSuccess]}>
+              <Text style={[styles.copyText, themedStyles.copyText, copied && styles.copyTextSuccess]}>
                 {copied ? 'Copied' : 'Copy'}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.timestamp}>
+            <Text style={[styles.timestamp, themedStyles.timestamp]}>
               {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
             </Text>
           </View>
@@ -288,7 +311,7 @@ export function ChatMessage({
 
         {/* Timestamp for user messages */}
         {isUser && (
-          <Text style={styles.timestamp}>
+          <Text style={[styles.timestamp, themedStyles.timestamp]}>
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </Text>
         )}
@@ -297,7 +320,7 @@ export function ChatMessage({
         {!isUser && !isStreaming && message.mutationPlanId && onSaveAction && onCustomizeAction && (
           <View style={styles.actionButtonsContainer}>
             <TouchableOpacity
-              style={styles.customizeButton}
+              style={[styles.customizeButton, themedStyles.customizeButton]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 onCustomizeAction();
@@ -307,8 +330,8 @@ export function ChatMessage({
               accessibilityHint="Review and edit before saving"
               accessibilityRole="button"
             >
-              <PencilIcon color={Colors.textPrimary} size={IconSizes.sm} />
-              <Text style={styles.customizeButtonText}>Customize</Text>
+              <PencilIcon color={colors.textPrimary} size={IconSizes.sm} />
+              <Text style={[styles.customizeButtonText, themedStyles.customizeButtonText]}>Customize</Text>
             </TouchableOpacity>
             <GlassButton
               style={styles.saveButton}
@@ -331,7 +354,7 @@ export function ChatMessage({
             {message.clarification.options.map((option) => (
               <TouchableOpacity
                 key={option}
-                style={styles.clarificationOption}
+                style={[styles.clarificationOption, themedStyles.clarificationOption]}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   onClarificationSelect?.(option);
@@ -340,7 +363,7 @@ export function ChatMessage({
                 accessibilityLabel={`Select option: ${option}`}
                 accessibilityRole="button"
               >
-                <Text style={styles.clarificationOptionText}>{option}</Text>
+                <Text style={[styles.clarificationOptionText, themedStyles.clarificationOptionText]}>{option}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -350,7 +373,7 @@ export function ChatMessage({
       {/* User indicator */}
       {isUser && (
         <View style={styles.userIndicator}>
-          <Text style={styles.userIndicatorText}>You</Text>
+          <Text style={[styles.userIndicatorText, themedStyles.userIndicatorText]}>You</Text>
         </View>
       )}
     </ReAnimated.View>

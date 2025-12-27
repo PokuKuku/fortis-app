@@ -54,6 +54,7 @@ import { GlassButton } from '@/components/GlassButton';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 

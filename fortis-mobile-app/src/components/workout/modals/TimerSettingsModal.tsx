@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
 import { XMarkIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -39,6 +40,36 @@ export function TimerSettingsModal({
   initialWarmupDuration,
   initialDropDuration,
 }: TimerSettingsModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: colors.background,
+      borderColor: isDark ? Colors.borderLight : 'rgba(0, 0, 0, 0.08)',
+    },
+    title: { color: colors.textPrimary },
+    closeButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    pickerValue: { color: colors.textTertiary },
+    pickerValueSelected: { color: colors.textPrimary },
+    pickerUnit: { color: colors.textTertiary },
+    pickerUnitSelected: { color: colors.textSecondary },
+    selectionSlot: {
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.06)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    selectionLabel: { color: colors.textTertiary },
+    typeSelectorPopover: {
+      backgroundColor: colors.background,
+      borderColor: isDark ? Colors.borderLight : 'rgba(0, 0, 0, 0.08)',
+    },
+    typeSelectorText: { color: colors.textPrimary },
+    fadeGradient: isDark ? ['#1a1a1a', 'transparent'] : [colors.background, 'transparent'],
+  };
+
   const [activeType, setActiveType] = useState<SetType>('normal');
   const [showTypeSelector, setShowTypeSelector] = useState(false);
 
@@ -184,7 +215,7 @@ export function TimerSettingsModal({
           <Animated.View
             entering={ZoomIn.duration(250).easing(Easing.out(Easing.cubic))}
             exiting={ZoomOut.duration(200).easing(Easing.in(Easing.cubic))}
-            style={styles.container}
+            style={[styles.container, themedStyles.container]}
           >
             <StainlessSteelPattern />
 
@@ -205,7 +236,7 @@ export function TimerSettingsModal({
               </View>
 
               {/* Title - Centered */}
-              <Text style={styles.title}>REST TIMER</Text>
+              <Text style={[styles.title, themedStyles.title]}>REST TIMER</Text>
 
               {/* Close Button - Right side container */}
               <View style={[styles.headerSide, styles.headerSideRight]}>
@@ -213,10 +244,11 @@ export function TimerSettingsModal({
                   onPress={onClose}
                   style={({ pressed }) => [
                     styles.closeButton,
+                    themedStyles.closeButton,
                     pressed && styles.buttonPressed,
                   ]}
                 >
-                  <XMarkIcon size={18} color={Colors.textSecondary} strokeWidth={2.5} />
+                  <XMarkIcon size={18} color={colors.textSecondary} strokeWidth={2.5} />
                 </Pressable>
               </View>
             </View>
@@ -224,18 +256,18 @@ export function TimerSettingsModal({
             {/* Picker Container */}
             <View style={styles.pickerContainer}>
               {/* Selection Slot - Recessed industrial look */}
-              <View style={styles.selectionSlot}>
+              <View style={[styles.selectionSlot, themedStyles.selectionSlot]}>
                 <View style={styles.selectionSlotInner} />
               </View>
 
               {/* Fade overlays */}
               <LinearGradient
-                colors={['#1a1a1a', 'transparent']}
+                colors={themedStyles.fadeGradient as [string, string]}
                 style={[styles.fadeOverlay, styles.fadeTop]}
                 pointerEvents="none"
               />
               <LinearGradient
-                colors={['transparent', '#1a1a1a']}
+                colors={[...themedStyles.fadeGradient].reverse() as [string, string]}
                 style={[styles.fadeOverlay, styles.fadeBottom]}
                 pointerEvents="none"
               />
@@ -260,13 +292,15 @@ export function TimerSettingsModal({
                       <View key={m} style={styles.pickerItem}>
                         <Text style={[
                           styles.pickerValue,
-                          m === selectedMinutes && styles.pickerValueSelected,
+                          themedStyles.pickerValue,
+                          m === selectedMinutes && [styles.pickerValueSelected, themedStyles.pickerValueSelected],
                         ]}>
                           {m}
                         </Text>
                         <Text style={[
                           styles.pickerUnit,
-                          m === selectedMinutes && styles.pickerUnitSelected,
+                          themedStyles.pickerUnit,
+                          m === selectedMinutes && [styles.pickerUnitSelected, themedStyles.pickerUnitSelected],
                         ]}>
                           m
                         </Text>
@@ -301,13 +335,15 @@ export function TimerSettingsModal({
                       <View key={s} style={styles.pickerItem}>
                         <Text style={[
                           styles.pickerValue,
-                          s === selectedSeconds && styles.pickerValueSelected,
+                          themedStyles.pickerValue,
+                          s === selectedSeconds && [styles.pickerValueSelected, themedStyles.pickerValueSelected],
                         ]}>
                           {s.toString().padStart(2, '0')}
                         </Text>
                         <Text style={[
                           styles.pickerUnit,
-                          s === selectedSeconds && styles.pickerUnitSelected,
+                          themedStyles.pickerUnit,
+                          s === selectedSeconds && [styles.pickerUnitSelected, themedStyles.pickerUnitSelected],
                         ]}>
                           s
                         </Text>
@@ -321,7 +357,7 @@ export function TimerSettingsModal({
 
             {/* Current Selection Display */}
             <View style={styles.selectionDisplay}>
-              <Text style={styles.selectionLabel}>SET TO</Text>
+              <Text style={[styles.selectionLabel, themedStyles.selectionLabel]}>SET TO</Text>
               <Text style={[styles.selectionValue, isDisabled && styles.selectionValueDisabled]}>
                 {isDisabled ? 'DISABLED' : `${selectedMinutes}:${selectedSeconds.toString().padStart(2, '0')}`}
               </Text>
@@ -363,7 +399,7 @@ export function TimerSettingsModal({
                   onPress={() => setShowTypeSelector(false)}
                   activeOpacity={1}
                 />
-                <Animated.View style={[styles.typeSelectorPopover, popoverAnimatedStyle]}>
+                <Animated.View style={[styles.typeSelectorPopover, themedStyles.typeSelectorPopover, popoverAnimatedStyle]}>
                   <StainlessSteelPattern />
                   {(['normal', 'warmup', 'dropset'] as SetType[]).map((type, index) => (
                     <View key={type}>
@@ -383,7 +419,7 @@ export function TimerSettingsModal({
                               type === 'dropset' ? '#3b82f6' : Colors.success
                           }
                         ]} />
-                        <Text style={styles.typeSelectorText}>
+                        <Text style={[styles.typeSelectorText, themedStyles.typeSelectorText]}>
                           {type === 'warmup' ? 'WARM UP' : type === 'dropset' ? 'DROP SET' : 'NORMAL'}
                         </Text>
                       </Pressable>

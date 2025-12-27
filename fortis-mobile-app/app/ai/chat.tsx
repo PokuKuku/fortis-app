@@ -32,6 +32,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAIStore } from '@/src/store/aiStore';
 import { AIIntent, AIImageMimeType } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
@@ -139,6 +140,7 @@ const inferIntentFromMessage = (
 
 export default function AIChatScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [inputText, setInputText] = useState('');
   const [selectedIntent, setSelectedIntent] = useState<AIIntent>('QUERY_STATS');
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -146,6 +148,20 @@ export default function AIChatScreen() {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    dragHandleBar: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)',
+    },
+    header: {
+      borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    clearText: { color: colors.textTertiary },
+    loadingText: { color: colors.textSecondary },
+    errorHint: { color: colors.textTertiary },
+  };
 
   // Store state
   const conversation = useAIStore((state) => state.conversation);
@@ -299,16 +315,16 @@ export default function AIChatScreen() {
   }, [retryLastMessage]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
       <StainlessSteelPattern />
 
       {/* Minimal drag handle */}
       <View style={styles.dragHandle}>
-        <View style={styles.dragHandleBar} />
+        <View style={[styles.dragHandleBar, themedStyles.dragHandleBar]} />
       </View>
 
       {/* Clean header */}
-      <View style={styles.header}>
+      <View style={[styles.header, themedStyles.header]}>
         <View style={styles.headerLeft}>
           <ChatHeaderLogo isLoading={isSendingMessage} />
         </View>
@@ -319,7 +335,7 @@ export default function AIChatScreen() {
               onPress={handleClear}
               activeOpacity={0.7}
             >
-              <Text style={styles.clearText}>Clear</Text>
+              <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
             </TouchableOpacity>
           )}
           <TouchableOpacity
@@ -327,7 +343,7 @@ export default function AIChatScreen() {
             onPress={handleClose}
             activeOpacity={0.7}
           >
-            <XMarkIcon color={Colors.textSecondary} size={IconSizes.lg} />
+            <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
           </TouchableOpacity>
         </View>
       </View>
@@ -391,7 +407,7 @@ export default function AIChatScreen() {
                   style={styles.loadingContainer}
                 >
                   <AnimatedLoadingSparkles />
-                  <Text style={styles.loadingText}>{loadingMessage}</Text>
+                  <Text style={[styles.loadingText, themedStyles.loadingText]}>{loadingMessage}</Text>
                 </Animated.View>
               )}
             </>
@@ -407,7 +423,7 @@ export default function AIChatScreen() {
               accessibilityRole="button"
             >
               <Text style={styles.errorText}>{error}</Text>
-              <Text style={styles.errorHint}>
+              <Text style={[styles.errorHint, themedStyles.errorHint]}>
                 {lastFailedMessage ? 'Tap to retry' : 'Tap to dismiss'}
               </Text>
             </TouchableOpacity>

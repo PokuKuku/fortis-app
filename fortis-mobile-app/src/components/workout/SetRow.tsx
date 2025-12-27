@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable, Animated as RNAnimated } from 'react
 import { CheckIcon, TrashIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Swipeable } from 'react-native-gesture-handler';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -30,6 +31,36 @@ interface SetRowProps {
 }
 
 export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = false, showCheckboxes, previousSet, lastPerformance }: SetRowProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    input: {
+      backgroundColor: isDark ? Colors.surfaceOverlay : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? Colors.borderLight : 'rgba(0, 0, 0, 0.15)',
+    },
+    inputText: {
+      color: colors.textPrimary,
+    },
+    placeholderText: {
+      color: isDark ? Colors.textTertiary : 'rgba(0, 0, 0, 0.35)',
+    },
+    previousText: {
+      color: colors.textTertiary,
+    },
+    setBadge: {
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.08)',
+      borderTopColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.15)',
+      borderLeftColor: isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)',
+      borderRightColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.5)',
+      borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.6)',
+    },
+    checkbox: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
+    },
+  };
+
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
   const shouldShowCheckboxes = showCheckboxes ?? !useEditor;
   // Allow previous-set autofill when logging a workout (active session or log mode),
@@ -307,14 +338,14 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     const hasError = validationErrors[field as 'weight' | 'reps'];
 
     if (hasError) {
-      return [styles.input, styles.inputError];
+      return [styles.input, themedStyles.input, styles.inputError];
     }
 
     if (set.isCompleted) {
-      return [styles.input, styles.inputCompleted];
+      return [styles.input, themedStyles.input, styles.inputCompleted];
     }
 
-    return styles.input;
+    return [styles.input, themedStyles.input];
   };
 
   const setTypeStyle = getSetTypeStyle();
@@ -346,7 +377,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
                 setShowTypeSelector(true);
               });
             }}
-            style={styles.setBadge}
+            style={[styles.setBadge, themedStyles.setBadge]}
           >
             <Text style={[styles.setBadgeText, { color: setDisplay.color }]}>
               {setDisplay.label}
@@ -356,7 +387,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
 
         {/* Previous set indicator - shows last session performance */}
         <View style={styles.previousCol}>
-          <Text style={styles.previousText}>
+          <Text style={[styles.previousText, themedStyles.previousText]}>
             {lastPerformance
               ? `${lastPerformance.setCount}x${lastPerformance.weight}`
               : '—'}
@@ -377,8 +408,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
           >
             <Text style={[
               styles.inputText,
-              (isWeightActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.weight != null) && styles.placeholderText,
-              (!isWeightActive && set.weight === null && allowAutoFill) && styles.placeholderText
+              themedStyles.inputText,
+              (isWeightActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.weight != null) && themedStyles.placeholderText,
+              (!isWeightActive && set.weight === null && allowAutoFill) && themedStyles.placeholderText
             ]}>
               {isWeightActive
                 ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.weight?.toString() : '') || '')
@@ -402,8 +434,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
             >
               <Text style={[
                 styles.inputText,
-                (isRepsActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.reps != null) && styles.placeholderText,
-                (!isRepsActive && set.reps === null && allowAutoFill) && styles.placeholderText
+                themedStyles.inputText,
+                (isRepsActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
+                (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
               ]}>
                 {isRepsActive
                   ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
@@ -430,7 +463,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
             onPress={handleCheckboxPress}
             onLongPress={handleCheckboxLongPress}
             delayLongPress={350}
-            style={[styles.checkbox, set.isCompleted && styles.checkboxCompleted]}
+            style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && styles.checkboxCompleted]}
           >
             {set.isCompleted ? (
               <>
@@ -455,7 +488,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
             ) : (
               <CheckIcon
                 size={16}
-                color={Colors.textTertiary}
+                color={colors.textTertiary}
                 strokeWidth={2}
               />
             )}

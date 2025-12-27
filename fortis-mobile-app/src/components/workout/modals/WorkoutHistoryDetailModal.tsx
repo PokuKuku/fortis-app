@@ -4,6 +4,7 @@ import { ClockIcon, ScaleIcon, TrophyIcon } from 'react-native-heroicons/outline
 import { BaseModal } from '@/src/components/ui/BaseModal';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
 import { WorkoutSession } from '@/src/types/workout';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 
@@ -39,6 +40,20 @@ export function WorkoutHistoryDetailModal({
   onClose,
   session,
 }: WorkoutHistoryDetailModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    dateTime: { color: colors.textSecondary },
+    statsRow: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    statValue: { color: colors.textPrimary },
+    exerciseName: { color: colors.success },
+    setNumber: { color: colors.textSecondary },
+    setDetails: { color: colors.textPrimary },
+  };
+
   if (!session) return null;
 
   const summary = getWorkoutSummary(session);
@@ -52,23 +67,23 @@ export function WorkoutHistoryDetailModal({
       width={350}
     >
       {/* Date/Time */}
-      <Text style={styles.dateTime}>{formattedDateTime}</Text>
+      <Text style={[styles.dateTime, themedStyles.dateTime]}>{formattedDateTime}</Text>
 
       {/* Stats Row */}
-      <View style={styles.statsRow}>
+      <View style={[styles.statsRow, themedStyles.statsRow]}>
         <View style={styles.stat}>
-          <ClockIcon color={Colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={styles.statValue}>{formatDuration(summary.durationSeconds)}</Text>
+          <ClockIcon color={colors.textSecondary} size={16} strokeWidth={2} />
+          <Text style={[styles.statValue, themedStyles.statValue]}>{formatDuration(summary.durationSeconds)}</Text>
         </View>
 
         <View style={styles.stat}>
-          <ScaleIcon color={Colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={styles.statValue}>{formatVolume(summary.totalVolume)} lb</Text>
+          <ScaleIcon color={colors.textSecondary} size={16} strokeWidth={2} />
+          <Text style={[styles.statValue, themedStyles.statValue]}>{formatVolume(summary.totalVolume)} lb</Text>
         </View>
 
         <View style={styles.stat}>
-          <TrophyIcon color={Colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={styles.statValue}>0 PR</Text>
+          <TrophyIcon color={colors.textSecondary} size={16} strokeWidth={2} />
+          <Text style={[styles.statValue, themedStyles.statValue]}>0 PR</Text>
         </View>
       </View>
 
@@ -81,15 +96,15 @@ export function WorkoutHistoryDetailModal({
           return (
             <View key={exercise.localId} style={styles.exerciseSection}>
               {/* Exercise Name */}
-              <Text style={styles.exerciseName} numberOfLines={1}>
+              <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
                 {exercise.exerciseName}
               </Text>
 
               {/* Sets */}
               {completedSets.map((set, idx) => (
                 <View key={set.localId} style={styles.setRow}>
-                  <Text style={styles.setNumber}>{idx + 1}</Text>
-                  <Text style={styles.setDetails}>
+                  <Text style={[styles.setNumber, themedStyles.setNumber]}>{idx + 1}</Text>
+                  <Text style={[styles.setDetails, themedStyles.setDetails]}>
                     {set.weight ?? 0} × {set.reps ?? 0}
                   </Text>
                 </View>

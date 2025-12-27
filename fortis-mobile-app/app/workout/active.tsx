@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWorkoutStore, hasTemplateModifications } from '@/src/store/workoutStore';
 import { useRestTimerTick } from '@/src/hooks/useRestTimerTick';
 import { WorkoutHeader } from '@/src/components/workout/WorkoutHeader';
@@ -33,7 +34,22 @@ import * as Haptics from 'expo-haptics';
 
 export default function ActiveWorkoutScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const activeSession = useWorkoutStore(s => s.activeSession);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    dragHandle: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
+    },
+    emptyLine: {
+      backgroundColor: isDark ? 'rgba(163, 163, 163, 0.3)' : 'rgba(0, 0, 0, 0.15)',
+    },
+    emptyTitle: { color: colors.textSecondary },
+    emptyDescription: { color: colors.textTertiary },
+    finishButtonText: { color: colors.white },
+  };
   const cancelWorkout = useWorkoutStore(s => s.cancelWorkout);
   const finishWorkout = useWorkoutStore(s => s.finishWorkout);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
@@ -234,11 +250,11 @@ export default function ActiveWorkoutScreen() {
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
       <View style={styles.emptyTitleRow}>
-        <View style={styles.emptyLine} />
-        <Text style={styles.emptyTitle}>No exercises yet</Text>
-        <View style={styles.emptyLine} />
+        <View style={[styles.emptyLine, themedStyles.emptyLine]} />
+        <Text style={[styles.emptyTitle, themedStyles.emptyTitle]}>No exercises yet</Text>
+        <View style={[styles.emptyLine, themedStyles.emptyLine]} />
       </View>
-      <Text style={styles.emptyDescription}>
+      <Text style={[styles.emptyDescription, themedStyles.emptyDescription]}>
         Tap below to get started
       </Text>
     </View>
@@ -273,12 +289,12 @@ export default function ActiveWorkoutScreen() {
   );
 
   return (
-    <SafeAreaView edges={['top']} style={styles.container}>
+    <SafeAreaView edges={['top']} style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
       {/* Drag Handle Indicator */}
       <View style={styles.dragHandleContainer}>
-        <View style={styles.dragHandle} />
+        <View style={[styles.dragHandle, themedStyles.dragHandle]} />
       </View>
 
       <KeyboardAvoidingView

@@ -714,7 +714,7 @@ function ProgramDropCard({
     >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
-          <Text style={[styles.cardTitle, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
+          <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
             {item.name}
           </Text>
           {item.isAiCreated && (
@@ -1107,7 +1107,7 @@ export default function ProgramsScreen() {
             >
               <View style={styles.cardHeader}>
                 <View style={styles.cardTitleRow}>
-                  <Text style={[styles.cardTitle, { color: colors.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
+                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
                     {item.name}
                   </Text>
                   {item.isAiCreated && (
@@ -1217,7 +1217,7 @@ export default function ProgramsScreen() {
                     ]}
                   />
                 </GlassButton>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Programs</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Programs</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleProgramsKebabPress}
@@ -1264,7 +1264,7 @@ export default function ProgramsScreen() {
                     ]}
                   />
                 </GlassButton>
-                <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Workouts</Text>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleWorkoutsKebabPress}

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
 import { ClockIcon } from 'react-native-heroicons/outline';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -17,6 +18,17 @@ export function RestTimerCompleteModal({
   visible,
   onDismiss,
 }: RestTimerCompleteModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? '#222222' : '#FFFFFF',
+    },
+    title: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+  };
+
   // Trigger haptic feedback when modal appears
   useEffect(() => {
     if (visible) {
@@ -37,7 +49,7 @@ export function RestTimerCompleteModal({
       <Animated.View entering={FadeIn.duration(250).easing(Easing.out(Easing.cubic))} exiting={FadeOut.duration(200).easing(Easing.in(Easing.cubic))} style={styles.backdrop}>
         <Pressable style={styles.centeredView} onPress={onDismiss} activeOpacity={1}>
           <Animated.View entering={ZoomIn.duration(300).easing(Easing.out(Easing.cubic))} exiting={ZoomOut.duration(200).easing(Easing.in(Easing.cubic))}>
-            <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+            <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
               <StainlessSteelPattern />
 
               {/* Content */}
@@ -48,10 +60,10 @@ export function RestTimerCompleteModal({
                 </View>
 
                 {/* Title */}
-                <Text style={styles.title}>Time's Up!</Text>
+                <Text style={[styles.title, themedStyles.title]}>Time's Up!</Text>
 
                 {/* Subtitle */}
-                <Text style={styles.subtitle}>
+                <Text style={[styles.subtitle, themedStyles.subtitle]}>
                   Rest period complete. Ready for your next set?
                 </Text>
 

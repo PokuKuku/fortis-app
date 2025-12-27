@@ -20,6 +20,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useAIStore } from '@/src/store/aiStore';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
 
@@ -28,6 +29,7 @@ interface ChatHeaderLogoProps {
 }
 
 export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
+  const { colors, isDark } = useTheme();
   const shineAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const sparkleAnim = useRef(new Animated.Value(1)).current;
@@ -36,6 +38,14 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const sparkleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    rateLimitBadge: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    rateLimitText: { color: colors.textTertiary },
+  };
 
   const logoWidth = 90;
   const logoHeight = 24;
@@ -184,6 +194,7 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
         <View
           style={[
             styles.rateLimitBadge,
+            themedStyles.rateLimitBadge,
             isLowRemaining && styles.rateLimitBadgeWarning,
           ]}
           accessibilityLabel={`${remaining} requests remaining today`}
@@ -191,6 +202,7 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
           <Text
             style={[
               styles.rateLimitText,
+              themedStyles.rateLimitText,
               isLowRemaining && styles.rateLimitTextWarning,
             ]}
           >

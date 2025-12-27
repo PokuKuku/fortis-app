@@ -6,7 +6,7 @@ export const EXERCISE_LIBRARY_VERSION_KEY = 'exercise_library_version_v1';
 
 // Programs
 export const PROGRAMS_KEY = 'fortis_programs_v1';
-export const LOCAL_TEMPLATES_KEY = 'fortis_local_templates_v2';
+export const LOCAL_TEMPLATES_KEY = 'fortis_local_templates_v4';
 export const PROGRAM_PROGRESS_KEY = 'program_progress_v1';
 
 // Workout templates

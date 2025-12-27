@@ -16,11 +16,22 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const { completeOnboarding } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    title: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+    startText: { color: colors.white },
+    dot: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' },
+  };
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
@@ -69,7 +80,7 @@ export default function OnboardingCompleteScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -115,8 +126,8 @@ export default function OnboardingCompleteScreen() {
 
           {/* Message */}
           <View style={styles.messageContainer}>
-            <Text style={styles.title}>You're All Set!</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, themedStyles.title]}>You're All Set!</Text>
+            <Text style={[styles.subtitle, themedStyles.subtitle]}>
               Your account is ready. Start tracking your workouts and crush your fitness goals.
             </Text>
           </View>
@@ -128,15 +139,15 @@ export default function OnboardingCompleteScreen() {
               onPress={handleStart}
               disabled={isLoading}
             >
-              <Text style={styles.startText}>
+              <Text style={[styles.startText, themedStyles.startText]}>
                 {isLoading ? 'Loading...' : 'Start Training'}
               </Text>
             </GlassButton>
 
             {/* Progress Dots */}
             <View style={styles.progressDots}>
-              <View style={styles.dot} />
-              <View style={styles.dot} />
+              <View style={[styles.dot, themedStyles.dot]} />
+              <View style={[styles.dot, themedStyles.dot]} />
               <View style={[styles.dot, styles.dotActive]} />
             </View>
           </View>

@@ -22,6 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -44,10 +45,31 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 export default function EmailAuthScreen() {
   const router = useRouter();
   const { signInWithEmail, signUpWithEmail } = useAuth();
+  const { colors, isDark } = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    backButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    title: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+    label: { color: colors.textSecondary },
+    inputWrapper: {
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(63, 63, 70, 0.8)' : 'rgba(0, 0, 0, 0.12)',
+    },
+    inputWrapperFocused: {
+      borderColor: isDark ? 'rgba(63, 63, 70, 1)' : 'rgba(0, 0, 0, 0.2)',
+    },
+    input: { color: colors.textPrimary },
+    toggleText: { color: colors.textSecondary },
+  };
 
   const {
     control,
@@ -98,7 +120,7 @@ export default function EmailAuthScreen() {
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View style={styles.container}>
+      <View style={[styles.container, themedStyles.container]}>
         <StainlessSteelPattern />
 
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -110,19 +132,19 @@ export default function EmailAuthScreen() {
             <View style={styles.header}>
               <TouchableOpacity
                 onPress={handleBack}
-                style={styles.backButton}
+                style={[styles.backButton, themedStyles.backButton]}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <ChevronLeftIcon color={Colors.textPrimary} size={24} strokeWidth={2} />
+                <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
             {/* Content */}
             <View style={styles.content}>
-              <Text style={styles.title}>
+              <Text style={[styles.title, themedStyles.title]}>
                 {isSignUp ? 'Create Account' : 'Welcome Back'}
               </Text>
-              <Text style={styles.subtitle}>
+              <Text style={[styles.subtitle, themedStyles.subtitle]}>
                 {isSignUp
                   ? 'Enter your email to get started'
                   : 'Sign in to continue your journey'}
@@ -131,26 +153,28 @@ export default function EmailAuthScreen() {
               {/* Form */}
               <View style={styles.form}>
                 <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Email</Text>
+                  <Text style={[styles.label, themedStyles.label]}>Email</Text>
                   <Controller
                     control={control}
                     name="email"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <View style={[
                         styles.inputWrapper,
+                        themedStyles.inputWrapper,
                         focusedField === 'email' && styles.inputWrapperFocused,
+                        focusedField === 'email' && themedStyles.inputWrapperFocused,
                         errors.email && styles.inputWrapperError,
                       ]}>
                         <EnvelopeIcon
                           size={18}
-                          color={focusedField === 'email' ? Colors.success : Colors.textSecondary}
+                          color={focusedField === 'email' ? colors.success : colors.textSecondary}
                           strokeWidth={2}
                           style={styles.inputIcon}
                         />
                         <TextInput
-                          style={styles.input}
+                          style={[styles.input, themedStyles.input]}
                           placeholder="your@email.com"
-                          placeholderTextColor={Colors.textSecondary}
+                          placeholderTextColor={colors.textSecondary}
                           keyboardType="email-address"
                           autoCapitalize="none"
                           autoComplete="email"
@@ -171,26 +195,28 @@ export default function EmailAuthScreen() {
                 </View>
 
                 <View style={styles.inputContainer}>
-                  <Text style={styles.label}>Password</Text>
+                  <Text style={[styles.label, themedStyles.label]}>Password</Text>
                   <Controller
                     control={control}
                     name="password"
                     render={({ field: { onChange, onBlur, value } }) => (
                       <View style={[
                         styles.inputWrapper,
+                        themedStyles.inputWrapper,
                         focusedField === 'password' && styles.inputWrapperFocused,
+                        focusedField === 'password' && themedStyles.inputWrapperFocused,
                         errors.password && styles.inputWrapperError,
                       ]}>
                         <LockClosedIcon
                           size={18}
-                          color={focusedField === 'password' ? Colors.success : Colors.textSecondary}
+                          color={focusedField === 'password' ? colors.success : colors.textSecondary}
                           strokeWidth={2}
                           style={styles.inputIcon}
                         />
                         <TextInput
-                          style={styles.input}
+                          style={[styles.input, themedStyles.input]}
                           placeholder="Enter your password"
-                          placeholderTextColor={Colors.textSecondary}
+                          placeholderTextColor={colors.textSecondary}
                           secureTextEntry
                           autoComplete="password"
                           onFocus={() => setFocusedField('password')}
@@ -211,26 +237,28 @@ export default function EmailAuthScreen() {
 
                 {isSignUp && (
                   <View style={styles.inputContainer}>
-                    <Text style={styles.label}>Confirm Password</Text>
+                    <Text style={[styles.label, themedStyles.label]}>Confirm Password</Text>
                     <Controller
                       control={control}
                       name="confirmPassword"
                       render={({ field: { onChange, onBlur, value } }) => (
                         <View style={[
                           styles.inputWrapper,
+                          themedStyles.inputWrapper,
                           focusedField === 'confirmPassword' && styles.inputWrapperFocused,
+                          focusedField === 'confirmPassword' && themedStyles.inputWrapperFocused,
                           errors.confirmPassword && styles.inputWrapperError,
                         ]}>
                           <LockClosedIcon
                             size={18}
-                            color={focusedField === 'confirmPassword' ? Colors.success : Colors.textSecondary}
+                            color={focusedField === 'confirmPassword' ? colors.success : colors.textSecondary}
                             strokeWidth={2}
                             style={styles.inputIcon}
                           />
                           <TextInput
-                            style={styles.input}
+                            style={[styles.input, themedStyles.input]}
                             placeholder="Confirm your password"
-                            placeholderTextColor={Colors.textSecondary}
+                            placeholderTextColor={colors.textSecondary}
                             secureTextEntry
                             autoComplete="password-new"
                             onFocus={() => setFocusedField('confirmPassword')}
@@ -277,7 +305,7 @@ export default function EmailAuthScreen() {
 
               {/* Toggle Mode */}
               <View style={styles.toggleContainer}>
-                <Text style={styles.toggleText}>
+                <Text style={[styles.toggleText, themedStyles.toggleText]}>
                   {isSignUp ? 'Already have an account?' : "Don't have an account?"}
                 </Text>
                 <TouchableOpacity onPress={toggleMode}>

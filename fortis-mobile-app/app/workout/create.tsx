@@ -14,6 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { XMarkIcon, PlusIcon, CalendarDaysIcon, PencilIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
@@ -30,6 +31,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 export default function CreateWorkoutScreen() {
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const {
     mode = 'template',
     date,
@@ -42,6 +44,30 @@ export default function CreateWorkoutScreen() {
   const templateId = Array.isArray(templateIdParam) ? templateIdParam[0] : templateIdParam;
   const dateValue = Array.isArray(date) ? date[0] : date;
   const isEditingTemplate = mode !== 'log' && !!templateId;
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    dragHandle: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
+    },
+    closeButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    headerTitleInput: { color: colors.textPrimary },
+    statLabel: { color: colors.textTertiary },
+    dateRow: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    dateRowPressed: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    dateText: { color: colors.textPrimary },
+    emptyStateText: { color: colors.textSecondary },
+    emptyStateSubtext: { color: colors.textSecondary },
+    addButtonContainer: { backgroundColor: colors.background },
+  };
 
   // Editor store actions
   const editorSession = useWorkoutStore(s => s.editorSession);
@@ -205,8 +231,8 @@ export default function CreateWorkoutScreen() {
   // Render empty state
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyStateText}>No exercises added yet</Text>
-      <Text style={styles.emptyStateSubtext}>
+      <Text style={[styles.emptyStateText, themedStyles.emptyStateText]}>No exercises added yet</Text>
+      <Text style={[styles.emptyStateSubtext, themedStyles.emptyStateSubtext]}>
         Tap "Add Exercises" to get started
       </Text>
     </View>
@@ -215,12 +241,12 @@ export default function CreateWorkoutScreen() {
   const saveButtonText = mode === 'log' ? 'Log' : (isEditingTemplate ? 'Update' : 'Save');
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         {/* Drag Handle */}
         <View style={styles.dragHandleContainer}>
-          <View style={styles.dragHandle} />
+          <View style={[styles.dragHandle, themedStyles.dragHandle]} />
         </View>
 
         {/* Header */}
@@ -229,16 +255,17 @@ export default function CreateWorkoutScreen() {
             onPress={handleClose}
             style={({ pressed }) => [
               styles.closeButton,
+              themedStyles.closeButton,
               pressed && styles.closeButtonPressed,
             ]}
           >
-            <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
+            <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
           </Pressable>
           <View style={styles.titleInputWrapper}>
             <TextInput
-              style={styles.headerTitleInput}
+              style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
               placeholder="Workout Name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={editorSession?.name || ''}
               onChangeText={setEditorWorkoutName}
               autoCorrect={false}
@@ -252,7 +279,7 @@ export default function CreateWorkoutScreen() {
             />
             <View style={styles.editIconSlot}>
               {!isNameFocused && (
-                <PencilIcon size={14} color={Colors.textTertiary} strokeWidth={2} />
+                <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
               )}
             </View>
           </View>
@@ -278,11 +305,12 @@ export default function CreateWorkoutScreen() {
             onPress={() => setShowDatePicker(true)}
             style={({ pressed }) => [
               styles.dateRow,
-              pressed && styles.dateRowPressed,
+              themedStyles.dateRow,
+              pressed && themedStyles.dateRowPressed,
             ]}
           >
-            <CalendarDaysIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
-            <Text style={styles.dateText}>
+            <CalendarDaysIcon size={20} color={colors.textSecondary} strokeWidth={2} />
+            <Text style={[styles.dateText, themedStyles.dateText]}>
               {format(editorDate, 'MMMM d, yyyy')}
             </Text>
           </Pressable>
@@ -293,11 +321,11 @@ export default function CreateWorkoutScreen() {
           <View style={styles.statsCard}>
             <View style={styles.statsLeft}>
               <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Exercises</Text>
+                <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
                 <Text style={styles.statValue}>{exerciseCount}</Text>
               </View>
               <View style={styles.statItem}>
-                <Text style={styles.statLabel}>Sets</Text>
+                <Text style={[styles.statLabel, themedStyles.statLabel]}>Sets</Text>
                 <Text style={styles.statValue}>{totalSets}</Text>
               </View>
             </View>
@@ -320,7 +348,7 @@ export default function CreateWorkoutScreen() {
         />
 
         {/* Add Exercises Button */}
-        <View style={styles.addButtonContainer}>
+        <View style={[styles.addButtonContainer, themedStyles.addButtonContainer]}>
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

@@ -12,6 +12,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface QuickRepliesProps {
   suggestions: string[];
@@ -20,6 +21,18 @@ interface QuickRepliesProps {
 }
 
 export function QuickReplies({ suggestions, onSelect, disabled = false }: QuickRepliesProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    chip: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    chipText: { color: colors.textSecondary },
+    chipTextDisabled: { color: colors.textTertiary },
+  };
+
   if (!suggestions.length) return null;
 
   const handleSelect = (suggestion: string) => {
@@ -38,7 +51,7 @@ export function QuickReplies({ suggestions, onSelect, disabled = false }: QuickR
         {suggestions.map((suggestion, index) => (
           <TouchableOpacity
             key={index}
-            style={[styles.chip, disabled && styles.chipDisabled]}
+            style={[styles.chip, themedStyles.chip, disabled && styles.chipDisabled]}
             onPress={() => handleSelect(suggestion)}
             activeOpacity={0.7}
             disabled={disabled}
@@ -46,7 +59,7 @@ export function QuickReplies({ suggestions, onSelect, disabled = false }: QuickR
             accessibilityRole="button"
             accessibilityState={{ disabled }}
           >
-            <Text style={[styles.chipText, disabled && styles.chipTextDisabled]}>
+            <Text style={[styles.chipText, themedStyles.chipText, disabled && themedStyles.chipTextDisabled]}>
               {suggestion}
             </Text>
           </TouchableOpacity>

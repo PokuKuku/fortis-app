@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable, Modal } from 'react-native';
 import { Trash2 } from 'lucide-react-native';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { SetType } from '@/src/types/workout';

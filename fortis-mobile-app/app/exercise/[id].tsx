@@ -15,6 +15,7 @@ import { ChevronLeftIcon, TrophyIcon, FireIcon, ScaleIcon, ChartBarIcon } from '
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { ExerciseCharts } from '@/src/components/exercise/ExerciseCharts';
 import { Colors } from '@/constants/Colors';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
 import { useExerciseHistory } from '@/src/hooks/useExerciseHistory';
@@ -38,8 +39,70 @@ function formatVolume(volume: number): string {
 export default function ExerciseDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { colors, isDark } = useTheme();
   const [selectedTab, setSelectedTab] = useState<TabType>('About');
   const isNavigating = useRef(false);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    backButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    headerTitle: { color: colors.textPrimary },
+    tabBar: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    tabActive: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    tabText: { color: colors.textSecondary },
+    tabTextActive: { color: colors.textPrimary },
+    sectionTitle: { color: colors.textSecondary },
+    exerciseImageContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    placeholderImage: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    placeholderImageText: { color: colors.textSecondary },
+    infoBox: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    infoLabel: { color: colors.textSecondary },
+    infoValue: { color: colors.textPrimary },
+    musclesSectionTitle: { color: colors.textSecondary },
+    secondaryMuscleTag: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    secondaryMuscleTagText: { color: colors.textPrimary },
+    instructionsSectionTitle: { color: colors.textSecondary },
+    instructionText: { color: colors.textPrimary },
+    historyCard: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    historyDate: { color: colors.textPrimary },
+    historySession: { color: colors.textSecondary },
+    historyStatLabel: { color: colors.textSecondary },
+    recordCard: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    recordLabel: { color: colors.textSecondary },
+    recordValue: { color: colors.textPrimary },
+    recordDate: { color: colors.textSecondary },
+    statBox: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    statValue: { color: colors.textPrimary },
+    statLabel: { color: colors.textSecondary },
+    placeholderTabText: { color: colors.textSecondary },
+    placeholderTabSubtext: { color: colors.textTertiary },
+    notFoundText: { color: colors.textSecondary },
+  };
 
   const { exercise, loading } = useExercise(id);
   const { history } = useExerciseHistory(id);
@@ -55,10 +118,10 @@ export default function ExerciseDetailsScreen() {
 
   if (!exercise) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, themedStyles.container]}>
         <StainlessSteelPattern />
         <View style={styles.notFoundContainer}>
-          <Text style={styles.notFoundText}>Exercise not found</Text>
+          <Text style={[styles.notFoundText, themedStyles.notFoundText]}>Exercise not found</Text>
           <Pressable onPress={handleBack} style={styles.backLink}>
             <Text style={styles.backLinkText}>Go back</Text>
           </Pressable>
@@ -79,29 +142,29 @@ export default function ExerciseDetailsScreen() {
     }));
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
       <StainlessSteelPattern />
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-          <ChevronLeftIcon color={Colors.textPrimary} size={24} strokeWidth={2} />
+        <TouchableOpacity onPress={handleBack} style={[styles.backButton, themedStyles.backButton]}>
+          <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
+        <Text style={[styles.headerTitle, themedStyles.headerTitle]} numberOfLines={1}>
           {exercise.name}
         </Text>
         <View style={styles.headerSpacer} />
       </View>
 
       {/* Tabs */}
-      <View style={styles.tabBar}>
+      <View style={[styles.tabBar, themedStyles.tabBar]}>
         {(['About', 'History', 'Charts', 'Records'] as const).map((tab) => (
           <TouchableOpacity
             key={tab}
-            style={[styles.tab, selectedTab === tab && styles.tabActive]}
+            style={[styles.tab, selectedTab === tab && styles.tabActive, selectedTab === tab && themedStyles.tabActive]}
             onPress={() => setSelectedTab(tab)}
           >
-            <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>
+            <Text style={[styles.tabText, themedStyles.tabText, selectedTab === tab && styles.tabTextActive, selectedTab === tab && themedStyles.tabTextActive]}>
               {tab}
             </Text>
           </TouchableOpacity>
@@ -116,7 +179,7 @@ export default function ExerciseDetailsScreen() {
         {/* ==================== ABOUT TAB ==================== */}
         {selectedTab === 'About' && (
           <>
-            <View style={styles.exerciseImageContainer}>
+            <View style={[styles.exerciseImageContainer, themedStyles.exerciseImageContainer]}>
               {exercise.images && exercise.images.length > 0 ? (
                 <Image
                   source={{ uri: getExerciseImageUrl(exercise.images[0]) }}
@@ -124,21 +187,21 @@ export default function ExerciseDetailsScreen() {
                   resizeMode="contain"
                 />
               ) : (
-                <View style={styles.placeholderImage}>
-                  <Text style={styles.placeholderImageText}>No image provided</Text>
+                <View style={[styles.placeholderImage, themedStyles.placeholderImage]}>
+                  <Text style={[styles.placeholderImageText, themedStyles.placeholderImageText]}>No image provided</Text>
                 </View>
               )}
             </View>
 
             <View style={styles.infoGrid}>
-              <View style={styles.infoBox}>
-                <Text style={styles.infoLabel}>EQUIPMENT</Text>
-                <Text style={styles.infoValue}>{exercise.equipment || 'N/A'}</Text>
+              <View style={[styles.infoBox, themedStyles.infoBox]}>
+                <Text style={[styles.infoLabel, themedStyles.infoLabel]}>EQUIPMENT</Text>
+                <Text style={[styles.infoValue, themedStyles.infoValue]}>{exercise.equipment || 'N/A'}</Text>
               </View>
             </View>
 
             <View style={styles.musclesSection}>
-              <Text style={styles.musclesSectionTitle}>PRIMARY MUSCLES</Text>
+              <Text style={[styles.musclesSectionTitle, themedStyles.musclesSectionTitle]}>PRIMARY MUSCLES</Text>
               <View style={styles.muscleTags}>
                 {exercise.primaryMuscles.map((muscle, index) => (
                   <LinearGradient
@@ -156,11 +219,11 @@ export default function ExerciseDetailsScreen() {
 
             {exercise.secondaryMuscles.length > 0 && (
               <View style={styles.musclesSection}>
-                <Text style={styles.musclesSectionTitle}>SECONDARY MUSCLES</Text>
+                <Text style={[styles.musclesSectionTitle, themedStyles.musclesSectionTitle]}>SECONDARY MUSCLES</Text>
                 <View style={styles.muscleTags}>
                   {exercise.secondaryMuscles.map((muscle, index) => (
-                    <View key={index} style={styles.secondaryMuscleTag}>
-                      <Text style={styles.secondaryMuscleTagText}>{muscle}</Text>
+                    <View key={index} style={[styles.secondaryMuscleTag, themedStyles.secondaryMuscleTag]}>
+                      <Text style={[styles.secondaryMuscleTagText, themedStyles.secondaryMuscleTagText]}>{muscle}</Text>
                     </View>
                   ))}
                 </View>
@@ -168,9 +231,9 @@ export default function ExerciseDetailsScreen() {
             )}
 
             <View style={styles.instructionsSection}>
-              <Text style={styles.instructionsSectionTitle}>INSTRUCTIONS</Text>
+              <Text style={[styles.instructionsSectionTitle, themedStyles.instructionsSectionTitle]}>INSTRUCTIONS</Text>
               {exercise.instructions.length === 0 ? (
-                <Text style={styles.instructionText}>N/A</Text>
+                <Text style={[styles.instructionText, themedStyles.instructionText]}>N/A</Text>
               ) : (
                 exercise.instructions.map((instruction, index) => (
                   <View key={index} style={styles.instructionItem}>
@@ -182,7 +245,7 @@ export default function ExerciseDetailsScreen() {
                     >
                       <Text style={styles.instructionNumberText}>{index + 1}</Text>
                     </LinearGradient>
-                    <Text style={styles.instructionText}>
+                    <Text style={[styles.instructionText, themedStyles.instructionText]}>
                       {stripInstructionPrefix(instruction)}
                     </Text>
                   </View>
@@ -197,38 +260,38 @@ export default function ExerciseDetailsScreen() {
           <View style={styles.tabContent}>
             {history.length === 0 ? (
               <View style={styles.placeholderTab}>
-                <Text style={styles.placeholderTabText}>No history yet</Text>
-                <Text style={styles.placeholderTabSubtext}>
+                <Text style={[styles.placeholderTabText, themedStyles.placeholderTabText]}>No history yet</Text>
+                <Text style={[styles.placeholderTabSubtext, themedStyles.placeholderTabSubtext]}>
                   Complete workouts with this exercise to see your history
                 </Text>
               </View>
             ) : (
               <>
-                <Text style={styles.sectionTitle}>WORKOUT HISTORY</Text>
+                <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>WORKOUT HISTORY</Text>
                 {history.map((entry) => (
-                  <View key={entry.sessionId} style={styles.historyCard}>
+                  <View key={entry.sessionId} style={[styles.historyCard, themedStyles.historyCard]}>
                     <View style={styles.historyHeader}>
-                      <Text style={styles.historyDate}>
+                      <Text style={[styles.historyDate, themedStyles.historyDate]}>
                         {format(entry.date, 'MMM d, yyyy')}
                       </Text>
-                      <Text style={styles.historySession}>{entry.sessionName}</Text>
+                      <Text style={[styles.historySession, themedStyles.historySession]}>{entry.sessionName}</Text>
                     </View>
                     <View style={styles.historyStats}>
                       <View style={styles.historyStat}>
                         <Text style={styles.historyStatValue}>{entry.completedSets}</Text>
-                        <Text style={styles.historyStatLabel}>Sets</Text>
+                        <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Sets</Text>
                       </View>
                       <View style={styles.historyStat}>
                         <Text style={styles.historyStatValue}>{entry.totalReps}</Text>
-                        <Text style={styles.historyStatLabel}>Reps</Text>
+                        <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Reps</Text>
                       </View>
                       <View style={styles.historyStat}>
                         <Text style={styles.historyStatValue}>{entry.maxWeight}</Text>
-                        <Text style={styles.historyStatLabel}>Max lbs</Text>
+                        <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Max lbs</Text>
                       </View>
                       <View style={styles.historyStat}>
                         <Text style={styles.historyStatValue}>{formatVolume(entry.totalVolume)}</Text>
-                        <Text style={styles.historyStatLabel}>Volume</Text>
+                        <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Volume</Text>
                       </View>
                     </View>
                   </View>
@@ -250,18 +313,18 @@ export default function ExerciseDetailsScreen() {
           <View style={styles.tabContent}>
             {records.totalWorkouts === 0 ? (
               <View style={styles.placeholderTab}>
-                <Text style={styles.placeholderTabText}>No records yet</Text>
-                <Text style={styles.placeholderTabSubtext}>
+                <Text style={[styles.placeholderTabText, themedStyles.placeholderTabText]}>No records yet</Text>
+                <Text style={[styles.placeholderTabSubtext, themedStyles.placeholderTabSubtext]}>
                   Your personal records will appear here after logging workouts
                 </Text>
               </View>
             ) : (
               <>
-                <Text style={styles.sectionTitle}>PERSONAL RECORDS</Text>
+                <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>PERSONAL RECORDS</Text>
 
                 {/* Max Weight */}
                 {records.maxWeight && (
-                  <View style={styles.recordCard}>
+                  <View style={[styles.recordCard, themedStyles.recordCard]}>
                     <LinearGradient
                       colors={['#22c55e', '#16a34a']}
                       style={styles.recordIcon}
@@ -269,11 +332,11 @@ export default function ExerciseDetailsScreen() {
                       <ScaleIcon color="#000" size={20} strokeWidth={2} />
                     </LinearGradient>
                     <View style={styles.recordInfo}>
-                      <Text style={styles.recordLabel}>Max Weight</Text>
-                      <Text style={styles.recordValue}>
+                      <Text style={[styles.recordLabel, themedStyles.recordLabel]}>Max Weight</Text>
+                      <Text style={[styles.recordValue, themedStyles.recordValue]}>
                         {records.maxWeight.value} lbs × {records.maxWeight.reps} reps
                       </Text>
-                      <Text style={styles.recordDate}>
+                      <Text style={[styles.recordDate, themedStyles.recordDate]}>
                         {format(records.maxWeight.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
@@ -282,7 +345,7 @@ export default function ExerciseDetailsScreen() {
 
                 {/* Estimated 1RM */}
                 {records.estimated1RM && (
-                  <View style={styles.recordCard}>
+                  <View style={[styles.recordCard, themedStyles.recordCard]}>
                     <LinearGradient
                       colors={['#f59e0b', '#d97706']}
                       style={styles.recordIcon}
@@ -290,9 +353,9 @@ export default function ExerciseDetailsScreen() {
                       <TrophyIcon color="#000" size={20} strokeWidth={2} />
                     </LinearGradient>
                     <View style={styles.recordInfo}>
-                      <Text style={styles.recordLabel}>Estimated 1RM</Text>
-                      <Text style={styles.recordValue}>{records.estimated1RM.value} lbs</Text>
-                      <Text style={styles.recordDate}>
+                      <Text style={[styles.recordLabel, themedStyles.recordLabel]}>Estimated 1RM</Text>
+                      <Text style={[styles.recordValue, themedStyles.recordValue]}>{records.estimated1RM.value} lbs</Text>
+                      <Text style={[styles.recordDate, themedStyles.recordDate]}>
                         {format(records.estimated1RM.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
@@ -301,7 +364,7 @@ export default function ExerciseDetailsScreen() {
 
                 {/* Max Reps */}
                 {records.maxReps && (
-                  <View style={styles.recordCard}>
+                  <View style={[styles.recordCard, themedStyles.recordCard]}>
                     <LinearGradient
                       colors={['#3b82f6', '#2563eb']}
                       style={styles.recordIcon}
@@ -309,11 +372,11 @@ export default function ExerciseDetailsScreen() {
                       <FireIcon color="#000" size={20} strokeWidth={2} />
                     </LinearGradient>
                     <View style={styles.recordInfo}>
-                      <Text style={styles.recordLabel}>Max Reps</Text>
-                      <Text style={styles.recordValue}>
+                      <Text style={[styles.recordLabel, themedStyles.recordLabel]}>Max Reps</Text>
+                      <Text style={[styles.recordValue, themedStyles.recordValue]}>
                         {records.maxReps.value} reps @ {records.maxReps.weight} lbs
                       </Text>
-                      <Text style={styles.recordDate}>
+                      <Text style={[styles.recordDate, themedStyles.recordDate]}>
                         {format(records.maxReps.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
@@ -322,7 +385,7 @@ export default function ExerciseDetailsScreen() {
 
                 {/* Best Volume */}
                 {records.maxVolume && (
-                  <View style={styles.recordCard}>
+                  <View style={[styles.recordCard, themedStyles.recordCard]}>
                     <LinearGradient
                       colors={['#8b5cf6', '#7c3aed']}
                       style={styles.recordIcon}
@@ -330,11 +393,11 @@ export default function ExerciseDetailsScreen() {
                       <ChartBarIcon color="#000" size={20} strokeWidth={2} />
                     </LinearGradient>
                     <View style={styles.recordInfo}>
-                      <Text style={styles.recordLabel}>Best Session Volume</Text>
-                      <Text style={styles.recordValue}>
+                      <Text style={[styles.recordLabel, themedStyles.recordLabel]}>Best Session Volume</Text>
+                      <Text style={[styles.recordValue, themedStyles.recordValue]}>
                         {formatVolume(records.maxVolume.value)} lbs
                       </Text>
-                      <Text style={styles.recordDate}>
+                      <Text style={[styles.recordDate, themedStyles.recordDate]}>
                         {format(records.maxVolume.date, 'MMM d, yyyy')}
                       </Text>
                     </View>
@@ -342,17 +405,17 @@ export default function ExerciseDetailsScreen() {
                 )}
 
                 {/* Total Stats */}
-                <Text style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>
+                <Text style={[styles.sectionTitle, themedStyles.sectionTitle, { marginTop: Spacing.xl }]}>
                   LIFETIME STATS
                 </Text>
                 <View style={styles.statsRow}>
-                  <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{records.totalWorkouts}</Text>
-                    <Text style={styles.statLabel}>Workouts</Text>
+                  <View style={[styles.statBox, themedStyles.statBox]}>
+                    <Text style={[styles.statValue, themedStyles.statValue]}>{records.totalWorkouts}</Text>
+                    <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
                   </View>
-                  <View style={styles.statBox}>
-                    <Text style={styles.statValue}>{records.totalSets}</Text>
-                    <Text style={styles.statLabel}>Total Sets</Text>
+                  <View style={[styles.statBox, themedStyles.statBox]}>
+                    <Text style={[styles.statValue, themedStyles.statValue]}>{records.totalSets}</Text>
+                    <Text style={[styles.statLabel, themedStyles.statLabel]}>Total Sets</Text>
                   </View>
                 </View>
               </>
