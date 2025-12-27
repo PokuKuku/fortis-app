@@ -25,7 +25,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Fortis is an offline-first mobile workout tracker built with Expo/React Native. Monorepo structure:
 
 - **fortis-mobile-app/**: Main React Native app (Expo SDK 54, React 19.1, RN 0.81.5, TypeScript)
-- **fortis-dashboard-web/**: Next.js analytics dashboard (Next.js 16, React 19.2, TypeScript, Tailwind CSS 4)
+- **fortis-dashboard-web/**: Next.js analytics dashboard (Next.js 16.1, React 19.2, TypeScript, Tailwind CSS 4) - has its own `CLAUDE.md` with web-specific guidance
 - **supabase/**: Database schema, migrations, and seed data
 - **free-exercise-db-main/**: Exercise database with JSON files
 
@@ -44,6 +44,11 @@ npm test                    # Run all tests
 npm run test:watch          # Run tests in watch mode
 npm run test:coverage       # Run tests with coverage report
 npm test -- ComponentName   # Run specific test file
+
+# E2E Testing with Maestro (requires maestro CLI: https://maestro.mobile.dev/)
+maestro test .maestro/tests/smoke-test.yaml  # Run smoke test
+maestro test .maestro/tests/                 # Run all E2E tests
+maestro studio                               # Interactive test builder
 
 # Web Dashboard (fortis-dashboard-web/)
 cd fortis-dashboard-web
@@ -65,6 +70,9 @@ supabase db lint --linked --dns-resolver https  # Lint remote schema
 
 ```
 fortis-mobile-app/
+├── .maestro/                   # E2E test configuration (Maestro)
+│   ├── config.yaml             # App ID, test settings
+│   └── tests/                  # E2E test flows (.yaml)
 ├── app/                    # Expo Router file-based routing
 │   ├── _layout.tsx         # Root layout (fonts, Stack nav)
 │   ├── index.tsx           # Splash screen
@@ -102,7 +110,7 @@ fortis-mobile-app/
     ├── Colors.ts, Sizes.ts, Typography.ts
 ```
 
-**Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns, victory-native (charts), react-native-calendars, lucide-react-native
+**Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns, victory-native (charts), react-native-calendars, lucide-react-native, posthog-react-native (analytics)
 
 **TypeScript Path Alias:** Use `@/` prefix for imports from project root (e.g., `@/src/components/ui/BaseModal`)
 
