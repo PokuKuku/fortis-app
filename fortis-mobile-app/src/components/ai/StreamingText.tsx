@@ -15,6 +15,7 @@ import Animated, {
   withTiming,
   Easing,
 } from 'react-native-reanimated';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 
 interface StreamingTextProps {
@@ -40,6 +41,7 @@ export function StreamingText({
   style,
   showCursor = true,
 }: StreamingTextProps) {
+  const { colors } = useTheme();
   const [displayedText, setDisplayedText] = useState(streaming ? '' : text);
   const [isComplete, setIsComplete] = useState(!streaming);
   const indexRef = useRef(0);
@@ -117,7 +119,7 @@ export function StreamingText({
 
   return (
     <Pressable onPress={handlePress} disabled={isComplete}>
-      <Text style={[styles.text, style]}>
+      <Text style={[styles.text, { color: colors.textPrimary }, style]}>
         {displayedText}
         {!isComplete && showCursor && (
           <Animated.Text style={[styles.cursor, cursorStyle]}>|</Animated.Text>

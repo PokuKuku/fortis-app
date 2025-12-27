@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 
@@ -29,12 +30,26 @@ interface ExerciseChartsProps {
 }
 
 export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps) {
+  const { colors, isDark } = useTheme();
+
+  // Theme-aware styles
+  const themedStyles = {
+    sectionTitle: { color: colors.textSecondary },
+    placeholderTabText: { color: colors.textSecondary },
+    placeholderTabSubtext: { color: colors.textTertiary },
+    chartContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    gridLineColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    frameColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+  };
+
   // Not enough data
   if (chartData.length < 2) {
     return (
       <View style={styles.placeholderTab}>
-        <Text style={styles.placeholderTabText}>Not enough data</Text>
-        <Text style={styles.placeholderTabSubtext}>
+        <Text style={[styles.placeholderTabText, themedStyles.placeholderTabText]}>Not enough data</Text>
+        <Text style={[styles.placeholderTabSubtext, themedStyles.placeholderTabSubtext]}>
           Log at least 2 workouts with this exercise to see progress charts
         </Text>
       </View>
@@ -45,8 +60,8 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
   if (!ChartsAvailable) {
     return (
       <View style={styles.placeholderTab}>
-        <Text style={styles.placeholderTabText}>Charts unavailable</Text>
-        <Text style={styles.placeholderTabSubtext}>
+        <Text style={[styles.placeholderTabText, themedStyles.placeholderTabText]}>Charts unavailable</Text>
+        <Text style={[styles.placeholderTabSubtext, themedStyles.placeholderTabSubtext]}>
           Charts require a development build. Run `npx expo run:ios` to enable.
         </Text>
       </View>
@@ -56,8 +71,8 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
   return (
     <>
       {/* Weight Progress Chart */}
-      <Text style={styles.sectionTitle}>WEIGHT PROGRESS</Text>
-      <View style={styles.chartContainer}>
+      <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>WEIGHT PROGRESS</Text>
+      <View style={[styles.chartContainer, themedStyles.chartContainer]}>
         <CartesianChart
           data={chartData}
           xKey="x"
@@ -66,10 +81,10 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
           domainPadding={{ top: 20, bottom: 10 }}
           axisOptions={{
             tickCount: { x: 5, y: 5 },
-            labelColor: Colors.textSecondary,
+            labelColor: colors.textSecondary,
             lineColor: {
-              grid: { x: 'transparent', y: 'rgba(255,255,255,0.1)' },
-              frame: 'rgba(255,255,255,0.2)',
+              grid: { x: 'transparent', y: themedStyles.gridLineColor },
+              frame: themedStyles.frameColor,
             },
             formatYLabel: (value: number) => `${value}`,
           }}
@@ -95,8 +110,8 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
       </View>
 
       {/* Volume Progress Chart */}
-      <Text style={styles.sectionTitle}>VOLUME PROGRESS</Text>
-      <View style={styles.chartContainer}>
+      <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>VOLUME PROGRESS</Text>
+      <View style={[styles.chartContainer, themedStyles.chartContainer]}>
         <CartesianChart
           data={chartData}
           xKey="x"
@@ -105,10 +120,10 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
           domainPadding={{ top: 20, bottom: 10 }}
           axisOptions={{
             tickCount: { x: 5, y: 5 },
-            labelColor: Colors.textSecondary,
+            labelColor: colors.textSecondary,
             lineColor: {
-              grid: { x: 'transparent', y: 'rgba(255,255,255,0.1)' },
-              frame: 'rgba(255,255,255,0.2)',
+              grid: { x: 'transparent', y: themedStyles.gridLineColor },
+              frame: themedStyles.frameColor,
             },
             formatYLabel: (value: number) => formatVolume(Number(value)),
           }}

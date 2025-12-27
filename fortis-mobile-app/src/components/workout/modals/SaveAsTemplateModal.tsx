@@ -4,6 +4,7 @@ import { XMarkIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { GlassButton } from '@/components/GlassButton';
 import { WorkoutSession } from '@/src/types/workout';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -23,10 +24,29 @@ export function SaveAsTemplateModal({
   onSuccess,
   session,
 }: SaveAsTemplateModalProps) {
+  const { colors, isDark } = useTheme();
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
+
+  // Theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: isDark ? '#222222' : '#FFFFFF' },
+    title: { color: colors.textPrimary },
+    closeButton: { backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.08)' },
+    inputLabel: { color: colors.textSecondary },
+    textInput: {
+      backgroundColor: isDark ? '#1a1a1a' : '#FFFFFF',
+      color: colors.textPrimary,
+      borderColor: isDark ? Colors.borderLight : 'rgba(0, 0, 0, 0.1)',
+    },
+    summaryLabel: { color: colors.textSecondary },
+    exerciseList: { backgroundColor: isDark ? '#1a1a1a' : 'rgba(0, 0, 0, 0.04)' },
+    exerciseItem: { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)' },
+    exerciseName: { color: colors.textPrimary },
+    exerciseSets: { color: colors.textSecondary },
+  };
 
   if (!visible || !session) return null;
 
@@ -100,7 +120,7 @@ export function SaveAsTemplateModal({
       <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
         <Pressable style={styles.centeredView} onPress={handleClose} activeOpacity={1}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
-            <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+            <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
               <StainlessSteelPattern />
 
               {showSuccess ? (
@@ -115,11 +135,12 @@ export function SaveAsTemplateModal({
                 <>
                   {/* Header */}
                   <View style={styles.header}>
-                    <Text style={styles.title}>Save as Template</Text>
+                    <Text style={[styles.title, themedStyles.title]}>Save as Template</Text>
                     <Pressable
                       onPress={handleClose}
                       style={({ pressed }) => [
                         styles.closeButton,
+                        themedStyles.closeButton,
                         pressed && styles.closeButtonPressed,
                       ]}
                     >
@@ -131,29 +152,29 @@ export function SaveAsTemplateModal({
                   <View style={styles.content}>
                     {/* Name Input */}
                     <View style={styles.inputGroup}>
-                      <Text style={styles.inputLabel}>Template Name</Text>
+                      <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Template Name</Text>
                       <TextInput
-                        style={styles.textInput}
+                        style={[styles.textInput, themedStyles.textInput]}
                         value={templateName}
                         onChangeText={setTemplateName}
                         placeholder="e.g., Push Day, Upper Body"
-                        placeholderTextColor={Colors.textTertiary}
+                        placeholderTextColor={colors.textTertiary}
                         autoFocus
                       />
                     </View>
 
                     {/* Exercise Summary */}
                     <View style={styles.summarySection}>
-                      <Text style={styles.summaryLabel}>
+                      <Text style={[styles.summaryLabel, themedStyles.summaryLabel]}>
                         {exercisesForTemplate.length} Exercise{exercisesForTemplate.length !== 1 ? 's' : ''}
                       </Text>
-                      <ScrollView style={styles.exerciseList} showsVerticalScrollIndicator={false}>
+                      <ScrollView style={[styles.exerciseList, themedStyles.exerciseList]} showsVerticalScrollIndicator={false}>
                         {exercisesForTemplate.map((ex, index) => (
-                          <View key={ex.exerciseId + index} style={styles.exerciseItem}>
-                            <Text style={styles.exerciseName} numberOfLines={1}>
+                          <View key={ex.exerciseId + index} style={[styles.exerciseItem, themedStyles.exerciseItem]}>
+                            <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
                               {ex.exerciseName}
                             </Text>
-                            <Text style={styles.exerciseSets}>{ex.sets} sets</Text>
+                            <Text style={[styles.exerciseSets, themedStyles.exerciseSets]}>{ex.sets} sets</Text>
                           </View>
                         ))}
                       </ScrollView>

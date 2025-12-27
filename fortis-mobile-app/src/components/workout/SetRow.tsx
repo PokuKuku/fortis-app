@@ -46,7 +46,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       color: isDark ? Colors.textTertiary : 'rgba(0, 0, 0, 0.35)',
     },
     previousText: {
-      color: colors.textTertiary,
+      color: isDark ? colors.textSecondary : colors.textTertiary,
     },
     setBadge: {
       backgroundColor: isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.08)',

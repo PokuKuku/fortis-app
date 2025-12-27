@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { AlertTriangle, Info, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
 import { AIMutationPlan, AIExerciseResolution, EditableProgramDraft, EditableProgramWorkout } from '../../types/ai';
@@ -50,6 +51,8 @@ export function AIMutationProgramDraftEditor({
   onDeleteProgramExercise,
   onOpenExercisePicker,
 }: AIMutationProgramDraftEditorProps) {
+  const { colors } = useTheme();
+
   if (!editableProgramDraft) return null;
 
   const originalWorkoutById = useMemo(() => {
@@ -87,7 +90,7 @@ export function AIMutationProgramDraftEditor({
           value={editableProgramDraft.name}
           onChangeText={(text) => onUpdateProgramDraft({ name: text })}
           placeholder={editableProgramDraft.isTemplate ? 'Upper Body Template' : 'Strength Block'}
-          placeholderTextColor={Colors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
         />
         <Text style={styles.inputLabel}>Description</Text>
         <TextInput
@@ -95,7 +98,7 @@ export function AIMutationProgramDraftEditor({
           value={editableProgramDraft.description || ''}
           onChangeText={(text) => onUpdateProgramDraft({ description: text })}
           placeholder="Short summary of the focus and intent"
-          placeholderTextColor={Colors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           multiline
         />
         <View style={styles.metaRow}>
@@ -106,7 +109,7 @@ export function AIMutationProgramDraftEditor({
               value={editableProgramDraft.difficulty}
               onChangeText={(text) => onUpdateProgramDraft({ difficulty: text })}
               placeholder="beginner | intermediate | advanced"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
             />
           </View>
@@ -120,7 +123,7 @@ export function AIMutationProgramDraftEditor({
                 onUpdateProgramDraft({ durationWeeks: Number.isNaN(weeks) ? undefined : weeks });
               }}
               placeholder="8"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               keyboardType="number-pad"
             />
           </View>
@@ -131,7 +134,7 @@ export function AIMutationProgramDraftEditor({
           value={editableProgramDraft.goal || ''}
           onChangeText={(text) => onUpdateProgramDraft({ goal: text })}
           placeholder="strength | hypertrophy | powerlifting | general_fitness"
-          placeholderTextColor={Colors.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           autoCapitalize="none"
         />
       </View>
@@ -148,7 +151,7 @@ export function AIMutationProgramDraftEditor({
                 value={workout.name}
                 onChangeText={(text) => onUpdateProgramWorkout(workout.id, { name: text })}
                 placeholder="Workout name"
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={colors.textTertiary}
               />
               <View style={styles.workoutDayContainer}>
                 <Text style={styles.workoutDayLabel}>Day</Text>
@@ -250,7 +253,7 @@ export function AIMutationProgramDraftEditor({
                             onUpdateProgramExercise(workout.id, exercise.id, { reps: text })
                           }
                           placeholder="8-12"
-                          placeholderTextColor={Colors.textTertiary}
+                          placeholderTextColor={colors.textTertiary}
                         />
                         {repsChanged && (
                           <Text style={styles.diffHint}>
@@ -291,7 +294,7 @@ export function AIMutationProgramDraftEditor({
                             onUpdateProgramExercise(workout.id, exercise.id, { notes: text })
                           }
                           placeholder="Optional"
-                          placeholderTextColor={Colors.textTertiary}
+                          placeholderTextColor={colors.textTertiary}
                         />
                         {notesChanged && (
                           <Text style={styles.diffHint}>

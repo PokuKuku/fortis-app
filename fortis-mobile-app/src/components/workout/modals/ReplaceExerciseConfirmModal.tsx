@@ -3,6 +3,7 @@ import { XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
@@ -17,6 +18,18 @@ export function ReplaceExerciseConfirmModal({
   onClose,
   onConfirm,
 }: ReplaceExerciseConfirmModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: isDark ? '#222222' : '#FFFFFF' },
+    title: { color: colors.textPrimary },
+    closeButton: { backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.08)' },
+    message: { color: colors.textSecondary },
+    cancelButton: { backgroundColor: isDark ? '#333333' : 'rgba(0, 0, 0, 0.08)' },
+    cancelButtonText: { color: colors.textPrimary },
+  };
+
   const handleConfirm = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     onConfirm();
@@ -35,26 +48,27 @@ export function ReplaceExerciseConfirmModal({
       <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
         <Pressable style={styles.centeredView} onPress={onClose} activeOpacity={1}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
-            <Pressable style={styles.container} onPress={(e) => e.stopPropagation()}>
+            <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
               <StainlessSteelPattern />
 
               {/* Header */}
               <View style={styles.header}>
-                <Text style={styles.title}>Replace Exercise?</Text>
+                <Text style={[styles.title, themedStyles.title]}>Replace Exercise?</Text>
                 <Pressable
                   onPress={onClose}
                   style={({ pressed }) => [
                     styles.closeButton,
+                    themedStyles.closeButton,
                     pressed && styles.closeButtonPressed,
                   ]}
                 >
-                  <XMarkIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+                  <XMarkIcon size={20} color={colors.textSecondary} strokeWidth={2} />
                 </Pressable>
               </View>
 
               {/* Content */}
               <View style={styles.content}>
-                <Text style={styles.message}>
+                <Text style={[styles.message, themedStyles.message]}>
                   This exercise has logged sets that will be lost. Are you sure you want to replace it?
                 </Text>
 
@@ -64,10 +78,11 @@ export function ReplaceExerciseConfirmModal({
                     onPress={onClose}
                     style={({ pressed }) => [
                       styles.cancelButton,
+                      themedStyles.cancelButton,
                       pressed && styles.buttonPressed,
                     ]}
                   >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                    <Text style={[styles.cancelButtonText, themedStyles.cancelButtonText]}>Cancel</Text>
                   </Pressable>
 
                   <Pressable

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Body, { Slug } from 'react-native-body-highlighter';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { normalizeMuscleName } from '@/src/utils/muscleMapping';
@@ -142,6 +143,8 @@ interface BodyPartData {
 }
 
 export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
+  const { colors } = useTheme();
+
   const { frontData, backData } = useMemo(() => {
     const frontIntensity: Record<string, number> = {};
     const backIntensity: Record<string, number> = {};
@@ -203,7 +206,7 @@ export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact
             colors={['#166534', '#22c55e']} // Darker green for secondary, bright for primary
             border="#333333"
           />
-          {!compact && <Text style={styles.viewLabel}>Front</Text>}
+          {!compact && <Text style={[styles.viewLabel, { color: colors.textSecondary }]}>Front</Text>}
         </View>
         <View style={styles.bodyWrapper}>
           <Body
@@ -214,7 +217,7 @@ export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact
             colors={['#166534', '#22c55e']}
             border="#333333"
           />
-          {!compact && <Text style={styles.viewLabel}>Back</Text>}
+          {!compact && <Text style={[styles.viewLabel, { color: colors.textSecondary }]}>Back</Text>}
         </View>
       </View>
     </View>

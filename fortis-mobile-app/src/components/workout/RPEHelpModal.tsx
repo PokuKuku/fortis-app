@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { RPE_TO_RIR } from '@/src/types/workout';
@@ -21,6 +22,27 @@ const RPE_ROWS = [
 ];
 
 export function RPEHelpModal({ visible, onClose }: RPEHelpModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? Colors.background : '#FFFFFF',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    title: { color: colors.textPrimary },
+    descriptionText: { color: colors.textSecondary },
+    table: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    tableRowBorder: {
+      borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    rpeText: { color: colors.textPrimary },
+    rirText: { color: colors.textSecondary },
+  };
+
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onClose();
@@ -45,14 +67,14 @@ export function RPEHelpModal({ visible, onClose }: RPEHelpModalProps) {
         <Animated.View
           entering={ZoomIn.duration(250)}
           exiting={ZoomOut.duration(200)}
-          style={styles.container}
+          style={[styles.container, themedStyles.container]}
         >
           <StainlessSteelPattern />
 
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerSpacer} />
-            <Text style={styles.title}>Understanding RPE</Text>
+            <Text style={[styles.title, themedStyles.title]}>Understanding RPE</Text>
             <Pressable
               onPress={handleClose}
               style={({ pressed }) => [
@@ -66,28 +88,28 @@ export function RPEHelpModal({ visible, onClose }: RPEHelpModalProps) {
 
           {/* Description */}
           <View style={styles.descriptionSection}>
-            <Text style={styles.descriptionText}>
+            <Text style={[styles.descriptionText, themedStyles.descriptionText]}>
               Rate of Perceived Exertion (RPE) is a metric that attempts to
               measure the difficulty of a set.
             </Text>
-            <Text style={[styles.descriptionText, styles.descriptionSpacing]}>
+            <Text style={[styles.descriptionText, styles.descriptionSpacing, themedStyles.descriptionText]}>
               Reps in reserve (RIR) is an estimate of how many more reps you
               could perform before reaching muscular failure.
             </Text>
           </View>
 
           {/* RPE to RIR table */}
-          <View style={styles.table}>
+          <View style={[styles.table, themedStyles.table]}>
             {RPE_ROWS.map((row, index) => (
               <View
                 key={row.rpe}
                 style={[
                   styles.tableRow,
-                  index < RPE_ROWS.length - 1 && styles.tableRowBorder,
+                  index < RPE_ROWS.length - 1 && [styles.tableRowBorder, themedStyles.tableRowBorder],
                 ]}
               >
-                <Text style={styles.rpeText}>{row.rpe} RPE</Text>
-                <Text style={styles.rirText}>{row.rir}</Text>
+                <Text style={[styles.rpeText, themedStyles.rpeText]}>{row.rpe} RPE</Text>
+                <Text style={[styles.rirText, themedStyles.rirText]}>{row.rir}</Text>
               </View>
             ))}
           </View>

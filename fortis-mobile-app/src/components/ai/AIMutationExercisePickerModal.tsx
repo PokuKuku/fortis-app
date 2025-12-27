@@ -11,6 +11,7 @@ import {
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { X, Dumbbell } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
 import { useExercises } from '../../hooks/useExercises';
@@ -27,6 +28,7 @@ export function AIMutationExercisePickerModal({
   onClose,
   onSelect,
 }: AIMutationExercisePickerModalProps) {
+  const { colors } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const { exercises, loading, error } = useExercises();
 
@@ -65,7 +67,7 @@ export function AIMutationExercisePickerModal({
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Choose exercise</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <X color={Colors.textSecondary} size={IconSizes.md} />
+              <X color={colors.textSecondary} size={IconSizes.md} />
             </TouchableOpacity>
           </View>
 
@@ -73,7 +75,7 @@ export function AIMutationExercisePickerModal({
             <TextInput
               style={styles.searchInput}
               placeholder="Search exercises..."
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={colors.textTertiary}
               value={searchQuery}
               onChangeText={setSearchQuery}
               autoCapitalize="none"
@@ -108,7 +110,7 @@ export function AIMutationExercisePickerModal({
                   setSearchQuery('');
                 }}
               >
-                <Dumbbell color={Colors.textSecondary} size={IconSizes.sm} />
+                <Dumbbell color={colors.textSecondary} size={IconSizes.sm} />
                 <Text style={styles.exerciseOptionText}>{exercise.name}</Text>
               </TouchableOpacity>
             ))}

@@ -1287,13 +1287,14 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     toggleWeightUnit: async (exerciseId) => {
-      const { weightUnits, activeSession } = get();
+      const { weightUnits, activeSession, editorSession } = get();
       const currentUnit = weightUnits[exerciseId] || 'lbs';
       const newUnit: WeightUnit = currentUnit === 'lbs' ? 'kg' : 'lbs';
 
-      // Convert weight values for all sets of this exercise in active session
-      if (activeSession) {
-        const exercises = activeSession.exercises.map((ex) => {
+      const convertSession = (session: WorkoutSession | null) => {
+        if (!session) return null;
+
+        const exercises = session.exercises.map((ex) => {
           if (ex.exerciseId !== exerciseId) return ex;
 
           const sets = ex.sets.map((s) => {
@@ -1318,14 +1319,18 @@ export const useWorkoutStore = create<WorkoutState>()(
           return { ...ex, sets };
         });
 
-        set({
-          activeSession: {
-            ...activeSession,
-            exercises,
-          },
-        });
+        return { ...session, exercises };
+      };
 
-        // Persist the updated session
+      const convertedActiveSession = convertSession(activeSession);
+      const convertedEditorSession = convertSession(editorSession);
+
+      set({
+        ...(convertedActiveSession && { activeSession: convertedActiveSession }),
+        ...(convertedEditorSession && { editorSession: convertedEditorSession }),
+      });
+
+      if (convertedActiveSession) {
         get().persistSession();
       }
 
@@ -1374,8 +1379,36 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     openNumberPad: (exerciseLocalId, setLocalId, inputType) => {
+      const { activeSession, activeNumberPad } = get();
+
+      if (
+        activeNumberPad
+        && activeNumberPad.exerciseLocalId === exerciseLocalId
+        && activeNumberPad.setLocalId === setLocalId
+        && activeNumberPad.inputType === inputType
+      ) {
+        return;
+      }
+
+      if (activeNumberPad && activeSession) {
+        const previousExercise = activeSession.exercises.find(
+          (ex) => ex.localId === activeNumberPad.exerciseLocalId
+        );
+        const previousSet = previousExercise?.sets.find(
+          (s) => s.localId === activeNumberPad.setLocalId
+        );
+        const pendingValue = activeNumberPad.pendingValue.trim();
+        if (previousSet && pendingValue) {
+          const parsedValue = Number(pendingValue);
+          if (!Number.isNaN(parsedValue)) {
+            get().updateSet(activeNumberPad.exerciseLocalId, activeNumberPad.setLocalId, {
+              [activeNumberPad.inputType]: parsedValue,
+            });
+          }
+        }
+      }
+
       // Get the current value to initialize pendingValue
-      const { activeSession } = get();
       const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
       const set_ = exercise?.sets.find(s => s.localId === setLocalId);
       const currentValue = set_?.[inputType];
@@ -1746,7 +1779,35 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     openEditorNumberPad: (exerciseLocalId, setLocalId, inputType) => {
-      const { editorSession } = get();
+      const { editorSession, activeNumberPad } = get();
+
+      if (
+        activeNumberPad
+        && activeNumberPad.exerciseLocalId === exerciseLocalId
+        && activeNumberPad.setLocalId === setLocalId
+        && activeNumberPad.inputType === inputType
+      ) {
+        return;
+      }
+
+      if (activeNumberPad && editorSession) {
+        const previousExercise = editorSession.exercises.find(
+          (ex) => ex.localId === activeNumberPad.exerciseLocalId
+        );
+        const previousSet = previousExercise?.sets.find(
+          (s) => s.localId === activeNumberPad.setLocalId
+        );
+        const pendingValue = activeNumberPad.pendingValue.trim();
+        if (previousSet && pendingValue) {
+          const parsedValue = Number(pendingValue);
+          if (!Number.isNaN(parsedValue)) {
+            get().updateEditorSet(activeNumberPad.exerciseLocalId, activeNumberPad.setLocalId, {
+              [activeNumberPad.inputType]: parsedValue,
+            });
+          }
+        }
+      }
+
       const exercise = editorSession?.exercises.find(e => e.localId === exerciseLocalId);
       const set_ = exercise?.sets.find(s => s.localId === setLocalId);
       const currentValue = set_?.[inputType];

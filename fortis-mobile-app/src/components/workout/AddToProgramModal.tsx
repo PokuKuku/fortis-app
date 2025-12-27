@@ -11,6 +11,7 @@ import {
 import { PlusIcon, XMarkIcon, CheckIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '../../../constants/Sizes';
 
@@ -43,8 +44,31 @@ export function AddToProgramModal({
   onSelectPosition,
   onCancel,
 }: AddToProgramModalProps) {
+  const { colors, isDark } = useTheme();
   const modalOpacity = useRef(new Animated.Value(0)).current;
   const modalScale = useRef(new Animated.Value(0.9)).current;
+
+  // Theme-aware styles
+  const themedStyles = {
+    modal: { backgroundColor: isDark ? '#222222' : '#FFFFFF' },
+    title: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+    closeButton: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' },
+    sectionLabel: { color: colors.textSecondary },
+    positionOption: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    positionBadge: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)' },
+    positionBadgeText: { color: colors.textPrimary },
+    positionName: { color: colors.textPrimary },
+    positionHint: { color: colors.textSecondary },
+    cancelButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    cancelButtonText: { color: colors.textSecondary },
+  };
 
   useEffect(() => {
     if (visible) {
@@ -104,6 +128,7 @@ export function AddToProgramModal({
         <Animated.View
           style={[
             styles.modal,
+            themedStyles.modal,
             {
               opacity: modalOpacity,
               transform: [{ scale: modalScale }],
@@ -115,18 +140,18 @@ export function AddToProgramModal({
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerTextContainer}>
-                <Text style={styles.title}>Add to Program</Text>
-                <Text style={styles.subtitle} numberOfLines={1}>
+                <Text style={[styles.title, themedStyles.title]}>Add to Program</Text>
+                <Text style={[styles.subtitle, themedStyles.subtitle]} numberOfLines={1}>
                   Adding "{workoutName}" to {programName}
                 </Text>
               </View>
-              <TouchableOpacity style={styles.closeButton} onPress={handleCancel}>
-                <XMarkIcon color={Colors.textSecondary} size={20} strokeWidth={2.5} />
+              <TouchableOpacity style={[styles.closeButton, themedStyles.closeButton]} onPress={handleCancel}>
+                <XMarkIcon color={colors.textSecondary} size={20} strokeWidth={2.5} />
               </TouchableOpacity>
             </View>
 
             {/* Position Selection */}
-            <Text style={styles.sectionLabel}>Select Position</Text>
+            <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>Select Position</Text>
 
             <ScrollView
               style={styles.positionList}
@@ -137,22 +162,22 @@ export function AddToProgramModal({
               {sortedWorkouts.map((workout, index) => (
                 <TouchableOpacity
                   key={workout.id}
-                  style={styles.positionOption}
+                  style={[styles.positionOption, themedStyles.positionOption]}
                   onPress={() => handleSelectPosition(workout.dayNumber)}
                   activeOpacity={0.7}
                 >
-                  <View style={styles.positionBadge}>
-                    <Text style={styles.positionBadgeText}>Day {workout.dayNumber}</Text>
+                  <View style={[styles.positionBadge, themedStyles.positionBadge]}>
+                    <Text style={[styles.positionBadgeText, themedStyles.positionBadgeText]}>Day {workout.dayNumber}</Text>
                   </View>
                   <View style={styles.positionInfo}>
-                    <Text style={styles.positionName} numberOfLines={1}>
+                    <Text style={[styles.positionName, themedStyles.positionName]} numberOfLines={1}>
                       Replace: {workout.name}
                     </Text>
-                    <Text style={styles.positionHint}>
+                    <Text style={[styles.positionHint, themedStyles.positionHint]}>
                       Insert before this workout
                     </Text>
                   </View>
-                  <CheckIcon color={Colors.textSecondary} size={18} strokeWidth={2} />
+                  <CheckIcon color={colors.textSecondary} size={18} strokeWidth={2} />
                 </TouchableOpacity>
               ))}
 
@@ -170,7 +195,7 @@ export function AddToProgramModal({
                     <Text style={[styles.positionName, styles.addNewText]}>
                       Add as Day {nextDayNumber}
                     </Text>
-                    <Text style={styles.positionHint}>
+                    <Text style={[styles.positionHint, themedStyles.positionHint]}>
                       Add at the end of the program
                     </Text>
                   </View>
@@ -180,8 +205,8 @@ export function AddToProgramModal({
             </ScrollView>
 
             {/* Cancel Button */}
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+            <TouchableOpacity style={[styles.cancelButton, themedStyles.cancelButton]} onPress={handleCancel}>
+              <Text style={[styles.cancelButtonText, themedStyles.cancelButtonText]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

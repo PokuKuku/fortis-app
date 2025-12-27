@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { EllipsisVerticalIcon, TrashIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 
@@ -31,9 +32,19 @@ export function DeleteKebabMenu({
   deleteLabel = 'Delete',
   onDelete,
 }: DeleteKebabMenuProps) {
+  const { colors, isDark } = useTheme();
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, right: 0 });
   const buttonRef = useRef<View>(null);
+
+  // Theme-aware styles
+  const themedStyles = {
+    kebabButtonPressed: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)' },
+    popover: {
+      backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+    },
+  };
 
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
@@ -105,12 +116,12 @@ export function DeleteKebabMenu({
         onPress={handleOpen}
         style={({ pressed }) => [
           styles.kebabButton,
-          pressed && styles.kebabButtonPressed,
+          pressed && themedStyles.kebabButtonPressed,
         ]}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
         <EllipsisVerticalIcon
-          color={Colors.textSecondary}
+          color={colors.textSecondary}
           size={20}
           strokeWidth={2}
         />
@@ -132,6 +143,7 @@ export function DeleteKebabMenu({
         <Animated.View
           style={[
             styles.popover,
+            themedStyles.popover,
             {
               top: position.top,
               right: position.right,

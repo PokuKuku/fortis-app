@@ -28,6 +28,7 @@ import {
   Sparkles,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
 import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
@@ -53,6 +54,7 @@ export function AIMutationPreviewModal({
   onClose,
   onConfirm,
 }: AIMutationPreviewModalProps) {
+  const { colors, isDark } = useTheme();
   const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
   const isApplyingMutation = useAIStore((state) => state.isApplyingMutation);
   const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
@@ -198,7 +200,7 @@ export function AIMutationPreviewModal({
                 {isProgramDraft ? `Review ${draftLabel}` : 'Review Changes'}
               </Text>
               <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-                <X color={Colors.textSecondary} size={IconSizes.md} />
+                <X color={colors.textSecondary} size={IconSizes.md} />
               </TouchableOpacity>
             </View>
 
@@ -277,7 +279,7 @@ export function AIMutationPreviewModal({
                 onPress={handleReject}
                 disabled={isApplyingMutation}
               >
-                <X color={Colors.textSecondary} size={IconSizes.md} />
+                <X color={colors.textSecondary} size={IconSizes.md} />
                 <Text style={styles.rejectButtonText}>Cancel</Text>
               </TouchableOpacity>
 

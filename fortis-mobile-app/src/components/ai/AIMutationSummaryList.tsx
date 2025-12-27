@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
 import { AlertTriangle, Edit2, Plus, Trash2, Info } from 'lucide-react-native';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
 import { AIMutation, AIExerciseResolution } from '../../types/ai';
@@ -29,6 +30,8 @@ export function AIMutationSummaryList({
   exerciseResolution,
   mutations,
 }: AIMutationSummaryListProps) {
+  const { colors } = useTheme();
+
   const renderMutation = (mutation: AIMutation) => {
     const Icon = OPERATION_ICONS[mutation.operation];
     const color = OPERATION_COLORS[mutation.operation];
@@ -64,7 +67,7 @@ export function AIMutationSummaryList({
         )}
         {exercise.explanation && (
           <View style={styles.newExerciseExplanation}>
-            <Info color={Colors.textTertiary} size={12} />
+            <Info color={colors.textTertiary} size={12} />
             <Text style={styles.newExerciseExplanationText}>
               {exercise.explanation}
             </Text>

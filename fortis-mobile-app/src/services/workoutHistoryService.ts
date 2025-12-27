@@ -8,7 +8,7 @@
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
-import { WorkoutSession, WorkoutExercise, WorkoutSet } from '@/src/types/workout';
+import { WorkoutSession, WorkoutExercise, WorkoutSet, WeightUnit } from '@/src/types/workout';
 import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
 
@@ -32,7 +32,7 @@ interface WorkoutSetInsert {
   set_number: number;
   reps: number | null;
   weight: number | null;
-  weight_unit: 'lbs' | 'kg' | null;
+  weight_unit: WeightUnit | null;
   rpe: number | null;
   rest_seconds: number | null;
   notes: string;

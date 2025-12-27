@@ -10,6 +10,7 @@ import { PlayIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { BaseModal } from '@/src/components/ui/BaseModal';
 import { GlassButton } from '@/components/GlassButton';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { ProgramWorkout } from '@/src/types/workout';
@@ -30,7 +31,15 @@ export function WorkoutDetailModal({
   workout,
   onStartWorkout,
 }: WorkoutDetailModalProps) {
+  const { colors, isDark } = useTheme();
   const bodyType = useWorkoutStore((s) => s.bodyType);
+
+  // Theme-aware styles
+  const themedStyles = {
+    exerciseCount: { color: colors.textSecondary },
+    exerciseRow: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' },
+    exerciseName: { color: colors.textPrimary },
+  };
   const exerciseIds = useMemo(
     () => workout?.exercises.map((exercise) => exercise.exerciseId) || [],
     [workout]
@@ -55,7 +64,7 @@ export function WorkoutDetailModal({
       showCloseButton={true}
     >
       {/* Exercise Count */}
-      <Text style={styles.exerciseCount}>
+      <Text style={[styles.exerciseCount, themedStyles.exerciseCount]}>
         {workout.exercises.length} exercise{workout.exercises.length !== 1 ? 's' : ''}
       </Text>
 
@@ -76,8 +85,8 @@ export function WorkoutDetailModal({
         showsVerticalScrollIndicator={false}
       >
         {workout.exercises.map((exercise) => (
-          <View key={exercise.id} style={styles.exerciseRow}>
-            <Text style={styles.exerciseName} numberOfLines={1}>
+          <View key={exercise.id} style={[styles.exerciseRow, themedStyles.exerciseRow]}>
+            <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
               {exercise.exerciseName}
             </Text>
             <Text style={styles.setsReps}>

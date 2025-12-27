@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { BackspaceIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -32,8 +33,34 @@ export function TemplateNumberPad({
   onClose,
   inputType,
 }: TemplateNumberPadProps) {
+  const { colors, isDark } = useTheme();
   const [displayValue, setDisplayValue] = useState(value);
   const translateY = useSharedValue(0);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    padWrapper: {
+      backgroundColor: colors.background,
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    dragHandle: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
+    },
+    numberButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    buttonPressed: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    numberText: { color: colors.textPrimary },
+    controlButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    dashButtonText: { color: colors.textPrimary },
+    incrementButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+  };
 
   // Sync displayValue when value prop changes (when switching fields)
   if (value !== displayValue && !visible) {
@@ -156,10 +183,11 @@ export function TemplateNumberPad({
       onPress={() => handleNumberPress(num)}
       style={({ pressed }) => [
         styles.numberButton,
-        pressed && styles.buttonPressed,
+        themedStyles.numberButton,
+        pressed && themedStyles.buttonPressed,
       ]}
     >
-      <Text style={styles.numberText}>{num}</Text>
+      <Text style={[styles.numberText, themedStyles.numberText]}>{num}</Text>
     </Pressable>
   );
 
@@ -177,12 +205,12 @@ export function TemplateNumberPad({
           exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
           style={[styles.container, containerAnimatedStyle]}
         >
-          <View style={styles.padWrapper}>
+          <View style={[styles.padWrapper, themedStyles.padWrapper]}>
             <StainlessSteelPattern />
 
           {/* Drag Handle */}
           <View style={styles.dragHandleContainer}>
-            <View style={styles.dragHandle} />
+            <View style={[styles.dragHandle, themedStyles.dragHandle]} />
           </View>
 
           {/* Number Pad Grid */}
@@ -205,7 +233,7 @@ export function TemplateNumberPad({
                 {renderNumberButton('9')}
               </View>
               <View style={styles.row}>
-                <View style={styles.numberButton} />
+                <View style={[styles.numberButton, themedStyles.numberButton]} />
                 {renderNumberButton('0')}
                 <Pressable
                   onPress={handleDelete}
@@ -213,10 +241,11 @@ export function TemplateNumberPad({
                   delayLongPress={500}
                   style={({ pressed }) => [
                     styles.numberButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.numberButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <BackspaceIcon size={24} color={Colors.textPrimary} strokeWidth={2} />
+                  <BackspaceIcon size={24} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               </View>
             </View>
@@ -228,10 +257,11 @@ export function TemplateNumberPad({
                 onPress={handleKeyboardClose}
                 style={({ pressed }) => [
                   styles.controlButton,
-                  pressed && styles.buttonPressed,
+                  themedStyles.controlButton,
+                  pressed && themedStyles.buttonPressed,
                 ]}
               >
-                <XMarkIcon size={22} color={Colors.textSecondary} strokeWidth={2} />
+                <XMarkIcon size={22} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
 
               {/* Dash button for reps (for ranges) or decimal for weight */}
@@ -239,10 +269,11 @@ export function TemplateNumberPad({
                 onPress={() => handleNumberPress(inputType === 'reps' ? '-' : '.')}
                 style={({ pressed }) => [
                   styles.controlButton,
-                  pressed && styles.buttonPressed,
+                  themedStyles.controlButton,
+                  pressed && themedStyles.buttonPressed,
                 ]}
               >
-                <Text style={styles.dashButtonText}>{inputType === 'reps' ? '—' : '.'}</Text>
+                <Text style={[styles.dashButtonText, themedStyles.dashButtonText]}>{inputType === 'reps' ? '—' : '.'}</Text>
               </Pressable>
 
               {/* Increment/Decrement buttons */}
@@ -251,19 +282,21 @@ export function TemplateNumberPad({
                   onPress={handleDecrement}
                   style={({ pressed }) => [
                     styles.incrementButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.incrementButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <MinusIcon size={20} color={Colors.textPrimary} strokeWidth={2} />
+                  <MinusIcon size={20} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
                 <Pressable
                   onPress={handleIncrement}
                   style={({ pressed }) => [
                     styles.incrementButton,
-                    pressed && styles.buttonPressed,
+                    themedStyles.incrementButton,
+                    pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <PlusIcon size={20} color={Colors.textPrimary} strokeWidth={2} />
+                  <PlusIcon size={20} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               </View>
 

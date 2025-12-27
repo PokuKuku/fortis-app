@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -24,11 +25,33 @@ export function RPESelectorOverlay({
   currentRpe,
   onOpenHelp,
 }: RPESelectorOverlayProps) {
+  const { colors, isDark } = useTheme();
   const selectRpe = useWorkoutStore((s) => s.selectRpe);
   const closeRpeSelector = useWorkoutStore((s) => s.closeRpeSelector);
 
   // Track which value is being hovered/pressed for description
   const [hoveredValue, setHoveredValue] = useState<number | null>(null);
+
+  // Dynamic theme-aware styles
+  const themedStyles = {
+    container: {
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.92)' : 'rgba(255, 255, 255, 0.96)',
+    },
+    whatsRpeButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    whatsRpeText: { color: colors.textSecondary },
+    closeButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    descriptionText: { color: colors.textSecondary },
+    valueButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    valueButtonSelected: {
+      backgroundColor: colors.textPrimary,
+    },
+  };
 
   // Determine which description to show
   const displayValue = hoveredValue ?? currentRpe;
@@ -57,7 +80,7 @@ export function RPESelectorOverlay({
     <Animated.View
       entering={FadeIn.duration(200)}
       exiting={FadeOut.duration(150)}
-      style={styles.container}
+      style={[styles.container, themedStyles.container]}
     >
       {/* Header row */}
       <View style={styles.header}>
@@ -65,26 +88,28 @@ export function RPESelectorOverlay({
           onPress={handleHelpPress}
           style={({ pressed }) => [
             styles.whatsRpeButton,
+            themedStyles.whatsRpeButton,
             pressed && styles.buttonPressed,
           ]}
         >
-          <Text style={styles.whatsRpeText}>What's RPE?</Text>
+          <Text style={[styles.whatsRpeText, themedStyles.whatsRpeText]}>What's RPE?</Text>
         </Pressable>
 
         <Pressable
           onPress={handleClose}
           style={({ pressed }) => [
             styles.closeButton,
+            themedStyles.closeButton,
             pressed && styles.buttonPressed,
           ]}
         >
-          <XMarkIcon size={20} color={Colors.textSecondary} strokeWidth={2} />
+          <XMarkIcon size={20} color={colors.textSecondary} strokeWidth={2} />
         </Pressable>
       </View>
 
       {/* Description text */}
       <View style={styles.descriptionContainer}>
-        <Text style={styles.descriptionText}>{description}</Text>
+        <Text style={[styles.descriptionText, themedStyles.descriptionText]}>{description}</Text>
       </View>
 
       {/* RPE value buttons */}
@@ -101,7 +126,8 @@ export function RPESelectorOverlay({
               onPressOut={() => setHoveredValue(null)}
               style={({ pressed }) => [
                 styles.valueButton,
-                isSelected && styles.valueButtonSelected,
+                themedStyles.valueButton,
+                isSelected && [styles.valueButtonSelected, themedStyles.valueButtonSelected],
                 pressed && styles.valueButtonPressed,
               ]}
             >
@@ -109,7 +135,7 @@ export function RPESelectorOverlay({
                 style={[
                   styles.valueText,
                   isSelected && styles.valueTextSelected,
-                  { color: isSelected ? Colors.background : color },
+                  { color: isSelected ? colors.background : color },
                 ]}
               >
                 {value}

@@ -16,6 +16,7 @@ import { Spacing, FontSizes, BorderRadius, ButtonHeights } from '@/constants/Siz
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import Animated, { SlideInDown, SlideOutDown, Easing, FadeIn, FadeOut } from 'react-native-reanimated';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -58,6 +59,33 @@ export function CreateWorkoutModal({
   onSave,
   templateToEdit,
 }: CreateWorkoutModalProps) {
+  const { colors, isDark } = useTheme();
+
+  // Theme-aware styles
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    headerTitle: { color: colors.textPrimary },
+    closeButton: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)' },
+    nameInput: {
+      color: colors.textPrimary,
+      borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    exerciseCard: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    exerciseName: { color: Colors.success },
+    setsLabel: { color: colors.textSecondary },
+    setsButton: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)' },
+    setsButtonText: { color: colors.textPrimary },
+    setsValue: { color: colors.textPrimary },
+    setsRowBorder: { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.05)' },
+    repsValue: { color: colors.textPrimary },
+    restValue: { color: colors.textPrimary },
+    emptyStateText: { color: colors.textSecondary },
+    addButtonContainer: { backgroundColor: colors.background },
+  };
+
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
   const bodyType = useWorkoutStore((s) => s.bodyType);
@@ -201,11 +229,11 @@ export function CreateWorkoutModal({
     <Animated.View
       entering={FadeIn.duration(200)}
       exiting={FadeOut.duration(150)}
-      style={styles.exerciseCard}
+      style={[styles.exerciseCard, themedStyles.exerciseCard]}
     >
       {/* Exercise Header */}
       <View style={styles.exerciseHeader}>
-        <Text style={styles.exerciseName} numberOfLines={1}>
+        <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
           {item.exerciseName}
         </Text>
         <Pressable
@@ -221,50 +249,52 @@ export function CreateWorkoutModal({
       </View>
 
       {/* Sets Configuration */}
-      <View style={styles.setsRow}>
-        <Text style={styles.setsLabel}>Sets</Text>
+      <View style={[styles.setsRow, themedStyles.setsRowBorder]}>
+        <Text style={[styles.setsLabel, themedStyles.setsLabel]}>Sets</Text>
         <View style={styles.setsControls}>
           <Pressable
             onPress={() => handleUpdateSets(item.localId, -1)}
             style={({ pressed }) => [
               styles.setsButton,
+              themedStyles.setsButton,
               pressed && styles.setsButtonPressed,
             ]}
           >
-            <Text style={styles.setsButtonText}>-</Text>
+            <Text style={[styles.setsButtonText, themedStyles.setsButtonText]}>-</Text>
           </Pressable>
-          <Text style={styles.setsValue}>{item.sets}</Text>
+          <Text style={[styles.setsValue, themedStyles.setsValue]}>{item.sets}</Text>
           <Pressable
             onPress={() => handleUpdateSets(item.localId, 1)}
             style={({ pressed }) => [
               styles.setsButton,
+              themedStyles.setsButton,
               pressed && styles.setsButtonPressed,
             ]}
           >
-            <Text style={styles.setsButtonText}>+</Text>
+            <Text style={[styles.setsButtonText, themedStyles.setsButtonText]}>+</Text>
           </Pressable>
         </View>
       </View>
 
       {/* Reps Display */}
-      <View style={styles.repsRow}>
-        <Text style={styles.repsLabel}>Reps</Text>
-        <Text style={styles.repsValue}>{item.reps}</Text>
+      <View style={[styles.repsRow, themedStyles.setsRowBorder]}>
+        <Text style={[styles.repsLabel, themedStyles.setsLabel]}>Reps</Text>
+        <Text style={[styles.repsValue, themedStyles.repsValue]}>{item.reps}</Text>
       </View>
 
       {/* Rest Timer Display */}
       <View style={styles.restRow}>
-        <Text style={styles.restLabel}>Rest</Text>
-        <Text style={styles.restValue}>{Math.floor(item.restSeconds / 60)}:{(item.restSeconds % 60).toString().padStart(2, '0')}</Text>
+        <Text style={[styles.restLabel, themedStyles.setsLabel]}>Rest</Text>
+        <Text style={[styles.restValue, themedStyles.restValue]}>{Math.floor(item.restSeconds / 60)}:{(item.restSeconds % 60).toString().padStart(2, '0')}</Text>
       </View>
     </Animated.View>
-  ), [handleRemoveExercise, handleUpdateSets]);
+  ), [handleRemoveExercise, handleUpdateSets, themedStyles]);
 
   // Render empty state
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyStateText}>No exercises added yet</Text>
-      <Text style={styles.emptyStateSubtext}>
+      <Text style={[styles.emptyStateText, themedStyles.emptyStateText]}>No exercises added yet</Text>
+      <Text style={[styles.emptyStateSubtext, themedStyles.emptyStateText]}>
         Tap "Add Exercises" to get started
       </Text>
     </View>
@@ -286,7 +316,7 @@ export function CreateWorkoutModal({
       <Animated.View
         entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
         exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
-        style={styles.container}
+        style={[styles.container, themedStyles.container]}
       >
         <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
           <StainlessSteelPattern />
@@ -297,12 +327,13 @@ export function CreateWorkoutModal({
               onPress={onClose}
               style={({ pressed }) => [
                 styles.closeButton,
+                themedStyles.closeButton,
                 pressed && styles.closeButtonPressed,
               ]}
             >
-              <XMarkIcon size={24} color={Colors.textSecondary} strokeWidth={2} />
+              <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
-            <Text style={styles.headerTitle}>{headerTitle}</Text>
+            <Text style={[styles.headerTitle, themedStyles.headerTitle]}>{headerTitle}</Text>
             <GlassButton
               style={{
                 ...styles.saveButton,
@@ -322,9 +353,9 @@ export function CreateWorkoutModal({
           {/* Template Name Input */}
           <View style={styles.nameInputContainer}>
             <TextInput
-              style={styles.nameInput}
+              style={[styles.nameInput, themedStyles.nameInput]}
               placeholder="Template Name"
-              placeholderTextColor={Colors.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={templateName}
               onChangeText={setTemplateName}
               autoCorrect={false}
@@ -354,7 +385,7 @@ export function CreateWorkoutModal({
           />
 
           {/* Add Exercises Button */}
-          <View style={styles.addButtonContainer}>
+          <View style={[styles.addButtonContainer, themedStyles.addButtonContainer]}>
             <Pressable
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
