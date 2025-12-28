@@ -44,7 +44,14 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-speech-recognition"
+      "expo-speech-recognition",
+      [
+        "expo-alternate-app-icons",
+        {
+          "Light": "./assets/icon-light.png",
+          "Dark": "./assets/icon.png"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -22,10 +22,13 @@ import {
   ChevronRightIcon,
   SparklesIcon,
   SunIcon,
+  DevicePhoneMobileIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme, type ThemeMode } from '@/src/contexts/ThemeContext';
+import { useAppIcon } from '@/src/contexts/AppIconContext';
+import { AppIconSelector } from '@/src/components/settings/AppIconSelector';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { parseWorkoutCsv, type ImportSource } from '@/src/utils/importWorkouts';
@@ -83,6 +86,8 @@ export default function SettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showAppIconSelector, setShowAppIconSelector] = useState(false);
+  const { currentIcon, isSupported: appIconSupported } = useAppIcon();
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
@@ -281,6 +286,21 @@ export default function SettingsScreen() {
                 colors={colors}
                 isDark={isDark}
               />
+
+              {appIconSupported && (
+                <>
+                  <View style={[styles.settingsDivider, dividerStyle]} />
+                  <SettingsRow
+                    icon={<DevicePhoneMobileIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                    label="App Icon"
+                    value={currentIcon}
+                    onPress={() => setShowAppIconSelector(true)}
+                    showChevron
+                    colors={colors}
+                    isDark={isDark}
+                  />
+                </>
+              )}
             </View>
           </View>
 
@@ -380,6 +400,12 @@ export default function SettingsScreen() {
           <Text style={[styles.version, { color: colors.textSecondary }]}>Fortis v1.0.0</Text>
         </ScrollView>
       </SafeAreaView>
+
+      {/* App Icon Selector Modal */}
+      <AppIconSelector
+        visible={showAppIconSelector}
+        onClose={() => setShowAppIconSelector(false)}
+      />
     </View>
   );
 }
