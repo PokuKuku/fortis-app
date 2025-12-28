@@ -300,17 +300,23 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
   const setDisplay = getSetDisplay();
   const previousUnitRef = useRef<WeightUnit | null>(null);
   const previousExerciseRef = useRef<string | null>(null);
+  const performanceUnit = lastPerformance?.weightUnit
+    ?? lastPerformance?.sets.find((entry) => entry.weightUnit)?.weightUnit
+    ?? null;
   useEffect(() => {
     if (!lastPerformance) return;
     if (previousExerciseRef.current !== lastPerformance.exerciseId) {
       previousExerciseRef.current = lastPerformance.exerciseId;
       previousUnitRef.current = null;
     }
-    const resolvedUnit = lastPerformance.weightUnit ?? previousUnitRef.current ?? currentWeightUnit;
-    if (resolvedUnit) {
-      previousUnitRef.current = resolvedUnit;
+    if (performanceUnit) {
+      previousUnitRef.current = performanceUnit;
+      return;
     }
-  }, [currentWeightUnit, lastPerformance?.exerciseId, lastPerformance?.weightUnit]);
+    if (!previousUnitRef.current) {
+      previousUnitRef.current = currentWeightUnit;
+    }
+  }, [currentWeightUnit, lastPerformance?.exerciseId, performanceUnit]);
 
   const formatValue = (value: number | null) => {
     if (value === null || value === undefined) return '';
@@ -320,12 +326,18 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       : stringValue;
   };
 
-  const recordedWeightUnit = lastPerformance?.weightUnit || previousUnitRef.current || currentWeightUnit;
+  const previousSetPerformance = lastPerformance?.sets[setIndex];
+  const recordedWeightUnit = previousSetPerformance?.weightUnit
+    || previousUnitRef.current
+    || currentWeightUnit;
   const previousText = (() => {
-    if (lastPerformance?.weight == null) return '—';
-    const weightText = formatValue(lastPerformance.weight);
-    if (!weightText) return '—';
-    return `${lastPerformance.setCount}x${weightText} ${recordedWeightUnit}`;
+    if (!previousSetPerformance) return '—';
+    if (previousSetPerformance.weight == null || previousSetPerformance.reps == null) return '—';
+    const weightText = formatValue(previousSetPerformance.weight);
+    const repsText = previousSetPerformance.reps.toString();
+    if (!weightText || !repsText) return '—';
+    const unitLabel = recordedWeightUnit ? ` ${recordedWeightUnit.toUpperCase()}` : '';
+    return `${weightText}x${repsText}${unitLabel}`;
   })();
 
   const handleDelete = () => {
