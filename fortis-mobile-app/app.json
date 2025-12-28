@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "fortis",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -17,6 +17,11 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fortis.app",
       "usesAppleSignIn": true,
+      "icon": {
+        "light": "./assets/icon-light.png",
+        "dark": "./assets/icon.png",
+        "tinted": "./assets/icon.png"
+      },
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
