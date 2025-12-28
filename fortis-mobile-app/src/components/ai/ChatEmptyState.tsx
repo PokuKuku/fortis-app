@@ -112,7 +112,7 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
       <View style={styles.grid}>
         {QUICK_ACTIONS.map((action, index) => (
           <Animated.View
-            key={action.intent}
+            key={action.label}
             entering={FadeInUp.duration(400)
               .delay(100 + index * 80)
               .easing(Easing.out(Easing.cubic))}
