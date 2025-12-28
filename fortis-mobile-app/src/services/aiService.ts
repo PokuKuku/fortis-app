@@ -129,33 +129,6 @@ export async function sendAIMessage(
 // ============================================
 
 /**
- * Query user stats (PRs, volume, etc.)
- */
-export async function queryStats(question: string): Promise<AIResponse> {
-  return sendAIMessage('QUERY_STATS', question);
-}
-
-/**
- * Query workout history
- */
-export async function queryHistory(
-  question: string,
-  periodWeeks?: number
-): Promise<AIResponse> {
-  return sendAIMessage('QUERY_HISTORY', question, { periodWeeks });
-}
-
-/**
- * Analyze a training plateau
- */
-export async function analyzePlateau(
-  question: string,
-  exerciseId?: string
-): Promise<AIResponse> {
-  return sendAIMessage('ANALYZE_PLATEAU', question, { exerciseId });
-}
-
-/**
  * Create a new workout program
  */
 export async function createProgram(
@@ -669,9 +642,6 @@ export function isWriteIntent(intent: AIIntent): boolean {
  */
 export function getIntentLabel(intent: AIIntent): string {
   const labels: Record<AIIntent, string> = {
-    QUERY_STATS: 'Query Stats',
-    QUERY_HISTORY: 'Query History',
-    ANALYZE_PLATEAU: 'Analyze Plateau',
     CREATE_PROGRAM: 'Create Program',
     CREATE_TEMPLATE: 'Create Template',
   };

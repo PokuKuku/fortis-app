@@ -2,20 +2,6 @@ import { INTENT_CONFIG, AIIntent } from '@/src/types/ai';
 import { getIntentLabel, isWriteIntent } from '@/src/services/aiService';
 
 const ALL_INTENTS: AIIntent[] = [
-  'QUERY_STATS',
-  'QUERY_HISTORY',
-  'ANALYZE_PLATEAU',
-  'CREATE_PROGRAM',
-  'CREATE_TEMPLATE',
-];
-
-const READ_INTENTS: AIIntent[] = [
-  'QUERY_STATS',
-  'QUERY_HISTORY',
-  'ANALYZE_PLATEAU',
-];
-
-const WRITE_INTENTS: AIIntent[] = [
   'CREATE_PROGRAM',
   'CREATE_TEMPLATE',
 ];
@@ -25,14 +11,8 @@ describe('AI intents', () => {
     expect(Object.keys(INTENT_CONFIG).sort()).toEqual([...ALL_INTENTS].sort());
   });
 
-  it('flags read intents as non-write', () => {
-    READ_INTENTS.forEach((intent) => {
-      expect(isWriteIntent(intent)).toBe(false);
-    });
-  });
-
-  it('flags write intents as write', () => {
-    WRITE_INTENTS.forEach((intent) => {
+  it('flags all intents as write intents', () => {
+    ALL_INTENTS.forEach((intent) => {
       expect(isWriteIntent(intent)).toBe(true);
     });
   });

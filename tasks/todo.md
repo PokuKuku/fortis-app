@@ -1,3 +1,45 @@
+# Remove Read-Only AI Intents for V1
+
+## Todo
+- [x] Update type definitions (ai.ts)
+- [x] Update backend edge function
+- [x] Update service layer (aiService.ts)
+- [x] Update state management (aiStore.ts)
+- [x] Update chat UI (chat.tsx)
+- [x] Update empty state UI (ChatEmptyState.tsx)
+- [x] Update suggestion generators
+- [x] Update tests
+
+## Review
+
+### Summary
+Simplified AI feature for V1 by removing read-only intents (QUERY_STATS, QUERY_HISTORY, ANALYZE_PLATEAU), keeping only CREATE_PROGRAM and CREATE_TEMPLATE. Image upload auto-detection preserved.
+
+### Files Modified
+
+1. **`fortis-mobile-app/src/types/ai.ts`** - Removed 3 read intents from AIIntent type and INTENT_CONFIG
+
+2. **`supabase/functions/ai/index.ts`** - Removed read intents from backend type and config, removed ANALYZE_PLATEAU guidance, removed dead read-type response format code
+
+3. **`fortis-mobile-app/src/services/aiService.ts`** - Removed queryStats, queryHistory, analyzePlateau helper functions, updated getIntentLabel
+
+4. **`fortis-mobile-app/src/store/aiStore.ts`** - Removed askAboutStats and askAboutPlateau from interface and implementation
+
+5. **`fortis-mobile-app/app/ai/chat.tsx`** - Removed plateau intent inference, changed default intent from QUERY_STATS to CREATE_TEMPLATE
+
+6. **`fortis-mobile-app/src/components/ai/ChatEmptyState.tsx`** - Updated quick actions grid to only show write intents, added "Scan a Workout" and "Hypertrophy Split" cards, updated subtitle
+
+7. **`fortis-mobile-app/src/utils/suggestionGenerators.ts`** - Removed case blocks for read intents, updated default suggestions
+
+8. **`fortis-mobile-app/src/utils/__tests__/aiIntents.test.ts`** - Updated to only test write intents
+
+### Result
+- AI feature now focused on two high-impact use cases: creating programs and templates
+- Image upload still works with auto-detect behavior
+- All tests pass
+
+---
+
 # CLAUDE.md Improvements
 
 ## Todo

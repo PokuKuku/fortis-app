@@ -132,8 +132,6 @@ interface AIState {
   clearSelectedImage: () => void;
 
   // Actions - Quick queries (shortcuts for common intents)
-  askAboutStats: (question: string) => Promise<AIResponse>;
-  askAboutPlateau: (question: string, exerciseId?: string) => Promise<AIResponse>;
   requestProgram: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
   requestTemplate: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
 
@@ -354,14 +352,6 @@ export const useAIStore = create<AIState>()(
     },
 
     // Quick query shortcuts
-    askAboutStats: async (question) => {
-      return get().sendMessage('QUERY_STATS', question);
-    },
-
-    askAboutPlateau: async (question, exerciseId) => {
-      return get().sendMessage('ANALYZE_PLATEAU', question, { exerciseId });
-    },
-
     requestProgram: async (description, historyOnly) => {
       return get().sendMessage('CREATE_PROGRAM', description, { historyOnly });
     },

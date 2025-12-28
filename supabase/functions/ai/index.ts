@@ -20,9 +20,6 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 // ============================================
 
 type AIIntent =
-  | 'QUERY_STATS'
-  | 'QUERY_HISTORY'
-  | 'ANALYZE_PLATEAU'
   | 'CREATE_PROGRAM'
   | 'CREATE_TEMPLATE';
 
@@ -47,7 +44,7 @@ interface AIRequest {
 }
 
 interface IntentConfig {
-  type: 'read' | 'write';
+  type: 'write';
   defaultContextWeeks: number;
   includeHistory: boolean;
   includeNotes: boolean;
@@ -58,34 +55,6 @@ interface IntentConfig {
 }
 
 const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
-  QUERY_STATS: {
-    type: 'read',
-    defaultContextWeeks: 4,
-    includeHistory: true,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  QUERY_HISTORY: {
-    type: 'read',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: false,
-  },
-  ANALYZE_PLATEAU: {
-    type: 'read',
-    defaultContextWeeks: 24,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 50,
-  },
   CREATE_PROGRAM: {
     type: 'write',
     defaultContextWeeks: 12,
@@ -1240,10 +1209,7 @@ function buildSystemPrompt(
   config: IntentConfig,
   context: AIContext
 ): string {
-  const intentGuidance =
-    intent === 'ANALYZE_PLATEAU'
-      ? '\nPLATEAU ANALYSIS:\n- Explain likely causes using trends in volume, intensity, frequency, and exercise variation.\n- Call out missing data if the evidence is incomplete.'
-      : '';
+  const intentGuidance = '';
 
   const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights and creating workout programs.
 
@@ -1262,32 +1228,7 @@ USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
 - Timezone: ${context.user.timezone}${intentGuidance}`;
 
-  if (config.type === 'read') {
-    return `${basePrompt}
-
-RESPONSE FORMAT:
-If you need more details to answer safely, respond with:
-{
-  "type": "clarification",
-  "clarification": {
-    "question": "Your question here",
-    "options": ["optional", "choices"]
-  }
-}
-
-Otherwise, respond with:
-{
-  "type": "answer",
-  "answer": {
-    "text": "Your response here in markdown format",
-    "citations": [{ "type": "exercise|session|set", "id": "uuid", "context": "brief context" }]
-  }
-}
-
-Citations are optional but encouraged when referencing specific data points.`;
-  }
-
-  // Write intent system prompt
+  // All intents are write intents
   return `${basePrompt}
 
 RESPONSE FORMAT:

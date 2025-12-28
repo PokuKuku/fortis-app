@@ -15,10 +15,9 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import {
-  ArrowTrendingUpIcon,
-  QuestionMarkCircleIcon,
   ChevronRightIcon,
   CalendarDaysIcon,
+  CameraIcon,
 } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
@@ -38,20 +37,6 @@ interface QuickAction {
 
 const QUICK_ACTIONS: QuickAction[] = [
   {
-    intent: 'QUERY_STATS',
-    icon: ArrowTrendingUpIcon,
-    label: 'Track My Gains',
-    description: 'See your progress',
-    prompt: "How am I doing this month?",
-  },
-  {
-    intent: 'ANALYZE_PLATEAU',
-    icon: QuestionMarkCircleIcon,
-    label: 'Break Through',
-    description: 'Smash that plateau',
-    prompt: 'Help me break through my plateau',
-  },
-  {
     intent: 'CREATE_TEMPLATE',
     icon: DumbbellIcon,
     label: 'Build a Workout',
@@ -64,6 +49,20 @@ const QUICK_ACTIONS: QuickAction[] = [
     label: 'Full Program',
     description: 'Weekly plan',
     prompt: 'Create a 4-week strength program',
+  },
+  {
+    intent: 'CREATE_TEMPLATE',
+    icon: CameraIcon,
+    label: 'Scan a Workout',
+    description: 'From photo',
+    prompt: '',
+  },
+  {
+    intent: 'CREATE_PROGRAM',
+    icon: CalendarDaysIcon,
+    label: 'Hypertrophy Split',
+    description: 'Muscle building',
+    prompt: 'Create a push-pull-legs program for hypertrophy',
   },
 ];
 
@@ -105,7 +104,7 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
       >
         <Text style={[styles.title, themedStyles.title]}>Ready to Level Up?</Text>
         <Text style={[styles.subtitle, themedStyles.subtitle]}>
-          Your AI coach is here to build workouts, crush plateaus, and track your gains
+          Your AI coach is here to build custom workouts and training programs
         </Text>
       </Animated.View>
 

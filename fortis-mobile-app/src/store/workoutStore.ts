@@ -162,6 +162,7 @@ interface WorkoutState {
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
   loadCompletedSessions: () => Promise<void>;
+  markSessionsSynced: (localIds: string[]) => Promise<void>;
   importCompletedSessions: (
     sessions: WorkoutSession[]
   ) => Promise<{ imported: number; skipped: number; skippedSync: number }>;
@@ -553,9 +554,15 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       // Sync to Supabase (async, non-blocking)
       // If offline or not authenticated, it will be queued for later
-      syncWorkoutSession(completedSession).catch(error => {
-        console.warn('Failed to sync workout session:', error);
-      });
+      syncWorkoutSession(completedSession)
+        .then((result) => {
+          if (result.success && !result.queued) {
+            void get().markSessionsSynced([completedSession.localId]);
+          }
+        })
+        .catch(error => {
+          console.warn('Failed to sync workout session:', error);
+        });
 
       return completedSession;
     },
@@ -1135,6 +1142,31 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
       } catch (error) {
         console.warn('Failed to load completed sessions:', error);
+      }
+    },
+
+    markSessionsSynced: async (localIds) => {
+      if (localIds.length === 0) return;
+
+      const { completedSessions } = get();
+      const idsToSync = new Set(localIds);
+      let didChange = false;
+      const updatedSessions = completedSessions.map((session) => {
+        if (idsToSync.has(session.localId) && !session.isSynced) {
+          didChange = true;
+          return { ...session, isSynced: true };
+        }
+        return session;
+      });
+
+      if (!didChange) return;
+
+      set({ completedSessions: updatedSessions });
+
+      try {
+        await setScopedItem(COMPLETED_WORKOUTS_KEY, JSON.stringify(updatedSessions));
+      } catch (error) {
+        console.warn('Failed to persist synced workout sessions:', error);
       }
     },
 
@@ -1920,9 +1952,15 @@ export const useWorkoutStore = create<WorkoutState>()(
       }
 
       // Sync to Supabase (async, non-blocking)
-      syncWorkoutSession(completedSession).catch(error => {
-        console.warn('Failed to sync workout session:', error);
-      });
+      syncWorkoutSession(completedSession)
+        .then((result) => {
+          if (result.success && !result.queued) {
+            void get().markSessionsSynced([completedSession.localId]);
+          }
+        })
+        .catch(error => {
+          console.warn('Failed to sync workout session:', error);
+        });
     },
 
     clearEditorSession: () => {

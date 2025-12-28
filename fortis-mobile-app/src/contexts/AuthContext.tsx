@@ -170,9 +170,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Process any pending syncs when user signs in
           if (event === 'SIGNED_IN') {
             // Sync pending workout sessions
-            processPendingQueue().catch(error => {
-              console.warn('Failed to process pending workout sync queue:', error);
-            });
+            processPendingQueue()
+              .then((result) => {
+                if (result.syncedLocalIds.length > 0) {
+                  useWorkoutStore.getState().markSessionsSynced(result.syncedLocalIds).catch(error => {
+                    console.warn('Failed to update synced workout sessions:', error);
+                  });
+                }
+              })
+              .catch(error => {
+                console.warn('Failed to process pending workout sync queue:', error);
+              });
 
             // Sync pending programs/templates
             useProgramsStore.getState().syncPendingPrograms().catch(error => {

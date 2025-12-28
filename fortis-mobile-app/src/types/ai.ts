@@ -11,15 +11,9 @@
 
 /**
  * All supported AI intents
- * Read-only intents return answers directly
  * Write intents return mutation plans requiring confirmation
  */
 export type AIIntent =
-  // Read-only intents
-  | 'QUERY_STATS'
-  | 'QUERY_HISTORY'
-  | 'ANALYZE_PLATEAU'
-  // Write intents (require confirmation)
   | 'CREATE_PROGRAM'
   | 'CREATE_TEMPLATE';
 
@@ -27,8 +21,8 @@ export type AIIntent =
  * Intent metadata for context assembly
  */
 export const INTENT_CONFIG: Record<AIIntent, {
-  type: 'read' | 'write';
-  defaultContextWeeks: 4 | 12 | 24;
+  type: 'write';
+  defaultContextWeeks: 12;
   includeHistory: boolean;
   includeNotes: boolean;
   includeProgram: boolean;
@@ -36,34 +30,6 @@ export const INTENT_CONFIG: Record<AIIntent, {
   includeAnalytics: boolean;
   exerciseLimit?: number;
 }> = {
-  QUERY_STATS: {
-    type: 'read',
-    defaultContextWeeks: 4,
-    includeHistory: true,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: true,
-  },
-  QUERY_HISTORY: {
-    type: 'read',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: false,
-    includeAnalytics: false,
-  },
-  ANALYZE_PLATEAU: {
-    type: 'read',
-    defaultContextWeeks: 24,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: true,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 50,
-  },
   CREATE_PROGRAM: {
     type: 'write',
     defaultContextWeeks: 12,

@@ -336,8 +336,8 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     const weightText = formatValue(previousSetPerformance.weight);
     const repsText = previousSetPerformance.reps.toString();
     if (!weightText || !repsText) return '—';
-    const unitLabel = recordedWeightUnit ? ` ${recordedWeightUnit.toUpperCase()}` : '';
-    return `${weightText}x${repsText}${unitLabel}`;
+    const unitLabel = recordedWeightUnit ? ` ${recordedWeightUnit.toLowerCase()}` : '';
+    return `${weightText}${unitLabel} × ${repsText}`;
   })();
 
   const handleDelete = () => {
@@ -394,6 +394,8 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
   };
 
   const setTypeStyle = getSetTypeStyle();
+  const setNumberLabel = `Set ${setIndex + 1}`;
+  const setTypeLabel = set.setType === 'normal' ? 'normal' : set.setType;
 
   return (
     <Animated.View
@@ -416,6 +418,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         {/* Set number/type badge */}
         <View ref={badgeRef} collapsable={false}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${setNumberLabel} type: ${setTypeLabel}`}
+            accessibilityHint="Double tap to change set type"
             onPress={() => {
               badgeRef.current?.measureInWindow((x, y, width, height) => {
                 setPopoverPosition({ x: x, y: y + height + 4 });
@@ -432,7 +437,12 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
 
         {/* Previous set indicator - shows last session performance */}
         <View style={styles.previousCol}>
-          <Text style={[styles.previousText, themedStyles.previousText]} numberOfLines={1}>
+          <Text
+            style={[styles.previousText, themedStyles.previousText]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {previousText}
           </Text>
         </View>
@@ -440,6 +450,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         {/* Weight input */}
         <Animated.View style={[styles.inputWrapper, styles.weightWrapper, !shouldShowCheckboxes && styles.flexCol, weightAnimatedStyle]}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${setNumberLabel} weight`}
+            accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
             onPress={() => handleInputPress('weight')}
             onLongPress={() => handleApplyToRemaining('weight')}
             delayLongPress={350}
@@ -470,6 +483,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         <Animated.View style={[styles.inputWrapper, styles.repsWrapper, !shouldShowCheckboxes && styles.flexCol, repsAnimatedStyle]}>
           <View style={styles.repsContainer}>
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${setNumberLabel} reps`}
+              accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
               onPress={() => handleInputPress('reps')}
               onLongPress={() => handleApplyToRemaining('reps')}
               delayLongPress={350}
@@ -511,6 +527,10 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
         {/* Completion checkbox */}
         {shouldShowCheckboxes && (
           <Pressable
+            accessibilityRole="checkbox"
+            accessibilityLabel={`${setNumberLabel} completed`}
+            accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
+            accessibilityState={{ checked: set.isCompleted }}
             onPress={handleCheckboxPress}
             onLongPress={handleCheckboxLongPress}
             delayLongPress={350}
@@ -617,7 +637,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   previousCol: {
-    width: 80,
+    flex: 1,
+    minWidth: 80,
     alignItems: 'center',
   },
   previousText: {

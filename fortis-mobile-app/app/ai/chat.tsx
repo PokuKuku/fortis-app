@@ -107,8 +107,6 @@ const inferIntentFromMessage = (
 ): AIIntent | null => {
   const text = message.toLowerCase();
 
-  if (text.includes('plateau')) return 'ANALYZE_PLATEAU';
-
   const wantsProgram =
     text.includes('program') ||
     text.includes('split') ||
@@ -142,7 +140,7 @@ export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const [inputText, setInputText] = useState('');
-  const [selectedIntent, setSelectedIntent] = useState<AIIntent>('QUERY_STATS');
+  const [selectedIntent, setSelectedIntent] = useState<AIIntent>('CREATE_TEMPLATE');
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -232,7 +230,7 @@ export default function AIChatScreen() {
     clearError();
     clearSelectedImage();
     setInputText('');
-    setSelectedIntent('QUERY_STATS');
+    setSelectedIntent('CREATE_TEMPLATE');
     setStreamingMessageId(null);
     shouldAutoScrollRef.current = true;
     setTimeout(() => {

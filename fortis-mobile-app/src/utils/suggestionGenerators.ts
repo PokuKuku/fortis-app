@@ -208,22 +208,6 @@ export function generateDefaultSuggestions(
 
   // Intent-based fallbacks (lower score as they're less contextual)
   switch (ctx.conversation.lastIntent) {
-    case 'QUERY_STATS':
-      suggestions.push(
-        { text: 'Compare to last month', score: 0.4, source: 'default' },
-        { text: 'Show all my PRs', score: 0.35, source: 'default' },
-        { text: 'What should I focus on?', score: 0.3, source: 'default' }
-      );
-      break;
-
-    case 'ANALYZE_PLATEAU':
-      suggestions.push(
-        { text: 'Create a deload week', score: 0.4, source: 'default' },
-        { text: 'Switch up my routine', score: 0.35, source: 'default' },
-        { text: 'Add accessory work', score: 0.3, source: 'default' }
-      );
-      break;
-
     case 'CREATE_TEMPLATE':
       suggestions.push(
         { text: 'Add a superset', score: 0.4, source: 'default' },
@@ -240,20 +224,12 @@ export function generateDefaultSuggestions(
       );
       break;
 
-    case 'QUERY_HISTORY':
-      suggestions.push(
-        { text: 'What did I train last week?', score: 0.4, source: 'default' },
-        { text: 'Show my most recent session', score: 0.35, source: 'default' },
-        { text: 'List my top exercises', score: 0.3, source: 'default' }
-      );
-      break;
-
     default:
       // Generic conversation starters
       suggestions.push(
         { text: 'Create a workout', score: 0.35, source: 'default' },
-        { text: 'Show my stats', score: 0.3, source: 'default' },
-        { text: 'Analyze a plateau', score: 0.25, source: 'default' }
+        { text: 'Build a training program', score: 0.3, source: 'default' },
+        { text: 'Design a push day', score: 0.25, source: 'default' }
       );
   }
 

@@ -263,31 +263,33 @@ export async function syncWorkoutSession(
 export async function processPendingQueue(): Promise<{
   processed: number;
   failed: number;
+  syncedLocalIds: string[];
 }> {
   // Check if Supabase is configured
   if (!isSupabaseConfigured()) {
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, syncedLocalIds: [] };
   }
 
   // Check authentication
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, syncedLocalIds: [] };
   }
 
   // Check if online
   const online = await isOnline();
   if (!online) {
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, syncedLocalIds: [] };
   }
 
   const queue = await loadPendingQueue();
   if (queue.length === 0) {
-    return { processed: 0, failed: 0 };
+    return { processed: 0, failed: 0, syncedLocalIds: [] };
   }
 
   let processed = 0;
   let failed = 0;
+  const syncedLocalIds: string[] = [];
   const remainingQueue: PendingSyncItem[] = [];
 
   for (const item of queue) {
@@ -304,6 +306,7 @@ export async function processPendingQueue(): Promise<{
 
     if (result.success) {
       processed++;
+      syncedLocalIds.push(session.localId);
     } else {
       failed++;
       // Keep in queue if under retry limit
@@ -318,7 +321,7 @@ export async function processPendingQueue(): Promise<{
 
   await savePendingQueue(remainingQueue);
 
-  return { processed, failed };
+  return { processed, failed, syncedLocalIds };
 }
 
 /**

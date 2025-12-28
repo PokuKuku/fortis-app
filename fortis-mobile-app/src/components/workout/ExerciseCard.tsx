@@ -266,6 +266,9 @@ export function ExerciseCard({
 
         {/* Add Set Button */}
         <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add set"
+          accessibilityHint="Adds a set to this exercise"
           onPress={handleAddSet}
           style={({ pressed }) => [
             styles.addSetButton,
@@ -367,7 +370,8 @@ const styles = StyleSheet.create({
     width: 40,
   },
   previousCol: {
-    width: 80,
+    flex: 1,
+    minWidth: 80,
   },
   weightCol: {
     width: 40,
