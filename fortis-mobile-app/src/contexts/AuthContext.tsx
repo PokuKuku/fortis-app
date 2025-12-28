@@ -2,13 +2,13 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
-import { processPendingQueue } from '@/src/services/workoutHistoryService';
+import { processPendingQueue, getPendingSyncCount, fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
-import { migrateGuestStorageToUser } from '@/src/utils/scopedStorage';
+import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -241,6 +241,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
             useProgramsStore.getState().fetchPrograms({ force: true }).catch(error => {
               console.warn('Failed to refresh programs after sign-in:', error);
             });
+
+            // Restore ALL workout history from cloud to local cache
+            // Users need full history for strength tracking/progress
+            // Using high limit (10000) covers even 10+ years of daily workouts
+            fetchWorkoutHistory(10000)
+              .then(({ sessions }) => {
+                if (sessions.length > 0) {
+                  useWorkoutStore.getState().importCompletedSessions(sessions).catch(error => {
+                    console.warn('Failed to import remote workout history:', error);
+                  });
+                }
+              })
+              .catch(error => {
+                console.warn('Failed to fetch workout history on sign-in:', error);
+              });
           }
         })();
       } else {
@@ -285,11 +300,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const signInWithGoogle = useCallback(async () => {
     try {
       const isExpoGo = Constants.appOwnership === 'expo';
+      // For Expo Go, use Linking.createURL directly (useProxy was deprecated in SDK 50+)
+      // For production builds, use the custom scheme
       let redirectTo = isExpoGo
-        ? makeRedirectUri({
-            path: 'auth/callback',
-            useProxy: true,
-          })
+        ? Linking.createURL('auth/callback')
         : makeRedirectUri({
             scheme: 'fortis',
             path: 'auth/callback',
@@ -401,6 +415,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     hydrateRunRef.current += 1;
     setIsHydrating(false);
 
+    // Capture user ID before clearing state (needed for scoped storage cleanup)
+    const currentUserId = user?.id;
+
     // Dismiss any lingering OAuth browser session
     // Wrapped in try-catch because this throws if no browser is open
     // (e.g., when user signed in via email/password or Apple ID)
@@ -408,6 +425,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
       await WebBrowser.dismissBrowser();
     } catch {
       // No browser to dismiss, that's fine
+    }
+
+    // Try to sync any pending workouts before clearing local data
+    // This is best-effort - if offline, pending data will be lost
+    try {
+      const pendingCount = await getPendingSyncCount();
+      if (pendingCount > 0) {
+        await processPendingQueue();
+      }
+    } catch (err) {
+      console.warn('Failed to sync pending workouts before sign-out:', err);
+    }
+
+    // Clear user-scoped local storage to prevent data leakage between users
+    if (currentUserId) {
+      try {
+        await clearUserScopedStorage(currentUserId);
+      } catch (err) {
+        console.warn('Failed to clear user-scoped storage:', err);
+      }
     }
 
     // Clear state immediately - UI updates right away
@@ -423,7 +460,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (err) {
       console.warn('Sign out error:', err);
     }
-  }, []);
+  }, [user?.id]);
 
   // Update profile
   const updateProfile = useCallback(async (updates: Partial<Profile>) => {
