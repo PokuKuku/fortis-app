@@ -9,7 +9,6 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
-import { AppIconProvider } from '@/src/contexts/AppIconContext';
 import { AIContainer } from '@/src/components/ai';
 import { PostHogScreenTracker } from '@/src/components/analytics/PostHogScreenTracker';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
@@ -199,9 +198,7 @@ export default function RootLayout() {
   const posthogEnabled = isPostHogConfigured();
   const appContent = (
     <ThemeProvider>
-      <AppIconProvider>
-        <ThemedAppContent posthogEnabled={posthogEnabled} />
-      </AppIconProvider>
+      <ThemedAppContent posthogEnabled={posthogEnabled} />
     </ThemeProvider>
   );
 
