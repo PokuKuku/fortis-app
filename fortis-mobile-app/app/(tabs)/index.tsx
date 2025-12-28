@@ -1462,14 +1462,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   chevronContainer: {
+    // NOTE: This style appears unused - chevron uses GlassButton circular instead
     width: 32,
     height: 32,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.5)',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
+    // borderColor would use colors.accentBorder if this style were active
   },
   chevron: {
     transform: [{ rotate: '0deg' }],
@@ -1560,8 +1561,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   cardActive: {
-    borderColor: 'rgba(34, 197, 94, 0.5)',
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    // borderColor now applied via inline styles (colors.accentBorder)
   },
   programCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',

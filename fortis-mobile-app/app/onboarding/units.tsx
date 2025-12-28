@@ -44,6 +44,14 @@ export default function OnboardingUnitsScreen() {
     },
     continueText: { color: colors.white },
     dot: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' },
+    dotActive: { backgroundColor: colors.accent },
+    optionCardSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentOverlay,
+    },
+    exampleWeight: { color: colors.accent },
+    radioOuterSelected: { borderColor: colors.accent },
+    radioInner: { backgroundColor: colors.accent },
   };
 
   useEffect(() => {
@@ -108,7 +116,7 @@ export default function OnboardingUnitsScreen() {
               style={[
                 styles.optionCard,
                 themedStyles.optionCard,
-                selectedUnit === 'imperial' && styles.optionCardSelected,
+                selectedUnit === 'imperial' && themedStyles.optionCardSelected,
               ]}
               onPress={() => handleUnitSelect('imperial')}
               activeOpacity={0.8}
@@ -118,18 +126,18 @@ export default function OnboardingUnitsScreen() {
                 <Text style={[styles.optionDescription, themedStyles.optionDescription]}>Pounds (lbs)</Text>
               </View>
               <View style={styles.optionExample}>
-                <Text style={styles.exampleWeight}>135</Text>
+                <Text style={[styles.exampleWeight, themedStyles.exampleWeight]}>135</Text>
                 <Text style={[styles.exampleUnit, themedStyles.exampleUnit]}>lbs</Text>
               </View>
               <View
                 style={[
                   styles.radioOuter,
                   themedStyles.radioOuter,
-                  selectedUnit === 'imperial' && styles.radioOuterSelected,
+                  selectedUnit === 'imperial' && themedStyles.radioOuterSelected,
                 ]}
               >
                 {selectedUnit === 'imperial' && (
-                  <View style={styles.radioInner} />
+                  <View style={[styles.radioInner, themedStyles.radioInner]} />
                 )}
               </View>
             </TouchableOpacity>
@@ -138,7 +146,7 @@ export default function OnboardingUnitsScreen() {
               style={[
                 styles.optionCard,
                 themedStyles.optionCard,
-                selectedUnit === 'metric' && styles.optionCardSelected,
+                selectedUnit === 'metric' && themedStyles.optionCardSelected,
               ]}
               onPress={() => handleUnitSelect('metric')}
               activeOpacity={0.8}
@@ -148,18 +156,18 @@ export default function OnboardingUnitsScreen() {
                 <Text style={[styles.optionDescription, themedStyles.optionDescription]}>Kilograms (kg)</Text>
               </View>
               <View style={styles.optionExample}>
-                <Text style={styles.exampleWeight}>60</Text>
+                <Text style={[styles.exampleWeight, themedStyles.exampleWeight]}>60</Text>
                 <Text style={[styles.exampleUnit, themedStyles.exampleUnit]}>kg</Text>
               </View>
               <View
                 style={[
                   styles.radioOuter,
                   themedStyles.radioOuter,
-                  selectedUnit === 'metric' && styles.radioOuterSelected,
+                  selectedUnit === 'metric' && themedStyles.radioOuterSelected,
                 ]}
               >
                 {selectedUnit === 'metric' && (
-                  <View style={styles.radioInner} />
+                  <View style={[styles.radioInner, themedStyles.radioInner]} />
                 )}
               </View>
             </TouchableOpacity>
@@ -180,7 +188,7 @@ export default function OnboardingUnitsScreen() {
             {/* Progress Dots */}
             <View style={styles.progressDots}>
               <View style={[styles.dot, themedStyles.dot]} />
-              <View style={[styles.dot, styles.dotActive]} />
+              <View style={[styles.dot, themedStyles.dotActive]} />
               <View style={[styles.dot, themedStyles.dot]} />
             </View>
           </View>

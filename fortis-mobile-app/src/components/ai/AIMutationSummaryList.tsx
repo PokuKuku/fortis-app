@@ -19,18 +19,19 @@ const OPERATION_ICONS = {
   DELETE: Trash2,
 };
 
-const OPERATION_COLORS = {
-  INSERT: Colors.success,
-  UPDATE: Colors.warning,
-  DELETE: Colors.error,
-};
-
 export function AIMutationSummaryList({
   newExercises,
   exerciseResolution,
   mutations,
 }: AIMutationSummaryListProps) {
   const { colors } = useTheme();
+
+  // Dynamic operation colors - INSERT uses accent color
+  const OPERATION_COLORS = {
+    INSERT: colors.accent,
+    UPDATE: Colors.warning,
+    DELETE: Colors.error,
+  };
 
   const renderMutation = (mutation: AIMutation) => {
     const Icon = OPERATION_ICONS[mutation.operation];

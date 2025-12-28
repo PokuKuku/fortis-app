@@ -38,6 +38,8 @@ export default function OnboardingWelcomeScreen() {
     featureText: { color: colors.textPrimary },
     getStartedText: { color: colors.white },
     dot: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' },
+    dotActive: { backgroundColor: colors.accent },
+    featureDot: { backgroundColor: colors.accent },
   };
 
   useEffect(() => {
@@ -79,9 +81,9 @@ export default function OnboardingWelcomeScreen() {
             <Svg height="60" width="220" viewBox="0 0 220 60">
               <Defs>
                 <SvgLinearGradient id="welcomeGradient" x1="0" y1="0" x2="1" y2="0">
-                  <Stop offset="0%" stopColor="#4ade80" />
-                  <Stop offset="50%" stopColor="#22c55e" />
-                  <Stop offset="100%" stopColor="#16a34a" />
+                  <Stop offset="0%" stopColor={colors.accentLight} />
+                  <Stop offset="50%" stopColor={colors.accent} />
+                  <Stop offset="100%" stopColor={colors.accentDark} />
                 </SvgLinearGradient>
               </Defs>
               <SvgText
@@ -110,15 +112,15 @@ export default function OnboardingWelcomeScreen() {
           {/* Features */}
           <View style={styles.featuresContainer}>
             <View style={styles.featureItem}>
-              <View style={styles.featureDot} />
+              <View style={[styles.featureDot, themedStyles.featureDot]} />
               <Text style={[styles.featureText, themedStyles.featureText]}>Track every rep and set</Text>
             </View>
             <View style={styles.featureItem}>
-              <View style={styles.featureDot} />
+              <View style={[styles.featureDot, themedStyles.featureDot]} />
               <Text style={[styles.featureText, themedStyles.featureText]}>Follow structured programs</Text>
             </View>
             <View style={styles.featureItem}>
-              <View style={styles.featureDot} />
+              <View style={[styles.featureDot, themedStyles.featureDot]} />
               <Text style={[styles.featureText, themedStyles.featureText]}>Visualize your progress</Text>
             </View>
           </View>
@@ -134,7 +136,7 @@ export default function OnboardingWelcomeScreen() {
 
             {/* Progress Dots */}
             <View style={styles.progressDots}>
-              <View style={[styles.dot, styles.dotActive]} />
+              <View style={[styles.dot, themedStyles.dotActive]} />
               <View style={[styles.dot, themedStyles.dot]} />
               <View style={[styles.dot, themedStyles.dot]} />
             </View>

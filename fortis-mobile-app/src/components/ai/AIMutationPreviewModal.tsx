@@ -193,8 +193,8 @@ export function AIMutationPreviewModal({
 
             {/* Header */}
             <View style={styles.header}>
-              <View style={styles.headerIcon}>
-                <Sparkles color={Colors.success} size={IconSizes.lg} />
+              <View style={[styles.headerIcon, { backgroundColor: colors.accentOverlay }]}>
+                <Sparkles color={colors.accent} size={IconSizes.lg} />
               </View>
               <Text style={styles.headerTitle}>
                 {isProgramDraft ? `Review ${draftLabel}` : 'Review Changes'}

@@ -331,11 +331,11 @@ export default function CreateWorkoutScreen() {
             <View style={styles.statsLeft}>
               <View style={styles.statItem}>
                 <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
-                <Text style={styles.statValue}>{exerciseCount}</Text>
+                <Text style={[styles.statValue, themedStyles.statValue]}>{exerciseCount}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={[styles.statLabel, themedStyles.statLabel]}>Sets</Text>
-                <Text style={styles.statValue}>{totalSets}</Text>
+                <Text style={[styles.statValue, themedStyles.statValue]}>{totalSets}</Text>
               </View>
             </View>
             {hasMuscles && (

@@ -91,7 +91,7 @@ export function AIMutationExercisePickerModal({
           >
             {loading && (
               <View style={styles.loadingState}>
-                <ActivityIndicator color={Colors.success} size="small" />
+                <ActivityIndicator color={colors.accent} size="small" />
                 <Text style={styles.loadingText}>Loading exercises...</Text>
               </View>
             )}

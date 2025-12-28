@@ -179,12 +179,12 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    // backgroundColor now applied via themedStyles (colors.accentOverlay)
   },
   placeholderText: {
     fontSize: FontSizes.xl,
     fontWeight: '700',
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
   },
   content: {
     flex: 1,
@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
   setsReps: {
     fontSize: FontSizes.xs,
     fontWeight: '700',
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
     letterSpacing: 0.5,
   },
   exerciseName: {

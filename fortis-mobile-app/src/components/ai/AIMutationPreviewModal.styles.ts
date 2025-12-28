@@ -37,7 +37,7 @@ export const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    // backgroundColor now applied via inline themedStyles (colors.accentOverlay)
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -52,12 +52,14 @@ export const styles = StyleSheet.create({
   summary: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    // backgroundColor uses colors.accentOverlay via inline styles in component
     backgroundColor: 'rgba(34, 197, 94, 0.08)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   summaryTitle: {
     ...Typography.h5,
+    // color uses colors.accent via inline styles in component
     color: Colors.success,
     marginBottom: Spacing.xs,
   },
@@ -217,6 +219,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+    // backgroundColor uses colors.accentOverlay via inline styles
     backgroundColor: 'rgba(34, 197, 94, 0.08)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
@@ -307,15 +310,18 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
+    // backgroundColor uses colors.accentOverlay via inline styles
     backgroundColor: 'rgba(34, 197, 94, 0.08)',
     borderRadius: BorderRadius.md,
     borderWidth: 1,
+    // borderColor uses colors.accentBorder via inline styles
     borderColor: 'rgba(34, 197, 94, 0.2)',
     borderStyle: 'dashed',
     paddingVertical: Spacing.md,
   },
   addExerciseText: {
     ...Typography.button,
+    // color uses colors.accent via inline styles
     color: Colors.success,
   },
 

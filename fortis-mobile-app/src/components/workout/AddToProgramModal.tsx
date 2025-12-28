@@ -68,6 +68,15 @@ export function AddToProgramModal({
       borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
     },
     cancelButtonText: { color: colors.textSecondary },
+    // Accent color styles for add new option
+    addNewOption: {
+      borderColor: colors.accentBorder,
+      backgroundColor: colors.accentOverlay,
+    },
+    addNewBadge: { backgroundColor: colors.accentOverlay },
+    addNewText: { color: colors.accent },
+    addNewCheckIcon: { color: colors.accent },
+    addNewBadgeIcon: { color: colors.accent },
   };
 
   useEffect(() => {
@@ -184,22 +193,22 @@ export function AddToProgramModal({
               {/* Add as new day option - hidden when at 7 workout limit */}
               {!isAtLimit && (
                 <TouchableOpacity
-                  style={[styles.positionOption, styles.addNewOption]}
+                  style={[styles.positionOption, themedStyles.addNewOption]}
                   onPress={() => handleSelectPosition(nextDayNumber)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.positionBadge, styles.addNewBadge]}>
-                    <PlusIcon color={Colors.success} size={14} strokeWidth={2.5} />
+                  <View style={[styles.positionBadge, themedStyles.addNewBadge]}>
+                    <PlusIcon color={colors.accent} size={14} strokeWidth={2.5} />
                   </View>
                   <View style={styles.positionInfo}>
-                    <Text style={[styles.positionName, styles.addNewText]}>
+                    <Text style={[styles.positionName, themedStyles.addNewText]}>
                       Add as Day {nextDayNumber}
                     </Text>
                     <Text style={[styles.positionHint, themedStyles.positionHint]}>
                       Add at the end of the program
                     </Text>
                   </View>
-                  <CheckIcon color={Colors.success} size={18} strokeWidth={2} />
+                  <CheckIcon color={colors.accent} size={18} strokeWidth={2} />
                 </TouchableOpacity>
               )}
             </ScrollView>
@@ -287,8 +296,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   addNewOption: {
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    // borderColor and backgroundColor now applied via themedStyles
   },
   positionBadge: {
     minWidth: 48,
@@ -300,7 +308,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addNewBadge: {
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    // backgroundColor now applied via themedStyles
   },
   positionBadgeText: {
     fontSize: FontSizes.xs,
@@ -317,7 +325,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   addNewText: {
-    color: Colors.success,
+    // color now applied via themedStyles
   },
   positionHint: {
     fontSize: FontSizes.xs,

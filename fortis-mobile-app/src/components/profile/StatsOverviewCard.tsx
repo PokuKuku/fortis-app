@@ -42,12 +42,13 @@ interface StatItemProps {
   value: string;
   label: string;
   colors: ReturnType<typeof useTheme>['colors'];
+  iconBgStyle?: { backgroundColor: string };
 }
 
-function StatItem({ icon, value, label, colors }: StatItemProps) {
+function StatItem({ icon, value, label, colors, iconBgStyle }: StatItemProps) {
   return (
     <View style={styles.statItem}>
-      <View style={styles.statIcon}>{icon}</View>
+      <View style={[styles.statIcon, iconBgStyle]}>{icon}</View>
       <Text style={[styles.statValue, { color: colors.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
         {value}
       </Text>
@@ -71,27 +72,34 @@ export function StatsOverviewCard() {
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
   };
 
+  const statIconStyle = {
+    backgroundColor: colors.accentOverlay,
+  };
+
   return (
     <View style={[styles.container, cardStyle]}>
       <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
       <View style={styles.statsRow}>
         <StatItem
-          icon={<FireIcon color={colors.success} size={20} strokeWidth={2} />}
+          icon={<FireIcon color={colors.accent} size={20} strokeWidth={2} />}
           value={formatVolume(stats.totalVolume, units)}
           label="Volume Lifted"
           colors={colors}
+          iconBgStyle={statIconStyle}
         />
         <StatItem
-          icon={<TrophyIcon color={colors.success} size={20} strokeWidth={2} />}
+          icon={<TrophyIcon color={colors.accent} size={20} strokeWidth={2} />}
           value={stats.totalWorkouts.toString()}
           label="Workouts"
           colors={colors}
+          iconBgStyle={statIconStyle}
         />
         <StatItem
-          icon={<ClockIcon color={colors.success} size={20} strokeWidth={2} />}
+          icon={<ClockIcon color={colors.accent} size={20} strokeWidth={2} />}
           value={formatTime(stats.totalTimeSeconds)}
           label="Time Trained"
           colors={colors}
+          iconBgStyle={statIconStyle}
         />
       </View>
     </View>
@@ -122,7 +130,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    // backgroundColor now applied via iconBgStyle (colors.accentOverlay)
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.sm,

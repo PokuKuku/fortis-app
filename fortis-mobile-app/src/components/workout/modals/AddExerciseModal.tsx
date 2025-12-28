@@ -451,7 +451,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   exerciseNameSelected: {
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
   },
   iconContainer: {
     width: 28,

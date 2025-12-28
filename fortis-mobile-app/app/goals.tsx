@@ -252,6 +252,9 @@ export default function GoalsScreen() {
     secondaryButtonText: { color: colors.textSecondary },
     toggleOff: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)' },
     toggleText: { color: colors.textSecondary },
+    addButtonText: { color: colors.accent },
+    primaryButton: { backgroundColor: colors.accent },
+    toggleOn: { backgroundColor: colors.accentOverlay },
   };
 
   if (!isSupabaseConfigured()) {
@@ -310,7 +313,7 @@ export default function GoalsScreen() {
                   keyboardType="decimal-pad"
                 />
                 <TouchableOpacity
-                  style={styles.primaryButton}
+                  style={[styles.primaryButton, themedStyles.primaryButton]}
                   onPress={handleSaveWeight}
                   disabled={isSavingWeight}
                 >
@@ -337,14 +340,14 @@ export default function GoalsScreen() {
                   setGoalModalVisible(true);
                 }}
               >
-                <PlusIcon color={colors.success} size={16} strokeWidth={2} />
-                <Text style={styles.addButtonText}>Add Goal</Text>
+                <PlusIcon color={colors.accent} size={16} strokeWidth={2} />
+                <Text style={[styles.addButtonText, themedStyles.addButtonText]}>Add Goal</Text>
               </TouchableOpacity>
             </View>
 
             {isLoading ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color={colors.success} size="small" />
+                <ActivityIndicator color={colors.accent} size="small" />
                 <Text style={[styles.loadingText, themedStyles.loadingText]}>Loading goals...</Text>
               </View>
             ) : goals.length === 0 ? (
@@ -427,7 +430,7 @@ export default function GoalsScreen() {
                 <TouchableOpacity
                   style={[
                     styles.toggleButton,
-                    goalForm.isActive ? styles.toggleOn : themedStyles.toggleOff,
+                    goalForm.isActive ? themedStyles.toggleOn : themedStyles.toggleOff,
                   ]}
                   onPress={() =>
                     setGoalForm((prev) => ({ ...prev, isActive: !prev.isActive }))
@@ -451,7 +454,7 @@ export default function GoalsScreen() {
                 <Text style={[styles.secondaryButtonText, themedStyles.secondaryButtonText]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.primaryButton}
+                style={[styles.primaryButton, themedStyles.primaryButton]}
                 onPress={handleSaveGoal}
                 disabled={isSavingGoal}
               >

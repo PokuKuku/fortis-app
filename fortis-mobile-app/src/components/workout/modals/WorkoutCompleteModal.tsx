@@ -236,7 +236,7 @@ const styles = StyleSheet.create({
   congratsText: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
     textAlign: 'center',
     marginBottom: Spacing['2xl'],
   },

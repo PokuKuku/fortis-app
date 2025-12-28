@@ -122,7 +122,7 @@ export function StreamingText({
       <Text style={[styles.text, { color: colors.textPrimary }, style]}>
         {displayedText}
         {!isComplete && showCursor && (
-          <Animated.Text style={[styles.cursor, cursorStyle]}>|</Animated.Text>
+          <Animated.Text style={[styles.cursor, { color: colors.accent }, cursorStyle]}>|</Animated.Text>
         )}
       </Text>
     </Pressable>
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   cursor: {
-    color: Colors.success,
+    // color now applied via inline themedStyles (colors.accent)
     fontWeight: '300',
   },
 });

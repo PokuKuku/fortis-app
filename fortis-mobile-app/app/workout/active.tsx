@@ -49,6 +49,9 @@ export default function ActiveWorkoutScreen() {
     emptyTitle: { color: colors.textSecondary },
     emptyDescription: { color: colors.textTertiary },
     finishButtonText: { color: colors.white },
+    addButton: { borderColor: colors.accentBorder },
+    addButtonText: { color: colors.accent },
+    finishButtonShadow: { shadowColor: colors.accent },
   };
   const cancelWorkout = useWorkoutStore(s => s.cancelWorkout);
   const finishWorkout = useWorkoutStore(s => s.finishWorkout);
@@ -276,13 +279,14 @@ export default function ActiveWorkoutScreen() {
         onPress={handleAddExercise}
         style={({ pressed }) => [
           styles.addButton,
+          themedStyles.addButton,
           pressed && styles.pressed
         ]}
       >
-        <Text style={styles.addButtonText}>+ Add Exercise</Text>
+        <Text style={[styles.addButtonText, themedStyles.addButtonText]}>+ Add Exercise</Text>
       </Pressable>
 
-      <GlassButton style={styles.finishButton} onPress={handleFinishWorkout}>
+      <GlassButton style={[styles.finishButton, themedStyles.finishButtonShadow]} onPress={handleFinishWorkout}>
         <Text style={styles.finishButtonText}>Finish Workout</Text>
       </GlassButton>
     </View>

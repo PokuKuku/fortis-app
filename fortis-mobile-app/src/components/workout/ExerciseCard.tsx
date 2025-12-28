@@ -45,8 +45,8 @@ export function ExerciseCard({
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
     },
     headerText: { color: colors.textSecondary },
-    addSetLine: { backgroundColor: colors.successBorder },
-    addSetText: { color: colors.success },
+    addSetLine: { backgroundColor: colors.accentBorder },
+    addSetText: { color: colors.accent },
   };
 
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
@@ -399,12 +399,12 @@ const styles = StyleSheet.create({
   addSetLine: {
     flex: 1,
     height: 1,
-    backgroundColor: Colors.successBorder,
+    // backgroundColor now applied via themedStyles (colors.accentBorder)
   },
   addSetText: {
     fontSize: FontSizes.sm,
     fontFamily: 'BankGothicBT-Medium',
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },

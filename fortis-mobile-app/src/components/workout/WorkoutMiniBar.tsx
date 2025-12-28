@@ -48,6 +48,8 @@ export function WorkoutMiniBar() {
     workoutName: { color: colors.textPrimary },
     exerciseName: { color: colors.textSecondary },
     timerTextPaused: { color: colors.textSecondary },
+    timerText: { color: colors.accent },
+    playIcon: { color: colors.accent },
   };
   const elapsedSeconds = useElapsedTime();
   const { width: screenWidth } = useWindowDimensions();
@@ -240,12 +242,12 @@ export function WorkoutMiniBar() {
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             {isWorkoutTimerPaused ? (
-              <Play size={18} color={Colors.success} fill={Colors.success} />
+              <Play size={18} color={colors.accent} fill={colors.accent} />
             ) : (
               <Pause size={18} color={colors.textSecondary} />
             )}
           </TouchableOpacity>
-          <Text style={[styles.timerText, isWorkoutTimerPaused && themedStyles.timerTextPaused]}>
+          <Text style={[styles.timerText, themedStyles.timerText, isWorkoutTimerPaused && themedStyles.timerTextPaused]}>
             {elapsed}
           </Text>
           <TouchableOpacity
@@ -317,11 +319,11 @@ const styles = StyleSheet.create({
   timerText: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
     fontVariant: ['tabular-nums'],
   },
   timerTextPaused: {
-    color: Colors.textSecondary,
+    // color now applied via themedStyles
   },
   pauseButton: {
     width: 28,

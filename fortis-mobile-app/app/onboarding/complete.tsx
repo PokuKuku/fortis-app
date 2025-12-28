@@ -31,6 +31,12 @@ export default function OnboardingCompleteScreen() {
     subtitle: { color: colors.textSecondary },
     startText: { color: colors.white },
     dot: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' },
+    dotActive: { backgroundColor: colors.accent },
+    iconCircle: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
+    },
+    checkIcon: { color: colors.accent },
   };
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -97,6 +103,7 @@ export default function OnboardingCompleteScreen() {
             <Animated.View
               style={[
                 styles.iconCircle,
+                themedStyles.iconCircle,
                 {
                   transform: [{ scale: scaleAnim }],
                 },
@@ -116,7 +123,7 @@ export default function OnboardingCompleteScreen() {
                 }}
               >
                 <CheckCircleIcon
-                  color={Colors.success}
+                  color={colors.accent}
                   size={80}
                   strokeWidth={1.5}
                 />
@@ -148,7 +155,7 @@ export default function OnboardingCompleteScreen() {
             <View style={styles.progressDots}>
               <View style={[styles.dot, themedStyles.dot]} />
               <View style={[styles.dot, themedStyles.dot]} />
-              <View style={[styles.dot, styles.dotActive]} />
+              <View style={[styles.dot, themedStyles.dotActive]} />
             </View>
           </View>
         </Animated.View>
@@ -181,11 +188,10 @@ const styles = StyleSheet.create({
     width: 160,
     height: 160,
     borderRadius: 80,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
+    // backgroundColor and borderColor now applied via themedStyles (colors.accentOverlay, colors.accentBorder)
   },
   messageContainer: {
     alignItems: 'center',
@@ -224,9 +230,9 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    // backgroundColor now applied via themedStyles
   },
   dotActive: {
-    backgroundColor: Colors.success,
+    // backgroundColor now applied via themedStyles (colors.accent)
   },
 });

@@ -56,6 +56,7 @@ const LOADING_MESSAGES = [
 
 // Animated sparkles for loading indicator
 function AnimatedLoadingSparkles() {
+  const { colors } = useTheme();
   const fadeAnim = useRef(new RNAnimated.Value(1)).current;
   const loopRef = useRef<RNAnimated.CompositeAnimation | null>(null);
 
@@ -91,10 +92,10 @@ function AnimatedLoadingSparkles() {
   return (
     <View style={styles.loadingIconWrapper}>
       <RNAnimated.View style={[styles.loadingIconAbsolute, { opacity: fadeAnim }]}>
-        <SparklesSolid color={Colors.success} size={IconSizes.md} />
+        <SparklesSolid color={colors.accent} size={IconSizes.md} />
       </RNAnimated.View>
       <RNAnimated.View style={[styles.loadingIconAbsolute, { opacity: outlineOpacity }]}>
-        <SparklesIcon color={Colors.success} size={IconSizes.md} />
+        <SparklesIcon color={colors.accent} size={IconSizes.md} />
       </RNAnimated.View>
     </View>
   );

@@ -4,6 +4,7 @@ import { CheckIcon, ChevronRightIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { ProgramWorkout } from '@/src/types/program';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface WorkoutStackPreviewProps {
   /**
@@ -34,8 +35,21 @@ export function WorkoutStackPreview({
   currentDayNumber,
   maxVisible = 3,
 }: WorkoutStackPreviewProps) {
+  const { colors } = useTheme();
+
   // Sort workouts by day number
   const sortedWorkouts = [...workouts].sort((a, b) => a.dayNumber - b.dayNumber);
+
+  // Theme-aware styles for next workout highlighting
+  const themedStyles = {
+    workoutRowNext: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
+    },
+    dayBadgeNext: {
+      backgroundColor: colors.accent,
+    },
+  };
 
   // Determine which workouts to show (centered around current day)
   const getVisibleWorkouts = () => {
@@ -82,10 +96,10 @@ export function WorkoutStackPreview({
             style={[
               styles.workoutRow,
               completed && styles.workoutRowCompleted,
-              next && styles.workoutRowNext,
+              next && [styles.workoutRowNext, themedStyles.workoutRowNext],
             ]}
           >
-            <View style={[styles.dayBadge, next && styles.dayBadgeNext]}>
+            <View style={[styles.dayBadge, next && themedStyles.dayBadgeNext]}>
               <Text style={[styles.dayBadgeText, next && styles.dayBadgeTextNext]}>
                 D{workout.dayNumber}
               </Text>
@@ -101,10 +115,10 @@ export function WorkoutStackPreview({
               {workout.name}
             </Text>
             {completed && (
-              <CheckIcon size={14} color={Colors.success} strokeWidth={2.5} />
+              <CheckIcon size={14} color={colors.accent} strokeWidth={2.5} />
             )}
             {next && (
-              <ChevronRightIcon size={14} color={Colors.success} strokeWidth={2.5} />
+              <ChevronRightIcon size={14} color={colors.accent} strokeWidth={2.5} />
             )}
           </View>
         );
@@ -133,8 +147,7 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   workoutRowNext: {
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-    borderColor: 'rgba(34, 197, 94, 0.3)',
+    // backgroundColor and borderColor now applied via themedStyles
     opacity: 1,
   },
   dayBadge: {
@@ -144,7 +157,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   dayBadgeNext: {
-    backgroundColor: Colors.success,
+    // backgroundColor now applied via themedStyles (colors.accent)
   },
   dayBadgeText: {
     fontSize: 9,

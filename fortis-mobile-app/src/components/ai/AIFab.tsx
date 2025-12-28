@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   fabWithBadge: {
-    borderColor: Colors.success,
+    // borderColor now applied via inline themedStyles
     borderWidth: 2,
   },
   fabLoading: {
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    // backgroundColor now applied via inline themedStyles
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    backgroundColor: Colors.success,
+    // backgroundColor now applied via inline themedStyles
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,

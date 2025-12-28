@@ -647,9 +647,9 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   clearButtonText: {
-    color: '#22c55e',
     fontSize: 11,
     fontWeight: '600',
+    // color now applied via inline styles (colors.accent)
   },
   popoverScroll: {
     maxHeight: 260,
@@ -666,7 +666,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.05)',
   },
   muscleOptionSelected: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    // backgroundColor now applied via inline styles (optionSelectedBg / colors.accentOverlay)
   },
   muscleOptionText: {
     fontSize: 13,
@@ -675,16 +675,16 @@ const styles = StyleSheet.create({
     textTransform: 'capitalize',
   },
   muscleOptionTextSelected: {
-    color: '#22c55e',
     fontWeight: '600',
+    // color now applied via inline styles (colors.accent)
   },
   checkmark: {
     width: 16,
     height: 16,
     borderRadius: 8,
-    backgroundColor: '#22c55e',
     alignItems: 'center',
     justifyContent: 'center',
+    // backgroundColor now applied via inline styles (colors.accent)
   },
   checkmarkText: {
     color: '#fff',

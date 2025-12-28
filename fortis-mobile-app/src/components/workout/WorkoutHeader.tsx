@@ -36,7 +36,7 @@ export function WorkoutHeader({
     elapsedTime: { color: colors.textPrimary },
     separator: { color: colors.textTertiary },
     dateText: { color: colors.textSecondary },
-    programName: { color: colors.success },
+    programName: { color: colors.accent },
     workoutName: { color: colors.textPrimary },
   };
 
@@ -247,7 +247,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '700',
     textAlign: 'right',
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
   },
   workoutName: {
     fontSize: FontSizes.base,

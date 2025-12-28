@@ -60,7 +60,7 @@ function SimpleBarsView({ data }: { data: Array<{ day: string; volume: number }>
             <View
               style={[
                 styles.simpleBar,
-                { height: `${(item.volume / maxVolume) * 100}%`, backgroundColor: colors.success }
+                { height: `${(item.volume / maxVolume) * 100}%`, backgroundColor: colors.accent }
               ]}
             />
           </View>
@@ -180,27 +180,39 @@ export function ProfileHeader() {
     borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   };
 
+  const avatarContainerStyle = {
+    backgroundColor: colors.accentOverlay,
+  };
+
+  const cameraIconBadgeStyle = {
+    backgroundColor: colors.accent,
+  };
+
+  const saveButtonStyle = {
+    backgroundColor: colors.accentOverlay,
+  };
+
   return (
     <View style={[styles.container, cardStyle]}>
       {/* Top row: Avatar + User Info */}
       <View style={styles.topRow}>
         {/* Avatar */}
         <TouchableOpacity
-          style={styles.avatarContainer}
+          style={[styles.avatarContainer, avatarContainerStyle]}
           onPress={handleAvatarPress}
           disabled={isUploadingAvatar}
           activeOpacity={0.7}
         >
           {isUploadingAvatar ? (
             <View style={styles.avatarLoading}>
-              <ActivityIndicator color={colors.success} size="small" />
+              <ActivityIndicator color={colors.accent} size="small" />
             </View>
           ) : profile?.avatar_url ? (
             <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
           ) : (
-            <UserCircleIcon color={colors.success} size={56} strokeWidth={1} />
+            <UserCircleIcon color={colors.accent} size={56} strokeWidth={1} />
           )}
-          <View style={[styles.cameraIconBadge, { borderColor: colors.background }]}>
+          <View style={[styles.cameraIconBadge, cameraIconBadgeStyle, { borderColor: colors.background }]}>
             <CameraIcon color={colors.white} size={12} strokeWidth={2.5} />
           </View>
         </TouchableOpacity>
@@ -224,14 +236,14 @@ export function ProfileHeader() {
                 maxLength={50}
               />
               <TouchableOpacity
-                style={styles.saveButton}
+                style={[styles.saveButton, saveButtonStyle]}
                 onPress={handleNameSave}
                 disabled={isSavingName}
               >
                 {isSavingName ? (
-                  <ActivityIndicator color={colors.success} size="small" />
+                  <ActivityIndicator color={colors.accent} size="small" />
                 ) : (
-                  <CheckIcon color={colors.success} size={20} strokeWidth={2.5} />
+                  <CheckIcon color={colors.accent} size={20} strokeWidth={2.5} />
                 )}
               </TouchableOpacity>
             </View>
@@ -290,7 +302,7 @@ export function ProfileHeader() {
                 <Bar
                   points={points.volume}
                   chartBounds={chartBounds}
-                  color={colors.success}
+                  color={colors.accent}
                   barWidth={24}
                   roundedCorners={{ topLeft: 4, topRight: 4 }}
                   animate={{ type: 'timing', duration: 500 }}
@@ -318,7 +330,7 @@ const styles = StyleSheet.create({
     width: 72,
     height: 72,
     borderRadius: 36,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    // backgroundColor now applied via avatarContainerStyle (colors.accentOverlay)
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.lg,
@@ -343,7 +355,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#22c55e', // colors.success - static for performance
+    // backgroundColor now applied via cameraIconBadgeStyle (colors.accent)
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -377,7 +389,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    // backgroundColor now applied via saveButtonStyle (colors.accentOverlay)
     alignItems: 'center',
     justifyContent: 'center',
   },

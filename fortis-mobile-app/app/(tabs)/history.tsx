@@ -237,6 +237,15 @@ function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) 
     borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
   };
 
+  const buttonStyles = {
+    logPastButton: {
+      borderColor: colors.accentBorder,
+    },
+    logPastButtonPressed: {
+      backgroundColor: colors.accentOverlay,
+    },
+  };
+
   return (
     <Animated.View
       entering={FadeIn.duration(300)}
@@ -245,7 +254,11 @@ function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) 
       <CalendarDaysIcon color={colors.textSecondary} size={32} strokeWidth={1.5} />
       <Text style={[styles.emptyDateText, { color: colors.textSecondary }]}>No workouts logged on this day</Text>
       <Pressable
-        style={({ pressed }) => [styles.logPastButton, pressed && styles.logPastButtonPressed]}
+        style={({ pressed }) => [
+          styles.logPastButton,
+          buttonStyles.logPastButton,
+          pressed && buttonStyles.logPastButtonPressed,
+        ]}
         onPress={onLogPastWorkout}
       >
         <Text style={[styles.logPastButtonText, { color: colors.accent }]}>Log Past Workout</Text>
@@ -259,6 +272,17 @@ function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: 
   const { colors } = useTheme();
   const formattedDate = format(date, 'EEEE, MMMM d');
 
+  const buttonStyles = {
+    logWorkoutButton: {
+      borderColor: colors.accentBorder,
+      backgroundColor: colors.accentOverlay,
+    },
+    logWorkoutButtonPressed: {
+      backgroundColor: colors.accentOverlayMedium,
+      borderColor: colors.accent,
+    },
+  };
+
   return (
     <Animated.View
       key={formattedDate}
@@ -267,7 +291,11 @@ function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: 
     >
       <Text style={[styles.dateHeaderText, { color: colors.textSecondary }]}>{formattedDate}</Text>
       <Pressable
-        style={({ pressed }) => [styles.logWorkoutButton, pressed && styles.logWorkoutButtonPressed]}
+        style={({ pressed }) => [
+          styles.logWorkoutButton,
+          buttonStyles.logWorkoutButton,
+          pressed && buttonStyles.logWorkoutButtonPressed,
+        ]}
         onPress={onLogPastWorkout}
       >
         <Text style={[styles.logWorkoutButtonText, { color: colors.accent }]}>Log Workout</Text>
@@ -383,15 +411,36 @@ export default function HistoryScreen() {
   const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
   const displayedMonthKey = format(displayedMonth, 'yyyy-MM-dd');
 
-  // Theme-aware calendar card style
-  const calendarCardTheme = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-  };
-
-  const calendarHeaderTheme = {
-    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-    backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+  // Theme-aware styles
+  const themedStyles = {
+    calendarCard: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+      borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+    },
+    calendarHeader: {
+      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+    },
+    calendarHeaderPressed: {
+      borderColor: colors.accentBorder,
+      backgroundColor: colors.accentOverlay,
+    },
+    logWorkoutButton: {
+      borderColor: colors.accentBorder,
+      backgroundColor: colors.accentOverlay,
+    },
+    logWorkoutButtonPressed: {
+      backgroundColor: colors.accentOverlayMedium,
+      borderColor: colors.accent,
+    },
+    logWorkoutButtonText: { color: colors.accent },
+    logPastButton: {
+      borderColor: colors.accentBorder,
+    },
+    logPastButtonPressed: {
+      backgroundColor: colors.accentOverlay,
+    },
+    logPastButtonText: { color: colors.accent },
   };
 
   return (
@@ -421,7 +470,7 @@ export default function HistoryScreen() {
             renderItem={({ item }) => <WorkoutHistoryCard session={item} onPress={() => handleCardPress(item)} />}
             ListHeaderComponent={
               <>
-                <View style={[styles.calendarCard, calendarCardTheme]}>
+                <View style={[styles.calendarCard, themedStyles.calendarCard]}>
                   <Calendar
                     key={displayedMonthKey}
                     current={displayedMonthKey}
@@ -441,8 +490,8 @@ export default function HistoryScreen() {
                       <Pressable
                         style={({ pressed }) => [
                           styles.calendarHeader,
-                          calendarHeaderTheme,
-                          pressed && styles.calendarHeaderPressed,
+                          themedStyles.calendarHeader,
+                          pressed && themedStyles.calendarHeaderPressed,
                         ]}
                         onPress={openDateSelector}
                       >
@@ -558,8 +607,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.03)',
   },
   calendarHeaderPressed: {
-    borderColor: 'rgba(34, 197, 94, 0.5)',
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    // borderColor and backgroundColor now applied via themedStyles
   },
   calendarHeaderText: {
     fontSize: 20,
@@ -581,7 +629,7 @@ const styles = StyleSheet.create({
   },
   selectedDayContainer: {
     borderWidth: 2,
-    borderColor: Colors.success,
+    // borderColor now applied via inline styles (colors.accent)
   },
   dayText: {
     ...Typography.body,
@@ -614,16 +662,14 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.4)',
-    backgroundColor: 'rgba(34, 197, 94, 0.08)',
+    // borderColor and backgroundColor now applied via themedStyles
   },
   logWorkoutButtonPressed: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
-    borderColor: 'rgba(34, 197, 94, 0.6)',
+    // backgroundColor and borderColor now applied via themedStyles
   },
   logWorkoutButtonText: {
     ...Typography.caption,
-    color: Colors.success,
+    // color now applied via themedStyles (colors.accent)
     fontWeight: '600',
     fontSize: 11,
   },
@@ -726,14 +772,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.5)',
+    // borderColor now applied via buttonStyles (colors.accentBorder)
   },
   logPastButtonPressed: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    // backgroundColor now applied via buttonStyles (colors.accentOverlay)
   },
   logPastButtonText: {
     ...Typography.labelSmall,
-    color: Colors.success,
+    // color now applied via inline styles (colors.accent)
     fontWeight: '600',
   },
 });
