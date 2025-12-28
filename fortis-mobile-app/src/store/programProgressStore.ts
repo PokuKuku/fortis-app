@@ -43,10 +43,12 @@ export const useProgramProgressStore = create<ProgramProgressState>((set, get) =
         set({ progressByProgram: JSON.parse(stored), isLoaded: true });
         return;
       }
+      set({ progressByProgram: {}, isLoaded: true });
     } catch (error) {
       console.warn('Failed to load program progress:', error);
+      set({ progressByProgram: {}, isLoaded: true });
+      return;
     }
-    set({ isLoaded: true });
   },
 
   startProgram: (programId) => {

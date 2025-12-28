@@ -225,7 +225,7 @@ export default function SettingsScreen() {
             setIsSigningOut(true);
             try {
               await signOut();
-              router.replace('/');
+              router.replace('/auth');
             } finally {
               setIsSigningOut(false);
             }

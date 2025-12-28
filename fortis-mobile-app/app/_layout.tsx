@@ -167,6 +167,8 @@ export default function RootLayout() {
   const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
   const loadCompletedSessions = useWorkoutStore((s) => s.loadCompletedSessions);
   const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
+  const loadActiveSession = useWorkoutStore((s) => s.loadActiveSession);
+  const loadRestTimerSettings = useWorkoutStore((s) => s.loadRestTimerSettings);
 
   const [fontsLoaded] = useFonts({
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
@@ -178,7 +180,16 @@ export default function RootLayout() {
     loadWeightUnits();
     loadCompletedSessions();
     loadBodyType();
-  }, [loadStickyNotes, loadWeightUnits, loadCompletedSessions, loadBodyType]);
+    loadActiveSession();
+    loadRestTimerSettings();
+  }, [
+    loadStickyNotes,
+    loadWeightUnits,
+    loadCompletedSessions,
+    loadBodyType,
+    loadActiveSession,
+    loadRestTimerSettings,
+  ]);
 
   if (!fontsLoaded) {
     return null;

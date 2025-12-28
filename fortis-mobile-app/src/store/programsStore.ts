@@ -1654,9 +1654,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       // Merge with existing programs (avoid duplicates)
       set((state) => {
-        const existingIds = new Set(state.programs.map((p) => p.id));
-        const newLocalPrograms = localPrograms.filter((p) => !existingIds.has(p.id));
-        return { programs: [...state.programs, ...newLocalPrograms] };
+        const nonLocalPrograms = state.programs.filter((p) => !isLocalProgramId(p.id));
+        return { programs: [...nonLocalPrograms, ...localPrograms] };
       });
     } catch (err) {
       console.warn('Failed to load local programs:', err);

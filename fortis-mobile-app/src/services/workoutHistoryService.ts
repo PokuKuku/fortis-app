@@ -217,6 +217,21 @@ async function uploadSession(
   }
 }
 
+const isAbortError = (error: unknown): boolean => {
+  if (!error) return false;
+
+  const details = [
+    (error as { name?: string }).name,
+    (error as { message?: string }).message,
+    (error as { details?: string }).details,
+    (error as { hint?: string }).hint,
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join(' ');
+
+  return /abort/i.test(details);
+};
+
 /**
  * Sync a completed workout session to Supabase
  * If offline or not authenticated, queues for later sync
@@ -382,7 +397,13 @@ export async function fetchWorkoutHistory(
 
     clearTimeout(timeoutId);
 
-    if (error) throw error;
+    if (error) {
+      if (isAbortError(error)) {
+        console.warn('Workout history fetch aborted');
+        return { sessions: [] };
+      }
+      throw error;
+    }
 
     // Transform to WorkoutSession format
     const workoutSessions: WorkoutSession[] = (sessions || []).map(session => {
@@ -441,14 +462,14 @@ export async function fetchWorkoutHistory(
     return { sessions: workoutSessions };
   } catch (error: any) {
     // Don't show error for timeout/abort - just return empty
-    if (error?.name === 'AbortError' || error?.message?.includes('aborted')) {
-      console.warn('Workout history fetch timed out');
+    if (isAbortError(error)) {
+      console.warn('Workout history fetch aborted');
       return { sessions: [] };
     }
-    console.error('Failed to fetch workout history:', error);
+    console.warn('Failed to fetch workout history:', error);
     return {
       sessions: [],
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: typeof error?.message === 'string' ? error.message : 'Unknown error'
     };
   }
 }

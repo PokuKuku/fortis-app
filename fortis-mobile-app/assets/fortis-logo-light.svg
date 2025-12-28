@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FORTIS Logo - Shield + Lightning Bolt F (LIGHT MODE)
+-->
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Shield stroke gradient for light mode -->
+    <linearGradient id="shieldGradientLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16a34a" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#22c55e" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#16a34a" stop-opacity="0.4"/>
+    </linearGradient>
+
+    <!-- Lightning bolt gradient - darker for light bg -->
+    <linearGradient id="boltGradientLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#22c55e"/>
+      <stop offset="50%" stop-color="#16a34a"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+
+    <!-- Glow filter -->
+    <filter id="glowLight" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="10" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Shadow for light mode -->
+    <filter id="shadowLight" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1"/>
+    </filter>
+
+    <!-- Light background -->
+    <radialGradient id="bgGradientLight" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f5f5f5"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="url(#bgGradientLight)"/>
+
+  <!-- Shield Background - lighter fill for light mode -->
+  <path
+    d="M512 85 L853 256 L853 512 Q853 768 512 939 Q171 768 171 512 L171 256 Z"
+    fill="#fafafa"
+    stroke="url(#shieldGradientLight)"
+    stroke-width="6"
+    filter="url(#shadowLight)"
+  />
+
+  <!-- Inner Shield Detail -->
+  <path
+    d="M512 170 L768 299 L768 512 Q768 700 512 836 Q256 700 256 512 L256 299 Z"
+    fill="none"
+    stroke="#e5e5e5"
+    stroke-width="4"
+  />
+
+  <!-- Clean F with lightning point at bottom -->
+  <path
+    d="M340 160
+       L680 160
+       L680 260
+       L450 260
+       L450 380
+       L620 380
+       L620 480
+       L450 480
+       L450 750
+       L500 750
+       L420 900
+       L340 750
+       L390 750
+       L340 480
+       L340 160
+       Z"
+    fill="url(#boltGradientLight)"
+    filter="url(#glowLight)"
+  />
+
+</svg>

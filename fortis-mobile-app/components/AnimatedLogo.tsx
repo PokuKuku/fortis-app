@@ -24,6 +24,9 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
   const shineAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const gradientId = useRef(
+    `textGradient-${size}-${Math.random().toString(36).slice(2, 9)}`
+  ).current;
 
   // Size configurations
   const config = size === 'large'
@@ -80,7 +83,7 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
         <Svg height={config.height} width={config.width} viewBox={`0 0 ${config.width} ${config.height}`}>
           <Defs>
             <AnimatedSvgLinearGradient
-              id={`textGradient-${size}`}
+              id={gradientId}
               x1={shineX}
               y1="0"
               x2={Animated.add(shineX, config.width)}
@@ -97,7 +100,7 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
             </AnimatedSvgLinearGradient>
           </Defs>
           <SvgText
-            fill={`url(#textGradient-${size})`}
+            fill={`url(#${gradientId})`}
             fontSize={config.fontSize}
             fontWeight="900"
             letterSpacing={config.letterSpacing}

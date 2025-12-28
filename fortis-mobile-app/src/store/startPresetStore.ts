@@ -112,6 +112,8 @@ export const useStartPresetStore = create<StartPresetState>((set, get) => ({
     const localPreset = parsePreset(localRaw);
     if (localPreset) {
       set({ preset: localPreset });
+    } else {
+      set({ preset: null });
     }
 
     if (!isSupabaseConfigured()) {

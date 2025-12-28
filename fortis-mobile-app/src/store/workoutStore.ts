@@ -1062,7 +1062,25 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     loadActiveSession: async () => {
-      set({ isLoading: true });
+      set({
+        isLoading: true,
+        activeSession: null,
+        isWorkoutActive: false,
+        workoutStartTime: null,
+        isWorkoutTimerPaused: false,
+        pausedElapsedSeconds: 0,
+        backdatedDate: null,
+        restTimer: {
+          isActive: false,
+          remainingSeconds: 0,
+          totalSeconds: 0,
+          setType: 'normal',
+        },
+        showRestTimerComplete: false,
+        activeNumberPad: null,
+        showRpeSelector: false,
+        showRpeHelp: false,
+      });
 
       try {
         const stored = await getScopedItem(ACTIVE_WORKOUT_KEY);
@@ -1121,9 +1139,12 @@ export const useWorkoutStore = create<WorkoutState>()(
         if (stored) {
           const settings = JSON.parse(stored);
           set({ restTimerSettings: settings });
+          return;
         }
+        set({ restTimerSettings: DEFAULT_REST_TIMER_SETTINGS });
       } catch (error) {
         console.warn('Failed to load rest timer settings:', error);
+        set({ restTimerSettings: DEFAULT_REST_TIMER_SETTINGS });
       }
     },
 
@@ -1139,9 +1160,12 @@ export const useWorkoutStore = create<WorkoutState>()(
             completedAt: session.completedAt ? new Date(session.completedAt) : null,
           }));
           set({ completedSessions: sessions });
+          return;
         }
+        set({ completedSessions: [] });
       } catch (error) {
         console.warn('Failed to load completed sessions:', error);
+        set({ completedSessions: [] });
       }
     },
 
@@ -1375,9 +1399,12 @@ export const useWorkoutStore = create<WorkoutState>()(
         if (stored) {
           const units = JSON.parse(stored);
           set({ weightUnits: units });
+          return;
         }
+        set({ weightUnits: {} });
       } catch (error) {
         console.warn('Failed to load weight units:', error);
+        set({ weightUnits: {} });
       }
     },
 
@@ -1400,9 +1427,12 @@ export const useWorkoutStore = create<WorkoutState>()(
         const stored = await getScopedItem(BODY_TYPE_KEY);
         if (stored === 'male' || stored === 'female') {
           set({ bodyType: stored });
+          return;
         }
+        set({ bodyType: 'male' });
       } catch (error) {
         console.warn('Failed to load body type:', error);
+        set({ bodyType: 'male' });
       }
     },
 

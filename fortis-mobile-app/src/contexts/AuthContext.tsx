@@ -1,23 +1,14 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { processPendingQueue } from '@/src/services/workoutHistoryService';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAIStore } from '@/src/store/aiStore';
-import { useStartPresetStore } from '@/src/store/startPresetStore';
-import {
-  ACTIVE_WORKOUT_KEY,
-  COMPLETED_WORKOUTS_KEY,
-  LOCAL_TEMPLATES_KEY,
-  PROGRAMS_KEY,
-  PROGRAM_PROGRESS_KEY,
-  WORKOUTS_KEY,
-} from '@/src/constants/storageKeys';
-import { clearUserScopedStorage, migrateGuestStorageToUser } from '@/src/utils/scopedStorage';
+import { useProgramProgressStore } from '@/src/store/programProgressStore';
+import { migrateGuestStorageToUser } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -43,6 +34,7 @@ export interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
+  isHydrating: boolean;
   isAuthenticated: boolean;
   needsOnboarding: boolean;
 
@@ -79,15 +71,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isHydrating, setIsHydrating] = useState(false);
+  const hydrateRunRef = useRef(0);
 
   const isAuthenticated = !!session;
   const needsOnboarding = isAuthenticated && profile?.onboarding_completed === false;
+
+  const hydrateUserData = useCallback(async () => {
+    const runId = ++hydrateRunRef.current;
+    setIsHydrating(true);
+
+    try {
+      const workoutStore = useWorkoutStore.getState();
+      const aiStore = useAIStore.getState();
+      const programProgressStore = useProgramProgressStore.getState();
+
+      await Promise.all([
+        workoutStore.loadActiveSession(),
+        workoutStore.loadCompletedSessions(),
+        workoutStore.loadRestTimerSettings(),
+        workoutStore.loadStickyNotes(),
+        workoutStore.loadWeightUnits(),
+        workoutStore.loadBodyType(),
+        programProgressStore.loadProgress(),
+        aiStore.loadConversation(),
+        aiStore.loadMutationPlan(),
+      ]);
+    } finally {
+      if (runId === hydrateRunRef.current) {
+        setIsHydrating(false);
+      }
+    }
+  }, []);
 
   // Fetch profile from database
   const fetchProfile = useCallback(async (userId: string) => {
     if (!isSupabaseConfigured()) return null;
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user || session.user.id !== userId) {
+        return null;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -101,7 +127,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             .from('profiles')
             .insert({
               id: userId,
-              email: user?.email || '',
+              email: session.user.email || '',
               preferred_units: 'imperial',
               onboarding_completed: false,
             })
@@ -109,7 +135,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
             .single();
 
           if (createError) {
-            console.error('Error creating profile:', createError);
+            if (createError.code === '23505') {
+              const { data: existingProfile } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+              if (existingProfile) {
+                return existingProfile as Profile;
+              }
+            }
+            console.warn('Error creating profile:', createError);
             return null;
           }
           return newProfile as Profile;
@@ -123,7 +159,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Profile fetch error:', err);
       return null;
     }
-  }, [user?.email]);
+  }, []);
 
   // Refresh profile data
   const refreshProfile = useCallback(async () => {
@@ -147,8 +183,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (initialSession?.user) {
         await migrateGuestStorageToUser(initialSession.user.id);
+        await hydrateUserData();
         const profileData = await fetchProfile(initialSession.user.id);
         setProfile(profileData);
+      } else {
+        setProfile(null);
       }
 
       setIsLoading(false);
@@ -164,6 +203,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const userId = newSession.user.id;
         void (async () => {
           await migrateGuestStorageToUser(userId);
+          if (event === 'SIGNED_IN') {
+            await hydrateUserData();
+          }
           const profileData = await fetchProfile(userId);
           setProfile(profileData);
 
@@ -200,13 +242,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         })();
       } else {
         setProfile(null);
+        hydrateRunRef.current += 1;
+        setIsHydrating(false);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchProfile]);
+  }, [fetchProfile, hydrateUserData]);
 
   // Email sign in
   const signInWithEmail = useCallback(async (email: string, password: string) => {
@@ -351,7 +395,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Sign out
   const signOut = useCallback(async () => {
-    const currentUserId = user?.id ?? null;
+    hydrateRunRef.current += 1;
+    setIsHydrating(false);
 
     // Dismiss any lingering OAuth browser session
     // Wrapped in try-catch because this throws if no browser is open
@@ -367,29 +412,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setSession(null);
     setProfile(null);
 
-    useWorkoutStore.getState().resetStore();
-    useProgramsStore.getState().resetStore();
-    useAIStore.getState().resetStore();
-    useStartPresetStore.getState().resetStore();
     invalidateCustomCache();
-
-    const storagePreserveKeys = [
-      PROGRAMS_KEY,
-      WORKOUTS_KEY,
-      LOCAL_TEMPLATES_KEY,
-      COMPLETED_WORKOUTS_KEY,
-      PROGRAM_PROGRESS_KEY,
-      ACTIVE_WORKOUT_KEY,
-    ] as const;
-
-    try {
-      if (currentUserId) {
-        await clearUserScopedStorage(currentUserId, storagePreserveKeys);
-      }
-      await clearUserScopedStorage(null, storagePreserveKeys);
-    } catch (error) {
-      console.warn('Failed to clear local storage on sign out:', error);
-    }
 
     // Sign out from Supabase with global scope to clear all sessions
     try {
@@ -397,7 +420,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (err) {
       console.warn('Sign out error:', err);
     }
-  }, [user?.id]);
+  }, []);
 
   // Update profile
   const updateProfile = useCallback(async (updates: Partial<Profile>) => {
@@ -476,6 +499,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     profile,
     isLoading,
+    isHydrating,
     isAuthenticated,
     needsOnboarding,
     signInWithEmail,
