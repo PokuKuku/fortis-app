@@ -30,6 +30,7 @@ export default function WorkoutDetailScreen() {
     container: { backgroundColor: colors.background },
     loadingText: { color: colors.textSecondary },
     notFoundText: { color: colors.textSecondary },
+    backLinkText: { color: colors.accent },
     description: { color: colors.textSecondary },
     metaText: { color: colors.textTertiary },
     sectionTitle: { color: colors.textPrimary },
@@ -136,7 +137,7 @@ export default function WorkoutDetailScreen() {
         <View style={styles.notFoundContainer}>
           <Text style={[styles.notFoundText, themedStyles.notFoundText]}>Workout not found</Text>
           <Pressable onPress={handleBack} style={styles.backLink}>
-            <Text style={styles.backLinkText}>Go back</Text>
+            <Text style={[styles.backLinkText, themedStyles.backLinkText]}>Go back</Text>
           </Pressable>
         </View>
       </SafeAreaView>

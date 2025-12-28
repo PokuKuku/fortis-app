@@ -27,6 +27,9 @@ export interface Profile {
   avatar_url: string | null;
   preferred_units: 'imperial' | 'metric';
   onboarding_completed: boolean;
+  // Theme preferences (synced to cloud)
+  theme_mode: 'system' | 'light' | 'dark';
+  accent_color: 'green' | 'blue' | 'purple' | 'teal' | 'orange' | 'pink' | 'amber' | 'rose';
 }
 
 export interface AuthContextValue {

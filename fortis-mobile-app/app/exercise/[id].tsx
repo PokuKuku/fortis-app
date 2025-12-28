@@ -81,7 +81,7 @@ export default function ExerciseDetailsScreen() {
     instructionText: { color: colors.textPrimary },
     historyCard: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06'),
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
     },
     historyDate: { color: colors.textPrimary },
     historySession: { color: colors.textSecondary },

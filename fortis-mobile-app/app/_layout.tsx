@@ -9,6 +9,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
+import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { AIContainer } from '@/src/components/ai';
 import { PostHogScreenTracker } from '@/src/components/analytics/PostHogScreenTracker';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
@@ -27,6 +28,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
 
   return (
     <AuthProvider>
+      <ThemeAuthSync />
       <DragDropProvider>
         {posthogEnabled && <PostHogAuthSync />}
         <StatusBar style={isDark ? 'light' : 'dark'} />

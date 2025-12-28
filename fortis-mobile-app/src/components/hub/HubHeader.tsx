@@ -59,7 +59,7 @@ export function HubHeader({ title, onBack, rightAction }: HubHeaderProps) {
           style={[styles.rightButton, rightButtonStyle]}
           activeOpacity={0.7}
         >
-          <Text style={[styles.rightButtonText, { color: colors.success }]}>{rightAction.label}</Text>
+          <Text style={[styles.rightButtonText, { color: colors.accent }]}>{rightAction.label}</Text>
         </TouchableOpacity>
       ) : (
         <View style={styles.spacer} />

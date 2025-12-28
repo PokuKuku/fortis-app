@@ -55,4 +55,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   AI_CONVERSATION_KEY,
   AI_PENDING_ACTIONS_KEY,
   AI_MUTATION_PLAN_KEY,
+  // Appearance (cleared on sign-out to prevent leakage between users)
+  THEME_MODE_KEY,
+  ACCENT_COLOR_KEY,
 ] as const;

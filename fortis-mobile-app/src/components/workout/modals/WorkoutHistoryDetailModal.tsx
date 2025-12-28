@@ -49,7 +49,7 @@ export function WorkoutHistoryDetailModal({
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
     },
     statValue: { color: colors.textPrimary },
-    exerciseName: { color: colors.success },
+    exerciseName: { color: colors.accent },
     setNumber: { color: colors.textSecondary },
     setDetails: { color: colors.textPrimary },
   };

@@ -167,7 +167,7 @@ export default function EmailAuthScreen() {
                       ]}>
                         <EnvelopeIcon
                           size={18}
-                          color={focusedField === 'email' ? colors.success : colors.textSecondary}
+                          color={focusedField === 'email' ? colors.accent : colors.textSecondary}
                           strokeWidth={2}
                           style={styles.inputIcon}
                         />
@@ -209,7 +209,7 @@ export default function EmailAuthScreen() {
                       ]}>
                         <LockClosedIcon
                           size={18}
-                          color={focusedField === 'password' ? colors.success : colors.textSecondary}
+                          color={focusedField === 'password' ? colors.accent : colors.textSecondary}
                           strokeWidth={2}
                           style={styles.inputIcon}
                         />
@@ -251,7 +251,7 @@ export default function EmailAuthScreen() {
                         ]}>
                           <LockClosedIcon
                             size={18}
-                            color={focusedField === 'confirmPassword' ? colors.success : colors.textSecondary}
+                            color={focusedField === 'confirmPassword' ? colors.accent : colors.textSecondary}
                             strokeWidth={2}
                             style={styles.inputIcon}
                           />

@@ -81,7 +81,7 @@ export default function ProfileScreen() {
                 Sign in to access your profile
               </Text>
               <TouchableOpacity
-                style={[styles.signInButton, { backgroundColor: colors.success }]}
+                style={[styles.signInButton, { backgroundColor: colors.accent }]}
                 onPress={() => router.push('/auth')}
               >
                 <Text style={styles.signInButtonText}>Sign In</Text>
