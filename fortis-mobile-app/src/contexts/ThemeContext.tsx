@@ -1,7 +1,17 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { THEME_MODE_KEY } from '@/src/constants/storageKeys';
+import { THEME_MODE_KEY, ACCENT_COLOR_KEY } from '@/src/constants/storageKeys';
+import {
+  type AccentColorName,
+  type AccentThemeColors,
+  generateAccentThemeColors,
+  ACCENT_COLORS,
+} from '@/src/utils/accentColors';
+
+// Re-export for convenience
+export type { AccentColorName } from '@/src/utils/accentColors';
+export { ACCENT_COLORS, ACCENT_COLOR_LABELS } from '@/src/utils/accentColors';
 
 // Theme mode: user preference (system follows device, or manual override)
 export type ThemeMode = 'system' | 'light' | 'dark';
@@ -243,13 +253,30 @@ export const LightTheme = {
   ...BaseColors,
 } as const;
 
-export type ThemeColors = typeof DarkTheme;
+/** Base theme colors without accent overrides */
+type BaseThemeColors = typeof DarkTheme;
+
+/** Full theme colors including accent-derived properties */
+export type ThemeColors = BaseThemeColors & AccentThemeColors;
 
 /**
- * Get theme colors based on resolved theme
+ * Get theme colors based on resolved theme and accent color
  */
-export const getThemeColors = (isDark: boolean): ThemeColors =>
-  isDark ? DarkTheme : LightTheme;
+export const getThemeColors = (isDark: boolean, accentColor: AccentColorName = 'green'): ThemeColors => {
+  const baseTheme = isDark ? DarkTheme : LightTheme;
+  const accentColors = generateAccentThemeColors(accentColor, isDark);
+
+  return {
+    ...baseTheme,
+    ...accentColors,
+    // Override the legacy success* properties to match accent for components still using them
+    // This provides backward compatibility while transitioning to accent* properties
+    buttonGradient: accentColors.accentGradient,
+    tabActive: accentColors.tabActive,
+    successOverlay: accentColors.accentOverlay,
+    successBorder: accentColors.accentBorder,
+  };
+};
 
 /**
  * Theme context value
@@ -259,7 +286,7 @@ export interface ThemeContextValue {
   mode: ThemeMode;
   /** The actual theme being displayed */
   resolvedTheme: ResolvedTheme;
-  /** Active color palette */
+  /** Active color palette (includes accent-derived colors) */
   colors: ThemeColors;
   /** Convenience boolean for dark mode checks */
   isDark: boolean;
@@ -267,6 +294,10 @@ export interface ThemeContextValue {
   isLoading: boolean;
   /** Update theme mode preference */
   setMode: (mode: ThemeMode) => Promise<void>;
+  /** Current accent color name */
+  accentColor: AccentColorName;
+  /** Update accent color preference */
+  setAccentColor: (color: AccentColorName) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -287,11 +318,19 @@ interface ThemeProviderProps {
 }
 
 /**
+ * Helper to validate accent color from storage
+ */
+function isValidAccentColor(value: string | null): value is AccentColorName {
+  return value !== null && value in ACCENT_COLORS;
+}
+
+/**
  * Theme provider component
  */
 export function ThemeProvider({ children }: ThemeProviderProps) {
   const systemColorScheme = useColorScheme();
   const [mode, setModeState] = useState<ThemeMode>('system');
+  const [accentColor, setAccentColorState] = useState<AccentColorName>('green');
   const [isLoading, setIsLoading] = useState(true);
 
   // Resolve the actual theme based on mode and system preference
@@ -303,24 +342,37 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   }, [mode, systemColorScheme]);
 
   const isDark = resolvedTheme === 'dark';
-  const colors = useMemo(() => getThemeColors(isDark), [isDark]);
 
-  // Load persisted theme mode on mount
+  // Compute colors with accent color applied
+  const colors = useMemo(
+    () => getThemeColors(isDark, accentColor),
+    [isDark, accentColor]
+  );
+
+  // Load persisted theme preferences on mount
   useEffect(() => {
-    const loadThemeMode = async () => {
+    const loadThemePreferences = async () => {
       try {
-        const stored = await AsyncStorage.getItem(THEME_MODE_KEY);
-        if (stored && (stored === 'system' || stored === 'light' || stored === 'dark')) {
-          setModeState(stored as ThemeMode);
+        const [storedMode, storedAccent] = await Promise.all([
+          AsyncStorage.getItem(THEME_MODE_KEY),
+          AsyncStorage.getItem(ACCENT_COLOR_KEY),
+        ]);
+
+        if (storedMode && (storedMode === 'system' || storedMode === 'light' || storedMode === 'dark')) {
+          setModeState(storedMode as ThemeMode);
+        }
+
+        if (isValidAccentColor(storedAccent)) {
+          setAccentColorState(storedAccent);
         }
       } catch (error) {
-        console.warn('Failed to load theme mode:', error);
+        console.warn('Failed to load theme preferences:', error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    loadThemeMode();
+    loadThemePreferences();
   }, []);
 
   // Update theme mode and persist
@@ -333,6 +385,16 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     }
   }, []);
 
+  // Update accent color and persist
+  const setAccentColor = useCallback(async (newColor: AccentColorName) => {
+    setAccentColorState(newColor);
+    try {
+      await AsyncStorage.setItem(ACCENT_COLOR_KEY, newColor);
+    } catch (error) {
+      console.warn('Failed to save accent color:', error);
+    }
+  }, []);
+
   const value: ThemeContextValue = useMemo(
     () => ({
       mode,
@@ -341,8 +403,10 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       isDark,
       isLoading,
       setMode,
+      accentColor,
+      setAccentColor,
     }),
-    [mode, resolvedTheme, colors, isDark, isLoading, setMode]
+    [mode, resolvedTheme, colors, isDark, isLoading, setMode, accentColor, setAccentColor]
   );
 
   return (

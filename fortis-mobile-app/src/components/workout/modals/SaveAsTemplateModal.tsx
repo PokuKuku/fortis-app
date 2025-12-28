@@ -46,6 +46,10 @@ export function SaveAsTemplateModal({
     exerciseItem: { borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)' },
     exerciseName: { color: colors.textPrimary },
     exerciseSets: { color: colors.textSecondary },
+    successIcon: {
+      backgroundColor: colors.accentOverlay,
+    },
+    successText: { color: colors.accent },
   };
 
   if (!visible || !session) return null;
@@ -126,10 +130,10 @@ export function SaveAsTemplateModal({
               {showSuccess ? (
                 // Success State
                 <View style={styles.successContainer}>
-                  <View style={styles.successIcon}>
-                    <CheckIcon size={32} color={Colors.success} strokeWidth={3} />
+                  <View style={[styles.successIcon, themedStyles.successIcon]}>
+                    <CheckIcon size={32} color={colors.accent} strokeWidth={3} />
                   </View>
-                  <Text style={styles.successText}>Template Saved!</Text>
+                  <Text style={[styles.successText, themedStyles.successText]}>Template Saved!</Text>
                 </View>
               ) : (
                 <>
@@ -329,7 +333,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    // backgroundColor now applied via themedStyles.successIcon
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.lg,
@@ -337,7 +341,7 @@ const styles = StyleSheet.create({
   successText: {
     fontSize: 20,
     fontWeight: '700',
-    color: Colors.success,
+    // color now applied via themedStyles.successText
     textAlign: 'center',
   },
 });

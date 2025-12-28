@@ -58,12 +58,24 @@ export function AddExerciseModal({
       borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
     },
     exerciseName: { color: colors.textPrimary },
-    exerciseNameSelected: { color: colors.success },
+    exerciseNameSelected: { color: colors.accent },
     iconContainer: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
     },
+    iconContainerSelected: {
+      backgroundColor: colors.accentOverlayMedium,
+    },
     addButtonContainer: {
       backgroundColor: colors.background,
+    },
+    chip: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
+    },
+    chipText: { color: colors.accent },
+    exerciseItemSelected: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
     },
   };
 
@@ -187,16 +199,16 @@ export function AddExerciseModal({
         style={({ pressed }) => [
           styles.exerciseItem,
           themedStyles.exerciseItem,
-          selected && styles.exerciseItemSelected,
+          selected && themedStyles.exerciseItemSelected,
           pressed && styles.exerciseItemPressed,
         ]}
       >
         <Text style={[styles.exerciseName, themedStyles.exerciseName, selected && themedStyles.exerciseNameSelected]}>
           {item.name}
         </Text>
-        <View style={[styles.iconContainer, themedStyles.iconContainer, selected && styles.iconContainerSelected]}>
+        <View style={[styles.iconContainer, themedStyles.iconContainer, selected && themedStyles.iconContainerSelected]}>
           {selected ? (
-            <CheckIcon size={18} color={colors.success} strokeWidth={2} />
+            <CheckIcon size={18} color={colors.accent} strokeWidth={2} />
           ) : (
             <PlusIcon size={18} color={colors.textSecondary} strokeWidth={2} />
           )}
@@ -248,8 +260,8 @@ export function AddExerciseModal({
                 contentContainerStyle={styles.selectedScrollContent}
               >
                 {selectedExercises.map(exerciseId => (
-                  <View key={exerciseId} style={styles.chip}>
-                    <Text style={styles.chipText} numberOfLines={1}>
+                  <View key={exerciseId} style={[styles.chip, themedStyles.chip]}>
+                    <Text style={[styles.chipText, themedStyles.chipText]} numberOfLines={1}>
                       {getExerciseName(exerciseId)}
                     </Text>
                     <Pressable
@@ -368,9 +380,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    // backgroundColor and borderColor now applied via themedStyles.chip
     borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
     borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
@@ -379,7 +390,7 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.success,
+    // color now applied via themedStyles.chipText
     flexShrink: 1,
   },
   replaceHint: {
@@ -428,8 +439,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
   },
   exerciseItemSelected: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    borderColor: 'rgba(34, 197, 94, 0.3)',
+    // backgroundColor and borderColor now applied via themedStyles.exerciseItemSelected
   },
   exerciseItemPressed: {
     opacity: 0.7,
@@ -452,7 +462,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   iconContainerSelected: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    // backgroundColor now applied via themedStyles.iconContainerSelected
   },
   addButtonContainer: {
     position: 'absolute',

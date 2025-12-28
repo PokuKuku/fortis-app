@@ -281,8 +281,8 @@ function ProgramsKebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onAddProgram)}
         >
-          <PlusIcon color={colors.success} size={16} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, { color: colors.success }]}>Add Program</Text>
+          <PlusIcon color={colors.accent} size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: colors.accent }]}>Add Program</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -381,8 +381,8 @@ function WorkoutsKebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onAddWorkout)}
         >
-          <PlusIcon color={colors.success} size={16} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, { color: colors.success }]}>Add Workout</Text>
+          <PlusIcon color={colors.accent} size={16} strokeWidth={2} />
+          <Text style={[styles.kebabOptionText, { color: colors.accent }]}>Add Workout</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -456,6 +456,7 @@ function ToastNotification({
   message: string;
   onHide: () => void;
 }) {
+  const { colors } = useTheme();
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastScale = useRef(new Animated.Value(0.9)).current;
 
@@ -513,7 +514,7 @@ function ToastNotification({
         ]}
       >
         <LinearGradient
-          colors={['#22c55e', '#16a34a']}
+          colors={colors.accentGradient as unknown as string[]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.toast}
@@ -709,7 +710,7 @@ function ProgramDropCard({
       style={[
         styles.programCard,
         cardThemeStyle,
-        isActive && styles.cardActive,
+        isActive && [styles.cardActive, { borderColor: colors.accentBorder }],
       ]}
     >
       <View style={styles.cardHeader}>
@@ -718,7 +719,7 @@ function ProgramDropCard({
             {item.name}
           </Text>
           {item.isAiCreated && (
-            <SparklesIcon color={colors.success} size={14} strokeWidth={2} style={styles.aiBadge} />
+            <SparklesIcon color={colors.accent} size={14} strokeWidth={2} style={styles.aiBadge} />
           )}
         </View>
         <TouchableOpacity
@@ -726,7 +727,7 @@ function ProgramDropCard({
           onPress={onKebabPress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <EllipsisHorizontalIcon color={colors.success} size={16} strokeWidth={2.5} />
+          <EllipsisHorizontalIcon color={colors.accent} size={16} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
       <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
@@ -1102,7 +1103,7 @@ export default function ProgramsScreen() {
               style={[
                 styles.workoutCard,
                 workoutCardThemeStyle,
-                isActive && styles.cardActive,
+                isActive && [styles.cardActive, { borderColor: colors.accentBorder }],
               ]}
             >
               <View style={styles.cardHeader}>
@@ -1111,7 +1112,7 @@ export default function ProgramsScreen() {
                     {item.name}
                   </Text>
                   {item.isAiCreated && (
-                    <SparklesIcon color={colors.success} size={14} strokeWidth={2} style={styles.aiBadge} />
+                    <SparklesIcon color={colors.accent} size={14} strokeWidth={2} style={styles.aiBadge} />
                   )}
                 </View>
                 <TouchableOpacity
@@ -1119,7 +1120,7 @@ export default function ProgramsScreen() {
                   onPress={(event) => handleKebabPress('workout', item.id, event)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <EllipsisHorizontalIcon color={colors.success} size={16} strokeWidth={2.5} />
+                  <EllipsisHorizontalIcon color={colors.accent} size={16} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
               <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>

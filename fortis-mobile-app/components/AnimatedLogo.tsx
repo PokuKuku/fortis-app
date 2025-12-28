@@ -12,6 +12,7 @@ import Svg, {
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
 
@@ -21,6 +22,7 @@ interface AnimatedLogoProps {
 }
 
 export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoProps) {
+  const { colors } = useTheme();
   const shineAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -90,13 +92,13 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
               y2="0"
               gradientUnits="userSpaceOnUse"
             >
-              <Stop offset="0%" stopColor="#4ade80" />
-              <Stop offset="30%" stopColor="#22c55e" />
-              <Stop offset="45%" stopColor="#86efac" />
+              <Stop offset="0%" stopColor={colors.accentLight} />
+              <Stop offset="30%" stopColor={colors.accent} />
+              <Stop offset="45%" stopColor={colors.accentLight} />
               <Stop offset="50%" stopColor="#ffffff" />
-              <Stop offset="55%" stopColor="#86efac" />
-              <Stop offset="70%" stopColor="#22c55e" />
-              <Stop offset="100%" stopColor="#4ade80" />
+              <Stop offset="55%" stopColor={colors.accentLight} />
+              <Stop offset="70%" stopColor={colors.accent} />
+              <Stop offset="100%" stopColor={colors.accentLight} />
             </AnimatedSvgLinearGradient>
           </Defs>
           <SvgText

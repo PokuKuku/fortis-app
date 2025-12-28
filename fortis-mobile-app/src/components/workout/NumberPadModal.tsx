@@ -65,6 +65,9 @@ export function NumberPadModal({
     incrementButton: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     },
+    // Accent-based gradient and shadow for next button
+    nextButtonGradient: colors.accentGradient as unknown as string[],
+    nextButtonShadow: { shadowColor: colors.accentShadow },
   };
 
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
@@ -348,11 +351,12 @@ export function NumberPadModal({
                 onPress={handleNext}
                 style={({ pressed }) => [
                   styles.nextButton,
+                  themedStyles.nextButtonShadow,
                   pressed && styles.nextButtonPressed,
                 ]}
               >
                 <LinearGradient
-                  colors={['#4ade80', '#22c55e']}
+                  colors={themedStyles.nextButtonGradient}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
@@ -494,7 +498,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    shadowColor: 'rgba(34, 197, 94, 0.4)',
+    // shadowColor is now dynamic via themedStyles
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,

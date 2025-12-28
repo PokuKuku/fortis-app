@@ -65,6 +65,9 @@ export function HubExerciseRow({
       borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
     },
     exerciseName: { color: colors.textPrimary },
+    placeholderImage: { backgroundColor: colors.accentOverlay },
+    placeholderText: { color: colors.accent },
+    setsReps: { color: colors.accent },
   };
 
   const handlePress = () => {
@@ -94,8 +97,8 @@ export function HubExerciseRow({
               resizeMode="cover"
             />
           ) : (
-            <View style={styles.placeholderImage}>
-              <Text style={styles.placeholderText}>
+            <View style={[styles.placeholderImage, themedStyles.placeholderImage]}>
+              <Text style={[styles.placeholderText, themedStyles.placeholderText]}>
                 {exerciseName.charAt(0).toUpperCase()}
               </Text>
             </View>
@@ -110,7 +113,7 @@ export function HubExerciseRow({
         {/* Content */}
         <View style={styles.content}>
           {/* Set x Reps indicator */}
-          <Text style={styles.setsReps}>
+          <Text style={[styles.setsReps, themedStyles.setsReps]}>
             {targetSets} × {targetReps}
           </Text>
 

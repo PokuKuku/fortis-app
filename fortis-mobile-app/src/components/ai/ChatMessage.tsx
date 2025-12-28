@@ -160,17 +160,17 @@ export function ChatMessage({
     },
     blockquote: {
       borderLeftWidth: 3,
-      borderLeftColor: Colors.success,
+      borderLeftColor: colors.accent,
       paddingLeft: Spacing.md,
       marginVertical: Spacing.sm,
-      backgroundColor: 'rgba(34, 197, 94, 0.08)',
+      backgroundColor: colors.accentOverlay,
       borderRadius: BorderRadius.sm,
       paddingVertical: Spacing.sm,
     },
     code_inline: {
       fontFamily: FontFamily.mono,
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-      color: Colors.success,
+      color: colors.accent,
       paddingHorizontal: 6,
       paddingVertical: 2,
       borderRadius: 4,
@@ -206,7 +206,7 @@ export function ChatMessage({
       marginVertical: 2,
     },
     bullet_list_icon: {
-      color: Colors.success,
+      color: colors.accent,
       fontSize: 8,
       lineHeight: 24,
       marginRight: Spacing.sm,
@@ -295,11 +295,11 @@ export function ChatMessage({
               accessibilityRole="button"
             >
               {copied ? (
-                <CheckIcon color={Colors.success} size={IconSizes.sm} />
+                <CheckIcon color={colors.accent} size={IconSizes.sm} />
               ) : (
                 <DocumentDuplicateIcon color={colors.textTertiary} size={IconSizes.sm} />
               )}
-              <Text style={[styles.copyText, themedStyles.copyText, copied && styles.copyTextSuccess]}>
+              <Text style={[styles.copyText, themedStyles.copyText, copied && { color: colors.accent }]}>
                 {copied ? 'Copied' : 'Copy'}
               </Text>
             </TouchableOpacity>
@@ -429,7 +429,7 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
   },
   copyTextSuccess: {
-    color: Colors.success,
+    // color now applied dynamically
   },
   timestamp: {
     ...Typography.caption,

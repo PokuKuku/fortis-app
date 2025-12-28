@@ -60,6 +60,8 @@ export function TemplateNumberPad({
     incrementButton: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     },
+    doneButtonGradient: colors.accentGradient as unknown as string[],
+    doneButtonShadow: { shadowColor: colors.accentShadow },
   };
 
   // Sync displayValue when value prop changes (when switching fields)
@@ -305,11 +307,12 @@ export function TemplateNumberPad({
                 onPress={handleDone}
                 style={({ pressed }) => [
                   styles.doneButton,
+                  themedStyles.doneButtonShadow,
                   pressed && styles.doneButtonPressed,
                 ]}
               >
                 <LinearGradient
-                  colors={['#4ade80', '#22c55e']}
+                  colors={themedStyles.doneButtonGradient}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
@@ -435,7 +438,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    shadowColor: 'rgba(34, 197, 94, 0.4)',
+    // shadowColor now applied via themedStyles.doneButtonShadow
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,

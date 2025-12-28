@@ -52,6 +52,9 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
     iconButtonPressed: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
     },
+    // Accent-based gradient and shadow for play button
+    playButtonGradient: colors.accentGradient as unknown as string[],
+    playButtonShadow: { shadowColor: colors.accent },
   };
 
   if (!visible) return null;
@@ -168,11 +171,12 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                     onPress={handlePlayPause}
                     style={({ pressed }) => [
                       styles.playButton,
+                      !isRunning && themedStyles.playButtonShadow,
                       pressed && styles.playButtonPressed,
                     ]}
                   >
                     <LinearGradient
-                      colors={isRunning ? ['#ff9f0a', '#e88d00'] : ['#4ade80', '#22c55e']}
+                      colors={isRunning ? ['#ff9f0a', '#e88d00'] : themedStyles.playButtonGradient}
                       start={{ x: 0.5, y: 0 }}
                       end={{ x: 0.5, y: 1 }}
                       style={StyleSheet.absoluteFillObject}
@@ -352,8 +356,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    // Glow effect
-    shadowColor: '#22c55e',
+    // Glow effect - shadowColor is now dynamic via themedStyles
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,

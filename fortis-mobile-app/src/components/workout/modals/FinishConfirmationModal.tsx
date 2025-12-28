@@ -30,6 +30,10 @@ export function FinishConfirmationModal({ visible, onClose, onConfirm }: FinishC
       backgroundColor: isDark ? '#333333' : 'rgba(0, 0, 0, 0.08)',
     },
     keepButtonText: { color: colors.textPrimary },
+    finishButton: {
+      backgroundColor: colors.accentOverlay,
+    },
+    finishButtonText: { color: colors.accent },
   };
 
   const handleConfirm = () => {
@@ -91,10 +95,11 @@ export function FinishConfirmationModal({ visible, onClose, onConfirm }: FinishC
                     onPress={handleConfirm}
                     style={({ pressed }) => [
                       styles.finishButton,
+                      themedStyles.finishButton,
                       pressed && styles.buttonPressed,
                     ]}
                   >
-                    <Text style={styles.finishButtonText}>Finish</Text>
+                    <Text style={[styles.finishButtonText, themedStyles.finishButtonText]}>Finish</Text>
                   </Pressable>
                 </View>
               </View>
@@ -186,7 +191,7 @@ const styles = StyleSheet.create({
   },
   finishButton: {
     flex: 1,
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    // backgroundColor now applied via themedStyles.finishButton
     paddingVertical: 12,
     borderRadius: BorderRadius.xl,
     alignItems: 'center',
@@ -194,7 +199,7 @@ const styles = StyleSheet.create({
   finishButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-    color: Colors.success,
+    // color now applied via themedStyles.finishButtonText
   },
   buttonPressed: {
     opacity: 0.7,

@@ -89,6 +89,10 @@ export default function CreateProgramScreen() {
     modalOptionSubtitle: { color: colors.textSecondary },
     modalEmptyText: { color: colors.textSecondary },
     addButtonContainer: { backgroundColor: colors.background },
+    accentButtonBorder: { borderColor: colors.accentBorder },
+    accentButtonBg: { backgroundColor: colors.accentOverlay },
+    accentButtonBgPressed: { backgroundColor: colors.accentOverlayMedium },
+    statValue: { color: colors.accent },
   };
   const {
     mode,
@@ -402,11 +406,13 @@ export default function CreateProgramScreen() {
             }}
             style={({ pressed }) => [
               styles.addExerciseButton,
-              pressed && styles.addExerciseButtonPressed,
+              themedStyles.accentButtonBorder,
+              themedStyles.accentButtonBg,
+              pressed && themedStyles.accentButtonBgPressed,
             ]}
           >
-            <PlusIcon size={16} color={Colors.success} strokeWidth={2} />
-            <Text style={styles.addExerciseText}>
+            <PlusIcon size={16} color={colors.accent} strokeWidth={2} />
+            <Text style={[styles.addExerciseText, { color: colors.accent }]}>
               {template ? 'Change Template' : 'Select Template'}
             </Text>
           </Pressable>
@@ -429,11 +435,13 @@ export default function CreateProgramScreen() {
           onPress={() => router.push('/workout/create')}
           style={({ pressed }) => [
             styles.createTemplateButton,
-            pressed && styles.createTemplateButtonPressed,
+            themedStyles.accentButtonBorder,
+            themedStyles.accentButtonBg,
+            pressed && themedStyles.accentButtonBgPressed,
           ]}
         >
-          <PlusIcon size={16} color={Colors.success} strokeWidth={2} />
-          <Text style={styles.createTemplateText}>Create Workout Template</Text>
+          <PlusIcon size={16} color={colors.accent} strokeWidth={2} />
+          <Text style={[styles.createTemplateText, { color: colors.accent }]}>Create Workout Template</Text>
         </Pressable>
       )}
     </View>
@@ -520,11 +528,11 @@ export default function CreateProgramScreen() {
             <View style={styles.statsLeft}>
               <View style={styles.statItem}>
                 <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
-                <Text style={styles.statValue}>{workoutCount}</Text>
+                <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
               </View>
               <View style={styles.statItem}>
                 <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
-                <Text style={styles.statValue}>{totalExercises}</Text>
+                <Text style={[styles.statValue, themedStyles.statValue]}>{totalExercises}</Text>
               </View>
             </View>
             {hasMuscles && (
@@ -597,7 +605,7 @@ export default function CreateProgramScreen() {
                         {item.workouts[0]?.exercises.length || 0} exercises
                       </Text>
                     </View>
-                    <PlusIcon size={16} color={Colors.success} strokeWidth={2} />
+                    <PlusIcon size={16} color={colors.accent} strokeWidth={2} />
                   </Pressable>
                 )}
                 ListEmptyComponent={
@@ -616,11 +624,13 @@ export default function CreateProgramScreen() {
             onPress={handleAddWorkout}
             style={({ pressed }) => [
               styles.addWorkoutButton,
-              pressed && styles.addWorkoutButtonPressed,
+              themedStyles.accentButtonBorder,
+              themedStyles.accentButtonBg,
+              pressed && themedStyles.accentButtonBgPressed,
             ]}
           >
-            <PlusIcon size={20} color={Colors.success} strokeWidth={2} />
-            <Text style={styles.addWorkoutText}>Add Workout</Text>
+            <PlusIcon size={20} color={colors.accent} strokeWidth={2} />
+            <Text style={[styles.addWorkoutText, { color: colors.accent }]}>Add Workout</Text>
           </Pressable>
         </View>
         <ProgramLimitModal

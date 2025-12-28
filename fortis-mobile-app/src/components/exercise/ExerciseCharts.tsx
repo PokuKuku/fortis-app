@@ -93,7 +93,7 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
             <>
               <Line
                 points={points.weight}
-                color={Colors.success}
+                color={colors.accent}
                 strokeWidth={2}
                 curveType="natural"
                 animate={{ type: 'timing', duration: 500 }}
@@ -101,7 +101,7 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
               <Scatter
                 points={points.weight}
                 radius={5}
-                color={Colors.success}
+                color={colors.accent}
                 animate={{ type: 'timing', duration: 500 }}
               />
             </>

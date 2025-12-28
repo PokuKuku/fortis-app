@@ -60,6 +60,24 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.15)',
     },
+    // Accent-based styles for completed/active states
+    inputCompleted: {
+      backgroundColor: colors.accentOverlayMedium,
+      borderColor: colors.accentBorder,
+    },
+    inputActive: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentOverlay,
+    },
+    checkboxCompleted: {
+      shadowColor: colors.accent,
+    },
+    containerCompleted: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
+    },
+    // Gradient for checkbox
+    checkboxGradient: colors.accentGradient as unknown as string[],
   };
 
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
@@ -387,7 +405,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     }
 
     if (set.isCompleted) {
-      return [styles.input, themedStyles.input, styles.inputCompleted];
+      return [styles.input, themedStyles.input, themedStyles.inputCompleted];
     }
 
     return [styles.input, themedStyles.input];
@@ -411,7 +429,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       >
         <View style={[
           styles.container,
-          set.isCompleted && styles.containerCompleted,
+          set.isCompleted && [styles.containerCompleted, themedStyles.containerCompleted],
           setTypeStyle && styles.containerSetType,
           setTypeStyle,
         ]}>
@@ -458,7 +476,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
             delayLongPress={350}
             style={[
               getInputStyle('weight'),
-              isWeightActive && styles.inputActive,
+              isWeightActive && [styles.inputActive, themedStyles.inputActive],
               isWeightActive && activeNumberPad?.hasError && styles.inputError
             ]}
           >
@@ -491,7 +509,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
               delayLongPress={350}
               style={[
                 getInputStyle('reps'),
-                isRepsActive && styles.inputActive,
+                isRepsActive && [styles.inputActive, themedStyles.inputActive],
                 isRepsActive && activeNumberPad?.hasError && styles.inputError
               ]}
               >
@@ -534,12 +552,12 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
             onPress={handleCheckboxPress}
             onLongPress={handleCheckboxLongPress}
             delayLongPress={350}
-            style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && styles.checkboxCompleted]}
+            style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
           >
             {set.isCompleted ? (
               <>
                 <LinearGradient
-                  colors={['#4ade80', '#22c55e']}
+                  colors={themedStyles.checkboxGradient}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
@@ -605,10 +623,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   containerCompleted: {
-    backgroundColor: Colors.successOverlay,
+    // backgroundColor and borderColor are now dynamic via themedStyles
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
-    borderColor: Colors.successBorder,
     marginHorizontal: 0,
     paddingHorizontal: Spacing.xs,
   },
@@ -699,13 +716,11 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
   },
   inputCompleted: {
-    backgroundColor: 'rgba(34, 197, 94, 0.25)',
-    borderColor: 'rgba(34, 197, 94, 0.5)',
+    // backgroundColor and borderColor are now dynamic via themedStyles
   },
   inputActive: {
-    borderColor: Colors.success,
+    // borderColor and backgroundColor are now dynamic via themedStyles
     borderWidth: 2.5,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
   },
   checkbox: {
     width: 32,
@@ -725,7 +740,7 @@ const styles = StyleSheet.create({
   },
   checkboxCompleted: {
     borderWidth: 0,
-    shadowColor: Colors.success,
+    // shadowColor is now dynamic via themedStyles
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.5,
     shadowRadius: 6,

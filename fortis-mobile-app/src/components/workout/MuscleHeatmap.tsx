@@ -143,7 +143,10 @@ interface BodyPartData {
 }
 
 export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+
+  // Dynamic heatmap colors based on accent
+  const heatmapColors: [string, string] = [colors.accentDark, colors.accent];
 
   const { frontData, backData } = useMemo(() => {
     const frontIntensity: Record<string, number> = {};
@@ -203,8 +206,8 @@ export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact
             side="front"
             gender={gender}
             scale={scale}
-            colors={['#166534', '#22c55e']} // Darker green for secondary, bright for primary
-            border="#333333"
+            colors={heatmapColors}
+            border={isDark ? '#333333' : '#cccccc'}
           />
           {!compact && <Text style={[styles.viewLabel, { color: colors.textSecondary }]}>Front</Text>}
         </View>
@@ -214,8 +217,8 @@ export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact
             side="back"
             gender={gender}
             scale={scale}
-            colors={['#166534', '#22c55e']}
-            border="#333333"
+            colors={heatmapColors}
+            border={isDark ? '#333333' : '#cccccc'}
           />
           {!compact && <Text style={[styles.viewLabel, { color: colors.textSecondary }]}>Back</Text>}
         </View>

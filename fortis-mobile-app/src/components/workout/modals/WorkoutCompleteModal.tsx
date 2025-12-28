@@ -44,16 +44,21 @@ export function WorkoutCompleteModal({
     closeButton: {
       backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.05)',
     },
-    congratsText: { color: colors.success },
+    congratsText: { color: colors.accent },
     statsCard: {
       backgroundColor: isDark ? '#1a1a1a' : 'rgba(0, 0, 0, 0.04)',
     },
     statLabel: { color: colors.textSecondary },
     statValue: { color: colors.textPrimary },
     saveTemplateButton: {
-      borderColor: colors.success,
+      borderColor: colors.accent,
     },
-    saveTemplateButtonText: { color: colors.success },
+    saveTemplateButtonText: { color: colors.accent },
+    saveTemplateButtonPressed: {
+      backgroundColor: colors.accentOverlay,
+    },
+    // Dynamic confetti color - accent is the primary celebration color
+    confettiColors: [colors.accent, '#ffd700', '#ffffff', '#f59e0b', '#ef4444'] as string[],
   };
 
   // Fire fireworks when modal opens
@@ -140,7 +145,7 @@ export function WorkoutCompleteModal({
                       style={({ pressed }) => [
                         styles.saveTemplateButton,
                         themedStyles.saveTemplateButton,
-                        pressed && styles.saveTemplateButtonPressed,
+                        pressed && themedStyles.saveTemplateButtonPressed,
                       ]}
                       onPress={handleSaveAsTemplate}
                     >
@@ -167,7 +172,7 @@ export function WorkoutCompleteModal({
         fallSpeed={3000}
         fadeOut
         autoStart={false}
-        colors={['#22c55e', '#ffd700', '#ffffff', '#f59e0b', '#ef4444']}
+        colors={themedStyles.confettiColors}
       />
     </Modal>
   );
@@ -264,18 +269,18 @@ const styles = StyleSheet.create({
     height: 44,
     borderRadius: BorderRadius.lg,
     borderWidth: 1.5,
-    borderColor: Colors.success,
+    // borderColor now applied via themedStyles.saveTemplateButton
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   saveTemplateButtonPressed: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    // backgroundColor now applied via themedStyles.saveTemplateButtonPressed
   },
   saveTemplateButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.success,
+    // color now applied via themedStyles.saveTemplateButtonText
   },
   doneButton: {
     height: 44,

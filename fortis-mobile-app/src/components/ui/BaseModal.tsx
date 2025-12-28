@@ -280,10 +280,10 @@ export function useModalStyles() {
       color: colors.textPrimary,
     } as TextStyle,
 
-    // Success button (green)
+    // Success/accent button (uses accent color)
     successButton: {
       flex: 1,
-      backgroundColor: isDark ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.15)',
+      backgroundColor: colors.accentOverlay,
       paddingVertical: 12,
       borderRadius: BorderRadius.xl,
       alignItems: 'center',
@@ -291,7 +291,7 @@ export function useModalStyles() {
     successButtonText: {
       fontSize: FontSizes.base,
       fontWeight: '700',
-      color: colors.success,
+      color: colors.accent,
     } as TextStyle,
 
     // Warning button (amber)
@@ -373,7 +373,7 @@ export const modalStyles = StyleSheet.create({
     color: Colors.textPrimary,
   } as TextStyle,
 
-  // Success button (green)
+  // Success button (green - for deprecated static styles; prefer useModalStyles() for accent support)
   successButton: {
     flex: 1,
     backgroundColor: 'rgba(34, 197, 94, 0.2)',

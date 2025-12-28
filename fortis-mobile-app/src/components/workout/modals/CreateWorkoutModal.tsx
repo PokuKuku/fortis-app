@@ -74,7 +74,7 @@ export function CreateWorkoutModal({
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
     },
-    exerciseName: { color: Colors.success },
+    exerciseName: { color: colors.accent },
     setsLabel: { color: colors.textSecondary },
     setsButton: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)' },
     setsButtonText: { color: colors.textPrimary },
@@ -84,6 +84,14 @@ export function CreateWorkoutModal({
     restValue: { color: colors.textPrimary },
     emptyStateText: { color: colors.textSecondary },
     addButtonContainer: { backgroundColor: colors.background },
+    addExercisesButton: {
+      borderColor: colors.accentBorder,
+      backgroundColor: colors.accentOverlay,
+    },
+    addExercisesButtonPressed: {
+      backgroundColor: colors.accentOverlayMedium,
+    },
+    addExercisesText: { color: colors.accent },
   };
 
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
@@ -393,11 +401,12 @@ export function CreateWorkoutModal({
               }}
               style={({ pressed }) => [
                 styles.addExercisesButton,
-                pressed && styles.addExercisesButtonPressed,
+                themedStyles.addExercisesButton,
+                pressed && themedStyles.addExercisesButtonPressed,
               ]}
             >
-              <PlusIcon size={20} color={Colors.success} strokeWidth={2} />
-              <Text style={styles.addExercisesText}>Add Exercises</Text>
+              <PlusIcon size={20} color={colors.accent} strokeWidth={2} />
+              <Text style={[styles.addExercisesText, themedStyles.addExercisesText]}>Add Exercises</Text>
             </Pressable>
           </View>
         </SafeAreaView>
@@ -511,7 +520,7 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     ...Typography.h4,
-    color: Colors.success,
+    // color now applied via themedStyles.exerciseName
     flex: 1,
   },
   removeButton: {
@@ -607,16 +616,15 @@ const styles = StyleSheet.create({
     height: ButtonHeights.xl,
     borderRadius: BorderRadius.xl,
     borderWidth: 2,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
+    // borderColor and backgroundColor now applied via themedStyles.addExercisesButton
     borderStyle: 'dashed',
-    backgroundColor: 'rgba(34, 197, 94, 0.05)',
   },
   addExercisesButtonPressed: {
     opacity: 0.7,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    // backgroundColor now applied via themedStyles.addExercisesButtonPressed
   },
   addExercisesText: {
     ...Typography.button,
-    color: Colors.success,
+    // color now applied via themedStyles.addExercisesText
   },
 });

@@ -22,10 +22,12 @@ import {
   ChevronRightIcon,
   SparklesIcon,
   SunIcon,
+  SwatchIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { useTheme, type ThemeMode } from '@/src/contexts/ThemeContext';
+import { useTheme, type ThemeMode, ACCENT_COLOR_LABELS } from '@/src/contexts/ThemeContext';
+import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { parseWorkoutCsv, type ImportSource } from '@/src/utils/importWorkouts';
@@ -74,7 +76,7 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { colors, isDark, mode, setMode } = useTheme();
+  const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { profile, updateProfile, signOut } = useAuth();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
@@ -83,6 +85,7 @@ export default function SettingsScreen() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showAccentPicker, setShowAccentPicker] = useState(false);
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
@@ -281,6 +284,21 @@ export default function SettingsScreen() {
                 colors={colors}
                 isDark={isDark}
               />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<SwatchIcon color={accentColor === 'green' ? colors.accent : colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Accent Color"
+                value={ACCENT_COLOR_LABELS[accentColor]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowAccentPicker(true);
+                }}
+                showChevron
+                colors={colors}
+                isDark={isDark}
+              />
             </View>
           </View>
 
@@ -380,6 +398,12 @@ export default function SettingsScreen() {
           <Text style={[styles.version, { color: colors.textSecondary }]}>Fortis v1.0.0</Text>
         </ScrollView>
       </SafeAreaView>
+
+      {/* Accent Color Picker Modal */}
+      <AccentColorPicker
+        visible={showAccentPicker}
+        onClose={() => setShowAccentPicker(false)}
+      />
     </View>
   );
 }

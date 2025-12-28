@@ -108,6 +108,7 @@ export default function ExercisesScreen() {
 
   const popoverHeaderBorder = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
   const muscleOptionBorder = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
+  const optionSelectedBg = colors.accentOverlay;
 
   const filteredExercises = allExercises.filter(exercise => {
     const matchesSearch =
@@ -297,7 +298,7 @@ export default function ExercisesScreen() {
                 onPress={() => setSelectedMuscles([])}
                 style={styles.clearButton}
               >
-                <Text style={[styles.clearButtonText, { color: colors.success }]}>Clear All</Text>
+                <Text style={[styles.clearButtonText, { color: colors.accent }]}>Clear All</Text>
               </TouchableOpacity>
             )}
 
@@ -309,7 +310,7 @@ export default function ExercisesScreen() {
                   style={[
                     styles.muscleOption,
                     { borderBottomColor: muscleOptionBorder },
-                    selectedMuscles.includes(muscle) && styles.muscleOptionSelected
+                    selectedMuscles.includes(muscle) && [styles.muscleOptionSelected, { backgroundColor: optionSelectedBg }]
                   ]}
                   onPress={() => toggleMuscle(muscle)}
                 >
@@ -317,13 +318,13 @@ export default function ExercisesScreen() {
                     style={[
                       styles.muscleOptionText,
                       { color: colors.textSecondary },
-                      selectedMuscles.includes(muscle) && { color: colors.success, fontWeight: '600' }
+                      selectedMuscles.includes(muscle) && { color: colors.accent, fontWeight: '600' }
                     ]}
                   >
                     {muscle}
                   </Text>
                   {selectedMuscles.includes(muscle) && (
-                    <View style={[styles.checkmark, { backgroundColor: colors.success }]}>
+                    <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
                       <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                   )}
@@ -361,7 +362,7 @@ export default function ExercisesScreen() {
                 onPress={() => setSelectedCategories([])}
                 style={styles.clearButton}
               >
-                <Text style={[styles.clearButtonText, { color: colors.success }]}>Clear All</Text>
+                <Text style={[styles.clearButtonText, { color: colors.accent }]}>Clear All</Text>
               </TouchableOpacity>
             )}
 
@@ -373,7 +374,7 @@ export default function ExercisesScreen() {
                   style={[
                     styles.muscleOption,
                     { borderBottomColor: muscleOptionBorder },
-                    selectedCategories.includes(category) && styles.muscleOptionSelected
+                    selectedCategories.includes(category) && [styles.muscleOptionSelected, { backgroundColor: optionSelectedBg }]
                   ]}
                   onPress={() => toggleCategory(category)}
                 >
@@ -381,13 +382,13 @@ export default function ExercisesScreen() {
                     style={[
                       styles.muscleOptionText,
                       { color: colors.textSecondary },
-                      selectedCategories.includes(category) && { color: colors.success, fontWeight: '600' }
+                      selectedCategories.includes(category) && { color: colors.accent, fontWeight: '600' }
                     ]}
                   >
                     {category}
                   </Text>
                   {selectedCategories.includes(category) && (
-                    <View style={[styles.checkmark, { backgroundColor: colors.success }]}>
+                    <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
                       <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                   )}
@@ -425,7 +426,7 @@ export default function ExercisesScreen() {
                 onPress={() => setSelectedEquipment([])}
                 style={styles.clearButton}
               >
-                <Text style={[styles.clearButtonText, { color: colors.success }]}>Clear All</Text>
+                <Text style={[styles.clearButtonText, { color: colors.accent }]}>Clear All</Text>
               </TouchableOpacity>
             )}
 
@@ -437,7 +438,7 @@ export default function ExercisesScreen() {
                   style={[
                     styles.muscleOption,
                     { borderBottomColor: muscleOptionBorder },
-                    selectedEquipment.includes(equipment) && styles.muscleOptionSelected
+                    selectedEquipment.includes(equipment) && [styles.muscleOptionSelected, { backgroundColor: optionSelectedBg }]
                   ]}
                   onPress={() => toggleEquipment(equipment)}
                 >
@@ -445,13 +446,13 @@ export default function ExercisesScreen() {
                     style={[
                       styles.muscleOptionText,
                       { color: colors.textSecondary },
-                      selectedEquipment.includes(equipment) && { color: colors.success, fontWeight: '600' }
+                      selectedEquipment.includes(equipment) && { color: colors.accent, fontWeight: '600' }
                     ]}
                   >
                     {equipment}
                   </Text>
                   {selectedEquipment.includes(equipment) && (
-                    <View style={[styles.checkmark, { backgroundColor: colors.success }]}>
+                    <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
                       <Text style={styles.checkmarkText}>✓</Text>
                     </View>
                   )}

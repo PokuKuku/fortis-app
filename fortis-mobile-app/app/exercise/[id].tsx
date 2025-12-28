@@ -81,11 +81,12 @@ export default function ExerciseDetailsScreen() {
     instructionText: { color: colors.textPrimary },
     historyCard: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06'),
     },
     historyDate: { color: colors.textPrimary },
     historySession: { color: colors.textSecondary },
     historyStatLabel: { color: colors.textSecondary },
+    historyStatValue: { color: colors.accent },
     recordCard: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
@@ -102,6 +103,8 @@ export default function ExerciseDetailsScreen() {
     placeholderTabText: { color: colors.textSecondary },
     placeholderTabSubtext: { color: colors.textTertiary },
     notFoundText: { color: colors.textSecondary },
+    backLinkText: { color: colors.accent },
+    accentGradient: colors.accentGradient as unknown as string[],
   };
 
   const { exercise, loading } = useExercise(id);
@@ -123,7 +126,7 @@ export default function ExerciseDetailsScreen() {
         <View style={styles.notFoundContainer}>
           <Text style={[styles.notFoundText, themedStyles.notFoundText]}>Exercise not found</Text>
           <Pressable onPress={handleBack} style={styles.backLink}>
-            <Text style={styles.backLinkText}>Go back</Text>
+            <Text style={[styles.backLinkText, themedStyles.backLinkText]}>Go back</Text>
           </Pressable>
         </View>
       </SafeAreaView>
@@ -206,7 +209,7 @@ export default function ExerciseDetailsScreen() {
                 {exercise.primaryMuscles.map((muscle, index) => (
                   <LinearGradient
                     key={index}
-                    colors={['#22c55e', '#16a34a']}
+                    colors={themedStyles.accentGradient}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.primaryMuscleTag}
@@ -238,7 +241,7 @@ export default function ExerciseDetailsScreen() {
                 exercise.instructions.map((instruction, index) => (
                   <View key={index} style={styles.instructionItem}>
                     <LinearGradient
-                      colors={['#22c55e', '#16a34a']}
+                      colors={themedStyles.accentGradient}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.instructionNumber}
@@ -278,19 +281,19 @@ export default function ExerciseDetailsScreen() {
                     </View>
                     <View style={styles.historyStats}>
                       <View style={styles.historyStat}>
-                        <Text style={styles.historyStatValue}>{entry.completedSets}</Text>
+                        <Text style={[styles.historyStatValue, themedStyles.historyStatValue]}>{entry.completedSets}</Text>
                         <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Sets</Text>
                       </View>
                       <View style={styles.historyStat}>
-                        <Text style={styles.historyStatValue}>{entry.totalReps}</Text>
+                        <Text style={[styles.historyStatValue, themedStyles.historyStatValue]}>{entry.totalReps}</Text>
                         <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Reps</Text>
                       </View>
                       <View style={styles.historyStat}>
-                        <Text style={styles.historyStatValue}>{entry.maxWeight}</Text>
+                        <Text style={[styles.historyStatValue, themedStyles.historyStatValue]}>{entry.maxWeight}</Text>
                         <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Max lbs</Text>
                       </View>
                       <View style={styles.historyStat}>
-                        <Text style={styles.historyStatValue}>{formatVolume(entry.totalVolume)}</Text>
+                        <Text style={[styles.historyStatValue, themedStyles.historyStatValue]}>{formatVolume(entry.totalVolume)}</Text>
                         <Text style={[styles.historyStatLabel, themedStyles.historyStatLabel]}>Volume</Text>
                       </View>
                     </View>
@@ -326,7 +329,7 @@ export default function ExerciseDetailsScreen() {
                 {records.maxWeight && (
                   <View style={[styles.recordCard, themedStyles.recordCard]}>
                     <LinearGradient
-                      colors={['#22c55e', '#16a34a']}
+                      colors={themedStyles.accentGradient}
                       style={styles.recordIcon}
                     >
                       <ScaleIcon color="#000" size={20} strokeWidth={2} />

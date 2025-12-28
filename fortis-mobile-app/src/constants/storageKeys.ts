@@ -32,6 +32,7 @@ export const AI_MUTATION_PLAN_KEY = 'ai_mutation_plan_v1';
 
 // Appearance
 export const THEME_MODE_KEY = 'theme_mode_v1';
+export const ACCENT_COLOR_KEY = 'accent_color_v1';
 
 // Keys that should be scoped per user and cleared on sign-out
 export const USER_SCOPED_STORAGE_KEYS = [

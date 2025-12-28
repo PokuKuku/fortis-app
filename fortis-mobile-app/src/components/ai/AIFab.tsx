@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '../../../constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '../../../constants/Sizes';
 import { useAIStore, selectHasPendingActions } from '../../store/aiStore';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface AIFabProps {
   /** Position from bottom of screen */
@@ -29,6 +30,7 @@ interface AIFabProps {
 }
 
 export function AIFab({ bottom = 88, hidden = false, onPress }: AIFabProps) {
+  const { colors } = useTheme();
   const openConversation = useAIStore((state) => state.openConversation);
   const hasPendingActions = useAIStore(selectHasPendingActions);
   const isLoading = useAIStore((state) => state.isSendingMessage);
@@ -105,13 +107,13 @@ export function AIFab({ bottom = 88, hidden = false, onPress }: AIFabProps) {
       <TouchableOpacity
         style={[
           styles.fab,
-          hasPendingActions && styles.fabWithBadge,
+          hasPendingActions && [styles.fabWithBadge, { borderColor: colors.accent }],
           isLoading && styles.fabLoading,
         ]}
         onPress={handlePress}
         activeOpacity={0.8}
       >
-        <View style={styles.iconContainer}>
+        <View style={[styles.iconContainer, { backgroundColor: colors.accentOverlay }]}>
           <Sparkles
             color={Colors.white}
             size={IconSizes.lg}
@@ -119,7 +121,7 @@ export function AIFab({ bottom = 88, hidden = false, onPress }: AIFabProps) {
           />
         </View>
         {hasPendingActions && (
-          <View style={styles.badge}>
+          <View style={[styles.badge, { backgroundColor: colors.accent }]}>
             <Text style={styles.badgeText}>!</Text>
           </View>
         )}

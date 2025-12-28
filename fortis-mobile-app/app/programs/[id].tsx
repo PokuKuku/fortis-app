@@ -22,12 +22,12 @@ import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { WorkoutStackPreview } from '@/src/components/program/WorkoutStackPreview';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 
-// Difficulty badge colors
-const DIFFICULTY_COLORS: Record<string, { bg: string; text: string }> = {
-  beginner: { bg: 'rgba(34, 197, 94, 0.2)', text: '#22c55e' },
+// Difficulty badge colors - beginner uses accent from theme
+const getDifficultyColors = (accentOverlay: string, accent: string): Record<string, { bg: string; text: string }> => ({
+  beginner: { bg: accentOverlay, text: accent },
   intermediate: { bg: 'rgba(234, 179, 8, 0.2)', text: '#eab308' },
   advanced: { bg: 'rgba(239, 68, 68, 0.2)', text: '#ef4444' },
-};
+});
 
 // Goal badge colors
 const GOAL_LABELS: Record<string, string> = {
@@ -100,8 +100,8 @@ function WorkoutSection({
           style={styles.workoutSectionTouchable}
         >
           <View style={styles.workoutSectionLeft}>
-            <View style={styles.dayBadge}>
-              <Text style={styles.dayBadgeText}>Day {workout.dayNumber}</Text>
+            <View style={[styles.dayBadge, { backgroundColor: colors.accentOverlay }]}>
+              <Text style={[styles.dayBadgeText, { color: colors.accent }]}>Day {workout.dayNumber}</Text>
             </View>
             <View style={styles.workoutSectionInfo}>
               <Text style={[styles.workoutSectionTitle, { color: colors.textPrimary }]}>{workout.name}</Text>
@@ -341,6 +341,16 @@ export default function ProgramDetailScreen() {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
   };
 
+  // Theme-aware styles
+  const themedStyles = {
+    dayBadge: { backgroundColor: colors.accentOverlay },
+    dayBadgeText: { color: colors.accent },
+    backLinkText: { color: colors.accent },
+  };
+
+  // Get difficulty colors with dynamic accent
+  const DIFFICULTY_COLORS = getDifficultyColors(colors.accentOverlay, colors.accent);
+
   // Not found state (avoid loading splash)
   if (!program) {
     if (loading) {
@@ -356,7 +366,7 @@ export default function ProgramDetailScreen() {
         <View style={styles.notFoundContainer}>
           <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>Program not found</Text>
           <Pressable onPress={handleBack} style={styles.backLink}>
-            <Text style={[styles.backLinkText, { color: colors.success }]}>Go back</Text>
+            <Text style={[styles.backLinkText, themedStyles.backLinkText]}>Go back</Text>
           </Pressable>
         </View>
       </SafeAreaView>

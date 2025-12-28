@@ -41,6 +41,7 @@ export function StatsPlaceholder({ selectedTab }: StatsPlaceholderProps) {
     },
     title: { color: colors.textSecondary },
     subtitle: { color: colors.textTertiary },
+    chartBarGradient: [colors.accentOverlayMedium, colors.accentOverlay] as [string, string],
   };
 
   return (
@@ -62,7 +63,7 @@ export function StatsPlaceholder({ selectedTab }: StatsPlaceholderProps) {
             ]}
           >
             <LinearGradient
-              colors={['rgba(34, 197, 94, 0.4)', 'rgba(34, 197, 94, 0.1)']}
+              colors={themedStyles.chartBarGradient}
               style={StyleSheet.absoluteFill}
             />
           </View>

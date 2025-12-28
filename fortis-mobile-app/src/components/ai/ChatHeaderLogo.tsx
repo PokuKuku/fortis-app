@@ -146,10 +146,10 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
       {/* Sparkles icon - animated when loading */}
       <View style={styles.sparkleWrapper}>
         <Animated.View style={[styles.sparkleAbsolute, { opacity: sparkleAnim }]}>
-          <SparklesSolid color={Colors.success} size={iconSize} />
+          <SparklesSolid color={colors.accent} size={iconSize} />
         </Animated.View>
         <Animated.View style={[styles.sparkleAbsolute, { opacity: sparkleOutlineOpacity }]}>
-          <SparklesOutline color={Colors.success} size={iconSize} />
+          <SparklesOutline color={colors.accent} size={iconSize} />
         </Animated.View>
       </View>
 
@@ -166,16 +166,16 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
                 y2="0"
                 gradientUnits="userSpaceOnUse"
               >
-                <Stop offset="0%" stopColor={Colors.success} />
-                <Stop offset="40%" stopColor={Colors.success} />
+                <Stop offset="0%" stopColor={colors.accent} />
+                <Stop offset="40%" stopColor={colors.accent} />
                 <Stop offset="50%" stopColor="#ffffff" />
-                <Stop offset="60%" stopColor={Colors.success} />
-                <Stop offset="100%" stopColor={Colors.success} />
+                <Stop offset="60%" stopColor={colors.accent} />
+                <Stop offset="100%" stopColor={colors.accent} />
               </AnimatedSvgLinearGradient>
             ) : (
               <SvgLinearGradient id="chatLogoGradient" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0%" stopColor={Colors.success} />
-                <Stop offset="100%" stopColor="#4ade80" />
+                <Stop offset="0%" stopColor={colors.accent} />
+                <Stop offset="100%" stopColor={colors.accentLight} />
               </SvgLinearGradient>
             )}
           </Defs>

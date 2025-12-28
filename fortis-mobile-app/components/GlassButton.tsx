@@ -42,8 +42,11 @@ export function GlassButton({
     ? { width: size, height: size, borderRadius: size / 2 }
     : {};
 
+  // Dynamic shadow color based on accent
+  const accentShadow = { shadowColor: colors.accentShadow };
+
   return (
-    <View style={[styles.container, buttonStyle, style, disabled && styles.disabled]}>
+    <View style={[styles.container, accentShadow, buttonStyle, style, disabled && styles.disabled]}>
       {/* Gradient background - render first */}
       <LinearGradient
         colors={buttonGradient}
@@ -81,7 +84,7 @@ const styles = StyleSheet.create({
     position: 'relative',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: 'rgba(34, 197, 94, 0.4)',
+    // shadowColor is now dynamic via accentShadow
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,

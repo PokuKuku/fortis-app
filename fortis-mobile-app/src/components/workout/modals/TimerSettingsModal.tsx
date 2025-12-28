@@ -68,6 +68,11 @@ export function TimerSettingsModal({
     },
     typeSelectorText: { color: colors.textPrimary },
     fadeGradient: isDark ? ['#1a1a1a', 'transparent'] : [colors.background, 'transparent'],
+    // Accent-based colors for normal type
+    normalTypeColor: colors.accent,
+    selectionValue: { color: colors.accent },
+    saveButtonGradient: colors.accentGradient as unknown as string[],
+    saveButtonShadow: { shadowColor: colors.accentShadow },
   };
 
   const [activeType, setActiveType] = useState<SetType>('normal');
@@ -193,7 +198,7 @@ export function TimerSettingsModal({
     switch (activeType) {
       case 'warmup': return '#eab308';
       case 'dropset': return '#3b82f6';
-      default: return Colors.success;
+      default: return themedStyles.normalTypeColor;
     }
   };
 
@@ -358,7 +363,7 @@ export function TimerSettingsModal({
             {/* Current Selection Display */}
             <View style={styles.selectionDisplay}>
               <Text style={[styles.selectionLabel, themedStyles.selectionLabel]}>SET TO</Text>
-              <Text style={[styles.selectionValue, isDisabled && styles.selectionValueDisabled]}>
+              <Text style={[styles.selectionValue, themedStyles.selectionValue, isDisabled && styles.selectionValueDisabled]}>
                 {isDisabled ? 'DISABLED' : `${selectedMinutes}:${selectedSeconds.toString().padStart(2, '0')}`}
               </Text>
             </View>
@@ -369,12 +374,13 @@ export function TimerSettingsModal({
                 onPress={handleSaveAndClose}
                 style={({ pressed }) => [
                   styles.saveButton,
+                  !isDisabled && themedStyles.saveButtonShadow,
                   isDisabled && styles.saveButtonDisabled,
                   pressed && styles.buttonPressed,
                 ]}
               >
                 <LinearGradient
-                  colors={isDisabled ? ['#ef4444', '#dc2626'] : ['#4ade80', '#22c55e']}
+                  colors={isDisabled ? ['#ef4444', '#dc2626'] : themedStyles.saveButtonGradient}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
@@ -416,7 +422,7 @@ export function TimerSettingsModal({
                           styles.typeSelectorDot,
                           {
                             backgroundColor: type === 'warmup' ? '#eab308' :
-                              type === 'dropset' ? '#3b82f6' : Colors.success
+                              type === 'dropset' ? '#3b82f6' : themedStyles.normalTypeColor
                           }
                         ]} />
                         <Text style={[styles.typeSelectorText, themedStyles.typeSelectorText]}>
@@ -640,7 +646,7 @@ const styles = StyleSheet.create({
   selectionValue: {
     fontSize: 28,
     fontFamily: 'BankGothicBT-Medium',
-    color: Colors.success,
+    // color now applied via themedStyles.selectionValue
     letterSpacing: 2,
     fontVariant: ['tabular-nums'],
   },
@@ -663,7 +669,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    shadowColor: Colors.success,
+    // shadowColor now applied via themedStyles.saveButtonShadow
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,

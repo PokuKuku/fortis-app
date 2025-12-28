@@ -55,6 +55,17 @@ export function StartButtonConfigModal({
       borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
     },
     confirmButtonTextDisabled: { color: colors.textTertiary },
+    // Accent-based styles
+    optionSelected: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentOverlay,
+    },
+    confirmButton: {
+      backgroundColor: colors.accentOverlayMedium,
+      borderColor: colors.accentBorder,
+    },
+    hintText: { color: colors.accent },
+    iconColor: colors.accent,
   };
 
   const renderOption = (props: {
@@ -69,7 +80,7 @@ export function StartButtonConfigModal({
       style={({ pressed }) => [
         styles.option,
         themedStyles.option,
-        props.selected && styles.optionSelected,
+        props.selected && themedStyles.optionSelected,
         pressed && styles.optionPressed,
       ]}
     >
@@ -82,7 +93,7 @@ export function StartButtonConfigModal({
           ) : null}
         </View>
       </View>
-      {props.selected && <CheckIcon size={18} color={Colors.success} strokeWidth={2} />}
+      {props.selected && <CheckIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />}
     </Pressable>
   );
 
@@ -94,14 +105,14 @@ export function StartButtonConfigModal({
       visible={visible}
       onClose={onClose}
       title="Start Button"
-      icon={<PlayIcon size={24} color={Colors.success} strokeWidth={2} />}
+      icon={<PlayIcon size={24} color={themedStyles.iconColor} strokeWidth={2} />}
     >
       <Text style={modalStyles.message}>
         {currentPreset
           ? `Currently set to ${presetLabel}.`
           : 'Choose what the Start button should launch.'}
       </Text>
-      <Text style={styles.hintText}>
+      <Text style={[styles.hintText, themedStyles.hintText]}>
         Press and hold the Start button to reconfigure.
       </Text>
 
@@ -129,7 +140,7 @@ export function StartButtonConfigModal({
           label: 'Blank Workout',
           subtitle: 'Start a fresh workout log',
           selected: draftPreset?.type === 'blank',
-          icon: <PlayIcon size={18} color={Colors.success} strokeWidth={2} />,
+          icon: <PlayIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
           onPress: () => onChange({ type: 'blank' }),
         })}
 
@@ -148,7 +159,7 @@ export function StartButtonConfigModal({
                   draftPreset?.type === 'template' &&
                   (draftPreset.templateId === template.id ||
                     template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
-                icon: <Squares2X2Icon size={18} color={Colors.success} strokeWidth={2} />,
+                icon: <Squares2X2Icon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
                 onPress: () =>
                   onChange({
                     type: 'template',
@@ -172,7 +183,7 @@ export function StartButtonConfigModal({
                 label: program.name,
                 subtitle: 'Continue to the next workout',
                 selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
-                icon: <CalendarDaysIcon size={18} color={Colors.success} strokeWidth={2} />,
+                icon: <CalendarDaysIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
                 onPress: () => onChange({ type: 'program', programId: program.id }),
               })}
             </View>
@@ -185,6 +196,7 @@ export function StartButtonConfigModal({
         disabled={!hasChanges}
         style={({ pressed }) => [
           styles.confirmButton,
+          hasChanges && themedStyles.confirmButton,
           !hasChanges && themedStyles.confirmButtonDisabled,
           pressed && hasChanges && modalStyles.buttonPressed,
         ]}
@@ -226,8 +238,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   optionSelected: {
-    borderColor: Colors.success,
-    backgroundColor: 'rgba(34, 197, 94, 0.12)',
+    // borderColor and backgroundColor now applied via themedStyles.optionSelected
   },
   optionPressed: {
     opacity: 0.8,
@@ -278,7 +289,7 @@ const styles = StyleSheet.create({
   hintText: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
-    color: Colors.success,
+    // color now applied via themedStyles.hintText
     textAlign: 'center',
     marginTop: -Spacing.lg,
     marginBottom: Spacing.lg,
@@ -287,13 +298,12 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     width: '100%',
     flex: 0,
-    backgroundColor: 'rgba(34, 197, 94, 0.22)',
+    // backgroundColor and borderColor now applied via themedStyles.confirmButton
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.xl,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.successBorder,
   },
   confirmButtonDisabled: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',

@@ -27,6 +27,9 @@ export function RestTimerCompleteModal({
     },
     title: { color: colors.textPrimary },
     subtitle: { color: colors.textSecondary },
+    iconContainer: {
+      backgroundColor: colors.accentOverlay,
+    },
   };
 
   // Trigger haptic feedback when modal appears
@@ -55,8 +58,8 @@ export function RestTimerCompleteModal({
               {/* Content */}
               <View style={styles.content}>
                 {/* Icon */}
-                <View style={styles.iconContainer}>
-                  <ClockIcon size={48} color={Colors.success} strokeWidth={2} />
+                <View style={[styles.iconContainer, themedStyles.iconContainer]}>
+                  <ClockIcon size={48} color={colors.accent} strokeWidth={2} />
                 </View>
 
                 {/* Title */}
@@ -114,7 +117,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    // backgroundColor now applied via themedStyles.iconContainer
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xl,

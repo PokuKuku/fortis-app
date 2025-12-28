@@ -227,6 +227,10 @@ export function ChatInput({
     sendButton: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
     },
+    sendButtonActive: {
+      backgroundColor: colors.accent,
+    },
+    listeningText: { color: colors.accent },
     removeImageButton: {
       borderColor: colors.background,
     },
@@ -269,8 +273,11 @@ export function ChatInput({
     }
   }, [isRecording, micPulse]);
 
+  // Use accent color for focus border
+  const accentColor = colors.accent;
   const containerStyle = useAnimatedStyle(() => ({
-    borderColor: `rgba(34, 197, 94, ${borderOpacity.value * 0.4})`,
+    borderColor: borderOpacity.value > 0 ? colors.accentBorder : 'transparent',
+    borderWidth: borderOpacity.value > 0 ? 1.5 : 1,
   }));
 
   const sendButtonStyle = useAnimatedStyle(() => ({
@@ -471,7 +478,7 @@ export function ChatInput({
           exiting={FadeOut.duration(150)}
           style={styles.listeningIndicator}
         >
-          <Text style={styles.listeningText}>Listening...</Text>
+          <Text style={[styles.listeningText, themedStyles.listeningText]}>Listening...</Text>
         </Animated.View>
       )}
 
@@ -534,7 +541,7 @@ export function ChatInput({
 
         {/* Send Button */}
         <AnimatedTouchableOpacity
-          style={[styles.sendButton, themedStyles.sendButton, canSend && styles.sendButtonActive]}
+          style={[styles.sendButton, themedStyles.sendButton, canSend && themedStyles.sendButtonActive]}
           onPress={handleSend}
           disabled={!canSend}
           activeOpacity={0.8}
@@ -614,7 +621,7 @@ const styles = StyleSheet.create({
   },
   listeningText: {
     ...Typography.caption,
-    color: Colors.success,
+    // color now applied dynamically via themedStyles.listeningText
   },
   input: {
     flex: 1,
@@ -633,7 +640,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   sendButtonActive: {
-    backgroundColor: Colors.success,
+    // backgroundColor now applied dynamically via themedStyles.sendButtonActive
   },
 });
 

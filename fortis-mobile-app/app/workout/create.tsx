@@ -67,6 +67,15 @@ export default function CreateWorkoutScreen() {
     emptyStateText: { color: colors.textSecondary },
     emptyStateSubtext: { color: colors.textSecondary },
     addButtonContainer: { backgroundColor: colors.background },
+    statValue: { color: colors.accent },
+    addExercisesButton: {
+      borderColor: colors.accentBorder,
+      backgroundColor: colors.accentOverlay,
+    },
+    addExercisesButtonPressed: {
+      backgroundColor: colors.accentOverlayMedium,
+    },
+    addExercisesText: { color: colors.accent },
   };
 
   // Editor store actions
@@ -356,11 +365,12 @@ export default function CreateWorkoutScreen() {
             }}
             style={({ pressed }) => [
               styles.addExercisesButton,
-              pressed && styles.addExercisesButtonPressed,
+              themedStyles.addExercisesButton,
+              pressed && themedStyles.addExercisesButtonPressed,
             ]}
           >
-            <PlusIcon size={20} color={Colors.success} strokeWidth={2} />
-            <Text style={styles.addExercisesText}>Add Exercises</Text>
+            <PlusIcon size={20} color={colors.accent} strokeWidth={2} />
+            <Text style={[styles.addExercisesText, themedStyles.addExercisesText]}>Add Exercises</Text>
           </Pressable>
         </View>
       </SafeAreaView>

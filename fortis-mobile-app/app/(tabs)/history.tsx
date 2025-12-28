@@ -30,13 +30,15 @@ import { WorkoutHistoryDetailModal } from '../../src/components/workout/modals/W
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-// Intensity colors for heatmap
-const INTENSITY_COLORS = {
-  level1: 'rgba(34, 197, 94, 0.25)',
-  level2: 'rgba(34, 197, 94, 0.45)',
-  level3: 'rgba(34, 197, 94, 0.65)',
-  level4: 'rgba(34, 197, 94, 0.85)',
-};
+// Intensity colors for heatmap - now generated dynamically from accent color
+function getIntensityColors(accentOverlay: string, accent: string) {
+  return {
+    level1: `${accent}40`, // 25% opacity
+    level2: `${accent}73`, // 45% opacity
+    level3: `${accent}A6`, // 65% opacity
+    level4: `${accent}D9`, // 85% opacity
+  };
+}
 
 // Format duration as "Xh Ym" or "Xm"
 function formatDuration(seconds: number): string {
@@ -103,9 +105,10 @@ function AnimatedDay({
     transform: [{ scale: scale.value }],
   }));
 
+  const intensityColors = getIntensityColors(colors.accentOverlay, colors.accent);
   let backgroundColor = 'transparent';
   if (intensity) {
-    backgroundColor = INTENSITY_COLORS[`level${intensity}`];
+    backgroundColor = intensityColors[`level${intensity}`];
   }
 
   const handlePressIn = () => {
@@ -131,7 +134,7 @@ function AnimatedDay({
         style={[
           styles.dayContainer,
           { backgroundColor },
-          isSelected && [styles.selectedDayContainer, { borderColor: colors.success }],
+          isSelected && [styles.selectedDayContainer, { borderColor: colors.accent }],
           animatedStyle,
         ]}
       >
@@ -140,7 +143,7 @@ function AnimatedDay({
             styles.dayText,
             { color: colors.textPrimary },
             isDisabled && { color: colors.textSecondary, opacity: 0.3 },
-            isSelected && { color: colors.success, fontWeight: '700' },
+            isSelected && { color: colors.accent, fontWeight: '700' },
           ]}
         >
           {date.day}
@@ -176,7 +179,7 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
             {session.name}
           </Text>
           {session.isSynced && (
-            <CloudIcon color={colors.success} size={14} strokeWidth={2} />
+            <CloudIcon color={colors.accent} size={14} strokeWidth={2} />
           )}
         </View>
         <Text style={[styles.workoutDate, { color: colors.textSecondary }]}>{formattedDate}</Text>
@@ -184,21 +187,21 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
 
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <ClockIcon color={colors.success} size={16} strokeWidth={2} />
+          <ClockIcon color={colors.accent} size={16} strokeWidth={2} />
           <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDuration(summary.durationSeconds)}</Text>
         </View>
 
         <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
         <View style={styles.stat}>
-          <FireIcon color={colors.success} size={16} strokeWidth={2} />
+          <FireIcon color={colors.accent} size={16} strokeWidth={2} />
           <Text style={[styles.statValue, { color: colors.textPrimary }]}>{summary.totalSets} sets</Text>
         </View>
 
         <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
         <View style={styles.stat}>
-          <TrophyIcon color={colors.success} size={16} strokeWidth={2} />
+          <TrophyIcon color={colors.accent} size={16} strokeWidth={2} />
           <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatVolume(summary.totalVolume)} lbs</Text>
         </View>
       </View>
@@ -245,7 +248,7 @@ function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) 
         style={({ pressed }) => [styles.logPastButton, pressed && styles.logPastButtonPressed]}
         onPress={onLogPastWorkout}
       >
-        <Text style={[styles.logPastButtonText, { color: colors.success }]}>Log Past Workout</Text>
+        <Text style={[styles.logPastButtonText, { color: colors.accent }]}>Log Past Workout</Text>
       </Pressable>
     </Animated.View>
   );
@@ -267,7 +270,7 @@ function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: 
         style={({ pressed }) => [styles.logWorkoutButton, pressed && styles.logWorkoutButtonPressed]}
         onPress={onLogPastWorkout}
       >
-        <Text style={[styles.logWorkoutButtonText, { color: colors.success }]}>Log Workout</Text>
+        <Text style={[styles.logWorkoutButtonText, { color: colors.accent }]}>Log Workout</Text>
       </Pressable>
     </Animated.View>
   );
@@ -406,7 +409,7 @@ export default function HistoryScreen() {
 
         {isLoading && allSessions.length === 0 ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.success} />
+            <ActivityIndicator size="small" color={colors.accent} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading history...</Text>
           </View>
         ) : allSessions.length === 0 ? (
@@ -429,7 +432,7 @@ export default function HistoryScreen() {
                       monthTextColor: colors.textPrimary,
                       textMonthFontFamily: 'BankGothicBT-Medium',
                       textMonthFontSize: 20,
-                      arrowColor: colors.success,
+                      arrowColor: colors.accent,
                       textSectionTitleColor: colors.textSecondary,
                       textDayHeaderFontSize: 11,
                       textDayHeaderFontWeight: '600' as const,
@@ -474,8 +477,8 @@ export default function HistoryScreen() {
               <RefreshControl
                 refreshing={isRefreshing}
                 onRefresh={onRefresh}
-                tintColor={colors.success}
-                colors={[colors.success]}
+                tintColor={colors.accent}
+                colors={[colors.accent]}
               />
             }
           />

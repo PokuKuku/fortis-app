@@ -50,6 +50,27 @@ export default function TabLayout() {
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
+
+  // Theme-aware dynamic styles for accent color
+  const themedStyles = {
+    tabIconContainerActive: {
+      backgroundColor: colors.accentOverlay,
+    },
+    chipActive: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accent,
+    },
+    chipTextActive: {
+      color: colors.accent,
+    },
+    modalSave: {
+      borderColor: colors.accent,
+      backgroundColor: colors.accentOverlay,
+    },
+    modalSaveText: {
+      color: colors.accent,
+    },
+  };
   const isExercises = pathname?.includes('/exercises');
   const startWorkout = useWorkoutStore(s => s.startWorkout);
   const startWorkoutFromTemplate = useWorkoutStore(s => s.startWorkoutFromTemplate);
@@ -412,7 +433,7 @@ export default function TabLayout() {
         options={{
           title: 'History',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
               <CalendarDaysIcon color={color} size={18} strokeWidth={2} />
             </View>
           ),
@@ -423,7 +444,7 @@ export default function TabLayout() {
         options={{
           title: 'Exercises',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
               <Bars3Icon color={color} size={18} strokeWidth={2} />
             </View>
           ),
@@ -474,7 +495,7 @@ export default function TabLayout() {
         options={{
           title: 'Programs',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
               <Squares2X2Icon color={color} size={18} strokeWidth={2} />
             </View>
           ),
@@ -485,7 +506,7 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && styles.tabIconContainerActive]}>
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
               <UserIcon color={color} size={18} strokeWidth={2} />
             </View>
           ),
@@ -589,7 +610,7 @@ export default function TabLayout() {
                     key={item}
                     style={[
                       styles.chip,
-                      category === item && styles.chipActive,
+                      category === item && themedStyles.chipActive,
                       fieldErrors.category && styles.invalidChip,
                     ]}
                     onPress={() => {
@@ -599,7 +620,7 @@ export default function TabLayout() {
                   >
                     <Text style={[
                       styles.chipText,
-                      category === item && styles.chipTextActive,
+                      category === item && themedStyles.chipTextActive,
                     ]}>
                       {item}
                     </Text>
@@ -616,7 +637,7 @@ export default function TabLayout() {
                     key={item}
                     style={[
                       styles.chip,
-                      primaryMuscle === item && styles.chipActive,
+                      primaryMuscle === item && themedStyles.chipActive,
                       fieldErrors.primary && styles.invalidChip,
                     ]}
                     onPress={() => {
@@ -626,7 +647,7 @@ export default function TabLayout() {
                   >
                     <Text style={[
                       styles.chipText,
-                      primaryMuscle === item && styles.chipTextActive,
+                      primaryMuscle === item && themedStyles.chipTextActive,
                     ]}>
                       {item}
                     </Text>
@@ -640,10 +661,10 @@ export default function TabLayout() {
               {optionList.primaryMuscles.map((item) => (
                 <TouchableOpacity
                   key={item}
-                  style={[styles.chip, secondaryMuscle === item && styles.chipActive]}
+                  style={[styles.chip, secondaryMuscle === item && themedStyles.chipActive]}
                   onPress={() => setSecondaryMuscle(item === secondaryMuscle ? '' : item)}
                 >
-                  <Text style={[styles.chipText, secondaryMuscle === item && styles.chipTextActive]}>
+                  <Text style={[styles.chipText, secondaryMuscle === item && themedStyles.chipTextActive]}>
                     {item}
                   </Text>
                 </TouchableOpacity>
@@ -655,10 +676,10 @@ export default function TabLayout() {
               {optionList.equipmentTypes.map((item) => (
                 <TouchableOpacity
                   key={item}
-                  style={[styles.chip, equipment === item && styles.chipActive]}
+                  style={[styles.chip, equipment === item && themedStyles.chipActive]}
                   onPress={() => setEquipment(item === equipment ? '' : item)}
                 >
-                  <Text style={[styles.chipText, equipment === item && styles.chipTextActive]}>
+                  <Text style={[styles.chipText, equipment === item && themedStyles.chipTextActive]}>
                     {item}
                   </Text>
                 </TouchableOpacity>
@@ -691,10 +712,10 @@ export default function TabLayout() {
               <Text style={styles.modalCancelText}>Cancel</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.modalActionButton, styles.modalSave]}
+              style={[styles.modalActionButton, themedStyles.modalSave]}
               onPress={handleSaveExercise}
             >
-              <Text style={styles.modalSaveText}>Save</Text>
+              <Text style={[styles.modalSaveText, themedStyles.modalSaveText]}>Save</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -712,7 +733,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tabIconContainerActive: {
-    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+    // backgroundColor is now dynamic via themedStyles
   },
   centerButtonContainer: {
     marginTop: -16,
@@ -867,8 +888,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.12)',
   },
   chipActive: {
-    backgroundColor: 'rgba(34,197,94,0.2)',
-    borderColor: '#22c55e',
+    // backgroundColor and borderColor are now dynamic via themedStyles
   },
   chipText: {
     color: '#d1d5db',
@@ -876,7 +896,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chipTextActive: {
-    color: '#22c55e',
+    // color is now dynamic via themedStyles
   },
   invalidInput: {
     borderColor: '#ef4444',
@@ -915,15 +935,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.06)',
   },
   modalSave: {
-    borderColor: '#22c55e',
-    backgroundColor: 'rgba(34,197,94,0.15)',
+    // borderColor and backgroundColor are now dynamic via themedStyles
   },
   modalCancelText: {
     color: '#d1d5db',
     fontWeight: '700',
   },
   modalSaveText: {
-    color: '#22c55e',
+    // color is now dynamic via themedStyles
     fontWeight: '800',
   },
 });

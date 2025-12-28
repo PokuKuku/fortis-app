@@ -2,6 +2,7 @@ import { useEffect, useRef, useMemo, useState } from 'react';
 import { View, StyleSheet, Animated, Dimensions, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import Svg, {
   Defs,
@@ -28,6 +29,7 @@ function FloatingParticle({
   top: number;
   size: number;
 }) {
+  const { colors } = useTheme();
   const translateY = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
 
@@ -71,7 +73,7 @@ function FloatingParticle({
         width: size,
         height: size,
         borderRadius: 100,
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        backgroundColor: colors.accentOverlay,
         transform: [{ translateY }],
         opacity,
       }}
@@ -81,6 +83,7 @@ function FloatingParticle({
 
 export default function SplashScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
   const [splashComplete, setSplashComplete] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -192,13 +195,13 @@ export default function SplashScreen() {
               y2="0"
               gradientUnits="userSpaceOnUse"
             >
-              <Stop offset="0%" stopColor="#4ade80" />
-              <Stop offset="30%" stopColor="#22c55e" />
-              <Stop offset="45%" stopColor="#86efac" />
+              <Stop offset="0%" stopColor={colors.accentLight} />
+              <Stop offset="30%" stopColor={colors.accent} />
+              <Stop offset="45%" stopColor={colors.accentLight} />
               <Stop offset="50%" stopColor="#ffffff" />
-              <Stop offset="55%" stopColor="#86efac" />
-              <Stop offset="70%" stopColor="#22c55e" />
-              <Stop offset="100%" stopColor="#4ade80" />
+              <Stop offset="55%" stopColor={colors.accentLight} />
+              <Stop offset="70%" stopColor={colors.accent} />
+              <Stop offset="100%" stopColor={colors.accentLight} />
             </AnimatedSvgLinearGradient>
           </Defs>
           <SvgText
