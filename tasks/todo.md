@@ -272,3 +272,69 @@ templateId → startWorkoutFromTemplate() → load template → create activeSes
 
 1. **Create Template**: Tap kebab menu on Workouts section → "Add Workout" → Add exercises, fill in weight/reps → Save
 2. **Start from Template**: Tap any saved template card in Workouts section → Workout starts with pre-filled data
+
+---
+
+# Beta Rate Limits
+
+## Todo
+- [x] Create migration 020_beta_rate_limits.sql with schema changes
+- [x] Update PostgreSQL check_ai_rate_limit function for week/month
+- [x] Update TypeScript types in src/types/ai.ts
+- [x] Update aiService.ts getRateLimitStatus
+- [x] Update ChatHeaderLogo.tsx to show most restrictive limit
+
+## Review
+
+### Summary
+
+Implemented tighter rate limits for beta to stay within $50/month budget for 200+ users while maintaining "unlimited feel" for most users. Added weekly and monthly rate limit windows.
+
+### Beta Limits
+
+| Window | Previous | Beta | Rationale |
+|--------|----------|------|-----------|
+| Per minute | 10 | **3** | Prevent rapid-fire abuse |
+| Per hour | 100 | **5** | Generous for a session |
+| Per day | 500 | **10** | Allows solid daily use |
+| Per week | - | **25** | NEW: Catches binge users |
+| Per month | - | **50** | NEW: Hard budget cap |
+
+### Cost Analysis
+
+- **Per-request cost** (Claude Sonnet 4): ~$0.03
+- **Budget capacity**: $50 / $0.03 = ~1,667 requests/month
+- **Projected usage** (Pareto distribution): ~1,230 requests/month = **$37/month**
+
+### Files Modified
+
+1. **`supabase/migrations/020_beta_rate_limits.sql`** (NEW)
+   - Added `actions_this_week`, `actions_this_month` columns
+   - Added `week_window_start`, `month_window_start` timestamps
+   - Added `max_per_week`, `max_per_month` limit columns
+   - Updated default limits for beta (3/5/10/25/50)
+   - Replaced `check_ai_rate_limit()` function with week/month support
+
+2. **`fortis-mobile-app/src/types/ai.ts`**
+   - Added to `AIRateLimitStatus`: `actionsThisWeek`, `actionsThisMonth`, `maxPerWeek`, `maxPerMonth`
+
+3. **`fortis-mobile-app/src/services/aiService.ts`**
+   - Updated `getRateLimitStatus()` to return week/month fields with fallback defaults
+
+4. **`fortis-mobile-app/src/components/ai/ChatHeaderLogo.tsx`**
+   - Badge now shows `Math.min()` of all remaining limits (most restrictive)
+   - Updated accessibility label
+
+### UX Behavior
+
+- **80% of users** (casual, 2-3 requests/month): Never hit any limit
+- **15% of users** (regular, 10-15 requests/month): May occasionally see low remaining count
+- **5% of users** (power users): May hit daily/weekly limits, clear messaging provided
+
+### Deployment
+
+```bash
+# Push migration to remote
+cd supabase
+supabase db push --dns-resolver https
+```

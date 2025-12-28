@@ -578,9 +578,13 @@ export async function getRateLimitStatus(): Promise<AIRateLimitStatus | null> {
     actionsThisMinute: data.actions_this_minute,
     actionsThisHour: data.actions_this_hour,
     actionsThisDay: data.actions_this_day,
+    actionsThisWeek: data.actions_this_week ?? 0,
+    actionsThisMonth: data.actions_this_month ?? 0,
     maxPerMinute: data.max_per_minute,
     maxPerHour: data.max_per_hour,
     maxPerDay: data.max_per_day,
+    maxPerWeek: data.max_per_week ?? 75,
+    maxPerMonth: data.max_per_month ?? 150,
   };
 }
 

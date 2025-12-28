@@ -51,9 +51,15 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const logoHeight = 24;
   const iconSize = 22;
 
-  // Calculate remaining requests
+  // Calculate remaining requests (show most restrictive limit)
   const remaining = rateLimitStatus
-    ? rateLimitStatus.maxPerDay - rateLimitStatus.actionsThisDay
+    ? Math.min(
+        rateLimitStatus.maxPerMinute - rateLimitStatus.actionsThisMinute,
+        rateLimitStatus.maxPerHour - rateLimitStatus.actionsThisHour,
+        rateLimitStatus.maxPerDay - rateLimitStatus.actionsThisDay,
+        rateLimitStatus.maxPerWeek - rateLimitStatus.actionsThisWeek,
+        rateLimitStatus.maxPerMonth - rateLimitStatus.actionsThisMonth
+      )
     : null;
   const isLowRemaining = remaining !== null && remaining < 5;
 
@@ -197,7 +203,7 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
             themedStyles.rateLimitBadge,
             isLowRemaining && styles.rateLimitBadgeWarning,
           ]}
-          accessibilityLabel={`${remaining} requests remaining today`}
+          accessibilityLabel={`${remaining} AI requests remaining`}
         >
           <Text
             style={[

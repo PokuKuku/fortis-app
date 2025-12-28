@@ -516,9 +516,13 @@ export interface AIRateLimitStatus {
   actionsThisMinute: number;
   actionsThisHour: number;
   actionsThisDay: number;
+  actionsThisWeek: number;
+  actionsThisMonth: number;
   maxPerMinute: number;
   maxPerHour: number;
   maxPerDay: number;
+  maxPerWeek: number;
+  maxPerMonth: number;
   retryAfterSeconds?: number;
 }
 
