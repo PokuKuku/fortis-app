@@ -13,6 +13,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 6. Make every task and code change as simple as possible - avoid massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity, however, if a task demands a more complex implementation for long-term stability of the project, do the complex implementation.
 7. Finally, add a review section to `tasks/todo.md` with a summary of the changes you made and any other relevant information
 
+**Task Files:**
+- `tasks/todo.md` - Current task planning and progress tracking
+- `tasks/AI_COORDINATION.md` - Multi-session feature coordination (check for active feature work)
+
 **Principles:**
 - DO NOT BE LAZY. NEVER BE LAZY. IF THERE IS A BUG FIND THE ROOT CAUSE AND FIX IT. NO TEMPORARY FIXES. YOU ARE A SENIOR DEVELOPER. NEVER BE LAZY
 - MAKE ALL FIXES AND CODE CHANGES AS SIMPLE AS HUMANLY POSSIBLE. THEY SHOULD ONLY IMPACT NECESSARY CODE RELEVANT TO THE TASK AND NOTHING ELSE. IT SHOULD IMPACT AS LITTLE CODE AS POSSIBLE. YOUR GOAL IS TO NOT INTRODUCE ANY BUGS. IT'S ALL ABOUT SIMPLICITY

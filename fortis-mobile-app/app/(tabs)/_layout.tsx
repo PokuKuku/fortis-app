@@ -154,7 +154,7 @@ export default function TabLayout() {
   }, [startPreset, programs]);
 
   const startButtonColors = startPreset
-    ? ['#2dd4bf', '#14b8a6']
+    ? (colors.contrastGradient as unknown as string[])
     : undefined;
 
   // Track exercise detail modal visibility to disable FAB interactions
@@ -554,7 +554,7 @@ export default function TabLayout() {
           styles.plusButton,
           { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
         ]}
-        gradientColors={hasActiveChat ? ['#2dd4bf', '#14b8a6'] : undefined}
+        gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
         onPress={handleFabPress}
         pointerEvents={detailModalVisible ? 'none' : 'auto'}
       >

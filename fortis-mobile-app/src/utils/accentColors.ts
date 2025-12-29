@@ -5,7 +5,7 @@
  * for generating color variants (overlays, borders, gradients).
  */
 
-export type AccentColorName = 'green' | 'blue' | 'purple' | 'teal' | 'orange' | 'pink' | 'amber' | 'rose';
+export type AccentColorName = 'green' | 'lime' | 'purple' | 'teal' | 'orange' | 'pink' | 'amber' | 'rose' | 'indigo' | 'red' | 'slate' | 'cyan';
 
 export interface AccentColorPalette {
   /** Primary accent color */
@@ -29,11 +29,11 @@ export const ACCENT_COLORS: Record<AccentColorName, AccentColorPalette> = {
     dark: '#16a34a',
     rgb: [34, 197, 94],
   },
-  blue: {
-    base: '#3b82f6',
-    light: '#60a5fa',
-    dark: '#2563eb',
-    rgb: [59, 130, 246],
+  lime: {
+    base: '#84cc16',
+    light: '#a3e635',
+    dark: '#65a30d',
+    rgb: [132, 204, 22],
   },
   purple: {
     base: '#8b5cf6',
@@ -71,6 +71,30 @@ export const ACCENT_COLORS: Record<AccentColorName, AccentColorPalette> = {
     dark: '#e11d48',
     rgb: [244, 63, 94],
   },
+  indigo: {
+    base: '#6366f1',
+    light: '#818cf8',
+    dark: '#4f46e5',
+    rgb: [99, 102, 241],
+  },
+  red: {
+    base: '#ef4444',
+    light: '#f87171',
+    dark: '#dc2626',
+    rgb: [239, 68, 68],
+  },
+  slate: {
+    base: '#64748b',
+    light: '#94a3b8',
+    dark: '#475569',
+    rgb: [100, 116, 139],
+  },
+  cyan: {
+    base: '#0ea5e9',
+    light: '#38bdf8',
+    dark: '#0284c7',
+    rgb: [14, 165, 233],
+  },
 };
 
 /**
@@ -78,14 +102,44 @@ export const ACCENT_COLORS: Record<AccentColorName, AccentColorPalette> = {
  */
 export const ACCENT_COLOR_LABELS: Record<AccentColorName, string> = {
   green: 'Green',
-  blue: 'Blue',
+  lime: 'Lime',
   purple: 'Purple',
   teal: 'Teal',
   orange: 'Orange',
   pink: 'Pink',
   amber: 'Amber',
   rose: 'Rose',
+  indigo: 'Indigo',
+  red: 'Red',
+  slate: 'Slate',
+  cyan: 'Cyan',
 };
+
+/**
+ * Contrast color mapping - visually distinct from the primary accent.
+ * Used for "active/set" states on buttons to differentiate from the default accent.
+ */
+export const ACCENT_CONTRAST_MAP: Record<AccentColorName, AccentColorName> = {
+  green: 'rose',
+  lime: 'purple',
+  purple: 'amber',
+  teal: 'rose',
+  orange: 'cyan',
+  pink: 'teal',
+  amber: 'purple',
+  rose: 'teal',
+  indigo: 'orange',
+  red: 'teal',
+  slate: 'amber',
+  cyan: 'orange',
+};
+
+/**
+ * Get the contrasting accent color for a given accent.
+ */
+export function getContrastAccent(colorName: AccentColorName): AccentColorName {
+  return ACCENT_CONTRAST_MAP[colorName];
+}
 
 /**
  * Get RGBA string for an accent color at a given opacity.
@@ -115,6 +169,7 @@ export function getAccentGradient(colorName: AccentColorName, isDark: boolean): 
  */
 export function generateAccentThemeColors(colorName: AccentColorName, isDark: boolean) {
   const palette = ACCENT_COLORS[colorName];
+  const contrastColorName = ACCENT_CONTRAST_MAP[colorName];
 
   return {
     // Primary accent colors
@@ -124,6 +179,9 @@ export function generateAccentThemeColors(colorName: AccentColorName, isDark: bo
 
     // Button gradient
     accentGradient: getAccentGradient(colorName, isDark),
+
+    // Contrast gradient for "active/set" states (e.g., Start button when configured)
+    contrastGradient: getAccentGradient(contrastColorName, isDark),
 
     // Overlay variants (for backgrounds)
     accentOverlay: getAccentRgba(colorName, isDark ? 0.1 : 0.08),

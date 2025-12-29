@@ -285,17 +285,6 @@ export function AIMutationPreviewModal({
               </TouchableOpacity>
             )}
 
-            {isProgramDraft && (
-              <View style={styles.confirmPrompt}>
-                <Text style={[styles.confirmPromptTitle, themedStyles.confirmPromptTitle]}>
-                  Add this {draftLabel.toLowerCase()} to your {draftLabel.toLowerCase()} cards?
-                </Text>
-                <Text style={[styles.confirmPromptBody, themedStyles.confirmPromptBody]}>
-                  Tap Create to add it, or Cancel to discard.
-                </Text>
-              </View>
-            )}
-
             {/* Actions */}
             <View style={[styles.actions, themedStyles.actions]}>
               <TouchableOpacity

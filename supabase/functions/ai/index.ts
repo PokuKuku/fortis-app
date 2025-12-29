@@ -19,10 +19,9 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 // Types (mirrored from mobile app)
 // ============================================
 
-type AIIntent =
-  | 'CREATE_PROGRAM'
-  | 'CREATE_TEMPLATE'
-  | 'ANALYZE_HISTORY';
+// Note: CREATE_PROGRAM and CREATE_TEMPLATE temporarily removed
+// Only ANALYZE_HISTORY is active
+type AIIntent = 'ANALYZE_HISTORY';
 
 type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
@@ -56,26 +55,6 @@ interface IntentConfig {
 }
 
 const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
-  CREATE_PROGRAM: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 100,
-  },
-  CREATE_TEMPLATE: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 100, // Increased to ensure common exercises are available
-  },
   ANALYZE_HISTORY: {
     type: 'read',
     defaultContextWeeks: 52,
@@ -87,10 +66,8 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
   },
 };
 
-const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
-  CREATE_PROGRAM: 'create_program',
-  CREATE_TEMPLATE: 'create_template',
-};
+// Mapping removed - no write intents currently active
+const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {};
 
 const ALLOWED_ENTITY_TYPES = new Set<string>([
   'workout_program',
@@ -104,7 +81,7 @@ function sanitizeProposedState(
   entityType: string,
   proposedState: Record<string, unknown> | undefined,
   userId: string,
-  intent?: AIIntent
+  _intent?: AIIntent
 ): Record<string, unknown> {
   const sanitized: Record<string, unknown> = { ...(proposedState || {}) };
 
@@ -113,12 +90,7 @@ function sanitizeProposedState(
     sanitized.is_default = false; // Prevent privilege escalation
     sanitized.is_public = false; // Default to private for security
     sanitized.is_ai_created = true;
-    if (intent === 'CREATE_TEMPLATE') {
-      sanitized.is_template = true;
-    }
-    if (intent === 'CREATE_PROGRAM') {
-      sanitized.is_template = false;
-    }
+    // Note: is_template handling removed - no write intents currently active
   }
 
   // Remove any server-controlled fields that shouldn't be set by AI
@@ -199,25 +171,58 @@ function expandPhraseWithAliases(phrase: string): string[] {
 }
 
 function extractSearchPhrases(message: string, maxPhrases = 6): string[] {
-  const cleaned = message
+  const normalized = message
     .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\bdb\b/g, 'dumbbell')
+    .replace(/\bbb\b/g, 'barbell')
+    .replace(/\bkb\b/g, 'kettlebell')
+    .replace(/\b\d+\s*x\s*\d+\b/g, ',')
+    .replace(/[\n•;]+/g, ',')
+    .replace(/\band\b/g, ',')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!cleaned) return [];
-  const words = cleaned.split(' ').filter((word) => word.length >= 3);
+
+  if (!normalized) return [];
+
+  const segments = normalized
+    .split(',')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
   const phrases: string[] = [];
-  for (let size = Math.min(3, words.length); size >= 1; size -= 1) {
-    for (let i = 0; i <= words.length - size; i += 1) {
-      const phrase = words.slice(i, i + size).join(' ');
-      if (!phrases.includes(phrase)) {
-        phrases.push(phrase);
+
+  const addPhrase = (phrase: string) => {
+    if (!phrases.includes(phrase)) {
+      phrases.push(phrase);
+    }
+  };
+
+  for (const segment of segments) {
+    if (phrases.length >= maxPhrases) break;
+
+    const cleaned = segment
+      .replace(/\b\d+\s*(sets?|set|reps?|rep|rest|seconds?|secs?|mins?|minutes?)\b/g, ' ')
+      .replace(/\b\d+\b/g, ' ')
+      .replace(/[^a-z\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!cleaned) continue;
+
+    const words = cleaned.split(' ').filter((word) => word.length >= 2);
+    if (words.length === 0) continue;
+
+    const maxSize = Math.min(3, words.length);
+    for (let size = maxSize; size >= 1; size -= 1) {
+      if (words.length > 1 && size === 1) continue;
+      for (let i = 0; i <= words.length - size; i += 1) {
+        addPhrase(words.slice(i, i + size).join(' '));
+        if (phrases.length >= maxPhrases) break;
       }
-      if (phrases.length >= maxPhrases) {
-        return phrases;
-      }
+      if (phrases.length >= maxPhrases) break;
     }
   }
+
   return phrases;
 }
 
@@ -328,6 +333,60 @@ function getUnknownExerciseIds(plan: { mutations?: Array<{ entityType?: string; 
       .filter((id): id is string => typeof id === 'string')
   );
   return collectExerciseIdsFromPlan(plan).filter((id) => !availableIds.has(id));
+}
+
+function normalizeExerciseKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function resolveExerciseIdsInPlan(
+  plan: { mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }> },
+  availableExercises?: unknown[]
+): string[] {
+  const unresolved: string[] = [];
+  const lookup = new Map<string, string>();
+
+  if (Array.isArray(availableExercises)) {
+    availableExercises.forEach((ex) => {
+      if (!ex || typeof ex !== 'object') return;
+      const { id, name } = ex as { id?: string; name?: string };
+      if (id) {
+        lookup.set(id, id);
+        if (name) {
+          lookup.set(normalizeExerciseKey(name), id);
+        }
+      }
+    });
+  }
+
+  for (const mutation of plan.mutations ?? []) {
+    if (mutation?.entityType !== 'program_exercise') continue;
+    const proposedState = mutation.proposedState;
+    if (!proposedState || typeof proposedState !== 'object') continue;
+    const exerciseId = proposedState.exercise_id;
+    if (typeof exerciseId !== 'string' || exerciseId.length === 0) continue;
+    if (isValidUuid(exerciseId)) continue;
+
+    const fallbackName =
+      typeof proposedState.exercise_name === 'string' && proposedState.exercise_name.length > 0
+        ? proposedState.exercise_name
+        : exerciseId;
+    const resolved =
+      lookup.get(exerciseId) || lookup.get(normalizeExerciseKey(fallbackName));
+
+    if (resolved) {
+      proposedState.exercise_id = resolved;
+    } else {
+      unresolved.push(exerciseId);
+    }
+  }
+
+  return unresolved;
 }
 
 // Auto-correct invalid exercise IDs by matching against exercise names
@@ -569,8 +628,8 @@ Deno.serve(async (req: Request) => {
     const config = INTENT_CONFIG[aiRequest.intent];
     const requestId = crypto.randomUUID();
 
-    const bypassLowSignal =
-      aiRequest.intent === 'CREATE_TEMPLATE' || aiRequest.intent === 'ANALYZE_HISTORY';
+    // ANALYZE_HISTORY always bypasses low signal check
+    const bypassLowSignal = aiRequest.intent === 'ANALYZE_HISTORY';
     if (!aiRequest.image && !bypassLowSignal && isLowSignalMessage(aiRequest.message)) {
       return jsonResponse({
         type: 'clarification',
@@ -607,6 +666,17 @@ Deno.serve(async (req: Request) => {
       (response as { mutationPlan?: unknown }).mutationPlan
     ) {
       const mutationPlan = (response as { mutationPlan: any }).mutationPlan;
+      const unresolvedExercises = resolveExerciseIdsInPlan(mutationPlan, context.exerciseDb);
+      if (unresolvedExercises.length > 0) {
+        return jsonResponse({
+          type: 'clarification',
+          requestId,
+          clarification: {
+            question:
+              'I couldn’t match a few exercises to your database. Can you pick replacements from your exercise list?',
+          },
+        });
+      }
       const unknownExerciseIds = getUnknownExerciseIds(mutationPlan, context.exerciseDb);
       if (unknownExerciseIds.length > 0) {
         return jsonResponse({
@@ -1463,27 +1533,19 @@ async function callOpenAIText(
 }
 
 function buildSystemPrompt(
-  intent: AIIntent,
+  _intent: AIIntent,
   config: IntentConfig,
   context: AIContext
 ): string {
-  const intentGuidance =
-    intent === 'CREATE_PROGRAM'
-      ? '\n- You are creating a multi-day training program.'
-      : intent === 'CREATE_TEMPLATE'
-      ? '\n- You are creating a single workout template (one workout day).'
-      : '\n- You are answering questions about training history and progress.';
+  // Note: Only ANALYZE_HISTORY intent is currently active (read-only)
+  const intentGuidance = '\n- You are answering questions about training history and progress.';
 
-  const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights and creating workout programs.
+  const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights.
 
 CORE PRINCIPLES:
 - Be a helpful data analyst. Surface patterns, trends, and evidence-backed insights.
 - Never invent data. Use only the provided context.
 - If evidence is weak or missing, say so explicitly and explain why. Do not hedge when evidence is strong.
-- Ask clarifying questions when the user's request is vague (e.g., "make a legs workout" with no specific exercises listed).
-- For CREATE_TEMPLATE: Only translate what the user explicitly provides. Do not add exercises they didn't mention.
-- When a user asks to create or log a workout/program, respond with a draft (mutation plan) instead of saying you cannot.
-- When suggesting exercises the user hasn't done before, explain why and provide brief form cues.
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
 - If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to and use them for analysis unless the user asks for a specific variation.
@@ -1513,117 +1575,18 @@ Respond with a JSON object:
 
 RULES:
 - Do not return mutation plans for read-only intents.
-- If the user asks to create or modify a workout/program, ask a clarification question about switching to creation.`;
+- If the user asks to create or modify a workout/program, politely explain that workout creation is temporarily unavailable.`;
   }
 
-  // Template-specific translator instructions
-  const templateInstructions =
-    intent === 'CREATE_TEMPLATE'
-      ? `
-TRANSLATOR MODE (CREATE_TEMPLATE):
-You are a STRICT TRANSLATOR. Convert the user's workout description into a template JSON immediately.
-
-RULES:
-1. **If the user mentions ANY exercise name** (e.g., "bench", "squats", "incline dumbbell bench"), create a template immediately with ONLY those exercises.
-2. **Parse the input**: Extract exercise names, sets, reps, and rest periods from text or image.
-3. **Match exercises**: Fuzzy-match exercise names to the AVAILABLE EXERCISES list.
-4. **Use minimal defaults** for missing details:
-   - Sets: 3 (if not specified)
-   - Reps: "8-12" (if not specified)
-   - Rest: 60 seconds (if not specified)
-5. **NEVER add exercises** the user didn't mention. If they say "bench 3x10", output ONLY bench press.
-6. **ONLY ask for clarification** if the user provides NO exercise names at all (e.g., "make me a workout").
-
-ALWAYS respond with valid JSON in the mutation_plan format. Never respond with plain text.
-
-`
-      : '';
-
-  return `${basePrompt}
-${templateInstructions}
-RESPONSE FORMAT:
-Respond with a JSON object containing a mutation plan:
-{
-  "type": "mutation_plan",
-  "mutationPlan": {
-    "summary": "Brief 1-line summary of what will be created",
-    "explanation": "2-3 sentence explanation of your approach and reasoning",
-    "mutations": [
-      {
-        "mutationId": "unique-id",
-        "order": 1,
-        "operation": "INSERT",
-        "entityType": "workout_program|program_workout|program_exercise",
-        "proposedState": { /* new values */ },
-        "description": "Human-readable description of this change",
-        "dependsOn": ["other-mutation-ids"]
-      }
-    ],
-    "exerciseResolution": [
-      {
-        "exerciseId": "uuid",
-        "exerciseName": "Exercise Name",
-        "fromHistory": true|false,
-        "justification": "Required if fromHistory=false",
-        "explanation": "Brief form cue if new to user"
-      }
-    ]
-  }
-}
-
-WRITE RULES:
-- Create-only. Do not include UPDATE or DELETE mutations.
-
-EXERCISE SELECTION RULES:
-1. Prefer exercises from the user's history when possible
-2. If suggesting a new exercise, you MUST provide justification (variation, injury workaround, equipment swap, or stimulus gap)
-3. Always explain unfamiliar exercises with brief form cues
-4. Use ONLY exercises from the AVAILABLE EXERCISES list. Copy the exercise_id exactly; do not invent new exercises or ids.
-
-ENTITY SCHEMAS:
-- workout_program: { name, description, difficulty (beginner|intermediate|advanced), duration_weeks, goal (strength|hypertrophy|powerlifting|general_fitness), is_template (boolean), is_ai_created (boolean) }
-- program_workout: { name, description, day_number }
-- program_exercise: { exercise_id, order_index, sets (number), reps (string like "5-8"), rest_seconds, notes }`;
+  // Note: Write intent prompts removed - only read intents are currently active
+  // Return empty string for type safety (this path won't be reached)
+  return basePrompt;
 }
 
 function buildUserMessage(request: AIRequest, context: AIContext): string {
   let message = `Intent: ${request.intent}\n\nUser message: ${request.message}`;
 
-  if (request.image && request.intent === 'CREATE_TEMPLATE') {
-    message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (TEMPLATE) ---
-You have been provided an image of a workout plan. Extract a single workout template:
-
-1. **Exercises**: Identify all exercises shown. Match to exercise names in the AVAILABLE EXERCISES list below.
-2. **Sets/Reps**: Extract the prescribed sets and reps for each exercise (use format like "3" for sets, "8-12" for reps). Use defaults (3 sets, "8-12" reps) if not visible.
-3. **Order**: Maintain the order of exercises as shown in the image (top to bottom, left to right).
-4. **Rest periods**: If shown, include rest times in seconds. Default to 60 seconds if not specified.
-5. **Name**: Create a descriptive name for the template (e.g., "Upper Body Push", "Leg Day").
-
-Create mutations for:
-- One workout_program (set is_template: true, is_ai_created: true)
-- One program_workout (the single workout day)
-- Multiple program_exercise entries (one per exercise found)
-
-Do NOT ask clarification questions. Use your best judgment to match exercises and fill in missing details with sensible defaults.`;
-  }
-
-  if (request.image && request.intent === 'CREATE_PROGRAM') {
-    message += `\n\n--- IMAGE EXTRACTION INSTRUCTIONS (PROGRAM) ---
-You have been provided an image of a multi-day program. Extract the full program:
-
-1. **Days**: Identify each training day or workout shown.
-2. **Exercises**: For each day, list exercises and match names to the AVAILABLE EXERCISES list below.
-3. **Sets/Reps**: Extract prescribed sets and reps for each exercise.
-4. **Order**: Preserve exercise order for each day.
-5. **Name**: Create a descriptive program name and a short description.
-
-Create mutations for:
-- One workout_program (set is_template: false, is_ai_created: true)
-- One program_workout per day (with day_number)
-- Multiple program_exercise entries per workout
-
-If the image only shows one day or lacks program schedule (days per week, duration), return a clarification question before creating a program.`;
-  }
+  // Note: Image extraction instructions removed - no write intents currently active
 
   if (context.user.goals && context.user.goals.length > 0) {
     message += `\n\n--- USER GOALS ---\n${JSON.stringify(context.user.goals, null, 2)}`;
@@ -1768,47 +1731,20 @@ function buildModelError(requestId: string, message: string) {
   };
 }
 
-function buildWriteClarification(intent: AIIntent, requestId: string) {
-  const base = {
+function buildWriteClarification(_intent: AIIntent, requestId: string) {
+  // Note: Intent-specific clarifications removed - no write intents currently active
+  return {
     type: 'clarification',
     requestId,
     clarification: {
-      question: '',
+      question: 'I need a bit more detail to help you. Could you provide more specifics?',
       options: [] as string[],
-    },
-  };
-
-  if (intent === 'CREATE_PROGRAM') {
-    return {
-      ...base,
-      clarification: {
-        question:
-          'I can draft a program, but need a few details: days per week, duration in weeks, and your main goal. What should I use?',
-        options: ['3 days/week • 8 weeks • strength', '4 days/week • 8 weeks • hypertrophy'],
-      },
-    };
-  }
-
-  if (intent === 'CREATE_TEMPLATE') {
-    return {
-      ...base,
-      clarification: {
-        question:
-          "I couldn't identify any exercises from your input. Could you describe the workout more clearly?\n\nExamples:\n• \"Squats 3x10, Lunges 3x12, Calf raises 3x15\"\n• \"Create a leg day workout\"\n• Or attach a photo of a workout plan",
-        options: [],
-      },
-    };
-  }
-
-  return {
-    ...base,
-    clarification: {
-      question: 'I need a bit more detail to create a draft. What should I use?',
     },
   };
 }
 
 function validateMutationPlan(intent: AIIntent, plan: any): string | null {
+  // Note: This function is currently unused - no write intents active
   if (!plan || typeof plan !== 'object') {
     return 'Missing mutation plan';
   }
@@ -1818,13 +1754,8 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
   }
 
   const allowedOperations = allowedOperationsForIntent(intent);
-  const hasProgram = plan.mutations.some(
-    (mutation: any) => mutation?.entityType === 'workout_program'
-  );
-
-  if ((intent === 'CREATE_TEMPLATE' || intent === 'CREATE_PROGRAM') && !hasProgram) {
-    return 'Workout program mutation is required';
-  }
+  // Note: hasProgram check removed - no write intents currently require it
+  void intent; // Suppress unused parameter warning
 
   for (const mutation of plan.mutations) {
     if (!mutation || typeof mutation !== 'object') {
@@ -1862,9 +1793,6 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
     if (mutation.entityType === 'program_exercise') {
       if (!mutation.proposedState.exercise_id || mutation.proposedState.order_index === undefined) {
         return 'Program exercise requires exercise_id and order_index';
-      }
-      if (!isValidUuid(mutation.proposedState.exercise_id)) {
-        return 'Program exercise requires a valid exercise_id';
       }
       if (mutation.proposedState.sets === undefined) {
         return 'Program exercise requires sets';

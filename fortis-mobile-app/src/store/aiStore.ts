@@ -23,11 +23,11 @@ import {
   EditableProgramExercise,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
+import * as ExerciseService from '../services/exerciseService';
 import { AI_CONVERSATION_KEY, AI_MUTATION_PLAN_KEY } from '../constants/storageKeys';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { buildProgramDraftFromPlan, buildPlanFromProgramDraft } from '../utils/aiProgramDraft';
-import { isWriteIntent } from '../services/aiService';
 
 // Simple UUID generator
 const generateId = (): string => {
@@ -43,33 +43,120 @@ const isValidUUID = (value: string): boolean => {
   return uuidRegex.test(value);
 };
 
-const makeFriendlyClarification = (question: string | undefined, intent: AIIntent): string => {
-  const normalized = (question || '').toLowerCase();
-  const looksSystemy =
-    normalized.includes('cannot proceed') ||
-    normalized.includes('requirements') ||
-    normalized.includes('mutation') ||
-    normalized.includes('clarif');
+const normalizeExerciseKey = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  if (!isWriteIntent(intent)) {
-    return question || 'Could you share a bit more detail so I can help?';
+const resolveDraftExerciseIds = async (
+  draft: EditableProgramDraft
+): Promise<EditableProgramDraft> => {
+  let exercises: Awaited<ReturnType<typeof ExerciseService.getAllExercises>>;
+  try {
+    exercises = await ExerciseService.getAllExercises();
+  } catch (error) {
+    console.warn('Failed to resolve exercise IDs for draft:', error);
+    return draft;
   }
+  const lookup = new Map<string, { id: string; name: string }>();
 
-  if (intent === 'CREATE_TEMPLATE') {
-    return looksSystemy || !question
-      ? 'Got it — I can build a template. Quick questions: what’s your main goal, how many days per week, and any equipment or preferences?'
-      : `Got it — ${question}`;
-  }
+  exercises.forEach((exercise) => {
+    lookup.set(exercise.id, { id: exercise.id, name: exercise.name });
+    if (exercise.slug) {
+      lookup.set(exercise.slug, { id: exercise.id, name: exercise.name });
+      lookup.set(normalizeExerciseKey(exercise.slug), { id: exercise.id, name: exercise.name });
+    }
+    lookup.set(normalizeExerciseKey(exercise.name), { id: exercise.id, name: exercise.name });
+  });
 
-  if (intent === 'CREATE_PROGRAM') {
-    return looksSystemy || !question
-      ? 'Awesome — I can draft a program. What’s your goal, how many days per week, and how long should it run?'
-      : `Awesome — ${question}`;
-  }
+  const resolvedWorkouts = draft.workouts.map((workout) => ({
+    ...workout,
+    exercises: workout.exercises.map((exercise) => {
+      if (isValidUUID(exercise.exerciseId)) {
+        return exercise;
+      }
 
-  return looksSystemy || !question
-    ? 'I can help with that — what details should I use?'
-    : `Quick check — ${question}`;
+      const candidateKeys = new Set<string>();
+      if (exercise.exerciseId) {
+        candidateKeys.add(exercise.exerciseId);
+        candidateKeys.add(normalizeExerciseKey(exercise.exerciseId));
+      }
+      if (exercise.exerciseName && exercise.exerciseName !== 'Unknown Exercise') {
+        candidateKeys.add(exercise.exerciseName);
+        candidateKeys.add(normalizeExerciseKey(exercise.exerciseName));
+      }
+
+      for (const key of candidateKeys) {
+        const match = lookup.get(key);
+        if (match) {
+          return {
+            ...exercise,
+            exerciseId: match.id,
+            exerciseName: match.name,
+          };
+        }
+      }
+
+      return exercise;
+    }),
+  }));
+
+  return {
+    ...draft,
+    workouts: resolvedWorkouts,
+  };
+};
+
+const mergeResolvedDraft = (
+  current: EditableProgramDraft,
+  resolved: EditableProgramDraft
+): EditableProgramDraft => {
+  const resolvedWorkoutsById = new Map(
+    resolved.workouts.map((workout) => [workout.id, workout])
+  );
+
+  const workouts = current.workouts.map((workout) => {
+    const resolvedWorkout = resolvedWorkoutsById.get(workout.id);
+    if (!resolvedWorkout) return workout;
+    const resolvedExercisesById = new Map(
+      resolvedWorkout.exercises.map((exercise) => [exercise.id, exercise])
+    );
+    const exercises = workout.exercises.map((exercise) => {
+      if (isValidUUID(exercise.exerciseId)) {
+        return exercise;
+      }
+      const resolvedExercise = resolvedExercisesById.get(exercise.id);
+      if (resolvedExercise && isValidUUID(resolvedExercise.exerciseId)) {
+        return {
+          ...exercise,
+          exerciseId: resolvedExercise.exerciseId,
+          exerciseName: resolvedExercise.exerciseName,
+        };
+      }
+      return exercise;
+    });
+    return {
+      ...workout,
+      exercises,
+    };
+  });
+
+  return {
+    ...current,
+    workouts,
+  };
+};
+
+const hasInvalidDraftExercises = (draft: EditableProgramDraft): boolean =>
+  draft.workouts.some((workout) =>
+    workout.exercises.some((exercise) => !isValidUUID(exercise.exerciseId))
+  );
+
+const makeFriendlyClarification = (question: string | undefined, _intent: AIIntent): string => {
+  return question || 'Could you share a bit more detail so I can help?';
 };
 
 interface AIState {
@@ -132,8 +219,7 @@ interface AIState {
   clearSelectedImage: () => void;
 
   // Actions - Quick queries (shortcuts for common intents)
-  requestProgram: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
-  requestTemplate: (description: string, historyOnly?: boolean) => Promise<AIResponse>;
+  // Note: requestProgram and requestTemplate removed - only ANALYZE_HISTORY is active
 
   // Actions - Pending actions
   loadPendingActions: () => Promise<void>;
@@ -351,15 +437,6 @@ export const useAIStore = create<AIState>()(
       set({ selectedImage: null });
     },
 
-    // Quick query shortcuts
-    requestProgram: async (description, historyOnly) => {
-      return get().sendMessage('CREATE_PROGRAM', description, { historyOnly });
-    },
-
-    requestTemplate: async (description, historyOnly) => {
-      return get().sendMessage('CREATE_TEMPLATE', description, { historyOnly });
-    },
-
     // Pending actions
     loadPendingActions: async () => {
       // Check if Supabase is configured
@@ -445,15 +522,6 @@ export const useAIStore = create<AIState>()(
           // Refresh mutation history
           loadMutationHistory();
 
-          // Refresh programs store if this was a program/template creation
-          const intent = currentMutationPlan.intent;
-          if (
-            intent === 'CREATE_PROGRAM' ||
-            intent === 'CREATE_TEMPLATE'
-          ) {
-            useProgramsStore.getState().fetchPrograms({ force: true });
-          }
-
           return true;
         } else {
           set({
@@ -472,6 +540,19 @@ export const useAIStore = create<AIState>()(
     initEditableProgramDraft: (plan: AIMutationPlan) => {
       const draft = buildProgramDraftFromPlan(plan);
       set({ editableProgramDraft: draft });
+      if (!hasInvalidDraftExercises(draft)) return;
+      resolveDraftExerciseIds(draft).then((resolvedDraft) => {
+        set((state) => {
+          const currentDraft = state.editableProgramDraft;
+          if (!currentDraft) return {};
+          if (currentDraft.originalPlan.requestId !== draft.originalPlan.requestId) {
+            return {};
+          }
+          return {
+            editableProgramDraft: mergeResolvedDraft(currentDraft, resolvedDraft),
+          };
+        });
+      });
     },
 
     updateProgramDraft: (updates) => {
@@ -550,7 +631,10 @@ export const useAIStore = create<AIState>()(
           return false;
         }
 
-        const invalidExercise = editableProgramDraft.workouts
+        const resolvedDraft = await resolveDraftExerciseIds(editableProgramDraft);
+        set({ editableProgramDraft: resolvedDraft });
+
+        const invalidExercise = resolvedDraft.workouts
           .flatMap((workout) => workout.exercises)
           .find((exercise) => !isValidUUID(exercise.exerciseId));
         if (invalidExercise) {
@@ -561,7 +645,7 @@ export const useAIStore = create<AIState>()(
           return false;
         }
 
-        const newPlan = buildPlanFromProgramDraft(editableProgramDraft);
+        const newPlan = buildPlanFromProgramDraft(resolvedDraft);
         const result = await aiService.applyMutationPlan(newPlan);
         if (result.success) {
           const pendingToConfirm = get().pendingActions.filter(

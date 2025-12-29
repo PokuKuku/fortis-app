@@ -14,10 +14,7 @@
  * Write intents return mutation plans requiring confirmation
  * Read intents return answers without mutations
  */
-export type AIIntent =
-  | 'CREATE_PROGRAM'
-  | 'CREATE_TEMPLATE'
-  | 'ANALYZE_HISTORY';
+export type AIIntent = 'ANALYZE_HISTORY';
 
 /**
  * Intent configuration type
@@ -37,26 +34,6 @@ export interface IntentConfigEntry {
  * Intent metadata for context assembly
  */
 export const INTENT_CONFIG: Record<AIIntent, IntentConfigEntry> = {
-  CREATE_PROGRAM: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 100,
-  },
-  CREATE_TEMPLATE: {
-    type: 'write',
-    defaultContextWeeks: 12,
-    includeHistory: true,
-    includeNotes: true,
-    includeProgram: false,
-    includeExerciseDb: true,
-    includeAnalytics: true,
-    exerciseLimit: 50,
-  },
   ANALYZE_HISTORY: {
     type: 'read',
     defaultContextWeeks: 52,

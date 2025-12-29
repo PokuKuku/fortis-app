@@ -204,6 +204,13 @@ Use this section to track progress:
   - Intent inference now detects workout-list patterns (3x10, 4 sets, etc.)
   - Updated quick action prompts to show translator-style examples
   - Clarification only triggered when NO exercises can be matched
+[2025-12-29] Codex: Improve exercise phrase extraction for CREATE_TEMPLATE matching
+  - Treat set/rep patterns as separators to avoid cross-exercise phrase mixing
+  - Normalize common abbreviations (db/bb/kb) before matching
+  - Generate phrases per segment to improve exercise DB hits
+[2025-12-29] Codex: Resolve exercise IDs on draft init to clear invalid warnings
+  - Auto-resolve non-UUID exercise IDs as soon as the draft loads
+  - Merge resolved IDs without overwriting user edits
 ```
 
 ---

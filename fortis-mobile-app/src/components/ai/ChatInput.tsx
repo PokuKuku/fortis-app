@@ -61,9 +61,9 @@ interface ChatInputProps {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
-  onImageSelect: (image: SelectedImage) => void;
-  onImageClear: () => void;
-  selectedImage: SelectedImage | null;
+  onImageSelect?: (image: SelectedImage) => void;
+  onImageClear?: () => void;
+  selectedImage?: SelectedImage | null;
   disabled?: boolean;
   placeholder?: string;
 }
@@ -241,7 +241,7 @@ export function ChatInput({
   const sendScale = useSharedValue(1);
   const micPulse = useSharedValue(1);
 
-  const canSend = (value.trim().length > 0 || selectedImage) && !disabled;
+  const canSend = value.trim().length > 0 && !disabled;
 
   // Focus animation
   useEffect(() => {
@@ -296,6 +296,7 @@ export function ChatInput({
   };
 
   const handleImagePick = async () => {
+    if (!onImageSelect) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     Alert.alert('Add Image', 'Choose an image source', [
@@ -445,8 +446,8 @@ export function ChatInput({
 
   return (
     <View style={[styles.wrapper, themedStyles.wrapper]}>
-      {/* Floating Image Preview */}
-      {selectedImage && (
+      {/* Floating Image Preview - only show when image handling is enabled */}
+      {selectedImage && onImageClear && (
         <Animated.View
           entering={SlideInUp.duration(250).springify()}
           exiting={FadeOut.duration(150)}
@@ -484,21 +485,23 @@ export function ChatInput({
 
       {/* Main Input Container */}
       <Animated.View style={[styles.container, themedStyles.container, containerStyle]}>
-        {/* Camera Button */}
-        <TouchableOpacity
-          style={styles.iconButton}
-          onPress={handleImagePick}
-          disabled={disabled}
-          activeOpacity={0.7}
-          accessibilityLabel="Attach image"
-          accessibilityRole="button"
-          accessibilityHint="Choose from camera or photo library"
-        >
-          <CameraIcon
-            color={disabled ? colors.textTertiary : colors.textSecondary}
-            size={IconSizes.md}
-          />
-        </TouchableOpacity>
+        {/* Camera Button - only show when image handling is enabled */}
+        {onImageSelect && (
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={handleImagePick}
+            disabled={disabled}
+            activeOpacity={0.7}
+            accessibilityLabel="Attach image"
+            accessibilityRole="button"
+            accessibilityHint="Choose from camera or photo library"
+          >
+            <CameraIcon
+              color={disabled ? colors.textTertiary : colors.textSecondary}
+              size={IconSizes.md}
+            />
+          </TouchableOpacity>
+        )}
 
         {/* Voice Button */}
         <AnimatedTouchableOpacity
@@ -526,7 +529,7 @@ export function ChatInput({
         <TextInput
           ref={inputRef}
           style={[styles.input, themedStyles.input]}
-          placeholder={selectedImage ? 'Describe the workout (optional)...' : placeholder}
+          placeholder={placeholder}
           placeholderTextColor={colors.textTertiary}
           value={value}
           onChangeText={onChangeText}

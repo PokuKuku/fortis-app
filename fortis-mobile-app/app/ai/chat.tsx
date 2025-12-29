@@ -34,7 +34,7 @@ import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAIStore } from '@/src/store/aiStore';
-import { AIIntent, AIImageMimeType } from '@/src/types/ai';
+import { AIIntent } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
@@ -218,94 +218,17 @@ function AnimatedLoadingSparkles() {
   );
 }
 
-// Intent inference helper
-const inferIntentFromMessage = (
-  message: string,
-  hasImage: boolean
-): AIIntent | null => {
-  const text = message.toLowerCase().trim();
-
-  // Analysis detection - question patterns and analysis keywords
-  const isQuestion =
-    text.startsWith('what') ||
-    text.startsWith('how') ||
-    text.startsWith('when') ||
-    text.startsWith('why') ||
-    text.startsWith('which') ||
-    text.startsWith('show me') ||
-    text.startsWith('tell me') ||
-    text.endsWith('?');
-
-  const wantsAnalysis =
-    text.includes('analyze') ||
-    text.includes('analysis') ||
-    text.includes('progress') ||
-    text.includes('pr ') ||
-    text.includes('prs') ||
-    text.includes('personal record') ||
-    text.includes('stats') ||
-    text.includes('statistics') ||
-    text.includes('trend') ||
-    text.includes('weak') ||
-    text.includes('strong') ||
-    text.includes('volume') ||
-    text.includes('frequency') ||
-    text.includes('how many') ||
-    text.includes('how much') ||
-    text.includes('improve') ||
-    text.includes('gains');
-
-  const wantsProgram =
-    text.includes('program') ||
-    text.includes('split') ||
-    text.includes('routine') ||
-    text.includes('block') ||
-    text.includes('weeks');
-
-  const wantsTemplate =
-    text.includes('template') ||
-    text.includes('workout') ||
-    text.includes('session');
-
-  const wantsCreate =
-    text.includes('create') ||
-    text.includes('build') ||
-    text.includes('make') ||
-    text.includes('generate') ||
-    text.includes('design');
-
-  // Workout list pattern detection (e.g., "3x10", "4 sets", "squats, lunges, calf raises")
-  // These patterns indicate the user is providing a workout to translate
-  const hasWorkoutListPattern =
-    /\d+x\d+/.test(text) || // "3x10", "4x8"
-    /\d+\s*sets?/.test(text) || // "3 sets", "4 set"
-    /\d+\s*reps?/.test(text) || // "10 reps", "12 rep"
-    /\d+-\d+\s*reps?/.test(text) || // "8-12 reps"
-    (text.includes(',') && /[a-z]+\s+\d/.test(text)); // "squats 3x10, lunges 3x12"
-
-  // Image-based requests take priority for creation
-  if (hasImage && wantsProgram) return 'CREATE_PROGRAM';
-  if (hasImage && wantsTemplate) return 'CREATE_TEMPLATE';
-  if (hasImage) return null;
-
-  // Workout list patterns should trigger template creation
-  if (hasWorkoutListPattern) return 'CREATE_TEMPLATE';
-
-  // Analysis takes priority when asking questions (read intent)
-  if (wantsAnalysis || (isQuestion && !wantsCreate)) return 'ANALYZE_HISTORY';
-
-  // Creation intents
-  if (wantsProgram && wantsCreate) return 'CREATE_PROGRAM';
-  if (wantsTemplate && wantsCreate) return 'CREATE_TEMPLATE';
-
-  return null;
+// Intent inference helper - simplified to only support ANALYZE_HISTORY
+const inferIntentFromMessage = (message: string): AIIntent => {
+  // All messages use ANALYZE_HISTORY intent
+  // CREATE_PROGRAM and CREATE_TEMPLATE intents are temporarily disabled
+  return 'ANALYZE_HISTORY';
 };
 
 export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const [inputText, setInputText] = useState('');
-  const [selectedIntent, setSelectedIntent] = useState<AIIntent>('CREATE_TEMPLATE');
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -336,9 +259,6 @@ export default function AIChatScreen() {
   const loadConversation = useAIStore((state) => state.loadConversation);
   const loadMutationPlan = useAIStore((state) => state.loadMutationPlan);
   const loadPendingActions = useAIStore((state) => state.loadPendingActions);
-  const selectedImage = useAIStore((state) => state.selectedImage);
-  const setSelectedImage = useAIStore((state) => state.setSelectedImage);
-  const clearSelectedImage = useAIStore((state) => state.clearSelectedImage);
   const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
   const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
   const lastFailedMessage = useAIStore((state) => state.lastFailedMessage);
@@ -384,12 +304,15 @@ export default function AIChatScreen() {
       const randomIndex = Math.floor(Math.random() * LOADING_MESSAGES.length);
       setLoadingMessage(LOADING_MESSAGES[randomIndex]);
 
-      // Rotate to a new message every 5 seconds
+      // Pick a random new message every 5 seconds
       const interval = setInterval(() => {
         setLoadingMessage((prev) => {
-          const currentIndex = LOADING_MESSAGES.indexOf(prev);
-          const nextIndex = (currentIndex + 1) % LOADING_MESSAGES.length;
-          return LOADING_MESSAGES[nextIndex];
+          // Pick a random message that's different from the current one
+          let newIndex: number;
+          do {
+            newIndex = Math.floor(Math.random() * LOADING_MESSAGES.length);
+          } while (LOADING_MESSAGES[newIndex] === prev && LOADING_MESSAGES.length > 1);
+          return LOADING_MESSAGES[newIndex];
         });
       }, 5000);
 
@@ -405,9 +328,7 @@ export default function AIChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     clearConversation();
     clearError();
-    clearSelectedImage();
     setInputText('');
-    setSelectedIntent('CREATE_TEMPLATE');
     setStreamingMessageId(null);
     shouldAutoScrollRef.current = true;
     setTimeout(() => {
@@ -416,35 +337,21 @@ export default function AIChatScreen() {
   };
 
   const handleSend = async () => {
-    if ((!inputText.trim() && !selectedImage) || isSendingMessage) return;
+    if (!inputText.trim() || isSendingMessage) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const message =
-      inputText.trim() || (selectedImage ? 'Create a template from this image' : '');
-    const inferredIntent = inferIntentFromMessage(message, Boolean(selectedImage));
-    const intentToSend = inferredIntent || selectedIntent;
-
-    if (inferredIntent && inferredIntent !== selectedIntent) {
-      setSelectedIntent(inferredIntent);
-    }
+    const message = inputText.trim();
+    const intent = inferIntentFromMessage(message);
 
     setInputText('');
     setStreamingMessageId(null);
-    await sendMessage(intentToSend, message);
+    await sendMessage(intent, message);
   };
 
-  const handleQuickAction = (intent: AIIntent, prompt: string) => {
-    setSelectedIntent(intent);
+  const handleQuickAction = (_intent: AIIntent, prompt: string) => {
+    // Intent is always ANALYZE_HISTORY now, but we keep the parameter
+    // for interface compatibility with ChatEmptyState
     setInputText(prompt);
-  };
-
-  const handleImageSelect = (image: {
-    uri: string;
-    base64: string;
-    mimeType: AIImageMimeType;
-  }) => {
-    setSelectedImage(image);
-    setSelectedIntent('CREATE_TEMPLATE');
   };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -598,9 +505,6 @@ export default function AIChatScreen() {
           value={inputText}
           onChangeText={setInputText}
           onSend={handleSend}
-          onImageSelect={handleImageSelect}
-          onImageClear={clearSelectedImage}
-          selectedImage={selectedImage}
           disabled={isSendingMessage}
         />
       </KeyboardAvoidingView>

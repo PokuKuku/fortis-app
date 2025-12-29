@@ -4,6 +4,12 @@ import { getIntentLabel, isWriteIntent } from '@/src/services/aiService';
 const ALL_INTENTS: AIIntent[] = [
   'CREATE_PROGRAM',
   'CREATE_TEMPLATE',
+  'ANALYZE_HISTORY',
+];
+
+const WRITE_INTENTS: AIIntent[] = [
+  'CREATE_PROGRAM',
+  'CREATE_TEMPLATE',
 ];
 
 describe('AI intents', () => {
@@ -11,9 +17,14 @@ describe('AI intents', () => {
     expect(Object.keys(INTENT_CONFIG).sort()).toEqual([...ALL_INTENTS].sort());
   });
 
-  it('flags all intents as write intents', () => {
-    ALL_INTENTS.forEach((intent) => {
+  it('flags write intents correctly', () => {
+    WRITE_INTENTS.forEach((intent) => {
       expect(isWriteIntent(intent)).toBe(true);
+    });
+
+    const readIntents = ALL_INTENTS.filter((intent) => !WRITE_INTENTS.includes(intent));
+    readIntents.forEach((intent) => {
+      expect(isWriteIntent(intent)).toBe(false);
     });
   });
 

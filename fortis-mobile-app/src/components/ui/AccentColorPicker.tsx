@@ -24,13 +24,17 @@ interface AccentColorPickerProps {
 
 const COLOR_ORDER: AccentColorName[] = [
   'green',
-  'blue',
+  'lime',
   'purple',
   'teal',
   'orange',
   'pink',
   'amber',
   'rose',
+  'indigo',
+  'red',
+  'slate',
+  'cyan',
 ];
 
 export function AccentColorPicker({ visible, onClose }: AccentColorPickerProps) {

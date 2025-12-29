@@ -31,10 +31,8 @@ async function getAuthenticatedUserId(): Promise<string | null> {
   return user?.id ?? null;
 }
 
-const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {
-  CREATE_PROGRAM: 'create_program',
-  CREATE_TEMPLATE: 'create_template',
-};
+// Mapping removed - no write intents currently active
+const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {};
 
 const LOGGABLE_ENTITY_TYPES = new Set<string>([
   'workout_program',
@@ -128,26 +126,6 @@ export async function sendAIMessage(
 // ============================================
 // Intent-Specific Helpers
 // ============================================
-
-/**
- * Create a new workout program
- */
-export async function createProgram(
-  description: string,
-  historyOnly?: boolean
-): Promise<AIResponse> {
-  return sendAIMessage('CREATE_PROGRAM', description, { historyOnly });
-}
-
-/**
- * Create a single workout template
- */
-export async function createTemplate(
-  description: string,
-  historyOnly?: boolean
-): Promise<AIResponse> {
-  return sendAIMessage('CREATE_TEMPLATE', description, { historyOnly });
-}
 
 /**
  * Analyze user's lifting history
@@ -649,8 +627,6 @@ export function isWriteIntent(intent: AIIntent): boolean {
  */
 export function getIntentLabel(intent: AIIntent): string {
   const labels: Record<AIIntent, string> = {
-    CREATE_PROGRAM: 'Create Program',
-    CREATE_TEMPLATE: 'Create Template',
     ANALYZE_HISTORY: 'Analyze History',
   };
   return labels[intent];

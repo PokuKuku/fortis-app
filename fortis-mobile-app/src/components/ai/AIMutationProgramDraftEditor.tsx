@@ -53,8 +53,6 @@ export function AIMutationProgramDraftEditor({
   const { colors, isDark } = useTheme();
   const themedStyles = getThemedStyles(colors, isDark);
 
-  if (!editableProgramDraft) return null;
-
   const originalWorkoutById = useMemo(() => {
     const map = new Map<string, EditableProgramWorkout>();
     originalProgramDraft?.workouts.forEach((workout) => {
@@ -62,6 +60,8 @@ export function AIMutationProgramDraftEditor({
     });
     return map;
   }, [originalProgramDraft]);
+
+  if (!editableProgramDraft) return null;
 
   const getOriginalExercise = (workoutId: string, exerciseId: string) => {
     const workout = originalWorkoutById.get(workoutId);
