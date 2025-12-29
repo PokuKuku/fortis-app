@@ -227,6 +227,17 @@ export async function rejectPendingAction(
 export async function applyMutationPlan(
   plan: AIMutationPlan
 ): Promise<{ success: boolean; error?: string; appliedMutations?: string[] }> {
+  // Check if mutation plan has expired
+  if (plan.expiresAt) {
+    const expirationDate = new Date(plan.expiresAt);
+    if (expirationDate <= new Date()) {
+      return {
+        success: false,
+        error: 'This mutation plan has expired. Please generate a new one.',
+      };
+    }
+  }
+
   const appliedMutations: string[] = [];
   const userId = await getAuthenticatedUserId();
   const actionType = ACTION_TYPE_BY_INTENT[plan.intent];
@@ -391,20 +402,37 @@ async function applyMutation(
       if (!proposedState) {
         return { success: false, error: 'Missing proposed state for update' };
       }
-      const { error } = await supabase
+
+      // Build query with ownership check for entities with direct ownership
+      const ownershipColumn = getOwnershipColumn(mutation.entityType);
+      let query = supabase
         .from(tableName)
         .update(proposedState)
         .eq('id', mutation.entityId);
+
+      if (ownershipColumn && userId) {
+        query = query.eq(ownershipColumn, userId);
+      }
+
+      const { error } = await query;
 
       if (error) return { success: false, error: error.message };
       return { success: true, appliedState: proposedState };
     }
 
     case 'DELETE': {
-      const { error } = await supabase
+      // Build query with ownership check for entities with direct ownership
+      const ownershipCol = getOwnershipColumn(mutation.entityType);
+      let deleteQuery = supabase
         .from(tableName)
         .delete()
         .eq('id', mutation.entityId);
+
+      if (ownershipCol && userId) {
+        deleteQuery = deleteQuery.eq(ownershipCol, userId);
+      }
+
+      const { error } = await deleteQuery;
 
       if (error) return { success: false, error: error.message };
       return { success: true };
@@ -426,6 +454,25 @@ function entityTypeToTable(entityType: string): string {
     user_goal: 'user_goals',
   };
   return mapping[entityType] || entityType;
+}
+
+/**
+ * Returns the ownership column for entities with direct user ownership.
+ * Child entities (program_workout, program_exercise, workout_set) inherit
+ * ownership through their parent and rely on RLS policies for protection.
+ */
+function getOwnershipColumn(entityType: string): string | null {
+  const mapping: Record<string, string | null> = {
+    workout_program: 'created_by',
+    workout_session: 'user_id',
+    training_summary: 'user_id',
+    user_goal: 'user_id',
+    // Child entities - ownership verified through RLS on parent chain
+    program_workout: null,
+    program_exercise: null,
+    workout_set: null,
+  };
+  return mapping[entityType] ?? null;
 }
 
 // ============================================

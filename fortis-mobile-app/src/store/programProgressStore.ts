@@ -26,6 +26,7 @@ interface ProgramProgressState {
   trimCompletedDays: (programId: string, totalDays: number) => void;
   migrateProgramId: (fromProgramId: string, toProgramId: string) => void;
   getNextDayNumber: (programId: string, totalDays: number) => number;
+  resetStore: () => void;
 }
 
 const persistProgress = async (progressByProgram: Record<string, ProgramProgressEntry>) => {
@@ -217,5 +218,9 @@ export const useProgramProgressStore = create<ProgramProgressState>((set, get) =
       if (!completed.has(day)) return day;
     }
     return 1;
+  },
+
+  resetStore: () => {
+    set({ progressByProgram: {}, isLoaded: false });
   },
 }));

@@ -1,0 +1,62 @@
+# Root-level gitignore for Fortis monorepo
+
+# ===================
+# SECRETS & CREDENTIALS (CRITICAL)
+# ===================
+.mcp.json
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+*.mobileprovision
+
+# ===================
+# Dependencies
+# ===================
+node_modules/
+
+# ===================
+# Build outputs
+# ===================
+dist/
+build/
+.next/
+out/
+
+# ===================
+# IDE & Editor
+# ===================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===================
+# OS files
+# ===================
+.DS_Store
+Thumbs.db
+
+# ===================
+# Supabase
+# ===================
+supabase/.temp/
+supabase/.branches/
+
+# ===================
+# Debug & Logs
+# ===================
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# ===================
+# Test coverage
+# ===================
+coverage/
+.nyc_output/

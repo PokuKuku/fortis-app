@@ -25,18 +25,11 @@ import {
 import * as aiService from '../services/aiService';
 import * as ExerciseService from '../services/exerciseService';
 import { AI_CONVERSATION_KEY, AI_MUTATION_PLAN_KEY } from '../constants/storageKeys';
+import { analytics } from '../services/analyticsService';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { buildProgramDraftFromPlan, buildPlanFromProgramDraft } from '../utils/aiProgramDraft';
-
-// Simple UUID generator
-const generateId = (): string => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
+import { generateSecureUUID as generateId } from '../utils/uuid';
 
 const isValidUUID = (value: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -339,6 +332,12 @@ export const useAIStore = create<AIState>()(
         conversation: updatedConversation,
         isSendingMessage: true,
         error: null,
+      });
+
+      // Track AI message sent analytics
+      analytics.trackAIMessageSent({
+        intent,
+        hasImage: !!selectedImage,
       });
 
       // Prepare image for API if present

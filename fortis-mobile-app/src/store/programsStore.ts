@@ -25,6 +25,7 @@ import {
 } from '../types/workout';
 import { LOCAL_TEMPLATES_KEY } from '../constants/storageKeys';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../constants/programs';
+import { analytics } from '../services/analyticsService';
 
 interface ProgramsState {
   // Data
@@ -752,6 +753,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         console.warn('Background program sync failed:', err);
       });
 
+      // Track template created analytics
+      analytics.trackTemplateCreated({
+        exerciseCount: exercises.length,
+      });
+
       return localId;
     };
 
@@ -879,6 +885,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       // Refresh programs list to include the new template
       get().fetchPrograms({ force: true });
 
+      // Track template created analytics
+      analytics.trackTemplateCreated({
+        exerciseCount: exercises.length,
+      });
+
       return program.id;
     } catch (err) {
       set({
@@ -969,6 +980,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           });
       }
 
+      // Track program created analytics
+      analytics.trackProgramCreated({
+        workoutCount: programWorkouts.length,
+        weekCount: options?.durationWeeks ?? 1,
+      });
+
       return localId;
     };
 
@@ -1050,6 +1067,13 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       get().fetchPrograms({ force: true });
+
+      // Track program created analytics
+      analytics.trackProgramCreated({
+        workoutCount: templates.length,
+        weekCount: options?.durationWeeks ?? 1,
+      });
+
       return program.id;
     } catch (err) {
       set({

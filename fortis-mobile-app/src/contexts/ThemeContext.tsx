@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { THEME_MODE_KEY, ACCENT_COLOR_KEY } from '@/src/constants/storageKeys';
+import { analytics } from '@/src/services/analyticsService';
 import {
   type AccentColorName,
   type AccentThemeColors,
@@ -380,20 +381,30 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     setModeState(newMode);
     try {
       await AsyncStorage.setItem(THEME_MODE_KEY, newMode);
+      // Track theme changed analytics
+      analytics.trackThemeChanged({
+        mode: newMode,
+        accentColor: accentColor,
+      });
     } catch (error) {
       console.warn('Failed to save theme mode:', error);
     }
-  }, []);
+  }, [accentColor]);
 
   // Update accent color and persist
   const setAccentColor = useCallback(async (newColor: AccentColorName) => {
     setAccentColorState(newColor);
     try {
       await AsyncStorage.setItem(ACCENT_COLOR_KEY, newColor);
+      // Track theme changed analytics
+      analytics.trackThemeChanged({
+        mode: mode,
+        accentColor: newColor,
+      });
     } catch (error) {
       console.warn('Failed to save accent color:', error);
     }
-  }, []);
+  }, [mode]);
 
   const value: ThemeContextValue = useMemo(
     () => ({

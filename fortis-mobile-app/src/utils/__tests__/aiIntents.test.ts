@@ -1,15 +1,17 @@
 import { INTENT_CONFIG, AIIntent } from '@/src/types/ai';
 import { getIntentLabel, isWriteIntent } from '@/src/services/aiService';
 
+/**
+ * Current active intents.
+ * Note: CREATE_PROGRAM and CREATE_TEMPLATE were removed in favor of
+ * a simplified ANALYZE_HISTORY-only approach.
+ */
 const ALL_INTENTS: AIIntent[] = [
-  'CREATE_PROGRAM',
-  'CREATE_TEMPLATE',
   'ANALYZE_HISTORY',
 ];
 
 const WRITE_INTENTS: AIIntent[] = [
-  'CREATE_PROGRAM',
-  'CREATE_TEMPLATE',
+  // No write intents currently active
 ];
 
 describe('AI intents', () => {

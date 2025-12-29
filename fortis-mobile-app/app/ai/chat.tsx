@@ -34,6 +34,7 @@ import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAIStore } from '@/src/store/aiStore';
+import { useAnalytics } from '@/src/services/analyticsService';
 import { AIIntent } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
@@ -228,6 +229,7 @@ const inferIntentFromMessage = (message: string): AIIntent => {
 export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { trackAIChatOpened } = useAnalytics();
   const [inputText, setInputText] = useState('');
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
@@ -272,7 +274,8 @@ export default function AIChatScreen() {
     loadPendingActions();
     loadMutationPlan();
     checkRateLimits();
-  }, [loadConversation, loadPendingActions, loadMutationPlan, checkRateLimits]);
+    trackAIChatOpened();
+  }, [loadConversation, loadPendingActions, loadMutationPlan, checkRateLimits, trackAIChatOpened]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((animated = true) => {

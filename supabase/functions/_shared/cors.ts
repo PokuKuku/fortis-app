@@ -67,12 +67,26 @@ export function handleCors(req: Request): Response | null {
 
 /**
  * Create JSON response with CORS headers
+ *
+ * @param data - Response body data
+ * @param status - HTTP status code (default: 200)
+ * @param origin - Origin header from request (for CORS validation)
+ *                 Pass this for web requests; mobile apps can omit (uses wildcard)
  */
-export function jsonResponse(data: unknown, status = 200): Response {
+export function jsonResponse(
+  data: unknown,
+  status = 200,
+  origin?: string | null
+): Response {
+  // Use validated origin if provided, otherwise wildcard for mobile apps
+  const headers = origin !== undefined
+    ? getCorsHeaders(origin)
+    : corsHeaders;
+
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      ...corsHeaders,
+      ...headers,
       'Content-Type': 'application/json',
     },
   });
@@ -80,13 +94,21 @@ export function jsonResponse(data: unknown, status = 200): Response {
 
 /**
  * Create error response with CORS headers
+ *
+ * @param message - Error message
+ * @param code - Error code
+ * @param status - HTTP status code (default: 400)
+ * @param retryable - Whether the operation can be retried
+ * @param retryAfterSeconds - Seconds to wait before retry
+ * @param origin - Origin header from request (for CORS validation)
  */
 export function errorResponse(
   message: string,
   code: string,
   status = 400,
   retryable = false,
-  retryAfterSeconds?: number
+  retryAfterSeconds?: number,
+  origin?: string | null
 ): Response {
   return jsonResponse(
     {
@@ -98,6 +120,7 @@ export function errorResponse(
         ...(retryAfterSeconds && { retryAfterSeconds }),
       },
     },
-    status
+    status,
+    origin
   );
 }

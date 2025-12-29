@@ -8,6 +8,7 @@ import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesServic
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
+import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -446,6 +447,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         console.warn('Failed to clear user-scoped storage:', err);
       }
     }
+
+    // Reset all Zustand stores to clear in-memory user data
+    // This prevents data leakage if another user signs in
+    useWorkoutStore.getState().resetStore();
+    useProgramsStore.getState().resetStore();
+    useAIStore.getState().resetStore();
+    useProgramProgressStore.getState().resetStore();
+    useStartPresetStore.getState().resetStore();
 
     // Clear state immediately - UI updates right away
     setUser(null);

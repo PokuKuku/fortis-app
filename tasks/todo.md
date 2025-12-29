@@ -1,3 +1,71 @@
+# PostHog Analytics Event Tracking
+
+## Overview
+Add analytics tracking for key user events using the already-installed PostHog SDK.
+
+## Todo
+- [x] Create analyticsService.ts with typed event functions
+- [x] Track workout events (started, completed, sets logged, session duration)
+- [x] Track AI events (chat opened, message sent, content categories)
+- [x] Track template/program created events
+- [x] Track theme changed events
+
+## Events Tracked
+| Event | Location | Properties |
+|-------|----------|------------|
+| workout_started | workoutStore | source (blank/template/program), exerciseCount, templateId?, programId? |
+| workout_completed | workoutStore | durationSeconds, durationMinutes, setsCompleted, exerciseCount, source |
+| set_logged | workoutStore | exerciseName, hasWeight, hasReps, setNumber |
+| ai_chat_opened | chat.tsx | - |
+| ai_message_sent | aiStore | intent, hasImage |
+| template_created | programsStore | exerciseCount |
+| program_created | programsStore | workoutCount, weekCount |
+| theme_changed | ThemeContext | mode, accentColor |
+
+Note: "Return within 7 days" is a retention cohort calculated in PostHog dashboard, not a client-side event.
+
+## Review
+
+### Summary
+Implemented PostHog analytics tracking for 8 key user events across the Fortis mobile app. The architecture uses a centralized analytics service that can be used from both React components (via hook) and Zustand stores (via direct import).
+
+### Files Created
+1. **`fortis-mobile-app/src/services/analyticsService.ts`** (NEW)
+   - Typed event tracking functions for all 8 events
+   - `useAnalytics()` hook for component usage
+   - `analytics` object for store/service usage
+   - PostHog instance singleton pattern via `setPostHogInstance()`
+
+### Files Modified
+1. **`fortis-mobile-app/src/components/analytics/PostHogAuthSync.tsx`**
+   - Added `setPostHogInstance()` call to make PostHog available to the analytics service
+
+2. **`fortis-mobile-app/src/store/workoutStore.ts`**
+   - Added tracking for `workout_started` (3 sources: blank, template, program)
+   - Added tracking for `workout_completed` with duration, sets completed, exercise count
+   - Added tracking for `set_logged` when sets are completed (not uncompleted)
+
+3. **`fortis-mobile-app/src/store/aiStore.ts`**
+   - Added tracking for `ai_message_sent` with intent and image attachment status
+
+4. **`fortis-mobile-app/app/ai/chat.tsx`**
+   - Added tracking for `ai_chat_opened` on screen mount
+
+5. **`fortis-mobile-app/src/store/programsStore.ts`**
+   - Added tracking for `template_created` with exercise count
+   - Added tracking for `program_created` with workout count and week count
+
+6. **`fortis-mobile-app/src/contexts/ThemeContext.tsx`**
+   - Added tracking for `theme_changed` (both mode and accent color changes)
+
+### Architecture Notes
+- Analytics calls are no-op when PostHog is not configured (safe for dev/testing)
+- All event tracking is fire-and-forget (non-blocking)
+- Property names use `snake_case` per PostHog convention
+- Session duration is tracked in both seconds and minutes for flexibility
+
+---
+
 # Remove Read-Only AI Intents for V1
 
 ## Todo

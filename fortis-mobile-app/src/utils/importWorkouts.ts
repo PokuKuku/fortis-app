@@ -6,6 +6,7 @@
 import { getAllExercises, saveCustomExercise, isCustomExercise } from '@/src/services/exerciseService';
 import { Exercise } from '@/src/types/exercise';
 import { WorkoutSession, WorkoutExercise, WorkoutSet, SetType, RpeValue } from '@/src/types/workout';
+import { generateSecureUUID } from './uuid';
 
 export type ImportSource = 'strong' | 'generic';
 
@@ -64,14 +65,6 @@ const DEFAULT_EXERCISE: Omit<Exercise, 'id' | 'name'> = {
 
 const CUSTOM_EXERCISE_PREFIX = 'custom-';
 
-const generateId = (): string => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
-
 const hashString = (value: string): number => {
   let hash = 0;
   for (let i = 0; i < value.length; i += 1) {
@@ -88,7 +81,7 @@ const buildImportLocalId = (source: ImportSource, importId: string): string => {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
   if (!normalized) {
-    return `import-${source}-${generateId()}`;
+    return `import-${source}-${generateSecureUUID()}`;
   }
   const prefix = normalized.length > 48 ? normalized.slice(0, 48) : normalized;
   return `import-${source}-${prefix}-${hashString(importId)}`;
@@ -450,7 +443,7 @@ const buildExerciseResolver = async (): Promise<{
     if (cached) return cached;
 
     const customExercise: Exercise = {
-      id: `${CUSTOM_EXERCISE_PREFIX}${generateId()}`,
+      id: `${CUSTOM_EXERCISE_PREFIX}${generateSecureUUID()}`,
       name,
       ...DEFAULT_EXERCISE,
       equipment: equipment || DEFAULT_EXERCISE.equipment,
