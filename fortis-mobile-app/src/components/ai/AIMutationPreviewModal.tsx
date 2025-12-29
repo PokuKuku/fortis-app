@@ -302,8 +302,18 @@ export function AIMutationPreviewModal({
                 style={[styles.rejectButton, themedStyles.rejectButton]}
                 onPress={handleReject}
                 disabled={isApplyingMutation}
+                activeOpacity={0.7}
               >
-                <X color={colors.textSecondary} size={IconSizes.md} />
+                <View style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <X color={colors.textTertiary} size={14} strokeWidth={2.5} />
+                </View>
                 <Text style={[styles.rejectButtonText, themedStyles.rejectButtonText]}>Cancel</Text>
               </TouchableOpacity>
 
@@ -316,7 +326,9 @@ export function AIMutationPreviewModal({
                   <ActivityIndicator color={Colors.white} size="small" />
                 ) : (
                   <>
-                    <Check color={Colors.white} size={IconSizes.md} />
+                    <View style={styles.confirmButtonIcon}>
+                      <Check color={Colors.white} size={14} strokeWidth={3} />
+                    </View>
                     <Text style={styles.confirmButtonText}>
                       {confirmLabel}
                     </Text>

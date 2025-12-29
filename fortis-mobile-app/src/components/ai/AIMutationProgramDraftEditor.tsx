@@ -79,54 +79,60 @@ export function AIMutationProgramDraftEditor({
           style={[styles.metaInput, themedStyles.metaInput]}
           value={editableProgramDraft.name}
           onChangeText={(text) => onUpdateProgramDraft({ name: text })}
-          placeholder={editableProgramDraft.isTemplate ? 'Upper Body Template' : 'Strength Block'}
+          placeholder={editableProgramDraft.isTemplate ? 'Push Day' : 'Strength Block'}
           placeholderTextColor={colors.textTertiary}
         />
-        <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Description</Text>
-        <TextInput
-          style={[styles.metaInput, styles.metaTextarea, themedStyles.metaInput]}
-          value={editableProgramDraft.description || ''}
-          onChangeText={(text) => onUpdateProgramDraft({ description: text })}
-          placeholder="Short summary of the focus and intent"
-          placeholderTextColor={colors.textTertiary}
-          multiline
-        />
-        <View style={styles.metaRow}>
-          <View style={styles.metaField}>
-            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Difficulty</Text>
+
+        {/* Only show detailed metadata for programs, not templates */}
+        {!editableProgramDraft.isTemplate && (
+          <>
+            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Description</Text>
+            <TextInput
+              style={[styles.metaInput, styles.metaTextarea, themedStyles.metaInput]}
+              value={editableProgramDraft.description || ''}
+              onChangeText={(text) => onUpdateProgramDraft({ description: text })}
+              placeholder="Short summary of the focus and intent"
+              placeholderTextColor={colors.textTertiary}
+              multiline
+            />
+            <View style={styles.metaRow}>
+              <View style={styles.metaField}>
+                <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Difficulty</Text>
+                <TextInput
+                  style={[styles.metaInput, themedStyles.metaInput]}
+                  value={editableProgramDraft.difficulty}
+                  onChangeText={(text) => onUpdateProgramDraft({ difficulty: text })}
+                  placeholder="beginner | intermediate | advanced"
+                  placeholderTextColor={colors.textTertiary}
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={styles.metaField}>
+                <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Weeks</Text>
+                <TextInput
+                  style={[styles.metaInput, themedStyles.metaInput]}
+                  value={editableProgramDraft.durationWeeks ? String(editableProgramDraft.durationWeeks) : ''}
+                  onChangeText={(text) => {
+                    const weeks = parseInt(text, 10);
+                    onUpdateProgramDraft({ durationWeeks: Number.isNaN(weeks) ? undefined : weeks });
+                  }}
+                  placeholder="8"
+                  placeholderTextColor={colors.textTertiary}
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Goal</Text>
             <TextInput
               style={[styles.metaInput, themedStyles.metaInput]}
-              value={editableProgramDraft.difficulty}
-              onChangeText={(text) => onUpdateProgramDraft({ difficulty: text })}
-              placeholder="beginner | intermediate | advanced"
+              value={editableProgramDraft.goal || ''}
+              onChangeText={(text) => onUpdateProgramDraft({ goal: text })}
+              placeholder="strength | hypertrophy | powerlifting | general_fitness"
               placeholderTextColor={colors.textTertiary}
               autoCapitalize="none"
             />
-          </View>
-          <View style={styles.metaField}>
-            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Weeks</Text>
-            <TextInput
-              style={[styles.metaInput, themedStyles.metaInput]}
-              value={editableProgramDraft.durationWeeks ? String(editableProgramDraft.durationWeeks) : ''}
-              onChangeText={(text) => {
-                const weeks = parseInt(text, 10);
-                onUpdateProgramDraft({ durationWeeks: Number.isNaN(weeks) ? undefined : weeks });
-              }}
-              placeholder="8"
-              placeholderTextColor={colors.textTertiary}
-              keyboardType="number-pad"
-            />
-          </View>
-        </View>
-        <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Goal</Text>
-        <TextInput
-          style={[styles.metaInput, themedStyles.metaInput]}
-          value={editableProgramDraft.goal || ''}
-          onChangeText={(text) => onUpdateProgramDraft({ goal: text })}
-          placeholder="strength | hypertrophy | powerlifting | general_fitness"
-          placeholderTextColor={colors.textTertiary}
-          autoCapitalize="none"
-        />
+          </>
+        )}
       </View>
 
       {/* Workouts */}
@@ -142,26 +148,34 @@ export function AIMutationProgramDraftEditor({
             <View style={[styles.workoutHeaderContainer, themedStyles.workoutHeaderBg]}>
               <View style={styles.workoutHeader}>
                 <TextInput
-                  style={[styles.workoutNameInput, themedStyles.workoutNameInput]}
+                  style={[
+                    styles.workoutNameInput,
+                    themedStyles.workoutNameInput,
+                    // Full width when Day input is hidden
+                    (editableProgramDraft.isTemplate || editableProgramDraft.workouts.length === 1) && { flex: 1 }
+                  ]}
                   value={workout.name}
                   onChangeText={(text) => onUpdateProgramWorkout(workout.id, { name: text })}
                   placeholder="Workout name"
                   placeholderTextColor={colors.textTertiary}
                 />
-                <View style={styles.workoutDayContainer}>
-                  <Text style={[styles.workoutDayLabel, themedStyles.workoutDayLabel]}>Day</Text>
-                  <TextInput
-                    style={[styles.workoutDayInput, themedStyles.workoutDayInput]}
-                    value={String(workout.dayNumber)}
-                    onChangeText={(text) => {
-                      const dayNumber = parseInt(text, 10);
-                      onUpdateProgramWorkout(workout.id, {
-                        dayNumber: Number.isNaN(dayNumber) ? workout.dayNumber : dayNumber,
-                      });
-                    }}
-                    keyboardType="number-pad"
-                  />
-                </View>
+                {/* Only show Day input for multi-day programs (not templates or single-workout drafts) */}
+                {!editableProgramDraft.isTemplate && editableProgramDraft.workouts.length > 1 && (
+                  <View style={styles.workoutDayContainer}>
+                    <Text style={[styles.workoutDayLabel, themedStyles.workoutDayLabel]}>Day</Text>
+                    <TextInput
+                      style={[styles.workoutDayInput, themedStyles.workoutDayInput]}
+                      value={String(workout.dayNumber)}
+                      onChangeText={(text) => {
+                        const dayNumber = parseInt(text, 10);
+                        onUpdateProgramWorkout(workout.id, {
+                          dayNumber: Number.isNaN(dayNumber) ? workout.dayNumber : dayNumber,
+                        });
+                      }}
+                      keyboardType="number-pad"
+                    />
+                  </View>
+                )}
               </View>
               {originalWorkout && originalWorkout.name !== workout.name && (
                 <Text style={[styles.diffHint, themedStyles.diffHint]}>Changed from: {originalWorkout.name}</Text>

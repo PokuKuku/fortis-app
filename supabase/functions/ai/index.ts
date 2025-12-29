@@ -74,7 +74,7 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeProgram: false,
     includeExerciseDb: true,
     includeAnalytics: true,
-    exerciseLimit: 50,
+    exerciseLimit: 100, // Increased to ensure common exercises are available
   },
   ANALYZE_HISTORY: {
     type: 'read',
@@ -328,6 +328,112 @@ function getUnknownExerciseIds(plan: { mutations?: Array<{ entityType?: string; 
       .filter((id): id is string => typeof id === 'string')
   );
   return collectExerciseIdsFromPlan(plan).filter((id) => !availableIds.has(id));
+}
+
+// Auto-correct invalid exercise IDs by matching against exercise names
+// This handles cases where the AI outputs exercise names instead of UUIDs
+function correctExerciseIds(
+  plan: { mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }> },
+  availableExercises?: unknown[]
+): void {
+  console.log('[correctExerciseIds] Called with', availableExercises?.length ?? 0, 'exercises');
+
+  if (!Array.isArray(availableExercises) || availableExercises.length === 0) {
+    console.log('[correctExerciseIds] No exercises available, skipping correction');
+    return;
+  }
+  if (!Array.isArray(plan?.mutations)) {
+    console.log('[correctExerciseIds] No mutations in plan, skipping');
+    return;
+  }
+
+  // Build lookup maps for exercises
+  const exerciseById = new Map<string, { id: string; name: string }>();
+  const exerciseByNameLower = new Map<string, { id: string; name: string }>();
+
+  for (const ex of availableExercises) {
+    if (ex && typeof ex === 'object') {
+      const exercise = ex as { id?: string; name?: string };
+      if (exercise.id && exercise.name) {
+        exerciseById.set(exercise.id, { id: exercise.id, name: exercise.name });
+        exerciseByNameLower.set(exercise.name.toLowerCase(), { id: exercise.id, name: exercise.name });
+      }
+    }
+  }
+
+  console.log('[correctExerciseIds] Built lookup with', exerciseByNameLower.size, 'exercises');
+
+  // Correct any invalid exercise IDs in mutations
+  for (const mutation of plan.mutations) {
+    if (mutation?.entityType === 'program_exercise' && mutation.proposedState) {
+      const exerciseId = mutation.proposedState.exercise_id;
+      console.log('[correctExerciseIds] Checking exercise_id:', exerciseId);
+
+      if (typeof exerciseId === 'string') {
+        // If it's already a valid UUID that exists, keep it
+        if (isValidUuid(exerciseId) && exerciseById.has(exerciseId)) {
+          console.log('[correctExerciseIds] Valid UUID, keeping:', exerciseId);
+          continue;
+        }
+
+        // Try to match by name (case-insensitive)
+        const lowerName = exerciseId.toLowerCase();
+        const matchByName = exerciseByNameLower.get(lowerName);
+        if (matchByName) {
+          console.log('[correctExerciseIds] Exact name match:', exerciseId, '->', matchByName.id);
+          mutation.proposedState.exercise_id = matchByName.id;
+          continue;
+        }
+
+        // Try word-level fuzzy matching
+        // Split both the input and exercise names into words and count matches
+        const inputWords = lowerName.split(/\s+/).filter((w) => w.length >= 3);
+        let bestMatch: { exercise: { id: string; name: string }; score: number } | null = null;
+
+        for (const [name, exercise] of exerciseByNameLower) {
+          const exerciseWords = name.split(/\s+/).filter((w) => w.length >= 3);
+
+          // Count matching words (including partial word matches)
+          let matchingWords = 0;
+          for (const inputWord of inputWords) {
+            for (const exerciseWord of exerciseWords) {
+              if (
+                inputWord === exerciseWord ||
+                inputWord.includes(exerciseWord) ||
+                exerciseWord.includes(inputWord)
+              ) {
+                matchingWords++;
+                break; // Count each input word only once
+              }
+            }
+          }
+
+          // Calculate match score (percentage of input words that matched)
+          const score = inputWords.length > 0 ? matchingWords / inputWords.length : 0;
+
+          // Require at least 2 matching words and 50% match rate
+          if (matchingWords >= 2 && score >= 0.5) {
+            if (!bestMatch || score > bestMatch.score) {
+              bestMatch = { exercise, score };
+            }
+          }
+        }
+
+        if (bestMatch) {
+          console.log(
+            '[correctExerciseIds] Fuzzy match:',
+            exerciseId,
+            '->',
+            bestMatch.exercise.id,
+            `(${bestMatch.exercise.name}, score: ${bestMatch.score.toFixed(2)})`
+          );
+          mutation.proposedState.exercise_id = bestMatch.exercise.id;
+        } else {
+          console.log('[correctExerciseIds] NO MATCH FOUND for:', exerciseId);
+        }
+      }
+    }
+  }
 }
 
 async function persistPendingActions(params: {
@@ -1026,21 +1132,37 @@ async function fetchExerciseSubset(
   historyOnly: boolean,
   specificExerciseId?: string | string[]
 ): Promise<unknown[]> {
+  // Dedupe by exercise ID
+  const seen = new Set<string>();
+  const exercises: unknown[] = [];
+
+  // First, fetch any specifically requested exercises (matched from user's message)
   if (Array.isArray(specificExerciseId) && specificExerciseId.length > 0) {
     const { data } = await supabase
       .from('exercises')
       .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
       .in('id', specificExerciseId);
-    return data || [];
-  }
-
-  if (typeof specificExerciseId === 'string') {
+    data?.forEach((ex) => {
+      if (!seen.has(ex.id)) {
+        seen.add(ex.id);
+        exercises.push(ex);
+      }
+    });
+  } else if (typeof specificExerciseId === 'string') {
     const { data } = await supabase
       .from('exercises')
       .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
       .eq('id', specificExerciseId)
       .single();
-    return data ? [data] : [];
+    if (data && !seen.has(data.id)) {
+      seen.add(data.id);
+      exercises.push(data);
+    }
+  }
+
+  // If we have enough from specific IDs and historyOnly is true, return early
+  if (historyOnly && exercises.length >= limit) {
+    return exercises.slice(0, limit);
   }
 
   // Fetch user's session IDs first
@@ -1065,10 +1187,7 @@ async function fetchExerciseSubset(
     userExercises = data;
   }
 
-  // Dedupe by exercise ID
-  const seen = new Set<string>();
-  const exercises: unknown[] = [];
-
+  // Add user's historical exercises
   userExercises?.forEach((ws) => {
     if (ws.exercises && !seen.has(ws.exercises.id)) {
       seen.add(ws.exercises.id);
@@ -1215,7 +1334,7 @@ async function callAIProvider(
       ? await callOpenAIText(request, systemPrompt, userMessage)
       : await callClaudeText(request, systemPrompt, userMessage);
 
-  return parseModelResponse(responseText, request.intent, config, requestId);
+  return parseModelResponse(responseText, request.intent, config, requestId, context.exerciseDb);
 }
 
 async function callClaudeText(
@@ -1361,7 +1480,8 @@ CORE PRINCIPLES:
 - Be a helpful data analyst. Surface patterns, trends, and evidence-backed insights.
 - Never invent data. Use only the provided context.
 - If evidence is weak or missing, say so explicitly and explain why. Do not hedge when evidence is strong.
-- Ask clarifying questions when details are required to create safe drafts (except CREATE_TEMPLATE in translator mode).
+- Ask clarifying questions when the user's request is vague (e.g., "make a legs workout" with no specific exercises listed).
+- For CREATE_TEMPLATE: Only translate what the user explicitly provides. Do not add exercises they didn't mention.
 - When a user asks to create or log a workout/program, respond with a draft (mutation plan) instead of saying you cannot.
 - When suggesting exercises the user hasn't done before, explain why and provide brief form cues.
 - Be concise but thorough. Prioritize actionable information.
@@ -1401,22 +1521,20 @@ RULES:
     intent === 'CREATE_TEMPLATE'
       ? `
 TRANSLATOR MODE (CREATE_TEMPLATE):
-You are a TRANSLATOR, not a questioner. Your job is to convert the user's workout description into a template immediately.
+You are a STRICT TRANSLATOR. Convert the user's workout description into a template JSON immediately.
 
-1. **Parse the input**: Extract exercise names, sets, reps, and rest periods from text or image.
-2. **Match exercises**: Fuzzy-match exercise names to the AVAILABLE EXERCISES list. Use your best judgment for common variations (e.g., "squats" → "Barbell Squat", "bench" → "Barbell Bench Press").
-3. **Use sensible defaults** when not specified:
-   - Sets: 3
-   - Reps: "8-12"
-   - Rest: 60 seconds
-   - Difficulty: "intermediate"
-   - Template name: Derive from exercises (e.g., "Leg Day", "Push Workout", "Full Body")
-4. **NEVER ask clarification questions**. Just create the template with your best interpretation.
-5. **For vague requests** like "create a legs workout" or "make me a push day":
-   - Generate a complete, opinionated template using common exercises
-   - Pick 4-6 exercises that fit the theme
-   - Use your training knowledge to create a balanced workout
-6. **Only return clarification** if you literally cannot identify ANY exercises (e.g., "asdfgh jkl").
+RULES:
+1. **If the user mentions ANY exercise name** (e.g., "bench", "squats", "incline dumbbell bench"), create a template immediately with ONLY those exercises.
+2. **Parse the input**: Extract exercise names, sets, reps, and rest periods from text or image.
+3. **Match exercises**: Fuzzy-match exercise names to the AVAILABLE EXERCISES list.
+4. **Use minimal defaults** for missing details:
+   - Sets: 3 (if not specified)
+   - Reps: "8-12" (if not specified)
+   - Rest: 60 seconds (if not specified)
+5. **NEVER add exercises** the user didn't mention. If they say "bench 3x10", output ONLY bench press.
+6. **ONLY ask for clarification** if the user provides NO exercise names at all (e.g., "make me a workout").
+
+ALWAYS respond with valid JSON in the mutation_plan format. Never respond with plain text.
 
 `
       : '';
@@ -1546,7 +1664,8 @@ function parseModelResponse(
   text: string,
   intent: AIIntent,
   config: IntentConfig,
-  requestId: string
+  requestId: string,
+  exerciseDb?: unknown[]
 ): unknown {
   try {
     // Try to extract JSON from response (Claude sometimes wraps in markdown)
@@ -1578,6 +1697,12 @@ function parseModelResponse(
         return buildModelError(requestId, 'Mutation plan not allowed for read intent');
       }
 
+      // Auto-correct any exercise IDs that are names instead of UUIDs
+      // This handles cases where the AI outputs exercise names instead of copying the id
+      if (parsed.mutationPlan) {
+        correctExerciseIds(parsed.mutationPlan, exerciseDb);
+      }
+
       const validationError = validateMutationPlan(intent, parsed.mutationPlan);
       if (validationError) {
         return buildModelError(requestId, validationError);
@@ -1596,7 +1721,11 @@ function parseModelResponse(
     }
 
     return buildModelError(requestId, 'Unsupported AI response type');
-  } catch {
+  } catch (parseError) {
+    console.log('[parseModelResponse] JSON parse failed, raw text:', text.substring(0, 500));
+    console.log('[parseModelResponse] Parse error:', parseError);
+
+    // For read intents, return as plain text answer
     if (config.type === 'read') {
       return {
         type: 'answer',
@@ -1604,6 +1733,21 @@ function parseModelResponse(
         answer: {
           text: text,
           citations: [],
+        },
+      };
+    }
+
+    // For write intents, if the AI returned plain text (not JSON), treat it as a clarification
+    // This handles cases where the AI asks for more details instead of creating a template
+    const trimmedText = text.trim();
+    if (trimmedText.length > 0 && !trimmedText.startsWith('{') && !trimmedText.startsWith('```')) {
+      console.log('[parseModelResponse] Treating as clarification response');
+      return {
+        type: 'clarification',
+        requestId,
+        clarification: {
+          question: trimmedText,
+          options: [],
         },
       };
     }

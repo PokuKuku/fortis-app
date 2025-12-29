@@ -275,7 +275,7 @@ export function ChatMessage({
               accessibilityHint="Review and edit before saving"
               accessibilityRole="button"
             >
-              <PencilIcon color={colors.textPrimary} size={IconSizes.sm} />
+              <PencilIcon color={colors.textPrimary} size={14} />
               <Text style={[styles.customizeButtonText, themedStyles.customizeButtonText]}>Customize</Text>
             </TouchableOpacity>
             <GlassButton
@@ -287,8 +287,10 @@ export function ChatMessage({
               accessibilityLabel="Save workout"
               accessibilityRole="button"
             >
-              <CheckIcon color={Colors.white} size={IconSizes.sm} />
-              <Text style={styles.saveButtonText}>Save</Text>
+              <View style={styles.saveButtonContent}>
+                <CheckIcon color={Colors.white} size={14} strokeWidth={2.5} />
+                <Text style={styles.saveButtonText}>Save</Text>
+              </View>
             </GlassButton>
           </View>
         )}
@@ -381,9 +383,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+    height: 38,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
@@ -393,12 +395,14 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   saveButton: {
+    height: 38,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  saveButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    height: 36,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
   },
   saveButtonText: {
     ...Typography.bodySmall,

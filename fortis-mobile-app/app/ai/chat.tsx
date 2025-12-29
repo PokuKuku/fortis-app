@@ -124,7 +124,6 @@ const LOADING_MESSAGES = [
   // Recovery & rest
   "Taking a calculated rest...",
   "Recovering between sets...",
-  "Stretching the neurons...",
 
   // Funny/absurd
   "Asking the gym shark for advice...",
@@ -378,11 +377,23 @@ export default function AIChatScreen() {
     }
   }, [messages, streamingMessageId]);
 
-  // Select random loading message when AI starts responding
+  // Cycle through loading messages every 5 seconds while AI is responding
   useEffect(() => {
     if (isSendingMessage) {
+      // Set initial message immediately
       const randomIndex = Math.floor(Math.random() * LOADING_MESSAGES.length);
       setLoadingMessage(LOADING_MESSAGES[randomIndex]);
+
+      // Rotate to a new message every 5 seconds
+      const interval = setInterval(() => {
+        setLoadingMessage((prev) => {
+          const currentIndex = LOADING_MESSAGES.indexOf(prev);
+          const nextIndex = (currentIndex + 1) % LOADING_MESSAGES.length;
+          return LOADING_MESSAGES[nextIndex];
+        });
+      }, 5000);
+
+      return () => clearInterval(interval);
     }
   }, [isSendingMessage]);
 
