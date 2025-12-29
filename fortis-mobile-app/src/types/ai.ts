@@ -14,7 +14,8 @@
  * Write intents return mutation plans requiring confirmation
  * Read intents return answers without mutations
  */
-export type AIIntent = 'ANALYZE_HISTORY';
+export const ALL_INTENTS = ['ANALYZE_HISTORY'] as const;
+export type AIIntent = typeof ALL_INTENTS[number];
 
 /**
  * Intent configuration type

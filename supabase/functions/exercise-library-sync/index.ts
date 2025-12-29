@@ -259,20 +259,21 @@ function requireSecret(req: Request): string | null {
 Deno.serve(async (req) => {
   const corsResponse = handleCors(req);
   if (corsResponse) return corsResponse;
+  const origin = req.headers.get('origin');
 
   if (req.method !== 'POST') {
-    return errorResponse('Method not allowed', 'method_not_allowed', 405);
+    return errorResponse('Method not allowed', 'method_not_allowed', 405, false, undefined, origin);
   }
 
   const secretError = requireSecret(req);
   if (secretError) {
-    return errorResponse(secretError, 'unauthorized', 401);
+    return errorResponse(secretError, 'unauthorized', 401, false, undefined, origin);
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceKey) {
-    return errorResponse('Supabase service configuration missing', 'config_error', 500);
+    return errorResponse('Supabase service configuration missing', 'config_error', 500, false, undefined, origin);
   }
 
   const supabase = createClient(supabaseUrl, serviceKey, {
@@ -325,9 +326,9 @@ Deno.serve(async (req) => {
       status: 'ok',
       imported: normalizedExercises.length,
       pruned,
-    });
+    }, 200, origin);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
-    return errorResponse(message, 'sync_failed', 500);
+    return errorResponse(message, 'sync_failed', 500, false, undefined, origin);
   }
 });

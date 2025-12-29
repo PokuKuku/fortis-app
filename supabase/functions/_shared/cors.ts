@@ -42,17 +42,10 @@ export function getCorsHeaders(origin: string | null): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Vary': 'Origin',
   };
 }
-
-// Legacy export for backwards compatibility (uses permissive origin for mobile apps)
-// Mobile apps don't send Origin headers, so this is safe for mobile-only endpoints
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
 
 /**
  * Handle CORS preflight request with origin validation
@@ -78,10 +71,7 @@ export function jsonResponse(
   status = 200,
   origin?: string | null
 ): Response {
-  // Use validated origin if provided, otherwise wildcard for mobile apps
-  const headers = origin !== undefined
-    ? getCorsHeaders(origin)
-    : corsHeaders;
+  const headers = getCorsHeaders(origin ?? null);
 
   return new Response(JSON.stringify(data), {
     status,

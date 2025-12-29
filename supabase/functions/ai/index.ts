@@ -677,7 +677,7 @@ Deno.serve(async (req: Request) => {
           requestId,
           clarification: {
             question:
-              'I couldn't match a few exercises to your database. Can you pick replacements from your exercise list?',
+              "I couldn't match a few exercises to your database. Can you pick replacements from your exercise list?",
           },
         }, 200, origin);
       }
@@ -688,7 +688,7 @@ Deno.serve(async (req: Request) => {
           requestId,
           clarification: {
             question:
-              'I couldn't match a few exercises to your database. Can you pick replacements from your exercise list?',
+              "I couldn't match a few exercises to your database. Can you pick replacements from your exercise list?",
           },
         }, 200, origin);
       }
@@ -785,7 +785,7 @@ function validateRequest(body: unknown): string | null {
     return 'Request body must be a JSON object';
   }
 
-  const { intent, message, image } = body as Record<string, unknown>;
+  const { intent, message, image, context } = body as Record<string, unknown>;
 
   if (!intent || typeof intent !== 'string') {
     return 'Missing or invalid intent';
@@ -805,6 +805,31 @@ function validateRequest(body: unknown): string | null {
 
   if (message.length > 2000) {
     return 'Message must be less than 2000 characters';
+  }
+
+  if (context !== undefined) {
+    if (!context || typeof context !== 'object' || Array.isArray(context)) {
+      return 'Context must be an object';
+    }
+
+    const ctx = context as Record<string, unknown>;
+    if (ctx.exerciseId && !isValidUuid(ctx.exerciseId)) {
+      return 'Invalid exerciseId format';
+    }
+    if (ctx.programId && !isValidUuid(ctx.programId)) {
+      return 'Invalid programId format';
+    }
+    if (ctx.templateId && !isValidUuid(ctx.templateId)) {
+      return 'Invalid templateId format';
+    }
+    if (ctx.periodWeeks !== undefined) {
+      if (!Number.isInteger(ctx.periodWeeks) || ctx.periodWeeks < 1 || ctx.periodWeeks > 104) {
+        return 'periodWeeks must be between 1 and 104';
+      }
+    }
+    if (ctx.historyOnly !== undefined && typeof ctx.historyOnly !== 'boolean') {
+      return 'historyOnly must be a boolean';
+    }
   }
 
   // Validate image if present

@@ -32,21 +32,28 @@ function useAnimatedCounter(end: number, duration: number = 1200, delay: number 
   const [count, setCount] = useState(0);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
     const timeout = setTimeout(() => {
       let start = 0;
       const increment = end / (duration / 16);
-      const timer = setInterval(() => {
+      timer = setInterval(() => {
         start += increment;
         if (start >= end) {
           setCount(end);
-          clearInterval(timer);
+          if (timer) {
+            clearInterval(timer);
+          }
         } else {
           setCount(Math.floor(start));
         }
       }, 16);
-      return () => clearInterval(timer);
     }, delay);
-    return () => clearTimeout(timeout);
+    return () => {
+      clearTimeout(timeout);
+      if (timer) {
+        clearInterval(timer);
+      }
+    };
   }, [end, duration, delay]);
 
   return count;
