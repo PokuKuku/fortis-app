@@ -10,7 +10,7 @@ This file serves as a shared reference for Claude Code and Codex working on the 
 
 Build two AI capabilities for the Fortis mobile app:
 
-1. **Create Workout Templates** - User describes a workout, AI creates it and saves to their templates
+1. **Create Workout Templates** - User provides a workout (text or image), AI translates it to database format
 2. **Analyze Lifting History** - Full analytics: PRs, volume trends, frequency, weak points, progress over time
 
 ---
@@ -35,10 +35,8 @@ Build two AI capabilities for the Fortis mobile app:
 
 | Issue | Details |
 |-------|---------|
-| Only 2 intents | `CREATE_PROGRAM` and `CREATE_TEMPLATE` exist; no read-only query intent |
 | No streaming | Responses arrive complete, no token-by-token display |
-| `intentGuidance` empty | System prompt doesn't vary by intent type |
-| Analytics context | `fetchAnalytics()` exists but may have error handling gaps |
+| Analytics QA | Validate ANALYZE_HISTORY responses against real data |
 
 ---
 
@@ -122,10 +120,10 @@ type AIResponseType = 'answer' | 'mutation_plan' | 'error' | 'clarification'
 
 | Task | Status | Files |
 |------|--------|-------|
-| Add ANALYZE_HISTORY read intent to edge function | ⬜ Pending | `supabase/functions/ai/index.ts` |
-| Update buildSystemPrompt() for read vs write intents | ⬜ Pending | `supabase/functions/ai/index.ts` |
-| Ensure parseModelResponse supports read responses | ⬜ Pending | `supabase/functions/ai/index.ts` |
-| Fix fetchAnalytics() error handling | ⬜ Pending | `supabase/functions/ai/index.ts` |
+| Add ANALYZE_HISTORY read intent to edge function | ✅ Complete | `supabase/functions/ai/index.ts` |
+| Update buildSystemPrompt() for read vs write intents | ✅ Complete | `supabase/functions/ai/index.ts` |
+| Ensure parseModelResponse supports read responses | ✅ Complete | `supabase/functions/ai/index.ts` |
+| Fix fetchAnalytics() error handling | ✅ Complete | `supabase/functions/ai/index.ts` |
 | Test edge function | ⬜ Pending | Manual testing |
 
 ---
@@ -148,6 +146,38 @@ For queries that don't create mutations:
 - Context assembly should include rich analytics data
 - No DB migration required for read-only intents
 
+### CREATE_TEMPLATE Translator Approach (v2)
+
+**Background:** The original "generator" approach had the AI asking clarification questions ("What equipment?", "What goal?") before creating a workout. This created a poor UX with multiple back-and-forth messages.
+
+**New Approach:** CREATE_TEMPLATE now operates as a **translator**:
+
+```
+User Input                          →  AI Output
+─────────────────────────────────────────────────────────
+"Squats 3x10, Lunges 3x12"          →  Template with 2 exercises
+[Photo of workout plan]              →  Template extracted from image
+"Create a push day"                  →  Opinionated template (4-6 exercises)
+"asdfghjkl" (gibberish)              →  Clarification (only case)
+```
+
+**Key Principles:**
+1. **Never ask clarification questions** - just create the template
+2. **Use sensible defaults**: 3 sets, "8-12" reps, 60s rest, "intermediate" difficulty
+3. **Fuzzy-match exercises** to the available exercise database
+4. **Be opinionated** for vague requests - pick common exercises that fit the theme
+5. **Only clarify** if literally NO exercises can be identified
+
+**Intent Inference:**
+- Workout list patterns (`3x10`, `4 sets`, `10 reps`) auto-trigger CREATE_TEMPLATE
+- Images with CREATE_TEMPLATE intent use translator mode
+- User can still explicitly say "create a workout" for vague requests
+
+**Files Changed:**
+- `supabase/functions/ai/index.ts` - System prompt with translator instructions
+- `app/ai/chat.tsx` - Intent inference for workout patterns
+- `src/components/ai/ChatEmptyState.tsx` - Updated quick action prompts
+
 ---
 
 ## Status Updates
@@ -164,13 +194,23 @@ Use this section to track progress:
   - Added analyzeHistory() helper function
   - Cleaned up dead code (deprecated functions, unused styles)
   - Ready for backend integration testing
+[2025-12-28] Codex: Backend implementation complete
+  - Added ANALYZE_HISTORY read intent + prompt format for answers
+  - Hardened analytics fetching with safe fallbacks
+[2025-12-28] Claude Code: CREATE_TEMPLATE translator refactor
+  - Changed from "generator" (asks questions) to "translator" (immediate creation)
+  - Updated system prompt with TRANSLATOR MODE instructions
+  - AI now uses sensible defaults and never asks clarification questions
+  - Intent inference now detects workout-list patterns (3x10, 4 sets, etc.)
+  - Updated quick action prompts to show translator-style examples
+  - Clarification only triggered when NO exercises can be matched
 ```
 
 ---
 
 ## Questions to Resolve
 
-1. Final intent name for analysis (`ANALYZE_HISTORY` vs `ASK_TRAINING`)?
-2. Should analysis live only in AI chat, or also be surfaced in History?
+1. Intent name finalized as `ANALYZE_HISTORY`
+2. Should analysis live only in AI chat, or also be surfaced in History? (Decision: chat-only for v1)
 3. Should analysis summaries be saved (e.g., `training_summaries`) or remain chat-only?
 4. Any rate limit changes needed for the new intent?

@@ -42,8 +42,8 @@ const QUICK_ACTIONS: QuickAction[] = [
     intent: 'CREATE_TEMPLATE',
     icon: DumbbellIcon,
     label: 'Build a Workout',
-    description: 'Custom session',
-    prompt: 'Design me a killer push day',
+    description: 'Type or paste',
+    prompt: 'Create a push day: Bench press 4x8, Incline DB press 3x10, Tricep pushdowns 3x12, Overhead press 3x8',
   },
   {
     intent: 'ANALYZE_HISTORY',

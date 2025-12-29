@@ -157,10 +157,22 @@ const inferIntentFromMessage = (
     text.includes('generate') ||
     text.includes('design');
 
+  // Workout list pattern detection (e.g., "3x10", "4 sets", "squats, lunges, calf raises")
+  // These patterns indicate the user is providing a workout to translate
+  const hasWorkoutListPattern =
+    /\d+x\d+/.test(text) || // "3x10", "4x8"
+    /\d+\s*sets?/.test(text) || // "3 sets", "4 set"
+    /\d+\s*reps?/.test(text) || // "10 reps", "12 rep"
+    /\d+-\d+\s*reps?/.test(text) || // "8-12 reps"
+    (text.includes(',') && /[a-z]+\s+\d/.test(text)); // "squats 3x10, lunges 3x12"
+
   // Image-based requests take priority for creation
   if (hasImage && wantsProgram) return 'CREATE_PROGRAM';
   if (hasImage && wantsTemplate) return 'CREATE_TEMPLATE';
   if (hasImage) return null;
+
+  // Workout list patterns should trigger template creation
+  if (hasWorkoutListPattern) return 'CREATE_TEMPLATE';
 
   // Analysis takes priority when asking questions (read intent)
   if (wantsAnalysis || (isQuestion && !wantsCreate)) return 'ANALYZE_HISTORY';

@@ -2,6 +2,137 @@ import { StyleSheet } from 'react-native';
 import { Colors } from '../../../constants/Colors';
 import { Spacing, BorderRadius } from '../../../constants/Sizes';
 import { Typography } from '../../../constants/Typography';
+import { ThemeColors } from '@/src/contexts/ThemeContext';
+
+/**
+ * Dynamic theme-aware styles for AI Mutation Preview Modal
+ * Call this in component body with useTheme() values
+ */
+export const getThemedStyles = (colors: ThemeColors, isDark: boolean) => ({
+  // Text colors
+  headerTitle: { color: colors.textPrimary },
+  summaryTitle: { color: colors.accent },
+  summaryExplanation: { color: colors.textSecondary },
+  sectionTitle: { color: colors.textSecondary },
+  mutationDescription: { color: colors.textPrimary },
+  mutationMeta: { color: colors.textTertiary },
+  inputLabel: { color: colors.textSecondary },
+  metaInput: {
+    color: colors.textPrimary,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  workoutNameInput: {
+    color: colors.textPrimary,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  workoutDayLabel: { color: colors.textTertiary },
+  workoutDayInput: {
+    color: colors.textPrimary,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  exerciseFieldLabel: { color: colors.textTertiary },
+  exerciseFieldInput: {
+    color: colors.textPrimary,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  setInput: {
+    color: colors.textPrimary,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  programExerciseName: { color: colors.textPrimary },
+  exerciseName: { color: colors.textPrimary },
+  rejectButtonText: { color: colors.textSecondary },
+  confirmPromptTitle: { color: colors.textPrimary },
+  confirmPromptBody: { color: colors.textSecondary },
+  diffHint: { color: colors.textTertiary },
+  setText: { color: colors.textSecondary },
+  setHeaderText: { color: colors.textTertiary },
+  addSetText: { color: colors.textSecondary },
+  addExerciseText: { color: colors.accent },
+  newExerciseJustification: { color: colors.textPrimary },
+  newExerciseExplanationText: { color: colors.textSecondary },
+  pickerTitle: { color: colors.textPrimary },
+  searchInput: {
+    color: colors.textPrimary,
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  exerciseOptionText: { color: colors.textPrimary },
+  noResultsText: { color: colors.textTertiary },
+  loadingText: { color: colors.textSecondary },
+
+  // Glass backgrounds - invert for light mode
+  modalContainer: {
+    backgroundColor: colors.background,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  },
+  header: {
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  summary: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.08)' : 'rgba(34, 197, 94, 0.06)',
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  programMetaCard: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  workoutCard: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  programExerciseCard: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  exerciseCard: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  exerciseHeader: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.08)' : 'rgba(34, 197, 94, 0.06)',
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  setTableHeader: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  setRow: {
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  addSetButton: {
+    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  addExerciseButton: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.08)' : 'rgba(34, 197, 94, 0.06)',
+    borderColor: isDark ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.25)',
+  },
+  mutationItem: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  rejectButton: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  },
+  actions: {
+    borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  pickerContainer: {
+    backgroundColor: colors.background,
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  },
+  pickerHeader: {
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  searchContainer: {
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  newExerciseExplanation: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+  },
+  dragHandle: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
+  },
+});
 
 export const styles = StyleSheet.create({
   keyboardAvoid: {
@@ -23,6 +154,17 @@ export const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     overflow: 'hidden',
+  },
+  dragHandleContainer: {
+    alignItems: 'center',
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+  },
+  dragHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
   },
   header: {
     flexDirection: 'row',
@@ -517,10 +659,10 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  exerciseList: {
+  exercisePickerList: {
     flex: 1,
   },
-  exerciseListContent: {
+  exercisePickerContent: {
     padding: Spacing.sm,
   },
   exerciseOption: {

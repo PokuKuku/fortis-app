@@ -6,7 +6,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
 import { AIMutationPlan, AIExerciseResolution, EditableProgramDraft, EditableProgramWorkout } from '../../types/ai';
-import { styles } from './AIMutationPreviewModal.styles';
+import { styles, getThemedStyles } from './AIMutationPreviewModal.styles';
 
 interface AIMutationProgramDraftEditorProps {
   editableProgramDraft: EditableProgramDraft | null;
@@ -51,7 +51,8 @@ export function AIMutationProgramDraftEditor({
   onDeleteProgramExercise,
   onOpenExercisePicker,
 }: AIMutationProgramDraftEditorProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const themedStyles = getThemedStyles(colors, isDark);
 
   if (!editableProgramDraft) return null;
 
@@ -81,20 +82,20 @@ export function AIMutationProgramDraftEditor({
   return (
     <View style={styles.programDraftContainer}>
       {/* Program Metadata */}
-      <View style={styles.programMetaCard}>
-        <Text style={styles.inputLabel}>
+      <View style={[styles.programMetaCard, themedStyles.programMetaCard]}>
+        <Text style={[styles.inputLabel, themedStyles.inputLabel]}>
           {editableProgramDraft.isTemplate ? 'Template name' : 'Program name'}
         </Text>
         <TextInput
-          style={styles.metaInput}
+          style={[styles.metaInput, themedStyles.metaInput]}
           value={editableProgramDraft.name}
           onChangeText={(text) => onUpdateProgramDraft({ name: text })}
           placeholder={editableProgramDraft.isTemplate ? 'Upper Body Template' : 'Strength Block'}
           placeholderTextColor={colors.textTertiary}
         />
-        <Text style={styles.inputLabel}>Description</Text>
+        <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Description</Text>
         <TextInput
-          style={[styles.metaInput, styles.metaTextarea]}
+          style={[styles.metaInput, styles.metaTextarea, themedStyles.metaInput]}
           value={editableProgramDraft.description || ''}
           onChangeText={(text) => onUpdateProgramDraft({ description: text })}
           placeholder="Short summary of the focus and intent"
@@ -103,9 +104,9 @@ export function AIMutationProgramDraftEditor({
         />
         <View style={styles.metaRow}>
           <View style={styles.metaField}>
-            <Text style={styles.inputLabel}>Difficulty</Text>
+            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Difficulty</Text>
             <TextInput
-              style={styles.metaInput}
+              style={[styles.metaInput, themedStyles.metaInput]}
               value={editableProgramDraft.difficulty}
               onChangeText={(text) => onUpdateProgramDraft({ difficulty: text })}
               placeholder="beginner | intermediate | advanced"
@@ -114,9 +115,9 @@ export function AIMutationProgramDraftEditor({
             />
           </View>
           <View style={styles.metaField}>
-            <Text style={styles.inputLabel}>Weeks</Text>
+            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Weeks</Text>
             <TextInput
-              style={styles.metaInput}
+              style={[styles.metaInput, themedStyles.metaInput]}
               value={editableProgramDraft.durationWeeks ? String(editableProgramDraft.durationWeeks) : ''}
               onChangeText={(text) => {
                 const weeks = parseInt(text, 10);
@@ -128,9 +129,9 @@ export function AIMutationProgramDraftEditor({
             />
           </View>
         </View>
-        <Text style={styles.inputLabel}>Goal</Text>
+        <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Goal</Text>
         <TextInput
-          style={styles.metaInput}
+          style={[styles.metaInput, themedStyles.metaInput]}
           value={editableProgramDraft.goal || ''}
           onChangeText={(text) => onUpdateProgramDraft({ goal: text })}
           placeholder="strength | hypertrophy | powerlifting | general_fitness"
@@ -144,19 +145,19 @@ export function AIMutationProgramDraftEditor({
         const originalWorkout = originalWorkoutById.get(workout.id);
 
         return (
-          <View key={workout.id} style={styles.workoutCard}>
+          <View key={workout.id} style={[styles.workoutCard, themedStyles.workoutCard]}>
             <View style={styles.workoutHeader}>
               <TextInput
-                style={styles.workoutNameInput}
+                style={[styles.workoutNameInput, themedStyles.workoutNameInput]}
                 value={workout.name}
                 onChangeText={(text) => onUpdateProgramWorkout(workout.id, { name: text })}
                 placeholder="Workout name"
                 placeholderTextColor={colors.textTertiary}
               />
               <View style={styles.workoutDayContainer}>
-                <Text style={styles.workoutDayLabel}>Day</Text>
+                <Text style={[styles.workoutDayLabel, themedStyles.workoutDayLabel]}>Day</Text>
                 <TextInput
-                  style={styles.workoutDayInput}
+                  style={[styles.workoutDayInput, themedStyles.workoutDayInput]}
                   value={String(workout.dayNumber)}
                   onChangeText={(text) => {
                     const dayNumber = parseInt(text, 10);
@@ -170,7 +171,7 @@ export function AIMutationProgramDraftEditor({
             </View>
 
             {originalWorkout && originalWorkout.name !== workout.name && (
-              <Text style={styles.diffHint}>Was: {originalWorkout.name}</Text>
+              <Text style={[styles.diffHint, themedStyles.diffHint]}>Was: {originalWorkout.name}</Text>
             )}
 
             {/* Exercises */}
@@ -187,13 +188,13 @@ export function AIMutationProgramDraftEditor({
                   originalExercise && originalExercise.notes !== exercise.notes;
 
                 return (
-                  <View key={exercise.id} style={styles.programExerciseCard}>
+                  <View key={exercise.id} style={[styles.programExerciseCard, themedStyles.programExerciseCard]}>
                     <View style={styles.programExerciseHeader}>
                       <TouchableOpacity
                         style={styles.programExerciseNameButton}
                         onPress={() => onOpenExercisePicker(workout.id, exercise.id)}
                       >
-                        <Text style={styles.programExerciseName} numberOfLines={1}>
+                        <Text style={[styles.programExerciseName, themedStyles.programExerciseName]} numberOfLines={1}>
                           {exercise.exerciseName || 'Select exercise'}
                         </Text>
                       </TouchableOpacity>
@@ -226,9 +227,9 @@ export function AIMutationProgramDraftEditor({
 
                     <View style={styles.exerciseFieldRow}>
                       <View style={styles.exerciseField}>
-                        <Text style={styles.exerciseFieldLabel}>Sets</Text>
+                        <Text style={[styles.exerciseFieldLabel, themedStyles.exerciseFieldLabel]}>Sets</Text>
                         <TextInput
-                          style={styles.exerciseFieldInput}
+                          style={[styles.exerciseFieldInput, themedStyles.exerciseFieldInput]}
                           value={String(exercise.sets)}
                           onChangeText={(text) => {
                             const sets = parseInt(text, 10);
@@ -239,15 +240,15 @@ export function AIMutationProgramDraftEditor({
                           keyboardType="number-pad"
                         />
                         {setsChanged && (
-                          <Text style={styles.diffHint}>
+                          <Text style={[styles.diffHint, themedStyles.diffHint]}>
                             Was: {formatDiffValue(originalExercise?.sets)}
                           </Text>
                         )}
                       </View>
                       <View style={styles.exerciseField}>
-                        <Text style={styles.exerciseFieldLabel}>Reps</Text>
+                        <Text style={[styles.exerciseFieldLabel, themedStyles.exerciseFieldLabel]}>Reps</Text>
                         <TextInput
-                          style={styles.exerciseFieldInput}
+                          style={[styles.exerciseFieldInput, themedStyles.exerciseFieldInput]}
                           value={exercise.reps || ''}
                           onChangeText={(text) =>
                             onUpdateProgramExercise(workout.id, exercise.id, { reps: text })
@@ -256,7 +257,7 @@ export function AIMutationProgramDraftEditor({
                           placeholderTextColor={colors.textTertiary}
                         />
                         {repsChanged && (
-                          <Text style={styles.diffHint}>
+                          <Text style={[styles.diffHint, themedStyles.diffHint]}>
                             Was: {formatDiffValue(originalExercise?.reps)}
                           </Text>
                         )}
@@ -265,9 +266,9 @@ export function AIMutationProgramDraftEditor({
 
                     <View style={styles.exerciseFieldRow}>
                       <View style={styles.exerciseField}>
-                        <Text style={styles.exerciseFieldLabel}>Rest (sec)</Text>
+                        <Text style={[styles.exerciseFieldLabel, themedStyles.exerciseFieldLabel]}>Rest (sec)</Text>
                         <TextInput
-                          style={styles.exerciseFieldInput}
+                          style={[styles.exerciseFieldInput, themedStyles.exerciseFieldInput]}
                           value={
                             exercise.restSeconds === undefined ? '' : String(exercise.restSeconds)
                           }
@@ -280,15 +281,15 @@ export function AIMutationProgramDraftEditor({
                           keyboardType="number-pad"
                         />
                         {restChanged && (
-                          <Text style={styles.diffHint}>
+                          <Text style={[styles.diffHint, themedStyles.diffHint]}>
                             Was: {formatDiffValue(originalExercise?.restSeconds)}
                           </Text>
                         )}
                       </View>
                       <View style={styles.exerciseField}>
-                        <Text style={styles.exerciseFieldLabel}>Notes</Text>
+                        <Text style={[styles.exerciseFieldLabel, themedStyles.exerciseFieldLabel]}>Notes</Text>
                         <TextInput
-                          style={styles.exerciseFieldInput}
+                          style={[styles.exerciseFieldInput, themedStyles.exerciseFieldInput]}
                           value={exercise.notes || ''}
                           onChangeText={(text) =>
                             onUpdateProgramExercise(workout.id, exercise.id, { notes: text })
@@ -297,7 +298,7 @@ export function AIMutationProgramDraftEditor({
                           placeholderTextColor={colors.textTertiary}
                         />
                         {notesChanged && (
-                          <Text style={styles.diffHint}>
+                          <Text style={[styles.diffHint, themedStyles.diffHint]}>
                             Was: {formatDiffValue(originalExercise?.notes)}
                           </Text>
                         )}
@@ -307,14 +308,14 @@ export function AIMutationProgramDraftEditor({
                     {newExerciseMap.has(exercise.exerciseId) && (
                       <View style={styles.newExerciseNotes}>
                         {newExerciseMap.get(exercise.exerciseId)?.justification && (
-                          <Text style={styles.newExerciseJustification}>
+                          <Text style={[styles.newExerciseJustification, themedStyles.newExerciseJustification]}>
                             {newExerciseMap.get(exercise.exerciseId)?.justification}
                           </Text>
                         )}
                         {newExerciseMap.get(exercise.exerciseId)?.explanation && (
-                          <View style={styles.newExerciseExplanation}>
-                            <Info color={Colors.textTertiary} size={12} />
-                            <Text style={styles.newExerciseExplanationText}>
+                          <View style={[styles.newExerciseExplanation, themedStyles.newExerciseExplanation]}>
+                            <Info color={colors.textTertiary} size={12} />
+                            <Text style={[styles.newExerciseExplanationText, themedStyles.newExerciseExplanationText]}>
                               {newExerciseMap.get(exercise.exerciseId)?.explanation}
                             </Text>
                           </View>

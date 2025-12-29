@@ -22,11 +22,8 @@ import Animated, {
   ZoomIn,
   ZoomOut,
 } from 'react-native-reanimated';
-import {
-  X,
-  Check,
-  Sparkles,
-} from 'lucide-react-native';
+import { X, Check } from 'lucide-react-native';
+import { SparklesIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
@@ -39,7 +36,7 @@ import { buildProgramDraftFromPlan } from '../../utils/aiProgramDraft';
 import { AIMutationProgramDraftEditor } from './AIMutationProgramDraftEditor';
 import { AIMutationSummaryList } from './AIMutationSummaryList';
 import { AIMutationExercisePickerModal } from './AIMutationExercisePickerModal';
-import { styles } from './AIMutationPreviewModal.styles';
+import { styles, getThemedStyles } from './AIMutationPreviewModal.styles';
 
 interface AIMutationPreviewModalProps {
   visible: boolean;
@@ -55,6 +52,7 @@ export function AIMutationPreviewModal({
   onConfirm,
 }: AIMutationPreviewModalProps) {
   const { colors, isDark } = useTheme();
+  const themedStyles = getThemedStyles(colors, isDark);
   const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
   const isApplyingMutation = useAIStore((state) => state.isApplyingMutation);
   const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
@@ -187,16 +185,21 @@ export function AIMutationPreviewModal({
           <Animated.View
             entering={ZoomIn.duration(250)}
             exiting={ZoomOut.duration(200)}
-            style={styles.modalContainer}
+            style={[styles.modalContainer, themedStyles.modalContainer]}
           >
             <StainlessSteelPattern />
 
+            {/* Drag Handle */}
+            <View style={styles.dragHandleContainer}>
+              <View style={[styles.dragHandle, themedStyles.dragHandle]} />
+            </View>
+
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, themedStyles.header]}>
               <View style={[styles.headerIcon, { backgroundColor: colors.accentOverlay }]}>
-                <Sparkles color={colors.accent} size={IconSizes.lg} />
+                <SparklesIcon color={colors.accent} size={IconSizes.lg} strokeWidth={2} />
               </View>
-              <Text style={styles.headerTitle}>
+              <Text style={[styles.headerTitle, themedStyles.headerTitle]}>
                 {isProgramDraft ? `Review ${draftLabel}` : 'Review Changes'}
               </Text>
               <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
@@ -205,13 +208,13 @@ export function AIMutationPreviewModal({
             </View>
 
             {/* Summary */}
-            <View style={styles.summary}>
-              <Text style={styles.summaryTitle}>
+            <View style={[styles.summary, themedStyles.summary]}>
+              <Text style={[styles.summaryTitle, themedStyles.summaryTitle]}>
                 {isProgramDraft
                   ? `${totalWorkouts || 1} workouts • ${totalExercises} exercises`
                   : currentMutationPlan.summary}
               </Text>
-              <Text style={styles.summaryExplanation}>
+              <Text style={[styles.summaryExplanation, themedStyles.summaryExplanation]}>
                 {isProgramDraft
                   ? 'Review and edit the draft before saving'
                   : currentMutationPlan.explanation}
@@ -263,24 +266,24 @@ export function AIMutationPreviewModal({
 
             {isProgramDraft && (
               <View style={styles.confirmPrompt}>
-                <Text style={styles.confirmPromptTitle}>
+                <Text style={[styles.confirmPromptTitle, themedStyles.confirmPromptTitle]}>
                   Add this {draftLabel.toLowerCase()} to your {draftLabel.toLowerCase()} cards?
                 </Text>
-                <Text style={styles.confirmPromptBody}>
+                <Text style={[styles.confirmPromptBody, themedStyles.confirmPromptBody]}>
                   Tap Create to add it, or Cancel to discard.
                 </Text>
               </View>
             )}
 
             {/* Actions */}
-            <View style={styles.actions}>
+            <View style={[styles.actions, themedStyles.actions]}>
               <TouchableOpacity
-                style={styles.rejectButton}
+                style={[styles.rejectButton, themedStyles.rejectButton]}
                 onPress={handleReject}
                 disabled={isApplyingMutation}
               >
                 <X color={colors.textSecondary} size={IconSizes.md} />
-                <Text style={styles.rejectButtonText}>Cancel</Text>
+                <Text style={[styles.rejectButtonText, themedStyles.rejectButtonText]}>Cancel</Text>
               </TouchableOpacity>
 
               <GlassButton

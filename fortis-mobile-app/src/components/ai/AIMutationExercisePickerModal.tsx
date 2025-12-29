@@ -15,7 +15,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
 import { useExercises } from '../../hooks/useExercises';
-import { styles } from './AIMutationPreviewModal.styles';
+import { styles, getThemedStyles } from './AIMutationPreviewModal.styles';
 
 interface AIMutationExercisePickerModalProps {
   visible: boolean;
@@ -28,7 +28,8 @@ export function AIMutationExercisePickerModal({
   onClose,
   onSelect,
 }: AIMutationExercisePickerModalProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
+  const themedStyles = getThemedStyles(colors, isDark);
   const [searchQuery, setSearchQuery] = useState('');
   const { exercises, loading, error } = useExercises();
 
@@ -62,18 +63,18 @@ export function AIMutationExercisePickerModal({
         <Animated.View
           entering={ZoomIn.duration(200)}
           exiting={ZoomOut.duration(150)}
-          style={styles.pickerContainer}
+          style={[styles.pickerContainer, themedStyles.pickerContainer]}
         >
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Choose exercise</Text>
+          <View style={[styles.pickerHeader, themedStyles.pickerHeader]}>
+            <Text style={[styles.pickerTitle, themedStyles.pickerTitle]}>Choose exercise</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <X color={colors.textSecondary} size={IconSizes.md} />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.searchContainer}>
+          <View style={[styles.searchContainer, themedStyles.searchContainer]}>
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, themedStyles.searchInput]}
               placeholder="Search exercises..."
               placeholderTextColor={colors.textTertiary}
               value={searchQuery}
@@ -84,19 +85,19 @@ export function AIMutationExercisePickerModal({
           </View>
 
           <ScrollView
-            style={styles.exerciseList}
-            contentContainerStyle={styles.exerciseListContent}
+            style={styles.exercisePickerList}
+            contentContainerStyle={styles.exercisePickerContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
             {loading && (
               <View style={styles.loadingState}>
                 <ActivityIndicator color={colors.accent} size="small" />
-                <Text style={styles.loadingText}>Loading exercises...</Text>
+                <Text style={[styles.loadingText, themedStyles.loadingText]}>Loading exercises...</Text>
               </View>
             )}
             {!loading && error && (
-              <Text style={styles.noResultsText}>
+              <Text style={[styles.noResultsText, themedStyles.noResultsText]}>
                 Unable to load exercises. Please check your connection.
               </Text>
             )}
@@ -111,11 +112,11 @@ export function AIMutationExercisePickerModal({
                 }}
               >
                 <Dumbbell color={colors.textSecondary} size={IconSizes.sm} />
-                <Text style={styles.exerciseOptionText}>{exercise.name}</Text>
+                <Text style={[styles.exerciseOptionText, themedStyles.exerciseOptionText]}>{exercise.name}</Text>
               </TouchableOpacity>
             ))}
             {!loading && !error && filteredExercises.length === 0 && (
-              <Text style={styles.noResultsText}>No exercises found</Text>
+              <Text style={[styles.noResultsText, themedStyles.noResultsText]}>No exercises found</Text>
             )}
           </ScrollView>
         </Animated.View>

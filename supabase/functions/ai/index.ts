@@ -78,7 +78,7 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
   },
   ANALYZE_HISTORY: {
     type: 'read',
-    defaultContextWeeks: 12,
+    defaultContextWeeks: 52,
     includeHistory: true,
     includeNotes: true,
     includeProgram: false,
@@ -389,7 +389,9 @@ Deno.serve(async (req: Request) => {
     const config = INTENT_CONFIG[aiRequest.intent];
     const requestId = crypto.randomUUID();
 
-    if (!aiRequest.image && isLowSignalMessage(aiRequest.message)) {
+    const bypassLowSignal =
+      aiRequest.intent === 'CREATE_TEMPLATE' || aiRequest.intent === 'ANALYZE_HISTORY';
+    if (!aiRequest.image && !bypassLowSignal && isLowSignalMessage(aiRequest.message)) {
       return jsonResponse({
         type: 'clarification',
         requestId,
@@ -967,13 +969,27 @@ async function fetchExerciseSubset(
     return data ? [data] : [];
   }
 
-  // Fetch user's historical exercises first (most relevant)
-  const { data: userExercises } = await supabase
-    .from('workout_sets')
-    .select('exercise_id, exercises(id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions)')
-    .in('session_id', supabase.from('workout_sessions').select('id').eq('user_id', userId))
-    .order('created_at', { ascending: false })
-    .limit(limit);
+  // Fetch user's session IDs first
+  const { data: sessions } = await supabase
+    .from('workout_sessions')
+    .select('id')
+    .eq('user_id', userId)
+    .order('started_at', { ascending: false })
+    .limit(100);
+
+  const sessionIds = sessions?.map((s) => s.id) ?? [];
+
+  // Fetch user's historical exercises (most relevant)
+  let userExercises: Array<{ exercise_id: string; exercises: unknown }> | null = null;
+  if (sessionIds.length > 0) {
+    const { data } = await supabase
+      .from('workout_sets')
+      .select('exercise_id, exercises(id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions)')
+      .in('session_id', sessionIds)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    userExercises = data;
+  }
 
   // Dedupe by exercise ID
   const seen = new Set<string>();
@@ -1252,7 +1268,7 @@ CORE PRINCIPLES:
 - Be a helpful data analyst. Surface patterns, trends, and evidence-backed insights.
 - Never invent data. Use only the provided context.
 - If evidence is weak or missing, say so explicitly and explain why. Do not hedge when evidence is strong.
-- Ask clarifying questions when details are required to create safe drafts.
+- Ask clarifying questions when details are required to create safe drafts (except CREATE_TEMPLATE in translator mode).
 - When a user asks to create or log a workout/program, respond with a draft (mutation plan) instead of saying you cannot.
 - When suggesting exercises the user hasn't done before, explain why and provide brief form cues.
 - Be concise but thorough. Prioritize actionable information.
@@ -1287,19 +1303,35 @@ RULES:
 - If the user asks to create or modify a workout/program, ask a clarification question about switching to creation.`;
   }
 
+  // Template-specific translator instructions
+  const templateInstructions =
+    intent === 'CREATE_TEMPLATE'
+      ? `
+TRANSLATOR MODE (CREATE_TEMPLATE):
+You are a TRANSLATOR, not a questioner. Your job is to convert the user's workout description into a template immediately.
+
+1. **Parse the input**: Extract exercise names, sets, reps, and rest periods from text or image.
+2. **Match exercises**: Fuzzy-match exercise names to the AVAILABLE EXERCISES list. Use your best judgment for common variations (e.g., "squats" → "Barbell Squat", "bench" → "Barbell Bench Press").
+3. **Use sensible defaults** when not specified:
+   - Sets: 3
+   - Reps: "8-12"
+   - Rest: 60 seconds
+   - Difficulty: "intermediate"
+   - Template name: Derive from exercises (e.g., "Leg Day", "Push Workout", "Full Body")
+4. **NEVER ask clarification questions**. Just create the template with your best interpretation.
+5. **For vague requests** like "create a legs workout" or "make me a push day":
+   - Generate a complete, opinionated template using common exercises
+   - Pick 4-6 exercises that fit the theme
+   - Use your training knowledge to create a balanced workout
+6. **Only return clarification** if you literally cannot identify ANY exercises (e.g., "asdfgh jkl").
+
+`
+      : '';
+
   return `${basePrompt}
-
+${templateInstructions}
 RESPONSE FORMAT:
-If you need more details to build a safe draft, respond with:
-{
-  "type": "clarification",
-  "clarification": {
-    "question": "Your question here",
-    "options": ["optional", "choices"]
-  }
-}
-
-Otherwise, respond with a JSON object containing a mutation plan:
+Respond with a JSON object containing a mutation plan:
 {
   "type": "mutation_plan",
   "mutationPlan": {
@@ -1351,9 +1383,9 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
 You have been provided an image of a workout plan. Extract a single workout template:
 
 1. **Exercises**: Identify all exercises shown. Match to exercise names in the AVAILABLE EXERCISES list below.
-2. **Sets/Reps**: Extract the prescribed sets and reps for each exercise (use format like "3" for sets, "8-12" for reps).
+2. **Sets/Reps**: Extract the prescribed sets and reps for each exercise (use format like "3" for sets, "8-12" for reps). Use defaults (3 sets, "8-12" reps) if not visible.
 3. **Order**: Maintain the order of exercises as shown in the image (top to bottom, left to right).
-4. **Rest periods**: If shown, include rest times in seconds. Otherwise omit.
+4. **Rest periods**: If shown, include rest times in seconds. Default to 60 seconds if not specified.
 5. **Name**: Create a descriptive name for the template (e.g., "Upper Body Push", "Leg Day").
 
 Create mutations for:
@@ -1361,7 +1393,7 @@ Create mutations for:
 - One program_workout (the single workout day)
 - Multiple program_exercise entries (one per exercise found)
 
-If key details are missing, return a clarification question instead of guessing.`;
+Do NOT ask clarification questions. Use your best judgment to match exercises and fill in missing details with sensible defaults.`;
   }
 
   if (request.image && request.intent === 'CREATE_PROGRAM') {
@@ -1525,8 +1557,8 @@ function buildWriteClarification(intent: AIIntent, requestId: string) {
       ...base,
       clarification: {
         question:
-          'I can draft a workout template. What focus and equipment should I use?',
-        options: ['Push day • full gym', 'Upper body • dumbbells only'],
+          "I couldn't identify any exercises from your input. Could you describe the workout more clearly?\n\nExamples:\n• \"Squats 3x10, Lunges 3x12, Calf raises 3x15\"\n• \"Create a leg day workout\"\n• Or attach a photo of a workout plan",
+        options: [],
       },
     };
   }

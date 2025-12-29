@@ -5,6 +5,7 @@
  * Handles request/response formatting, error handling, and conversation state.
  */
 
+import * as Crypto from 'expo-crypto';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   AIIntent,
@@ -61,7 +62,7 @@ export async function sendAIMessage(
   if (!isSupabaseConfigured()) {
     return {
       type: 'error',
-      requestId: crypto.randomUUID(),
+      requestId: Crypto.randomUUID(),
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Supabase is not configured. Please check your environment variables.',
@@ -75,7 +76,7 @@ export async function sendAIMessage(
   if (!session) {
     return {
       type: 'error',
-      requestId: crypto.randomUUID(),
+      requestId: Crypto.randomUUID(),
       error: {
         code: 'UNAUTHORIZED',
         message: 'Please sign in to use AI features.',
@@ -100,7 +101,7 @@ export async function sendAIMessage(
       console.error('AI function error:', error);
       return {
         type: 'error',
-        requestId: crypto.randomUUID(),
+        requestId: Crypto.randomUUID(),
         error: {
           code: 'INTERNAL_ERROR',
           message: error.message || 'Failed to get AI response',
@@ -114,7 +115,7 @@ export async function sendAIMessage(
     console.error('AI service error:', err);
     return {
       type: 'error',
-      requestId: crypto.randomUUID(),
+      requestId: Crypto.randomUUID(),
       error: {
         code: 'INTERNAL_ERROR',
         message: 'An unexpected error occurred. Please try again.',
