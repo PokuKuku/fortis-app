@@ -12,24 +12,31 @@
 /**
  * All supported AI intents
  * Write intents return mutation plans requiring confirmation
+ * Read intents return answers without mutations
  */
 export type AIIntent =
   | 'CREATE_PROGRAM'
-  | 'CREATE_TEMPLATE';
+  | 'CREATE_TEMPLATE'
+  | 'ANALYZE_HISTORY';
 
 /**
- * Intent metadata for context assembly
+ * Intent configuration type
  */
-export const INTENT_CONFIG: Record<AIIntent, {
-  type: 'write';
-  defaultContextWeeks: 12;
+export interface IntentConfigEntry {
+  type: 'write' | 'read';
+  defaultContextWeeks: number;
   includeHistory: boolean;
   includeNotes: boolean;
   includeProgram: boolean;
   includeExerciseDb: boolean;
   includeAnalytics: boolean;
   exerciseLimit?: number;
-}> = {
+}
+
+/**
+ * Intent metadata for context assembly
+ */
+export const INTENT_CONFIG: Record<AIIntent, IntentConfigEntry> = {
   CREATE_PROGRAM: {
     type: 'write',
     defaultContextWeeks: 12,
@@ -49,6 +56,15 @@ export const INTENT_CONFIG: Record<AIIntent, {
     includeExerciseDb: true,
     includeAnalytics: true,
     exerciseLimit: 50,
+  },
+  ANALYZE_HISTORY: {
+    type: 'read',
+    defaultContextWeeks: 52,
+    includeHistory: true,
+    includeNotes: true,
+    includeProgram: false,
+    includeExerciseDb: false,
+    includeAnalytics: true,
   },
 };
 

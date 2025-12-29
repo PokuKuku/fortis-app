@@ -18,6 +18,8 @@ import {
   ChevronRightIcon,
   CalendarDaysIcon,
   CameraIcon,
+  ChartBarIcon,
+  TrophyIcon,
 } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
@@ -44,11 +46,11 @@ const QUICK_ACTIONS: QuickAction[] = [
     prompt: 'Design me a killer push day',
   },
   {
-    intent: 'CREATE_PROGRAM',
-    icon: CalendarDaysIcon,
-    label: 'Full Program',
-    description: 'Weekly plan',
-    prompt: 'Create a 4-week strength program',
+    intent: 'ANALYZE_HISTORY',
+    icon: ChartBarIcon,
+    label: 'Analyze Progress',
+    description: 'Volume & trends',
+    prompt: 'Analyze my training progress over the last few months',
   },
   {
     intent: 'CREATE_TEMPLATE',
@@ -58,11 +60,11 @@ const QUICK_ACTIONS: QuickAction[] = [
     prompt: '',
   },
   {
-    intent: 'CREATE_PROGRAM',
-    icon: CalendarDaysIcon,
-    label: 'Hypertrophy Split',
-    description: 'Muscle building',
-    prompt: 'Create a push-pull-legs program for hypertrophy',
+    intent: 'ANALYZE_HISTORY',
+    icon: TrophyIcon,
+    label: 'My PRs',
+    description: 'Personal records',
+    prompt: 'Show me my recent personal records and strongest lifts',
   },
 ];
 
@@ -104,7 +106,7 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
       >
         <Text style={[styles.title, themedStyles.title]}>Ready to Level Up?</Text>
         <Text style={[styles.subtitle, themedStyles.subtitle]}>
-          Your AI coach is here to build custom workouts and training programs
+          Build custom workouts, analyze your progress, and unlock new PRs
         </Text>
       </Animated.View>
 

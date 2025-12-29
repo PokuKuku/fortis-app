@@ -21,7 +21,8 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
 type AIIntent =
   | 'CREATE_PROGRAM'
-  | 'CREATE_TEMPLATE';
+  | 'CREATE_TEMPLATE'
+  | 'ANALYZE_HISTORY';
 
 type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
@@ -44,7 +45,7 @@ interface AIRequest {
 }
 
 interface IntentConfig {
-  type: 'write';
+  type: 'write' | 'read';
   defaultContextWeeks: number;
   includeHistory: boolean;
   includeNotes: boolean;
@@ -74,6 +75,15 @@ const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
     includeExerciseDb: true,
     includeAnalytics: true,
     exerciseLimit: 50,
+  },
+  ANALYZE_HISTORY: {
+    type: 'read',
+    defaultContextWeeks: 12,
+    includeHistory: true,
+    includeNotes: true,
+    includeProgram: false,
+    includeExerciseDb: false,
+    includeAnalytics: true,
   },
 };
 
@@ -215,6 +225,9 @@ function limitExerciseIds(ids: string[], limit: number): string[] {
 }
 
 function allowedOperationsForIntent(intent: AIIntent): Set<string> {
+  if (intent === 'ANALYZE_HISTORY') {
+    return new Set();
+  }
   return new Set(['INSERT']);
 }
 
@@ -1003,39 +1016,56 @@ async function fetchAnalytics(
   supabase: SupabaseClient,
   userId: string
 ): Promise<unknown> {
-  // Fetch user workout stats
-  const { data: userStats } = await supabase
-    .from('user_workout_stats')
-    .select('*')
-    .eq('user_id', userId)
-    .single();
+  try {
+    const [userStatsResult, muscleFrequencyResult] = await Promise.all([
+      supabase
+        .from('user_workout_stats')
+        .select('*')
+        .eq('user_id', userId)
+        .single(),
+      supabase
+        .from('muscle_group_frequency')
+        .select('*')
+        .eq('user_id', userId)
+        .order('times_trained', { ascending: false }),
+    ]);
 
-  // Fetch muscle group frequency
-  const { data: muscleFrequency } = await supabase
-    .from('muscle_group_frequency')
-    .select('*')
-    .eq('user_id', userId)
-    .order('times_trained', { ascending: false });
+    if (userStatsResult.error) {
+      console.warn('Failed to fetch user workout stats:', userStatsResult.error);
+    }
+    if (muscleFrequencyResult.error) {
+      console.warn('Failed to fetch muscle group frequency:', muscleFrequencyResult.error);
+    }
 
-  return {
-    userStats: userStats
-      ? {
-          totalWorkouts: userStats.total_workouts,
-          totalWorkoutDays: userStats.total_workout_days,
-          totalTimeSeconds: userStats.total_time_seconds,
-          avgWorkoutDuration: userStats.avg_workout_duration,
-          lastWorkoutDate: userStats.last_workout_date,
-          uniqueExercisesPerformed: userStats.unique_exercises_performed,
-          totalVolume: userStats.total_volume,
-        }
-      : null,
-    muscleGroupFrequency: muscleFrequency?.map((m) => ({
-      muscleGroup: m.muscle_group,
-      timesTrained: m.times_trained,
-      totalVolume: m.total_volume,
-      lastTrained: m.last_trained,
-    })),
-  };
+    const userStats = userStatsResult.data;
+    const muscleFrequency = muscleFrequencyResult.data;
+
+    return {
+      userStats: userStats
+        ? {
+            totalWorkouts: userStats.total_workouts,
+            totalWorkoutDays: userStats.total_workout_days,
+            totalTimeSeconds: userStats.total_time_seconds,
+            avgWorkoutDuration: userStats.avg_workout_duration,
+            lastWorkoutDate: userStats.last_workout_date,
+            uniqueExercisesPerformed: userStats.unique_exercises_performed,
+            totalVolume: userStats.total_volume,
+          }
+        : null,
+      muscleGroupFrequency: muscleFrequency?.map((m) => ({
+        muscleGroup: m.muscle_group,
+        timesTrained: m.times_trained,
+        totalVolume: m.total_volume,
+        lastTrained: m.last_trained,
+      })) || [],
+    };
+  } catch (error) {
+    console.warn('Failed to fetch analytics:', error);
+    return {
+      userStats: null,
+      muscleGroupFrequency: [],
+    };
+  }
 }
 
 // ============================================
@@ -1209,7 +1239,12 @@ function buildSystemPrompt(
   config: IntentConfig,
   context: AIContext
 ): string {
-  const intentGuidance = '';
+  const intentGuidance =
+    intent === 'CREATE_PROGRAM'
+      ? '\n- You are creating a multi-day training program.'
+      : intent === 'CREATE_TEMPLATE'
+      ? '\n- You are creating a single workout template (one workout day).'
+      : '\n- You are answering questions about training history and progress.';
 
   const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights and creating workout programs.
 
@@ -1228,7 +1263,30 @@ USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
 - Timezone: ${context.user.timezone}${intentGuidance}`;
 
-  // All intents are write intents
+  if (config.type === 'read') {
+    return `${basePrompt}
+
+RESPONSE FORMAT:
+Respond with a JSON object:
+{
+  "type": "answer",
+  "answer": {
+    "text": "Your response here",
+    "citations": [
+      {
+        "type": "exercise|session|set|program",
+        "id": "id-if-available",
+        "context": "Brief why this citation is relevant"
+      }
+    ]
+  }
+}
+
+RULES:
+- Do not return mutation plans for read-only intents.
+- If the user asks to create or modify a workout/program, ask a clarification question about switching to creation.`;
+  }
+
   return `${basePrompt}
 
 RESPONSE FORMAT:

@@ -428,9 +428,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textTertiary,
   },
-  copyTextSuccess: {
-    // color now applied dynamically
-  },
   timestamp: {
     ...Typography.caption,
     color: Colors.textTertiary,

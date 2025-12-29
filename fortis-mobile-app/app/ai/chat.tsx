@@ -106,7 +106,37 @@ const inferIntentFromMessage = (
   message: string,
   hasImage: boolean
 ): AIIntent | null => {
-  const text = message.toLowerCase();
+  const text = message.toLowerCase().trim();
+
+  // Analysis detection - question patterns and analysis keywords
+  const isQuestion =
+    text.startsWith('what') ||
+    text.startsWith('how') ||
+    text.startsWith('when') ||
+    text.startsWith('why') ||
+    text.startsWith('which') ||
+    text.startsWith('show me') ||
+    text.startsWith('tell me') ||
+    text.endsWith('?');
+
+  const wantsAnalysis =
+    text.includes('analyze') ||
+    text.includes('analysis') ||
+    text.includes('progress') ||
+    text.includes('pr ') ||
+    text.includes('prs') ||
+    text.includes('personal record') ||
+    text.includes('stats') ||
+    text.includes('statistics') ||
+    text.includes('trend') ||
+    text.includes('weak') ||
+    text.includes('strong') ||
+    text.includes('volume') ||
+    text.includes('frequency') ||
+    text.includes('how many') ||
+    text.includes('how much') ||
+    text.includes('improve') ||
+    text.includes('gains');
 
   const wantsProgram =
     text.includes('program') ||
@@ -127,10 +157,15 @@ const inferIntentFromMessage = (
     text.includes('generate') ||
     text.includes('design');
 
+  // Image-based requests take priority for creation
   if (hasImage && wantsProgram) return 'CREATE_PROGRAM';
   if (hasImage && wantsTemplate) return 'CREATE_TEMPLATE';
   if (hasImage) return null;
 
+  // Analysis takes priority when asking questions (read intent)
+  if (wantsAnalysis || (isQuestion && !wantsCreate)) return 'ANALYZE_HISTORY';
+
+  // Creation intents
   if (wantsProgram && wantsCreate) return 'CREATE_PROGRAM';
   if (wantsTemplate && wantsCreate) return 'CREATE_TEMPLATE';
 
@@ -388,7 +423,7 @@ export default function AIChatScreen() {
               {/* Quick Replies - context-aware suggestions */}
               {/* Hide when last message has clarification options to prevent duplicates */}
               {!isSendingMessage && messages.length > 0 &&
-               !(messages[messages.length - 1]?.clarification?.options?.length > 0) && (
+               !((messages[messages.length - 1]?.clarification?.options?.length ?? 0) > 0) && (
                 <QuickReplies
                   suggestions={getContextAwareSuggestions()}
                   onSelect={(suggestion) => {

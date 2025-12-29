@@ -8,7 +8,6 @@
  * - Time context (morning, evening, weekend)
  */
 
-import { AIIntent } from '@/src/types/ai';
 import { buildSuggestionContext } from './suggestionContext';
 import {
   generateConversationSuggestions,
@@ -38,17 +37,4 @@ export function getContextAwareSuggestions(): string[] {
 
   // Rank and return top suggestions
   return rankSuggestions(candidates, 4);
-}
-
-/**
- * Get contextual quick reply suggestions based on AI response
- * @deprecated Use getContextAwareSuggestions() instead
- * Kept for backward compatibility
- */
-export function getQuickReplySuggestions(
-  _intent: AIIntent | undefined,
-  _hasActionable: boolean
-): string[] {
-  // Delegate to new context-aware implementation
-  return getContextAwareSuggestions();
 }

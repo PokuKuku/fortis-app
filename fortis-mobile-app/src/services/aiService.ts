@@ -139,9 +139,6 @@ export async function createProgram(
 }
 
 /**
- * Modify an existing program
- */
-/**
  * Create a single workout template
  */
 export async function createTemplate(
@@ -152,8 +149,13 @@ export async function createTemplate(
 }
 
 /**
- * Modify an existing template
+ * Analyze user's lifting history
  */
+export async function analyzeHistory(
+  query: string
+): Promise<AIResponse> {
+  return sendAIMessage('ANALYZE_HISTORY', query);
+}
 // ============================================
 // Pending Actions Management
 // ============================================
@@ -648,6 +650,7 @@ export function getIntentLabel(intent: AIIntent): string {
   const labels: Record<AIIntent, string> = {
     CREATE_PROGRAM: 'Create Program',
     CREATE_TEMPLATE: 'Create Template',
+    ANALYZE_HISTORY: 'Analyze History',
   };
   return labels[intent];
 }
