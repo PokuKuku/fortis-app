@@ -133,6 +133,71 @@ function isValidUuid(value: unknown): boolean {
   return typeof value === 'string' && UUID_REGEX.test(value);
 }
 
+// Common exercise name aliases for better matching
+// Maps user-friendly terms to database exercise name patterns
+const EXERCISE_ALIASES: Record<string, string[]> = {
+  'squat': ['barbell squat', 'back squat', 'squat', 'goblet squat'],
+  'squats': ['barbell squat', 'back squat', 'squat', 'goblet squat'],
+  'bench': ['bench press', 'barbell bench press', 'dumbbell bench press'],
+  'deadlift': ['deadlift', 'conventional deadlift', 'barbell deadlift'],
+  'deadlifts': ['deadlift', 'conventional deadlift', 'barbell deadlift'],
+  'lunge': ['lunge', 'walking lunge', 'dumbbell lunge', 'barbell lunge'],
+  'lunges': ['lunge', 'walking lunge', 'dumbbell lunge', 'barbell lunge'],
+  'press': ['overhead press', 'shoulder press', 'military press'],
+  'ohp': ['overhead press', 'shoulder press', 'military press'],
+  'row': ['barbell row', 'bent over row', 'dumbbell row', 'cable row'],
+  'rows': ['barbell row', 'bent over row', 'dumbbell row', 'cable row'],
+  'curl': ['bicep curl', 'barbell curl', 'dumbbell curl', 'hammer curl'],
+  'curls': ['bicep curl', 'barbell curl', 'dumbbell curl', 'hammer curl'],
+  'pullup': ['pull up', 'pullup', 'chin up', 'pull-up'],
+  'pullups': ['pull up', 'pullup', 'chin up', 'pull-up'],
+  'pull-up': ['pull up', 'pullup', 'chin up', 'pull-up'],
+  'pull-ups': ['pull up', 'pullup', 'chin up', 'pull-up'],
+  'pushup': ['push up', 'pushup', 'push-up'],
+  'pushups': ['push up', 'pushup', 'push-up'],
+  'push-up': ['push up', 'pushup', 'push-up'],
+  'push-ups': ['push up', 'pushup', 'push-up'],
+  'dip': ['dip', 'tricep dip', 'chest dip'],
+  'dips': ['dip', 'tricep dip', 'chest dip'],
+  'fly': ['fly', 'chest fly', 'dumbbell fly', 'cable fly'],
+  'flys': ['fly', 'chest fly', 'dumbbell fly', 'cable fly'],
+  'flies': ['fly', 'chest fly', 'dumbbell fly', 'cable fly'],
+  'shrug': ['shrug', 'barbell shrug', 'dumbbell shrug'],
+  'shrugs': ['shrug', 'barbell shrug', 'dumbbell shrug'],
+  'extension': ['extension', 'tricep extension', 'leg extension'],
+  'extensions': ['extension', 'tricep extension', 'leg extension'],
+  'crunch': ['crunch', 'ab crunch', 'cable crunch'],
+  'crunches': ['crunch', 'ab crunch', 'cable crunch'],
+  'plank': ['plank', 'forearm plank', 'side plank'],
+  'planks': ['plank', 'forearm plank', 'side plank'],
+  'calf': ['calf raise', 'standing calf raise', 'seated calf raise'],
+  'calves': ['calf raise', 'standing calf raise', 'seated calf raise'],
+  'lat': ['lat pulldown', 'lat pull down', 'wide grip pulldown'],
+  'lats': ['lat pulldown', 'lat pull down', 'wide grip pulldown'],
+  'rdl': ['romanian deadlift', 'rdl', 'stiff leg deadlift'],
+  'hip thrust': ['hip thrust', 'barbell hip thrust', 'glute bridge'],
+  'hip thrusts': ['hip thrust', 'barbell hip thrust', 'glute bridge'],
+  'leg press': ['leg press', 'machine leg press', '45 degree leg press'],
+  'leg curl': ['leg curl', 'lying leg curl', 'seated leg curl', 'hamstring curl'],
+  'leg curls': ['leg curl', 'lying leg curl', 'seated leg curl', 'hamstring curl'],
+  'hamstring': ['hamstring curl', 'leg curl', 'lying leg curl'],
+  'hamstrings': ['hamstring curl', 'leg curl', 'lying leg curl'],
+};
+
+function expandPhraseWithAliases(phrase: string): string[] {
+  const expanded = [phrase];
+  const lowerPhrase = phrase.toLowerCase();
+
+  // Check each alias key
+  for (const [key, aliases] of Object.entries(EXERCISE_ALIASES)) {
+    if (lowerPhrase === key || lowerPhrase.includes(key)) {
+      expanded.push(...aliases);
+    }
+  }
+
+  return [...new Set(expanded)]; // dedupe
+}
+
 function extractSearchPhrases(message: string, maxPhrases = 6): string[] {
   const cleaned = message
     .toLowerCase()
@@ -165,37 +230,46 @@ async function resolveExerciseMatches(
   const matched = new Map<string, { id: string; name: string; source: 'history' | 'catalog' }>();
 
   for (const phrase of phrases) {
-    if (matched.size >= 8) break;
+    if (matched.size >= 12) break;
 
-    const { data: historyMatches } = await supabase
-      .from('workout_sets')
-      .select('exercise_id, exercises(id, name), workout_sessions!inner(user_id)')
-      .eq('workout_sessions.user_id', userId)
-      .ilike('exercises.name', `%${phrase}%`)
-      .limit(8);
+    // Expand phrase with common aliases (e.g., "squat" -> ["squat", "barbell squat", "back squat"])
+    const expandedPhrases = expandPhraseWithAliases(phrase);
 
-    historyMatches?.forEach((row) => {
-      if (matched.size >= 8) return;
-      const exercise = row.exercises as { id?: string; name?: string } | null;
-      if (exercise?.id && exercise.name && !matched.has(exercise.id)) {
-        matched.set(exercise.id, { id: exercise.id, name: exercise.name, source: 'history' });
-      }
-    });
+    for (const searchPhrase of expandedPhrases) {
+      if (matched.size >= 12) break;
 
-    if (matched.size >= 8) break;
+      // Search user's workout history first
+      const { data: historyMatches } = await supabase
+        .from('workout_sets')
+        .select('exercise_id, exercises(id, name), workout_sessions!inner(user_id)')
+        .eq('workout_sessions.user_id', userId)
+        .ilike('exercises.name', `%${searchPhrase}%`)
+        .limit(8);
 
-    const { data: catalogMatches } = await supabase
-      .from('exercises')
-      .select('id, name')
-      .ilike('name', `%${phrase}%`)
-      .limit(8);
+      historyMatches?.forEach((row) => {
+        if (matched.size >= 12) return;
+        const exercise = row.exercises as { id?: string; name?: string } | null;
+        if (exercise?.id && exercise.name && !matched.has(exercise.id)) {
+          matched.set(exercise.id, { id: exercise.id, name: exercise.name, source: 'history' });
+        }
+      });
 
-    catalogMatches?.forEach((row) => {
-      if (matched.size >= 8) return;
-      if (row.id && row.name && !matched.has(row.id)) {
-        matched.set(row.id, { id: row.id, name: row.name, source: 'catalog' });
-      }
-    });
+      if (matched.size >= 12) break;
+
+      // Search exercise catalog
+      const { data: catalogMatches } = await supabase
+        .from('exercises')
+        .select('id, name')
+        .ilike('name', `%${searchPhrase}%`)
+        .limit(8);
+
+      catalogMatches?.forEach((row) => {
+        if (matched.size >= 12) return;
+        if (row.id && row.name && !matched.has(row.id)) {
+          matched.set(row.id, { id: row.id, name: row.name, source: 'catalog' });
+        }
+      });
+    }
   }
 
   return {
@@ -1007,17 +1081,36 @@ async function fetchExerciseSubset(
     return exercises.slice(0, limit);
   }
 
-  // Fill remaining slots with popular exercises
+  // Fill remaining slots with popular compound exercises
+  // Note: 'category' in free-exercise-db is muscle group (e.g., 'quadriceps', 'chest')
+  // We filter by mechanic='compound' to get the most useful exercises
   const remaining = limit - exercises.length;
   if (remaining > 0) {
     const { data: popularExercises } = await supabase
       .from('exercises')
       .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
       .eq('is_custom', false)
-      .in('category', ['strength', 'powerlifting'])
+      .eq('mechanic', 'compound')
       .limit(remaining);
 
     popularExercises?.forEach((ex) => {
+      if (!seen.has(ex.id)) {
+        seen.add(ex.id);
+        exercises.push(ex);
+      }
+    });
+  }
+
+  // If still not enough, get any exercises (isolation included)
+  if (exercises.length < limit) {
+    const stillNeeded = limit - exercises.length;
+    const { data: anyExercises } = await supabase
+      .from('exercises')
+      .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
+      .eq('is_custom', false)
+      .limit(stillNeeded);
+
+    anyExercises?.forEach((ex) => {
       if (!seen.has(ex.id)) {
         seen.add(ex.id);
         exercises.push(ex);

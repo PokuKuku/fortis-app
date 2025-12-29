@@ -8,43 +8,19 @@
  * - Animated sparkles icon when loading
  */
 
-import React, { useState, useCallback } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Image,
-  Share,
 } from 'react-native';
 import { formatDistanceToNow } from 'date-fns';
 import ReAnimated, { FadeIn } from 'react-native-reanimated';
 import Markdown from 'react-native-markdown-display';
 import * as Haptics from 'expo-haptics';
-
-// Clipboard helper - uses Share as fallback for Expo Go
-const copyToClipboard = async (text: string): Promise<boolean> => {
-  try {
-    // Try expo-clipboard first (works in dev client builds)
-    const Clipboard = await import('expo-clipboard').catch(() => null);
-    if (Clipboard?.setStringAsync) {
-      await Clipboard.setStringAsync(text);
-      return true;
-    }
-  } catch {
-    // Fallback for Expo Go - use Share
-  }
-
-  // Fallback: use Share API
-  try {
-    await Share.share({ message: text });
-    return true;
-  } catch {
-    return false;
-  }
-};
 import {
-  DocumentDuplicateIcon,
   CheckIcon,
   PencilIcon,
 } from 'react-native-heroicons/outline';
@@ -85,7 +61,6 @@ export function ChatMessage({
   onClarificationSelect,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
-  const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
 
   // Dynamic theme-aware styles
@@ -94,7 +69,6 @@ export function ChatMessage({
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
     },
     userText: { color: colors.textPrimary },
-    copyText: { color: colors.textTertiary },
     timestamp: { color: colors.textTertiary },
     userIndicatorText: { color: colors.textTertiary },
     customizeButton: {
@@ -108,17 +82,6 @@ export function ChatMessage({
     },
     clarificationOptionText: { color: colors.textSecondary },
   };
-
-  const handleCopy = useCallback(async () => {
-    const success = await copyToClipboard(message.content);
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  }, [message.content]);
 
   // Markdown styles matching the design system (dynamic for theme)
   const markdownStyles = {
@@ -284,29 +247,11 @@ export function ChatMessage({
           <Markdown style={markdownStyles}>{message.content}</Markdown>
         )}
 
-        {/* Copy button and timestamp for AI messages */}
+        {/* Timestamp for AI messages */}
         {!isUser && !isStreaming && message.content.length > 0 && (
-          <View style={styles.messageFooter}>
-            <TouchableOpacity
-              style={styles.copyButton}
-              onPress={handleCopy}
-              activeOpacity={0.7}
-              accessibilityLabel={copied ? "Copied to clipboard" : "Copy message"}
-              accessibilityRole="button"
-            >
-              {copied ? (
-                <CheckIcon color={colors.accent} size={IconSizes.sm} />
-              ) : (
-                <DocumentDuplicateIcon color={colors.textTertiary} size={IconSizes.sm} />
-              )}
-              <Text style={[styles.copyText, themedStyles.copyText, copied && { color: colors.accent }]}>
-                {copied ? 'Copied' : 'Copy'}
-              </Text>
-            </TouchableOpacity>
-            <Text style={[styles.timestamp, themedStyles.timestamp]}>
-              {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-            </Text>
-          </View>
+          <Text style={[styles.timestamp, themedStyles.timestamp]}>
+            {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+          </Text>
         )}
 
         {/* Timestamp for user messages */}
@@ -411,22 +356,6 @@ const styles = StyleSheet.create({
     height: 180,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
-  },
-  messageFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing.md,
-  },
-  copyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.xs,
-  },
-  copyText: {
-    ...Typography.caption,
-    color: Colors.textTertiary,
   },
   timestamp: {
     ...Typography.caption,

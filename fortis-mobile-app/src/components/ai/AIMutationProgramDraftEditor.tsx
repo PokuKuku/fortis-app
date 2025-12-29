@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import { AlertTriangle, Info, Trash2 } from 'lucide-react-native';
+import { AlertTriangle, ArrowLeftRight, Trash2 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '../../../constants/Colors';
 import { IconSizes } from '../../../constants/Sizes';
-import { AIMutationPlan, AIExerciseResolution, EditableProgramDraft, EditableProgramWorkout } from '../../types/ai';
+import { AIMutationPlan, EditableProgramDraft, EditableProgramWorkout } from '../../types/ai';
 import { styles, getThemedStyles } from './AIMutationPreviewModal.styles';
 
 interface AIMutationProgramDraftEditorProps {
@@ -44,7 +44,6 @@ const isValidUUID = (value: string) => {
 export function AIMutationProgramDraftEditor({
   editableProgramDraft,
   originalProgramDraft,
-  mutationPlan,
   onUpdateProgramDraft,
   onUpdateProgramWorkout,
   onUpdateProgramExercise,
@@ -63,16 +62,6 @@ export function AIMutationProgramDraftEditor({
     });
     return map;
   }, [originalProgramDraft]);
-
-  const newExerciseMap = useMemo(() => {
-    const map = new Map<string, AIExerciseResolution>();
-    mutationPlan.exerciseResolution.forEach((resolution) => {
-      if (!resolution.fromHistory) {
-        map.set(resolution.exerciseId, resolution);
-      }
-    });
-    return map;
-  }, [mutationPlan.exerciseResolution]);
 
   const getOriginalExercise = (workoutId: string, exerciseId: string) => {
     const workout = originalWorkoutById.get(workoutId);
@@ -146,36 +135,42 @@ export function AIMutationProgramDraftEditor({
 
         return (
           <View key={workout.id} style={[styles.workoutCard, themedStyles.workoutCard]}>
-            <View style={styles.workoutHeader}>
-              <TextInput
-                style={[styles.workoutNameInput, themedStyles.workoutNameInput]}
-                value={workout.name}
-                onChangeText={(text) => onUpdateProgramWorkout(workout.id, { name: text })}
-                placeholder="Workout name"
-                placeholderTextColor={colors.textTertiary}
-              />
-              <View style={styles.workoutDayContainer}>
-                <Text style={[styles.workoutDayLabel, themedStyles.workoutDayLabel]}>Day</Text>
+            {/* Accent bar on left */}
+            <View style={[styles.workoutAccentBar, themedStyles.workoutAccentBar]} />
+
+            {/* Header section */}
+            <View style={[styles.workoutHeaderContainer, themedStyles.workoutHeaderBg]}>
+              <View style={styles.workoutHeader}>
                 <TextInput
-                  style={[styles.workoutDayInput, themedStyles.workoutDayInput]}
-                  value={String(workout.dayNumber)}
-                  onChangeText={(text) => {
-                    const dayNumber = parseInt(text, 10);
-                    onUpdateProgramWorkout(workout.id, {
-                      dayNumber: Number.isNaN(dayNumber) ? workout.dayNumber : dayNumber,
-                    });
-                  }}
-                  keyboardType="number-pad"
+                  style={[styles.workoutNameInput, themedStyles.workoutNameInput]}
+                  value={workout.name}
+                  onChangeText={(text) => onUpdateProgramWorkout(workout.id, { name: text })}
+                  placeholder="Workout name"
+                  placeholderTextColor={colors.textTertiary}
                 />
+                <View style={styles.workoutDayContainer}>
+                  <Text style={[styles.workoutDayLabel, themedStyles.workoutDayLabel]}>Day</Text>
+                  <TextInput
+                    style={[styles.workoutDayInput, themedStyles.workoutDayInput]}
+                    value={String(workout.dayNumber)}
+                    onChangeText={(text) => {
+                      const dayNumber = parseInt(text, 10);
+                      onUpdateProgramWorkout(workout.id, {
+                        dayNumber: Number.isNaN(dayNumber) ? workout.dayNumber : dayNumber,
+                      });
+                    }}
+                    keyboardType="number-pad"
+                  />
+                </View>
               </View>
+              {originalWorkout && originalWorkout.name !== workout.name && (
+                <Text style={[styles.diffHint, themedStyles.diffHint]}>Changed from: {originalWorkout.name}</Text>
+              )}
             </View>
 
-            {originalWorkout && originalWorkout.name !== workout.name && (
-              <Text style={[styles.diffHint, themedStyles.diffHint]}>Was: {originalWorkout.name}</Text>
-            )}
-
-            {/* Exercises */}
-            <View style={styles.exerciseList}>
+            {/* Exercises section */}
+            <View style={styles.workoutExercisesContainer}>
+              <View style={styles.exerciseList}>
               {workout.exercises.map((exercise) => {
                 const originalExercise = getOriginalExercise(workout.id, exercise.id);
                 const setsChanged =
@@ -192,8 +187,12 @@ export function AIMutationProgramDraftEditor({
                     <View style={styles.programExerciseHeader}>
                       <TouchableOpacity
                         style={styles.programExerciseNameButton}
-                        onPress={() => onOpenExercisePicker(workout.id, exercise.id)}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+                          onOpenExercisePicker(workout.id, exercise.id);
+                        }}
                       >
+                        <ArrowLeftRight color={colors.accent} size={IconSizes.sm} />
                         <Text style={[styles.programExerciseName, themedStyles.programExerciseName]} numberOfLines={1}>
                           {exercise.exerciseName || 'Select exercise'}
                         </Text>
@@ -216,14 +215,6 @@ export function AIMutationProgramDraftEditor({
                       </View>
                     )}
 
-                    {newExerciseMap.has(exercise.exerciseId) && (
-                      <View style={styles.newExerciseInline}>
-                        <AlertTriangle color={Colors.warning} size={12} />
-                        <Text style={styles.newExerciseInlineText}>
-                          New to you
-                        </Text>
-                      </View>
-                    )}
 
                     <View style={styles.exerciseFieldRow}>
                       <View style={styles.exerciseField}>
@@ -305,26 +296,10 @@ export function AIMutationProgramDraftEditor({
                       </View>
                     </View>
 
-                    {newExerciseMap.has(exercise.exerciseId) && (
-                      <View style={styles.newExerciseNotes}>
-                        {newExerciseMap.get(exercise.exerciseId)?.justification && (
-                          <Text style={[styles.newExerciseJustification, themedStyles.newExerciseJustification]}>
-                            {newExerciseMap.get(exercise.exerciseId)?.justification}
-                          </Text>
-                        )}
-                        {newExerciseMap.get(exercise.exerciseId)?.explanation && (
-                          <View style={[styles.newExerciseExplanation, themedStyles.newExerciseExplanation]}>
-                            <Info color={colors.textTertiary} size={12} />
-                            <Text style={[styles.newExerciseExplanationText, themedStyles.newExerciseExplanationText]}>
-                              {newExerciseMap.get(exercise.exerciseId)?.explanation}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                    )}
                   </View>
                 );
               })}
+              </View>
             </View>
           </View>
         );

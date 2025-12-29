@@ -196,8 +196,11 @@ export function AIMutationPreviewModal({
 
             {/* Header */}
             <View style={[styles.header, themedStyles.header]}>
-              <View style={[styles.headerIcon, { backgroundColor: colors.accentOverlay }]}>
-                <SparklesIcon color={colors.accent} size={IconSizes.lg} strokeWidth={2} />
+              <View style={styles.headerIconContainer}>
+                <View style={[styles.headerIconGlow, themedStyles.headerIconGlow]} />
+                <View style={[styles.headerIcon, { backgroundColor: colors.accentOverlay }]}>
+                  <SparklesIcon color={colors.accent} size={IconSizes.lg} strokeWidth={2} />
+                </View>
               </View>
               <Text style={[styles.headerTitle, themedStyles.headerTitle]}>
                 {isProgramDraft ? `Review ${draftLabel}` : 'Review Changes'}
@@ -209,16 +212,34 @@ export function AIMutationPreviewModal({
 
             {/* Summary */}
             <View style={[styles.summary, themedStyles.summary]}>
-              <Text style={[styles.summaryTitle, themedStyles.summaryTitle]}>
-                {isProgramDraft
-                  ? `${totalWorkouts || 1} workouts • ${totalExercises} exercises`
-                  : currentMutationPlan.summary}
-              </Text>
-              <Text style={[styles.summaryExplanation, themedStyles.summaryExplanation]}>
-                {isProgramDraft
-                  ? 'Review and edit the draft before saving'
-                  : currentMutationPlan.explanation}
-              </Text>
+              {isProgramDraft ? (
+                <>
+                  <View style={styles.summaryStatsRow}>
+                    <View style={[styles.statsBadge, themedStyles.statsBadge]}>
+                      <Text style={[styles.statsBadgeText, themedStyles.statsBadgeText]}>
+                        {totalWorkouts || 1} {totalWorkouts === 1 ? 'workout' : 'workouts'}
+                      </Text>
+                    </View>
+                    <View style={[styles.statsBadge, themedStyles.statsBadge]}>
+                      <Text style={[styles.statsBadgeText, themedStyles.statsBadgeText]}>
+                        {totalExercises} {totalExercises === 1 ? 'exercise' : 'exercises'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.summaryExplanation, themedStyles.summaryExplanation]}>
+                    Review and edit the draft before saving
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.summaryTitle, themedStyles.summaryTitle]}>
+                    {currentMutationPlan.summary}
+                  </Text>
+                  <Text style={[styles.summaryExplanation, themedStyles.summaryExplanation]}>
+                    {currentMutationPlan.explanation}
+                  </Text>
+                </>
+              )}
             </View>
 
             {/* Content */}

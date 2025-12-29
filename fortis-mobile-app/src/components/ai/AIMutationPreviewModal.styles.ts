@@ -20,20 +20,24 @@ export const getThemedStyles = (colors: ThemeColors, isDark: boolean) => ({
   metaInput: {
     color: colors.textPrimary,
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
   workoutNameInput: {
     color: colors.textPrimary,
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
   workoutDayLabel: { color: colors.textTertiary },
   workoutDayInput: {
     color: colors.textPrimary,
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
   },
   exerciseFieldLabel: { color: colors.textTertiary },
   exerciseFieldInput: {
     color: colors.textPrimary,
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
   setInput: {
     color: colors.textPrimary,
@@ -44,7 +48,7 @@ export const getThemedStyles = (colors: ThemeColors, isDark: boolean) => ({
   rejectButtonText: { color: colors.textSecondary },
   confirmPromptTitle: { color: colors.textPrimary },
   confirmPromptBody: { color: colors.textSecondary },
-  diffHint: { color: colors.textTertiary },
+  diffHint: { color: colors.accent },
   setText: { color: colors.textSecondary },
   setHeaderText: { color: colors.textTertiary },
   addSetText: { color: colors.textSecondary },
@@ -59,6 +63,8 @@ export const getThemedStyles = (colors: ThemeColors, isDark: boolean) => ({
   exerciseOptionText: { color: colors.textPrimary },
   noResultsText: { color: colors.textTertiary },
   loadingText: { color: colors.textSecondary },
+  statsBadgeText: { color: colors.accent },
+  exerciseCountText: { color: colors.textSecondary },
 
   // Glass backgrounds - invert for light mode
   modalContainer: {
@@ -68,21 +74,35 @@ export const getThemedStyles = (colors: ThemeColors, isDark: boolean) => ({
   header: {
     borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
+  headerIconGlow: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.15)' : 'rgba(34, 197, 94, 0.12)',
+  },
   summary: {
-    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.08)' : 'rgba(34, 197, 94, 0.06)',
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.06)' : 'rgba(34, 197, 94, 0.04)',
     borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
+  statsBadge: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.12)' : 'rgba(34, 197, 94, 0.1)',
+    borderColor: isDark ? 'rgba(34, 197, 94, 0.25)' : 'rgba(34, 197, 94, 0.2)',
+  },
   programMetaCard: {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.025)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
   workoutCard: {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.025)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  },
+  workoutAccentBar: {
+    backgroundColor: colors.accent,
+  },
+  workoutHeaderBg: {
+    backgroundColor: isDark ? 'rgba(34, 197, 94, 0.06)' : 'rgba(34, 197, 94, 0.04)',
+    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
   },
   programExerciseCard: {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(0, 0, 0, 0.02)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
   },
   exerciseCard: {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
@@ -110,10 +130,11 @@ export const getThemedStyles = (colors: ThemeColors, isDark: boolean) => ({
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
   },
   rejectButton: {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
   },
   actions: {
+    backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.03)',
     borderTopColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   },
   pickerContainer: {
@@ -131,6 +152,9 @@ export const getThemedStyles = (colors: ThemeColors, isDark: boolean) => ({
   },
   dragHandle: {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
+  },
+  exerciseOptionHover: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
   },
 });
 
@@ -175,11 +199,21 @@ export const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
     gap: Spacing.sm,
   },
+  headerIconContainer: {
+    position: 'relative',
+  },
+  headerIconGlow: {
+    position: 'absolute',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    top: -4,
+    left: -4,
+  },
   headerIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    // backgroundColor now applied via inline themedStyles (colors.accentOverlay)
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -187,21 +221,42 @@ export const styles = StyleSheet.create({
     ...Typography.h4,
     color: Colors.textPrimary,
     flex: 1,
+    textAlign: 'center',
   },
   closeButton: {
-    padding: Spacing.xs,
+    width: 36, // Match headerIcon width for centered title
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   summary: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    // backgroundColor uses colors.accentOverlay via inline styles in component
     backgroundColor: 'rgba(34, 197, 94, 0.08)',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
+  summaryStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  statsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+  },
+  statsBadgeText: {
+    ...Typography.label,
+    color: Colors.success,
+  },
   summaryTitle: {
     ...Typography.h5,
-    // color uses colors.accent via inline styles in component
     color: Colors.success,
     marginBottom: Spacing.xs,
   },
@@ -292,21 +347,22 @@ export const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.08)',
   },
   rejectButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
+    gap: Spacing.xs,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    minWidth: 100,
   },
   rejectButtonText: {
     ...Typography.button,
@@ -318,12 +374,16 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    minHeight: 52,
   },
   confirmButtonText: {
     ...Typography.button,
     color: Colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
   confirmPrompt: {
     marginHorizontal: Spacing.lg,
@@ -505,16 +565,34 @@ export const styles = StyleSheet.create({
   },
   workoutCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
+  },
+  workoutAccentBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderBottomLeftRadius: BorderRadius.lg,
+  },
+  workoutHeaderContainer: {
     padding: Spacing.md,
-    gap: Spacing.md,
+    paddingLeft: Spacing.lg,
+    borderBottomWidth: 1,
   },
   workoutHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  workoutExercisesContainer: {
+    padding: Spacing.md,
+    paddingLeft: Spacing.lg,
+    gap: Spacing.md,
   },
   workoutNameInput: {
     flex: 1,
@@ -565,6 +643,13 @@ export const styles = StyleSheet.create({
   },
   programExerciseNameButton: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginLeft: -Spacing.sm,
   },
   programExerciseName: {
     ...Typography.label,

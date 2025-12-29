@@ -88,18 +88,25 @@ export function buildProgramDraftFromPlan(
       const resolution = resolutionByExerciseId.get(exerciseId);
       const exerciseName = resolution?.exerciseName || parseString(state.exercise_name, 'Unknown Exercise');
 
+      // Only include values that were explicitly set by the AI
+      // Leave unspecified fields empty/undefined so user sees they weren't set
       const exercise: EditableProgramExercise = {
         id: mutation.mutationId,
         exerciseId,
         exerciseName,
         orderIndex: parseNumber(state.order_index, workout.exercises.length + 1),
-        sets: parseNumber(state.sets, 3),
-        reps: parseString(state.reps, ''),
-        restSeconds:
-          state.rest_seconds === null || state.rest_seconds === undefined
-            ? undefined
-            : parseNumber(state.rest_seconds, 0),
-        notes: parseString(state.notes, ''),
+        sets: state.sets !== null && state.sets !== undefined
+          ? parseNumber(state.sets, 0)
+          : 0,
+        reps: state.reps !== null && state.reps !== undefined
+          ? parseString(state.reps, '')
+          : '',
+        restSeconds: state.rest_seconds !== null && state.rest_seconds !== undefined
+          ? parseNumber(state.rest_seconds, 0)
+          : undefined,
+        notes: state.notes !== null && state.notes !== undefined
+          ? parseString(state.notes, '')
+          : undefined,
       };
 
       workout.exercises.push(exercise);
@@ -112,11 +119,12 @@ export function buildProgramDraftFromPlan(
     }))
     .sort((a, b) => a.dayNumber - b.dayNumber);
 
+  // Only include values that were explicitly set - leave unspecified fields empty
   return {
     name: parseString(programState.name, isTemplate ? 'New Template' : 'New Program'),
-    description: parseString(programState.description, ''),
-    difficulty: parseString(programState.difficulty, 'intermediate'),
-    goal: parseString(programState.goal, ''),
+    description: programState.description ? parseString(programState.description, '') : '',
+    difficulty: programState.difficulty ? parseString(programState.difficulty, '') : '',
+    goal: programState.goal ? parseString(programState.goal, '') : '',
     durationWeeks:
       programState.duration_weeks === null || programState.duration_weeks === undefined
         ? undefined
