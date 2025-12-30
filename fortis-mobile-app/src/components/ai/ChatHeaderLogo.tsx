@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, Easing, StyleSheet } from 'react-native';
+import { View, Animated, Easing, StyleSheet } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -16,10 +16,7 @@ import Svg, {
 } from 'react-native-svg';
 import { SparklesIcon as SparklesOutline } from 'react-native-heroicons/outline';
 import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
-import { Typography } from '@/constants/Typography';
-import { useAIStore } from '@/src/store/aiStore';
+import { Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
 const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
@@ -29,7 +26,7 @@ interface ChatHeaderLogoProps {
 }
 
 export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const shineAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const sparkleAnim = useRef(new Animated.Value(1)).current;
@@ -37,31 +34,9 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const sparkleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
-
-  // Dynamic theme-aware styles
-  const themedStyles = {
-    rateLimitBadge: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-    },
-    rateLimitText: { color: colors.textTertiary },
-  };
-
   const logoWidth = 90;
   const logoHeight = 24;
   const iconSize = 22;
-
-  // Calculate remaining requests (show most restrictive limit)
-  const remaining = rateLimitStatus
-    ? Math.min(
-        rateLimitStatus.maxPerMinute - rateLimitStatus.actionsThisMinute,
-        rateLimitStatus.maxPerHour - rateLimitStatus.actionsThisHour,
-        rateLimitStatus.maxPerDay - rateLimitStatus.actionsThisDay,
-        rateLimitStatus.maxPerWeek - rateLimitStatus.actionsThisWeek,
-        rateLimitStatus.maxPerMonth - rateLimitStatus.actionsThisMonth
-      )
-    : null;
-  const isLowRemaining = remaining !== null && remaining < 5;
 
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
@@ -194,28 +169,6 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
           </G>
         </Svg>
       </Animated.View>
-
-      {/* Rate limit badge */}
-      {remaining !== null && (
-        <View
-          style={[
-            styles.rateLimitBadge,
-            themedStyles.rateLimitBadge,
-            isLowRemaining && styles.rateLimitBadgeWarning,
-          ]}
-          accessibilityLabel={`${remaining} AI requests remaining`}
-        >
-          <Text
-            style={[
-              styles.rateLimitText,
-              themedStyles.rateLimitText,
-              isLowRemaining && styles.rateLimitTextWarning,
-            ]}
-          >
-            {remaining}
-          </Text>
-        </View>
-      )}
     </View>
   );
 }
@@ -235,24 +188,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-  },
-  rateLimitBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.sm,
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: 2,
-    marginLeft: Spacing.xs,
-  },
-  rateLimitBadgeWarning: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-  },
-  rateLimitText: {
-    ...Typography.caption,
-    fontSize: 10,
-    color: Colors.textTertiary,
-  },
-  rateLimitTextWarning: {
-    color: Colors.warning,
   },
 });
 

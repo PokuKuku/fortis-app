@@ -19,6 +19,7 @@ import {
   UserIcon,
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
+  ArrowPathIcon,
   ChevronRightIcon,
   SparklesIcon,
   SunIcon,
@@ -82,9 +83,11 @@ export default function SettingsScreen() {
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
   const completedSessions = useWorkoutStore((s) => s.completedSessions);
   const importCompletedSessions = useWorkoutStore((s) => s.importCompletedSessions);
+  const resyncMissingSetsToCloud = useWorkoutStore((s) => s.resyncMissingSetsToCloud);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
@@ -208,6 +211,42 @@ export default function SettingsScreen() {
         { text: 'Cancel', style: 'cancel' },
       ]
     );
+  };
+
+  const handleSyncData = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (completedSessions.length === 0) {
+      Alert.alert('No Data', 'You have no workout history to sync.');
+      return;
+    }
+
+    setIsSyncing(true);
+    try {
+      const result = await resyncMissingSetsToCloud();
+
+      if (result.errors.length > 0) {
+        Alert.alert(
+          'Sync Completed with Errors',
+          `Checked ${result.checked} sessions.\nResynced ${result.resynced} sessions.\nFailed: ${result.failed}\n\nErrors:\n${result.errors.slice(0, 3).join('\n')}`
+        );
+      } else if (result.resynced > 0) {
+        Alert.alert(
+          'Sync Complete',
+          `Successfully resynced ${result.resynced} session${result.resynced === 1 ? '' : 's'} with missing data.`
+        );
+      } else {
+        Alert.alert(
+          'All Synced',
+          'All your workout data is already synced to the cloud.'
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+      Alert.alert('Sync Failed', message);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleSignOut = () => {
@@ -369,6 +408,18 @@ export default function SettingsScreen() {
                 onPress={handleExportData}
                 showChevron
                 isLoading={isExporting}
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<ArrowPathIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Sync Workout Data"
+                onPress={handleSyncData}
+                showChevron
+                isLoading={isSyncing}
                 colors={colors}
                 isDark={isDark}
               />

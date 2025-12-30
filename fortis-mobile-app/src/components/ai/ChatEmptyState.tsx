@@ -17,15 +17,14 @@ import Animated, {
 import {
   ChevronRightIcon,
   CalendarDaysIcon,
-  CameraIcon,
   ChartBarIcon,
   TrophyIcon,
+  FireIcon,
 } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
-import { DumbbellIcon } from '@/src/components/icons/DumbbellIcon';
 import { AIIntent } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
@@ -39,13 +38,6 @@ interface QuickAction {
 
 const QUICK_ACTIONS: QuickAction[] = [
   {
-    intent: 'CREATE_TEMPLATE',
-    icon: DumbbellIcon,
-    label: 'Build a Workout',
-    description: 'Type or paste',
-    prompt: 'Create a push day: Bench press 4x8, Incline DB press 3x10, Tricep pushdowns 3x12, Overhead press 3x8',
-  },
-  {
     intent: 'ANALYZE_HISTORY',
     icon: ChartBarIcon,
     label: 'Analyze Progress',
@@ -53,18 +45,25 @@ const QUICK_ACTIONS: QuickAction[] = [
     prompt: 'Analyze my training progress over the last few months',
   },
   {
-    intent: 'CREATE_TEMPLATE',
-    icon: CameraIcon,
-    label: 'Scan a Workout',
-    description: 'From photo',
-    prompt: '',
-  },
-  {
     intent: 'ANALYZE_HISTORY',
     icon: TrophyIcon,
     label: 'My PRs',
     description: 'Personal records',
     prompt: 'Show me my recent personal records and strongest lifts',
+  },
+  {
+    intent: 'ANALYZE_HISTORY',
+    icon: CalendarDaysIcon,
+    label: 'Weekly Summary',
+    description: 'This week',
+    prompt: 'Give me a summary of my training this week',
+  },
+  {
+    intent: 'ANALYZE_HISTORY',
+    icon: FireIcon,
+    label: 'Muscle Balance',
+    description: 'Training focus',
+    prompt: 'Which muscle groups am I training the most and which need more work?',
   },
 ];
 
@@ -104,9 +103,9 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
         entering={FadeIn.duration(400)}
         style={styles.header}
       >
-        <Text style={[styles.title, themedStyles.title]}>Ready to Level Up?</Text>
+        <Text style={[styles.title, themedStyles.title]}>Your Training Insights</Text>
         <Text style={[styles.subtitle, themedStyles.subtitle]}>
-          Build custom workouts, analyze your progress, and unlock new PRs
+          Ask about your progress, PRs, volume trends, and training patterns
         </Text>
       </Animated.View>
 

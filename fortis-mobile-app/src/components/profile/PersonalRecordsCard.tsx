@@ -1,9 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { TrophyIcon } from 'react-native-heroicons/outline';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TrophyIcon, ChevronRightIcon, ChevronLeftIcon } from 'react-native-heroicons/outline';
+import * as Haptics from 'expo-haptics';
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { format } from 'date-fns';
@@ -48,14 +52,62 @@ function PRRow({ rank, exerciseName, weight, reps, date, unit, colors, isDark }:
 }
 
 /**
- * PersonalRecordsCard - Displays top personal records by max weight.
+ * PersonalRecordsCard - Summary card that opens a full-screen personal records modal.
  */
 export function PersonalRecordsCard() {
   const { profile } = useAuth();
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { width } = useWindowDimensions();
+  const translateX = useSharedValue(width);
   const prs = useTopPersonalRecords(5);
   const units = profile?.preferred_units || 'imperial';
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isModalVisible) {
+      translateX.value = width;
+      translateX.value = withTiming(0, {
+        duration: 280,
+        easing: Easing.out(Easing.cubic),
+      });
+    }
+  }, [isModalVisible, translateX, width]);
+
+  const animatedModalStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+
+  const handleOpenModal = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setIsModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    if (!isModalVisible) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    translateX.value = withTiming(width, {
+      duration: 240,
+      easing: Easing.in(Easing.cubic),
+    });
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsModalVisible(false);
+    }, 240);
+  };
 
   // Theme-aware card styles
   const cardStyle = {
@@ -67,52 +119,151 @@ export function PersonalRecordsCard() {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   };
 
-  return (
-    <View style={[styles.container, cardStyle]}>
-      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Personal Records</Text>
+  const summaryText = prs.length === 0
+    ? 'No PRs logged yet'
+    : `${prs.length} PR${prs.length === 1 ? '' : 's'} tracked`;
 
-      {prs.length === 0 ? (
-        <View style={styles.emptyState}>
-          <TrophyIcon color={colors.textSecondary} size={32} strokeWidth={1.5} />
-          <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>No PRs yet</Text>
-          <Text style={[styles.emptyStateSubtext, { color: colors.textTertiary }]}>
-            Complete workouts to track your heaviest lifts
-          </Text>
+  return (
+    <>
+      <TouchableOpacity
+        style={[styles.summaryCard, cardStyle]}
+        onPress={handleOpenModal}
+        activeOpacity={0.7}
+      >
+        <View style={styles.summaryText}>
+          <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>Personal Records</Text>
+          <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>{summaryText}</Text>
         </View>
-      ) : (
-        <View style={styles.prList}>
-          {prs.map((pr, index) => (
-            <React.Fragment key={pr.exerciseId}>
-              <PRRow
-                rank={index + 1}
-                exerciseName={pr.exerciseName}
-                weight={pr.maxWeight}
-                reps={pr.reps}
-                date={pr.date}
-                unit={unitLabel}
-                colors={colors}
-                isDark={isDark}
-              />
-              {index < prs.length - 1 && <View style={[styles.divider, dividerStyle]} />}
-            </React.Fragment>
-          ))}
-        </View>
-      )}
-    </View>
+        <ChevronRightIcon color={colors.textSecondary} size={20} strokeWidth={2} />
+      </TouchableOpacity>
+
+      <Modal
+        visible={isModalVisible}
+        animationType="none"
+        presentationStyle="overFullScreen"
+        transparent
+        onRequestClose={handleCloseModal}
+      >
+        <Animated.View style={[styles.modalContainer, { backgroundColor: colors.background }, animatedModalStyle]}>
+          <StainlessSteelPattern />
+          <View style={styles.modalSafeArea}>
+            <View style={[styles.modalHeader, { paddingTop: insets.top + Spacing.lg }]}>
+              <TouchableOpacity
+                onPress={handleCloseModal}
+                style={styles.backButton}
+                activeOpacity={0.7}
+              >
+                <ChevronLeftIcon size={24} color={colors.textPrimary} strokeWidth={2} />
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Personal Records</Text>
+              <View style={styles.headerSpacer} />
+            </View>
+
+            <ScrollView
+              style={styles.modalScroll}
+              contentContainerStyle={[styles.modalContent, { paddingBottom: Spacing['3xl'] + insets.bottom }]}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.modalCard, cardStyle]}>
+                {prs.length === 0 ? (
+                  <View style={styles.emptyState}>
+                    <TrophyIcon color={colors.textSecondary} size={32} strokeWidth={1.5} />
+                    <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>No PRs yet</Text>
+                    <Text style={[styles.emptyStateSubtext, { color: colors.textTertiary }]}>
+                      Complete workouts to track your heaviest lifts
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.prList}>
+                    {prs.map((pr, index) => (
+                      <React.Fragment key={pr.exerciseId}>
+                        <PRRow
+                          rank={index + 1}
+                          exerciseName={pr.exerciseName}
+                          weight={pr.maxWeight}
+                          reps={pr.reps}
+                          date={pr.date}
+                          unit={unitLabel}
+                          colors={colors}
+                          isDark={isDark}
+                        />
+                        {index < prs.length - 1 && <View style={[styles.divider, dividerStyle]} />}
+                      </React.Fragment>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </Animated.View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  summaryCard: {
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  summaryText: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  summaryTitle: {
+    ...Typography.body,
+    fontWeight: '600',
+    marginBottom: Spacing.xs,
+  },
+  summarySubtitle: {
+    ...Typography.caption,
+  },
+  modalContainer: {
+    flex: 1,
+  },
+  modalSafeArea: {
+    flex: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    zIndex: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  modalScroll: {
+    flex: 1,
+  },
+  modalContent: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing['3xl'],
+  },
+  modalCard: {
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     padding: Spacing.xl,
-  },
-  sectionHeader: {
-    ...Typography.caption,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: Spacing.lg,
   },
   prList: {
     gap: 0,

@@ -25,7 +25,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { XMarkIcon, SparklesIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
@@ -266,8 +266,19 @@ export default function AIChatScreen() {
   const lastFailedMessage = useAIStore((state) => state.lastFailedMessage);
   const retryLastMessage = useAIStore((state) => state.retryLastMessage);
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
+  const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
 
   const messages = conversation?.messages || [];
+
+  // Calculate remaining requests (most restrictive limit) for inline warning
+  const remaining = rateLimitStatus
+    ? Math.min(
+        rateLimitStatus.maxPerDay - rateLimitStatus.actionsThisDay,
+        rateLimitStatus.maxPerWeek - rateLimitStatus.actionsThisWeek,
+        rateLimitStatus.maxPerMonth - rateLimitStatus.actionsThisMonth
+      )
+    : null;
+  const showRateLimitWarning = remaining !== null && remaining > 0 && remaining <= 5;
 
   useEffect(() => {
     loadConversation();
@@ -486,6 +497,19 @@ export default function AIChatScreen() {
             </>
           )}
 
+          {/* Rate limit warning - only shown when approaching limit */}
+          {showRateLimitWarning && (
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              style={styles.rateLimitWarning}
+            >
+              <ExclamationTriangleIcon size={16} color={Colors.warning} />
+              <Text style={styles.rateLimitWarningText}>
+                {remaining} AI request{remaining !== 1 ? 's' : ''} remaining today
+              </Text>
+            </Animated.View>
+          )}
+
           {/* Error display */}
           {error && (
             <TouchableOpacity
@@ -613,5 +637,19 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textTertiary,
     marginTop: Spacing.xs,
+  },
+  rateLimitWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginVertical: Spacing.sm,
+  },
+  rateLimitWarningText: {
+    ...Typography.caption,
+    color: Colors.warning,
   },
 });

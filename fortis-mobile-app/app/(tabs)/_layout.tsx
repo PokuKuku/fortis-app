@@ -32,19 +32,6 @@ import {
   EQUIPMENT_TYPES,
 } from '@/src/constants/exerciseOptions';
 
-const tabSceneInterpolator = ({ current }: { current: { progress: Animated.AnimatedInterpolation<number> } }) => {
-  const opacity = current.progress.interpolate({
-    inputRange: [-1, 0, 1],
-    outputRange: [0, 1, 0],
-  });
-
-  return {
-    sceneStyle: {
-      opacity,
-    },
-  };
-};
-
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
@@ -380,17 +367,13 @@ export default function TabLayout() {
   return (
     <>
       <Tabs
+        detachInactiveScreens={false}
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.tabActive,
           tabBarInactiveTintColor: colors.tabInactive,
-          animation: 'fade',
+          animation: 'shift',
           animationEnabled: true,
-          transitionSpec: {
-            animation: 'timing',
-            config: { duration: 320 },
-          },
-          sceneStyleInterpolator: tabSceneInterpolator,
           sceneStyle: { backgroundColor: colors.background },
           lazy: false,
           unmountOnBlur: false,

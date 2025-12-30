@@ -11,6 +11,7 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { WorkoutSession, WorkoutExercise, WorkoutSet, WeightUnit } from '@/src/types/workout';
 import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
+import { isCustomExercise, getCustomExercises } from '@/src/services/exerciseService';
 
 // Types for Supabase DTOs
 interface WorkoutSessionInsert {
@@ -119,6 +120,164 @@ async function removeFromPendingQueue(localId: string): Promise<void> {
 }
 
 /**
+ * Sync custom exercises to Supabase before inserting workout sets
+ * This ensures FK constraints on exercise_id are satisfied
+ */
+async function syncCustomExercisesToSupabase(
+  exerciseIds: string[],
+  userId: string
+): Promise<{ success: boolean; error?: string }> {
+  // Filter to only custom exercise IDs
+  const customIds = exerciseIds.filter(isCustomExercise);
+  if (customIds.length === 0) {
+    return { success: true };
+  }
+
+  try {
+    // Get custom exercises from local storage
+    const customExercises = await getCustomExercises();
+    const exercisesToSync = customExercises.filter(ex => customIds.includes(ex.id));
+
+    if (exercisesToSync.length === 0) {
+      console.warn('Custom exercise IDs found but no matching exercises in local storage:', customIds);
+      return { success: false, error: 'Custom exercises not found in local storage' };
+    }
+
+    // Upsert custom exercises to Supabase
+    for (const exercise of exercisesToSync) {
+      // Generate slug from name if not provided
+      const slug = exercise.slug || exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+      const { error } = await supabase
+        .from('exercises')
+        .upsert({
+          id: exercise.id,
+          name: exercise.name,
+          slug: slug,
+          level: 'intermediate', // Default level for custom exercises
+          equipment: exercise.equipment || 'body only',
+          category: exercise.category || 'strength',
+          primary_muscles: exercise.primaryMuscles || ['unknown'],
+          secondary_muscles: exercise.secondaryMuscles || [],
+          instructions: exercise.instructions || ['Custom exercise'],
+          images: exercise.images || [],
+          is_custom: true,
+          created_by: userId,
+        }, {
+          onConflict: 'id',
+        });
+
+      if (error) {
+        console.error('Failed to sync custom exercise:', exercise.name, error);
+        return { success: false, error: `Failed to sync custom exercise: ${exercise.name}` };
+      }
+    }
+
+    console.log(`Synced ${exercisesToSync.length} custom exercises to Supabase`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error syncing custom exercises:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error syncing custom exercises'
+    };
+  }
+}
+
+/**
+ * Resolve exercise IDs from local format (RapidAPI short IDs) to Supabase UUIDs.
+ *
+ * This handles the data source mapping between RapidAPI ExerciseDB and Supabase:
+ * 1. First tries to match by exercise NAME (case-insensitive)
+ * 2. Falls back to matching by SLUG (which stores the RapidAPI ID like "72BC5Za")
+ *
+ * For custom exercises, we use the local ID directly since they're synced to Supabase
+ * with the same ID format.
+ */
+async function resolveExerciseIds(
+  exercises: WorkoutExercise[]
+): Promise<Map<string, string>> {
+  const idMap = new Map<string, string>();
+
+  // Collect exercise names and IDs for non-custom exercises
+  const exerciseNames: string[] = [];
+  const exerciseLocalIds: string[] = [];
+  const customExerciseIds: string[] = [];
+
+  for (const exercise of exercises) {
+    if (isCustomExercise(exercise.exerciseId)) {
+      // Custom exercises use their local ID directly in Supabase
+      customExerciseIds.push(exercise.exerciseId);
+      idMap.set(exercise.exerciseId, exercise.exerciseId);
+    } else {
+      exerciseNames.push(exercise.exerciseName);
+      exerciseLocalIds.push(exercise.exerciseId);
+    }
+  }
+
+  if (exerciseNames.length === 0) {
+    return idMap;
+  }
+
+  try {
+    // Query Supabase for exercises by name OR slug (RapidAPI ID)
+    // Slug contains the RapidAPI ID, so we can match by that as a fallback
+    const { data: supabaseExercises, error } = await supabase
+      .from('exercises')
+      .select('id, name, slug')
+      .or(`name.in.(${exerciseNames.map(n => `"${n}"`).join(',')}),slug.in.(${exerciseLocalIds.map(id => `"${id}"`).join(',')})`);
+
+    if (error) {
+      console.error('[ResolveExerciseIds] Failed to query exercises:', error);
+      // Return what we have - custom exercises at least
+      return idMap;
+    }
+
+    if (!supabaseExercises || supabaseExercises.length === 0) {
+      console.warn('[ResolveExerciseIds] No matching exercises found for names:', exerciseNames.slice(0, 5));
+      return idMap;
+    }
+
+    // Build lookup maps (case-insensitive for name, exact for slug)
+    const nameToUuid = new Map<string, string>();
+    const slugToUuid = new Map<string, string>();
+    for (const ex of supabaseExercises) {
+      nameToUuid.set(ex.name.toLowerCase(), ex.id);
+      if (ex.slug) {
+        slugToUuid.set(ex.slug, ex.id);
+      }
+    }
+
+    // Map local exercise IDs to Supabase UUIDs
+    for (const exercise of exercises) {
+      if (isCustomExercise(exercise.exerciseId)) {
+        continue; // Already handled
+      }
+
+      // Try matching by name first
+      let supabaseId = nameToUuid.get(exercise.exerciseName.toLowerCase());
+
+      // Fallback to matching by slug (RapidAPI ID)
+      if (!supabaseId) {
+        supabaseId = slugToUuid.get(exercise.exerciseId);
+      }
+
+      if (supabaseId) {
+        idMap.set(exercise.exerciseId, supabaseId);
+      } else {
+        console.warn(`[ResolveExerciseIds] No Supabase match for exercise: "${exercise.exerciseName}" (local ID: ${exercise.exerciseId})`);
+      }
+    }
+
+    console.log(`[ResolveExerciseIds] Resolved ${idMap.size}/${exercises.length} exercise IDs`);
+    return idMap;
+  } catch (error) {
+    console.error('[ResolveExerciseIds] Error resolving exercise IDs:', error);
+    return idMap;
+  }
+}
+
+/**
  * Calculate workout duration in seconds
  */
 function calculateDuration(session: WorkoutSession): number | null {
@@ -145,8 +304,8 @@ async function uploadSession(
       started_at: session.startedAt.toISOString(),
       completed_at: session.completedAt?.toISOString() || null,
       duration_seconds: calculateDuration(session),
-      program_id: isLocalId(session.programId) ? null : session.programId,
-      program_workout_id: isLocalId(session.programWorkoutId) ? null : session.programWorkoutId,
+      program_id: isLocalId(session.programId) ? undefined : session.programId ?? undefined,
+      program_workout_id: isLocalId(session.programWorkoutId) ? undefined : session.programWorkoutId ?? undefined,
       is_synced: true,
     };
 
@@ -169,17 +328,41 @@ async function uploadSession(
       throw new Error('No session ID returned from insert');
     }
 
+    // Collect exercise IDs and sync custom exercises first
+    const exerciseIds = session.exercises.map(ex => ex.exerciseId);
+    const customSyncResult = await syncCustomExercisesToSupabase(exerciseIds, userId);
+    if (!customSyncResult.success) {
+      console.error('Failed to sync custom exercises:', customSyncResult.error);
+      // Continue anyway - standard exercises should still work
+    }
+
+    // Resolve exercise IDs to Supabase UUIDs (handles RapidAPI ID → UUID mapping)
+    const exerciseIdMap = await resolveExerciseIds(session.exercises);
+
     // Insert all sets for each exercise
     const setsToInsert: WorkoutSetInsert[] = [];
     let globalOrderIndex = 0;
+    let skippedIncomplete = 0;
+    let skippedUnresolved = 0;
 
     for (const exercise of session.exercises) {
+      // Get the Supabase UUID for this exercise
+      const resolvedExerciseId = exerciseIdMap.get(exercise.exerciseId);
+      if (!resolvedExerciseId) {
+        console.warn(`[WorkoutSync] Skipping sets for unresolved exercise: "${exercise.exerciseName}" (local ID: ${exercise.exerciseId})`);
+        skippedUnresolved += exercise.sets.filter(s => s.isCompleted).length;
+        continue;
+      }
+
       for (const set of exercise.sets) {
-        if (!set.isCompleted) continue; // Only sync completed sets
+        if (!set.isCompleted) {
+          skippedIncomplete++;
+          continue; // Only sync completed sets
+        }
 
         setsToInsert.push({
           session_id: insertedSession.id,
-          exercise_id: exercise.exerciseId,
+          exercise_id: resolvedExerciseId,
           set_number: set.setNumber,
           reps: set.reps,
           weight: set.weight,
@@ -196,15 +379,33 @@ async function uploadSession(
       }
     }
 
+    // Log diagnostic info
+    console.log(`[WorkoutSync] Session "${session.name}": ${setsToInsert.length} completed sets to sync, ${skippedIncomplete} incomplete skipped, ${skippedUnresolved} unresolved exercises skipped`);
+    if (setsToInsert.length > 0) {
+      console.log(`[WorkoutSync] Exercise IDs: ${[...new Set(setsToInsert.map(s => s.exercise_id))].join(', ')}`);
+    }
+
     if (setsToInsert.length > 0) {
       const { error: setsError } = await supabase
         .from('workout_sets')
         .insert(setsToInsert);
 
       if (setsError) {
-        console.warn('Failed to insert workout sets:', setsError);
+        console.error('[WorkoutSync] Failed to insert workout sets:', {
+          error: setsError,
+          code: setsError.code,
+          message: setsError.message,
+          details: setsError.details,
+          hint: setsError.hint,
+          sampleExerciseIds: setsToInsert.slice(0, 3).map(s => s.exercise_id),
+        });
         // Don't fail the whole sync if sets fail - session is already saved
+        // But log the error clearly so we can diagnose issues
+      } else {
+        console.log(`[WorkoutSync] Successfully synced ${setsToInsert.length} sets for session "${session.name}"`);
       }
+    } else {
+      console.warn(`[WorkoutSync] No completed sets to sync for session "${session.name}"`);
     }
 
     return { success: true };
@@ -487,4 +688,174 @@ export async function getPendingSyncCount(): Promise<number> {
  */
 export async function clearPendingQueue(): Promise<void> {
   await savePendingQueue([]);
+}
+
+/**
+ * Re-sync workout sets for sessions that exist in Supabase but have no sets.
+ * This is a recovery function for historical data where sessions synced but sets failed.
+ *
+ * @param localSessions - Array of completed sessions from local storage
+ * @returns Summary of the resync operation
+ */
+export async function resyncMissingSets(
+  localSessions: WorkoutSession[]
+): Promise<{
+  checked: number;
+  resynced: number;
+  failed: number;
+  errors: string[];
+}> {
+  const result = {
+    checked: 0,
+    resynced: 0,
+    failed: 0,
+    errors: [] as string[],
+  };
+
+  // Check if Supabase is configured
+  if (!isSupabaseConfigured()) {
+    result.errors.push('Supabase not configured');
+    return result;
+  }
+
+  // Check authentication
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    result.errors.push('Not authenticated');
+    return result;
+  }
+
+  console.log(`[ResyncSets] Starting resync for ${localSessions.length} local sessions`);
+
+  for (const session of localSessions) {
+    result.checked++;
+
+    try {
+      // Look up the Supabase session by local_id
+      const { data: dbSession, error: lookupError } = await supabase
+        .from('workout_sessions')
+        .select('id')
+        .eq('local_id', session.localId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (lookupError || !dbSession) {
+        // Session doesn't exist in Supabase - skip (will be handled by normal sync)
+        continue;
+      }
+
+      // Check if sets already exist for this session
+      const { count: setCount, error: countError } = await supabase
+        .from('workout_sets')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', dbSession.id);
+
+      if (countError) {
+        console.warn(`[ResyncSets] Failed to count sets for session ${session.localId}:`, countError);
+        continue;
+      }
+
+      // If sets already exist, skip
+      if (setCount && setCount > 0) {
+        continue;
+      }
+
+      // Count completed sets in local session
+      const completedSets = session.exercises.flatMap(ex =>
+        ex.sets.filter(s => s.isCompleted)
+      );
+
+      if (completedSets.length === 0) {
+        console.log(`[ResyncSets] Session "${session.name}" has no completed sets locally`);
+        continue;
+      }
+
+      console.log(`[ResyncSets] Session "${session.name}" needs resync: ${completedSets.length} completed sets`);
+
+      // Sync custom exercises first
+      const exerciseIds = session.exercises.map(ex => ex.exerciseId);
+      const customSyncResult = await syncCustomExercisesToSupabase(exerciseIds, user.id);
+      if (!customSyncResult.success) {
+        console.warn(`[ResyncSets] Failed to sync custom exercises for session ${session.localId}:`, customSyncResult.error);
+        // Continue anyway - standard exercises should still work
+      }
+
+      // Resolve exercise IDs to Supabase UUIDs (handles RapidAPI ID → UUID mapping)
+      const exerciseIdMap = await resolveExerciseIds(session.exercises);
+
+      // Build sets to insert
+      const setsToInsert: WorkoutSetInsert[] = [];
+      let globalOrderIndex = 0;
+      let skippedUnresolved = 0;
+
+      for (const exercise of session.exercises) {
+        // Get the Supabase UUID for this exercise
+        const resolvedExerciseId = exerciseIdMap.get(exercise.exerciseId);
+        if (!resolvedExerciseId) {
+          console.warn(`[ResyncSets] Skipping sets for unresolved exercise: "${exercise.exerciseName}" (local ID: ${exercise.exerciseId})`);
+          skippedUnresolved += exercise.sets.filter(s => s.isCompleted).length;
+          continue;
+        }
+
+        for (const set of exercise.sets) {
+          if (!set.isCompleted) continue;
+
+          setsToInsert.push({
+            session_id: dbSession.id,
+            exercise_id: resolvedExerciseId,
+            set_number: set.setNumber,
+            reps: set.reps,
+            weight: set.weight,
+            weight_unit: set.weightUnit ?? null,
+            rpe: set.rpe,
+            rest_seconds: set.restSeconds,
+            notes: set.notes || '',
+            is_warmup: set.setType === 'warmup',
+            is_dropset: set.setType === 'dropset',
+            is_failure: set.setType === 'failure',
+            order_index: globalOrderIndex++,
+            local_id: set.localId,
+          });
+        }
+      }
+
+      // Check if we have any sets to insert after resolution
+      if (setsToInsert.length === 0) {
+        if (skippedUnresolved > 0) {
+          console.warn(`[ResyncSets] All ${skippedUnresolved} sets for session "${session.name}" had unresolved exercises - skipping`);
+          result.failed++;
+          result.errors.push(`${session.name}: All exercises could not be matched to database`);
+        }
+        continue;
+      }
+
+      // Insert sets
+      const { error: insertError } = await supabase
+        .from('workout_sets')
+        .insert(setsToInsert);
+
+      if (insertError) {
+        console.error(`[ResyncSets] Failed to insert sets for session "${session.name}":`, {
+          error: insertError,
+          code: insertError.code,
+          message: insertError.message,
+        });
+        result.failed++;
+        result.errors.push(`${session.name}: ${insertError.message}`);
+      } else {
+        const unresolvedMsg = skippedUnresolved > 0 ? ` (${skippedUnresolved} sets skipped due to unresolved exercises)` : '';
+        console.log(`[ResyncSets] Successfully resynced ${setsToInsert.length} sets for session "${session.name}"${unresolvedMsg}`);
+        result.resynced++;
+      }
+    } catch (error) {
+      console.error(`[ResyncSets] Error processing session ${session.localId}:`, error);
+      result.failed++;
+      result.errors.push(
+        `${session.name || session.localId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  console.log(`[ResyncSets] Complete: checked=${result.checked}, resynced=${result.resynced}, failed=${result.failed}`);
+  return result;
 }

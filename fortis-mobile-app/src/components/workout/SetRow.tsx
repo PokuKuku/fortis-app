@@ -93,6 +93,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
   const updateSetType = useWorkoutStore(s => useEditor ? s.updateEditorSetType : s.updateSetType);
   const removeSet = useWorkoutStore(s => useEditor ? s.removeEditorSet : s.removeSet);
   const openNumberPad = useWorkoutStore(s => useEditor ? s.openEditorNumberPad : s.openNumberPad);
+  const closeNumberPad = useWorkoutStore(s => useEditor ? s.closeEditorNumberPad : s.closeNumberPad);
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
 
   // Check if this input is currently active
@@ -240,10 +241,27 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
   };
 
   const handleComplete = () => {
-    // Try to use autofill values from previous set if current values are null
+    // Check if number pad is open for this set (to grab pending value)
+    const isThisSetActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
+      activeNumberPad?.setLocalId === setLocalId;
+    const pendingField = isThisSetActive ? activeNumberPad?.inputType : null;
+    const pendingValue = isThisSetActive && activeNumberPad?.pendingValue
+      ? parseFloat(activeNumberPad.pendingValue)
+      : null;
+
+    // Start with saved values
     let finalWeight = set.weight;
     let finalReps = set.reps;
 
+    // Use pending value if number pad is open for this field
+    if (pendingField === 'weight' && pendingValue !== null && !isNaN(pendingValue)) {
+      finalWeight = pendingValue;
+    }
+    if (pendingField === 'reps' && pendingValue !== null && !isNaN(pendingValue)) {
+      finalReps = pendingValue;
+    }
+
+    // Autofill from previous set if still null
     if (allowAutoFill && finalWeight === null && previousSet?.weight != null) {
       finalWeight = previousSet.weight;
     }
@@ -251,7 +269,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       finalReps = previousSet.reps;
     }
 
-    // Validate - only error if still missing after autofill attempt
+    // Validate - only error if still missing after all fallbacks
     const missingFields: ('weight' | 'reps')[] = [];
     if (finalWeight === null) missingFields.push('weight');
     if (finalReps === null) missingFields.push('reps');
@@ -270,12 +288,17 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     // Clear any previous validation errors
     setValidationErrors({});
 
-    // Save autofilled values if they were used
-    if (set.weight === null || set.reps === null) {
+    // Save values (including any pending value from number pad)
+    if (set.weight !== finalWeight || set.reps !== finalReps) {
       updateSet(exerciseLocalId, setLocalId, {
         weight: finalWeight,
         reps: finalReps
       });
+    }
+
+    // Close the number pad if it was open for this set
+    if (isThisSetActive) {
+      closeNumberPad();
     }
 
     // Complete the set

@@ -7,7 +7,7 @@
  * Features:
  * - Rate limiting via ai_rate_limits table
  * - Intent-based context assembly
- * - Claude 3.5 Sonnet integration
+ * - Claude 3.5 Haiku integration
  * - Audit logging for mutations
  */
 
@@ -1535,7 +1535,7 @@ async function callClaudeText(
 
   try {
     const response = await anthropic.messages.create({
-      model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-sonnet-4-20250514',
+      model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-3-5-haiku-20241022',
       max_tokens: 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: contentBlocks }],

@@ -153,6 +153,7 @@ export async function getPendingActions(): Promise<AIPendingAction[]> {
     .select('*')
     .eq('user_id', userId)
     .eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString()) // Exclude expired actions
     .order('created_at', { ascending: false });
 
   if (error) {

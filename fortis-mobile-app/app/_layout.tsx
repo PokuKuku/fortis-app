@@ -142,7 +142,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
           <Stack.Screen
             name="settings"
             options={{
-              ...PAGE_TRANSITION,
+              animation: 'slide_from_right',
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}

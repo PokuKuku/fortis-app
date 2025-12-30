@@ -26,7 +26,7 @@ import {
   EXERCISE_WEIGHT_UNITS_KEY,
   BODY_TYPE_KEY,
 } from '../constants/storageKeys';
-import { syncWorkoutSession } from '../services/workoutHistoryService';
+import { syncWorkoutSession, resyncMissingSets } from '../services/workoutHistoryService';
 import {
   syncStickyNote,
   deleteStickyNoteFromCloud,
@@ -156,6 +156,12 @@ interface WorkoutState {
   loadRestTimerSettings: () => Promise<void>;
   loadCompletedSessions: () => Promise<void>;
   markSessionsSynced: (localIds: string[]) => Promise<void>;
+  resyncMissingSetsToCloud: () => Promise<{
+    checked: number;
+    resynced: number;
+    failed: number;
+    errors: string[];
+  }>;
   importCompletedSessions: (
     sessions: WorkoutSession[]
   ) => Promise<{ imported: number; skipped: number; skippedSync: number }>;
@@ -1233,6 +1239,17 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to persist synced workout sessions:', error);
       }
+    },
+
+    resyncMissingSetsToCloud: async () => {
+      const { completedSessions } = get();
+      if (completedSessions.length === 0) {
+        return { checked: 0, resynced: 0, failed: 0, errors: [] };
+      }
+
+      // Call the resync function from workoutHistoryService
+      const result = await resyncMissingSets(completedSessions);
+      return result;
     },
 
     importCompletedSessions: async (sessions) => {
