@@ -1358,26 +1358,34 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       // Reorder day numbers on the server to keep them sequential
-      for (const [index, workout] of remainingWorkouts.entries()) {
-        const { error: tempUpdateError } = await supabase
-          .from('program_workouts')
-          .update({ day_number: 1000 + index + 1 })
-          .eq('id', workout.id);
-        if (tempUpdateError) {
-          set({ error: tempUpdateError.message });
-          return false;
-        }
+      // First move all to temp day numbers (1000+) to avoid conflicts
+      const tempResults = await Promise.all(
+        remainingWorkouts.map((workout, index) =>
+          supabase
+            .from('program_workouts')
+            .update({ day_number: 1000 + index + 1 })
+            .eq('id', workout.id)
+        )
+      );
+      const tempError = tempResults.find((r) => r.error)?.error;
+      if (tempError) {
+        set({ error: tempError.message });
+        return false;
       }
 
-      for (const [index, workout] of remainingWorkouts.entries()) {
-        const { error: updateError } = await supabase
-          .from('program_workouts')
-          .update({ day_number: index + 1 })
-          .eq('id', workout.id);
-        if (updateError) {
-          set({ error: updateError.message });
-          return false;
-        }
+      // Then move to final sequential day numbers
+      const finalResults = await Promise.all(
+        remainingWorkouts.map((workout, index) =>
+          supabase
+            .from('program_workouts')
+            .update({ day_number: index + 1 })
+            .eq('id', workout.id)
+        )
+      );
+      const finalError = finalResults.find((r) => r.error)?.error;
+      if (finalError) {
+        set({ error: finalError.message });
+        return false;
       }
 
       set((state) => ({
@@ -1425,42 +1433,18 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }
 
     try {
-      const targetWorkout = updatedWorkouts.find((workout) => workout.id === workoutId);
-      if (!targetWorkout) {
-        set({ error: 'Workout not found' });
-        return false;
-      }
-
+      // Delete the specific exercise by its primary key (much faster than delete-all-reinsert)
       const { error: deleteError } = await supabase
         .from('program_exercises')
         .delete()
-        .eq('program_workout_id', workoutId);
+        .eq('id', exerciseId);
+
       if (deleteError) {
         set({ error: deleteError.message });
         return false;
       }
 
-      if (targetWorkout.exercises.length > 0) {
-        const resolvedExercises = await resolveExerciseIdsForSupabase(targetWorkout.exercises);
-        const exercisesToInsert = resolvedExercises.map((exercise, index) => ({
-          program_workout_id: workoutId,
-          exercise_id: exercise.resolvedExerciseId,
-          sets: exercise.sets,
-          reps: exercise.reps,
-          rest_seconds: exercise.restSeconds ?? 120,
-          notes: exercise.notes,
-          order_index: index,
-        }));
-
-        const { error: insertError } = await supabase
-          .from('program_exercises')
-          .insert(exercisesToInsert);
-        if (insertError) {
-          set({ error: insertError.message });
-          return false;
-        }
-      }
-
+      // Update local state
       set((state) => ({
         programs: state.programs.map((p) =>
           p.id === programId ? { ...p, workouts: updatedWorkouts } : p

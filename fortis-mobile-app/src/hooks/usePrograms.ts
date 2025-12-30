@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ProgramDetail,
   WorkoutDetail,
@@ -77,6 +77,10 @@ export function useProgram(id: string | undefined) {
   const storePrograms = useProgramsStore((state) => state.programs);
   const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
 
+  // Track current program for deletion optimization (avoids stale closure)
+  const programRef = useRef<ProgramDetail | null>(null);
+  programRef.current = program;
+
   useEffect(() => {
     fetchPrograms();
   }, [fetchPrograms]);
@@ -96,6 +100,43 @@ export function useProgram(id: string | undefined) {
         setLoading(true);
         const foundProgram = storePrograms.find((p) => p.id === id && !p.isTemplate);
         if (foundProgram) {
+          // OPTIMIZATION: Check if this is just an exercise deletion
+          // If so, skip expensive reconversion and just filter the existing data
+          const currentProgram = programRef.current;
+          if (currentProgram) {
+            const currentExerciseIds = new Set(
+              currentProgram.workouts.flatMap(w => w.exercises.map(e => e.id))
+            );
+            const newExerciseIds = new Set(
+              foundProgram.workouts.flatMap(w => w.exercises.map(e => e.id))
+            );
+
+            // If new exercises are a subset of current (deletion only), just filter
+            const isSubset = Array.from(newExerciseIds).every(exId => currentExerciseIds.has(exId));
+            const isDeletion = newExerciseIds.size < currentExerciseIds.size;
+
+            if (isSubset && isDeletion) {
+              // Skip expensive reconversion - just filter deleted exercises
+              if (isMounted) {
+                setProgram(prev => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    workouts: prev.workouts.map((w, idx) => ({
+                      ...w,
+                      exercises: w.exercises.filter(e =>
+                        foundProgram.workouts[idx]?.exercises.some(fe => fe.id === e.id)
+                      )
+                    }))
+                  };
+                });
+                setLoading(false);
+              }
+              return;
+            }
+          }
+
+          // Full conversion for initial load or additions
           const converted = await convertStoreProgramToDetail(foundProgram);
           if (isMounted) {
             setProgram(converted);

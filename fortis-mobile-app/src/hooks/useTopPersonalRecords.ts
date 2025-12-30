@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useExercises } from '@/src/hooks/useExercises';
 
 export interface PersonalRecord {
   exerciseId: string;
@@ -15,6 +16,18 @@ export interface PersonalRecord {
  */
 export function useTopPersonalRecords(limit: number = 5): PersonalRecord[] {
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const { exercises } = useExercises();
+
+  const exerciseNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    exercises.forEach(exercise => {
+      map.set(exercise.id, exercise.name);
+      if (exercise.slug) {
+        map.set(exercise.slug, exercise.name);
+      }
+    });
+    return map;
+  }, [exercises]);
 
   return useMemo(() => {
     // Map to store best lift per exercise
@@ -31,9 +44,10 @@ export function useTopPersonalRecords(limit: number = 5): PersonalRecord[] {
 
             // Update if this is a new PR (higher weight)
             if (!existingPR || set.weight > existingPR.maxWeight) {
+              const resolvedName = exerciseNameById.get(exercise.exerciseId);
               prMap.set(exercise.exerciseId, {
                 exerciseId: exercise.exerciseId,
-                exerciseName: exercise.exerciseName,
+                exerciseName: resolvedName || exercise.exerciseName || 'Unknown Exercise',
                 maxWeight: set.weight,
                 reps: set.reps || 0,
                 date: sessionDate,
@@ -50,5 +64,5 @@ export function useTopPersonalRecords(limit: number = 5): PersonalRecord[] {
 
     // Return top N
     return prs.slice(0, limit);
-  }, [completedSessions, limit]);
+  }, [completedSessions, limit, exerciseNameById]);
 }

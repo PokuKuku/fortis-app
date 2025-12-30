@@ -11,7 +11,7 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { WorkoutSession, WorkoutExercise, WorkoutSet, WeightUnit } from '@/src/types/workout';
 import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
-import { isCustomExercise, getCustomExercises } from '@/src/services/exerciseService';
+import { isCustomExercise, getCustomExercises, getAllExercises } from '@/src/services/exerciseService';
 
 // Types for Supabase DTOs
 interface WorkoutSessionInsert {
@@ -557,6 +557,16 @@ export async function fetchWorkoutHistory(
     return { sessions: [], error: 'Not authenticated' };
   }
 
+  // Build exercise name lookup map
+  const exercises = await getAllExercises();
+  const exerciseNameById = new Map<string, string>();
+  exercises.forEach(ex => {
+    exerciseNameById.set(ex.id, ex.name);
+    if (ex.slug) {
+      exerciseNameById.set(ex.slug, ex.name);
+    }
+  });
+
   try {
     // Fetch sessions with their sets (with timeout)
     const controller = new AbortController();
@@ -640,7 +650,7 @@ export async function fetchWorkoutHistory(
         .map(([exerciseId, sets], index) => ({
           localId: `${session.local_id}-ex-${index}`,
           exerciseId,
-          exerciseName: exerciseId, // Would need to look up name from exercise library
+          exerciseName: exerciseNameById.get(exerciseId) || exerciseId,
           sets: sets.sort((a, b) => a.orderIndex - b.orderIndex),
           notes: '',
           orderIndex: index,

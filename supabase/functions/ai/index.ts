@@ -1138,12 +1138,15 @@ async function fetchHistorySummary(
       totalWorkouts,
       avgWorkoutsPerWeek: totalWorkouts / Math.max(periodWeeks, 1),
       totalVolume,
+      totalDurationSeconds: totalDuration,
+      totalDurationMinutes: Math.round(totalDuration / 60),
       avgDurationMinutes: totalWorkouts > 0 ? Math.round(totalDuration / totalWorkouts / 60) : 0,
     },
     weeklyVolume: weeklyVolume?.map((w) => ({
       weekStart: w.week_start,
       workouts: w.workouts_count,
       totalVolume: w.total_volume,
+      totalTimeSeconds: w.total_time_seconds,
     })),
     trendSignals: {
       avgVolumeRecent4Weeks: Math.round(avgRecentVolume),
@@ -1427,6 +1430,7 @@ async function fetchAnalytics(
     const muscleFrequency = muscleFrequencyResult.data;
 
     return {
+      scope: 'lifetime',
       userStats: userStats
         ? {
             totalWorkouts: userStats.total_workouts,
@@ -1626,7 +1630,9 @@ function buildSystemPrompt(
   context: AIContext
 ): string {
   // Note: Only ANALYZE_HISTORY intent is currently active (read-only)
-  const intentGuidance = '\n- You are answering questions about training history and progress.';
+  const intentGuidance = '\n- You are answering questions about training history and progress.'
+    + '\n- For time spent in a specific period, use TRAINING HISTORY totals (overview.totalDurationSeconds or weeklyVolume.totalTimeSeconds).'
+    + '\n- Analytics userStats totals are lifetime-only; do not use them for week/month summaries.';
 
   const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights.
 

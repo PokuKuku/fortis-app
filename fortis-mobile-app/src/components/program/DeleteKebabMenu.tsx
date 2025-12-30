@@ -48,7 +48,6 @@ export function DeleteKebabMenu({
 
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -77,15 +76,9 @@ export function DeleteKebabMenu({
           duration: 150,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        // Execute pending action after animation completes
-        if (pendingAction) {
-          pendingAction();
-          setPendingAction(null);
-        }
-      });
+      ]).start();
     }
-  }, [visible, pendingAction]);
+  }, [visible]);
 
   const handleOpen = useCallback(() => {
     buttonRef.current?.measureInWindow((x, y, width, height) => {
@@ -104,7 +97,9 @@ export function DeleteKebabMenu({
   }, []);
 
   const handleDelete = useCallback(() => {
-    setPendingAction(() => onDelete);
+    // Fire delete immediately - don't wait for animation
+    // This prevents race conditions between animation cleanup and delete operation
+    onDelete();
     handleClose();
   }, [onDelete, handleClose]);
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Animated, { FadeInRight } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
@@ -43,7 +43,7 @@ function getMuscleColor(muscle: string): string {
   return MUSCLE_COLORS[normalizedMuscle] || Colors.textSecondary;
 }
 
-export function HubExerciseRow({
+export const HubExerciseRow = React.memo(function HubExerciseRow({
   exerciseName,
   targetSets,
   targetReps,
@@ -80,7 +80,7 @@ export function HubExerciseRow({
 
   return (
     <Animated.View
-      entering={FadeInRight.delay(index * 50).duration(300)}
+      entering={FadeIn.duration(200)}
     >
       <TouchableOpacity
         onPress={handlePress}
@@ -147,7 +147,17 @@ export function HubExerciseRow({
       </TouchableOpacity>
     </Animated.View>
   );
-}
+}, (prev, next) => {
+  // Only re-render if exercise data changes, NOT index
+  // This prevents animation storms when exercises are deleted
+  return (
+    prev.exerciseName === next.exerciseName &&
+    prev.targetSets === next.targetSets &&
+    prev.targetReps === next.targetReps &&
+    prev.images[0] === next.images[0] &&
+    prev.primaryMuscles[0] === next.primaryMuscles[0]
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

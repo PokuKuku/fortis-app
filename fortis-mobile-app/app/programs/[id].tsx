@@ -290,19 +290,19 @@ export default function ProgramDetailScreen() {
 
     if (progressEntry) {
       setPendingDelete(deletePayload);
-      setDeleteModal({ ...deleteModal, visible: false });
+      setDeleteModal(prev => ({ ...prev, visible: false }));
       setEditIntentModalVisible(true);
       return;
     }
 
     await applyDelete(deletePayload);
-    setDeleteModal({ ...deleteModal, visible: false });
-    refreshProgram();
-  }, [applyDelete, deleteModal, id, progressEntry, refreshProgram]);
+    setDeleteModal(prev => ({ ...prev, visible: false }));
+    // refreshProgram() removed - local state already updated by applyDelete via Zustand
+  }, [applyDelete, deleteModal, id, progressEntry]);
 
   const handleCancelDelete = useCallback(() => {
-    setDeleteModal({ ...deleteModal, visible: false });
-  }, [deleteModal]);
+    setDeleteModal(prev => ({ ...prev, visible: false }));
+  }, []);
 
   const handleEditIntent = useCallback(async (intent: 'keep' | 'restart') => {
     if (!pendingDelete || !id || !program) {
@@ -473,7 +473,7 @@ export default function ProgramDetailScreen() {
           style={styles.section}
         >
           <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Exercises</Text>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
             <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
               {program.workouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
             </Text>
