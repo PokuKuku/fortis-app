@@ -111,9 +111,8 @@ export default function SplashScreen() {
   // Handle navigation when both splash is complete and auth is loaded
   useEffect(() => {
     if (splashComplete && !isLoading) {
-      if (!isAuthenticated) {
-        router.replace('/auth');
-      } else if (needsOnboarding) {
+      if (!isAuthenticated || needsOnboarding) {
+        // Show onboarding for new users (signed out or needing onboarding)
         router.replace('/onboarding');
       } else {
         router.replace('/(tabs)');

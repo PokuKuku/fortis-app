@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ClockIcon, ScaleIcon, TrophyIcon } from 'react-native-heroicons/outline';
 import { BaseModal } from '@/src/components/ui/BaseModal';
@@ -7,6 +8,14 @@ import { WorkoutSession } from '@/src/types/workout';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
+import { getExerciseById } from '@/src/services/exerciseService';
+
+// UUID v4 pattern: 8-4-4-4-12 hex characters
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUUID(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
 
 interface WorkoutHistoryDetailModalProps {
   visible: boolean;
@@ -41,6 +50,65 @@ export function WorkoutHistoryDetailModal({
   session,
 }: WorkoutHistoryDetailModalProps) {
   const { colors, isDark } = useTheme();
+
+  // Map of exerciseId -> resolved exercise name (for UUID exercise names)
+  const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
+
+  // Resolve UUID exercise names when modal opens
+  useEffect(() => {
+    if (!visible || !session) {
+      setResolvedNames({});
+      return;
+    }
+
+    const resolveUuidNames = async () => {
+      const namesToResolve: Array<{ exerciseId: string; exerciseName: string }> = [];
+
+      for (const exercise of session.exercises) {
+        // Check if exerciseName looks like a UUID
+        if (isUUID(exercise.exerciseName)) {
+          namesToResolve.push({
+            exerciseId: exercise.exerciseId,
+            exerciseName: exercise.exerciseName,
+          });
+        }
+      }
+
+      if (namesToResolve.length === 0) return;
+
+      const resolved: Record<string, string> = {};
+
+      await Promise.all(
+        namesToResolve.map(async ({ exerciseId, exerciseName }) => {
+          // Try to look up the exercise by ID
+          const foundExercise = await getExerciseById(exerciseId);
+          if (foundExercise) {
+            resolved[exerciseId] = foundExercise.name;
+          } else {
+            // Fallback: try looking up by the UUID that was stored as the name
+            const fallbackExercise = await getExerciseById(exerciseName);
+            if (fallbackExercise) {
+              resolved[exerciseId] = fallbackExercise.name;
+            }
+          }
+        })
+      );
+
+      setResolvedNames(resolved);
+    };
+
+    resolveUuidNames();
+  }, [visible, session]);
+
+  // Helper to get display name for an exercise
+  const getDisplayName = (exerciseId: string, exerciseName: string): string => {
+    // If we resolved this UUID, use the resolved name
+    if (resolvedNames[exerciseId]) {
+      return resolvedNames[exerciseId];
+    }
+    // Otherwise use the stored name
+    return exerciseName;
+  };
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -97,7 +165,7 @@ export function WorkoutHistoryDetailModal({
             <View key={exercise.localId} style={styles.exerciseSection}>
               {/* Exercise Name */}
               <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
-                {exercise.exerciseName}
+                {getDisplayName(exercise.exerciseId, exercise.exerciseName)}
               </Text>
 
               {/* Sets */}

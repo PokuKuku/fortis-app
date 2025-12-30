@@ -21,7 +21,7 @@ import {
   ExclamationTriangleIcon,
 } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius, FontSizes, ButtonHeights } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -757,6 +757,8 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     textAlignVertical: 'center',
     includeFontPadding: false,
+    lineHeight: FontSizes['2xl'] + 4,
+    minHeight: ButtonHeights.lg,
   },
   saveButton: {
     height: 40,

@@ -16,6 +16,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { ProfileHeader } from '@/src/components/profile/ProfileHeader';
 import { StatsOverviewCard } from '@/src/components/profile/StatsOverviewCard';
 import { PersonalRecordsCard } from '@/src/components/profile/PersonalRecordsCard';
+import { WeeklyMuscleHeatmapCard } from '@/src/components/profile/WeeklyMuscleHeatmapCard';
 import { Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
@@ -63,6 +64,11 @@ export default function ProfileScreen() {
               {/* Profile Header with Avatar, Name, and Weekly Activity */}
               <View style={styles.section}>
                 <ProfileHeader />
+              </View>
+
+              {/* Weekly Muscle Heatmap */}
+              <View style={styles.section}>
+                <WeeklyMuscleHeatmapCard />
               </View>
 
               {/* Stats Overview */}

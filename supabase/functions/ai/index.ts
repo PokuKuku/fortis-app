@@ -1778,8 +1778,33 @@ function parseModelResponse(
     console.log('[parseModelResponse] JSON parse failed, raw text:', text.substring(0, 500));
     console.log('[parseModelResponse] Parse error:', parseError);
 
-    // For read intents, return as plain text answer
+    // For read intents, try to extract the text field from malformed JSON
     if (config.type === 'read') {
+      // Try to extract the "text" field from partially-valid JSON
+      // This handles cases where JSON.parse fails due to encoding issues or special characters
+      const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      if (textMatch) {
+        // Unescape common JSON escape sequences
+        const extractedText = textMatch[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\r/g, '\r')
+          .replace(/\\t/g, '\t')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+
+        console.log('[parseModelResponse] Extracted text from malformed JSON');
+        return {
+          type: 'answer',
+          requestId,
+          answer: {
+            text: extractedText,
+            citations: [],
+          },
+        };
+      }
+
+      // Fall back to raw text only if extraction completely fails
+      console.log('[parseModelResponse] Could not extract text, returning raw');
       return {
         type: 'answer',
         requestId,

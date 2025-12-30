@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlassIcon, ArrowsUpDownIcon } from 'react-native-heroicons/outline';
+import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { Exercise } from '@/src/types/exercise';
@@ -16,9 +16,7 @@ export default function ExercisesScreen() {
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
-  const [showMuscleModal, setShowMuscleModal] = useState(false);
-  const [showCategoryModal, setShowCategoryModal] = useState(false);
-  const [showEquipmentModal, setShowEquipmentModal] = useState(false);
+  const [activePopover, setActivePopover] = useState<'muscle' | 'category' | 'equipment' | null>(null);
   const isNavigating = useRef(false);
 
   // Use centralized exercise service
@@ -28,8 +26,7 @@ export default function ExercisesScreen() {
   const filterPopoverOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const isFilterOpen = showMuscleModal || showCategoryModal || showEquipmentModal;
-    if (isFilterOpen) {
+    if (activePopover) {
       Animated.parallel([
         Animated.spring(filterPopoverScale, {
           toValue: 1,
@@ -57,7 +54,7 @@ export default function ExercisesScreen() {
         }),
       ]).start();
     }
-  }, [showMuscleModal, showCategoryModal, showEquipmentModal]);
+  }, [activePopover]);
 
   // Get unique muscles and categories
   const uniqueMuscles = useMemo(() => {
@@ -215,7 +212,7 @@ export default function ExercisesScreen() {
         <View style={styles.filterContainer}>
           <TouchableOpacity
             style={[styles.filterButton, filterButtonTheme]}
-            onPress={() => setShowMuscleModal(true)}
+            onPress={() => setActivePopover(activePopover === 'muscle' ? null : 'muscle')}
           >
             <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
               {selectedMuscles.length > 0
@@ -226,7 +223,7 @@ export default function ExercisesScreen() {
 
           <TouchableOpacity
             style={[styles.filterButton, filterButtonTheme]}
-            onPress={() => setShowCategoryModal(true)}
+            onPress={() => setActivePopover(activePopover === 'category' ? null : 'category')}
           >
             <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
               {selectedCategories.length > 0
@@ -237,17 +234,13 @@ export default function ExercisesScreen() {
 
           <TouchableOpacity
             style={[styles.filterButton, filterButtonTheme]}
-            onPress={() => setShowEquipmentModal(true)}
+            onPress={() => setActivePopover(activePopover === 'equipment' ? null : 'equipment')}
           >
             <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
               {selectedEquipment.length > 0
                 ? `${selectedEquipment.length} Equipment`
                 : 'Any Equipment'}
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={[styles.sortButton, filterButtonTheme]}>
-            <ArrowsUpDownIcon color={colors.textTertiary} size={20} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
@@ -272,17 +265,17 @@ export default function ExercisesScreen() {
       </SafeAreaView>
 
       {/* Muscle Filter Popover */}
-      {(showMuscleModal || filterPopoverOpacity._value > 0) && (
+      {activePopover === 'muscle' && (
         <Animated.View
           style={[styles.popoverOverlay, { opacity: filterPopoverOpacity }]}
-          pointerEvents={showMuscleModal ? 'auto' : 'none'}
+          pointerEvents="auto"
         >
           <TouchableOpacity
             style={[styles.popoverBackdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)' }]}
             activeOpacity={1}
-            onPress={() => setShowMuscleModal(false)}
+            onPress={() => setActivePopover(null)}
           />
-          <Animated.View style={[styles.popoverContent, styles.popoverRight, popoverTheme, {
+          <Animated.View style={[styles.popoverContent, styles.popoverLeft, popoverTheme, {
             transform: [{ scale: filterPopoverScale }]
           }]}>
             <StainlessSteelPattern />
@@ -336,17 +329,17 @@ export default function ExercisesScreen() {
       )}
 
       {/* Category Filter Popover */}
-      {(showCategoryModal || filterPopoverOpacity._value > 0) && (
+      {activePopover === 'category' && (
         <Animated.View
           style={[styles.popoverOverlay, { opacity: filterPopoverOpacity }]}
-          pointerEvents={showCategoryModal ? 'auto' : 'none'}
+          pointerEvents="auto"
         >
           <TouchableOpacity
             style={[styles.popoverBackdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)' }]}
             activeOpacity={1}
-            onPress={() => setShowCategoryModal(false)}
+            onPress={() => setActivePopover(null)}
           />
-          <Animated.View style={[styles.popoverContent, styles.popoverRight, popoverTheme, {
+          <Animated.View style={[styles.popoverContent, styles.popoverCenter, popoverTheme, {
             transform: [{ scale: filterPopoverScale }]
           }]}>
             <StainlessSteelPattern />
@@ -400,15 +393,15 @@ export default function ExercisesScreen() {
       )}
 
       {/* Equipment Filter Popover */}
-      {(showEquipmentModal || filterPopoverOpacity._value > 0) && (
+      {activePopover === 'equipment' && (
         <Animated.View
           style={[styles.popoverOverlay, { opacity: filterPopoverOpacity }]}
-          pointerEvents={showEquipmentModal ? 'auto' : 'none'}
+          pointerEvents="auto"
         >
           <TouchableOpacity
             style={[styles.popoverBackdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)' }]}
             activeOpacity={1}
-            onPress={() => setShowEquipmentModal(false)}
+            onPress={() => setActivePopover(null)}
           />
           <Animated.View style={[styles.popoverContent, styles.popoverRight, popoverTheme, {
             transform: [{ scale: filterPopoverScale }]
@@ -532,14 +525,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
-  sortButton: {
-    backgroundColor: '#2C2C2E',
-    borderRadius: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   countContainer: {
     paddingHorizontal: 24,
     paddingBottom: 12,
@@ -623,7 +608,7 @@ const styles = StyleSheet.create({
   },
   popoverCenter: {
     left: '50%',
-    marginLeft: -100,
+    marginLeft: -80, // Half of popover width (160/2)
   },
   popoverRight: {
     right: 72,

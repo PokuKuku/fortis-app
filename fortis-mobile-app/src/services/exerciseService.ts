@@ -15,6 +15,19 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 let baseExerciseCache: Exercise[] | null = null;
 let customExerciseCache: Exercise[] | null = null;
 
+// --- Helpers ---
+
+/**
+ * Convert a string to Title Case (e.g., "barbell bench press" → "Barbell Bench Press")
+ */
+function toTitleCase(str: string): string {
+  return str
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 // --- Data Transformation ---
 
 type SupabaseExerciseRow = {
@@ -33,7 +46,7 @@ function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise
   return {
     id: row.id,
     slug: row.slug ?? undefined,
-    name: row.name,
+    name: toTitleCase(row.name),
     primaryMuscles: normalizeMuscleArray(row.primary_muscles ?? []),
     secondaryMuscles: normalizeMuscleArray(row.secondary_muscles ?? []),
     equipment: row.equipment ?? 'body only',

@@ -104,9 +104,10 @@ export function useLastExercisePerformance(
           .order('workout_sessions(completed_at)', { ascending: false })
           .order('set_number', { ascending: true });
 
-        if (context?.programWorkoutId) {
+        // Only add context filters if they are valid UUIDs (local IDs like 'default-template-upper' are not valid)
+        if (context?.programWorkoutId && isValidUUID(context.programWorkoutId)) {
           query = query.eq('workout_sessions.program_workout_id', context.programWorkoutId);
-        } else if (context?.programId) {
+        } else if (context?.programId && isValidUUID(context.programId)) {
           query = query.eq('workout_sessions.program_id', context.programId);
         } else if (context?.workoutName) {
           query = query.eq('workout_sessions.name', context.workoutName);

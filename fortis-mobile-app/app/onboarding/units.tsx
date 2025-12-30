@@ -12,18 +12,22 @@ import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
 type UnitSystem = 'imperial' | 'metric';
+type BodyType = 'male' | 'female';
 
 export default function OnboardingUnitsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { updateProfile } = useAuth();
+  const { updateProfile, isAuthenticated } = useAuth();
+  const setBodyType = useWorkoutStore((s) => s.setBodyType);
   const [selectedUnit, setSelectedUnit] = useState<UnitSystem>('imperial');
+  const [selectedBodyType, setSelectedBodyType] = useState<BodyType>('male');
   const [isLoading, setIsLoading] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -74,18 +78,25 @@ export default function OnboardingUnitsScreen() {
     setSelectedUnit(unit);
   };
 
+  const handleBodyTypeSelect = (bodyType: BodyType) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedBodyType(bodyType);
+  };
+
   const handleContinue = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
 
-    // Save preference to profile
-    const { error } = await updateProfile({ preferred_units: selectedUnit });
+    // Save body type locally (works for all users)
+    setBodyType(selectedBodyType);
+
+    // Only save to profile if authenticated
+    if (isAuthenticated) {
+      await updateProfile({ preferred_units: selectedUnit });
+    }
 
     setIsLoading(false);
-
-    if (!error) {
-      router.push('/onboarding/complete');
-    }
+    router.push('/onboarding/complete');
   };
 
   return (
@@ -104,73 +115,75 @@ export default function OnboardingUnitsScreen() {
         >
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, themedStyles.title]}>Choose Your Units</Text>
+            <Text style={[styles.title, themedStyles.title]}>Set Your Preferences</Text>
             <Text style={[styles.subtitle, themedStyles.subtitle]}>
-              Select your preferred weight measurement system
+              Customize your workout experience
             </Text>
           </View>
 
-          {/* Unit Options */}
-          <View style={styles.optionsContainer}>
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                themedStyles.optionCard,
-                selectedUnit === 'imperial' && themedStyles.optionCardSelected,
-              ]}
-              onPress={() => handleUnitSelect('imperial')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.optionContent}>
-                <Text style={[styles.optionTitle, themedStyles.optionTitle]}>Imperial</Text>
-                <Text style={[styles.optionDescription, themedStyles.optionDescription]}>Pounds (lbs)</Text>
-              </View>
-              <View style={styles.optionExample}>
-                <Text style={[styles.exampleWeight, themedStyles.exampleWeight]}>135</Text>
-                <Text style={[styles.exampleUnit, themedStyles.exampleUnit]}>lbs</Text>
-              </View>
-              <View
-                style={[
-                  styles.radioOuter,
-                  themedStyles.radioOuter,
-                  selectedUnit === 'imperial' && themedStyles.radioOuterSelected,
-                ]}
-              >
-                {selectedUnit === 'imperial' && (
-                  <View style={[styles.radioInner, themedStyles.radioInner]} />
-                )}
-              </View>
-            </TouchableOpacity>
+          {/* Options Container */}
+          <View style={styles.allOptionsContainer}>
+            {/* Weight Units Section */}
+            <View style={styles.sectionContainer}>
+              <Text style={[styles.sectionLabel, themedStyles.subtitle]}>Weight Units</Text>
+              <View style={styles.optionsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.compactOptionCard,
+                    themedStyles.optionCard,
+                    selectedUnit === 'imperial' && themedStyles.optionCardSelected,
+                  ]}
+                  onPress={() => handleUnitSelect('imperial')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.compactOptionTitle, themedStyles.optionTitle]}>Imperial</Text>
+                  <Text style={[styles.compactOptionExample, themedStyles.exampleWeight]}>lbs</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.optionCard,
-                themedStyles.optionCard,
-                selectedUnit === 'metric' && themedStyles.optionCardSelected,
-              ]}
-              onPress={() => handleUnitSelect('metric')}
-              activeOpacity={0.8}
-            >
-              <View style={styles.optionContent}>
-                <Text style={[styles.optionTitle, themedStyles.optionTitle]}>Metric</Text>
-                <Text style={[styles.optionDescription, themedStyles.optionDescription]}>Kilograms (kg)</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.compactOptionCard,
+                    themedStyles.optionCard,
+                    selectedUnit === 'metric' && themedStyles.optionCardSelected,
+                  ]}
+                  onPress={() => handleUnitSelect('metric')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.compactOptionTitle, themedStyles.optionTitle]}>Metric</Text>
+                  <Text style={[styles.compactOptionExample, themedStyles.exampleWeight]}>kg</Text>
+                </TouchableOpacity>
               </View>
-              <View style={styles.optionExample}>
-                <Text style={[styles.exampleWeight, themedStyles.exampleWeight]}>60</Text>
-                <Text style={[styles.exampleUnit, themedStyles.exampleUnit]}>kg</Text>
+            </View>
+
+            {/* Body Type Section */}
+            <View style={styles.sectionContainer}>
+              <Text style={[styles.sectionLabel, themedStyles.subtitle]}>Body Type</Text>
+              <View style={styles.optionsRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.compactOptionCard,
+                    themedStyles.optionCard,
+                    selectedBodyType === 'male' && themedStyles.optionCardSelected,
+                  ]}
+                  onPress={() => handleBodyTypeSelect('male')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.compactOptionTitle, themedStyles.optionTitle]}>Male</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.compactOptionCard,
+                    themedStyles.optionCard,
+                    selectedBodyType === 'female' && themedStyles.optionCardSelected,
+                  ]}
+                  onPress={() => handleBodyTypeSelect('female')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.compactOptionTitle, themedStyles.optionTitle]}>Female</Text>
+                </TouchableOpacity>
               </View>
-              <View
-                style={[
-                  styles.radioOuter,
-                  themedStyles.radioOuter,
-                  selectedUnit === 'metric' && themedStyles.radioOuterSelected,
-                ]}
-              >
-                {selectedUnit === 'metric' && (
-                  <View style={[styles.radioInner, themedStyles.radioInner]} />
-                )}
-              </View>
-            </TouchableOpacity>
+            </View>
           </View>
 
           {/* Continue Button */}
@@ -210,7 +223,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing['2xl'],
     justifyContent: 'space-between',
-    paddingTop: 80,
+    paddingTop: 60,
     paddingBottom: Spacing['2xl'],
   },
   header: {
@@ -227,67 +240,42 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     textAlign: 'center',
   },
-  optionsContainer: {
-    gap: Spacing.lg,
+  allOptionsContainer: {
+    gap: Spacing['2xl'],
   },
-  optionCard: {
+  sectionContainer: {
+    gap: Spacing.md,
+  },
+  sectionLabel: {
+    ...Typography.h4,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
+  optionsRow: {
     flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  compactOptionCard: {
+    flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: BorderRadius.xl,
     borderWidth: 2,
     borderColor: 'transparent',
-    padding: Spacing.xl,
+    paddingVertical: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.xs,
   },
-  optionCardSelected: {
-    borderColor: Colors.success,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-  },
-  optionContent: {
-    flex: 1,
-  },
-  optionTitle: {
-    ...Typography.h3,
+  compactOptionTitle: {
+    ...Typography.h4,
     color: Colors.textPrimary,
-    marginBottom: Spacing.xs,
   },
-  optionDescription: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  optionExample: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginRight: Spacing.xl,
-  },
-  exampleWeight: {
-    fontSize: 28,
-    fontWeight: '700',
+  compactOptionExample: {
+    fontSize: 20,
+    fontWeight: '600',
     color: Colors.success,
     fontFamily: 'BankGothicBT-Medium',
-  },
-  exampleUnit: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginLeft: Spacing.xs,
-  },
-  radioOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  radioOuterSelected: {
-    borderColor: Colors.success,
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.success,
   },
   buttonContainer: {
     gap: Spacing['2xl'],

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { XMarkIcon, PlusIcon, CalendarDaysIcon, PencilIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius, FontSizes, ButtonHeights } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -462,8 +462,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     flex: 1,
     minWidth: 100,
-    paddingVertical: Spacing.xs,
+    paddingVertical: Spacing.sm,
     textAlignVertical: 'center',
+    includeFontPadding: false,
+    lineHeight: FontSizes['2xl'] + 4,
+    minHeight: ButtonHeights.lg,
   },
   saveButton: {
     height: 40,

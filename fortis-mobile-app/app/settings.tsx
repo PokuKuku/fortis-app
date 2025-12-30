@@ -21,9 +21,9 @@ import {
   ArrowUpTrayIcon,
   ArrowPathIcon,
   ChevronRightIcon,
-  SparklesIcon,
   SunIcon,
   SwatchIcon,
+  TrashIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -32,6 +32,7 @@ import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { parseWorkoutCsv, type ImportSource } from '@/src/utils/importWorkouts';
+import { refreshExerciseCache } from '@/src/services/exerciseService';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -84,10 +85,12 @@ export default function SettingsScreen() {
   const completedSessions = useWorkoutStore((s) => s.completedSessions);
   const importCompletedSessions = useWorkoutStore((s) => s.importCompletedSessions);
   const resyncMissingSetsToCloud = useWorkoutStore((s) => s.resyncMissingSetsToCloud);
+  const clearCompletedSessions = useWorkoutStore((s) => s.clearCompletedSessions);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRefreshingExercises, setIsRefreshingExercises] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
@@ -249,6 +252,46 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleClearHistory = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (completedSessions.length === 0) {
+      Alert.alert('No Data', 'You have no workout history to clear.');
+      return;
+    }
+
+    Alert.alert(
+      'Clear History',
+      `This will permanently delete ${completedSessions.length} workout${completedSessions.length === 1 ? '' : 's'} from this device. This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            await clearCompletedSessions();
+            Alert.alert('Cleared', 'Local workout history has been cleared.');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRefreshExercises = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsRefreshingExercises(true);
+
+    try {
+      await refreshExerciseCache();
+      Alert.alert('Success', 'Exercise library has been refreshed from the server.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'An unexpected error occurred.';
+      Alert.alert('Refresh Failed', message);
+    } finally {
+      setIsRefreshingExercises(false);
+    }
+  };
+
   const handleSignOut = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -368,22 +411,6 @@ export default function SettingsScreen() {
             </View>
           </View>
 
-          {/* AI Personalization */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Personalization</Text>
-
-            <View style={[styles.settingsCard, cardStyle]}>
-              <SettingsRow
-                icon={<SparklesIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
-                label="Goals & Metrics"
-                onPress={() => router.push('/goals')}
-                showChevron
-                colors={colors}
-                isDark={isDark}
-              />
-            </View>
-          </View>
-
           {/* Data Section */}
           <View style={styles.section}>
             <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Data</Text>
@@ -420,6 +447,30 @@ export default function SettingsScreen() {
                 onPress={handleSyncData}
                 showChevron
                 isLoading={isSyncing}
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<TrashIcon color={colors.error} size={20} strokeWidth={2} />}
+                label="Clear Local History"
+                value={`${workoutCount} workout${workoutCount !== 1 ? 's' : ''}`}
+                onPress={handleClearHistory}
+                showChevron
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<ArrowPathIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Refresh Exercise Library"
+                onPress={handleRefreshExercises}
+                showChevron
+                isLoading={isRefreshingExercises}
                 colors={colors}
                 isDark={isDark}
               />

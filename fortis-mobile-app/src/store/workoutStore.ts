@@ -166,6 +166,7 @@ interface WorkoutState {
     sessions: WorkoutSession[]
   ) => Promise<{ imported: number; skipped: number; skippedSync: number }>;
   resetStore: () => void;
+  clearCompletedSessions: () => Promise<void>;
 
   // Actions - Sticky Notes
   setStickyNote: (exerciseId: string, note: string) => Promise<void>;
@@ -2088,6 +2089,19 @@ export const useWorkoutStore = create<WorkoutState>()(
         editorMode: 'template',
         editorDate: new Date(),
       });
+    },
+
+    clearCompletedSessions: async () => {
+      // Clear from memory
+      set({ completedSessions: [] });
+
+      // Clear from AsyncStorage
+      try {
+        await removeScopedItem(COMPLETED_WORKOUTS_KEY);
+        console.log('[WorkoutStore] Cleared completed sessions from storage');
+      } catch (error) {
+        console.warn('Failed to clear completed sessions from storage:', error);
+      }
     },
   }))
 );

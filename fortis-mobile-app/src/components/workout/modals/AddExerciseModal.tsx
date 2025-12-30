@@ -229,8 +229,8 @@ export function AddExerciseModal({
     >
       <View style={styles.backdrop}>
         <Animated.View
-          entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
-          exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
+          entering={SlideInDown.duration(420).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutDown.duration(320).easing(Easing.in(Easing.cubic))}
           style={[styles.container, themedStyles.container]}
         >
           <StainlessSteelPattern />

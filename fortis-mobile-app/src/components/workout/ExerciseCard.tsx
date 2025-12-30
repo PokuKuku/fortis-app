@@ -12,7 +12,6 @@ import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeIn,
   FadeOut,
-  Layout,
   Easing,
 } from 'react-native-reanimated';
 
@@ -161,7 +160,6 @@ export function ExerciseCard({
       entering={FadeIn.duration(300).easing(Easing.out(Easing.cubic))
         .delay(50)}
       exiting={FadeOut.duration(250).easing(Easing.in(Easing.cubic))}
-      layout={Layout.duration(300).easing(Easing.inOut(Easing.cubic))}
     >
       <View style={styles.content}>
         {/* Exercise Header */}

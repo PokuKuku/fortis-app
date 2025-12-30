@@ -21,7 +21,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { completeOnboarding } = useAuth();
+  const { completeOnboarding, isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
   // Dynamic theme-aware styles
@@ -74,14 +74,17 @@ export default function OnboardingCompleteScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
 
-    // Mark onboarding as complete
-    const { error } = await completeOnboarding();
-
-    setIsLoading(false);
-
-    if (!error) {
-      // Navigate to main app
-      router.replace('/(tabs)');
+    if (isAuthenticated) {
+      // User is signed in - mark onboarding complete and go to app
+      const { error } = await completeOnboarding();
+      setIsLoading(false);
+      if (!error) {
+        router.replace('/(tabs)');
+      }
+    } else {
+      // User is signed out - go to auth (they'll complete onboarding after signup)
+      setIsLoading(false);
+      router.replace('/auth');
     }
   };
 
@@ -147,7 +150,7 @@ export default function OnboardingCompleteScreen() {
               disabled={isLoading}
             >
               <Text style={[styles.startText, themedStyles.startText]}>
-                {isLoading ? 'Loading...' : 'Start Training'}
+                {isLoading ? 'Loading...' : isAuthenticated ? 'Start Training' : 'Create Account'}
               </Text>
             </GlassButton>
 

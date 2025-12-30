@@ -201,7 +201,7 @@ export function StartButtonConfigModal({
           pressed && hasChanges && modalStyles.buttonPressed,
         ]}
       >
-        <Text style={[modalStyles.successButtonText, !hasChanges && themedStyles.confirmButtonTextDisabled]}>
+        <Text style={[styles.confirmButtonText, hasChanges ? { color: colors.accent } : themedStyles.confirmButtonTextDisabled]}>
           Confirm
         </Text>
       </Pressable>
@@ -304,6 +304,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+  },
+  confirmButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    // color applied dynamically via inline styles using colors.accent
   },
   confirmButtonDisabled: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
