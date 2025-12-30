@@ -1,7 +1,9 @@
 -- Migration 025: Fix workout duration aggregation in analytics views
 -- The previous views joined workout_sets directly, which multiplied duration_seconds by set count.
 
-CREATE OR REPLACE VIEW user_workout_stats AS
+DROP VIEW IF EXISTS user_workout_stats;
+
+CREATE VIEW user_workout_stats AS
 WITH session_agg AS (
   SELECT
     ws.user_id,
@@ -39,7 +41,9 @@ LEFT JOIN set_agg sa ON s.user_id = sa.user_id;
 ALTER VIEW user_workout_stats SET (security_invoker = on);
 COMMENT ON VIEW user_workout_stats IS 'User workout statistics - RLS enforced via security_invoker (migration 009)';
 
-CREATE OR REPLACE VIEW weekly_workout_volume AS
+DROP VIEW IF EXISTS weekly_workout_volume;
+
+CREATE VIEW weekly_workout_volume AS
 WITH session_agg AS (
   SELECT
     ws.user_id,

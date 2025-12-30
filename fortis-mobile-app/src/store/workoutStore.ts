@@ -82,6 +82,8 @@ interface WorkoutState {
     pendingValue: string;
     hasError: boolean;
   } | null;
+  validationErrorsBySet: Record<string, { weight?: boolean; reps?: boolean }>;
+  validationErrorsTrigger: number;
 
   // Sticky notes (persist across sessions, keyed by exerciseId)
   stickyNotes: Record<string, string>;
@@ -187,6 +189,7 @@ interface WorkoutState {
   closeNumberPad: () => void;
   updatePendingValue: (value: string) => void;
   setNumberPadError: (hasError: boolean) => void;
+  setValidationErrorsBySet: (errors: Record<string, { weight?: boolean; reps?: boolean }>) => void;
 
   // Actions - RPE Selector
   openRpeSelector: () => void;
@@ -241,6 +244,8 @@ export const useWorkoutStore = create<WorkoutState>()(
     isLoading: false,
     showRestTimerComplete: false,
     activeNumberPad: null,
+    validationErrorsBySet: {},
+    validationErrorsTrigger: 0,
     stickyNotes: {},
     weightUnits: {},
     bodyType: 'male',
@@ -1564,6 +1569,13 @@ export const useWorkoutStore = create<WorkoutState>()(
       });
     },
 
+    setValidationErrorsBySet: (errors) => {
+      set((state) => ({
+        validationErrorsBySet: errors,
+        validationErrorsTrigger: state.validationErrorsTrigger + 1,
+      }));
+    },
+
     // ========================================
     // RPE Selector Actions
     // ========================================
@@ -2079,6 +2091,8 @@ export const useWorkoutStore = create<WorkoutState>()(
         isLoading: false,
         showRestTimerComplete: false,
         activeNumberPad: null,
+        validationErrorsBySet: {},
+        validationErrorsTrigger: 0,
         stickyNotes: {},
         weightUnits: {},
         bodyType: 'male',

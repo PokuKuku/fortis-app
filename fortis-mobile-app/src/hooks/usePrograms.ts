@@ -100,34 +100,57 @@ export function useProgram(id: string | undefined) {
         setLoading(true);
         const foundProgram = storePrograms.find((p) => p.id === id && !p.isTemplate);
         if (foundProgram) {
-          // OPTIMIZATION: Check if this is just an exercise deletion
-          // If so, skip expensive reconversion and just filter the existing data
+          // OPTIMIZATION: If this is a deletion-only update (exercises/workouts removed),
+          // skip expensive reconversion and just filter existing data.
           const currentProgram = programRef.current;
           if (currentProgram) {
+            const currentWorkoutIds = currentProgram.workouts.map((w) => w.id);
+            const nextWorkoutIds = foundProgram.workouts.map((w) => w.id);
+            const workoutIdsSubset = nextWorkoutIds.every((id) => currentWorkoutIds.includes(id));
+            const workoutDeletionOnly =
+              workoutIdsSubset && nextWorkoutIds.length < currentWorkoutIds.length;
+
             const currentExerciseIds = new Set(
-              currentProgram.workouts.flatMap(w => w.exercises.map(e => e.id))
+              currentProgram.workouts.flatMap((w) => w.exercises.map((e) => e.id))
             );
-            const newExerciseIds = new Set(
-              foundProgram.workouts.flatMap(w => w.exercises.map(e => e.id))
+            const nextExerciseIds = new Set(
+              foundProgram.workouts.flatMap((w) => w.exercises.map((e) => e.id))
             );
 
-            // If new exercises are a subset of current (deletion only), just filter
-            const isSubset = Array.from(newExerciseIds).every(exId => currentExerciseIds.has(exId));
-            const isDeletion = newExerciseIds.size < currentExerciseIds.size;
+            const exerciseIdsSubset = Array.from(nextExerciseIds).every((exId) =>
+              currentExerciseIds.has(exId)
+            );
+            const exerciseDeletionOnly = nextExerciseIds.size < currentExerciseIds.size;
 
-            if (isSubset && isDeletion) {
-              // Skip expensive reconversion - just filter deleted exercises
+            if (
+              workoutIdsSubset &&
+              exerciseIdsSubset &&
+              (workoutDeletionOnly || exerciseDeletionOnly)
+            ) {
+              const nextWorkoutMap = new Map(
+                foundProgram.workouts.map((workout) => [workout.id, workout])
+              );
+
               if (isMounted) {
-                setProgram(prev => {
+                setProgram((prev) => {
                   if (!prev) return prev;
                   return {
                     ...prev,
-                    workouts: prev.workouts.map((w, idx) => ({
-                      ...w,
-                      exercises: w.exercises.filter(e =>
-                        foundProgram.workouts[idx]?.exercises.some(fe => fe.id === e.id)
-                      )
-                    }))
+                    workouts: prev.workouts
+                      .filter((workout) => nextWorkoutMap.has(workout.id))
+                      .map((workout) => {
+                        const nextWorkout = nextWorkoutMap.get(workout.id);
+                        const nextExerciseIdsForWorkout = new Set(
+                          nextWorkout?.exercises.map((exercise) => exercise.id) ?? []
+                        );
+                        return {
+                          ...workout,
+                          dayNumber: nextWorkout?.dayNumber ?? workout.dayNumber,
+                          exercises: workout.exercises.filter((exercise) =>
+                            nextExerciseIdsForWorkout.has(exercise.id)
+                          ),
+                        };
+                      }),
                   };
                 });
                 setLoading(false);

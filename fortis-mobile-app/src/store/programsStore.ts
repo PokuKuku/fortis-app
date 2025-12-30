@@ -1333,16 +1333,18 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return false;
     }
 
+    const previousWorkouts = program.workouts;
     const remainingWorkouts = program.workouts
       .filter((workout) => workout.id !== workoutId)
       .map((workout, index) => ({ ...workout, dayNumber: index + 1 }));
 
+    set((state) => ({
+      programs: state.programs.map((p) =>
+        p.id === programId ? { ...p, workouts: remainingWorkouts } : p
+      ),
+    }));
+
     if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
-      set((state) => ({
-        programs: state.programs.map((p) =>
-          p.id === programId ? { ...p, workouts: remainingWorkouts } : p
-        ),
-      }));
       get().persistLocalPrograms();
       return true;
     }
@@ -1353,7 +1355,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         .delete()
         .eq('id', workoutId);
       if (deleteError) {
-        set({ error: deleteError.message });
+        set((state) => ({
+          programs: state.programs.map((p) =>
+            p.id === programId ? { ...p, workouts: previousWorkouts } : p
+          ),
+          error: deleteError.message,
+        }));
         return false;
       }
 
@@ -1388,17 +1395,14 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         return false;
       }
 
-      set((state) => ({
-        programs: state.programs.map((p) =>
-          p.id === programId ? { ...p, workouts: remainingWorkouts } : p
-        ),
-      }));
-
       return true;
     } catch (err) {
-      set({
+      set((state) => ({
+        programs: state.programs.map((p) =>
+          p.id === programId ? { ...p, workouts: previousWorkouts } : p
+        ),
         error: err instanceof Error ? err.message : 'Failed to update program workouts',
-      });
+      }));
       return false;
     }
   },
@@ -1412,6 +1416,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return false;
     }
 
+    const previousWorkouts = program.workouts;
     const updatedWorkouts = program.workouts.map((workout) => {
       if (workout.id !== workoutId) return workout;
 
@@ -1422,12 +1427,13 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return { ...workout, exercises: remainingExercises };
     });
 
+    set((state) => ({
+      programs: state.programs.map((p) =>
+        p.id === programId ? { ...p, workouts: updatedWorkouts } : p
+      ),
+    }));
+
     if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
-      set((state) => ({
-        programs: state.programs.map((p) =>
-          p.id === programId ? { ...p, workouts: updatedWorkouts } : p
-        ),
-      }));
       get().persistLocalPrograms();
       return true;
     }
@@ -1440,22 +1446,23 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         .eq('id', exerciseId);
 
       if (deleteError) {
-        set({ error: deleteError.message });
+        set((state) => ({
+          programs: state.programs.map((p) =>
+            p.id === programId ? { ...p, workouts: previousWorkouts } : p
+          ),
+          error: deleteError.message,
+        }));
         return false;
       }
 
-      // Update local state
-      set((state) => ({
-        programs: state.programs.map((p) =>
-          p.id === programId ? { ...p, workouts: updatedWorkouts } : p
-        ),
-      }));
-
       return true;
     } catch (err) {
-      set({
+      set((state) => ({
+        programs: state.programs.map((p) =>
+          p.id === programId ? { ...p, workouts: previousWorkouts } : p
+        ),
         error: err instanceof Error ? err.message : 'Failed to update program exercises',
-      });
+      }));
       return false;
     }
   },

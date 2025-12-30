@@ -90,18 +90,85 @@ interface ThemeChangedProps {
 }
 
 // ============================================================================
+// Onboarding Event Types
+// ============================================================================
+
+/** Onboarding step names */
+export type OnboardingStepName = 'welcome' | 'units' | 'body-type' | 'complete';
+
+/** Onboarding started event properties */
+interface OnboardingStartedProps {
+  source: 'fresh_install' | 'signup';
+}
+
+/** Onboarding step event properties */
+interface OnboardingStepProps {
+  step: 1 | 2 | 3 | 4;
+  stepName: OnboardingStepName;
+  durationSeconds?: number;
+}
+
+/** Onboarding units selected event properties */
+interface OnboardingUnitsSelectedProps {
+  units: 'imperial' | 'metric';
+  bodyType: 'male' | 'female';
+}
+
+/** Onboarding completed event properties */
+interface OnboardingCompletedProps {
+  totalDurationSeconds: number;
+  createdAccount: boolean;
+}
+
+// ============================================================================
+// Error/Failure Event Types
+// ============================================================================
+
+/** Sync type for sync failures */
+export type SyncType = 'workout' | 'program' | 'exercise';
+
+/** Sync failed event properties */
+interface SyncFailedProps {
+  syncType: SyncType;
+  errorMessage: string;
+  willRetry: boolean;
+  retryCount?: number;
+}
+
+/** API error event properties */
+interface ApiErrorProps {
+  service: string;
+  operation: string;
+  errorCode?: string;
+  errorMessage: string;
+}
+
+// ============================================================================
 // Event Names (snake_case per PostHog convention)
 // ============================================================================
 
 const Events = {
+  // Workout events
   WORKOUT_STARTED: 'workout_started',
   WORKOUT_COMPLETED: 'workout_completed',
   SET_LOGGED: 'set_logged',
+  // AI events
   AI_CHAT_OPENED: 'ai_chat_opened',
   AI_MESSAGE_SENT: 'ai_message_sent',
+  // Program/template events
   TEMPLATE_CREATED: 'template_created',
   PROGRAM_CREATED: 'program_created',
+  // Settings events
   THEME_CHANGED: 'theme_changed',
+  // Onboarding events
+  ONBOARDING_STARTED: 'onboarding_started',
+  ONBOARDING_STEP_VIEWED: 'onboarding_step_viewed',
+  ONBOARDING_STEP_COMPLETED: 'onboarding_step_completed',
+  ONBOARDING_UNITS_SELECTED: 'onboarding_units_selected',
+  ONBOARDING_COMPLETED: 'onboarding_completed',
+  // Error/failure events
+  SYNC_FAILED: 'sync_failed',
+  API_ERROR: 'api_error',
 } as const;
 
 // ============================================================================
@@ -213,6 +280,88 @@ export const analytics = {
     capture(Events.THEME_CHANGED, {
       mode: props.mode,
       accent_color: props.accentColor,
+    });
+  },
+
+  // ==========================================================================
+  // Onboarding Events
+  // ==========================================================================
+
+  /**
+   * Track when onboarding flow is started
+   */
+  trackOnboardingStarted(props: OnboardingStartedProps) {
+    capture(Events.ONBOARDING_STARTED, {
+      source: props.source,
+    });
+  },
+
+  /**
+   * Track when an onboarding step is viewed
+   */
+  trackOnboardingStepViewed(props: OnboardingStepProps) {
+    capture(Events.ONBOARDING_STEP_VIEWED, {
+      step: props.step,
+      step_name: props.stepName,
+    });
+  },
+
+  /**
+   * Track when an onboarding step is completed
+   */
+  trackOnboardingStepCompleted(props: OnboardingStepProps) {
+    capture(Events.ONBOARDING_STEP_COMPLETED, {
+      step: props.step,
+      step_name: props.stepName,
+      duration_seconds: props.durationSeconds,
+    });
+  },
+
+  /**
+   * Track when user selects units and body type in onboarding
+   */
+  trackOnboardingUnitsSelected(props: OnboardingUnitsSelectedProps) {
+    capture(Events.ONBOARDING_UNITS_SELECTED, {
+      units: props.units,
+      body_type: props.bodyType,
+    });
+  },
+
+  /**
+   * Track when onboarding is fully completed
+   */
+  trackOnboardingCompleted(props: OnboardingCompletedProps) {
+    capture(Events.ONBOARDING_COMPLETED, {
+      total_duration_seconds: props.totalDurationSeconds,
+      created_account: props.createdAccount,
+    });
+  },
+
+  // ==========================================================================
+  // Error/Failure Events
+  // ==========================================================================
+
+  /**
+   * Track when a sync operation fails
+   */
+  trackSyncFailed(props: SyncFailedProps) {
+    capture(Events.SYNC_FAILED, {
+      sync_type: props.syncType,
+      error_message: props.errorMessage,
+      will_retry: props.willRetry,
+      retry_count: props.retryCount,
+    });
+  },
+
+  /**
+   * Track when an API error occurs
+   */
+  trackApiError(props: ApiErrorProps) {
+    capture(Events.API_ERROR, {
+      service: props.service,
+      operation: props.operation,
+      error_code: props.errorCode,
+      error_message: props.errorMessage,
     });
   },
 };

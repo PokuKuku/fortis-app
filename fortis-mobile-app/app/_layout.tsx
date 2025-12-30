@@ -69,6 +69,13 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="onboarding/body-type"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
             name="onboarding/complete"
             options={{
               animation: 'slide_from_right',

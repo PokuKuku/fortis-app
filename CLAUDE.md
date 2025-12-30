@@ -2,6 +2,17 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Related Documentation
+
+| File | Description |
+|------|-------------|
+| `fortis-dashboard-web/CLAUDE.md` | Web dashboard-specific guidance (Next.js, Tailwind) |
+| `tasks/todo.md` | Current task planning and progress tracking |
+| `tasks/AI_COORDINATION.md` | Multi-session feature coordination (check for active feature work) |
+| `BACKEND.md` | Backend architecture, security, AI flow, RLS patterns |
+| `supabase/DATABASE_SCHEMA.md` | Complete ERD and table relationships |
+| `AGENTS.md` | Repository guidelines for AI agents |
+
 ## Claude Code Rules
 
 **Workflow:**
@@ -13,9 +24,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 6. Make every task and code change as simple as possible - avoid massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity, however, if a task demands a more complex implementation for long-term stability of the project, do the complex implementation.
 7. Finally, add a review section to `tasks/todo.md` with a summary of the changes you made and any other relevant information
 
-**Task Files:**
+**Task Files & Scripts:**
 - `tasks/todo.md` - Current task planning and progress tracking
 - `tasks/AI_COORDINATION.md` - Multi-session feature coordination (check for active feature work)
+- `scripts/` - Data seeding and utility scripts (seed exercises, generate SQL, etc.)
 
 **Principles:**
 - DO NOT BE LAZY. NEVER BE LAZY. IF THERE IS A BUG FIND THE ROOT CAUSE AND FIX IT. NO TEMPORARY FIXES. YOU ARE A SENIOR DEVELOPER. NEVER BE LAZY
@@ -95,14 +107,16 @@ supabase db lint --linked --dns-resolver https  # Lint remote schema
 | Style with spacing | `Spacing.xs/sm/md/lg/xl` from `constants/Sizes.ts` |
 | Use typography | Spread `Typography.h1/h2/body` from `constants/Typography.ts` |
 | Emit cross-component events | `DeviceEventEmitter.emit('event-name', data)` |
+| Track user analytics | PostHog: `usePostHog().capture('event_name', props)` |
 
 ## Architecture
 
 ```
 fortis-mobile-app/
 ├── .maestro/                   # E2E test configuration (Maestro)
-│   ├── config.yaml             # App ID, test settings
+│   ├── config.yaml             # App ID, test settings (update appId here)
 │   └── tests/                  # E2E test flows (.yaml)
+│
 ├── app/                    # Expo Router file-based routing
 │   ├── _layout.tsx         # Root layout (fonts, Stack nav)
 │   ├── index.tsx           # Splash screen
@@ -131,7 +145,7 @@ fortis-mobile-app/
 │   ├── contexts/           # React contexts (ThemeContext, DragDropContext)
 │   └── lib/                # Supabase client
 │
-├── components/             # Root-level glass morphism components
+├── components/             # Root-level glass morphism components (SHARED UI)
 │   ├── GlassButton.tsx     # Green gradient button (USE FOR ALL GREEN BUTTONS)
 │   ├── GlassCard.tsx       # Glass effect card
 │   └── StainlessSteelPattern.tsx  # Background pattern (USE ON ALL SCREENS)
@@ -139,6 +153,10 @@ fortis-mobile-app/
 └── constants/              # Design tokens
     ├── Colors.ts, Sizes.ts, Typography.ts
 ```
+
+**Note:** There are TWO `components/` directories:
+- `fortis-mobile-app/components/` - Root-level shared glass morphism components
+- `fortis-mobile-app/src/components/` - Feature-specific components (ui/, workout/, ai/, hub/, program/)
 
 **Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns, victory-native (charts), react-native-calendars, lucide-react-native, posthog-react-native (analytics)
 

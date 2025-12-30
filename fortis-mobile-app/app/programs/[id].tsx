@@ -133,14 +133,14 @@ function WorkoutSection({
               images={exercise.images}
               index={exerciseIndex}
               onPress={() => onExercisePress(exercise.exerciseId)}
-              rightAction={
-                <DeleteKebabMenu
-                  deleteLabel="Delete Exercise"
-                  onDelete={() => onDeleteExercise(workout.id, exercise.id, exercise.exerciseName)}
-                />
-              }
-            />
-          ))}
+                rightAction={
+                  <DeleteKebabMenu
+                    deleteLabel="Delete Exercise"
+                    onDelete={() => onDeleteExercise(workout.id, exercise.id, exercise.exerciseName)}
+                  />
+                }
+              />
+            ))}
         </Animated.View>
       )}
     </View>
@@ -151,7 +151,7 @@ export default function ProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { program, loading, refresh: refreshProgram } = useProgram(id);
+  const { program, loading } = useProgram(id);
   const isNavigating = useRef(false);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
@@ -168,17 +168,12 @@ export default function ProgramDetailScreen() {
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
     visible: boolean;
+    step: 'confirm' | 'edit-intent';
     type: 'workout' | 'exercise';
     workoutId: string;
     exerciseId?: string;
     name: string;
-  }>({ visible: false, type: 'workout', workoutId: '', name: '' });
-  const [editIntentModalVisible, setEditIntentModalVisible] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState<{
-    type: 'workout' | 'exercise';
-    workoutId: string;
-    exerciseId?: string;
-  } | null>(null);
+  }>({ visible: false, step: 'confirm', type: 'workout', workoutId: '', name: '' });
   const [expandedWorkouts, setExpandedWorkouts] = useState<Record<string, boolean>>({});
 
   const toggleWorkout = useCallback((workoutId: string) => {
@@ -243,6 +238,7 @@ export default function ProgramDetailScreen() {
   const handleDeleteWorkout = useCallback((workoutId: string, workoutName: string) => {
     setDeleteModal({
       visible: true,
+      step: 'confirm',
       type: 'workout',
       workoutId,
       name: workoutName,
@@ -252,6 +248,7 @@ export default function ProgramDetailScreen() {
   const handleDeleteExercise = useCallback((workoutId: string, exerciseId: string, exerciseName: string) => {
     setDeleteModal({
       visible: true,
+      step: 'confirm',
       type: 'exercise',
       workoutId,
       exerciseId,
@@ -264,17 +261,20 @@ export default function ProgramDetailScreen() {
     workoutId: string;
     exerciseId?: string;
   }) => {
-    if (!id) return;
+    if (!id) return false;
 
+    let success = false;
     if (payload.type === 'workout') {
-      await removeWorkoutFromProgram(id, payload.workoutId);
+      success = await removeWorkoutFromProgram(id, payload.workoutId);
     } else if (payload.exerciseId) {
-      await removeExerciseFromProgramWorkout(
+      success = await removeExerciseFromProgramWorkout(
         id,
         payload.workoutId,
         payload.exerciseId
       );
     }
+
+    return success;
   }, [id, removeExerciseFromProgramWorkout, removeWorkoutFromProgram]);
 
   const handleConfirmDelete = useCallback(async () => {
@@ -289,43 +289,47 @@ export default function ProgramDetailScreen() {
     };
 
     if (progressEntry) {
-      setPendingDelete(deletePayload);
-      setDeleteModal(prev => ({ ...prev, visible: false }));
-      setEditIntentModalVisible(true);
+      setDeleteModal(prev => ({ ...prev, step: 'edit-intent' }));
       return;
     }
 
-    await applyDelete(deletePayload);
     setDeleteModal(prev => ({ ...prev, visible: false }));
+    void applyDelete(deletePayload);
     // refreshProgram() removed - local state already updated by applyDelete via Zustand
   }, [applyDelete, deleteModal, id, progressEntry]);
 
   const handleCancelDelete = useCallback(() => {
-    setDeleteModal(prev => ({ ...prev, visible: false }));
+    setDeleteModal(prev => ({ ...prev, visible: false, step: 'confirm' }));
   }, []);
 
   const handleEditIntent = useCallback(async (intent: 'keep' | 'restart') => {
-    if (!pendingDelete || !id || !program) {
-      setEditIntentModalVisible(false);
+    if (!id || !program) {
+      setDeleteModal(prev => ({ ...prev, visible: false, step: 'confirm' }));
       return;
     }
 
-    await applyDelete(pendingDelete);
+    const deletePayload = {
+      type: deleteModal.type,
+      workoutId: deleteModal.workoutId,
+      exerciseId: deleteModal.exerciseId,
+    };
+    setDeleteModal(prev => ({ ...prev, visible: false, step: 'confirm' }));
 
-    const nextTotalDays = pendingDelete.type === 'workout'
-      ? Math.max(0, program.workouts.length - 1)
-      : program.workouts.length;
+    void (async () => {
+      const success = await applyDelete(deletePayload);
+      if (!success) return;
 
-    if (intent === 'restart') {
-      restartProgram(id);
-    } else {
-      trimCompletedDays(id, nextTotalDays);
-    }
+      const nextTotalDays = deletePayload.type === 'workout'
+        ? Math.max(0, program.workouts.length - 1)
+        : program.workouts.length;
 
-    setPendingDelete(null);
-    setEditIntentModalVisible(false);
-    refreshProgram();
-  }, [applyDelete, id, pendingDelete, program, refreshProgram, restartProgram, trimCompletedDays]);
+      if (intent === 'restart') {
+        restartProgram(id);
+      } else {
+        trimCompletedDays(id, nextTotalDays);
+      }
+    })();
+  }, [applyDelete, deleteModal, id, program, restartProgram, trimCompletedDays]);
 
   const heatmapExercises = useMemo(
     () => program?.workouts.flatMap(workout => workout.exercises) ?? [],
@@ -462,7 +466,7 @@ export default function ProgramDetailScreen() {
           >
             <View style={styles.startButtonContent}>
               <PlayIcon color={colors.white} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={[styles.startButtonText, { color: colors.white }]}>Start Workout</Text>
+              <Text style={[styles.startButtonText, { color: colors.white }]}>Continue program</Text>
             </View>
           </GlassButton>
         </Animated.View>
@@ -531,88 +535,92 @@ export default function ProgramDetailScreen() {
       <BaseModal
         visible={deleteModal.visible}
         onClose={handleCancelDelete}
-        title={deleteModal.type === 'workout' ? 'Delete Workout?' : 'Delete Exercise?'}
-        icon={<TrashIcon size={24} color={Colors.error} />}
+        title={
+          deleteModal.step === 'edit-intent'
+            ? 'Edit Active Program?'
+            : deleteModal.type === 'workout'
+              ? 'Delete Workout?'
+              : 'Delete Exercise?'
+        }
+        icon={
+          deleteModal.step === 'edit-intent'
+            ? <ExclamationTriangleIcon size={24} color={Colors.warning} />
+            : <TrashIcon size={24} color={Colors.error} />
+        }
       >
-        <Text style={modalStyles.message}>
-          Are you sure you want to remove "{deleteModal.name}" from this program? This cannot be undone.
-        </Text>
-        <View style={modalStyles.actions}>
-          <Pressable
-            onPress={handleCancelDelete}
-            style={({ pressed }) => [
-              modalStyles.cancelButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={modalStyles.cancelButtonText}>Cancel</Text>
-          </Pressable>
-          <Pressable
-            onPress={handleConfirmDelete}
-            style={({ pressed }) => [
-              modalStyles.errorButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={modalStyles.errorButtonText}>Delete</Text>
-          </Pressable>
-        </View>
+        {deleteModal.step === 'edit-intent' ? (
+          <>
+            <Text style={modalStyles.message}>
+              This program is in progress. How should we handle your edits?
+            </Text>
+            <View style={[modalStyles.actions, styles.modalActions]}>
+              <Pressable
+                onPress={() => handleEditIntent('keep')}
+                style={({ pressed }) => [
+                  modalStyles.successButton,
+                  styles.modalActionButton,
+                  pressed && modalStyles.buttonPressed,
+                ]}
+              >
+                <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
+                  Apply to future workouts
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handleEditIntent('restart')}
+                style={({ pressed }) => [
+                  modalStyles.warningButton,
+                  styles.modalActionButton,
+                  pressed && modalStyles.buttonPressed,
+                ]}
+              >
+                <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
+                  Restart program
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleCancelDelete}
+                style={({ pressed }) => [
+                  modalStyles.cancelButton,
+                  styles.modalActionButton,
+                  pressed && modalStyles.buttonPressed,
+                ]}
+              >
+                <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
+                  Cancel
+                </Text>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={modalStyles.message}>
+              Are you sure you want to remove "{deleteModal.name}" from this program? This cannot be undone.
+            </Text>
+            <View style={modalStyles.actions}>
+              <Pressable
+                onPress={handleCancelDelete}
+                style={({ pressed }) => [
+                  modalStyles.cancelButton,
+                  pressed && modalStyles.buttonPressed,
+                ]}
+              >
+                <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleConfirmDelete}
+                style={({ pressed }) => [
+                  modalStyles.errorButton,
+                  pressed && modalStyles.buttonPressed,
+                ]}
+              >
+                <Text style={modalStyles.errorButtonText}>Delete</Text>
+              </Pressable>
+            </View>
+          </>
+        )}
       </BaseModal>
 
-      <BaseModal
-        visible={editIntentModalVisible}
-        onClose={() => {
-          setEditIntentModalVisible(false);
-          setPendingDelete(null);
-        }}
-        title="Edit Active Program?"
-        icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
-      >
-        <Text style={modalStyles.message}>
-          This program is in progress. How should we handle your edits?
-        </Text>
-        <View style={[modalStyles.actions, styles.modalActions]}>
-          <Pressable
-            onPress={() => handleEditIntent('keep')}
-            style={({ pressed }) => [
-              modalStyles.successButton,
-              styles.modalActionButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
-              Apply to future workouts
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleEditIntent('restart')}
-            style={({ pressed }) => [
-              modalStyles.warningButton,
-              styles.modalActionButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
-              Restart program
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              setEditIntentModalVisible(false);
-              setPendingDelete(null);
-            }}
-            style={({ pressed }) => [
-              modalStyles.cancelButton,
-              styles.modalActionButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
-              Cancel
-            </Text>
-          </Pressable>
-        </View>
-      </BaseModal>
     </SafeAreaView>
   );
 }

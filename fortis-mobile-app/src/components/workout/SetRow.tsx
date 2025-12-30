@@ -95,6 +95,9 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
   const openNumberPad = useWorkoutStore(s => useEditor ? s.openEditorNumberPad : s.openNumberPad);
   const closeNumberPad = useWorkoutStore(s => useEditor ? s.closeEditorNumberPad : s.closeNumberPad);
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+  const validationErrorsBySet = useWorkoutStore(s => s.validationErrorsBySet);
+  const validationErrorsTrigger = useWorkoutStore(s => s.validationErrorsTrigger);
+  const setValidationErrorsBySet = useWorkoutStore(s => s.setValidationErrorsBySet);
 
   // Check if this input is currently active
   const isWeightActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
@@ -147,6 +150,22 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       }
     }
   }, [activeNumberPad?.hasError]);
+
+  useEffect(() => {
+    if (!validationErrorsTrigger) return;
+    const errors = validationErrorsBySet[setLocalId];
+    if (!errors) {
+      setValidationErrors({});
+      return;
+    }
+    if (errors.weight) {
+      triggerShake('weight');
+    }
+    if (errors.reps) {
+      triggerShake('reps');
+    }
+    setValidationErrors(prev => ({ ...prev, ...errors }));
+  }, [setLocalId, validationErrorsBySet, validationErrorsTrigger]);
 
   // Clear validation errors when user starts entering values
   useEffect(() => {
@@ -209,12 +228,79 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
   const applyCompletionToRemainingSets = () => {
     if (!shouldShowCheckboxes || !exercise) return false;
     const remainingSets = exercise.sets.slice(setIndex);
-    const setsToUpdate = remainingSets.filter((s) => !s.isCompleted);
-    if (setsToUpdate.length === 0) return false;
+    const incompleteSets = remainingSets.filter((s) => !s.isCompleted);
+    if (incompleteSets.length === 0) return false;
 
-    setsToUpdate.forEach((s) => {
-      updateSet(exerciseLocalId, s.localId, { isCompleted: true });
+    const updates: Array<{ setLocalId: string; weight: number | null; reps: number | null }> = [];
+    const errorsBySet: Record<string, { weight?: boolean; reps?: boolean }> = {};
+
+    remainingSets.forEach((s, offset) => {
+      if (s.isCompleted) {
+        return;
+      }
+      const absoluteIndex = setIndex + offset;
+      const previousSetForRow = absoluteIndex > 0 ? exercise.sets[absoluteIndex - 1] : undefined;
+      const suggestedWeight = allowAutoFill && previousSetForRow?.weight != null;
+      const suggestedReps = allowAutoFill && previousSetForRow?.reps != null;
+      let pendingWeight: number | null = null;
+      let pendingReps: number | null = null;
+
+      if (
+        activeNumberPad
+        && activeNumberPad.exerciseLocalId === exerciseLocalId
+        && activeNumberPad.setLocalId === s.localId
+      ) {
+        const pendingValue = activeNumberPad.pendingValue.trim();
+        if (pendingValue) {
+          const parsedValue = Number(pendingValue);
+          if (!Number.isNaN(parsedValue)) {
+            if (activeNumberPad.inputType === 'weight') {
+              pendingWeight = parsedValue;
+            } else {
+              pendingReps = parsedValue;
+            }
+          }
+        }
+      }
+
+      const resolvedWeight = pendingWeight ?? s.weight ?? (suggestedWeight ? previousSetForRow!.weight : null);
+      const resolvedReps = pendingReps ?? s.reps ?? (suggestedReps ? previousSetForRow!.reps : null);
+
+      const missingWeight = resolvedWeight == null;
+      const missingReps = resolvedReps == null;
+      if (missingWeight || missingReps) {
+        errorsBySet[s.localId] = {
+          weight: missingWeight,
+          reps: missingReps,
+        };
+      }
+
+      updates.push({ setLocalId: s.localId, weight: resolvedWeight, reps: resolvedReps });
     });
+
+    if (Object.keys(errorsBySet).length > 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setValidationErrorsBySet(errorsBySet);
+      return false;
+    }
+
+    setValidationErrorsBySet({});
+
+    updates.forEach((update) => {
+      updateSet(exerciseLocalId, update.setLocalId, {
+        weight: update.weight,
+        reps: update.reps,
+        isCompleted: true,
+      });
+    });
+
+    if (
+      activeNumberPad
+      && activeNumberPad.exerciseLocalId === exerciseLocalId
+      && incompleteSets.some((s) => s.localId === activeNumberPad.setLocalId)
+    ) {
+      closeNumberPad();
+    }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     return true;

@@ -14,7 +14,7 @@ ALTER TABLE program_workouts FORCE ROW LEVEL SECURITY;
 ALTER TABLE program_exercises FORCE ROW LEVEL SECURITY;
 ALTER TABLE workout_sessions FORCE ROW LEVEL SECURITY;
 ALTER TABLE workout_sets FORCE ROW LEVEL SECURITY;
-ALTER TABLE exercise_library_meta FORCE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS exercise_library_meta FORCE ROW LEVEL SECURITY;
 
 -- ============================================
 -- Restrictive policies for subscriptions table

@@ -1,22 +1,32 @@
+/**
+ * Onboarding Complete Screen - Premium Activation Moment
+ *
+ * Design Direction: "Private Fitness Club Membership"
+ * Dramatic reveal with ring expansion and staggered animations.
+ */
+
 import { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Animated,
-  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { CheckCircleIcon } from 'react-native-heroicons/outline';
+import Svg, { Circle, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
+import { CheckIcon } from 'react-native-heroicons/solid';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { analytics } from '@/src/services/analyticsService';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
-import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
@@ -24,55 +34,124 @@ export default function OnboardingCompleteScreen() {
   const { completeOnboarding, isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
-  // Dynamic theme-aware styles
+  // Animation values - staggered reveal
+  const ringScale = useRef(new Animated.Value(0)).current;
+  const ringOpacity = useRef(new Animated.Value(0)).current;
+  const checkOpacity = useRef(new Animated.Value(0)).current;
+  const checkScale = useRef(new Animated.Value(0.5)).current;
+  const headlineOpacity = useRef(new Animated.Value(0)).current;
+  const headlineTranslate = useRef(new Animated.Value(20)).current;
+  const subtitleOpacity = useRef(new Animated.Value(0)).current;
+  const subtitleTranslate = useRef(new Animated.Value(15)).current;
+  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const buttonTranslate = useRef(new Animated.Value(30)).current;
+  const progressOpacity = useRef(new Animated.Value(0)).current;
+
+  // Theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
-    title: { color: colors.textPrimary },
+    headline: { color: colors.textPrimary },
     subtitle: { color: colors.textSecondary },
-    startText: { color: colors.white },
-    dot: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)' },
-    dotActive: { backgroundColor: colors.accent },
-    iconCircle: {
-      backgroundColor: colors.accentOverlay,
-      borderColor: colors.accentBorder,
-    },
-    checkIcon: { color: colors.accent },
+    buttonText: { color: colors.white },
   };
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.5)).current;
-  const checkAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
-    // Entrance animation
-    Animated.sequence([
+    // Track step 4 view
+    analytics.trackOnboardingStepViewed({ step: 4, stepName: 'complete' });
+
+    // Trigger success haptic on mount
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Staggered entrance animation sequence
+    const animationSequence = Animated.stagger(180, [
+      // 1. Ring expansion
       Animated.parallel([
-        Animated.timing(fadeAnim, {
+        Animated.spring(ringScale, {
+          toValue: 1,
+          tension: 40,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(ringOpacity, {
           toValue: 1,
           duration: 400,
           useNativeDriver: true,
         }),
-        Animated.spring(scaleAnim, {
+      ]),
+      // 2. Checkmark pop
+      Animated.parallel([
+        Animated.timing(checkOpacity, {
           toValue: 1,
-          friction: 8,
-          tension: 40,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(checkScale, {
+          toValue: 1,
+          tension: 300,
+          friction: 15,
           useNativeDriver: true,
         }),
       ]),
-      Animated.timing(checkAnim, {
+      // 3. Headline reveal
+      Animated.parallel([
+        Animated.timing(headlineOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headlineTranslate, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]),
+      // 4. Subtitle reveal
+      Animated.parallel([
+        Animated.timing(subtitleOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(subtitleTranslate, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]),
+      // 5. Button reveal
+      Animated.parallel([
+        Animated.timing(buttonOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonTranslate, {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]),
+      // 6. Progress indicator
+      Animated.timing(progressOpacity, {
         toValue: 1,
-        duration: 300,
-        easing: Easing.out(Easing.cubic),
+        duration: 400,
         useNativeDriver: true,
       }),
-    ]).start(() => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    });
+    ]);
+
+    animationSequence.start();
   }, []);
 
-  const handleStart = async () => {
+  const handleEnter = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
+
+    // Track step 4 completion and onboarding complete
+    analytics.trackOnboardingStepCompleted({ step: 4, stepName: 'complete' });
+    analytics.trackOnboardingCompleted({
+      totalDurationSeconds: 0, // Duration tracking would require storing start time
+      createdAccount: !isAuthenticated, // If not authenticated, they'll create account next
+    });
 
     if (isAuthenticated) {
       // User is signed in - mark onboarding complete and go to app
@@ -88,80 +167,130 @@ export default function OnboardingCompleteScreen() {
     }
   };
 
+  // Ring animation interpolation
+  const ringStrokeDashoffset = ringScale.interpolate({
+    inputRange: [0, 1],
+    outputRange: [440, 0], // Full circle circumference
+  });
+
+  // Gradient colors for ring
+  const ringGradientStart = isDark ? '#86efac' : '#4ade80';
+  const ringGradientEnd = isDark ? '#22c55e' : '#16a34a';
+
   return (
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              opacity: fadeAnim,
-            },
-          ]}
-        >
-          {/* Success Icon */}
-          <View style={styles.iconContainer}>
+        <View style={styles.content}>
+          {/* Hero Section - Icon + Text */}
+          <View style={styles.heroSection}>
+            {/* Success Icon with Ring */}
+            <View style={styles.iconContainer}>
+              {/* Animated Ring */}
+              <Animated.View
+                style={[
+                  styles.ringContainer,
+                  {
+                    opacity: ringOpacity,
+                    transform: [{ scale: ringScale }],
+                  },
+                ]}
+              >
+                <Svg width={160} height={160} viewBox="0 0 160 160">
+                  <Defs>
+                    <SvgLinearGradient id="ringGradient" x1="0" y1="0" x2="1" y2="1">
+                      <Stop offset="0%" stopColor={ringGradientStart} />
+                      <Stop offset="100%" stopColor={ringGradientEnd} />
+                    </SvgLinearGradient>
+                  </Defs>
+                  <Circle
+                    cx="80"
+                    cy="80"
+                    r="70"
+                    stroke="url(#ringGradient)"
+                    strokeWidth="4"
+                    fill="none"
+                    strokeLinecap="round"
+                  />
+                </Svg>
+              </Animated.View>
+
+              {/* Checkmark Icon */}
+              <Animated.View
+                style={[
+                  styles.checkContainer,
+                  {
+                    opacity: checkOpacity,
+                    transform: [{ scale: checkScale }],
+                  },
+                ]}
+              >
+                <View style={styles.checkCircle}>
+                  <CheckIcon size={48} color={Colors.success} />
+                </View>
+              </Animated.View>
+            </View>
+
+            {/* Text Content */}
+            <View style={styles.textContainer}>
+              <Animated.Text
+                style={[
+                  styles.headline,
+                  themedStyles.headline,
+                  {
+                    opacity: headlineOpacity,
+                    transform: [{ translateY: headlineTranslate }],
+                  },
+                ]}
+              >
+                YOUR TRAINING BEGINS
+              </Animated.Text>
+
+              <Animated.Text
+                style={[
+                  styles.subtitle,
+                  themedStyles.subtitle,
+                  {
+                    opacity: subtitleOpacity,
+                    transform: [{ translateY: subtitleTranslate }],
+                  },
+                ]}
+              >
+                Welcome to Fortis
+              </Animated.Text>
+            </View>
+          </View>
+
+          {/* Bottom Section */}
+          <View style={styles.bottomSection}>
+            {/* Enter Button */}
             <Animated.View
               style={[
-                styles.iconCircle,
-                themedStyles.iconCircle,
+                styles.buttonContainer,
                 {
-                  transform: [{ scale: scaleAnim }],
+                  opacity: buttonOpacity,
+                  transform: [{ translateY: buttonTranslate }],
                 },
               ]}
             >
-              <Animated.View
-                style={{
-                  opacity: checkAnim,
-                  transform: [
-                    {
-                      scale: checkAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.5, 1],
-                      }),
-                    },
-                  ],
-                }}
+              <GlassButton
+                style={styles.enterButton}
+                onPress={handleEnter}
+                disabled={isLoading}
               >
-                <CheckCircleIcon
-                  color={colors.accent}
-                  size={80}
-                  strokeWidth={1.5}
-                />
-              </Animated.View>
+                <Text style={[styles.buttonText, themedStyles.buttonText]}>
+                  {isLoading ? 'LOADING...' : isAuthenticated ? 'ENTER' : 'CREATE ACCOUNT'}
+                </Text>
+              </GlassButton>
+            </Animated.View>
+
+            {/* Progress Indicator */}
+            <Animated.View style={{ opacity: progressOpacity }}>
+              <OnboardingProgress currentStep={4} totalSteps={4} />
             </Animated.View>
           </View>
-
-          {/* Message */}
-          <View style={styles.messageContainer}>
-            <Text style={[styles.title, themedStyles.title]}>You're All Set!</Text>
-            <Text style={[styles.subtitle, themedStyles.subtitle]}>
-              Your account is ready. Start tracking your workouts and crush your fitness goals.
-            </Text>
-          </View>
-
-          {/* Start Button */}
-          <View style={styles.buttonContainer}>
-            <GlassButton
-              style={styles.startButton}
-              onPress={handleStart}
-              disabled={isLoading}
-            >
-              <Text style={[styles.startText, themedStyles.startText]}>
-                {isLoading ? 'Loading...' : isAuthenticated ? 'Start Training' : 'Create Account'}
-              </Text>
-            </GlassButton>
-
-            {/* Progress Dots */}
-            <View style={styles.progressDots}>
-              <View style={[styles.dot, themedStyles.dot]} />
-              <View style={[styles.dot, themedStyles.dot]} />
-              <View style={[styles.dot, themedStyles.dotActive]} />
-            </View>
-          </View>
-        </Animated.View>
+        </View>
       </SafeAreaView>
     </View>
   );
@@ -170,7 +299,6 @@ export default function OnboardingCompleteScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   safeArea: {
     flex: 1,
@@ -179,63 +307,70 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: Spacing['2xl'],
     justifyContent: 'space-between',
-    paddingTop: 80,
     paddingBottom: Spacing['2xl'],
   },
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroSection: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing['3xl'],
   },
-  iconCircle: {
+  iconContainer: {
     width: 160,
     height: 160,
-    borderRadius: 80,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    // backgroundColor and borderColor now applied via themedStyles (colors.accentOverlay, colors.accentBorder)
   },
-  messageContainer: {
+  ringContainer: {
+    position: 'absolute',
+  },
+  checkContainer: {
     alignItems: 'center',
-    paddingHorizontal: Spacing.lg,
+    justifyContent: 'center',
   },
-  title: {
-    ...Typography.h1,
-    color: Colors.textPrimary,
+  checkCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textContainer: {
+    alignItems: 'center',
+    gap: Spacing.lg,
+  },
+  headline: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 26,
+    fontWeight: '600',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
     textAlign: 'center',
-    marginBottom: Spacing.lg,
   },
   subtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 2,
     textAlign: 'center',
-    lineHeight: 24,
+    opacity: 0.7,
+  },
+  bottomSection: {
+    gap: Spacing['3xl'],
   },
   buttonContainer: {
-    gap: Spacing['2xl'],
-    marginTop: Spacing['3xl'],
+    width: '100%',
   },
-  startButton: {
-    height: 52,
-    borderRadius: BorderRadius.lg,
+  enterButton: {
+    height: 56,
+    borderRadius: BorderRadius.xl,
   },
-  startText: {
-    ...Typography.button,
-    color: Colors.white,
-  },
-  progressDots: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    // backgroundColor now applied via themedStyles
-  },
-  dotActive: {
-    // backgroundColor now applied via themedStyles (colors.accent)
+  buttonText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 18,
+    fontWeight: '600',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
   },
 });

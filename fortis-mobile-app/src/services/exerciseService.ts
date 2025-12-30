@@ -10,10 +10,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
+import { analytics } from '@/src/services/analyticsService';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
 let customExerciseCache: Exercise[] | null = null;
+let allExercisesCache: ExerciseWithSource[] | null = null;
+let allExercisesPromise: Promise<ExerciseWithSource[]> | null = null;
+let exerciseLookupCache: Map<string, ExerciseWithSource> | null = null;
 
 // --- Helpers ---
 
@@ -124,28 +128,54 @@ async function fetchLibraryVersion(): Promise<string | null> {
 // --- Core Functions ---
 
 export async function getAllExercises(): Promise<ExerciseWithSource[]> {
-  const [baseExercises, customExercises] = await Promise.all([
-    getBaseExercises(),
-    getCustomExercises(),
-  ]);
+  if (allExercisesCache) {
+    return allExercisesCache;
+  }
 
-  // Custom exercises take priority (prepended)
-  const customWithSource = customExercises.map(e => ({ ...e, source: 'custom' as ExerciseSource }));
-  const baseWithSource = baseExercises.map(e => ({
-    ...e,
-    source: 'api' as ExerciseSource
-  }));
+  if (allExercisesPromise) {
+    return allExercisesPromise;
+  }
 
-  return [...customWithSource, ...baseWithSource];
+  allExercisesPromise = (async () => {
+    const [baseExercises, customExercises] = await Promise.all([
+      getBaseExercises(),
+      getCustomExercises(),
+    ]);
+
+    // Custom exercises take priority (prepended)
+    const customWithSource = customExercises.map((e) => ({ ...e, source: 'custom' as ExerciseSource }));
+    const baseWithSource = baseExercises.map((e) => ({
+      ...e,
+      source: 'api' as ExerciseSource,
+    }));
+
+    const merged = [...customWithSource, ...baseWithSource];
+    allExercisesCache = merged;
+    allExercisesPromise = null;
+    return merged;
+  })();
+
+  return allExercisesPromise;
 }
 
 export async function getExerciseById(id: string): Promise<ExerciseWithSource | null> {
-  const exercises = await getAllExercises();
+  if (!exerciseLookupCache) {
+    const exercises = await getAllExercises();
+    const lookup = new Map<string, ExerciseWithSource>();
+    exercises.forEach((exercise) => {
+      lookup.set(exercise.id, exercise);
+      if (exercise.slug) {
+        lookup.set(exercise.slug, exercise);
+      }
+      lookup.set(normalizeExerciseKey(exercise.name), exercise);
+    });
+    exerciseLookupCache = lookup;
+  }
+
   const normalizedId = normalizeExerciseKey(id);
   return (
-    exercises.find(e => e.id === id) ||
-    exercises.find(e => e.slug === id) ||
-    exercises.find(e => normalizeExerciseKey(e.name) === normalizedId) ||
+    exerciseLookupCache.get(id) ||
+    exerciseLookupCache.get(normalizedId) ||
     null
   );
 }
@@ -230,6 +260,13 @@ async function getBaseExercises(): Promise<Exercise[]> {
 
     return transformed;
   } catch (error) {
+    // Track API error
+    analytics.trackApiError({
+      service: 'exercises',
+      operation: 'fetch_base_exercises',
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+    });
+
     // 4. Try to use stale cache if API fails
     const staleCache = await loadCachedExercises();
     if (staleCache && staleCache.length > 0) {
@@ -249,6 +286,8 @@ async function getBaseExercises(): Promise<Exercise[]> {
  */
 export async function refreshExerciseCache(): Promise<void> {
   baseExerciseCache = null;
+  allExercisesCache = null;
+  exerciseLookupCache = null;
   await AsyncStorage.removeItem(EXERCISE_CACHE_KEY);
   await AsyncStorage.removeItem(EXERCISE_CACHE_TIMESTAMP_KEY);
   await AsyncStorage.removeItem(EXERCISE_LIBRARY_VERSION_KEY);
@@ -282,6 +321,8 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
 
   await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customs));
   customExerciseCache = customs;
+  allExercisesCache = null;
+  exerciseLookupCache = null;
 }
 
 export async function deleteCustomExercise(id: string): Promise<void> {
@@ -289,6 +330,8 @@ export async function deleteCustomExercise(id: string): Promise<void> {
   const filtered = customs.filter(e => e.id !== id);
   await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(filtered));
   customExerciseCache = filtered;
+  allExercisesCache = null;
+  exerciseLookupCache = null;
 }
 
 // --- Cache Management ---
@@ -296,10 +339,14 @@ export async function deleteCustomExercise(id: string): Promise<void> {
 export function invalidateCache(): void {
   baseExerciseCache = null;
   customExerciseCache = null;
+  allExercisesCache = null;
+  exerciseLookupCache = null;
 }
 
 export function invalidateCustomCache(): void {
   customExerciseCache = null;
+  allExercisesCache = null;
+  exerciseLookupCache = null;
 }
 
 // --- Utilities ---

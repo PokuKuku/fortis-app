@@ -84,7 +84,7 @@ function FloatingParticle({
 export default function SplashScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
+  const { isLoading, isAuthenticated, profile } = useAuth();
   const [splashComplete, setSplashComplete] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -109,12 +109,17 @@ export default function SplashScreen() {
   );
 
   // Handle navigation when both splash is complete and auth is loaded
+  // Flow: Auth → Onboarding → Main App
   useEffect(() => {
     if (splashComplete && !isLoading) {
-      if (!isAuthenticated || needsOnboarding) {
-        // Show onboarding for new users (signed out or needing onboarding)
+      if (!isAuthenticated) {
+        // Not signed in - go to auth first
+        router.replace('/auth');
+      } else if (needsOnboarding) {
+        // Signed in but hasn't completed onboarding
         router.replace('/onboarding');
       } else {
+        // Signed in and onboarding complete - go to main app
         router.replace('/(tabs)');
       }
     }
