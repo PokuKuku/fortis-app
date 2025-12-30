@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -24,15 +25,21 @@ import {
   SunIcon,
   SwatchIcon,
   TrashIcon,
+  ChatBubbleLeftEllipsisIcon,
+  BugAntIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme, type ThemeMode, ACCENT_COLOR_LABELS } from '@/src/contexts/ThemeContext';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useProfileStats } from '@/src/hooks/useProfileStats';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { parseWorkoutCsv, type ImportSource } from '@/src/utils/importWorkouts';
 import { refreshExerciseCache } from '@/src/services/exerciseService';
+import { clearPendingQueue, clearWorkoutHistory } from '@/src/services/workoutHistoryService';
+import { removeScopedItem } from '@/src/utils/scopedStorage';
+import { PROFILE_STATS_CACHE_KEY } from '@/src/constants/storageKeys';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -86,6 +93,7 @@ export default function SettingsScreen() {
   const importCompletedSessions = useWorkoutStore((s) => s.importCompletedSessions);
   const resyncMissingSetsToCloud = useWorkoutStore((s) => s.resyncMissingSetsToCloud);
   const clearCompletedSessions = useWorkoutStore((s) => s.clearCompletedSessions);
+  const profileStats = useProfileStats();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -95,7 +103,8 @@ export default function SettingsScreen() {
 
   const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
-  const workoutCount = completedSessions.length;
+  const localWorkoutCount = completedSessions.length;
+  const remoteWorkoutCount = profileStats.totalWorkouts;
 
   // Theme mode labels
   const themeModeLabel: Record<ThemeMode, string> = {
@@ -255,22 +264,25 @@ export default function SettingsScreen() {
   const handleClearHistory = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    if (completedSessions.length === 0) {
-      Alert.alert('No Data', 'You have no workout history to clear.');
-      return;
-    }
-
     Alert.alert(
       'Clear History',
-      `This will permanently delete ${completedSessions.length} workout${completedSessions.length === 1 ? '' : 's'} from this device. This cannot be undone.`,
+      'This will permanently delete all your workout history from the cloud and this device. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear',
           style: 'destructive',
           onPress: async () => {
+            const result = await clearWorkoutHistory();
+            if (!result.success) {
+              Alert.alert('Clear Failed', result.error || 'Unable to clear history.');
+              return;
+            }
+
             await clearCompletedSessions();
-            Alert.alert('Cleared', 'Local workout history has been cleared.');
+            await clearPendingQueue();
+            await removeScopedItem(PROFILE_STATS_CACHE_KEY);
+            Alert.alert('Cleared', 'Workout history has been cleared.');
           },
         },
       ]
@@ -289,6 +301,36 @@ export default function SettingsScreen() {
       Alert.alert('Refresh Failed', message);
     } finally {
       setIsRefreshingExercises(false);
+    }
+  };
+
+  const handleSendFeedback = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const email = 'fortisfitnessapp@gmail.com';
+    const subject = encodeURIComponent('Fortis App Feedback');
+    const body = encodeURIComponent(
+      '\n\n---\nApp Version: 1.0.0\nPlease describe your feedback or issue above.'
+    );
+
+    const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
+
+    try {
+      const canOpen = await Linking.canOpenURL(mailtoUrl);
+      if (canOpen) {
+        await Linking.openURL(mailtoUrl);
+      } else {
+        Alert.alert(
+          'No Email App',
+          `Please send your feedback to ${email}`,
+          [{ text: 'OK' }]
+        );
+      }
+    } catch (error) {
+      Alert.alert(
+        'Unable to Open Email',
+        `Please send your feedback to ${email}`
+      );
     }
   };
 
@@ -431,7 +473,7 @@ export default function SettingsScreen() {
               <SettingsRow
                 icon={<ArrowDownTrayIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Export to CSV"
-                value={`${workoutCount} workout${workoutCount !== 1 ? 's' : ''}`}
+                value={`${localWorkoutCount} workout${localWorkoutCount !== 1 ? 's' : ''}`}
                 onPress={handleExportData}
                 showChevron
                 isLoading={isExporting}
@@ -455,8 +497,8 @@ export default function SettingsScreen() {
 
               <SettingsRow
                 icon={<TrashIcon color={colors.error} size={20} strokeWidth={2} />}
-                label="Clear Local History"
-                value={`${workoutCount} workout${workoutCount !== 1 ? 's' : ''}`}
+                label="Clear Workout History"
+                value={`${remoteWorkoutCount} workout${remoteWorkoutCount !== 1 ? 's' : ''}`}
                 onPress={handleClearHistory}
                 showChevron
                 colors={colors}
@@ -471,6 +513,33 @@ export default function SettingsScreen() {
                 onPress={handleRefreshExercises}
                 showChevron
                 isLoading={isRefreshingExercises}
+                colors={colors}
+                isDark={isDark}
+              />
+            </View>
+          </View>
+
+          {/* Support Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Support</Text>
+
+            <View style={[styles.settingsCard, cardStyle]}>
+              <SettingsRow
+                icon={<ChatBubbleLeftEllipsisIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Send Feedback"
+                onPress={handleSendFeedback}
+                showChevron
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<BugAntIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Report a Bug"
+                onPress={handleSendFeedback}
+                showChevron
                 colors={colors}
                 isDark={isDark}
               />

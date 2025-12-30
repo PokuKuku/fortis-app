@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,8 +18,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
-import { useWorkoutStore, getWorkoutSummary } from '../../src/store/workoutStore';
-import { fetchWorkoutHistory, getPendingSyncCount } from '../../src/services/workoutHistoryService';
+import { getWorkoutSummary, useWorkoutStore } from '../../src/store/workoutStore';
+import { fetchWorkoutHistory, getPendingSyncSessions, processPendingQueue } from '../../src/services/workoutHistoryService';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { WorkoutSession } from '../../src/types/workout';
@@ -41,7 +41,8 @@ function getIntensityColors(accentOverlay: string, accent: string) {
 }
 
 // Format duration as "Xh Ym" or "Xm"
-function formatDuration(seconds: number): string {
+function formatDuration(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined) return '—';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
 
@@ -70,6 +71,12 @@ function getVolumeByDate(sessions: WorkoutSession[]): Record<string, number> {
   });
 
   return volumeMap;
+}
+
+function hasCompletedSets(session: WorkoutSession): boolean {
+  return session.exercises.some(exercise =>
+    exercise.sets.some(set => set.isCompleted)
+  );
 }
 
 // Get intensity level based on volume ratio
@@ -159,6 +166,9 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
   const summary = getWorkoutSummary(session);
   const formattedDate = format(session.startedAt, 'MMM d, yyyy');
   const formattedTime = format(session.startedAt, 'h:mm a');
+  const durationSeconds = session.durationSeconds === null
+    ? null
+    : session.durationSeconds ?? summary.durationSeconds;
 
   const cardTheme = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
@@ -188,7 +198,7 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
       <View style={styles.statsRow}>
         <View style={styles.stat}>
           <ClockIcon color={colors.accent} size={16} strokeWidth={2} />
-          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDuration(summary.durationSeconds)}</Text>
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDuration(durationSeconds)}</Text>
         </View>
 
         <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
@@ -214,17 +224,80 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
   );
 }
 
-// Empty state for no workouts ever
-function EmptyState() {
-  const { colors } = useTheme();
+// Pending Sync Card Component
+function PendingSyncCard({
+  session,
+  status,
+  onRetry,
+}: {
+  session: WorkoutSession;
+  status: 'pending' | 'syncing';
+  onRetry?: () => void;
+}) {
+  const { colors, isDark } = useTheme();
+  const summary = getWorkoutSummary(session);
+  const formattedDate = format(session.startedAt, 'MMM d, yyyy');
+  const formattedTime = format(session.startedAt, 'h:mm a');
+  const isSyncing = status === 'syncing';
+  const durationSeconds = session.durationSeconds === null
+    ? null
+    : session.durationSeconds ?? summary.durationSeconds;
+
+  const cardTheme = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)',
+    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+  };
+
   return (
-    <View style={styles.emptyContainer}>
-      <TrophyIcon color={colors.textSecondary} size={48} strokeWidth={1.5} />
-      <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>No workouts yet</Text>
-      <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-        Complete your first workout to see it here
-      </Text>
-    </View>
+    <Pressable onPress={onRetry} disabled={isSyncing || !onRetry}>
+      <View style={[styles.card, cardTheme]}>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardTitleRow}>
+            <Text style={[styles.workoutName, { color: colors.textPrimary }]} numberOfLines={1}>
+              {session.name}
+            </Text>
+            <View style={[styles.pendingPill, { borderColor: colors.accentBorder }]}>
+              {isSyncing && (
+                <ActivityIndicator
+                  size="small"
+                  color={colors.accent}
+                  style={styles.pendingSpinner}
+                />
+              )}
+              <Text style={[styles.pendingPillText, { color: colors.accent }]}>
+                {isSyncing ? 'Syncing...' : 'Pending sync'}
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.workoutDate, { color: colors.textSecondary }]}>{formattedDate}</Text>
+        </View>
+
+        <View style={styles.statsRow}>
+          <View style={styles.stat}>
+            <ClockIcon color={colors.accent} size={16} strokeWidth={2} />
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDuration(durationSeconds)}</Text>
+          </View>
+
+          <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
+
+          <View style={styles.stat}>
+            <FireIcon color={colors.accent} size={16} strokeWidth={2} />
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{summary.totalSets} sets</Text>
+          </View>
+
+          <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
+
+          <View style={styles.stat}>
+            <TrophyIcon color={colors.accent} size={16} strokeWidth={2} />
+            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatVolume(summary.totalVolume)} lbs</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.exerciseCount, { color: colors.textSecondary }]}>
+          {summary.totalExercises} exercise{summary.totalExercises !== 1 ? 's' : ''} • Started at {formattedTime}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -308,33 +381,25 @@ export default function HistoryScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { colors, isDark } = useTheme();
-  const localSessions = useWorkoutStore((s) => s.completedSessions);
+  const syncingSessionIds = useWorkoutStore((state) => state.syncingSessionIds);
+  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const markSessionsSyncing = useWorkoutStore((state) => state.markSessionsSyncing);
+  const clearSessionsSyncing = useWorkoutStore((state) => state.clearSessionsSyncing);
+  const markSessionsSynced = useWorkoutStore((state) => state.markSessionsSynced);
   const [remoteSessions, setRemoteSessions] = useState<WorkoutSession[]>([]);
-  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingSessions, setPendingSessions] = useState<WorkoutSession[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [displayedMonth, setDisplayedMonth] = useState<Date>(new Date());
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
+  const previousSyncCount = useRef(0);
 
-  // Merge local and remote sessions, avoiding duplicates
+  // Supabase is the source of truth for history
   const allSessions = useMemo(() => {
-    const sessionMap = new Map<string, WorkoutSession>();
-
-    for (const session of localSessions) {
-      sessionMap.set(session.localId, session);
-    }
-
-    for (const session of remoteSessions) {
-      if (!sessionMap.has(session.localId)) {
-        sessionMap.set(session.localId, session);
-      }
-    }
-
-    return Array.from(sessionMap.values())
-      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
-  }, [localSessions, remoteSessions]);
+    return [...remoteSessions].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  }, [remoteSessions]);
 
   const volumeByDate = useMemo(() => getVolumeByDate(allSessions), [allSessions]);
   const maxVolume = useMemo(() => Math.max(...Object.values(volumeByDate), 1), [volumeByDate]);
@@ -354,13 +419,44 @@ export default function HistoryScreen() {
     return allSessions.filter(session => isSameDay(session.startedAt, selectedDate));
   }, [allSessions, selectedDate]);
 
+  const syncingSessions = useMemo(() => {
+    if (syncingSessionIds.length === 0) return [];
+    const syncingIds = new Set(syncingSessionIds);
+    return completedSessions.filter(session =>
+      syncingIds.has(session.localId) && hasCompletedSets(session)
+    );
+  }, [syncingSessionIds, completedSessions]);
+
+  const pendingEntries = useMemo(() => {
+    const entries: Array<{ session: WorkoutSession; status: 'pending' | 'syncing' }> = [];
+    const seen = new Set<string>();
+
+    [...syncingSessions]
+      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+      .forEach((session) => {
+        entries.push({ session, status: 'syncing' });
+        seen.add(session.localId);
+      });
+
+    [...pendingSessions]
+      .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime())
+      .forEach((session) => {
+        if (seen.has(session.localId)) return;
+        entries.push({ session, status: 'pending' });
+      });
+
+    return entries;
+  }, [syncingSessions, pendingSessions]);
+
   const loadData = useCallback(async () => {
-    const count = await getPendingSyncCount();
-    setPendingCount(count);
+    const pending = await getPendingSyncSessions();
+    setPendingSessions(pending);
 
     if (isAuthenticated) {
       const { sessions: remote } = await fetchWorkoutHistory();
       setRemoteSessions(remote);
+    } else {
+      setRemoteSessions([]);
     }
   }, [isAuthenticated]);
 
@@ -368,6 +464,15 @@ export default function HistoryScreen() {
     setIsLoading(true);
     loadData().finally(() => setIsLoading(false));
   }, [loadData]);
+
+  useEffect(() => {
+    if (previousSyncCount.current > 0 && syncingSessionIds.length === 0) {
+      loadData().catch((error) => {
+        console.warn('Failed to refresh workout history after sync:', error);
+      });
+    }
+    previousSyncCount.current = syncingSessionIds.length;
+  }, [loadData, syncingSessionIds.length]);
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -408,6 +513,30 @@ export default function HistoryScreen() {
     setSelectedSession(session);
   }, []);
 
+  const handleRetryPendingSync = useCallback(async () => {
+    let pendingIds: string[] = [];
+    try {
+      const pending = await getPendingSyncSessions();
+      pendingIds = pending.map((session) => session.localId);
+      if (pendingIds.length === 0) {
+        return;
+      }
+
+      markSessionsSyncing(pendingIds);
+      const result = await processPendingQueue();
+      if (result.syncedLocalIds.length > 0) {
+        await markSessionsSynced(result.syncedLocalIds);
+      }
+    } catch (error) {
+      console.warn('Failed to retry pending workout sync:', error);
+    } finally {
+      if (pendingIds.length > 0) {
+        clearSessionsSyncing(pendingIds);
+      }
+      await loadData();
+    }
+  }, [clearSessionsSyncing, loadData, markSessionsSyncing, markSessionsSynced]);
+
   const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
   const displayedMonthKey = format(displayedMonth, 'yyyy-MM-dd');
 
@@ -443,6 +572,9 @@ export default function HistoryScreen() {
     logPastButtonText: { color: colors.accent },
   };
 
+  const hasPendingSessions = pendingEntries.length > 0;
+  const hasRemoteSessions = allSessions.length > 0;
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
@@ -456,13 +588,11 @@ export default function HistoryScreen() {
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
         </View>
 
-        {isLoading && allSessions.length === 0 ? (
+        {isLoading && !hasRemoteSessions && !hasPendingSessions ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color={colors.accent} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading history...</Text>
           </View>
-        ) : allSessions.length === 0 ? (
-          <EmptyState />
         ) : (
           <FlatList
             data={filteredWorkouts}
@@ -516,9 +646,22 @@ export default function HistoryScreen() {
                 </View>
 
                 <DateHeader date={selectedDate} onLogPastWorkout={handleLogPastWorkout} />
+
+                {hasPendingSessions && (
+                  <View style={styles.pendingSection}>
+                    {pendingEntries.map(({ session, status }) => (
+                      <PendingSyncCard
+                        key={session.localId}
+                        session={session}
+                        status={status}
+                        onRetry={handleRetryPendingSync}
+                      />
+                    ))}
+                  </View>
+                )}
               </>
             }
-            ListEmptyComponent={<EmptyDateState onLogPastWorkout={handleLogPastWorkout} />}
+            ListEmptyComponent={hasPendingSessions ? null : <EmptyDateState onLogPastWorkout={handleLogPastWorkout} />}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -650,7 +793,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   dateHeaderText: {
     ...Typography.body,
@@ -729,27 +872,36 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.borderLight,
     marginHorizontal: Spacing.md,
   },
+  pendingSection: {
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  pendingTitle: {
+    ...Typography.caption,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  pendingPill: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  pendingSpinner: {
+    marginRight: Spacing.xs,
+  },
+  pendingPillText: {
+    ...Typography.caption,
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   exerciseCount: {
     ...Typography.caption,
     color: Colors.textSecondary,
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing['2xl'],
-    paddingBottom: 100,
-  },
-  emptyTitle: {
-    ...Typography.h4,
-    color: Colors.textPrimary,
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.sm,
-  },
-  emptySubtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
   },
   emptyDateContainer: {
     alignItems: 'center',

@@ -23,7 +23,8 @@ interface WorkoutHistoryDetailModalProps {
   session: WorkoutSession | null;
 }
 
-function formatDuration(seconds: number): string {
+function formatDuration(seconds?: number | null): string {
+  if (seconds === null || seconds === undefined) return '—';
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
   const secs = seconds % 60;
@@ -125,6 +126,9 @@ export function WorkoutHistoryDetailModal({
   if (!session) return null;
 
   const summary = getWorkoutSummary(session);
+  const durationSeconds = session.durationSeconds === null
+    ? null
+    : session.durationSeconds ?? summary.durationSeconds;
   const formattedDateTime = format(session.startedAt, "HH:mm, EEEE, MMM d yyyy");
 
   return (
@@ -141,7 +145,7 @@ export function WorkoutHistoryDetailModal({
       <View style={[styles.statsRow, themedStyles.statsRow]}>
         <View style={styles.stat}>
           <ClockIcon color={colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={[styles.statValue, themedStyles.statValue]}>{formatDuration(summary.durationSeconds)}</Text>
+          <Text style={[styles.statValue, themedStyles.statValue]}>{formatDuration(durationSeconds)}</Text>
         </View>
 
         <View style={styles.stat}>

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
-import { processPendingQueue, getPendingSyncCount, fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
+import { processPendingQueue, getPendingSyncCount, getPendingSyncSessions, fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -17,6 +17,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { makeRedirectUri } from 'expo-auth-session';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
+import NetInfo from '@react-native-community/netinfo';
 
 // Ensure web browser is dismissed after auth
 WebBrowser.maybeCompleteAuthSession();
@@ -173,6 +174,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [user?.id, fetchProfile]);
 
+  const appStateRef = useRef(AppState.currentState);
+
+  const syncPendingWorkouts = useCallback(async () => {
+    let pendingIds: string[] = [];
+    try {
+      const pendingCount = await getPendingSyncCount();
+      if (pendingCount === 0) return;
+
+      const pendingSessions = await getPendingSyncSessions();
+      pendingIds = pendingSessions.map((session) => session.localId);
+      if (pendingIds.length > 0) {
+        useWorkoutStore.getState().markSessionsSyncing(pendingIds);
+      }
+
+      const result = await processPendingQueue();
+      if (result.syncedLocalIds.length > 0) {
+        useWorkoutStore.getState().markSessionsSynced(result.syncedLocalIds).catch(error => {
+          console.warn('Failed to update synced workout sessions:', error);
+        });
+      }
+
+    } catch (error) {
+      console.warn('Failed to process pending workout sync queue:', error);
+    } finally {
+      if (pendingIds.length > 0) {
+        useWorkoutStore.getState().clearSessionsSyncing(pendingIds);
+      }
+    }
+  }, []);
+
   // Initialize auth state
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -216,17 +247,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           // Process any pending syncs when user signs in
           if (event === 'SIGNED_IN') {
             // Sync pending workout sessions
-            processPendingQueue()
-              .then((result) => {
-                if (result.syncedLocalIds.length > 0) {
-                  useWorkoutStore.getState().markSessionsSynced(result.syncedLocalIds).catch(error => {
-                    console.warn('Failed to update synced workout sessions:', error);
-                  });
-                }
-              })
-              .catch(error => {
-                console.warn('Failed to process pending workout sync queue:', error);
-              });
+            syncPendingWorkouts();
 
             // Sync pending programs/templates
             useProgramsStore.getState().syncPendingPrograms().catch(error => {
@@ -269,7 +290,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchProfile, hydrateUserData]);
+  }, [fetchProfile, hydrateUserData, syncPendingWorkouts]);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextState: string) => {
+      appStateRef.current = nextState;
+      if (nextState !== 'active' || !user) return;
+      syncPendingWorkouts();
+    };
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      subscription.remove();
+    };
+  }, [syncPendingWorkouts, user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const intervalId = setInterval(() => {
+      if (appStateRef.current !== 'active') return;
+      syncPendingWorkouts();
+    }, 30000);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [syncPendingWorkouts, user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (!state.isConnected || !state.isInternetReachable) return;
+      if (appStateRef.current !== 'active') return;
+      syncPendingWorkouts();
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [syncPendingWorkouts, user]);
 
   // Email sign in
   const signInWithEmail = useCallback(async (email: string, password: string) => {

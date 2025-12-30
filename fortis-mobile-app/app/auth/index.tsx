@@ -60,7 +60,7 @@ import { Typography } from '@/constants/Typography';
 
 export default function AuthWelcomeScreen() {
   const router = useRouter();
-  const { signInWithGoogle, signInWithApple, isAuthenticated, profile } = useAuth();
+  const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding } = useAuth();
   const { colors, isDark } = useTheme();
 
   // Dynamic theme-aware styles
@@ -88,17 +88,16 @@ export default function AuthWelcomeScreen() {
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const [error, setError] = useState<string | null>(null);
 
-  // Navigate when auth state changes - wait for profile to load first
+  // Navigate when auth state changes
   useEffect(() => {
-    // Only route when profile is loaded (not null) to avoid race condition
-    if (isAuthenticated && profile !== null) {
-      if (!profile.onboarding_completed) {
+    if (isAuthenticated) {
+      if (needsOnboarding) {
         router.replace('/onboarding');
       } else {
         router.replace('/(tabs)');
       }
     }
-  }, [isAuthenticated, profile, router]);
+  }, [isAuthenticated, needsOnboarding, router]);
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {

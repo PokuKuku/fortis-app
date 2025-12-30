@@ -2,7 +2,7 @@
  * Onboarding Units Screen - Premium Weight Units Selection
  *
  * Design Direction: "Private Fitness Club Membership"
- * Single question per view with auto-advance after selection.
+ * Single question per view with CONTINUE button after selection.
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -17,12 +17,12 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ScaleIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { GlassButton } from '@/components/GlassButton';
 import { SelectionCard } from '@/src/components/onboarding/SelectionCard';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { analytics } from '@/src/services/analyticsService';
 import { Colors } from '@/constants/Colors';
-import { Spacing } from '@/constants/Sizes';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
@@ -33,13 +33,14 @@ export default function OnboardingUnitsScreen() {
   const { colors, isDark } = useTheme();
   const { updateProfile, isAuthenticated } = useAuth();
   const [selectedUnit, setSelectedUnit] = useState<UnitSystem | null>(null);
-  const [isNavigating, setIsNavigating] = useState(false);
 
   // Entrance animations
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const headerTranslate = useRef(new Animated.Value(20)).current;
   const cardsOpacity = useRef(new Animated.Value(0)).current;
   const cardsTranslate = useRef(new Animated.Value(30)).current;
+  const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const buttonTranslate = useRef(new Animated.Value(20)).current;
   const progressOpacity = useRef(new Animated.Value(0)).current;
 
   // Theme-aware styles
@@ -47,13 +48,10 @@ export default function OnboardingUnitsScreen() {
     container: { backgroundColor: colors.background },
     title: { color: colors.textPrimary },
     subtitle: { color: colors.textSecondary },
+    buttonText: { color: colors.white },
   };
 
   useEffect(() => {
-    // Track step completion and view
-    analytics.trackOnboardingStepCompleted({ step: 1, stepName: 'welcome' });
-    analytics.trackOnboardingStepViewed({ step: 2, stepName: 'units' });
-
     // Staggered entrance animation
     const animationSequence = Animated.stagger(150, [
       // 1. Header fade + slide
@@ -93,25 +91,41 @@ export default function OnboardingUnitsScreen() {
     animationSequence.start();
   }, []);
 
-  const handleUnitSelect = async (unit: UnitSystem) => {
-    if (isNavigating) return; // Prevent double selection
+  // Animate button appearance when selection is made
+  useEffect(() => {
+    if (selectedUnit) {
+      Animated.parallel([
+        Animated.timing(buttonOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.spring(buttonTranslate, {
+          toValue: 0,
+          tension: 50,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [selectedUnit]);
 
+  const handleUnitSelect = (unit: UnitSystem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedUnit(unit);
+  };
+
+  const handleContinue = async () => {
+    if (!selectedUnit) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Save to profile if authenticated
     if (isAuthenticated) {
-      await updateProfile({ preferred_units: unit });
+      await updateProfile({ preferred_units: selectedUnit });
     }
 
-    // Track step 2 completion before navigating
-    analytics.trackOnboardingStepCompleted({ step: 2, stepName: 'units' });
-
-    // Auto-advance after 400ms delay for premium feel
-    setIsNavigating(true);
-    setTimeout(() => {
-      router.push('/onboarding/body-type');
-    }, 400);
+    router.push('/onboarding/body-type');
   };
 
   // Icon colors based on theme
@@ -170,15 +184,34 @@ export default function OnboardingUnitsScreen() {
             />
           </Animated.View>
 
-          {/* Progress Indicator */}
-          <Animated.View
-            style={[
-              styles.progressContainer,
-              { opacity: progressOpacity },
-            ]}
-          >
-            <OnboardingProgress currentStep={2} totalSteps={4} />
-          </Animated.View>
+          {/* Bottom Section */}
+          <View style={styles.bottomSection}>
+            {/* Continue Button - appears after selection */}
+            <Animated.View
+              style={[
+                styles.buttonContainer,
+                {
+                  opacity: buttonOpacity,
+                  transform: [{ translateY: buttonTranslate }],
+                },
+              ]}
+              pointerEvents={selectedUnit ? 'auto' : 'none'}
+            >
+              <GlassButton
+                style={styles.continueButton}
+                onPress={handleContinue}
+              >
+                <Text style={[styles.buttonText, themedStyles.buttonText]}>
+                  CONTINUE
+                </Text>
+              </GlassButton>
+            </Animated.View>
+
+            {/* Progress Indicator */}
+            <Animated.View style={{ opacity: progressOpacity }}>
+              <OnboardingProgress currentStep={2} totalSteps={4} />
+            </Animated.View>
+          </View>
         </View>
       </SafeAreaView>
     </View>
@@ -221,7 +254,21 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     paddingHorizontal: Spacing.sm,
   },
-  progressContainer: {
-    alignItems: 'center',
+  bottomSection: {
+    gap: Spacing['3xl'],
+  },
+  buttonContainer: {
+    width: '100%',
+  },
+  continueButton: {
+    height: 56,
+    borderRadius: BorderRadius.xl,
+  },
+  buttonText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 3,
+    textTransform: 'uppercase',
   },
 });

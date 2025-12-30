@@ -11,7 +11,6 @@ import {
   Text,
   StyleSheet,
   Animated,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,20 +20,16 @@ import Svg, {
   LinearGradient as SvgLinearGradient,
   Stop,
   Text as SvgText,
-  Circle,
-  G,
 } from 'react-native-svg';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { analytics } from '@/src/services/analyticsService';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
-const { width, height } = Dimensions.get('window');
 
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
@@ -72,10 +67,6 @@ export default function OnboardingWelcomeScreen() {
   };
 
   useEffect(() => {
-    // Track onboarding funnel start and step view
-    analytics.trackOnboardingStarted({ source: 'signup' });
-    analytics.trackOnboardingStepViewed({ step: 1, stepName: 'welcome' });
-
     // Staggered entrance animations for premium feel
     const animationSequence = Animated.stagger(150, [
       // 1. Logo fade + scale
@@ -148,51 +139,14 @@ export default function OnboardingWelcomeScreen() {
     router.push('/onboarding/units');
   };
 
-  // Gradient colors for logo
-  const gradientLight = isDark ? '#86efac' : '#4ade80';
-  const gradientMid = isDark ? '#4ade80' : '#22c55e';
-  const gradientDark = isDark ? '#22c55e' : '#16a34a';
+  // Gradient colors for logo - use theme accent colors
+  const gradientLight = colors.accentLight;
+  const gradientMid = colors.accent;
+  const gradientDark = colors.accentDark;
 
   return (
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
-
-      {/* Decorative background elements */}
-      <View style={styles.decorativeContainer}>
-        <Svg
-          width={width}
-          height={height * 0.5}
-          style={styles.decorativeSvg}
-        >
-          <Defs>
-            <SvgLinearGradient id="circleGradient" x1="0" y1="0" x2="1" y2="1">
-              <Stop
-                offset="0%"
-                stopColor={isDark ? 'rgba(34, 197, 94, 0.08)' : 'rgba(34, 197, 94, 0.06)'}
-              />
-              <Stop
-                offset="100%"
-                stopColor={isDark ? 'rgba(34, 197, 94, 0.02)' : 'rgba(34, 197, 94, 0.01)'}
-              />
-            </SvgLinearGradient>
-          </Defs>
-          {/* Abstract weight plate circles */}
-          <G opacity={0.5}>
-            <Circle
-              cx={width * 0.8}
-              cy={height * 0.15}
-              r={120}
-              fill="url(#circleGradient)"
-            />
-            <Circle
-              cx={width * 0.2}
-              cy={height * 0.35}
-              r={80}
-              fill="url(#circleGradient)"
-            />
-          </G>
-        </Svg>
-      </View>
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <View style={styles.content}>
@@ -295,18 +249,6 @@ export default function OnboardingWelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  decorativeContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    overflow: 'hidden',
-  },
-  decorativeSvg: {
-    position: 'absolute',
-    top: 0,
   },
   safeArea: {
     flex: 1,

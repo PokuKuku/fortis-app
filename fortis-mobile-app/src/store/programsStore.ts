@@ -407,6 +407,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         return;
       }
       console.error('Error fetching programs:', err);
+      // Track API error
+      analytics.trackApiError({
+        service: 'programs',
+        operation: 'fetch_programs',
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      });
       set({
         error: err instanceof Error ? err.message : 'Failed to fetch programs',
         isLoading: false,
@@ -455,6 +461,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       return true;
     } catch (err) {
+      // Track API error
+      analytics.trackApiError({
+        service: 'programs',
+        operation: 'delete_program',
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      });
       set({
         error: err instanceof Error ? err.message : 'Failed to delete program',
         isDeleting: false,

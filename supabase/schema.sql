@@ -498,7 +498,15 @@ CREATE OR REPLACE FUNCTION calculate_session_duration()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.completed_at IS NOT NULL AND NEW.started_at IS NOT NULL THEN
-    NEW.duration_seconds = EXTRACT(EPOCH FROM (NEW.completed_at - NEW.started_at))::INTEGER;
+    IF NEW.duration_seconds IS NOT NULL THEN
+      RETURN NEW;
+    END IF;
+
+    IF NEW.completed_at = NEW.started_at THEN
+      NEW.duration_seconds = NULL;
+    ELSE
+      NEW.duration_seconds = EXTRACT(EPOCH FROM (NEW.completed_at - NEW.started_at))::INTEGER;
+    END IF;
   END IF;
   RETURN NEW;
 END;

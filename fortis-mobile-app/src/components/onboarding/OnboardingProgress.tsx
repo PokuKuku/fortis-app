@@ -8,8 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Text } from 'react-native';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
-import { Colors } from '@/constants/Colors';
+import { Spacing } from '@/constants/Sizes';
 
 interface OnboardingProgressProps {
   /** Current step (1-4) */
@@ -51,12 +50,15 @@ export function OnboardingProgress({
         : 'rgba(0, 0, 0, 0.03)',
     },
     stepDotActive: {
-      borderColor: Colors.success,
-      backgroundColor: Colors.success,
+      borderColor: colors.accent,
+      backgroundColor: colors.accent,
     },
     stepDotCompleted: {
-      borderColor: Colors.success,
-      backgroundColor: Colors.success,
+      borderColor: colors.accent,
+      backgroundColor: colors.accent,
+    },
+    fill: {
+      backgroundColor: colors.accent,
     },
     stepNumber: {
       color: colors.textTertiary,
@@ -91,6 +93,7 @@ export function OnboardingProgress({
         <Animated.View
           style={[
             styles.fill,
+            themedStyles.fill,
             { width: animatedWidth }
           ]}
         />
@@ -151,7 +154,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     height: 2,
-    backgroundColor: Colors.success,
     borderRadius: 1,
   },
   dotsContainer: {

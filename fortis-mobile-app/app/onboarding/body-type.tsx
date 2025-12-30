@@ -15,14 +15,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { UserIcon } from 'react-native-heroicons/outline';
+import Body from 'react-native-body-highlighter';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { SelectionCard } from '@/src/components/onboarding/SelectionCard';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { analytics } from '@/src/services/analyticsService';
-import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -53,9 +51,6 @@ export default function OnboardingBodyTypeScreen() {
   };
 
   useEffect(() => {
-    // Track step 3 view
-    analytics.trackOnboardingStepViewed({ step: 3, stepName: 'body-type' });
-
     // Staggered entrance animation
     const animationSequence = Animated.stagger(150, [
       // 1. Header fade + slide
@@ -124,17 +119,14 @@ export default function OnboardingBodyTypeScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Track step 3 completion
-    analytics.trackOnboardingStepCompleted({ step: 3, stepName: 'body-type' });
-
     // Save body type to local store (for muscle visualization)
     setBodyType(selectedBodyType);
 
     router.push('/onboarding/complete');
   };
 
-  // Icon colors based on theme
-  const iconColor = isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.5)';
+  // Body silhouette border color based on theme
+  const bodyBorder = isDark ? '#555555' : '#aaaaaa';
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -172,7 +164,15 @@ export default function OnboardingBodyTypeScreen() {
           >
             <SelectionCard
               title="MALE"
-              icon={<UserIcon size={32} color={iconColor} strokeWidth={1.5} />}
+              icon={
+                <Body
+                  data={[]}
+                  side="front"
+                  gender="male"
+                  scale={0.3}
+                  border={bodyBorder}
+                />
+              }
               isSelected={selectedBodyType === 'male'}
               onSelect={() => handleBodyTypeSelect('male')}
               testID="male-option"
@@ -180,7 +180,15 @@ export default function OnboardingBodyTypeScreen() {
 
             <SelectionCard
               title="FEMALE"
-              icon={<UserIcon size={32} color={iconColor} strokeWidth={1.5} />}
+              icon={
+                <Body
+                  data={[]}
+                  side="front"
+                  gender="female"
+                  scale={0.3}
+                  border={bodyBorder}
+                />
+              }
               isSelected={selectedBodyType === 'female'}
               onSelect={() => handleBodyTypeSelect('female')}
               testID="female-option"

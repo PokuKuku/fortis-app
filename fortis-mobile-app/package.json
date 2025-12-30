@@ -45,6 +45,7 @@
     "expo-web-browser": "~15.0.10",
     "lucide-react-native": "^0.555.0",
     "posthog-react-native": "^3.4.0",
+    "posthog-react-native-session-replay": "^1.2.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.68.0",

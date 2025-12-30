@@ -14,6 +14,10 @@ import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
 import { isCustomExercise, getCustomExercises, getAllExercises } from '@/src/services/exerciseService';
 import { analytics } from '@/src/services/analyticsService';
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 // Types for Supabase DTOs
 interface WorkoutSessionInsert {
   user_id: string;
@@ -210,6 +214,9 @@ async function resolveExerciseIds(
       // Custom exercises use their local ID directly in Supabase
       customExerciseIds.push(exercise.exerciseId);
       idMap.set(exercise.exerciseId, exercise.exerciseId);
+    } else if (isUuid(exercise.exerciseId)) {
+      // Base exercises already use the Supabase UUID in local state
+      idMap.set(exercise.exerciseId, exercise.exerciseId);
     } else {
       exerciseNames.push(exercise.exerciseName);
       exerciseLocalIds.push(exercise.exerciseId);
@@ -285,6 +292,7 @@ function calculateDuration(session: WorkoutSession): number | null {
   if (!session.completedAt) return null;
   const start = new Date(session.startedAt).getTime();
   const end = new Date(session.completedAt).getTime();
+  if (end <= start) return null;
   return Math.floor((end - start) / 1000);
 }
 
@@ -296,6 +304,21 @@ async function uploadSession(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!session.completedAt) {
+      console.warn(`[WorkoutSync] Session "${session.name}" not completed; skipping upload.`);
+      return { success: true };
+    }
+
+    const completedSetCount = session.exercises.reduce(
+      (sum, ex) => sum + ex.sets.filter(s => s.isCompleted).length,
+      0
+    );
+
+    if (completedSetCount === 0) {
+      console.warn(`[WorkoutSync] Session "${session.name}" has no completed sets; skipping upload.`);
+      return { success: true };
+    }
+
     // Insert the workout session
     const sessionInsert: WorkoutSessionInsert = {
       user_id: userId,
@@ -316,17 +339,32 @@ async function uploadSession(
       .select('id')
       .single();
 
+    let sessionId = insertedSession?.id ?? null;
+    let sessionWasCreated = true;
+
     if (sessionError) {
       // Check if it's a duplicate (already synced)
       if (sessionError.code === '23505') {
-        // Unique constraint violation - already exists
-        return { success: true };
+        sessionWasCreated = false;
+        const { data: existingSession, error: lookupError } = await supabase
+          .from('workout_sessions')
+          .select('id')
+          .eq('local_id', session.localId)
+          .eq('user_id', userId)
+          .single();
+
+        if (lookupError) {
+          throw lookupError;
+        }
+
+        sessionId = existingSession?.id ?? null;
+      } else {
+        throw sessionError;
       }
-      throw sessionError;
     }
 
-    if (!insertedSession?.id) {
-      throw new Error('No session ID returned from insert');
+    if (!sessionId) {
+      throw new Error('No session ID available for set sync');
     }
 
     // Collect exercise IDs and sync custom exercises first
@@ -362,7 +400,7 @@ async function uploadSession(
         }
 
         setsToInsert.push({
-          session_id: insertedSession.id,
+          session_id: sessionId,
           exercise_id: resolvedExerciseId,
           set_number: set.setNumber,
           reps: set.reps,
@@ -386,6 +424,21 @@ async function uploadSession(
       console.log(`[WorkoutSync] Exercise IDs: ${[...new Set(setsToInsert.map(s => s.exercise_id))].join(', ')}`);
     }
 
+    if (!sessionWasCreated) {
+      const { count: existingSetCount, error: countError } = await supabase
+        .from('workout_sets')
+        .select('*', { count: 'exact', head: true })
+        .eq('session_id', sessionId);
+
+      if (countError) {
+        throw countError;
+      }
+
+      if (existingSetCount && existingSetCount > 0) {
+        return { success: true };
+      }
+    }
+
     if (setsToInsert.length > 0) {
       const { error: setsError } = await supabase
         .from('workout_sets')
@@ -400,12 +453,25 @@ async function uploadSession(
           hint: setsError.hint,
           sampleExerciseIds: setsToInsert.slice(0, 3).map(s => s.exercise_id),
         });
-        // Don't fail the whole sync if sets fail - session is already saved
-        // But log the error clearly so we can diagnose issues
+        // Remove the session so it doesn't appear empty in history
+        await supabase
+          .from('workout_sessions')
+          .delete()
+          .eq('id', sessionId)
+          .eq('user_id', userId);
+        return { success: false, error: setsError.message };
       } else {
         console.log(`[WorkoutSync] Successfully synced ${setsToInsert.length} sets for session "${session.name}"`);
       }
     } else {
+      if (completedSetCount > 0) {
+        await supabase
+          .from('workout_sessions')
+          .delete()
+          .eq('id', sessionId)
+          .eq('user_id', userId);
+        return { success: false, error: 'No resolved sets to sync' };
+      }
       console.warn(`[WorkoutSync] No completed sets to sync for session "${session.name}"`);
     }
 
@@ -447,6 +513,10 @@ const isAbortError = (error: unknown): boolean => {
 export async function syncWorkoutSession(
   session: WorkoutSession
 ): Promise<{ success: boolean; queued?: boolean; error?: string }> {
+  if (!session.completedAt) {
+    return { success: false, error: 'Session not completed' };
+  }
+
   // Check if Supabase is configured
   if (!isSupabaseConfigured()) {
     return { success: false, error: 'Supabase not configured' };
@@ -532,13 +602,10 @@ export async function processPendingQueue(): Promise<{
       syncedLocalIds.push(session.localId);
     } else {
       failed++;
-      // Keep in queue if under retry limit
-      if (item.retryCount < 3) {
-        remainingQueue.push({
-          ...item,
-          retryCount: item.retryCount + 1,
-        });
-      }
+      remainingQueue.push({
+        ...item,
+        retryCount: item.retryCount + 1,
+      });
     }
   }
 
@@ -624,7 +691,9 @@ export async function fetchWorkoutHistory(
     }
 
     // Transform to WorkoutSession format
-    const workoutSessions: WorkoutSession[] = (sessions || []).map(session => {
+    const workoutSessions: WorkoutSession[] = (sessions || [])
+      .filter(session => (session.workout_sets || []).length > 0)
+      .map(session => {
       // Group sets by exercise_id
       const exerciseMap = new Map<string, WorkoutSet[]>();
 
@@ -670,6 +739,7 @@ export async function fetchWorkoutHistory(
         notes: session.notes || '',
         startedAt: new Date(session.started_at),
         completedAt: session.completed_at ? new Date(session.completed_at) : null,
+        durationSeconds: session.duration_seconds ?? null,
         programId: session.program_id,
         programWorkoutId: session.program_workout_id,
         exercises,
@@ -701,10 +771,62 @@ export async function getPendingSyncCount(): Promise<number> {
 }
 
 /**
+ * Get pending sync sessions for UI display (rehydrated dates).
+ */
+export async function getPendingSyncSessions(): Promise<WorkoutSession[]> {
+  const queue = await loadPendingQueue();
+
+  return queue
+    .map(item => ({
+      ...item.session,
+      startedAt: new Date(item.session.startedAt),
+      completedAt: item.session.completedAt ? new Date(item.session.completedAt) : null,
+    }))
+    .filter(session =>
+      session.exercises.some(ex => ex.sets.some(set => set.isCompleted))
+    )
+    .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+}
+
+/**
  * Clear the pending sync queue
  */
 export async function clearPendingQueue(): Promise<void> {
   await savePendingQueue([]);
+}
+
+/**
+ * Clear all workout history for the current user in Supabase.
+ */
+export async function clearWorkoutHistory(): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { success: false, error: 'Supabase not configured' };
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  const { error: summariesError } = await supabase
+    .from('training_summaries')
+    .delete()
+    .eq('user_id', user.id);
+
+  if (summariesError) {
+    return { success: false, error: summariesError.message };
+  }
+
+  const { error: sessionsError } = await supabase
+    .from('workout_sessions')
+    .delete()
+    .eq('user_id', user.id);
+
+  if (sessionsError) {
+    return { success: false, error: sessionsError.message };
+  }
+
+  return { success: true };
 }
 
 /**

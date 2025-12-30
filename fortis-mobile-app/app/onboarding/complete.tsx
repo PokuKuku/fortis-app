@@ -21,8 +21,6 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { analytics } from '@/src/services/analyticsService';
-import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
@@ -56,9 +54,6 @@ export default function OnboardingCompleteScreen() {
   };
 
   useEffect(() => {
-    // Track step 4 view
-    analytics.trackOnboardingStepViewed({ step: 4, stepName: 'complete' });
-
     // Trigger success haptic on mount
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -146,13 +141,6 @@ export default function OnboardingCompleteScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
 
-    // Track step 4 completion and onboarding complete
-    analytics.trackOnboardingStepCompleted({ step: 4, stepName: 'complete' });
-    analytics.trackOnboardingCompleted({
-      totalDurationSeconds: 0, // Duration tracking would require storing start time
-      createdAccount: !isAuthenticated, // If not authenticated, they'll create account next
-    });
-
     if (isAuthenticated) {
       // User is signed in - mark onboarding complete and go to app
       const { error } = await completeOnboarding();
@@ -173,9 +161,9 @@ export default function OnboardingCompleteScreen() {
     outputRange: [440, 0], // Full circle circumference
   });
 
-  // Gradient colors for ring
-  const ringGradientStart = isDark ? '#86efac' : '#4ade80';
-  const ringGradientEnd = isDark ? '#22c55e' : '#16a34a';
+  // Gradient colors for ring - use theme accent colors
+  const ringGradientStart = colors.accentLight;
+  const ringGradientEnd = colors.accentDark;
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -226,8 +214,8 @@ export default function OnboardingCompleteScreen() {
                   },
                 ]}
               >
-                <View style={styles.checkCircle}>
-                  <CheckIcon size={48} color={Colors.success} />
+                <View style={[styles.checkCircle, { backgroundColor: colors.accentOverlay }]}>
+                  <CheckIcon size={48} color={colors.accent} />
                 </View>
               </Animated.View>
             </View>
@@ -332,7 +320,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
+    // backgroundColor set dynamically via themedStyles using colors.accentOverlay
     alignItems: 'center',
     justifyContent: 'center',
   },

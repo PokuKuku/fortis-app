@@ -13,6 +13,7 @@ import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { AIContainer } from '@/src/components/ai';
 import { PostHogScreenTracker } from '@/src/components/analytics/PostHogScreenTracker';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
+import { PostHogRetentionTracker } from '@/src/components/analytics/PostHogRetentionTracker';
 import { isPostHogConfigured, posthogApiKey, posthogHost } from '@/src/lib/posthog';
 
 const PAGE_TRANSITION = {
@@ -164,6 +165,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
           />
         </Stack>
         {posthogEnabled && <PostHogScreenTracker />}
+        {posthogEnabled && <PostHogRetentionTracker />}
         <WorkoutMiniBar />
         <AIContainer />
       </DragDropProvider>
@@ -219,6 +221,13 @@ export default function RootLayout() {
           options={{
             host: posthogHost,
             captureApplicationLifecycleEvents: true,
+            enableSessionReplay: true,
+            sessionReplayConfig: {
+              maskAllTextInputs: true,
+              maskAllImages: true,
+              captureLog: true,
+              captureNetworkTelemetry: true,
+            },
           }}
         >
           {appContent}

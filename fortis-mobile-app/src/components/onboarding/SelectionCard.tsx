@@ -18,8 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { CheckCircleIcon } from 'react-native-heroicons/solid';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius, Shadows } from '@/constants/Sizes';
-import { Colors } from '@/constants/Colors';
-import { Typography, FontFamily } from '@/constants/Typography';
+import { Typography } from '@/constants/Typography';
 
 interface SelectionCardProps {
   /** Card title (e.g., "IMPERIAL", "MALE") */
@@ -88,7 +87,7 @@ export function SelectionCard({
         ? 'rgba(255, 255, 255, 0.06)'
         : 'rgba(0, 0, 0, 0.03)',
       borderColor: isSelected
-        ? Colors.success
+        ? colors.accent
         : isDark
           ? 'rgba(255, 255, 255, 0.12)'
           : 'rgba(0, 0, 0, 0.08)',
@@ -97,7 +96,7 @@ export function SelectionCard({
       color: colors.textPrimary,
     },
     subtitle: {
-      color: isSelected ? Colors.success : colors.textSecondary,
+      color: isSelected ? colors.accent : colors.textSecondary,
     },
     iconContainer: {
       backgroundColor: isDark
@@ -178,7 +177,7 @@ export function SelectionCard({
         >
           <CheckCircleIcon
             size={24}
-            color={Colors.success}
+            color={colors.accent}
           />
         </Animated.View>
       </Pressable>
@@ -213,12 +212,13 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   iconContainer: {
-    width: 56,
-    height: 56,
+    minWidth: 56,
+    minHeight: 56,
     borderRadius: BorderRadius.xl,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xs,
+    overflow: 'hidden',
   },
   title: {
     fontFamily: 'BankGothicBT-Medium',

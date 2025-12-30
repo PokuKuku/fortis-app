@@ -62,6 +62,7 @@ interface WorkoutState {
 
   // Completed sessions history
   completedSessions: WorkoutSession[];
+  syncingSessionIds: string[];
 
   // Timers
   workoutStartTime: number | null;
@@ -157,6 +158,8 @@ interface WorkoutState {
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
   loadCompletedSessions: () => Promise<void>;
+  markSessionsSyncing: (localIds: string[]) => void;
+  clearSessionsSyncing: (localIds: string[]) => void;
   markSessionsSynced: (localIds: string[]) => Promise<void>;
   resyncMissingSetsToCloud: () => Promise<{
     checked: number;
@@ -231,6 +234,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     activeSession: null,
     isWorkoutActive: false,
     completedSessions: [],
+    syncingSessionIds: [],
     workoutStartTime: null,
     isWorkoutTimerPaused: false,
     pausedElapsedSeconds: 0,
@@ -513,6 +517,16 @@ export const useWorkoutStore = create<WorkoutState>()(
       const { activeSession, completedSessions, backdatedDate } = get();
       if (!activeSession) return null;
 
+      const completedSetCount = activeSession.exercises.reduce(
+        (sum, ex) => sum + ex.sets.filter(s => s.isCompleted).length,
+        0
+      );
+
+      if (completedSetCount === 0) {
+        get().cancelWorkout();
+        return null;
+      }
+
       const completedSession: WorkoutSession = {
         ...activeSession,
         completedAt: backdatedDate || new Date(),
@@ -579,13 +593,16 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       // Sync to Supabase (async, non-blocking)
       // If offline or not authenticated, it will be queued for later
+      get().markSessionsSyncing([completedSession.localId]);
       syncWorkoutSession(completedSession)
         .then((result) => {
+          get().clearSessionsSyncing([completedSession.localId]);
           if (result.success && !result.queued) {
             void get().markSessionsSynced([completedSession.localId]);
           }
         })
         .catch(error => {
+          get().clearSessionsSyncing([completedSession.localId]);
           console.warn('Failed to sync workout session:', error);
         });
 
@@ -593,10 +610,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       const durationSeconds = completedSession.startedAt && completedSession.completedAt
         ? Math.round((completedSession.completedAt.getTime() - completedSession.startedAt.getTime()) / 1000)
         : 0;
-      const setsCompleted = completedSession.exercises.reduce(
-        (sum, ex) => sum + ex.sets.filter(s => s.isCompleted).length,
-        0
-      );
+      const setsCompleted = completedSetCount;
       const source = completedSession.programWorkoutId
         ? 'program'
         : completedSession.programId
@@ -1219,6 +1233,30 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to load completed sessions:', error);
         set({ completedSessions: [] });
+      }
+    },
+
+    markSessionsSyncing: (localIds) => {
+      if (localIds.length === 0) return;
+      const existing = new Set(get().syncingSessionIds);
+      let didChange = false;
+      localIds.forEach((id) => {
+        if (!existing.has(id)) {
+          existing.add(id);
+          didChange = true;
+        }
+      });
+      if (didChange) {
+        set({ syncingSessionIds: Array.from(existing) });
+      }
+    },
+
+    clearSessionsSyncing: (localIds) => {
+      if (localIds.length === 0) return;
+      const toRemove = new Set(localIds);
+      const nextIds = get().syncingSessionIds.filter((id) => !toRemove.has(id));
+      if (nextIds.length !== get().syncingSessionIds.length) {
+        set({ syncingSessionIds: nextIds });
       }
     },
 
@@ -2016,6 +2054,15 @@ export const useWorkoutStore = create<WorkoutState>()(
         })),
       }));
 
+      const completedSetCount = exercisesWithCompletedSets.reduce(
+        (sum, ex) => sum + ex.sets.filter(set => set.isCompleted).length,
+        0
+      );
+
+      if (completedSetCount === 0) {
+        return;
+      }
+
       // Create completed session with backdated timestamps
       const completedSession: WorkoutSession = {
         ...editorSession,
@@ -2053,13 +2100,16 @@ export const useWorkoutStore = create<WorkoutState>()(
       }
 
       // Sync to Supabase (async, non-blocking)
+      get().markSessionsSyncing([completedSession.localId]);
       syncWorkoutSession(completedSession)
         .then((result) => {
+          get().clearSessionsSyncing([completedSession.localId]);
           if (result.success && !result.queued) {
             void get().markSessionsSynced([completedSession.localId]);
           }
         })
         .catch(error => {
+          get().clearSessionsSyncing([completedSession.localId]);
           console.warn('Failed to sync workout session:', error);
         });
     },
@@ -2078,6 +2128,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         activeSession: null,
         isWorkoutActive: false,
         completedSessions: [],
+        syncingSessionIds: [],
         workoutStartTime: null,
         isWorkoutTimerPaused: false,
         pausedElapsedSeconds: 0,
@@ -2107,7 +2158,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     clearCompletedSessions: async () => {
       // Clear from memory
-      set({ completedSessions: [] });
+      set({ completedSessions: [], syncingSessionIds: [] });
 
       // Clear from AsyncStorage
       try {

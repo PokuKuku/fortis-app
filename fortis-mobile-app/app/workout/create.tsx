@@ -114,6 +114,13 @@ export default function CreateWorkoutScreen() {
     () => editorSession?.exercises.reduce((sum, ex) => sum + ex.sets.length, 0) || 0,
     [editorSession?.exercises]
   );
+  const hasLoggedSets = useMemo(
+    () =>
+      editorSession?.exercises.some(ex =>
+        ex.sets.some(set => set.weight !== null && set.reps !== null)
+      ) ?? false,
+    [editorSession?.exercises]
+  );
 
   // Initialize editor session on mount
   useEffect(() => {
@@ -137,6 +144,7 @@ export default function CreateWorkoutScreen() {
   // Check if we can save
   const canSave = (editorSession?.name?.trim()?.length ?? 0) > 0 &&
     (editorSession?.exercises?.length ?? 0) > 0 &&
+    (mode !== 'log' || hasLoggedSets) &&
     !isSaving;
 
   // Handle close

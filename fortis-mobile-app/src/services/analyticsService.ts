@@ -10,7 +10,7 @@
  *
  * Usage in components (with hook):
  *   import { useAnalytics } from '@/src/services/analyticsService';
- *   const { trackAIChatOpened } = useAnalytics();
+ *   const { trackWorkoutStarted } = useAnalytics();
  */
 
 import { PostHog } from 'posthog-react-native';
@@ -60,7 +60,6 @@ interface WorkoutCompletedProps {
 /** Set logged event properties */
 interface SetLoggedProps {
   exerciseName: string;
-  muscleGroup?: string;
   hasWeight: boolean;
   hasReps: boolean;
   setNumber: number;
@@ -70,6 +69,11 @@ interface SetLoggedProps {
 interface AIMessageSentProps {
   intent: AIIntent;
   hasImage: boolean;
+}
+
+/** AI chat opened event properties */
+interface AIChatOpenedProps {
+  entrypoint: 'tab' | 'button' | 'deeplink' | 'unknown';
 }
 
 /** Template created event properties */
@@ -87,37 +91,6 @@ interface ProgramCreatedProps {
 interface ThemeChangedProps {
   mode: 'system' | 'light' | 'dark';
   accentColor: string;
-}
-
-// ============================================================================
-// Onboarding Event Types
-// ============================================================================
-
-/** Onboarding step names */
-export type OnboardingStepName = 'welcome' | 'units' | 'body-type' | 'complete';
-
-/** Onboarding started event properties */
-interface OnboardingStartedProps {
-  source: 'fresh_install' | 'signup';
-}
-
-/** Onboarding step event properties */
-interface OnboardingStepProps {
-  step: 1 | 2 | 3 | 4;
-  stepName: OnboardingStepName;
-  durationSeconds?: number;
-}
-
-/** Onboarding units selected event properties */
-interface OnboardingUnitsSelectedProps {
-  units: 'imperial' | 'metric';
-  bodyType: 'male' | 'female';
-}
-
-/** Onboarding completed event properties */
-interface OnboardingCompletedProps {
-  totalDurationSeconds: number;
-  createdAccount: boolean;
 }
 
 // ============================================================================
@@ -144,6 +117,17 @@ interface ApiErrorProps {
 }
 
 // ============================================================================
+// Retention Event Types
+// ============================================================================
+
+/** App session started event properties */
+interface AppSessionStartedProps {
+  daysSinceLastSession: number | null;
+  isFirstSession: boolean;
+  isReturnedUser: boolean; // true if 7+ days since last session
+}
+
+// ============================================================================
 // Event Names (snake_case per PostHog convention)
 // ============================================================================
 
@@ -153,22 +137,18 @@ const Events = {
   WORKOUT_COMPLETED: 'workout_completed',
   SET_LOGGED: 'set_logged',
   // AI events
-  AI_CHAT_OPENED: 'ai_chat_opened',
   AI_MESSAGE_SENT: 'ai_message_sent',
+  AI_CHAT_OPENED: 'ai_chat_opened',
   // Program/template events
   TEMPLATE_CREATED: 'template_created',
   PROGRAM_CREATED: 'program_created',
   // Settings events
   THEME_CHANGED: 'theme_changed',
-  // Onboarding events
-  ONBOARDING_STARTED: 'onboarding_started',
-  ONBOARDING_STEP_VIEWED: 'onboarding_step_viewed',
-  ONBOARDING_STEP_COMPLETED: 'onboarding_step_completed',
-  ONBOARDING_UNITS_SELECTED: 'onboarding_units_selected',
-  ONBOARDING_COMPLETED: 'onboarding_completed',
   // Error/failure events
   SYNC_FAILED: 'sync_failed',
   API_ERROR: 'api_error',
+  // Retention events
+  APP_SESSION_STARTED: 'app_session_started',
 } as const;
 
 // ============================================================================
@@ -225,23 +205,15 @@ export const analytics = {
   },
 
   /**
-   * Track when a set is logged/completed
+   * Track when a set is logged
    */
   trackSetLogged(props: SetLoggedProps) {
     capture(Events.SET_LOGGED, {
       exercise_name: props.exerciseName,
-      muscle_group: props.muscleGroup,
       has_weight: props.hasWeight,
       has_reps: props.hasReps,
       set_number: props.setNumber,
     });
-  },
-
-  /**
-   * Track when AI chat is opened
-   */
-  trackAIChatOpened() {
-    capture(Events.AI_CHAT_OPENED);
   },
 
   /**
@@ -251,6 +223,15 @@ export const analytics = {
     capture(Events.AI_MESSAGE_SENT, {
       intent: props.intent,
       has_image: props.hasImage,
+    });
+  },
+
+  /**
+   * Track when the AI chat screen is opened
+   */
+  trackAIChatOpened(props: AIChatOpenedProps = { entrypoint: 'unknown' }) {
+    capture(Events.AI_CHAT_OPENED, {
+      entrypoint: props.entrypoint,
     });
   },
 
@@ -284,60 +265,6 @@ export const analytics = {
   },
 
   // ==========================================================================
-  // Onboarding Events
-  // ==========================================================================
-
-  /**
-   * Track when onboarding flow is started
-   */
-  trackOnboardingStarted(props: OnboardingStartedProps) {
-    capture(Events.ONBOARDING_STARTED, {
-      source: props.source,
-    });
-  },
-
-  /**
-   * Track when an onboarding step is viewed
-   */
-  trackOnboardingStepViewed(props: OnboardingStepProps) {
-    capture(Events.ONBOARDING_STEP_VIEWED, {
-      step: props.step,
-      step_name: props.stepName,
-    });
-  },
-
-  /**
-   * Track when an onboarding step is completed
-   */
-  trackOnboardingStepCompleted(props: OnboardingStepProps) {
-    capture(Events.ONBOARDING_STEP_COMPLETED, {
-      step: props.step,
-      step_name: props.stepName,
-      duration_seconds: props.durationSeconds,
-    });
-  },
-
-  /**
-   * Track when user selects units and body type in onboarding
-   */
-  trackOnboardingUnitsSelected(props: OnboardingUnitsSelectedProps) {
-    capture(Events.ONBOARDING_UNITS_SELECTED, {
-      units: props.units,
-      body_type: props.bodyType,
-    });
-  },
-
-  /**
-   * Track when onboarding is fully completed
-   */
-  trackOnboardingCompleted(props: OnboardingCompletedProps) {
-    capture(Events.ONBOARDING_COMPLETED, {
-      total_duration_seconds: props.totalDurationSeconds,
-      created_account: props.createdAccount,
-    });
-  },
-
-  // ==========================================================================
   // Error/Failure Events
   // ==========================================================================
 
@@ -362,6 +289,21 @@ export const analytics = {
       operation: props.operation,
       error_code: props.errorCode,
       error_message: props.errorMessage,
+    });
+  },
+
+  // ==========================================================================
+  // Retention Events
+  // ==========================================================================
+
+  /**
+   * Track app session start for retention analysis
+   */
+  trackAppSessionStarted(props: AppSessionStartedProps) {
+    capture(Events.APP_SESSION_STARTED, {
+      days_since_last_session: props.daysSinceLastSession,
+      is_first_session: props.isFirstSession,
+      is_returned_user: props.isReturnedUser,
     });
   },
 };
