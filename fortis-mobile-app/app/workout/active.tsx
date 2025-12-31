@@ -36,6 +36,8 @@ export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const activeSession = useWorkoutStore(s => s.activeSession);
+  const workoutStartTime = useWorkoutStore(s => s.workoutStartTime);
+  const pausedElapsedSeconds = useWorkoutStore(s => s.pausedElapsedSeconds);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -74,6 +76,10 @@ export default function ActiveWorkoutScreen() {
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [finishSnapshot, setFinishSnapshot] = useState<{
+    durationSeconds: number;
+    completedExercises: number;
+  } | null>(null);
 
   // Replace exercise state
   const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
@@ -173,6 +179,13 @@ export default function ActiveWorkoutScreen() {
     setShowFinishConfirmModal(false);
     // Small delay to allow confirmation modal to close before showing celebration modal
     setTimeout(() => {
+      const completedExercises = activeSession?.exercises.filter(exercise =>
+        exercise.sets.some(set => set.isCompleted)
+      ).length ?? 0;
+      const durationSeconds = workoutStartTime
+        ? Math.max(0, Math.floor((Date.now() - workoutStartTime) / 1000) + pausedElapsedSeconds)
+        : Math.max(0, Math.floor(pausedElapsedSeconds));
+      setFinishSnapshot({ durationSeconds, completedExercises });
       setShowFinishModal(true);
     }, 150);
   };
@@ -192,6 +205,7 @@ export default function ActiveWorkoutScreen() {
     isNavigating.current = true;
     await finishWorkout();
     setShowFinishModal(false);
+    setFinishSnapshot(null);
     router.back();
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
@@ -380,7 +394,10 @@ export default function ActiveWorkoutScreen() {
       {/* Workout Complete Modal */}
       <WorkoutCompleteModal
         visible={showFinishModal}
-        onClose={() => setShowFinishModal(false)}
+        onClose={() => {
+          setShowFinishModal(false);
+          setFinishSnapshot(null);
+        }}
         onConfirm={handleConfirmFinish}
         onSaveAsTemplate={
           hasTemplateModifications(activeSession) && !activeSession?.programWorkoutId
@@ -393,6 +410,8 @@ export default function ActiveWorkoutScreen() {
             : undefined
         }
         session={activeSession}
+        durationSecondsOverride={finishSnapshot?.durationSeconds}
+        completedExercisesOverride={finishSnapshot?.completedExercises}
       />
 
       {/* Save As Template Modal */}

@@ -20,6 +20,8 @@ interface WorkoutCompleteModalProps {
   onSaveAsTemplate?: () => void;
   saveTemplateLabel?: string;
   session: WorkoutSession | null;
+  durationSecondsOverride?: number;
+  completedExercisesOverride?: number;
 }
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
@@ -31,6 +33,8 @@ export function WorkoutCompleteModal({
   onSaveAsTemplate,
   saveTemplateLabel,
   session,
+  durationSecondsOverride,
+  completedExercisesOverride,
 }: WorkoutCompleteModalProps) {
   const { colors, isDark } = useTheme();
   const confettiRef = useRef<ConfettiCannon>(null);
@@ -85,7 +89,11 @@ export function WorkoutCompleteModal({
   };
 
   const summary = getWorkoutSummary(session);
-  const duration = formatElapsedTime(summary.durationSeconds);
+  const completedExercises = completedExercisesOverride
+    ?? session?.exercises.filter(exercise => exercise.sets.some(set => set.isCompleted)).length
+    ?? 0;
+  const durationSeconds = durationSecondsOverride ?? summary.durationSeconds;
+  const duration = formatElapsedTime(durationSeconds);
 
   return (
     <Modal
@@ -126,7 +134,7 @@ export function WorkoutCompleteModal({
                 <View style={[styles.statsCard, themedStyles.statsCard]}>
                   <View style={styles.statRow}>
                     <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
-                    <Text style={[styles.statValue, themedStyles.statValue]}>{summary.totalExercises}</Text>
+                    <Text style={[styles.statValue, themedStyles.statValue]}>{completedExercises}</Text>
                   </View>
                   <View style={styles.statRow}>
                     <Text style={[styles.statLabel, themedStyles.statLabel]}>Sets</Text>

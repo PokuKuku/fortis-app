@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,93 +8,64 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { useWeeklyActivity } from '@/src/hooks/useWeeklyActivity';
-import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
+import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
-// Try to import victory-native, fall back gracefully if Skia unavailable
-let ChartsAvailable = false;
-let CartesianChart: any, Bar: any;
+const HEATMAP_CELL_SIZE = 10;
+const HEATMAP_CELL_GAP = 4;
+const HEATMAP_DAY_LABEL_WIDTH = 28;
 
-try {
-  const victory = require('victory-native');
-  CartesianChart = victory.CartesianChart;
-  Bar = victory.Bar;
-  ChartsAvailable = true;
-} catch (e) {
-  // Skia not available - charts will show fallback
-}
-
-/**
- * Format volume with K for thousands
- */
-function formatVolume(volume: number): string {
-  if (volume >= 1000) {
-    return `${(volume / 1000).toFixed(0)}K`;
+function withAlpha(color: string, alpha: number): string {
+  if (!color.startsWith('#') || color.length !== 7) {
+    return color;
   }
-  return volume.toString();
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-/**
- * Simple bar chart fallback when Skia is not available
- */
-function SimpleBarsView({ data }: { data: Array<{ day: string; volume: number }> }) {
-  const { colors, isDark } = useTheme();
-  const maxVolume = Math.max(...data.map(d => d.volume), 1);
-
-  return (
-    <View style={styles.simpleBarsContainer}>
-      {data.map((item, index) => (
-        <View key={index} style={styles.simpleBarWrapper}>
-          <View style={[
-            styles.simpleBarTrack,
-            { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' }
-          ]}>
-            <View
-              style={[
-                styles.simpleBar,
-                { height: `${(item.volume / maxVolume) * 100}%`, backgroundColor: colors.accent }
-              ]}
-            />
-          </View>
-          <Text style={[styles.simpleBarLabel, { color: colors.textSecondary }]}>{item.day}</Text>
-        </View>
-      ))}
-    </View>
-  );
+function getIntensityLevel(volume: number, maxVolume: number): 0 | 1 | 2 | 3 | 4 {
+  if (volume <= 0 || maxVolume <= 0) return 0;
+  const ratio = volume / maxVolume;
+  if (ratio <= 0.25) return 1;
+  if (ratio <= 0.5) return 2;
+  if (ratio <= 0.75) return 3;
+  return 4;
 }
 
 /**
  * ProfileHeader - Displays avatar, name, email with inline editing,
- * plus weekly activity chart.
+ * plus training activity heatmap.
  */
 export function ProfileHeader() {
   const { user, profile, updateProfile, uploadAvatar } = useAuth();
   const { colors, isDark } = useTheme();
-  const weeklyData = useWeeklyActivity();
+  const { weeks, monthLabels, maxVolume, isLoading, hasActivity } = useActivityHeatmap(user?.id);
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(profile?.full_name || '');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
   const nameInputRef = useRef<TextInput>(null);
 
-  const units = profile?.preferred_units || 'imperial';
-  const unitLabel = units === 'metric' ? 'kg' : 'lbs';
-  const hasActivity = weeklyData.some(d => d.volume > 0);
-
-  // Prepare data for chart
-  const chartData = weeklyData.map((d, index) => ({
-    x: index,
-    volume: d.volume,
-    day: d.day,
-  }));
+  const intensityColors = useMemo(() => ({
+    level1: withAlpha(colors.accent, 0.2),
+    level2: withAlpha(colors.accent, 0.4),
+    level3: withAlpha(colors.accent, 0.6),
+    level4: colors.accent,
+  }), [colors.accent]);
+  const gridWidth = useMemo(() => {
+    if (weeks.length === 0) return 0;
+    return (weeks.length * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP)) - HEATMAP_CELL_GAP;
+  }, [weeks.length]);
 
   const handleAvatarPress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -264,53 +235,94 @@ export function ProfileHeader() {
         </View>
       </View>
 
-      {/* Weekly Activity Chart */}
+      {/* Training Activity Heatmap */}
       <View style={[styles.chartSection, dividerStyle]}>
         <View style={styles.chartHeader}>
-          <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Weekly Activity</Text>
-          {hasActivity && (
-            <Text style={[styles.unitLabel, { color: colors.textSecondary }]}>{unitLabel}</Text>
-          )}
+          <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Training Activity</Text>
         </View>
 
-        {!hasActivity ? (
-          <View style={styles.emptyState}>
-            <Text style={[styles.emptyStateText, { color: colors.textTertiary }]}>No workouts this week</Text>
+        <View style={styles.heatmapContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.heatmapScroll}
+          >
+            <View>
+              <View style={styles.monthLabelsRow}>
+                <View style={{ width: HEATMAP_DAY_LABEL_WIDTH }} />
+                <View style={[styles.monthLabelsTrack, { width: gridWidth }]}>
+                  {monthLabels.map((label) => (
+                    <Text
+                      key={`${label.label}-${label.weekIndex}`}
+                      style={[
+                        styles.monthLabel,
+                        {
+                          color: colors.textSecondary,
+                          left: label.weekIndex * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP),
+                        },
+                      ]}
+                    >
+                      {label.label}
+                    </Text>
+                  ))}
+                </View>
+              </View>
+
+              <View style={styles.heatmapRow}>
+                <View style={styles.dayLabelsColumn}>
+                  <Text style={[styles.dayLabel, { color: colors.textTertiary }]}>Mon</Text>
+                  <Text style={[styles.dayLabel, { color: colors.textTertiary }]}>Wed</Text>
+                  <Text style={[styles.dayLabel, { color: colors.textTertiary }]}>Fri</Text>
+                </View>
+                <View style={[styles.weeksRow, { width: gridWidth }]}>
+                  {weeks.map((week, weekIndex) => (
+                    <View key={`week-${weekIndex}`} style={styles.weekColumn}>
+                  {week.days.map((day, dayIndex) => {
+                    const baseColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+                    const intensity = getIntensityLevel(day.volume, maxVolume);
+                    const backgroundColor = day.hasActivity
+                      ? (intensity === 0 || maxVolume <= 0
+                        ? intensityColors.level1
+                        : intensity === 1
+                          ? intensityColors.level1
+                          : intensity === 2
+                            ? intensityColors.level2
+                            : intensity === 3
+                              ? intensityColors.level3
+                              : intensityColors.level4)
+                      : baseColor;
+                    return (
+                      <View
+                            key={`day-${weekIndex}-${dayIndex}`}
+                            style={[
+                              styles.heatmapCell,
+                              { backgroundColor },
+                            ]}
+                          />
+                        );
+                      })}
+                    </View>
+                  ))}
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+
+          <View style={styles.legendRow}>
+            <Text style={[styles.legendLabel, { color: colors.textTertiary }]}>Less</Text>
+            <View style={styles.legendCells}>
+              <View style={[styles.legendCell, { backgroundColor: intensityColors.level1 }]} />
+              <View style={[styles.legendCell, { backgroundColor: intensityColors.level2 }]} />
+              <View style={[styles.legendCell, { backgroundColor: intensityColors.level3 }]} />
+              <View style={[styles.legendCell, { backgroundColor: intensityColors.level4 }]} />
+            </View>
+            <Text style={[styles.legendLabel, { color: colors.textTertiary }]}>More</Text>
           </View>
-        ) : !ChartsAvailable ? (
-          <SimpleBarsView data={chartData} />
-        ) : (
-          <View style={styles.chartContainer}>
-            <CartesianChart
-              data={chartData}
-              xKey="x"
-              yKeys={['volume']}
-              padding={{ top: 20, bottom: 30, left: 10, right: 10 }}
-              domainPadding={{ top: 20, bottom: 10, left: 20, right: 20 }}
-              axisOptions={{
-                tickCount: { x: 7, y: 4 },
-                labelColor: colors.textSecondary,
-                lineColor: {
-                  grid: { x: 'transparent', y: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
-                  frame: 'transparent',
-                },
-                formatXLabel: (value: number) => chartData[value]?.day || '',
-                formatYLabel: (value: number) => formatVolume(value),
-              }}
-            >
-              {({ points, chartBounds }: { points: { volume: any[] }; chartBounds: any }) => (
-                <Bar
-                  points={points.volume}
-                  chartBounds={chartBounds}
-                  color={colors.accent}
-                  barWidth={24}
-                  roundedCorners={{ topLeft: 4, topRight: 4 }}
-                  animate={{ type: 'timing', duration: 500 }}
-                />
-              )}
-            </CartesianChart>
-          </View>
-        )}
+
+          {!hasActivity && !isLoading && (
+            <Text style={[styles.emptyStateText, { color: colors.textTertiary }]}>No workouts logged yet</Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -413,46 +425,73 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  unitLabel: {
-    ...Typography.caption,
+  heatmapContainer: {
+    marginTop: Spacing.sm,
   },
-  chartContainer: {
-    height: 160,
-    marginHorizontal: -Spacing.sm,
+  heatmapScroll: {
+    paddingRight: Spacing.sm,
   },
-  emptyState: {
+  monthLabelsRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.xl,
+    marginBottom: Spacing.xs,
+  },
+  monthLabelsTrack: {
+    height: 16,
+    position: 'relative',
+  },
+  monthLabel: {
+    position: 'absolute',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  heatmapRow: {
+    flexDirection: 'row',
+  },
+  dayLabelsColumn: {
+    width: HEATMAP_DAY_LABEL_WIDTH,
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+  },
+  dayLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  weeksRow: {
+    flexDirection: 'row',
+    gap: HEATMAP_CELL_GAP,
+  },
+  weekColumn: {
+    flexDirection: 'column',
+    gap: HEATMAP_CELL_GAP,
+  },
+  heatmapCell: {
+    width: HEATMAP_CELL_SIZE,
+    height: HEATMAP_CELL_SIZE,
+    borderRadius: 3,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  legendCells: {
+    flexDirection: 'row',
+    gap: HEATMAP_CELL_GAP,
+  },
+  legendCell: {
+    width: 10,
+    height: 10,
+    borderRadius: 3,
+  },
+  legendLabel: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   emptyStateText: {
     ...Typography.caption,
-  },
-  // Simple bars fallback
-  simpleBarsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    height: 120,
-    paddingTop: Spacing.md,
-  },
-  simpleBarWrapper: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  simpleBarTrack: {
-    width: 20,
-    height: 80,
-    borderRadius: BorderRadius.sm,
-    justifyContent: 'flex-end',
-    overflow: 'hidden',
-  },
-  simpleBar: {
-    width: '100%',
-    borderTopLeftRadius: BorderRadius.sm,
-    borderTopRightRadius: BorderRadius.sm,
-  },
-  simpleBarLabel: {
-    fontSize: FontSizes.xs,
     marginTop: Spacing.sm,
   },
 });

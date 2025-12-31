@@ -24,11 +24,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 6. Make every task and code change as simple as possible - avoid massive or complex changes. Every change should impact as little code as possible. Everything is about simplicity, however, if a task demands a more complex implementation for long-term stability of the project, do the complex implementation.
 7. Finally, add a review section to `tasks/todo.md` with a summary of the changes you made and any other relevant information
 
-**Task Files & Scripts:**
-- `tasks/todo.md` - Current task planning and progress tracking
-- `tasks/AI_COORDINATION.md` - Multi-session feature coordination (check for active feature work)
-- `scripts/` - Data seeding and utility scripts (seed exercises, generate SQL, etc.)
-
 **Principles:**
 - DO NOT BE LAZY. NEVER BE LAZY. IF THERE IS A BUG FIND THE ROOT CAUSE AND FIX IT. NO TEMPORARY FIXES. YOU ARE A SENIOR DEVELOPER. NEVER BE LAZY
 - MAKE ALL FIXES AND CODE CHANGES AS SIMPLE AS HUMANLY POSSIBLE. THEY SHOULD ONLY IMPACT NECESSARY CODE RELEVANT TO THE TASK AND NOTHING ELSE. IT SHOULD IMPACT AS LITTLE CODE AS POSSIBLE. YOUR GOAL IS TO NOT INTRODUCE ANY BUGS. IT'S ALL ABOUT SIMPLICITY
@@ -87,6 +82,11 @@ supabase functions deploy ai  # Deploy AI edge function
 # Remote (production)
 supabase db push --dns-resolver https      # Push migrations to remote
 supabase db lint --linked --dns-resolver https  # Lint remote schema
+
+# Utility Scripts (from fortis-mobile-app/)
+node scripts/seed-exercises-to-supabase.js  # Seed exercise database
+node scripts/curate-exercises.js            # Curate exercise selections
+node scripts/generate-exercise-sql.js       # Generate SQL for exercises
 ```
 
 ## Quick Reference
@@ -150,6 +150,11 @@ fortis-mobile-app/
 │   ├── GlassCard.tsx       # Glass effect card
 │   └── StainlessSteelPattern.tsx  # Background pattern (USE ON ALL SCREENS)
 │
+├── scripts/                # Data seeding and utility scripts
+│   ├── seed-exercises-to-supabase.js
+│   ├── curate-exercises.js
+│   └── generate-exercise-sql.js
+│
 └── constants/              # Design tokens
     ├── Colors.ts, Sizes.ts, Typography.ts
 ```
@@ -180,6 +185,20 @@ fortis-mobile-app/
 - Event emitter: `DeviceEventEmitter` for cross-component communication
   - Events: `workout-updated`, `customExerciseUpsert`, `exerciseDetailVisible`, `openEditExercise`
 
+**Offline Sync Pattern:**
+```typescript
+// Generate local ID on client
+const localId = uuid.v4();
+await AsyncStorage.setItem(key, JSON.stringify({ ...data, local_id: localId, is_synced: false }));
+
+// Sync to Supabase when online
+const { data: synced } = await supabase.from('table').upsert(
+  { ...localData, user_id: userId },
+  { onConflict: 'user_id,local_id' }
+);
+await AsyncStorage.setItem(key, JSON.stringify({ ...synced, is_synced: true }));
+```
+
 ## Services (`src/services/`)
 
 - **exerciseService.ts**: Exercise CRUD, search, filtering, custom exercises
@@ -192,7 +211,9 @@ fortis-mobile-app/
 
 ## Backend (Supabase)
 
-**Key Tables** (see `supabase/schema.sql`):
+See `BACKEND.md` for detailed backend architecture, RLS patterns, and security documentation.
+
+**Key Tables** (see `supabase/DATABASE_SCHEMA.md` for full ERD):
 - `profiles` - User accounts
 - `exercises` - Exercise library
 - `workout_programs` - Program templates
@@ -206,36 +227,15 @@ fortis-mobile-app/
 - `weekly_workout_volume` - Volume tracking by week
 - `muscle_group_frequency` - Training frequency per muscle group
 
-**Offline-First Pattern:**
-- `local_id` (client UUID) + `is_synced` boolean
-- Persists to AsyncStorage immediately
-- Syncs to Supabase when online
-
 **Migrations** (`supabase/migrations/`):
 - Naming: `NNN_description.sql` (e.g., `000_initial_schema.sql`)
 - Run `ls supabase/migrations/` to see all migrations
-- Each migration is idempotent and can be re-run safely
-
-**Adding New User Tables:**
-- Enable RLS + FORCE
-- Add SELECT/INSERT/UPDATE/DELETE policies with USING and WITH CHECK
-- Add ownership columns (`user_id` or `created_by`)
-- Add indexes on `user_id + created_at` for common access patterns
 
 **AI Edge Function** (`supabase/functions/ai/index.ts`):
-- Rate limiting via `ai_rate_limits` table
-- Claude 3.5 Sonnet via Anthropic API
-- Image support (base64-encoded)
-
 ```bash
 supabase functions deploy ai
 supabase secrets set ANTHROPIC_API_KEY=<key>
 ```
-
-**Adding New AI Mutation Types:**
-- Update allowlists in `supabase/functions/ai/index.ts`
-- Update `ACTION_TYPE_BY_INTENT` and `LOGGABLE_ENTITY_TYPES` in `src/services/aiService.ts`
-- Update CHECK constraints on `ai_pending_actions` and `ai_mutations` tables if needed
 
 **Environment:** Copy `.env.example` to `.env.local` with Supabase URL/key.
 
@@ -328,24 +328,86 @@ import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 
 **Button styles:** `cancelButton`, `successButton`, `warningButton`, `errorButton`
 
-### Fullscreen Bottom Sheet Routes
+### Theming Guidelines (MANDATORY)
 
-For AI chat, workout logger - use Expo Router navigation:
+The app supports both dark and light modes via `ThemeContext`. **All new components MUST support both themes.**
+
+**Key Files:**
+- `src/contexts/ThemeContext.tsx` - ThemeProvider, useTheme hook, DarkTheme/LightTheme palettes
+- `constants/Colors.ts` - Backward-compatible Colors export (always dark theme)
+
+#### 1. Import and use the theme hook
 
 ```tsx
-// In app/_layout.tsx
-<Stack.Screen
-  name="feature/screen"
-  options={{
-    animation: 'slide_from_bottom',
-    gestureEnabled: true,
-    gestureDirection: 'vertical',
-    headerShown: false,
-  }}
-/>
+import { useTheme } from '@/src/contexts/ThemeContext';
+
+export default function MyComponent() {
+  const { colors, isDark } = useTheme();
+  // ...
+}
 ```
 
-Include drag handle at top matching workout logger pattern.
+#### 2. Use dynamic colors for text (NOT static Colors.*)
+
+```tsx
+// ✅ CORRECT - responds to theme changes
+<Text style={{ color: colors.textPrimary }}>Hello</Text>
+
+// ❌ WRONG - always shows dark theme colors
+<Text style={{ color: Colors.textPrimary }}>Hello</Text>
+```
+
+#### 3. Invert glass/overlay effects for light mode
+
+**Quick Reference - RGBA Inversions:**
+
+| Element | Dark Mode | Light Mode |
+|---------|-----------|------------|
+| Glass background (subtle) | `rgba(255,255,255, 0.04)` | `rgba(0,0,0, 0.04)` |
+| Glass background (normal) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.04)` |
+| Glass background (elevated) | `rgba(255,255,255, 0.12)` | `rgba(0,0,0, 0.06)` |
+| Border (subtle) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.06)` |
+| Border (normal) | `rgba(255,255,255, 0.1)` | `rgba(0,0,0, 0.1)` |
+| Border (prominent) | `rgba(255,255,255, 0.15)` | `rgba(0,0,0, 0.08)` |
+| Solid modal background | `#222222` | `#FFFFFF` |
+
+```tsx
+// Glass card backgrounds
+backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
+
+// Glass borders
+borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'
+```
+
+#### 4. Use the themedStyles pattern
+
+```tsx
+export default function MyScreen() {
+  const { colors, isDark } = useTheme();
+
+  // Dynamic styles that depend on theme
+  const themedStyles = {
+    container: { backgroundColor: colors.background },
+    title: { color: colors.textPrimary },
+    card: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+    },
+  };
+
+  return (
+    <View style={[styles.container, themedStyles.container]}>
+      <Text style={[styles.title, themedStyles.title]}>Title</Text>
+    </View>
+  );
+}
+
+// Static styles (layout, sizing - theme-independent)
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  title: { ...Typography.h1, marginBottom: Spacing.md },
+});
+```
 
 ### Animation Standards
 
@@ -379,119 +441,22 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
 - `src/components/shared/`: Cross-feature
 - `src/components/[feature]/`: Feature-specific
 
-### Theming Guidelines (MANDATORY)
+## Analytics (PostHog)
 
-The app supports both dark and light modes via `ThemeContext`. **All new components MUST support both themes.**
-
-**Key Files:**
-- `src/contexts/ThemeContext.tsx` - ThemeProvider, useTheme hook, DarkTheme/LightTheme palettes
-- `constants/Colors.ts` - Backward-compatible Colors export (always dark theme)
-
-**Architecture:**
-```
-ThemeProvider (app/_layout.tsx)
-    │
-    ├── mode: 'system' | 'light' | 'dark'  ← User preference (persisted to AsyncStorage)
-    ├── resolvedTheme: 'light' | 'dark'    ← Actual theme displayed
-    ├── colors: ThemeColors                 ← Active color palette
-    └── isDark: boolean                     ← Convenience boolean
-```
-
-#### 1. Import and use the theme hook
+Track user events for product analytics:
 
 ```tsx
-import { useTheme } from '@/src/contexts/ThemeContext';
+import { usePostHog } from 'posthog-react-native';
 
-export default function MyComponent() {
-  const { colors, isDark } = useTheme();
-  // ...
-}
-```
-
-#### 2. Use dynamic colors for text (NOT static Colors.*)
-
-```tsx
-// ✅ CORRECT - responds to theme changes
-<Text style={{ color: colors.textPrimary }}>Hello</Text>
-<Text style={{ color: colors.textSecondary }}>Subtitle</Text>
-
-// ❌ WRONG - always shows dark theme colors
-<Text style={{ color: Colors.textPrimary }}>Hello</Text>
-```
-
-**Available dynamic colors:**
-- `colors.textPrimary` - Main text (#fafafa dark / #1A1A1A light)
-- `colors.textSecondary` - Secondary text
-- `colors.textTertiary` - Tertiary/muted text
-- `colors.background` - Screen background
-- `colors.white` - Pure white (for button text on green)
-- `colors.success`, `colors.error`, `colors.warning` - Semantic colors (same in both themes)
-
-#### 3. Invert glass/overlay effects for light mode
-
-**Quick Reference - RGBA Inversions:**
-
-| Element | Dark Mode | Light Mode |
-|---------|-----------|------------|
-| Glass background (subtle) | `rgba(255,255,255, 0.04)` | `rgba(0,0,0, 0.04)` |
-| Glass background (normal) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.04)` |
-| Glass background (elevated) | `rgba(255,255,255, 0.12)` | `rgba(0,0,0, 0.06)` |
-| Border (subtle) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.06)` |
-| Border (normal) | `rgba(255,255,255, 0.1)` | `rgba(0,0,0, 0.1)` |
-| Border (prominent) | `rgba(255,255,255, 0.15)` | `rgba(0,0,0, 0.08)` |
-| Solid modal background | `#222222` | `#FFFFFF` |
-| Popover background | `rgba(36,36,36, 0.95)` | `rgba(255,255,255, 0.95)` |
-
-```tsx
-// Glass card backgrounds
-backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
-
-// Glass borders
-borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'
-
-// Progress dots, dividers
-backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)'
-```
-
-#### 4. Use the themedStyles pattern
-
-Since `StyleSheet.create()` runs at module load time (before theme is available), create a `themedStyles` object inside your component:
-
-```tsx
-export default function MyScreen() {
-  const { colors, isDark } = useTheme();
-
-  // Dynamic styles that depend on theme
-  const themedStyles = {
-    container: { backgroundColor: colors.background },
-    title: { color: colors.textPrimary },
-    subtitle: { color: colors.textSecondary },
-    card: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
-    },
-  };
-
-  return (
-    <View style={[styles.container, themedStyles.container]}>
-      <Text style={[styles.title, themedStyles.title]}>Title</Text>
-    </View>
-  );
-}
-
-// Static styles (layout, sizing - theme-independent)
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  title: { ...Typography.h1, marginBottom: Spacing.md },
+const posthog = usePostHog();
+posthog.capture('workout_completed', {
+  duration_seconds: 3600,
+  exercise_count: 8,
+  total_sets: 24,
 });
 ```
 
-#### 5. Keep semantic colors static
-
-These work on both backgrounds:
-- `Colors.success` (#22c55e green)
-- `Colors.error` (#dc2626 red)
-- `Colors.warning` (#f59e0b amber)
+**Event naming:** Use `snake_case` with clear action verbs (e.g., `workout_started`, `exercise_added`, `program_created`).
 
 ## Troubleshooting
 
