@@ -224,14 +224,28 @@ export function ProfileHeader() {
               onPress={handleNamePress}
               activeOpacity={0.7}
             >
-              <Text style={[styles.userName, { color: colors.textPrimary }]}>
+              <Text
+                style={[styles.userName, { color: colors.textPrimary }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
+              >
                 {profile?.full_name || 'Tap to add name'}
               </Text>
-              <PencilIcon color={colors.textSecondary} size={14} strokeWidth={2} />
+              <View style={styles.nameIcon}>
+                <PencilIcon color={colors.textSecondary} size={14} strokeWidth={2} />
+              </View>
             </TouchableOpacity>
           )}
 
-          <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
+          <Text
+            style={[styles.userEmail, { color: colors.textSecondary }]}
+            numberOfLines={1}
+            ellipsizeMode="middle"
+          >
+            {user?.email}
+          </Text>
         </View>
       </View>
 
@@ -374,15 +388,23 @@ const styles = StyleSheet.create({
   },
   userInfo: {
     flex: 1,
+    minWidth: 0,
   },
   nameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     marginBottom: Spacing.xs,
+    flex: 1,
+    minWidth: 0,
   },
   userName: {
     ...Typography.h3,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  nameIcon: {
+    flexShrink: 0,
   },
   nameEditContainer: {
     flexDirection: 'row',

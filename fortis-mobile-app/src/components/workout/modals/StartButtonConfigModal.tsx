@@ -9,7 +9,7 @@ import {
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
-import { responsiveValue } from '@/src/utils/responsive';
+import { getModalWidth, responsiveValue } from '@/src/utils/responsive';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import type { StartPreset } from '@/src/store/startPresetStore';
 import type { Program } from '@/src/types/workout';
@@ -107,6 +107,7 @@ export function StartButtonConfigModal({
       onClose={onClose}
       title="Start Button"
       icon={<PlayIcon size={24} color={themedStyles.iconColor} strokeWidth={2} />}
+      width={getModalWidth(responsiveValue(300, 320, 320))}
     >
       <Text style={modalStyles.message}>
         {currentPreset
@@ -212,7 +213,7 @@ export function StartButtonConfigModal({
 
 const styles = StyleSheet.create({
   list: {
-    maxHeight: responsiveValue(280, 320, 360),
+    maxHeight: responsiveValue(260, 320, 360),
   },
   listContent: {
     paddingBottom: Spacing.sm,

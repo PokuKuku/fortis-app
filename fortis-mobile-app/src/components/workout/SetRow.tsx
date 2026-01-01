@@ -27,8 +27,11 @@ const SET_BADGE_SIZE = responsiveValue(32, 36, 40);
 const INPUT_WIDTH = responsiveValue(40, 44, 48);
 const INPUT_HEIGHT = responsiveValue(32, 34, 36);
 const CHECKBOX_SIZE = responsiveValue(28, 30, 32);
-const CHECKBOX_MARGIN = responsiveValue(Spacing.sm, Spacing.md, Spacing.md);
-const PREV_MIN_WIDTH = responsiveValue(60, 70, 80);
+const CHECKBOX_MARGIN = responsiveValue(Spacing.xs, Spacing.sm, Spacing.md);
+const PREV_MIN_WIDTH = responsiveValue(56, 70, 80);
+const ROW_GAP = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
+const COLUMN_PADDING_RIGHT = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
+const REPS_MARGIN = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 
 interface SetRowProps {
   exerciseLocalId: string;
@@ -723,9 +726,9 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: ROW_GAP,
     paddingVertical: Spacing.sm,
-    paddingRight: Spacing.sm,
+    paddingRight: COLUMN_PADDING_RIGHT,
   },
   deleteAction: {
     justifyContent: 'center',
@@ -791,7 +794,7 @@ const styles = StyleSheet.create({
     // Gap handles spacing
   },
   repsWrapper: {
-    marginLeft: Spacing.sm,
+    marginLeft: REPS_MARGIN,
   },
   flexCol: {
     flex: 1,

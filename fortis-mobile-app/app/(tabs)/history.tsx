@@ -108,10 +108,11 @@ function AnimatedDay({
   isSelected: boolean;
   onPress: (date: DateData) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const scale = useSharedValue(1);
   const isDisabled = state === 'disabled';
   const intensity = marking?.intensity;
+  const isDisabledHighlighted = isDisabled && Boolean(intensity);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -155,6 +156,7 @@ function AnimatedDay({
             styles.dayText,
             { color: colors.textPrimary },
             isDisabled && { color: colors.textSecondary, opacity: 0.3 },
+            isDisabledHighlighted && { color: colors.textPrimary, opacity: isDark ? 0.9 : 0.85 },
             isSelected && { color: colors.accent, fontWeight: '700' },
           ]}
         >

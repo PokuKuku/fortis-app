@@ -20,8 +20,12 @@ import Animated, {
 const SET_BADGE_SIZE = responsiveValue(32, 36, 40);
 const INPUT_WIDTH = responsiveValue(40, 44, 48);
 const CHECKBOX_SIZE = responsiveValue(28, 30, 32);
-const CHECKBOX_MARGIN = responsiveValue(Spacing.sm, Spacing.md, Spacing.md);
-const PREV_MIN_WIDTH = responsiveValue(60, 70, 80);
+const CHECKBOX_MARGIN = responsiveValue(Spacing.xs, Spacing.sm, Spacing.md);
+const PREV_MIN_WIDTH = responsiveValue(56, 70, 80);
+const CONTENT_PADDING = responsiveValue(Spacing.lg, Spacing.xl, Spacing.xl);
+const ROW_GAP = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
+const COLUMN_PADDING_RIGHT = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
+const REPS_MARGIN = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 
 interface ExerciseCardProps {
   exerciseLocalId: string;
@@ -319,7 +323,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   content: {
-    padding: Spacing.xl,
+    padding: CONTENT_PADDING,
     gap: Spacing.lg,
   },
   header: {
@@ -355,9 +359,9 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    gap: Spacing.sm,
+    gap: ROW_GAP,
     paddingBottom: Spacing.sm,
-    paddingRight: Spacing.sm,
+    paddingRight: COLUMN_PADDING_RIGHT,
   },
   headerDivider: {
     height: 1,
@@ -384,7 +388,7 @@ const styles = StyleSheet.create({
   },
   repsCol: {
     width: INPUT_WIDTH,
-    marginLeft: Spacing.sm,
+    marginLeft: REPS_MARGIN,
   },
   checkCol: {
     width: CHECKBOX_SIZE,

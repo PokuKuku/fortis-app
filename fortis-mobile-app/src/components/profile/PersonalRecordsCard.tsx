@@ -243,6 +243,7 @@ const styles = StyleSheet.create({
     fontFamily: 'BankGothicBT-Medium',
     textTransform: 'uppercase',
     letterSpacing: 1,
+    marginTop: 2,
   },
   backButton: {
     width: 40,
@@ -264,6 +265,9 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
   },
   prList: {
     gap: 0,

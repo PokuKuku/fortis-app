@@ -89,7 +89,14 @@ export function CancelWorkoutModal({ visible, onClose, onConfirm }: CancelWorkou
                       pressed && styles.buttonPressed,
                     ]}
                   >
-                    <Text style={[styles.keepButtonText, themedStyles.keepButtonText]}>Keep Workout</Text>
+                    <Text
+                      style={[styles.keepButtonText, themedStyles.keepButtonText]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.85}
+                    >
+                      Keep Workout
+                    </Text>
                   </Pressable>
 
                   <Pressable
@@ -100,7 +107,14 @@ export function CancelWorkoutModal({ visible, onClose, onConfirm }: CancelWorkou
                       pressed && styles.buttonPressed,
                     ]}
                   >
-                    <Text style={[styles.cancelButtonText, themedStyles.cancelButtonText]}>Cancel Workout</Text>
+                    <Text
+                      style={[styles.cancelButtonText, themedStyles.cancelButtonText]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.85}
+                    >
+                      Cancel Workout
+                    </Text>
                   </Pressable>
                 </View>
               </View>

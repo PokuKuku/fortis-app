@@ -24,13 +24,13 @@ interface AccentColorPickerProps {
 
 const COLOR_ORDER: AccentColorName[] = [
   'green',
-  'lime',
+  'midnight',
   'purple',
   'teal',
   'orange',
   'pink',
   'amber',
-  'rose',
+  'copper',
   'indigo',
   'red',
   'slate',

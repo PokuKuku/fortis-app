@@ -11,6 +11,7 @@ import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
+import { type AccentColorName } from '@/src/utils/accentColors';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
@@ -31,7 +32,7 @@ export interface Profile {
   onboarding_completed: boolean;
   // Theme preferences (synced to cloud)
   theme_mode: 'system' | 'light' | 'dark';
-  accent_color: 'green' | 'blue' | 'purple' | 'teal' | 'orange' | 'pink' | 'amber' | 'rose';
+  accent_color: AccentColorName | 'lime' | 'rose' | 'blue';
 }
 
 export interface AuthContextValue {

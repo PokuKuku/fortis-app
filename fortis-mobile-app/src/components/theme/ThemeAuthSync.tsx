@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme, type ThemeMode, type AccentColorName } from '@/src/contexts/ThemeContext';
+import { normalizeAccentColorName } from '@/src/utils/accentColors';
 
 /**
  * Bridge component that syncs theme preferences between ThemeContext and Supabase.
@@ -37,6 +38,8 @@ export function ThemeAuthSync() {
     appliedProfileIdRef.current = profile.id;
 
     const applyCloudPrefs = async () => {
+      const resolvedAccent = normalizeAccentColorName(profile.accent_color);
+
       try {
         // Apply cloud theme_mode if it exists and differs from local
         if (profile.theme_mode && profile.theme_mode !== mode) {
@@ -44,13 +47,13 @@ export function ThemeAuthSync() {
         }
 
         // Apply cloud accent_color if it exists and differs from local
-        if (profile.accent_color && profile.accent_color !== accentColor) {
-          await setAccentColor(profile.accent_color);
+        if (resolvedAccent && resolvedAccent !== accentColor) {
+          await setAccentColor(resolvedAccent);
         }
       } finally {
         // Update refs to match cloud values (prevents immediate re-sync)
         prevModeRef.current = profile.theme_mode || mode;
-        prevAccentRef.current = profile.accent_color || accentColor;
+        prevAccentRef.current = resolvedAccent || accentColor;
         isApplyingCloudPrefsRef.current = false;
       }
     };

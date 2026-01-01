@@ -4,7 +4,7 @@
     "slug": "fortis",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/adaptive-icon.png",
     "scheme": "fortis",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -18,9 +18,9 @@
       "bundleIdentifier": "com.fortisfitness.app",
       "usesAppleSignIn": true,
       "icon": {
-        "light": "./assets/icon-light.png",
-        "dark": "./assets/icon.png",
-        "tinted": "./assets/icon.png"
+        "light": "./assets/adaptive-icon.png",
+        "dark": "./assets/adaptive-icon.png",
+        "tinted": "./assets/adaptive-icon.png"
       },
       "infoPlist": {
         "UIBackgroundModes": [

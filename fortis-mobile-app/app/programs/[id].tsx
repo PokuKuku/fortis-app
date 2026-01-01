@@ -466,7 +466,7 @@ export default function ProgramDetailScreen() {
           >
             <View style={styles.startButtonContent}>
               <PlayIcon color={colors.white} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={[styles.startButtonText, { color: colors.white }]}>Continue program</Text>
+              <Text style={[styles.startButtonText, { color: colors.white }]}>Continue Program</Text>
             </View>
           </GlassButton>
         </Animated.View>

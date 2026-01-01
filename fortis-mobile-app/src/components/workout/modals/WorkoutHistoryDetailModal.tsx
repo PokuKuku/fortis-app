@@ -9,6 +9,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { getExerciseById } from '@/src/services/exerciseService';
+import { getModalWidth } from '@/src/utils/responsive';
 
 // UUID v4 pattern: 8-4-4-4-12 hex characters
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -136,7 +137,7 @@ export function WorkoutHistoryDetailModal({
       visible={visible}
       onClose={onClose}
       title={session.name}
-      width={350}
+      width={getModalWidth(300)}
     >
       {/* Date/Time */}
       <Text style={[styles.dateTime, themedStyles.dateTime]}>{formattedDateTime}</Text>

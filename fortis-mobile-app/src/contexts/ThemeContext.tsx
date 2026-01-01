@@ -7,6 +7,7 @@ import {
   type AccentColorName,
   type AccentThemeColors,
   generateAccentThemeColors,
+  normalizeAccentColorName,
   ACCENT_COLORS,
 } from '@/src/utils/accentColors';
 
@@ -319,10 +320,10 @@ interface ThemeProviderProps {
 }
 
 /**
- * Helper to validate accent color from storage
+ * Helper to resolve accent color from storage
  */
-function isValidAccentColor(value: string | null): value is AccentColorName {
-  return value !== null && value in ACCENT_COLORS;
+function resolveAccentColor(value: string | null): AccentColorName | null {
+  return normalizeAccentColorName(value);
 }
 
 /**
@@ -363,8 +364,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
           setModeState(storedMode as ThemeMode);
         }
 
-        if (isValidAccentColor(storedAccent)) {
-          setAccentColorState(storedAccent);
+        const resolvedAccent = resolveAccentColor(storedAccent);
+        if (resolvedAccent) {
+          setAccentColorState(resolvedAccent);
         }
       } catch (error) {
         console.warn('Failed to load theme preferences:', error);

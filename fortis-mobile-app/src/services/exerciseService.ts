@@ -21,6 +21,7 @@ let allExercisesPromise: Promise<ExerciseWithSource[]> | null = null;
 let exerciseLookupCache: Map<string, ExerciseWithSource> | null = null;
 
 const EXERCISE_LIBRARY_UPDATED_EVENT = 'exerciseLibraryUpdated';
+const WIDE_GRIP_LAT_PULLDOWN_ID = 'c56d8350-56c1-4bc4-99e1-4de71e680c21';
 
 // --- Helpers ---
 
@@ -242,6 +243,16 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
     null;
 
   if (cachedExercise) {
+    if (cachedExercise.id === WIDE_GRIP_LAT_PULLDOWN_ID && cachedExercise.images.length > 0) {
+      const strippedExercise: ExerciseWithSource = { ...cachedExercise, images: [] };
+      upsertExerciseCaches(strippedExercise);
+      if (baseExerciseCache) {
+        await saveCachedExercises(baseExerciseCache);
+      }
+      DeviceEventEmitter.emit(EXERCISE_LIBRARY_UPDATED_EVENT);
+      return strippedExercise;
+    }
+
     if (cachedExercise.source !== 'custom' && cachedExercise.images.length === 0) {
       const refreshedExercise = await fetchExerciseByIdFromSupabase(cachedExercise.id);
       if (refreshedExercise && refreshedExercise.images.length > 0) {

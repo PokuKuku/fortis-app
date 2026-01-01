@@ -46,7 +46,6 @@ export function WorkoutHeader({
     elapsedTime: { color: colors.textPrimary },
     separator: { color: colors.textTertiary },
     dateText: { color: colors.textSecondary },
-    programName: { color: colors.accent },
     workoutName: { color: colors.textPrimary },
   };
 
@@ -74,8 +73,7 @@ export function WorkoutHeader({
     onRestTimerPress();
   };
 
-  // Get program and workout names
-  const programName = activeSession?.programName || null;
+  // Get workout name
   const workoutName = activeSession?.name || null;
 
   return (
@@ -113,7 +111,7 @@ export function WorkoutHeader({
         </Pressable>
       </View>
 
-      {/* Content Row: Left (title/timers/date) and Right (program name) */}
+      {/* Content Row: Left (title/timers) and Right (program name) */}
       <View style={styles.contentRow}>
         {/* Left Column */}
         <View style={styles.leftColumn}>
@@ -150,23 +148,15 @@ export function WorkoutHeader({
             </Pressable>
           </View>
 
-          {/* Date Row */}
-          <View style={styles.dateRow}>
-            <CalendarDaysIcon size={16} color={colors.textSecondary} strokeWidth={2} />
-            <Text style={[styles.dateText, themedStyles.dateText]}>{today}</Text>
-          </View>
         </View>
 
         {/* Right Column - Heatmap and Program Name */}
         <View style={styles.rightColumn}>
           <MuscleHeatmap
             muscleWeights={muscleWeights || []}
-            scale={0.28}
+            scale={0.18}
             compact
           />
-          {programName && (
-            <Text style={[styles.programName, themedStyles.programName]}>{programName}</Text>
-          )}
         </View>
       </View>
     </View>
@@ -177,9 +167,9 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing['2xl'],
     paddingTop: 0,
-    paddingBottom: Spacing.lg,
+    paddingBottom: Spacing.md,
     backgroundColor: 'transparent',
-    gap: Spacing.xl,
+    gap: Spacing.lg,
   },
   topRow: {
     flexDirection: 'row',
@@ -207,6 +197,7 @@ const styles = StyleSheet.create({
   },
   leftColumn: {
     gap: Spacing.sm,
+    marginTop: Spacing.sm,
   },
   timersRow: {
     flexDirection: 'row',
@@ -242,27 +233,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     minWidth: 40,
   },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  dateText: {
-    fontSize: FontSizes.sm,
-    fontFamily: 'BankGothicBT-Medium',
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
   rightColumn: {
     alignItems: 'flex-end',
     gap: Spacing.xs,
-  },
-  programName: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
-    textAlign: 'right',
-    // color now applied via themedStyles (colors.accent)
+    alignSelf: 'flex-end',
+    marginTop: -Spacing.xs,
   },
   workoutName: {
     fontSize: FontSizes.base,
