@@ -36,8 +36,17 @@ export function useExercises() {
         loadExercises();
       }
     );
+    const librarySubscription = DeviceEventEmitter.addListener(
+      'exerciseLibraryUpdated',
+      () => {
+        loadExercises();
+      }
+    );
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      librarySubscription.remove();
+    };
   }, [loadExercises]);
 
   return { exercises, loading, error, refresh: loadExercises };
@@ -52,6 +61,8 @@ export function useExercise(id: string | undefined) {
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    let isMounted = true;
+
     if (!id) {
       setExercise(null);
       setLoading(false);
@@ -59,17 +70,28 @@ export function useExercise(id: string | undefined) {
     }
 
     setLoading(true);
-    ExerciseService.getExerciseById(id)
-      .then(data => {
+    (async () => {
+      try {
+        let data = await ExerciseService.getExerciseById(id);
+        if (!data) {
+          await ExerciseService.refreshExerciseCache();
+          data = await ExerciseService.getExerciseById(id);
+        }
+        if (!isMounted) return;
         setExercise(data);
         setError(null);
-      })
-      .catch(err => {
+      } catch (err) {
+        if (!isMounted) return;
         setError(err as Error);
-      })
-      .finally(() => {
+      } finally {
+        if (!isMounted) return;
         setLoading(false);
-      });
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
   }, [id]);
 
   return { exercise, loading, error };

@@ -106,7 +106,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             options={{
               animation: 'slide_from_bottom',
               animationDuration: 500,
-              gestureEnabled: true,
+              gestureEnabled: false, // Custom gesture handler in chat.tsx
               gestureDirection: 'vertical',
               headerShown: false,
             }}

@@ -6,18 +6,28 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
 import { useWorkoutStore, getRestTimerColor, getRestTimerBackgroundColor } from '@/src/store/workoutStore';
+import { MuscleHeatmap } from './MuscleHeatmap';
 import * as Haptics from 'expo-haptics';
+
+// Weighted muscle data for the heatmap
+interface MuscleWeightData {
+  primaryMuscles: string[];
+  secondaryMuscles?: string[];
+  weight: number;
+}
 
 interface WorkoutHeaderProps {
   onCancelPress: () => void;
   onTimerSettingsPress: () => void;
   onRestTimerPress: () => void;
+  muscleWeights?: MuscleWeightData[];
 }
 
 export function WorkoutHeader({
   onCancelPress,
   onTimerSettingsPress,
-  onRestTimerPress
+  onRestTimerPress,
+  muscleWeights,
 }: WorkoutHeaderProps) {
   const { colors, isDark } = useTheme();
   const elapsed = useElapsedTime();
@@ -147,8 +157,13 @@ export function WorkoutHeader({
           </View>
         </View>
 
-        {/* Right Column - Program Name */}
+        {/* Right Column - Heatmap and Program Name */}
         <View style={styles.rightColumn}>
+          <MuscleHeatmap
+            muscleWeights={muscleWeights || []}
+            scale={0.28}
+            compact
+          />
           {programName && (
             <Text style={[styles.programName, themedStyles.programName]}>{programName}</Text>
           )}

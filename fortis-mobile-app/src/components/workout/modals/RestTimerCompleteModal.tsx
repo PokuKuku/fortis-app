@@ -4,6 +4,7 @@ import { ClockIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { getModalWidth } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
@@ -97,7 +98,7 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   container: {
-    width: 300,
+    width: getModalWidth(300),
     backgroundColor: '#222222',
     borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',

@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import Animated, {
   FadeInUp,
   FadeIn,
@@ -27,6 +27,15 @@ import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { AIIntent } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+
+// Calculate grid dimensions for perfect 2-column layout
+const GRID_HORIZONTAL_PADDING = Spacing['2xl'] * 2; // 48px total
+const GRID_GAP = Spacing.md; // 12px between columns
+const GRID_WIDTH = Math.min(SCREEN_WIDTH - GRID_HORIZONTAL_PADDING, 400);
+const CARD_WIDTH = (GRID_WIDTH - GRID_GAP) / 2; // Exact width for each card
+const CARD_HEIGHT = 140; // Fixed height for consistent card sizing
 
 interface QuickAction {
   intent: AIIntent;
@@ -179,12 +188,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    width: '100%',
-    maxWidth: 400,
-    gap: Spacing.md,
+    width: GRID_WIDTH,
+    rowGap: GRID_GAP,
   },
   gridItem: {
-    width: '48%',
+    width: CARD_WIDTH,
   },
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
@@ -192,7 +200,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: Spacing.lg,
-    minHeight: 120,
+    height: CARD_HEIGHT,
   },
   cardHeader: {
     flexDirection: 'row',

@@ -240,9 +240,6 @@ export default function AIChatScreen() {
   // Dynamic theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
-    dragHandleBar: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.15)',
-    },
     header: {
       borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
     },
@@ -278,7 +275,7 @@ export default function AIChatScreen() {
         rateLimitStatus.maxPerMonth - rateLimitStatus.actionsThisMonth
       )
     : null;
-  const showRateLimitWarning = remaining !== null && remaining > 0 && remaining <= 5;
+  const showRateLimitWarning = remaining !== null && (remaining === 3 || remaining === 1);
 
   useEffect(() => {
     loadConversation();
@@ -411,40 +408,35 @@ export default function AIChatScreen() {
   }, [retryLastMessage]);
 
   return (
-    <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
+    <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
-
-      {/* Minimal drag handle */}
-      <View style={styles.dragHandle}>
-        <View style={[styles.dragHandleBar, themedStyles.dragHandleBar]} />
-      </View>
-
-      {/* Clean header */}
-      <View style={[styles.header, themedStyles.header]}>
-        <View style={styles.headerLeft}>
-          <ChatHeaderLogo isLoading={isSendingMessage} />
-        </View>
-        <View style={styles.headerRight}>
-          {messages.length > 0 && (
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Header */}
+        <View style={[styles.header, themedStyles.header]}>
+          <View style={styles.headerLeft}>
+            <ChatHeaderLogo isLoading={isSendingMessage} />
+          </View>
+          <View style={styles.headerRight}>
+            {messages.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={handleClear}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
-              style={styles.clearButton}
-              onPress={handleClear}
+              style={styles.closeButton}
+              onPress={handleClose}
               activeOpacity={0.7}
             >
-              <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
+              <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
             </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={handleClose}
-            activeOpacity={0.7}
-          >
-            <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
-          </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      {/* Messages */}
+        {/* Messages */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.content}
@@ -535,6 +527,7 @@ export default function AIChatScreen() {
           disabled={isSendingMessage}
         />
       </KeyboardAvoidingView>
+      </SafeAreaView>
 
       {/* Mutation Preview Modal */}
       <AIMutationPreviewModal
@@ -542,24 +535,16 @@ export default function AIChatScreen() {
         onClose={() => setShowPreviewModal(false)}
         onConfirm={handlePreviewConfirm}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  dragHandle: {
-    alignItems: 'center',
-    paddingVertical: Spacing.sm,
-  },
-  dragHandleBar: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  safeArea: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

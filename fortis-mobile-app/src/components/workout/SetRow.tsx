@@ -6,6 +6,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { responsiveValue } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
@@ -20,6 +21,14 @@ import Animated, {
   FadeIn,
   Easing,
 } from 'react-native-reanimated';
+
+// Responsive sizing for different screen sizes
+const SET_BADGE_SIZE = responsiveValue(32, 36, 40);
+const INPUT_WIDTH = responsiveValue(40, 44, 48);
+const INPUT_HEIGHT = responsiveValue(32, 34, 36);
+const CHECKBOX_SIZE = responsiveValue(28, 30, 32);
+const CHECKBOX_MARGIN = responsiveValue(Spacing.sm, Spacing.md, Spacing.md);
+const PREV_MIN_WIDTH = responsiveValue(60, 70, 80);
 
 interface SetRowProps {
   exerciseLocalId: string;
@@ -744,8 +753,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xs,
   },
   setBadge: {
-    width: 40,
-    height: 40,
+    width: SET_BADGE_SIZE,
+    height: SET_BADGE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     // Stamped/embossed industrial look
@@ -764,7 +773,7 @@ const styles = StyleSheet.create({
   },
   previousCol: {
     flex: 1,
-    minWidth: 80,
+    minWidth: PREV_MIN_WIDTH,
     alignItems: 'center',
   },
   previousText: {
@@ -790,8 +799,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   input: {
-    width: 40,
-    height: 32,
+    width: INPUT_WIDTH,
+    height: INPUT_HEIGHT,
     backgroundColor: Colors.surfaceOverlay,
     borderWidth: 1.5,
     borderColor: Colors.borderLight,
@@ -832,8 +841,8 @@ const styles = StyleSheet.create({
     borderWidth: 2.5,
   },
   checkbox: {
-    width: 32,
-    height: 32,
+    width: CHECKBOX_SIZE,
+    height: CHECKBOX_SIZE,
     // Asymmetric chamfered corners - matches inputs
     borderTopLeftRadius: BorderRadius.sm,
     borderTopRightRadius: 0,
@@ -844,7 +853,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.15)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: Spacing.md,
+    marginLeft: CHECKBOX_MARGIN,
     overflow: 'hidden',
   },
   checkboxCompleted: {

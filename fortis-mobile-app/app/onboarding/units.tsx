@@ -11,6 +11,7 @@ import {
   Text,
   StyleSheet,
   Animated,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,12 +22,20 @@ import { GlassButton } from '@/components/GlassButton';
 import { SelectionCard } from '@/src/components/onboarding/SelectionCard';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { isSmallScreen, responsiveValue } from '@/src/utils/responsive';
 
 type UnitSystem = 'imperial' | 'metric';
+
+const CONTENT_PADDING_TOP = responsiveValue(48, 80, 96);
+const CONTENT_PADDING_BOTTOM = responsiveValue(Spacing.xl, Spacing['2xl'], Spacing['3xl']);
+const TITLE_SIZE = responsiveValue(20, 24, 26);
+const BUTTON_HEIGHT = responsiveValue(48, 56, 60);
+const BUTTON_TEXT_SIZE = responsiveValue(14, 16, 18);
+const ICON_SIZE = responsiveValue(24, 32, 36);
+const BOTTOM_GAP = responsiveValue(Spacing.xl, Spacing['3xl'], Spacing['4xl']);
 
 export default function OnboardingUnitsScreen() {
   const router = useRouter();
@@ -136,7 +145,7 @@ export default function OnboardingUnitsScreen() {
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Header Section */}
           <Animated.View
             style={[
@@ -159,6 +168,7 @@ export default function OnboardingUnitsScreen() {
           <Animated.View
             style={[
               styles.cardsContainer,
+              isSmallScreen && styles.cardsContainerStacked,
               {
                 opacity: cardsOpacity,
                 transform: [{ translateY: cardsTranslate }],
@@ -168,7 +178,7 @@ export default function OnboardingUnitsScreen() {
             <SelectionCard
               title="IMPERIAL"
               subtitle="lbs"
-              icon={<ScaleIcon size={32} color={iconColor} strokeWidth={1.5} />}
+              icon={<ScaleIcon size={ICON_SIZE} color={iconColor} strokeWidth={1.5} />}
               isSelected={selectedUnit === 'imperial'}
               onSelect={() => handleUnitSelect('imperial')}
               testID="imperial-option"
@@ -177,7 +187,7 @@ export default function OnboardingUnitsScreen() {
             <SelectionCard
               title="METRIC"
               subtitle="kg"
-              icon={<ScaleIcon size={32} color={iconColor} strokeWidth={1.5} />}
+              icon={<ScaleIcon size={ICON_SIZE} color={iconColor} strokeWidth={1.5} />}
               isSelected={selectedUnit === 'metric'}
               onSelect={() => handleUnitSelect('metric')}
               testID="metric-option"
@@ -212,7 +222,7 @@ export default function OnboardingUnitsScreen() {
               <OnboardingProgress currentStep={2} totalSteps={4} />
             </Animated.View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -226,11 +236,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing['2xl'],
     justifyContent: 'space-between',
-    paddingTop: 80,
-    paddingBottom: Spacing['2xl'],
+    paddingTop: CONTENT_PADDING_TOP,
+    paddingBottom: CONTENT_PADDING_BOTTOM,
   },
   headerSection: {
     alignItems: 'center',
@@ -238,7 +248,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 24,
+    fontSize: TITLE_SIZE,
     fontWeight: '600',
     letterSpacing: 4,
     textTransform: 'uppercase',
@@ -254,19 +264,22 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     paddingHorizontal: Spacing.sm,
   },
+  cardsContainerStacked: {
+    flexDirection: 'column',
+  },
   bottomSection: {
-    gap: Spacing['3xl'],
+    gap: BOTTOM_GAP,
   },
   buttonContainer: {
     width: '100%',
   },
   continueButton: {
-    height: 56,
+    height: BUTTON_HEIGHT,
     borderRadius: BorderRadius.xl,
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: BUTTON_TEXT_SIZE,
     fontWeight: '600',
     letterSpacing: 3,
     textTransform: 'uppercase',

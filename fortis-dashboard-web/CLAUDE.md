@@ -81,6 +81,8 @@ src/
 - **@heroicons/react** - Icons (consistent with mobile app's react-native-heroicons)
 - **Custom DumbbellIcon** - Located at `src/components/icons/DumbbellIcon.tsx`
 
+**TypeScript Path Alias:** Use `@/` prefix for imports from `src/` (e.g., `@/components/ui/glass-card`)
+
 ## Design System (MANDATORY)
 
 ### Pre-Implementation Checklist

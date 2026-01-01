@@ -41,6 +41,7 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
+  Dimensions,
 } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
 import Animated, {
@@ -56,6 +57,10 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+// Ensure modal has at least 24px margin on each side
+const DEFAULT_MODAL_WIDTH = Math.min(SCREEN_WIDTH - 48, 320);
 
 export interface BaseModalProps {
   /** Whether the modal is visible */
@@ -76,7 +81,7 @@ export interface BaseModalProps {
   closeOnBackdropPress?: boolean;
   /** Whether to trigger haptic on close (default: true) */
   hapticOnClose?: boolean;
-  /** Container width (default: 320) */
+  /** Container width (default: responsive - min of screen width - 48 or 320) */
   width?: number;
   /** Modal content animation (default: 'zoom') */
   animation?: 'zoom' | 'slide_from_right';
@@ -92,7 +97,7 @@ export function BaseModal({
   children,
   closeOnBackdropPress = true,
   hapticOnClose = true,
-  width = 320,
+  width = DEFAULT_MODAL_WIDTH,
   animation = 'zoom',
 }: BaseModalProps) {
   const { colors, isDark } = useTheme();

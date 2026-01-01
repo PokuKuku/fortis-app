@@ -9,6 +9,7 @@ import {
 import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
+import { responsiveValue } from '@/src/utils/responsive';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import type { StartPreset } from '@/src/store/startPresetStore';
 import type { Program } from '@/src/types/workout';
@@ -211,7 +212,7 @@ export function StartButtonConfigModal({
 
 const styles = StyleSheet.create({
   list: {
-    maxHeight: 360,
+    maxHeight: responsiveValue(280, 320, 360),
   },
   listContent: {
     paddingBottom: Spacing.sm,

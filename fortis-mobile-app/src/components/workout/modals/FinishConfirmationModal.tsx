@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { getModalWidth } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   container: {
-    width: 320,
+    width: getModalWidth(320),
     backgroundColor: '#222222',
     borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',

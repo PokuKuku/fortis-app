@@ -11,6 +11,7 @@ import {
   Text,
   StyleSheet,
   Animated,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -23,8 +24,19 @@ import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgre
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { responsiveValue } from '@/src/utils/responsive';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+const RING_SIZE = responsiveValue(120, 160, 180);
+const CHECK_SIZE = responsiveValue(64, 80, 96);
+const CHECK_ICON_SIZE = responsiveValue(36, 48, 56);
+const HEADLINE_SIZE = responsiveValue(22, 26, 28);
+const SUBTITLE_SIZE = responsiveValue(14, 16, 18);
+const BUTTON_HEIGHT = responsiveValue(48, 56, 60);
+const BUTTON_TEXT_SIZE = responsiveValue(16, 18, 20);
+const BOTTOM_GAP = responsiveValue(Spacing.xl, Spacing['3xl'], Spacing['4xl']);
+const CONTENT_PADDING_BOTTOM = responsiveValue(Spacing.lg, Spacing['2xl'], Spacing['3xl']);
 
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
@@ -170,7 +182,7 @@ export default function OnboardingCompleteScreen() {
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Hero Section - Icon + Text */}
           <View style={styles.heroSection}>
             {/* Success Icon with Ring */}
@@ -185,7 +197,7 @@ export default function OnboardingCompleteScreen() {
                   },
                 ]}
               >
-                <Svg width={160} height={160} viewBox="0 0 160 160">
+                <Svg width={RING_SIZE} height={RING_SIZE} viewBox="0 0 160 160">
                   <Defs>
                     <SvgLinearGradient id="ringGradient" x1="0" y1="0" x2="1" y2="1">
                       <Stop offset="0%" stopColor={ringGradientStart} />
@@ -215,7 +227,7 @@ export default function OnboardingCompleteScreen() {
                 ]}
               >
                 <View style={[styles.checkCircle, { backgroundColor: colors.accentOverlay }]}>
-                  <CheckIcon size={48} color={colors.accent} />
+                  <CheckIcon size={CHECK_ICON_SIZE} color={colors.accent} />
                 </View>
               </Animated.View>
             </View>
@@ -278,7 +290,7 @@ export default function OnboardingCompleteScreen() {
               <OnboardingProgress currentStep={4} totalSteps={4} />
             </Animated.View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -292,10 +304,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing['2xl'],
     justifyContent: 'space-between',
-    paddingBottom: Spacing['2xl'],
+    paddingBottom: CONTENT_PADDING_BOTTOM,
   },
   heroSection: {
     flex: 1,
@@ -304,8 +316,8 @@ const styles = StyleSheet.create({
     gap: Spacing['3xl'],
   },
   iconContainer: {
-    width: 160,
-    height: 160,
+    width: RING_SIZE,
+    height: RING_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -317,9 +329,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: CHECK_SIZE,
+    height: CHECK_SIZE,
+    borderRadius: CHECK_SIZE / 2,
     // backgroundColor set dynamically via themedStyles using colors.accentOverlay
     alignItems: 'center',
     justifyContent: 'center',
@@ -330,7 +342,7 @@ const styles = StyleSheet.create({
   },
   headline: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 26,
+    fontSize: HEADLINE_SIZE,
     fontWeight: '600',
     letterSpacing: 4,
     textTransform: 'uppercase',
@@ -338,25 +350,25 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: SUBTITLE_SIZE,
     fontWeight: '500',
     letterSpacing: 2,
     textAlign: 'center',
     opacity: 0.7,
   },
   bottomSection: {
-    gap: Spacing['3xl'],
+    gap: BOTTOM_GAP,
   },
   buttonContainer: {
     width: '100%',
   },
   enterButton: {
-    height: 56,
+    height: BUTTON_HEIGHT,
     borderRadius: BorderRadius.xl,
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 18,
+    fontSize: BUTTON_TEXT_SIZE,
     fontWeight: '600',
     letterSpacing: 4,
     textTransform: 'uppercase',

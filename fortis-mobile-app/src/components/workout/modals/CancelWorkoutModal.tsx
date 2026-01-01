@@ -3,6 +3,7 @@ import { XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { getModalWidth } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
@@ -125,7 +126,7 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   container: {
-    width: 320,
+    width: getModalWidth(320),
     backgroundColor: '#222222',
     borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',

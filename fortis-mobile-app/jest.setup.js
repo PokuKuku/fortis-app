@@ -46,6 +46,65 @@ jest.mock('expo-router', () => ({
   },
 }));
 
+// Mock react-native-worklets (avoid native init during tests)
+jest.mock('react-native-worklets', () => {
+  const RuntimeKind = { ReactNative: 0 };
+  const NOOP = () => {};
+  const NOOP_FACTORY = () => NOOP;
+  const ID = (value) => value;
+  const IMMEDIATE_CALLBACK_INVOCATION = (callback) => callback();
+  const mockedRequestAnimationFrame = (callback) =>
+    setTimeout(() => callback(Date.now()), 0);
+
+  globalThis._WORKLET = false;
+  globalThis.__RUNTIME_KIND = RuntimeKind.ReactNative;
+  globalThis._log = console.log;
+  globalThis._getAnimationTimestamp = () => performance.now();
+  globalThis.requestAnimationFrame = mockedRequestAnimationFrame;
+
+  const queueMicrotaskSafe = globalThis.queueMicrotask
+    ? globalThis.queueMicrotask
+    : (cb) => setTimeout(cb, 0);
+
+  const WorkletAPI = {
+    isShareableRef: () => true,
+    makeShareable: ID,
+    makeShareableCloneOnUIRecursive: ID,
+    makeShareableCloneRecursive: ID,
+    shareableMappingCache: new Map(),
+    getStaticFeatureFlag: () => false,
+    setDynamicFeatureFlag: NOOP,
+    isSynchronizable: () => false,
+    getRuntimeKind: () => RuntimeKind.ReactNative,
+    RuntimeKind,
+    createWorkletRuntime: NOOP_FACTORY,
+    runOnRuntime: ID,
+    scheduleOnRuntime: IMMEDIATE_CALLBACK_INVOCATION,
+    createSerializable: ID,
+    isSerializableRef: ID,
+    serializableMappingCache: new Map(),
+    createSynchronizable: ID,
+    callMicrotasks: NOOP,
+    executeOnUIRuntimeSync: ID,
+    runOnJS: (fun) => (...args) =>
+      queueMicrotaskSafe(() => (args.length ? fun(...args) : fun())),
+    runOnUI: (worklet) => (...args) =>
+      mockedRequestAnimationFrame(() => worklet(...args)),
+    runOnUIAsync: (worklet) => (...args) =>
+      new Promise((resolve) => {
+        mockedRequestAnimationFrame(() => resolve(worklet(...args)));
+      }),
+    runOnUISync: IMMEDIATE_CALLBACK_INVOCATION,
+    scheduleOnRN: (fun, ...args) => WorkletAPI.runOnJS(fun)(...args),
+    scheduleOnUI: (worklet, ...args) => WorkletAPI.runOnUI(worklet)(...args),
+    unstable_eventLoopTask: NOOP_FACTORY,
+    isWorkletFunction: () => false,
+    WorkletsModule: {},
+  };
+
+  return { __esModule: true, ...WorkletAPI };
+});
+
 // Mock react-native-reanimated
 jest.mock('react-native-reanimated', () => {
   const Reanimated = require('react-native-reanimated/mock');

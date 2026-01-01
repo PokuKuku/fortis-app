@@ -18,6 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { CheckCircleIcon } from 'react-native-heroicons/solid';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius, Shadows } from '@/constants/Sizes';
+import { responsiveValue } from '@/src/utils/responsive';
 import { Typography } from '@/constants/Typography';
 
 interface SelectionCardProps {
@@ -117,6 +118,11 @@ export function SelectionCard({
   });
   const checkOpacity = checkAnim;
 
+  const minCardHeight = responsiveValue(120, 160, 180);
+  const iconContainerSize = responsiveValue(48, 56, 64);
+  const cardPadding = responsiveValue(Spacing.lg, Spacing.xl, Spacing['2xl']);
+  const titleSize = responsiveValue(16, 18, 20);
+
   return (
     <Animated.View
       style={[
@@ -127,6 +133,7 @@ export function SelectionCard({
       <Pressable
         style={[
           styles.card,
+          { minHeight: minCardHeight },
           themedStyles.card,
           isSelected && styles.cardSelected,
         ]}
@@ -144,16 +151,22 @@ export function SelectionCard({
         />
 
         {/* Content */}
-        <View style={styles.content}>
+        <View style={[styles.content, { padding: cardPadding }]}>
           {/* Icon */}
           {icon && (
-            <View style={[styles.iconContainer, themedStyles.iconContainer]}>
+            <View
+              style={[
+                styles.iconContainer,
+                themedStyles.iconContainer,
+                { minWidth: iconContainerSize, minHeight: iconContainerSize },
+              ]}
+            >
               {icon}
             </View>
           )}
 
           {/* Title */}
-          <Text style={[styles.title, themedStyles.title]}>
+          <Text style={[styles.title, themedStyles.title, { fontSize: titleSize }]}>
             {title}
           </Text>
 

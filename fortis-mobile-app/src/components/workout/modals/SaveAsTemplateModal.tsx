@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView } from 
 import { XMarkIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { getModalWidth } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { GlassButton } from '@/components/GlassButton';
@@ -219,7 +220,7 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   container: {
-    width: 340,
+    width: getModalWidth(340),
     backgroundColor: '#222222',
     borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',

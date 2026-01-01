@@ -1,3 +1,4 @@
+import { DeviceEventEmitter } from 'react-native';
 import { Exercise, ExerciseWithSource, ExerciseSource } from '@/src/types/exercise';
 import { EXERCISE_CONFIG } from '@/src/constants/exerciseConfig';
 import {
@@ -18,6 +19,8 @@ let customExerciseCache: Exercise[] | null = null;
 let allExercisesCache: ExerciseWithSource[] | null = null;
 let allExercisesPromise: Promise<ExerciseWithSource[]> | null = null;
 let exerciseLookupCache: Map<string, ExerciseWithSource> | null = null;
+
+const EXERCISE_LIBRARY_UPDATED_EVENT = 'exerciseLibraryUpdated';
 
 // --- Helpers ---
 
@@ -58,6 +61,66 @@ function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise
     instructions: row.instructions ?? [],
     images: row.images ?? [],
   };
+}
+
+function upsertExerciseCaches(exercise: ExerciseWithSource): void {
+  const { source, ...baseExercise } = exercise;
+
+  if (source !== 'custom') {
+    const baseExercises = baseExerciseCache ? [...baseExerciseCache] : [];
+    const existingIndex = baseExercises.findIndex(e => e.id === baseExercise.id);
+    if (existingIndex >= 0) {
+      baseExercises[existingIndex] = baseExercise;
+    } else {
+      baseExercises.push(baseExercise);
+    }
+    baseExercises.sort((a, b) => a.name.localeCompare(b.name));
+    baseExerciseCache = baseExercises;
+  }
+
+  if (allExercisesCache) {
+    const customExercises = allExercisesCache.filter(e => e.source === 'custom');
+    const baseExercises = allExercisesCache.filter(e => e.source !== 'custom');
+    const targetList = source === 'custom' ? customExercises : baseExercises;
+    const existingIndex = targetList.findIndex(e => e.id === exercise.id);
+    if (existingIndex >= 0) {
+      targetList[existingIndex] = exercise;
+    } else {
+      targetList.push(exercise);
+    }
+    if (source !== 'custom') {
+      baseExercises.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    allExercisesCache = [...customExercises, ...baseExercises];
+  } else {
+    allExercisesCache = [exercise];
+  }
+
+  if (!exerciseLookupCache) {
+    exerciseLookupCache = new Map();
+  }
+  exerciseLookupCache.set(exercise.id, exercise);
+  if (exercise.slug) {
+    exerciseLookupCache.set(exercise.slug, exercise);
+  }
+  exerciseLookupCache.set(normalizeExerciseKey(exercise.name), exercise);
+}
+
+async function fetchExerciseByIdFromSupabase(id: string): Promise<Exercise | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
+    .eq('id', id)
+    .eq('is_custom', false)
+    .limit(1);
+
+  if (error || !data || data.length === 0) {
+    return null;
+  }
+
+  return transformSupabaseExerciseToExercise(data[0]);
 }
 
 // --- Cache Management ---
@@ -173,11 +236,38 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
   }
 
   const normalizedId = normalizeExerciseKey(id);
-  return (
+  const cachedExercise =
     exerciseLookupCache.get(id) ||
     exerciseLookupCache.get(normalizedId) ||
-    null
-  );
+    null;
+
+  if (cachedExercise) {
+    if (cachedExercise.source !== 'custom' && cachedExercise.images.length === 0) {
+      const refreshedExercise = await fetchExerciseByIdFromSupabase(cachedExercise.id);
+      if (refreshedExercise && refreshedExercise.images.length > 0) {
+        const exerciseWithSource: ExerciseWithSource = { ...refreshedExercise, source: 'api' };
+        upsertExerciseCaches(exerciseWithSource);
+        if (baseExerciseCache) {
+          await saveCachedExercises(baseExerciseCache);
+        }
+        DeviceEventEmitter.emit(EXERCISE_LIBRARY_UPDATED_EVENT);
+        return exerciseWithSource;
+      }
+    }
+
+    return cachedExercise;
+  }
+
+  const fetchedExercise = await fetchExerciseByIdFromSupabase(id);
+  if (!fetchedExercise) return null;
+
+  const exerciseWithSource: ExerciseWithSource = { ...fetchedExercise, source: 'api' };
+  upsertExerciseCaches(exerciseWithSource);
+  if (baseExerciseCache) {
+    await saveCachedExercises(baseExerciseCache);
+  }
+  DeviceEventEmitter.emit(EXERCISE_LIBRARY_UPDATED_EVENT);
+  return exerciseWithSource;
 }
 
 export async function searchExercises(query: string): Promise<ExerciseWithSource[]> {

@@ -11,6 +11,7 @@ import {
   Text,
   StyleSheet,
   Animated,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -25,10 +26,21 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
-import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { responsiveValue } from '@/src/utils/responsive';
+
+const LOGO_WIDTH = responsiveValue(200, 260, 300);
+const LOGO_HEIGHT = responsiveValue(54, 70, 80);
+const LOGO_FONT_SIZE = responsiveValue(32, 42, 48);
+const LOGO_LETTER_SPACING = responsiveValue(6, 8, 9);
+const DIVIDER_WIDTH = responsiveValue(44, 60, 72);
+const TAGLINE_SIZE = responsiveValue(12, 14, 16);
+const BUTTON_HEIGHT = responsiveValue(48, 56, 60);
+const BUTTON_TEXT_SIZE = responsiveValue(14, 16, 18);
+const BOTTOM_GAP = responsiveValue(Spacing.xl, Spacing['3xl'], Spacing['4xl']);
+const BOTTOM_PADDING = responsiveValue(Spacing.lg, Spacing['2xl'], Spacing['3xl']);
+const HERO_PADDING_BOTTOM = responsiveValue(Spacing['2xl'], Spacing['4xl'], Spacing['5xl']);
 
 
 export default function OnboardingWelcomeScreen() {
@@ -149,7 +161,7 @@ export default function OnboardingWelcomeScreen() {
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.content}>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {/* Hero Section */}
           <View style={styles.heroSection}>
             {/* Animated Logo */}
@@ -162,7 +174,7 @@ export default function OnboardingWelcomeScreen() {
                 },
               ]}
             >
-              <Svg height="70" width="260" viewBox="0 0 260 70">
+              <Svg height={LOGO_HEIGHT} width={LOGO_WIDTH} viewBox="0 0 260 70">
                 <Defs>
                   <SvgLinearGradient id="logoGradient" x1="0" y1="0" x2="1" y2="0">
                     <Stop offset="0%" stopColor={gradientLight} />
@@ -172,9 +184,9 @@ export default function OnboardingWelcomeScreen() {
                 </Defs>
                 <SvgText
                   fill="url(#logoGradient)"
-                  fontSize="42"
+                  fontSize={LOGO_FONT_SIZE}
                   fontWeight="900"
-                  letterSpacing="8"
+                  letterSpacing={`${LOGO_LETTER_SPACING}`}
                   x="130"
                   y="50"
                   textAnchor="middle"
@@ -240,7 +252,7 @@ export default function OnboardingWelcomeScreen() {
               <OnboardingProgress currentStep={1} totalSteps={4} />
             </Animated.View>
           </View>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     </View>
   );
@@ -254,7 +266,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
     paddingHorizontal: Spacing['2xl'],
     justifyContent: 'space-between',
   },
@@ -263,7 +275,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing['2xl'],
-    paddingBottom: Spacing['4xl'],
+    paddingBottom: HERO_PADDING_BOTTOM,
   },
   logoContainer: {
     alignItems: 'center',
@@ -274,32 +286,32 @@ const styles = StyleSheet.create({
   },
   tagline: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 14,
+    fontSize: TAGLINE_SIZE,
     fontWeight: '500',
     letterSpacing: 4,
     textAlign: 'center',
     textTransform: 'uppercase',
   },
   divider: {
-    width: 60,
+    width: DIVIDER_WIDTH,
     height: 2,
     borderRadius: 1,
     marginTop: Spacing.lg,
   },
   bottomSection: {
-    gap: Spacing['3xl'],
-    paddingBottom: Spacing['2xl'],
+    gap: BOTTOM_GAP,
+    paddingBottom: BOTTOM_PADDING,
   },
   buttonContainer: {
     width: '100%',
   },
   beginButton: {
-    height: 56,
+    height: BUTTON_HEIGHT,
     borderRadius: BorderRadius.xl,
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: BUTTON_TEXT_SIZE,
     fontWeight: '600',
     letterSpacing: 3,
     textTransform: 'uppercase',

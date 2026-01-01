@@ -2,17 +2,6 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Related Documentation
-
-| File | Description |
-|------|-------------|
-| `fortis-dashboard-web/CLAUDE.md` | Web dashboard-specific guidance (Next.js, Tailwind) |
-| `tasks/todo.md` | Current task planning and progress tracking |
-| `tasks/AI_COORDINATION.md` | Multi-session feature coordination (check for active feature work) |
-| `BACKEND.md` | Backend architecture, security, AI flow, RLS patterns |
-| `supabase/DATABASE_SCHEMA.md` | Complete ERD and table relationships |
-| `AGENTS.md` | Repository guidelines for AI agents |
-
 ## Claude Code Rules
 
 **Workflow:**
@@ -30,6 +19,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **CRITICAL:** When debugging, you MUST trace through the ENTIRE code flow step by step. No assumptions. No shortcuts.
 - Before implementing ANY UI, run the design system checklist below
 - Proactively scan for duplicated UI patterns and suggest component extraction (2+ occurrences)
+
+## Related Documentation
+
+| File | Description |
+|------|-------------|
+| `fortis-dashboard-web/CLAUDE.md` | Web dashboard-specific guidance (Next.js, Tailwind) |
+| `tasks/todo.md` | Current task planning and progress tracking |
+| `tasks/AI_COORDINATION.md` | Multi-session feature coordination (check for active feature work) |
+| `BACKEND.md` | Backend architecture, security, AI flow, RLS patterns |
+| `supabase/DATABASE_SCHEMA.md` | Complete ERD and table relationships |
+| `AGENTS.md` | Repository guidelines for AI agents |
 
 ## Project Overview
 
@@ -55,6 +55,11 @@ npm test                    # Run all tests
 npm run test:watch          # Run tests in watch mode
 npm run test:coverage       # Run tests with coverage report
 npm test -- ComponentName   # Run specific test file
+
+# EAS Builds (production)
+eas build --platform ios --profile preview      # TestFlight build
+eas build --platform android --profile preview  # APK for testing
+eas submit --platform ios                       # Submit to App Store
 
 # E2E Testing with Maestro (requires maestro CLI: https://maestro.mobile.dev/)
 maestro test .maestro/tests/smoke-test.yaml  # Run smoke test
@@ -108,6 +113,10 @@ node scripts/generate-exercise-sql.js       # Generate SQL for exercises
 | Use typography | Spread `Typography.h1/h2/body` from `constants/Typography.ts` |
 | Emit cross-component events | `DeviceEventEmitter.emit('event-name', data)` |
 | Track user analytics | PostHog: `usePostHog().capture('event_name', props)` |
+| Validate form input | `react-hook-form` + `zod` schema |
+| Format dates | `date-fns`: `format()`, `formatDistanceToNow()` |
+| Store data offline | `AsyncStorage.getItem/setItem` with JSON parse/stringify |
+| Generate UUIDs | `uuid.v4()` from `uuid` package |
 
 ## Architecture
 
@@ -328,85 +337,29 @@ import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 
 **Button styles:** `cancelButton`, `successButton`, `warningButton`, `errorButton`
 
-### Theming Guidelines (MANDATORY)
+### Glass Effect RGBA Values (Light/Dark Mode)
 
-The app supports both dark and light modes via `ThemeContext`. **All new components MUST support both themes.**
-
-**Key Files:**
-- `src/contexts/ThemeContext.tsx` - ThemeProvider, useTheme hook, DarkTheme/LightTheme palettes
-- `constants/Colors.ts` - Backward-compatible Colors export (always dark theme)
-
-#### 1. Import and use the theme hook
-
-```tsx
-import { useTheme } from '@/src/contexts/ThemeContext';
-
-export default function MyComponent() {
-  const { colors, isDark } = useTheme();
-  // ...
-}
-```
-
-#### 2. Use dynamic colors for text (NOT static Colors.*)
-
-```tsx
-// ✅ CORRECT - responds to theme changes
-<Text style={{ color: colors.textPrimary }}>Hello</Text>
-
-// ❌ WRONG - always shows dark theme colors
-<Text style={{ color: Colors.textPrimary }}>Hello</Text>
-```
-
-#### 3. Invert glass/overlay effects for light mode
-
-**Quick Reference - RGBA Inversions:**
+All glass morphism effects must adapt to theme. Use `isDark` from `useTheme()`:
 
 | Element | Dark Mode | Light Mode |
 |---------|-----------|------------|
-| Glass background (subtle) | `rgba(255,255,255, 0.04)` | `rgba(0,0,0, 0.04)` |
 | Glass background (normal) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.04)` |
 | Glass background (elevated) | `rgba(255,255,255, 0.12)` | `rgba(0,0,0, 0.06)` |
-| Border (subtle) | `rgba(255,255,255, 0.08)` | `rgba(0,0,0, 0.06)` |
-| Border (normal) | `rgba(255,255,255, 0.1)` | `rgba(0,0,0, 0.1)` |
-| Border (prominent) | `rgba(255,255,255, 0.15)` | `rgba(0,0,0, 0.08)` |
+| Border (normal) | `rgba(255,255,255, 0.1)` | `rgba(0,0,0, 0.08)` |
 | Solid modal background | `#222222` | `#FFFFFF` |
 
-```tsx
-// Glass card backgrounds
-backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)'
-
-// Glass borders
-borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)'
-```
-
-#### 4. Use the themedStyles pattern
+**themedStyles Pattern** (required for all theme-dependent components):
 
 ```tsx
-export default function MyScreen() {
-  const { colors, isDark } = useTheme();
+const { colors, isDark } = useTheme();
 
-  // Dynamic styles that depend on theme
-  const themedStyles = {
-    container: { backgroundColor: colors.background },
-    title: { color: colors.textPrimary },
-    card: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
-    },
-  };
-
-  return (
-    <View style={[styles.container, themedStyles.container]}>
-      <Text style={[styles.title, themedStyles.title]}>Title</Text>
-    </View>
-  );
-}
-
-// Static styles (layout, sizing - theme-independent)
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  title: { ...Typography.h1, marginBottom: Spacing.md },
-});
+const themedStyles = {
+  container: { backgroundColor: colors.background },
+  card: {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+  },
+};
 ```
 
 ### Animation Standards

@@ -129,8 +129,17 @@ interface Exercise {
   secondaryMuscles?: string[];
 }
 
+// Weighted muscle data for set-count-based intensity
+interface MuscleWeightData {
+  primaryMuscles: string[];
+  secondaryMuscles?: string[];
+  weight: number; // Number of completed sets - influences intensity
+}
+
 interface MuscleHeatmapProps {
-  exercises: Exercise[];
+  exercises?: Exercise[];
+  // Alternative: weighted data for set-based intensity (used in active workout)
+  muscleWeights?: MuscleWeightData[];
   gender?: 'male' | 'female';
   scale?: number;
   compact?: boolean;
@@ -142,11 +151,12 @@ interface BodyPartData {
   side?: 'left' | 'right';
 }
 
-export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
+export function MuscleHeatmap({ exercises, muscleWeights, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
   const { colors, isDark } = useTheme();
 
-  // Dynamic heatmap colors based on accent
-  const heatmapColors: [string, string] = [colors.accentDark, colors.accent];
+  // Dynamic heatmap colors based on accent (works with all accent colors)
+  // Index 0 = intensity 1 (secondary - lighter), Index 1 = intensity 2 (primary - darker)
+  const heatmapColors = [colors.accent, colors.accentDark];
 
   const { frontData, backData } = useMemo(() => {
     const frontIntensity: Record<string, number> = {};
@@ -154,6 +164,7 @@ export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact
 
     const applyIntensity = (target: Record<string, number>, slug: Slug, intensity: number) => {
       const current = target[slug] || 0;
+      // Take max intensity (primary = 2 takes precedence over secondary = 1)
       if (intensity > current) {
         target[slug] = intensity;
       }
@@ -176,14 +187,23 @@ export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact
       });
     };
 
-    // Process all exercises
-    exercises.forEach((exercise) => {
-      // Primary muscles get intensity 2
-      exercise.primaryMuscles?.forEach((muscle) => addMuscle(muscle, 2));
+    // Process muscleWeights (set-count based) if provided
+    if (muscleWeights && muscleWeights.length > 0) {
+      muscleWeights.forEach(({ primaryMuscles, secondaryMuscles }) => {
+        // Primary muscles get intensity 2, secondary get intensity 1
+        primaryMuscles.forEach((muscle) => addMuscle(muscle, 2));
+        secondaryMuscles?.forEach((muscle) => addMuscle(muscle, 1));
+      });
+    } else if (exercises) {
+      // Original behavior: process exercises array
+      exercises.forEach((exercise) => {
+        // Primary muscles get intensity 2
+        exercise.primaryMuscles?.forEach((muscle) => addMuscle(muscle, 2));
 
-      // Secondary muscles get intensity 1
-      exercise.secondaryMuscles?.forEach((muscle) => addMuscle(muscle, 1));
-    });
+        // Secondary muscles get intensity 1
+        exercise.secondaryMuscles?.forEach((muscle) => addMuscle(muscle, 1));
+      });
+    }
 
     const frontData: BodyPartData[] = Object.entries(frontIntensity).map(([slug, intensity]) => ({
       slug: slug as Slug,
@@ -195,7 +215,7 @@ export function MuscleHeatmap({ exercises, gender = 'male', scale = 0.5, compact
     }));
 
     return { frontData, backData };
-  }, [exercises]);
+  }, [exercises, muscleWeights]);
 
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>

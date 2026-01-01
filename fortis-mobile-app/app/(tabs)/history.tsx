@@ -25,10 +25,15 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { WorkoutSession } from '../../src/types/workout';
 import { Colors } from '../../constants/Colors';
 import { Spacing, BorderRadius } from '../../constants/Sizes';
+import { scale, responsiveValue } from '../../src/utils/responsive';
 import { Typography } from '../../constants/Typography';
 import { WorkoutHistoryDetailModal } from '../../src/components/workout/modals/WorkoutHistoryDetailModal';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// Responsive calendar day sizing
+const DAY_SIZE = responsiveValue(32, 36, 38); // Small: 32, Medium: 36, Large: 38
+const DAY_RADIUS = DAY_SIZE / 2;
 
 // Intensity colors for heatmap - now generated dynamically from accent color
 function getIntensityColors(accentOverlay: string, accent: string) {
@@ -764,9 +769,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   dayContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: DAY_SIZE,
+    height: DAY_SIZE,
+    borderRadius: DAY_RADIUS,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -777,7 +782,7 @@ const styles = StyleSheet.create({
   dayText: {
     ...Typography.body,
     color: Colors.textPrimary,
-    fontSize: 14,
+    fontSize: responsiveValue(12, 13, 14),
     fontWeight: '500',
   },
   dayTextDisabled: {

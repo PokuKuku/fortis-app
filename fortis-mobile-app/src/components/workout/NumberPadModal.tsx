@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { responsiveValue } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { RPESelectorOverlay } from './RPESelectorOverlay';
@@ -21,6 +22,9 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+
+// Responsive sizing for controls column
+const CONTROLS_WIDTH = responsiveValue(90, 100, 110);
 
 interface NumberPadModalProps {
   visible: boolean;
@@ -459,7 +463,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   controlsColumn: {
-    width: 110,
+    width: CONTROLS_WIDTH,
     gap: Spacing.xs,
   },
   controlButton: {

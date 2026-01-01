@@ -4,6 +4,7 @@ import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { responsiveValue } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetRow } from './SetRow';
@@ -14,6 +15,13 @@ import Animated, {
   FadeOut,
   Easing,
 } from 'react-native-reanimated';
+
+// Responsive sizing to match SetRow
+const SET_BADGE_SIZE = responsiveValue(32, 36, 40);
+const INPUT_WIDTH = responsiveValue(40, 44, 48);
+const CHECKBOX_SIZE = responsiveValue(28, 30, 32);
+const CHECKBOX_MARGIN = responsiveValue(Spacing.sm, Spacing.md, Spacing.md);
+const PREV_MIN_WIDTH = responsiveValue(60, 70, 80);
 
 interface ExerciseCardProps {
   exerciseLocalId: string;
@@ -365,22 +373,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   setCol: {
-    width: 40,
+    width: SET_BADGE_SIZE,
   },
   previousCol: {
     flex: 1,
-    minWidth: 80,
+    minWidth: PREV_MIN_WIDTH,
   },
   weightCol: {
-    width: 40,
+    width: INPUT_WIDTH,
   },
   repsCol: {
-    width: 44,
+    width: INPUT_WIDTH,
     marginLeft: Spacing.sm,
   },
   checkCol: {
-    width: 32,
-    marginLeft: Spacing.md,
+    width: CHECKBOX_SIZE,
+    marginLeft: CHECKBOX_MARGIN,
   },
   flexCol: {
     flex: 1,

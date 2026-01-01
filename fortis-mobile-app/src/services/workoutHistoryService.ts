@@ -305,7 +305,6 @@ async function uploadSession(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!session.completedAt) {
-      console.warn(`[WorkoutSync] Session "${session.name}" not completed; skipping upload.`);
       return { success: true };
     }
 
@@ -315,7 +314,6 @@ async function uploadSession(
     );
 
     if (completedSetCount === 0) {
-      console.warn(`[WorkoutSync] Session "${session.name}" has no completed sets; skipping upload.`);
       return { success: true };
     }
 
@@ -388,7 +386,6 @@ async function uploadSession(
       // Get the Supabase UUID for this exercise
       const resolvedExerciseId = exerciseIdMap.get(exercise.exerciseId);
       if (!resolvedExerciseId) {
-        console.warn(`[WorkoutSync] Skipping sets for unresolved exercise: "${exercise.exerciseName}" (local ID: ${exercise.exerciseId})`);
         skippedUnresolved += exercise.sets.filter(s => s.isCompleted).length;
         continue;
       }
@@ -418,12 +415,6 @@ async function uploadSession(
       }
     }
 
-    // Log diagnostic info
-    console.log(`[WorkoutSync] Session "${session.name}": ${setsToInsert.length} completed sets to sync, ${skippedIncomplete} incomplete skipped, ${skippedUnresolved} unresolved exercises skipped`);
-    if (setsToInsert.length > 0) {
-      console.log(`[WorkoutSync] Exercise IDs: ${[...new Set(setsToInsert.map(s => s.exercise_id))].join(', ')}`);
-    }
-
     if (!sessionWasCreated) {
       const { count: existingSetCount, error: countError } = await supabase
         .from('workout_sets')
@@ -445,14 +436,7 @@ async function uploadSession(
         .insert(setsToInsert);
 
       if (setsError) {
-        console.error('[WorkoutSync] Failed to insert workout sets:', {
-          error: setsError,
-          code: setsError.code,
-          message: setsError.message,
-          details: setsError.details,
-          hint: setsError.hint,
-          sampleExerciseIds: setsToInsert.slice(0, 3).map(s => s.exercise_id),
-        });
+        console.error('[WorkoutSync] Failed to insert workout sets:', setsError.message);
         // Remove the session so it doesn't appear empty in history
         await supabase
           .from('workout_sessions')
@@ -460,8 +444,6 @@ async function uploadSession(
           .eq('id', sessionId)
           .eq('user_id', userId);
         return { success: false, error: setsError.message };
-      } else {
-        console.log(`[WorkoutSync] Successfully synced ${setsToInsert.length} sets for session "${session.name}"`);
       }
     } else {
       if (completedSetCount > 0) {
@@ -472,7 +454,6 @@ async function uploadSession(
           .eq('user_id', userId);
         return { success: false, error: 'No resolved sets to sync' };
       }
-      console.warn(`[WorkoutSync] No completed sets to sync for session "${session.name}"`);
     }
 
     return { success: true };

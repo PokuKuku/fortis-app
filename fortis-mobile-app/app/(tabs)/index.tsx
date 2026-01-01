@@ -38,6 +38,7 @@ import { useProgramProgressStore } from '../../src/store/programProgressStore';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../../src/constants/programs';
 import { BaseModal, useModalStyles } from '../../src/components/ui/BaseModal';
 import { useDropZone } from '../../src/hooks/useDropZone';
+import { responsiveValue } from '@/src/utils/responsive';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -56,6 +57,18 @@ type WorkoutItem = {
   lastPerformed: string;
   isAiCreated?: boolean;
 };
+
+const PROGRAM_CARD_HEIGHT = responsiveValue(64, 70, 78);
+const WORKOUT_CARD_HEIGHT = responsiveValue(68, 76, 84);
+const PROGRAM_CARD_PADDING_HORIZONTAL = responsiveValue(10, 12, 14);
+const WORKOUT_CARD_PADDING_HORIZONTAL = responsiveValue(8, 10, 12);
+const CARD_PADDING_TOP = responsiveValue(8, 10, 12);
+const CARD_PADDING_BOTTOM = responsiveValue(10, 12, 14);
+const SECTION_TITLE_SIZE = responsiveValue(18, 20, 22);
+const START_BUTTON_HEIGHT = responsiveValue(32, 36, 40);
+const START_BUTTON_TEXT_SIZE = responsiveValue(13, 15, 16);
+const CARD_TITLE_SIZE = responsiveValue(12, 14, 15);
+const CARD_META_SIZE = responsiveValue(11, 12, 13);
 
 // Helper to format relative time
 function formatRelativeTime(dateString: string | null): string {
@@ -1240,7 +1253,7 @@ export default function ProgramsScreen() {
                       // Reordering currently not persisted to database
                     }}
                     numColumns={1}
-                    itemHeight={70}
+                    itemHeight={PROGRAM_CARD_HEIGHT}
                     gap={12}
                   />
                 )
@@ -1290,7 +1303,7 @@ export default function ProgramsScreen() {
                       // Reordering currently not persisted to database
                     }}
                     numColumns={2}
-                    itemHeight={76}
+                    itemHeight={WORKOUT_CARD_HEIGHT}
                     gap={12}
                   />
                 )
@@ -1479,7 +1492,7 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '90deg' }],
   },
   sectionTitle: {
-    fontSize: 20,
+    fontSize: SECTION_TITLE_SIZE,
     fontWeight: '700',
     color: '#DFE2E6',
   },
@@ -1487,7 +1500,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   startButton: {
-    height: 36,
+    height: START_BUTTON_HEIGHT,
     borderRadius: 8,
   },
   startButtonInner: {
@@ -1498,7 +1511,7 @@ const styles = StyleSheet.create({
   },
   startButtonText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: START_BUTTON_TEXT_SIZE,
     fontWeight: '700',
   },
   cardsContainer: {
@@ -1569,36 +1582,36 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingHorizontal: PROGRAM_CARD_PADDING_HORIZONTAL,
+    paddingTop: CARD_PADDING_TOP,
+    paddingBottom: CARD_PADDING_BOTTOM,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 3,
     overflow: 'hidden',
-    height: 70,
+    height: PROGRAM_CARD_HEIGHT,
   },
   workoutCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    paddingHorizontal: 10,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingHorizontal: WORKOUT_CARD_PADDING_HORIZONTAL,
+    paddingTop: CARD_PADDING_TOP,
+    paddingBottom: CARD_PADDING_BOTTOM,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 3,
     overflow: 'hidden',
-    height: 76,
+    height: WORKOUT_CARD_HEIGHT,
   },
   cardTitle: {
     flex: 1,
-    fontSize: 14,
+    fontSize: CARD_TITLE_SIZE,
     fontWeight: '600',
     color: '#DFE2E6',
   },
@@ -1608,7 +1621,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardMetaText: {
-    fontSize: 12,
+    fontSize: CARD_META_SIZE,
     fontWeight: '500',
     color: '#9CA3AF',
   },

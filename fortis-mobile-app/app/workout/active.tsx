@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,7 @@ import { SaveAsTemplateModal } from '@/src/components/workout/modals/SaveAsTempl
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { WorkoutSession } from '@/src/types/workout';
 import { GlassButton } from '@/components/GlassButton';
+import { getExerciseById } from '@/src/services/exerciseService';
 import * as Haptics from 'expo-haptics';
 
 export default function ActiveWorkoutScreen() {
@@ -89,6 +90,68 @@ export default function ActiveWorkoutScreen() {
 
   // Initialize rest timer tick
   useRestTimerTick();
+
+  // Heatmap: Cache for exercise muscle data
+  const [exerciseMuscleCache, setExerciseMuscleCache] = useState<
+    Record<string, { primaryMuscles: string[]; secondaryMuscles: string[] }>
+  >({});
+
+  // Fetch muscle data for exercises when they change
+  useEffect(() => {
+    if (!activeSession?.exercises) return;
+
+    const fetchMissingMuscles = async () => {
+      const exerciseIds = activeSession.exercises.map(e => e.exerciseId);
+      const missingIds = exerciseIds.filter(id => !exerciseMuscleCache[id]);
+
+      if (missingIds.length === 0) return;
+
+      const results = await Promise.all(
+        missingIds.map(async id => {
+          const exercise = await getExerciseById(id);
+          return exercise
+            ? { id, primaryMuscles: exercise.primaryMuscles, secondaryMuscles: exercise.secondaryMuscles }
+            : null;
+        })
+      );
+
+      const newCache: typeof exerciseMuscleCache = {};
+      results.forEach(result => {
+        if (result) {
+          newCache[result.id] = {
+            primaryMuscles: result.primaryMuscles,
+            secondaryMuscles: result.secondaryMuscles,
+          };
+        }
+      });
+
+      if (Object.keys(newCache).length > 0) {
+        setExerciseMuscleCache(prev => ({ ...prev, ...newCache }));
+      }
+    };
+
+    fetchMissingMuscles();
+  }, [activeSession?.exercises.map(e => e.exerciseId).join(',')]);
+
+  // Compute muscle weights for heatmap (only completed sets)
+  const muscleWeights = useMemo(() => {
+    if (!activeSession?.exercises) return [];
+
+    const exercisesWithCompletedSets = activeSession.exercises.filter(ex => ex.sets.some(s => s.isCompleted));
+
+    return exercisesWithCompletedSets
+      .map(ex => {
+        const muscleData = exerciseMuscleCache[ex.exerciseId];
+        const completedSets = ex.sets.filter(s => s.isCompleted).length;
+
+        return {
+          primaryMuscles: muscleData?.primaryMuscles || [],
+          secondaryMuscles: muscleData?.secondaryMuscles || [],
+          weight: completedSets,
+        };
+      })
+      .filter(mw => mw.primaryMuscles.length > 0 || (mw.secondaryMuscles?.length || 0) > 0);
+  }, [activeSession?.exercises, exerciseMuscleCache]);
 
   // Handle cancel workout
   const handleCancelPress = () => {
@@ -325,6 +388,7 @@ export default function ActiveWorkoutScreen() {
           onCancelPress={handleCancelPress}
           onTimerSettingsPress={() => setShowTimerSettingsModal(true)}
           onRestTimerPress={() => setShowRestTimerControls(true)}
+          muscleWeights={muscleWeights}
         />
 
         {/* Exercise List */}

@@ -3,6 +3,7 @@ import { XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { getModalWidth } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { WorkoutSession } from '@/src/types/workout';
@@ -200,7 +201,7 @@ const styles = StyleSheet.create({
     padding: Spacing['2xl'],
   },
   container: {
-    width: 340,
+    width: getModalWidth(340),
     backgroundColor: '#222222',
     borderRadius: BorderRadius['2xl'],
     overflow: 'hidden',

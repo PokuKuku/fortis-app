@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { responsiveValue } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { SetType } from '@/src/types/workout';
 import * as Haptics from 'expo-haptics';
@@ -31,6 +32,9 @@ interface TimerSettingsModalProps {
 const ITEM_HEIGHT = 56;
 const MINUTES = Array.from({ length: 11 }, (_, i) => i); // 0-10
 const SECONDS = Array.from({ length: 12 }, (_, i) => i * 5); // 0, 5, ..., 55
+
+// Responsive sizing for picker columns
+const PICKER_COLUMN_WIDTH = responsiveValue(80, 90, 100);
 
 export function TimerSettingsModal({
   visible,
@@ -567,7 +571,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   pickerColumn: {
-    width: 100,
+    width: PICKER_COLUMN_WIDTH,
     alignItems: 'center',
   },
   picker: {
