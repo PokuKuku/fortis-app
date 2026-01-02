@@ -76,7 +76,7 @@ export function AIMutationProgramDraftEditor({
           {editableProgramDraft.isTemplate ? 'Template name' : 'Program name'}
         </Text>
         <TextInput
-          style={[styles.metaInput, themedStyles.metaInput]}
+          style={[styles.metaInput, styles.metaInputSingle, themedStyles.metaInput]}
           value={editableProgramDraft.name}
           onChangeText={(text) => onUpdateProgramDraft({ name: text })}
           placeholder={editableProgramDraft.isTemplate ? 'Push Day' : 'Strength Block'}
@@ -99,7 +99,7 @@ export function AIMutationProgramDraftEditor({
               <View style={styles.metaField}>
                 <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Difficulty</Text>
                 <TextInput
-                  style={[styles.metaInput, themedStyles.metaInput]}
+                  style={[styles.metaInput, styles.metaInputSingle, themedStyles.metaInput]}
                   value={editableProgramDraft.difficulty}
                   onChangeText={(text) => onUpdateProgramDraft({ difficulty: text })}
                   placeholder="beginner | intermediate | advanced"
@@ -110,7 +110,7 @@ export function AIMutationProgramDraftEditor({
               <View style={styles.metaField}>
                 <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Weeks</Text>
                 <TextInput
-                  style={[styles.metaInput, themedStyles.metaInput]}
+                  style={[styles.metaInput, styles.metaInputSingle, themedStyles.metaInput]}
                   value={editableProgramDraft.durationWeeks ? String(editableProgramDraft.durationWeeks) : ''}
                   onChangeText={(text) => {
                     const weeks = parseInt(text, 10);
@@ -124,7 +124,7 @@ export function AIMutationProgramDraftEditor({
             </View>
             <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Goal</Text>
             <TextInput
-              style={[styles.metaInput, themedStyles.metaInput]}
+              style={[styles.metaInput, styles.metaInputSingle, themedStyles.metaInput]}
               value={editableProgramDraft.goal || ''}
               onChangeText={(text) => onUpdateProgramDraft({ goal: text })}
               placeholder="strength | hypertrophy | powerlifting | general_fitness"

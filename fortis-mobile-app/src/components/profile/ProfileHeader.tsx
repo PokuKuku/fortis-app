@@ -16,7 +16,7 @@ import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
 const HEATMAP_CELL_SIZE = 10;
@@ -416,7 +416,10 @@ const styles = StyleSheet.create({
     ...Typography.h3,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    minHeight: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
     marginRight: Spacing.sm,
   },
   saveButton: {

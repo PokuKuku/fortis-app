@@ -8,11 +8,12 @@ import {
   FlatList,
   TextInput,
   ScrollView,
+  Image,
 } from 'react-native';
 import { XMarkIcon, MagnifyingGlassIcon, PlusIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { Spacing, FontSizes, BorderRadius, Sizes } from '@/constants/Sizes';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
@@ -20,6 +21,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
+import { getExerciseImageUrl } from '@/src/services/exerciseService';
 
 interface AddExerciseModalProps {
   visible: boolean;
@@ -59,6 +61,10 @@ export function AddExerciseModal({
     },
     exerciseName: { color: colors.textPrimary },
     exerciseNameSelected: { color: colors.accent },
+    exercisePreview: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    exercisePreviewPlaceholder: { color: colors.accent },
     iconContainer: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
     },
@@ -193,6 +199,9 @@ export function AddExerciseModal({
 
   const renderExercise = ({ item }: { item: Exercise }) => {
     const selected = isSelected(item.id);
+    const imageUrl = item.images.length > 0
+      ? getExerciseImageUrl(item.images[0])
+      : null;
     return (
       <Pressable
         onPress={() => toggleExercise(item.id)}
@@ -203,9 +212,31 @@ export function AddExerciseModal({
           pressed && styles.exerciseItemPressed,
         ]}
       >
-        <Text style={[styles.exerciseName, themedStyles.exerciseName, selected && themedStyles.exerciseNameSelected]}>
-          {item.name}
-        </Text>
+        <View style={styles.exerciseContent}>
+          <View style={[styles.exercisePreview, themedStyles.exercisePreview]}>
+            {imageUrl ? (
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.exercisePreviewImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <Text style={[styles.exercisePreviewPlaceholder, themedStyles.exercisePreviewPlaceholder]}>
+                {item.name.charAt(0).toUpperCase()}
+              </Text>
+            )}
+          </View>
+          <Text
+            style={[
+              styles.exerciseName,
+              themedStyles.exerciseName,
+              selected && themedStyles.exerciseNameSelected,
+            ]}
+            numberOfLines={1}
+          >
+            {item.name}
+          </Text>
+        </View>
         <View style={[styles.iconContainer, themedStyles.iconContainer, selected && themedStyles.iconContainerSelected]}>
           {selected ? (
             <CheckIcon size={18} color={colors.accent} strokeWidth={2} />
@@ -408,7 +439,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing['2xl'],
     marginBottom: Spacing.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    height: Sizes.minTouchTarget,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
@@ -420,7 +451,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '500',
     color: Colors.textPrimary,
-    paddingVertical: Spacing.xs,
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   listContent: {
     paddingHorizontal: Spacing['2xl'],
@@ -443,6 +477,29 @@ const styles = StyleSheet.create({
   },
   exerciseItemPressed: {
     opacity: 0.7,
+  },
+  exerciseContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    marginRight: Spacing.md,
+  },
+  exercisePreview: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  exercisePreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  exercisePreviewPlaceholder: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
   },
   exerciseName: {
     fontSize: FontSizes.base,

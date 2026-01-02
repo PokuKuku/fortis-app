@@ -21,7 +21,7 @@ import {
   ExclamationTriangleIcon,
 } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius, FontSizes, ButtonHeights } from '@/constants/Sizes';
+import { Spacing, BorderRadius, FontSizes, ButtonHeights, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -868,7 +868,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexShrink: 1,
     minWidth: 0,
-    paddingVertical: Spacing.xs,
+    minHeight: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
     marginRight: Spacing.md,
   },
   reorderButton: {

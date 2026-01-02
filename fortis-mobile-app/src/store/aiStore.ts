@@ -11,6 +11,7 @@ import {
   AIIntent,
   AIImage,
   AIImageMimeType,
+  AIError,
   AIResponse,
   AIConversation,
   AIConversationMessage,
@@ -21,6 +22,7 @@ import {
   EditableProgramDraft,
   EditableProgramWorkout,
   EditableProgramExercise,
+  AIRateLimitWindow,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import * as ExerciseService from '../services/exerciseService';
@@ -150,6 +152,36 @@ const hasInvalidDraftExercises = (draft: EditableProgramDraft): boolean =>
 
 const makeFriendlyClarification = (question: string | undefined, _intent: AIIntent): string => {
   return question || 'Could you share a bit more detail so I can help?';
+};
+
+const RATE_LIMIT_LABELS: Record<AIRateLimitWindow, string> = {
+  minute: 'per-minute',
+  hour: 'hourly',
+  day: 'daily',
+  week: 'weekly',
+  month: 'monthly',
+};
+
+const formatRetryAfter = (seconds?: number): string | null => {
+  if (!seconds || seconds <= 0) return null;
+  const totalSeconds = Math.ceil(seconds);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const parts: string[] = [];
+  if (days) parts.push(`${days}d`);
+  if (hours) parts.push(`${hours}h`);
+  if (minutes) parts.push(`${minutes}m`);
+  if (parts.length === 0) parts.push(`${totalSeconds}s`);
+  return parts.join(' ');
+};
+
+const makeRateLimitMessage = (error?: AIError): string => {
+  const windowLabel = error?.limitWindow ? RATE_LIMIT_LABELS[error.limitWindow] : null;
+  const retryAfter = formatRetryAfter(error?.retryAfterSeconds);
+  const windowText = windowLabel ? `${windowLabel} ` : '';
+  const retryText = retryAfter ? ` Try again in ${retryAfter}.` : ' Try again later.';
+  return `Looks like you've hit your ${windowText}AI limit.${retryText}`;
 };
 
 interface AIState {
@@ -360,18 +392,23 @@ export const useAIStore = create<AIState>()(
         // Send to AI service (with image if present)
         const response = await aiService.sendAIMessage(intent, message, context, imageForApi);
 
+        const isRateLimited = response.type === 'error' && response.error?.code === 'RATE_LIMITED';
+        const assistantContent =
+          response.type === 'answer'
+            ? response.answer?.text || ''
+            : response.type === 'mutation_plan'
+            ? response.mutationPlan?.explanation || ''
+            : response.type === 'clarification'
+            ? makeFriendlyClarification(response.clarification?.question, intent)
+            : isRateLimited
+            ? makeRateLimitMessage(response.error)
+            : response.error?.message || 'An error occurred';
+
         // Create assistant message
         const assistantMessage: AIConversationMessage = {
           id: generateId(),
           role: 'assistant',
-          content:
-            response.type === 'answer'
-              ? response.answer?.text || ''
-              : response.type === 'mutation_plan'
-              ? response.mutationPlan?.explanation || ''
-              : response.type === 'clarification'
-              ? makeFriendlyClarification(response.clarification?.question, intent)
-              : response.error?.message || 'An error occurred',
+          content: assistantContent,
           intent,
           mutationPlanId: response.mutationPlan?.requestId,
           createdAt: new Date().toISOString(),
@@ -392,12 +429,21 @@ export const useAIStore = create<AIState>()(
             isSendingMessage: false,
           });
         } else if (response.type === 'error') {
+          if (isRateLimited) {
+            set({
+              conversation: finalConversation,
+              error: null,
+              lastFailedMessage: null,
+              isSendingMessage: false,
+            });
+          } else {
           set({
             conversation: finalConversation,
             error: response.error?.message || 'An error occurred',
             isSendingMessage: false,
             lastFailedMessage: messageParams,
           });
+          }
         } else if (response.type === 'clarification') {
           set({
             conversation: finalConversation,

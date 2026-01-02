@@ -129,7 +129,10 @@ export interface AIError {
   message: string;
   retryable: boolean;
   retryAfterSeconds?: number;
+  limitWindow?: AIRateLimitWindow;
 }
+
+export type AIRateLimitWindow = 'minute' | 'hour' | 'day' | 'week' | 'month';
 
 export type AIErrorCode =
   | 'RATE_LIMITED'

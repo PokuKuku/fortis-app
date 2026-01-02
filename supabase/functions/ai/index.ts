@@ -646,14 +646,18 @@ Deno.serve(async (req: Request) => {
     // Check rate limits
     const rateLimitResult = await checkRateLimit(supabase, user.id);
     if (!rateLimitResult.allowed) {
-      return errorResponse(
-        'Rate limit exceeded. Please try again later.',
-        'RATE_LIMITED',
-        429,
-        true,
-        rateLimitResult.retryAfterSeconds,
-        origin
-      );
+      return jsonResponse({
+        type: 'error',
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Rate limit exceeded. Please try again later.',
+          retryable: true,
+          ...(rateLimitResult.retryAfterSeconds !== undefined && {
+            retryAfterSeconds: rateLimitResult.retryAfterSeconds,
+          }),
+          ...(rateLimitResult.limitWindow && { limitWindow: rateLimitResult.limitWindow }),
+        },
+      }, 429, origin);
     }
 
     // Assemble context based on intent
@@ -912,12 +916,35 @@ function isLowSignalMessage(message: string): boolean {
 interface RateLimitResult {
   allowed: boolean;
   retryAfterSeconds?: number;
+  limitWindow?: 'minute' | 'hour' | 'day' | 'week' | 'month';
 }
 
 async function checkRateLimit(
   supabase: SupabaseClient,
   userId: string
 ): Promise<RateLimitResult> {
+  const { data: detailedData, error: detailedError } = await supabase.rpc('check_ai_rate_limit_detailed', {
+    p_user_id: userId,
+  });
+
+  if (!detailedError && detailedData) {
+    const result = Array.isArray(detailedData) ? detailedData[0] : detailedData;
+    if (result?.allowed === false) {
+      return {
+        allowed: false,
+        retryAfterSeconds: result.retry_after_seconds ?? undefined,
+        limitWindow: result.limit_window ?? undefined,
+      };
+    }
+    if (result?.allowed === true) {
+      return { allowed: true };
+    }
+  }
+
+  if (detailedError) {
+    console.error('Rate limit check (detailed) error:', detailedError);
+  }
+
   const { data, error } = await supabase.rpc('check_ai_rate_limit', {
     p_user_id: userId,
   });

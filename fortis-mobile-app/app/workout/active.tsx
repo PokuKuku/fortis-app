@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -68,6 +70,23 @@ export default function ActiveWorkoutScreen() {
   const setNumberPadError = useWorkoutStore(s => s.setNumberPadError);
   const showRestTimerComplete = useWorkoutStore(s => s.showRestTimerComplete);
   const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
+
+  const handleDismiss = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    router.back();
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  };
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetY(10)
+    .failOffsetX([-15, 15])
+    .onEnd((event) => {
+      const shouldDismiss = event.translationY > 120 || event.velocityY > 1200;
+      if (shouldDismiss) {
+        runOnJS(handleDismiss)();
+      }
+    });
 
   // Modal visibility states
   const [showCancelModal, setShowCancelModal] = useState(false);
@@ -346,6 +365,7 @@ export default function ActiveWorkoutScreen() {
       exerciseLocalId={item.localId}
       onReplace={handleReplaceExercise}
       onViewDetails={handleViewExerciseDetails}
+      completedSetTint="success"
     />
   );
 
@@ -373,23 +393,27 @@ export default function ActiveWorkoutScreen() {
     <SafeAreaView edges={['top']} style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
-      {/* Drag Handle Indicator */}
-      <View style={styles.dragHandleContainer}>
-        <View style={[styles.dragHandle, themedStyles.dragHandle]} />
-      </View>
-
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        {/* Header */}
-        <WorkoutHeader
-          onCancelPress={handleCancelPress}
-          onTimerSettingsPress={() => setShowTimerSettingsModal(true)}
-          onRestTimerPress={() => setShowRestTimerControls(true)}
-          muscleWeights={muscleWeights}
-        />
+        <GestureDetector gesture={panGesture}>
+          <View>
+            {/* Drag Handle Indicator */}
+            <View style={styles.dragHandleContainer}>
+              <View style={[styles.dragHandle, themedStyles.dragHandle]} />
+            </View>
+
+            {/* Header */}
+            <WorkoutHeader
+              onCancelPress={handleCancelPress}
+              onTimerSettingsPress={() => setShowTimerSettingsModal(true)}
+              onRestTimerPress={() => setShowRestTimerControls(true)}
+              muscleWeights={muscleWeights}
+            />
+          </View>
+        </GestureDetector>
 
         {/* Exercise List */}
         <FlatList

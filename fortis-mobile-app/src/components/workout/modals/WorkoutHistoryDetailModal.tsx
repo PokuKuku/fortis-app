@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import { ClockIcon, ScaleIcon, TrophyIcon } from 'react-native-heroicons/outline';
 import { BaseModal } from '@/src/components/ui/BaseModal';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
-import { WorkoutSession } from '@/src/types/workout';
+import type { WeightUnit, WorkoutSession, WorkoutSet } from '@/src/types/workout';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
@@ -44,6 +44,36 @@ function formatVolume(volume: number): string {
     return `${(volume / 1000).toFixed(1)}k`;
   }
   return volume.toLocaleString();
+}
+
+function formatWeightValue(value: number | null): string {
+  if (value === null || value === undefined) return '—';
+  const stringValue = value.toString();
+  return stringValue.includes('.')
+    ? stringValue.replace(/\.0+$/, '').replace(/(\.\d*[1-9])0+$/, '$1')
+    : stringValue;
+}
+
+function formatWeightUnit(unit?: WeightUnit | null): string {
+  return unit === 'kg' ? 'kg' : 'lbs';
+}
+
+function getSessionWeightUnit(session: WorkoutSession): WeightUnit | null {
+  for (const exercise of session.exercises) {
+    for (const set of exercise.sets) {
+      if (set.isCompleted && set.weight !== null) {
+        return set.weightUnit ?? 'lbs';
+      }
+    }
+  }
+  return null;
+}
+
+function formatSetDetails(set: WorkoutSet): string {
+  const weightText = formatWeightValue(set.weight);
+  const repsText = set.reps === null || set.reps === undefined ? '—' : set.reps.toString();
+  const unitLabel = formatWeightUnit(set.weightUnit);
+  return `${repsText} reps × ${weightText} ${unitLabel}`;
 }
 
 export function WorkoutHistoryDetailModal({
@@ -127,10 +157,14 @@ export function WorkoutHistoryDetailModal({
   if (!session) return null;
 
   const summary = getWorkoutSummary(session);
+  const sessionWeightUnit = getSessionWeightUnit(session);
   const durationSeconds = session.durationSeconds === null
     ? null
     : session.durationSeconds ?? summary.durationSeconds;
   const formattedDateTime = format(session.startedAt, "HH:mm, EEEE, MMM d yyyy");
+  const volumeLabel = sessionWeightUnit
+    ? `${formatVolume(summary.totalVolume)} ${formatWeightUnit(sessionWeightUnit)}`
+    : `${formatVolume(summary.totalVolume)} ${formatWeightUnit()}`;
 
   return (
     <BaseModal
@@ -151,7 +185,7 @@ export function WorkoutHistoryDetailModal({
 
         <View style={styles.stat}>
           <ScaleIcon color={colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={[styles.statValue, themedStyles.statValue]}>{formatVolume(summary.totalVolume)} lb</Text>
+          <Text style={[styles.statValue, themedStyles.statValue]}>{volumeLabel}</Text>
         </View>
 
         <View style={styles.stat}>
@@ -178,7 +212,7 @@ export function WorkoutHistoryDetailModal({
                 <View key={set.localId} style={styles.setRow}>
                   <Text style={[styles.setNumber, themedStyles.setNumber]}>{idx + 1}</Text>
                   <Text style={[styles.setDetails, themedStyles.setDetails]}>
-                    {set.weight ?? 0} × {set.reps ?? 0}
+                    {formatSetDetails(set)}
                   </Text>
                 </View>
               ))}

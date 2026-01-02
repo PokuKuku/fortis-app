@@ -8,6 +8,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { responsiveValue } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { getAccentGradient, getAccentRgba } from '@/src/utils/accentColors';
 import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
@@ -41,10 +42,34 @@ interface SetRowProps {
   showCheckboxes?: boolean;
   previousSet?: WorkoutSet;
   lastPerformance?: LastPerformance | null;
+  completedSetTint?: 'accent' | 'success';
 }
 
-export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = false, showCheckboxes, previousSet, lastPerformance }: SetRowProps) {
+export function SetRow({
+  exerciseLocalId,
+  setLocalId,
+  setIndex,
+  useEditor = false,
+  showCheckboxes,
+  previousSet,
+  lastPerformance,
+  completedSetTint = 'accent',
+}: SetRowProps) {
   const { colors, isDark } = useTheme();
+
+  const completedOverlay = completedSetTint === 'success'
+    ? getAccentRgba('green', isDark ? 0.1 : 0.08)
+    : colors.accentOverlay;
+  const completedOverlayMedium = completedSetTint === 'success'
+    ? getAccentRgba('green', isDark ? 0.15 : 0.12)
+    : colors.accentOverlayMedium;
+  const completedBorder = completedSetTint === 'success'
+    ? getAccentRgba('green', isDark ? 0.3 : 0.25)
+    : colors.accentBorder;
+  const completedShadow = completedSetTint === 'success' ? Colors.success : colors.accent;
+  const completedGradient = (completedSetTint === 'success'
+    ? getAccentGradient('green', isDark)
+    : colors.accentGradient) as unknown as string[];
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -59,7 +84,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       color: isDark ? Colors.textTertiary : 'rgba(0, 0, 0, 0.35)',
     },
     previousText: {
-      color: isDark ? colors.textSecondary : colors.textTertiary,
+      color: isDark ? colors.textPrimary : colors.textSecondary,
     },
     setBadge: {
       backgroundColor: isDark ? 'rgba(0, 0, 0, 0.25)' : 'rgba(0, 0, 0, 0.08)',
@@ -74,22 +99,22 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     },
     // Accent-based styles for completed/active states
     inputCompleted: {
-      backgroundColor: colors.accentOverlayMedium,
-      borderColor: colors.accentBorder,
+      backgroundColor: completedOverlayMedium,
+      borderColor: completedBorder,
     },
     inputActive: {
       borderColor: colors.accent,
       backgroundColor: colors.accentOverlay,
     },
     checkboxCompleted: {
-      shadowColor: colors.accent,
+      shadowColor: completedShadow,
     },
     containerCompleted: {
-      backgroundColor: colors.accentOverlay,
-      borderColor: colors.accentBorder,
+      backgroundColor: completedOverlay,
+      borderColor: completedBorder,
     },
     // Gradient for checkbox
-    checkboxGradient: colors.accentGradient as unknown as string[],
+    checkboxGradient: completedGradient,
   };
 
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
@@ -404,6 +429,11 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     completeSet(exerciseLocalId, setLocalId);
   };
 
+  const normalSetNumber = exercise.sets
+    .slice(0, setIndex + 1)
+    .filter((s) => s.setType === 'normal')
+    .length;
+
   const getSetDisplay = () => {
     switch (set.setType) {
       case 'warmup':
@@ -413,7 +443,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
       case 'dropset':
         return { label: 'D', color: '#3b82f6' };
       default:
-        return { label: (setIndex + 1).toString(), color: colors.textPrimary };
+        return { label: normalSetNumber.toString(), color: colors.textPrimary };
     }
   };
 
@@ -476,7 +506,7 @@ export function SetRow({ exerciseLocalId, setLocalId, setIndex, useEditor = fals
     const repsText = previousSetPerformance.reps.toString();
     if (!weightText || !repsText) return '—';
     const unitLabel = recordedWeightUnit ? ` ${recordedWeightUnit.toLowerCase()}` : '';
-    return `${weightText}${unitLabel} × ${repsText}`;
+    return `${repsText} reps × ${weightText}${unitLabel}`;
   })();
 
   const handleDelete = () => {
@@ -729,6 +759,7 @@ const styles = StyleSheet.create({
     gap: ROW_GAP,
     paddingVertical: Spacing.sm,
     paddingRight: COLUMN_PADDING_RIGHT,
+    paddingLeft: COLUMN_PADDING_RIGHT,
   },
   deleteAction: {
     justifyContent: 'center',
@@ -748,12 +779,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
     marginHorizontal: 0,
-    paddingHorizontal: Spacing.xs,
   },
   containerSetType: {
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1,
-    paddingHorizontal: Spacing.xs,
   },
   setBadge: {
     width: SET_BADGE_SIZE,
@@ -782,6 +811,7 @@ const styles = StyleSheet.create({
   previousText: {
     fontSize: FontSizes.sm,
     fontFamily: 'BankGothicBT-Medium',
+    fontWeight: '700',
     color: Colors.textTertiary,
     letterSpacing: 0.3,
   },

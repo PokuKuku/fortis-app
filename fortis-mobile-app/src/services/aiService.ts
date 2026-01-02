@@ -91,11 +91,25 @@ export async function sendAIMessage(
   };
 
   try {
-    const { data, error } = await supabase.functions.invoke('ai', {
+    const { data, error, response } = await supabase.functions.invoke('ai', {
       body: request,
     });
 
     if (error) {
+      if (response) {
+        try {
+          const parsed = await response.json();
+          if (parsed && parsed.type === 'error' && parsed.error) {
+            return {
+              type: 'error',
+              requestId: parsed.requestId || Crypto.randomUUID(),
+              error: parsed.error,
+            };
+          }
+        } catch (parseError) {
+          console.warn('Failed to parse AI error response:', parseError);
+        }
+      }
       console.error('AI function error:', error);
       return {
         type: 'error',

@@ -22,7 +22,7 @@ import {
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
@@ -400,7 +400,7 @@ export default function GoalsScreen() {
             </Text>
             <Text style={[styles.modalLabel, themedStyles.modalLabel]}>Goal name</Text>
             <TextInput
-              style={[styles.modalInput, themedStyles.modalInput]}
+              style={[styles.modalInput, styles.modalInputSingle, themedStyles.modalInput]}
               value={goalForm.name}
               onChangeText={(text) => setGoalForm((prev) => ({ ...prev, name: text }))}
               placeholder="e.g. Build strength baseline"
@@ -419,7 +419,7 @@ export default function GoalsScreen() {
               <View style={styles.modalField}>
                 <Text style={[styles.modalLabel, themedStyles.modalLabel]}>Priority</Text>
                 <TextInput
-                  style={[styles.modalInput, themedStyles.modalInput]}
+                  style={[styles.modalInput, styles.modalInputSingle, themedStyles.modalInput]}
                   value={goalForm.priority}
                   onChangeText={(text) => setGoalForm((prev) => ({ ...prev, priority: text }))}
                   keyboardType="number-pad"
@@ -542,7 +542,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   helperText: {
     ...Typography.caption,
@@ -670,6 +673,12 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  modalInputSingle: {
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   modalTextarea: {
     minHeight: 60,

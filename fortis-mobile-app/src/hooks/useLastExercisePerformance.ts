@@ -55,6 +55,12 @@ export function useLastExercisePerformance(
       return;
     }
 
+    if (!context?.programWorkoutId && !context?.programId) {
+      setLastPerformance(null);
+      setLoading(false);
+      return;
+    }
+
     // Skip if no exerciseId or if it's not a valid UUID (local exercise without history)
     if (!exerciseId || !isValidUUID(exerciseId)) {
       setLastPerformance(null);
@@ -109,8 +115,6 @@ export function useLastExercisePerformance(
           query = query.eq('workout_sessions.program_workout_id', context.programWorkoutId);
         } else if (context?.programId && isValidUUID(context.programId)) {
           query = query.eq('workout_sessions.program_id', context.programId);
-        } else if (context?.workoutName) {
-          query = query.eq('workout_sessions.name', context.workoutName);
         }
 
         const { data: sets, error } = await query;
@@ -181,10 +185,7 @@ export function getLatestExercisePerformance(
     if (context?.programId) {
       return session.programId === context.programId;
     }
-    if (context?.workoutName) {
-      return session.name === context.workoutName;
-    }
-    return true;
+    return false;
   };
 
   let latestExercise: WorkoutExercise | null = null;

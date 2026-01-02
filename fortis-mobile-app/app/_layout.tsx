@@ -88,8 +88,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             options={{
               animation: 'slide_from_bottom',
               animationDuration: 500,
-              gestureEnabled: true,
-              gestureDirection: 'vertical',
+              gestureEnabled: false,
             }}
           />
           <Stack.Screen

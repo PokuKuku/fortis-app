@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView } from 'react-native';
 import { XMarkIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { Spacing, FontSizes, BorderRadius, Sizes } from '@/constants/Sizes';
 import { getModalWidth } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { GlassButton } from '@/components/GlassButton';
 import { WorkoutSession } from '@/src/types/workout';
 import { useProgramsStore } from '@/src/store/programsStore';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 
@@ -30,6 +31,7 @@ export function SaveAsTemplateModal({
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
+  const setActiveSessionProgramContext = useWorkoutStore(s => s.setActiveSessionProgramContext);
 
   // Theme-aware styles
   const themedStyles = {
@@ -88,6 +90,14 @@ export function SaveAsTemplateModal({
       );
 
       if (result) {
+        if (!session?.programId) {
+          const createdTemplate = useProgramsStore
+            .getState()
+            .programs
+            .find((program) => program.id === result);
+          const createdWorkoutId = createdTemplate?.workouts?.[0]?.id;
+          setActiveSessionProgramContext(result, createdWorkoutId);
+        }
         setShowSuccess(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -276,10 +286,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.borderLight,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
     fontSize: FontSizes.base,
     color: Colors.textPrimary,
     textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   summarySection: {
     marginBottom: Spacing.xl,

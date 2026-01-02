@@ -80,6 +80,7 @@ export interface RestTimerState {
   remainingSeconds: number;
   totalSeconds: number;
   setType: SetType;
+  endTimestamp: number | null;
 }
 
 /**

@@ -12,7 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { XMarkIcon, PlusIcon, TrashIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { Spacing, FontSizes, BorderRadius, ButtonHeights } from '@/constants/Sizes';
+import { Spacing, FontSizes, BorderRadius, ButtonHeights, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
@@ -471,7 +471,10 @@ const styles = StyleSheet.create({
   nameInput: {
     ...Typography.h2,
     color: Colors.textPrimary,
-    paddingVertical: Spacing.md,
+    minHeight: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.15)',
   },

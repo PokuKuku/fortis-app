@@ -8,6 +8,7 @@ import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { Sizes } from '@/constants/Sizes';
 
 export default function ExercisesScreen() {
   const router = useRouter();
@@ -494,7 +495,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
     paddingHorizontal: 12,
-    height: 44,
+    height: Sizes.minTouchTarget,
   },
   searchIcon: {
     marginRight: 8,
@@ -503,7 +504,10 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#DFE2E6',
     fontSize: 16,
+    height: Sizes.minTouchTarget,
     paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   filterContainer: {
     flexDirection: 'row',

@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 import { Colors } from '../../../constants/Colors';
-import { Spacing, BorderRadius } from '../../../constants/Sizes';
+import { Spacing, BorderRadius, Sizes } from '../../../constants/Sizes';
 import { Typography } from '../../../constants/Typography';
 import { ThemeColors } from '@/src/contexts/ThemeContext';
 
@@ -578,6 +578,12 @@ export const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
+  metaInputSingle: {
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
   inputLabel: {
     ...Typography.caption,
     color: Colors.textSecondary,
@@ -632,7 +638,10 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    minHeight: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   workoutDayContainer: {
     alignItems: 'center',
@@ -649,7 +658,10 @@ export const styles = StyleSheet.create({
     textAlign: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: BorderRadius.sm,
-    paddingVertical: Spacing.xs,
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   diffHint: {
     ...Typography.caption,
@@ -773,7 +785,10 @@ export const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   exercisePickerList: {
     flex: 1,

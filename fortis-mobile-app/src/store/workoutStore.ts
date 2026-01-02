@@ -115,6 +115,7 @@ interface WorkoutState {
   cancelWorkout: () => void;
   updateWorkoutName: (name: string) => void;
   updateWorkoutNotes: (notes: string) => void;
+  setActiveSessionProgramContext: (programId: string, programWorkoutId?: string) => void;
   pauseWorkoutTimer: () => void;
   resumeWorkoutTimer: () => void;
   toggleWorkoutTimer: () => void;
@@ -243,6 +244,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       remainingSeconds: 0,
       totalSeconds: 0,
       setType: 'normal',
+      endTimestamp: null,
     },
     restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
     isLoading: false,
@@ -301,6 +303,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           remainingSeconds: 0,
           totalSeconds: 0,
           setType: 'normal',
+          endTimestamp: null,
         },
       });
 
@@ -377,6 +380,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           exercises,
           isSynced: false,
           programId: template.id,
+          programWorkoutId: workout.id,
           originalExerciseIds: exercises.map(ex => ex.exerciseId),
           originalSetCounts: exercises.map(ex => ex.sets.length),
         };
@@ -392,13 +396,11 @@ export const useWorkoutStore = create<WorkoutState>()(
             remainingSeconds: 0,
             totalSeconds: 0,
             setType: 'normal',
+            endTimestamp: null,
           },
         });
 
         get().persistSession();
-
-        // Update last performed timestamp on template
-        useProgramsStore.getState().updateLastPerformed(template.id);
 
         // Track workout started analytics
         analytics.trackWorkoutStarted({
@@ -492,11 +494,11 @@ export const useWorkoutStore = create<WorkoutState>()(
             remainingSeconds: 0,
             totalSeconds: 0,
             setType: 'normal',
+            endTimestamp: null,
           },
         });
 
         get().persistSession();
-        useProgramsStore.getState().updateLastPerformed(programId);
 
         // Track workout started analytics
         analytics.trackWorkoutStarted({
@@ -551,6 +553,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           remainingSeconds: 0,
           totalSeconds: 0,
           setType: 'normal',
+          endTimestamp: null,
         },
       });
 
@@ -588,6 +591,13 @@ export const useWorkoutStore = create<WorkoutState>()(
           }
         } catch (error) {
           console.warn('Failed to update program progress:', error);
+        }
+      } else if (completedSession.programId) {
+        try {
+          const { useProgramsStore } = await loadProgramsStore();
+          useProgramsStore.getState().updateLastPerformed(completedSession.programId);
+        } catch (error) {
+          console.warn('Failed to update template last performed:', error);
         }
       }
 
@@ -640,6 +650,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           remainingSeconds: 0,
           totalSeconds: 0,
           setType: 'normal',
+          endTimestamp: null,
         },
       });
       get().clearPersistedSession();
@@ -661,6 +672,22 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       set({
         activeSession: { ...activeSession, notes },
+      });
+      get().persistSession();
+    },
+
+    setActiveSessionProgramContext: (programId, programWorkoutId) => {
+      const { activeSession } = get();
+      if (!activeSession) return;
+      if (
+        activeSession.programId === programId
+        && activeSession.programWorkoutId === programWorkoutId
+      ) {
+        return;
+      }
+
+      set({
+        activeSession: { ...activeSession, programId, programWorkoutId },
       });
       get().persistSession();
     },
@@ -1038,12 +1065,15 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       if (duration === 0) return;
 
+      const endTimestamp = Date.now() + duration * 1000;
+
       set({
         restTimer: {
           isActive: true,
           remainingSeconds: duration,
           totalSeconds: duration,
           setType,
+          endTimestamp,
         },
       });
     },
@@ -1053,6 +1083,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         restTimer: {
           ...state.restTimer,
           isActive: false,
+          remainingSeconds: state.restTimer.endTimestamp
+            ? Math.max(0, Math.ceil((state.restTimer.endTimestamp - Date.now()) / 1000))
+            : state.restTimer.remainingSeconds,
+          endTimestamp: null,
         },
       }));
     },
@@ -1062,6 +1096,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         restTimer: {
           ...state.restTimer,
           isActive: true,
+          endTimestamp: state.restTimer.remainingSeconds > 0
+            ? Date.now() + state.restTimer.remainingSeconds * 1000
+            : null,
         },
       }));
     },
@@ -1073,24 +1110,37 @@ export const useWorkoutStore = create<WorkoutState>()(
           remainingSeconds: 0,
           totalSeconds: 0,
           setType: 'normal',
+          endTimestamp: null,
         },
       });
     },
 
     adjustRestTimer: (adjustment) => {
-      set((state) => ({
-        restTimer: {
-          ...state.restTimer,
-          remainingSeconds: Math.max(0, state.restTimer.remainingSeconds + adjustment),
-        },
-      }));
+      set((state) => {
+        const currentRemaining = state.restTimer.endTimestamp
+          ? Math.max(0, Math.ceil((state.restTimer.endTimestamp - Date.now()) / 1000))
+          : state.restTimer.remainingSeconds;
+        const newRemaining = Math.max(0, currentRemaining + adjustment);
+        return {
+          restTimer: {
+            ...state.restTimer,
+            remainingSeconds: newRemaining,
+            endTimestamp: state.restTimer.isActive
+              ? Date.now() + newRemaining * 1000
+              : null,
+          },
+        };
+      });
     },
 
     tickRestTimer: () => {
       const { restTimer } = get();
-      if (!restTimer.isActive || restTimer.remainingSeconds <= 0) return;
+      if (!restTimer.isActive) return;
+      if (!restTimer.endTimestamp && restTimer.remainingSeconds <= 0) return;
 
-      const newRemaining = restTimer.remainingSeconds - 1;
+      const newRemaining = restTimer.endTimestamp
+        ? Math.max(0, Math.ceil((restTimer.endTimestamp - Date.now()) / 1000))
+        : Math.max(0, restTimer.remainingSeconds - 1);
       const timerComplete = newRemaining <= 0;
 
       set({
@@ -1098,6 +1148,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           ...restTimer,
           remainingSeconds: newRemaining,
           isActive: !timerComplete,
+          ...(timerComplete && { endTimestamp: null }),
         },
         // Show the "Time's Up" modal when timer completes
         ...(timerComplete && { showRestTimerComplete: true }),
@@ -1142,6 +1193,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           remainingSeconds: 0,
           totalSeconds: 0,
           setType: 'normal',
+          endTimestamp: null,
         },
         showRestTimerComplete: false,
         activeNumberPad: null,
@@ -2137,6 +2189,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           remainingSeconds: 0,
           totalSeconds: 0,
           setType: 'normal',
+          endTimestamp: null,
         },
         restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
         isLoading: false,

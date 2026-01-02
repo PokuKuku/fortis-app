@@ -19,6 +19,7 @@ import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 import { useAIStore } from '../../src/store/aiStore';
 import { Colors } from '../../constants/Colors';
+import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -573,6 +574,7 @@ export default function TabLayout() {
               <TextInput
                 style={[
                   styles.textInput,
+                  styles.textInputSingle,
                   fieldErrors.name && styles.invalidInput,
                 ]}
                 placeholder="e.g. Single Arm Cable Row"
@@ -848,6 +850,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '500',
+  },
+  textInputSingle: {
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   instructionsInput: {
     minHeight: 80,

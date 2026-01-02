@@ -33,6 +33,7 @@ interface ExerciseCardProps {
   showCheckboxes?: boolean;
   onReplace?: (exerciseLocalId: string) => void;
   onViewDetails?: (exerciseId: string) => void;
+  completedSetTint?: 'accent' | 'success';
 }
 
 export function ExerciseCard({
@@ -41,6 +42,7 @@ export function ExerciseCard({
   showCheckboxes,
   onReplace,
   onViewDetails,
+  completedSetTint = 'accent',
 }: ExerciseCardProps) {
   const { colors, isDark } = useTheme();
 
@@ -270,6 +272,7 @@ export function ExerciseCard({
               showCheckboxes={shouldShowCheckboxes}
               previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
               lastPerformance={lastPerformance}
+              completedSetTint={completedSetTint}
             />
           ))}
         </View>
@@ -362,6 +365,7 @@ const styles = StyleSheet.create({
     gap: ROW_GAP,
     paddingBottom: Spacing.sm,
     paddingRight: COLUMN_PADDING_RIGHT,
+    paddingLeft: COLUMN_PADDING_RIGHT,
   },
   headerDivider: {
     height: 1,
