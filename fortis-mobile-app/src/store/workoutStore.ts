@@ -1180,25 +1180,31 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     loadActiveSession: async () => {
+      const hasActiveSession = Boolean(get().activeSession);
+
       set({
         isLoading: true,
-        activeSession: null,
-        isWorkoutActive: false,
-        workoutStartTime: null,
-        isWorkoutTimerPaused: false,
-        pausedElapsedSeconds: 0,
-        backdatedDate: null,
-        restTimer: {
-          isActive: false,
-          remainingSeconds: 0,
-          totalSeconds: 0,
-          setType: 'normal',
-          endTimestamp: null,
-        },
-        showRestTimerComplete: false,
-        activeNumberPad: null,
-        showRpeSelector: false,
-        showRpeHelp: false,
+        ...(hasActiveSession
+          ? {}
+          : {
+            activeSession: null,
+            isWorkoutActive: false,
+            workoutStartTime: null,
+            isWorkoutTimerPaused: false,
+            pausedElapsedSeconds: 0,
+            backdatedDate: null,
+            restTimer: {
+              isActive: false,
+              remainingSeconds: 0,
+              totalSeconds: 0,
+              setType: 'normal',
+              endTimestamp: null,
+            },
+            showRestTimerComplete: false,
+            activeNumberPad: null,
+            showRpeSelector: false,
+            showRpeHelp: false,
+          }),
       });
 
       try {
@@ -1215,7 +1221,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           };
 
           // Only load if not completed
-          if (!session.completedAt) {
+          if (!session.completedAt && !hasActiveSession) {
             set({
               activeSession: session,
               isWorkoutActive: true,

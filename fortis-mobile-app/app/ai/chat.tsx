@@ -24,7 +24,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
 import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
 import * as Haptics from 'expo-haptics';
@@ -230,6 +231,7 @@ export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { trackAIChatOpened } = useAnalytics();
+  const isNavigating = useRef(false);
   const [inputText, setInputText] = useState('');
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
@@ -331,9 +333,22 @@ export default function AIChatScreen() {
     }
   }, [isSendingMessage]);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
     router.back();
-  };
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  }, [router]);
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetY(10)
+    .failOffsetX([-15, 15])
+    .onEnd((event) => {
+      const shouldDismiss = event.translationY > 120 || event.velocityY > 1200;
+      if (shouldDismiss) {
+        runOnJS(handleClose)();
+      }
+    });
 
   const handleClear = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -412,29 +427,31 @@ export default function AIChatScreen() {
       <StainlessSteelPattern />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
-        <View style={[styles.header, themedStyles.header]}>
-          <View style={styles.headerLeft}>
-            <ChatHeaderLogo isLoading={isSendingMessage} />
-          </View>
-          <View style={styles.headerRight}>
-            {messages.length > 0 && (
+        <GestureDetector gesture={panGesture}>
+          <View style={[styles.header, themedStyles.header]}>
+            <View style={styles.headerLeft}>
+              <ChatHeaderLogo isLoading={isSendingMessage} />
+            </View>
+            <View style={styles.headerRight}>
+              {messages.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={handleClear}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
-                style={styles.clearButton}
-                onPress={handleClear}
+                style={styles.closeButton}
+                onPress={handleClose}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
+                <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
               </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={handleClose}
-              activeOpacity={0.7}
-            >
-              <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
-            </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </GestureDetector>
 
         {/* Messages */}
       <KeyboardAvoidingView
