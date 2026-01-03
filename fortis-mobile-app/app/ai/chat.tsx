@@ -43,134 +43,14 @@ import { ChatInput } from '@/src/components/ai/ChatInput';
 import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
 import { AIMutationPreviewModal } from '@/src/components/ai/AIMutationPreviewModal';
 
-// Motivational loading messages - gym humor edition
+// Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
-  // Classic gym wisdom
-  "Consulting the iron gods...",
-  "Analyzing your gains...",
-  "Calculating optimal reps...",
-  "Designing your next PR...",
-
-  // Fitness icon references - legends
-  "Channeling Arnold's spirit...",
-  "Yeah buddy! Lightweight!",
-  "Everybody wanna be a bodybuilder...",
-  "Ain't nothin' but a peanut!",
-
-  // Modern male fitness icons
-  "Asking CBum about classic physique...",
-  "Going full David Laid mode...",
-  "Drinking a gallon of milk with Sam Sulek...",
-  "Don't forget your face pulls!",
-  "Harder than last time!",
-  "We're all gonna make it brah...",
-  "Whatever it takes, right babe?",
-  "Checking with Derek if it's natty...",
-  "Getting tips from the Knees Over Toes Guy...",
-  "Training at Zoo Culture...",
-  "Making an anabolic recipe...",
-  "Trust the process...",
-
-  // Female fitness icons
-  "Hitting a Whitney Simmons superset...",
-  "Channeling Natacha Océane energy...",
-  "Going all-in with Stephanie Buttermore...",
-  "Powerlifting with Stefi Cohen...",
-  "Getting Meg Squats approved...",
-  "Sculpting with Krissy Cela...",
-
-  // Fitness culture & memes
-  "Getting science-based advice...",
-  "Consulting the natty or not council...",
-  "Checking if it's a rest day...",
-  "Calculating time under tension...",
-  "Did you hit legs though?",
-  "Skipping leg day? Never.",
-  "More scoops = more gains...",
-  "Do you even lift brah?",
-
-  // Protein & nutrition jokes
-  "Mixing a protein shake...",
-  "Counting macros in the background...",
-  "Absorbing your protein intake...",
-  "Digesting your request...",
-
-  // Gym bro culture
-  "Finding the perfect pump...",
-  "Warming up the algorithm...",
-  "Spotting your request...",
-  "Racking the weights...",
-  "Chalking up...",
-  "Wrapping the wrists...",
-  "Tightening the lifting belt...",
-
-  // Motivation & mindset
-  "One more rep...",
-  "Mind-muscle connecting...",
-  "Visualizing your success...",
-
-  // Gym observations
-  "Searching for an open squat rack...",
-  "Waiting for someone to unrack...",
-  "Wiping down the equipment...",
-  "Refilling the water bottle...",
-  "Checking form in the mirror...",
-
-  // Exercise-specific
-  "Doing mental reps...",
-  "Deep in the pump zone...",
-  "Activating beast mode...",
-  "Loading the barbell...",
-  "Setting up the bench...",
-
-  // Recovery & rest
-  "Taking a calculated rest...",
-  "Recovering between sets...",
-
-  // Funny/absurd
-  "Asking the gym shark for advice...",
-  "Reading the gains journal...",
-  "Flexing in the server room...",
-  "Curling in the algorithm rack...",
-  "Ego lifting this request...",
-  "This is a PR attempt...",
-  "Someone's using all the 45s...",
-  "Reracking someone else's weights...",
-  "Asserting dominance at the water fountain...",
-  "Grunting for extra processing power...",
-  "Hogging the squat rack for curls...",
-  "Looking for my other AirPod...",
-  "Taking a mirror selfie...",
-  "Pretending to text between sets...",
-  "Judging someone's quarter reps...",
-  "Walking around with invisible lat syndrome...",
-  "Making eye contact through the mirror...",
-  "Did I already count that rep?",
-  "Waiting for the bench since 2019...",
-  "That was a warmup set...",
-  "Just one more set (lie)...",
-  "The pre-workout just kicked in...",
-  "Seeing sounds, hearing colors...",
-  "Is this 225 or 135? Who knows...",
-  "My gym crush walked by, recalculating...",
-  "Fighting for the aux cord...",
-  "Someone put reggaeton on, instant PR...",
-  "Forgetting what day it is...",
-  "Main character moment loading...",
-  "Staring at the dumbbell rack menacingly...",
-  "Did someone take my bench?!",
-  "Cardio? I don't know her...",
-  "The treadmill is lava...",
-  "Loading like it's a 1RM...",
-  "Asking the old guy for wisdom...",
-  "Seeking the ghost of squat racks past...",
-  "Accidentally making eye contact, abort...",
-  "Adding 2.5lb plates for the PR...",
-  "Doing the walk of shame to lighter weights...",
-  "Putting clips on the Smith machine...",
-  "Who left this sweat puddle?!",
-  "The gym is my therapist...",
-  "Processing gains in the background...",
+  "Tip: Long-press a weight or reps cell to fill the remaining sets.",
+  "Tip: Long-press the checkmark to complete the remaining sets.",
+  "Tip: Long-press the Start button to reconfigure what it launches.",
+  "Tip: Configure the Start button to quick-start a favorite workout or program.",
+  "Tip: Ask AI for a weekly training summary or recent PRs.",
+  "Tip: Use AI chat to spot volume trends and muscle balance.",
 ];
 
 // Animated sparkles for loading indicator

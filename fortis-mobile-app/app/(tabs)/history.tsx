@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
+import { AppState, View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -402,6 +402,7 @@ export default function HistoryScreen() {
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
   const previousSyncCount = useRef(0);
+  const appState = useRef(AppState.currentState);
 
   // Supabase is the source of truth for history
   const allSessions = useMemo(() => {
@@ -471,6 +472,28 @@ export default function HistoryScreen() {
     setIsLoading(true);
     loadData().finally(() => setIsLoading(false));
   }, [loadData]);
+
+  const resetCalendarToToday = useCallback(() => {
+    const today = new Date();
+    const sameMonth = displayedMonth.getFullYear() === today.getFullYear()
+      && displayedMonth.getMonth() === today.getMonth();
+    if (!sameMonth || !isSameDay(selectedDate, today)) {
+      setDisplayedMonth(today);
+      setSelectedDate(today);
+    }
+  }, [displayedMonth, selectedDate]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const wasInactive = appState.current.match(/inactive|background/);
+      appState.current = nextState;
+      if (wasInactive && nextState === 'active') {
+        resetCalendarToToday();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [resetCalendarToToday]);
 
   useEffect(() => {
     if (previousSyncCount.current > 0 && syncingSessionIds.length === 0) {
