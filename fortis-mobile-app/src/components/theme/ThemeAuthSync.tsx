@@ -70,18 +70,19 @@ export function ThemeAuthSync() {
     const modeChanged = mode !== prevModeRef.current;
     const accentChanged = accentColor !== prevAccentRef.current;
 
-    // Update refs
-    prevModeRef.current = mode;
-    prevAccentRef.current = accentColor;
-
     // Sync to cloud if either changed
     if (modeChanged || accentChanged) {
       const syncToCloud = async () => {
         try {
-          await updateProfile({
+          const result = await updateProfile({
             theme_mode: mode,
             accent_color: accentColor,
           });
+          if (result.error) {
+            throw result.error;
+          }
+          prevModeRef.current = mode;
+          prevAccentRef.current = accentColor;
         } catch (error) {
           console.warn('Failed to sync theme preferences to cloud:', error);
         }
