@@ -726,7 +726,7 @@ export default function HistoryScreen() {
                     )}
                     hideExtraDays={false}
                     hideArrows={true}
-                    enableSwipeMonths={true}
+                    enableSwipeMonths={false}
                   />
                 </View>
 

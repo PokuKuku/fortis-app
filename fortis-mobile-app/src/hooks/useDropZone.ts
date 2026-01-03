@@ -74,7 +74,9 @@ export function useDropZone({
   // Derived value for hover state
   const isHovered = useDerivedValue(() => {
     if (!context) return false;
-    return context.hoveredDropZoneId.value === id;
+    const isDragging = context.dragState.value.isDragging
+      && context.dragState.value.draggedItemType === 'workout';
+    return isDragging && context.hoveredDropZoneId.value === id;
   }, [context, id]);
 
   // Register drop zone on mount, unregister on unmount

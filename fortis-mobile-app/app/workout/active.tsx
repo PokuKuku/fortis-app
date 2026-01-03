@@ -37,6 +37,24 @@ import { GlassButton } from '@/components/GlassButton';
 import { getExerciseById } from '@/src/services/exerciseService';
 import * as Haptics from 'expo-haptics';
 
+const HORIZONTAL_PADDING = scale(Spacing['2xl']);
+const LIST_PADDING_TOP = scale(Spacing.lg);
+const EMPTY_GAP = scale(Spacing.md);
+const EMPTY_PADDING_BOTTOM = scale(100);
+const EMPTY_TITLE_SIZE = moderateScale(14);
+const EMPTY_DESCRIPTION_SIZE = moderateScale(14);
+const BOTTOM_ACTIONS_PADDING_TOP = scale(Spacing.lg);
+const BOTTOM_ACTIONS_PADDING_BOTTOM = scale(140);
+const BOTTOM_ACTIONS_GAP = scale(Spacing.lg);
+const ADD_BUTTON_PADDING_Y = scale(Spacing.lg);
+const ADD_BUTTON_TEXT_SIZE = moderateScale(14);
+const FINISH_BUTTON_HEIGHT = scale(44);
+const FINISH_BUTTON_TEXT_SIZE = moderateScale(14);
+const DRAG_HANDLE_WIDTH = scale(36);
+const DRAG_HANDLE_HEIGHT = scale(4);
+const DRAG_HANDLE_RADIUS = scale(2);
+const NUMBER_PAD_PADDING = scale(380);
+
 export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
@@ -72,24 +90,6 @@ export default function ActiveWorkoutScreen() {
   const setNumberPadError = useWorkoutStore(s => s.setNumberPadError);
   const showRestTimerComplete = useWorkoutStore(s => s.showRestTimerComplete);
   const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
-
-  const HORIZONTAL_PADDING = scale(Spacing['2xl']);
-  const LIST_PADDING_TOP = scale(Spacing.lg);
-  const EMPTY_GAP = scale(Spacing.md);
-  const EMPTY_PADDING_BOTTOM = scale(100);
-  const EMPTY_TITLE_SIZE = moderateScale(14);
-  const EMPTY_DESCRIPTION_SIZE = moderateScale(14);
-  const BOTTOM_ACTIONS_PADDING_TOP = scale(Spacing.lg);
-  const BOTTOM_ACTIONS_PADDING_BOTTOM = scale(140);
-  const BOTTOM_ACTIONS_GAP = scale(Spacing.lg);
-  const ADD_BUTTON_PADDING_Y = scale(Spacing.lg);
-  const ADD_BUTTON_TEXT_SIZE = moderateScale(14);
-  const FINISH_BUTTON_HEIGHT = scale(44);
-  const FINISH_BUTTON_TEXT_SIZE = moderateScale(14);
-  const DRAG_HANDLE_WIDTH = scale(36);
-  const DRAG_HANDLE_HEIGHT = scale(4);
-  const DRAG_HANDLE_RADIUS = scale(2);
-  const NUMBER_PAD_PADDING = scale(380);
 
   const handleDismiss = () => {
     if (isNavigating.current) return;

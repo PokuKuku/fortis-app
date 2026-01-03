@@ -23,7 +23,7 @@ import {
   ExclamationTriangleIcon,
 } from 'react-native-heroicons/outline';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import Reanimated, { FadeInDown } from 'react-native-reanimated';
+import Reanimated, { FadeInDown, useAnimatedStyle } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
@@ -759,7 +759,7 @@ function ProgramDropCard({
   enableDropZone: boolean;
 }) {
   const { colors, isDark } = useTheme();
-  const { ref, onLayout } = useDropZone({
+  const { ref, onLayout, isHovered } = useDropZone({
     id: `program-${item.id}`,
     type: 'program',
     enabled: enableDropZone,
@@ -769,6 +769,13 @@ function ProgramDropCard({
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
   };
+  const accentOverlay = colors.accentOverlay;
+  const accentBorder = colors.accent;
+  const hoverStyle = useAnimatedStyle(() => {
+    return {
+      opacity: enableDropZone && isHovered.value ? 1 : 0,
+    };
+  }, [enableDropZone]);
 
   return (
     <TouchableOpacity
@@ -782,6 +789,14 @@ function ProgramDropCard({
         isActive && [styles.cardActive, { borderColor: colors.accentBorder }],
       ]}
     >
+      <Reanimated.View
+        pointerEvents="none"
+        style={[
+          styles.programHoverOverlay,
+          { backgroundColor: accentOverlay, borderColor: accentBorder },
+          hoverStyle,
+        ]}
+      />
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
           <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
@@ -1664,6 +1679,11 @@ const styles = StyleSheet.create({
     elevation: 3,
     overflow: 'hidden',
     height: WORKOUT_CARD_HEIGHT,
+  },
+  programHoverOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: CARD_RADIUS,
+    borderWidth: 1,
   },
   cardTitle: {
     flex: 1,

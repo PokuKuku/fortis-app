@@ -49,6 +49,7 @@ const LOADING_MESSAGES = [
   "Tip: Long-press the checkmark to complete the remaining sets.",
   "Tip: Long-press the Start button to reconfigure what it launches.",
   "Tip: Configure the Start button to quick-start a favorite workout or program.",
+  "Tip: Drag a workout card onto a program card to add it.",
   "Tip: Ask AI for a weekly training summary or recent PRs.",
   "Tip: Use AI chat to spot volume trends and muscle balance.",
 ];

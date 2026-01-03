@@ -1,6 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
+import { scale, moderateScale } from '@/src/utils/responsive';
+
+const HORIZONTAL_PADDING = scale(24);
+const PLACEHOLDER_TEXT_SIZE = moderateScale(16);
 
 /**
  * NOTE: This is a placeholder screen.
@@ -34,10 +38,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: HORIZONTAL_PADDING,
   },
   placeholderText: {
-    fontSize: 16,
+    fontSize: PLACEHOLDER_TEXT_SIZE,
     fontWeight: '500',
     color: '#9CA3AF',
     textAlign: 'center',

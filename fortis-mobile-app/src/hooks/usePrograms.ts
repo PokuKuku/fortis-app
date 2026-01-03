@@ -8,7 +8,7 @@ import {
   ProgramExercise as HubProgramExercise,
 } from '@/src/types/program';
 import { useProgramsStore } from '@/src/store/programsStore';
-import { getExerciseById } from '@/src/services/exerciseService';
+import { getExerciseById, isCustomExercise } from '@/src/services/exerciseService';
 import {
   ProgramWorkout as StoreProgramWorkout,
   ProgramExercise as StoreProgramExercise,
@@ -258,11 +258,14 @@ async function convertStoreExerciseToHub(
 ): Promise<HubProgramExercise> {
   // Try to get exercise metadata from the exercise library
   const exerciseData = await getExerciseById(exercise.exerciseId);
+  const displayName = isCustomExercise(exercise.exerciseId)
+    ? exercise.exerciseName
+    : exerciseData?.name ?? exercise.exerciseName;
 
   return {
     id: exercise.id,
     exerciseId: exercise.exerciseId,
-    exerciseName: exercise.exerciseName,
+    exerciseName: displayName,
     orderIndex: exercise.orderIndex ?? index,
     targetSets: exercise.sets,
     targetReps: exercise.reps,
@@ -338,10 +341,13 @@ async function convertProgramWorkoutToDetail(
   const exercises = await Promise.all(
     programWorkout.exercises.map(async (ex, index) => {
       const exerciseData = await getExerciseById(ex.exerciseId);
+      const displayName = isCustomExercise(ex.exerciseId)
+        ? ex.exerciseName
+        : exerciseData?.name ?? ex.exerciseName;
       return {
         id: ex.id,
         exerciseId: ex.exerciseId,
-        exerciseName: ex.exerciseName,
+        exerciseName: displayName,
         orderIndex: ex.orderIndex ?? index,
         targetSets: ex.sets,
         targetReps: ex.reps,

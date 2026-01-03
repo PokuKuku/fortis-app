@@ -12,6 +12,7 @@ import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { analytics } from '@/src/services/analyticsService';
+import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
@@ -283,12 +284,8 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
 
 export async function searchExercises(query: string): Promise<ExerciseWithSource[]> {
   const exercises = await getAllExercises();
-  const lowerQuery = query.toLowerCase();
-  return exercises.filter(e =>
-    e.name.toLowerCase().includes(lowerQuery) ||
-    e.primaryMuscles.some(m => m.toLowerCase().includes(lowerQuery)) ||
-    e.equipment.toLowerCase().includes(lowerQuery)
-  );
+  const index = buildExerciseSearchIndex(exercises);
+  return searchExercisesInIndex(query, index);
 }
 
 export async function filterExercises(filters: {

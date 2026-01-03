@@ -22,6 +22,7 @@ import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanim
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
 import { getExerciseImageUrl } from '@/src/services/exerciseService';
+import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
 
 interface AddExerciseModalProps {
   visible: boolean;
@@ -127,6 +128,16 @@ export function AddExerciseModal({
     [externalExistingIds, activeSession]
   );
 
+  const sortedExercises = useMemo(
+    () => [...allExercises].sort((a, b) => a.name.localeCompare(b.name)),
+    [allExercises]
+  );
+
+  const searchIndex = useMemo(
+    () => buildExerciseSearchIndex(sortedExercises),
+    [sortedExercises]
+  );
+
   // Filter exercises based on search and exclude existing exercises
   const filteredExercises = useMemo(() => {
     // Get the exerciseId of the exercise being replaced (if in replace mode)
@@ -134,15 +145,14 @@ export function AddExerciseModal({
       ? activeSession?.exercises.find(e => e.localId === exerciseLocalIdToReplace)?.exerciseId
       : null;
 
-    return allExercises
+    return searchExercises(searchQuery, searchIndex)
       .filter((ex) => {
         const isExisting = existingExerciseIds.includes(ex.id);
         // Allow the exercise being replaced, filter out all other existing exercises
         if (isExisting && ex.id !== replacingExerciseId) return false;
-        return ex.name.toLowerCase().includes(searchQuery.toLowerCase());
-      })
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [allExercises, existingExerciseIds, searchQuery, replaceMode, exerciseLocalIdToReplace, activeSession]);
+        return true;
+      });
+  }, [searchQuery, searchIndex, existingExerciseIds, replaceMode, exerciseLocalIdToReplace, activeSession]);
 
   // Toggle exercise selection (different behavior in replace mode)
   const toggleExercise = (exerciseId: string) => {

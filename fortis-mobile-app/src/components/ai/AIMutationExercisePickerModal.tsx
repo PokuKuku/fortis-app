@@ -15,6 +15,7 @@ import { DumbbellIcon } from '../icons/DumbbellIcon';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { IconSizes, Spacing } from '../../../constants/Sizes';
 import { useExercises } from '../../hooks/useExercises';
+import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
 import { styles, getThemedStyles } from './AIMutationPreviewModal.styles';
 
 interface AIMutationExercisePickerModalProps {
@@ -44,6 +45,11 @@ export function AIMutationExercisePickerModal({
     return [...exercises].sort((a, b) => a.name.localeCompare(b.name));
   }, [exercises]);
 
+  const searchIndex = useMemo(
+    () => buildExerciseSearchIndex(sortedExercises),
+    [sortedExercises]
+  );
+
   const filteredExercises = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) {
@@ -51,12 +57,8 @@ export function AIMutationExercisePickerModal({
       return sortedExercises.slice(0, 100);
     }
 
-    return sortedExercises.filter((exercise) =>
-      exercise.name.toLowerCase().includes(query) ||
-      exercise.primaryMuscles?.some(m => m.toLowerCase().includes(query)) ||
-      exercise.equipment?.toLowerCase().includes(query)
-    );
-  }, [searchQuery, sortedExercises]);
+    return searchExercises(query, searchIndex);
+  }, [searchQuery, sortedExercises, searchIndex]);
 
   return (
     <Modal

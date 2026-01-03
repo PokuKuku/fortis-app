@@ -219,7 +219,7 @@ export default function SplashScreen() {
             fill="url(#textGradient)"
             fontSize={38}
             fontWeight="900"
-            letterSpacing={6}
+            letterSpacing={12}
             x="160"
             y="70"
             textAnchor="middle"
