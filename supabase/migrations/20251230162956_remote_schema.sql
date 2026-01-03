@@ -8,6 +8,34 @@ drop policy "subscriptions_no_client_update" on "public"."subscriptions";
 
 alter table "public"."exercises" drop constraint "exercises_equipment_check";
 
+update "public"."exercises"
+set "equipment" = 'band'
+where "equipment" = 'bands';
+
+update "public"."exercises"
+set "equipment" = 'bodyweight'
+where "equipment" = 'body only';
+
+update "public"."exercises"
+set "equipment" = 'ez barbell'
+where "equipment" = 'e-z curl bar';
+
+update "public"."exercises"
+set "equipment" = 'stability ball'
+where "equipment" = 'exercise ball';
+
+update "public"."exercises"
+set "equipment" = 'roller'
+where "equipment" = 'foam roll';
+
+update "public"."exercises"
+set "equipment" = 'kettlebell'
+where "equipment" = 'kettlebells';
+
+update "public"."exercises"
+set "equipment" = null
+where "equipment" = 'other';
+
 alter table "public"."workout_sessions" add constraint "workout_sessions_duration_non_negative" CHECK (((duration_seconds IS NULL) OR (duration_seconds >= 0))) not valid;
 
 alter table "public"."workout_sessions" validate constraint "workout_sessions_duration_non_negative";
@@ -56,6 +84,5 @@ create or replace view "public"."weekly_workout_volume" as  SELECT ws.user_id,
      LEFT JOIN public.workout_sets wst ON ((ws.id = wst.session_id)))
   WHERE ((ws.completed_at IS NOT NULL) AND ((wst.completed = true) OR (wst.completed IS NULL)))
   GROUP BY ws.user_id, (date_trunc('week'::text, ws.started_at));
-
 
 
