@@ -1,3 +1,50 @@
+# Add Time Columns to CSV Export
+
+## Overview
+Add Start Time, End Time, and Duration columns to the workout CSV export.
+
+## Todo
+- [x] Update CSV header with new columns
+- [x] Add time values to row generation
+- [x] Test export functionality
+
+## Review
+
+### Summary
+Added three new columns to the CSV export: **Start Time**, **End Time**, and **Duration (min)**.
+
+### File Modified
+**`fortis-mobile-app/src/utils/exportWorkouts.ts`**
+
+### Changes Made
+1. Added three new columns to the CSV header after "Date": `Start Time`, `End Time`, `Duration (min)`
+
+2. Updated row generation to calculate and include:
+   - **Start Time**: Formatted as `HH:mm` (24-hour, e.g., "09:30")
+   - **End Time**: Formatted as `HH:mm` if `completedAt` exists, empty otherwise
+   - **Duration (min)**: Rounded minutes, calculated from `durationSeconds` or timestamp difference
+
+### CSV Format Change
+
+**Before:**
+```csv
+Date,Workout Name,Exercise Name,...
+2025-01-02,Push Day,Bench Press,...
+```
+
+**After:**
+```csv
+Date,Start Time,End Time,Duration (min),Workout Name,Exercise Name,...
+2025-01-02,09:30,10:15,45,Push Day,Bench Press,...
+```
+
+### Edge Cases Handled
+- If `completedAt` is null: End Time is empty, Duration uses `durationSeconds` if available
+- If `durationSeconds` exists: Prefer it over timestamp calculation (more accurate)
+- If neither exists: Both End Time and Duration are empty
+
+---
+
 # PostHog Analytics Event Tracking
 
 ## Overview

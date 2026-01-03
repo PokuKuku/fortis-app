@@ -32,6 +32,9 @@ export function generateWorkoutCSV(
   // CSV Header
   const header = [
     'Date',
+    'Start Time',
+    'End Time',
+    'Duration (min)',
     'Workout Name',
     'Exercise Name',
     'Set Order',
@@ -54,13 +57,39 @@ export function generateWorkoutCSV(
   });
 
   for (const session of sortedSessions) {
-    const workoutDate = format(new Date(session.startedAt), 'yyyy-MM-dd');
+    const startDate = new Date(session.startedAt);
+    const workoutDate = format(startDate, 'yyyy-MM-dd');
+    const startTime = format(startDate, 'HH:mm');
+
+    // Calculate end time and duration
+    let endTime = '';
+    let durationMinutes = '';
+
+    if (session.completedAt) {
+      const endDate = new Date(session.completedAt);
+      endTime = format(endDate, 'HH:mm');
+
+      // Use durationSeconds if available, otherwise calculate from timestamps
+      if (session.durationSeconds != null) {
+        durationMinutes = String(Math.round(session.durationSeconds / 60));
+      } else {
+        const diffMs = endDate.getTime() - startDate.getTime();
+        durationMinutes = String(Math.round(diffMs / 60000));
+      }
+    } else if (session.durationSeconds != null) {
+      // If we have duration but no completedAt, still show duration
+      durationMinutes = String(Math.round(session.durationSeconds / 60));
+    }
+
     const workoutName = session.name || 'Workout';
 
     for (const exercise of session.exercises) {
       for (const set of exercise.sets) {
         const row = [
           escapeCSV(workoutDate),
+          escapeCSV(startTime),
+          escapeCSV(endTime),
+          escapeCSV(durationMinutes),
           escapeCSV(workoutName),
           escapeCSV(exercise.exerciseName),
           escapeCSV(set.setNumber),

@@ -4,6 +4,14 @@
   },
   "dependencies": {
     "expo": "^54.0.30",
-    "expo-router": "~6.0.21"
+    "expo-router": "~6.0.21",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
+  },
+  "name": "fortis-app",
+  "version": "1.0.0",
+  "scripts": {
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   }
 }

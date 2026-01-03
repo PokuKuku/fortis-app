@@ -1,5 +1,8 @@
 {
   "plugins": [
     "expo-router"
-  ]
+  ],
+  "ios": {
+    "bundleIdentifier": "com.anonymous.fortis-app"
+  }
 }
