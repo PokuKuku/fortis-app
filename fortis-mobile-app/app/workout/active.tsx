@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,13 @@ import {
   Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
 import { Colors } from '@/constants/Colors';
-import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { scale, moderateScale } from '@/src/utils/responsive';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWorkoutStore, hasTemplateModifications } from '@/src/store/workoutStore';
 import { useRestTimerTick } from '@/src/hooks/useRestTimerTick';
@@ -71,6 +73,24 @@ export default function ActiveWorkoutScreen() {
   const showRestTimerComplete = useWorkoutStore(s => s.showRestTimerComplete);
   const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
 
+  const HORIZONTAL_PADDING = scale(Spacing['2xl']);
+  const LIST_PADDING_TOP = scale(Spacing.lg);
+  const EMPTY_GAP = scale(Spacing.md);
+  const EMPTY_PADDING_BOTTOM = scale(100);
+  const EMPTY_TITLE_SIZE = moderateScale(14);
+  const EMPTY_DESCRIPTION_SIZE = moderateScale(14);
+  const BOTTOM_ACTIONS_PADDING_TOP = scale(Spacing.lg);
+  const BOTTOM_ACTIONS_PADDING_BOTTOM = scale(140);
+  const BOTTOM_ACTIONS_GAP = scale(Spacing.lg);
+  const ADD_BUTTON_PADDING_Y = scale(Spacing.lg);
+  const ADD_BUTTON_TEXT_SIZE = moderateScale(14);
+  const FINISH_BUTTON_HEIGHT = scale(44);
+  const FINISH_BUTTON_TEXT_SIZE = moderateScale(14);
+  const DRAG_HANDLE_WIDTH = scale(36);
+  const DRAG_HANDLE_HEIGHT = scale(4);
+  const DRAG_HANDLE_RADIUS = scale(2);
+  const NUMBER_PAD_PADDING = scale(380);
+
   const handleDismiss = () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
@@ -93,9 +113,11 @@ export default function ActiveWorkoutScreen() {
   const [showTimerSettingsModal, setShowTimerSettingsModal] = useState(false);
   const [showRestTimerControls, setShowRestTimerControls] = useState(false);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [showRestTimerBanner, setShowRestTimerBanner] = useState(false);
   const [finishSnapshot, setFinishSnapshot] = useState<{
     durationSeconds: number;
     completedExercises: number;
@@ -107,8 +129,32 @@ export default function ActiveWorkoutScreen() {
   const [pendingReplaceExerciseLocalId, setPendingReplaceExerciseLocalId] = useState<string | null>(null);
   const isNavigating = useRef(false);
 
+  const isBlockingModalOpen = showAddExerciseModal
+    || showTimerSettingsModal
+    || showRestTimerControls
+    || showCancelModal
+    || showFinishConfirmModal
+    || showFinishModal
+    || showReplaceConfirmModal
+    || showSaveTemplateModal
+    || activeNumberPad !== null;
+
+  useEffect(() => {
+    if (showRestTimerComplete && showAddExerciseModal) {
+      setShowRestTimerBanner(true);
+      dismissRestTimerComplete();
+    }
+  }, [showRestTimerComplete, showAddExerciseModal, dismissRestTimerComplete]);
+
   // Initialize rest timer tick
   useRestTimerTick();
+
+  useFocusEffect(
+    useCallback(() => {
+      setAddExerciseSuspended(false);
+      return undefined;
+    }, [])
+  );
 
   // Heatmap: Cache for exercise muscle data
   const [exerciseMuscleCache, setExerciseMuscleCache] = useState<
@@ -190,6 +236,7 @@ export default function ActiveWorkoutScreen() {
   // Handle add exercise
   const handleAddExercise = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAddExerciseSuspended(false);
     setShowAddExerciseModal(true);
   };
 
@@ -231,10 +278,20 @@ export default function ActiveWorkoutScreen() {
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
+  const handleModalExerciseDetails = (exerciseId: string) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    setAddExerciseSuspended(true);
+    router.push(`/exercise/${exerciseId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  };
+
   // Handle close add exercise modal
   const handleCloseAddExerciseModal = () => {
     setShowAddExerciseModal(false);
     setReplaceExerciseLocalId(null);
+    setShowRestTimerBanner(false);
+    setAddExerciseSuspended(false);
   };
 
   // Handle finish workout
@@ -423,7 +480,7 @@ export default function ActiveWorkoutScreen() {
           keyExtractor={(item) => item.localId}
           contentContainerStyle={[
             styles.listContent,
-            activeNumberPad && { paddingBottom: 380 }
+            activeNumberPad && { paddingBottom: NUMBER_PAD_PADDING }
           ]}
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={renderFooter}
@@ -435,8 +492,12 @@ export default function ActiveWorkoutScreen() {
       <AddExerciseModal
         visible={showAddExerciseModal}
         onClose={handleCloseAddExerciseModal}
+        suspended={addExerciseSuspended}
         replaceMode={replaceExerciseLocalId !== null}
         exerciseLocalIdToReplace={replaceExerciseLocalId ?? undefined}
+        showRestTimerBanner={showRestTimerBanner}
+        onDismissRestTimerBanner={() => setShowRestTimerBanner(false)}
+        onOpenExerciseDetails={handleModalExerciseDetails}
       />
 
       {/* Rest Timer Controls */}
@@ -520,7 +581,7 @@ export default function ActiveWorkoutScreen() {
 
       {/* Rest Timer Complete Modal */}
       <RestTimerCompleteModal
-        visible={showRestTimerComplete}
+        visible={showRestTimerComplete && !isBlockingModalOpen}
         onDismiss={dismissRestTimerComplete}
       />
     </SafeAreaView>
@@ -541,28 +602,28 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   dragHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
+    width: DRAG_HANDLE_WIDTH,
+    height: DRAG_HANDLE_HEIGHT,
+    borderRadius: DRAG_HANDLE_RADIUS,
     backgroundColor: Colors.borderMedium,
   },
   listContent: {
     flexGrow: 1,
-    paddingHorizontal: Spacing['2xl'],
-    paddingTop: Spacing.lg,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: LIST_PADDING_TOP,
   },
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.md,
-    paddingHorizontal: Spacing['2xl'],
-    paddingBottom: 100,
+    gap: EMPTY_GAP,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: EMPTY_PADDING_BOTTOM,
   },
   emptyTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: EMPTY_GAP,
     width: '100%',
   },
   emptyLine: {
@@ -571,40 +632,40 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(163, 163, 163, 0.3)',
   },
   emptyTitle: {
-    fontSize: FontSizes.sm,
+    fontSize: EMPTY_TITLE_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   emptyDescription: {
-    fontSize: FontSizes.sm,
+    fontSize: EMPTY_DESCRIPTION_SIZE,
     fontWeight: '500',
     color: Colors.textTertiary,
     textAlign: 'center',
   },
   bottomActions: {
-    paddingTop: Spacing.lg,
-    paddingBottom: 140,
-    gap: Spacing.lg,
+    paddingTop: BOTTOM_ACTIONS_PADDING_TOP,
+    paddingBottom: BOTTOM_ACTIONS_PADDING_BOTTOM,
+    gap: BOTTOM_ACTIONS_GAP,
   },
   addButton: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.lg,
+    paddingVertical: ADD_BUTTON_PADDING_Y,
     borderWidth: 2,
     borderColor: 'rgba(34, 197, 94, 0.5)',
     borderRadius: BorderRadius.xl,
   },
   addButtonText: {
-    fontSize: FontSizes.sm,
+    fontSize: ADD_BUTTON_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.success,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
   finishButton: {
-    height: 44,
+    height: FINISH_BUTTON_HEIGHT,
     borderRadius: BorderRadius.xl,
     shadowColor: Colors.success,
     shadowOffset: { width: 0, height: 4 },
@@ -613,7 +674,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   finishButtonText: {
-    fontSize: FontSizes.sm,
+    fontSize: FINISH_BUTTON_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.white,
     textTransform: 'uppercase',

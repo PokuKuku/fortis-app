@@ -575,19 +575,23 @@ export const useWorkoutStore = create<WorkoutState>()(
           const { useProgramProgressStore } = await loadProgramProgressStore();
           const program = useProgramsStore
             .getState()
-            .programs.find((p) => p.id === completedSession.programId && !p.isTemplate);
-          const workout = program?.workouts.find((w) => w.id === completedSession.programWorkoutId);
+            .programs.find((p) => p.id === completedSession.programId);
 
-          if (program && workout) {
-            useProgramProgressStore
-              .getState()
-              .markWorkoutComplete(
-                program.id,
-                workout.dayNumber,
-                program.workouts.length,
-                completedSession.completedAt?.toISOString()
-              );
+          if (program?.isTemplate) {
             useProgramsStore.getState().updateLastPerformed(program.id);
+          } else {
+            const workout = program?.workouts.find((w) => w.id === completedSession.programWorkoutId);
+            if (program && workout) {
+              useProgramProgressStore
+                .getState()
+                .markWorkoutComplete(
+                  program.id,
+                  workout.dayNumber,
+                  program.workouts.length,
+                  completedSession.completedAt?.toISOString()
+                );
+              useProgramsStore.getState().updateLastPerformed(program.id);
+            }
           }
         } catch (error) {
           console.warn('Failed to update program progress:', error);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { XMarkIcon, PlusIcon, CalendarDaysIcon, PencilIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
@@ -95,10 +96,12 @@ export default function CreateWorkoutScreen() {
   const openEditorNumberPad = useWorkoutStore(s => s.openEditorNumberPad);
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [workoutName, setWorkoutName] = useState('');
+  const isNavigating = useRef(false);
 
   // Get exercise IDs and fetch muscle data for heatmap
   const exerciseIds = useMemo(
@@ -134,6 +137,13 @@ export default function CreateWorkoutScreen() {
     };
   }, [clearEditorSession, initEditorSession, initEditorSessionFromTemplate, isEditingTemplate, templateId]);
 
+  useFocusEffect(
+    useCallback(() => {
+      setAddExerciseSuspended(false);
+      return undefined;
+    }, [])
+  );
+
   // Set date from URL parameter when logging past workout
   useEffect(() => {
     if (mode === 'log' && dateValue) {
@@ -159,7 +169,16 @@ export default function CreateWorkoutScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addEditorExercises(exercisesToAdd);
     setShowAddExerciseModal(false);
+    setAddExerciseSuspended(false);
   }, [addEditorExercises]);
+
+  const handleModalExerciseDetails = (exerciseId: string) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    setAddExerciseSuspended(true);
+    router.push(`/exercise/${exerciseId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  };
 
   // Handle save
   const handleSave = async () => {
@@ -386,9 +405,14 @@ export default function CreateWorkoutScreen() {
       {/* Add Exercise Modal */}
       <AddExerciseModal
         visible={showAddExerciseModal}
-        onClose={() => setShowAddExerciseModal(false)}
+        onClose={() => {
+          setShowAddExerciseModal(false);
+          setAddExerciseSuspended(false);
+        }}
+        suspended={addExerciseSuspended}
         onAddExercisesCallback={handleAddExercises}
         existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
+        onOpenExerciseDetails={handleModalExerciseDetails}
       />
 
       {/* Number Pad Modal */}

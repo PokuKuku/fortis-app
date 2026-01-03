@@ -136,4 +136,59 @@ describe('workout last performed updates', () => {
     expect(updateLastPerformed).toHaveBeenCalledTimes(1);
     expect(updateLastPerformed).toHaveBeenCalledWith(template.id);
   });
+
+  it('updates last performed when finishing a template workout with a workout id', async () => {
+    const template = buildProgram({
+      id: 'template-3',
+      name: 'Template Three',
+      isTemplate: true,
+    });
+    const updateLastPerformed = jest.fn();
+    useProgramsStore.setState({ programs: [template], updateLastPerformed: updateLastPerformed as any });
+
+    const session: WorkoutSession = {
+      localId: 'session-2',
+      name: template.name,
+      notes: '',
+      startedAt: new Date('2024-01-02T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [
+        {
+          localId: 'exercise-2',
+          exerciseId: 'ex-2',
+          exerciseName: 'Squat',
+          sets: [
+            {
+              localId: 'set-2',
+              setNumber: 1,
+              setType: 'normal',
+              weight: 185,
+              reps: 5,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: true,
+              orderIndex: 0,
+            },
+          ],
+          notes: '',
+          orderIndex: 0,
+        },
+      ],
+      isSynced: false,
+      programId: template.id,
+      programWorkoutId: template.workouts[0].id,
+    };
+
+    useWorkoutStore.setState({
+      activeSession: session,
+      isWorkoutActive: true,
+      completedSessions: [],
+    });
+
+    await useWorkoutStore.getState().finishWorkout();
+
+    expect(updateLastPerformed).toHaveBeenCalledTimes(1);
+    expect(updateLastPerformed).toHaveBeenCalledWith(template.id);
+  });
 });

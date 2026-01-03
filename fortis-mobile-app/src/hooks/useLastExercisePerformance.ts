@@ -185,7 +185,10 @@ export function getLatestExercisePerformance(
     if (context?.programId) {
       return session.programId === context.programId;
     }
-    return false;
+    if (context?.workoutName) {
+      return session.name === context.workoutName;
+    }
+    return true;
   };
 
   let latestExercise: WorkoutExercise | null = null;

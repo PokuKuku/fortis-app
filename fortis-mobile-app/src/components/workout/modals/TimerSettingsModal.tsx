@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, Pressable, ScrollView, InteractionManager } from 'react-native';
 import { XMarkIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -114,6 +114,14 @@ export function TimerSettingsModal({
 
   const minScrollRef = useRef<ScrollView>(null);
   const secScrollRef = useRef<ScrollView>(null);
+  const minReadyRef = useRef(false);
+  const secReadyRef = useRef(false);
+  const [pickerReady, setPickerReady] = useState(false);
+
+  const scrollToSelection = (minutes: number, seconds: number) => {
+    minScrollRef.current?.scrollTo({ y: minutes * ITEM_HEIGHT, animated: false });
+    secScrollRef.current?.scrollTo({ y: (seconds / 5) * ITEM_HEIGHT, animated: false });
+  };
 
   // Update picker when activeType changes
   useEffect(() => {
@@ -121,11 +129,14 @@ export function TimerSettingsModal({
     setSelectedMinutes(m);
     setSelectedSeconds(s);
 
-    setTimeout(() => {
-      minScrollRef.current?.scrollTo({ y: m * ITEM_HEIGHT, animated: false });
-      secScrollRef.current?.scrollTo({ y: (s / 5) * ITEM_HEIGHT, animated: false });
-    }, 0);
-  }, [activeType, durations]);
+    if (!visible || !pickerReady) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      scrollToSelection(m, s);
+    });
+    return () => {
+      task.cancel?.();
+    };
+  }, [activeType, durations, pickerReady, visible]);
 
   // Animate popover
   useEffect(() => {
@@ -140,10 +151,33 @@ export function TimerSettingsModal({
 
   // Reset state when modal opens
   useEffect(() => {
-    if (visible) {
+    if (!visible) {
+      minReadyRef.current = false;
+      secReadyRef.current = false;
+      setPickerReady(false);
       setShowTypeSelector(false);
+      return;
     }
-  }, [visible]);
+
+    setShowTypeSelector(false);
+    setDurations({
+      normal: initialNormalDuration,
+      warmup: initialWarmupDuration,
+      dropset: initialDropDuration,
+    });
+  }, [visible, initialNormalDuration, initialWarmupDuration, initialDropDuration]);
+
+  const handlePickerLayout = (type: 'min' | 'sec') => {
+    if (type === 'min') {
+      minReadyRef.current = true;
+    } else {
+      secReadyRef.current = true;
+    }
+
+    if (minReadyRef.current && secReadyRef.current) {
+      setPickerReady(true);
+    }
+  };
 
   const handleTypeChange = (newType: SetType) => {
     if (newType === activeType) return;
@@ -286,6 +320,7 @@ export function TimerSettingsModal({
                 <View style={styles.pickerColumn}>
                   <ScrollView
                     ref={minScrollRef}
+                    onLayout={() => handlePickerLayout('min')}
                     showsVerticalScrollIndicator={false}
                     snapToInterval={ITEM_HEIGHT}
                     decelerationRate="fast"
@@ -329,6 +364,7 @@ export function TimerSettingsModal({
                 <View style={styles.pickerColumn}>
                   <ScrollView
                     ref={secScrollRef}
+                    onLayout={() => handlePickerLayout('sec')}
                     showsVerticalScrollIndicator={false}
                     snapToInterval={ITEM_HEIGHT}
                     decelerationRate="fast"

@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { scale } from '@/src/utils/responsive';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -14,6 +15,12 @@ import Svg, {
 const { width, height } = Dimensions.get('window');
 
 const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
+const LOGO_VIEWBOX_WIDTH = 320;
+const LOGO_VIEWBOX_HEIGHT = 120;
+const LOGO_WIDTH = scale(LOGO_VIEWBOX_WIDTH);
+const LOGO_HEIGHT = scale(LOGO_VIEWBOX_HEIGHT);
+const SHINE_RANGE = LOGO_VIEWBOX_WIDTH;
+const PARTICLE_TRAVEL_Y = scale(120);
 
 // Floating Particle
 function FloatingParticle({
@@ -40,7 +47,7 @@ function FloatingParticle({
 
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: -120,
+          toValue: -PARTICLE_TRAVEL_Y,
           duration: duration * 1000,
           delay: delay * 1000,
           useNativeDriver: true,
@@ -91,7 +98,7 @@ export default function SplashScreen() {
   const shineAnim = useRef(new Animated.Value(0)).current;
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [-320, 320],
+    outputRange: [-SHINE_RANGE, SHINE_RANGE],
   });
 
   // Generate 15 particles
@@ -103,7 +110,7 @@ export default function SplashScreen() {
         top: Math.random() * 100,
         duration: 8 + Math.random() * 12,
         delay: Math.random() * 5,
-        size: 1 + Math.random() * 3,
+        size: scale(1 + Math.random() * 3),
       })),
     []
   );
@@ -189,13 +196,13 @@ export default function SplashScreen() {
           },
         ]}
       >
-        <Svg height="120" width="320" viewBox="0 0 320 120">
+        <Svg height={LOGO_HEIGHT} width={LOGO_WIDTH} viewBox={`0 0 ${LOGO_VIEWBOX_WIDTH} ${LOGO_VIEWBOX_HEIGHT}`}>
           <Defs>
             <AnimatedSvgLinearGradient
               id="textGradient"
               x1={shineX}
               y1="0"
-              x2={Animated.add(shineX, 320)}
+              x2={Animated.add(shineX, SHINE_RANGE)}
               y2="0"
               gradientUnits="userSpaceOnUse"
             >
@@ -210,9 +217,9 @@ export default function SplashScreen() {
           </Defs>
           <SvgText
             fill="url(#textGradient)"
-            fontSize="38"
+            fontSize={38}
             fontWeight="900"
-            letterSpacing="6"
+            letterSpacing={6}
             x="160"
             y="70"
             textAnchor="middle"

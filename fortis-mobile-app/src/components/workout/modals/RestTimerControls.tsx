@@ -3,10 +3,11 @@ import { PlayIcon, PauseIcon, ForwardIcon, ArrowUturnLeftIcon, PlusIcon, MinusIc
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { useWorkoutStore, getRestTimerColor } from '@/src/store/workoutStore';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { scale, moderateScale } from '@/src/utils/responsive';
 import * as Haptics from 'expo-haptics';
 import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 
@@ -14,6 +15,23 @@ interface RestTimerControlsProps {
   visible: boolean;
   onClose: () => void;
 }
+
+const CONTROL_PADDING = scale(Spacing.sm);
+const GROOVE_HEIGHT = scale(32);
+const GROOVE_WIDTH = scale(2);
+const GROOVE_MARGIN = scale(Spacing.xs);
+const MAIN_GAP = scale(Spacing.sm);
+const SECONDARY_GAP = scale(Spacing.xs);
+const ADJUST_BUTTON_SIZE = scale(40);
+const PLAY_BUTTON_SIZE = scale(44);
+const PLAY_RING_PADDING = scale(2);
+const ICON_BUTTON_SIZE = scale(40);
+const TIME_BEZEL_PADDING_X = scale(Spacing.sm);
+const TIME_BEZEL_PADDING_Y = scale(Spacing.xs);
+const ADJUST_ICON_SIZE = scale(14);
+const PLAY_ICON_SIZE = scale(20);
+const ICON_SIZE = scale(18);
+const PLAY_ICON_OFFSET = scale(2);
 
 export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) {
   const { colors, isDark } = useTheme();
@@ -113,7 +131,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
     ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
     : colors.textSecondary;
   const timeString = formatRestTime(displaySeconds);
-  const timerFontSize = displaySeconds >= 600 ? 16 : 18;
+  const timerFontSize = moderateScale(displaySeconds >= 600 ? 16 : 18);
   const isRunning = restTimer.isActive;
 
   return (
@@ -161,7 +179,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.adjustButtonPressed,
                 ]}
               >
-                <MinusIcon size={14} color={colors.textPrimary} strokeWidth={2.5} />
+                <MinusIcon size={ADJUST_ICON_SIZE} color={colors.textPrimary} strokeWidth={2.5} />
               </Pressable>
 
               {/* Play/Pause - Hero Button with Metallic Ring */}
@@ -189,9 +207,9 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                       style={StyleSheet.absoluteFillObject}
                     />
                     {isRunning ? (
-                      <PauseIcon size={20} color="#fff" strokeWidth={2.5} />
+                      <PauseIcon size={PLAY_ICON_SIZE} color="#fff" strokeWidth={2.5} />
                     ) : (
-                      <PlayIcon size={20} color="#fff" strokeWidth={2.5} style={{ marginLeft: 2 }} />
+                      <PlayIcon size={PLAY_ICON_SIZE} color="#fff" strokeWidth={2.5} style={{ marginLeft: PLAY_ICON_OFFSET }} />
                     )}
                   </Pressable>
                 </View>
@@ -205,7 +223,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && styles.adjustButtonPressed,
                 ]}
               >
-                <PlusIcon size={14} color={colors.textPrimary} strokeWidth={2.5} />
+                <PlusIcon size={ADJUST_ICON_SIZE} color={colors.textPrimary} strokeWidth={2.5} />
               </Pressable>
             </View>
 
@@ -226,7 +244,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && themedStyles.iconButtonPressed,
                 ]}
               >
-                <ArrowUturnLeftIcon size={18} color={colors.textSecondary} strokeWidth={2} />
+                <ArrowUturnLeftIcon size={ICON_SIZE} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
 
               {/* Skip Button */}
@@ -238,7 +256,7 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                   pressed && themedStyles.iconButtonPressed,
                 ]}
               >
-                <ForwardIcon size={18} color={colors.textSecondary} strokeWidth={2} />
+                <ForwardIcon size={ICON_SIZE} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             </View>
           </Pressable>
@@ -254,7 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    paddingBottom: 24,
+    paddingBottom: scale(24),
   },
   container: {
     flexDirection: 'row',
@@ -263,8 +281,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1.5,
     borderColor: Colors.borderLight,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: CONTROL_PADDING,
+    paddingVertical: CONTROL_PADDING,
     maxWidth: '90%',
     overflow: 'hidden',
     // Industrial shadow
@@ -281,8 +299,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   timeBezel: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: TIME_BEZEL_PADDING_X,
+    paddingVertical: TIME_BEZEL_PADDING_Y,
   },
   timeText: {
     fontSize: 18,
@@ -293,9 +311,9 @@ const styles = StyleSheet.create({
 
   // Groove Dividers
   grooveDivider: {
-    width: 2,
-    height: 32,
-    marginHorizontal: Spacing.xs,
+    width: GROOVE_WIDTH,
+    height: GROOVE_HEIGHT,
+    marginHorizontal: GROOVE_MARGIN,
     borderRadius: 1,
     overflow: 'hidden',
   },
@@ -318,13 +336,13 @@ const styles = StyleSheet.create({
   mainControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: MAIN_GAP,
   },
 
   // +/- Buttons
   adjustButton: {
-    width: 40,
-    height: 40,
+    width: ADJUST_BUTTON_SIZE,
+    height: ADJUST_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -339,7 +357,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   playButtonRing: {
-    padding: 2,
+    padding: PLAY_RING_PADDING,
     borderRadius: BorderRadius.full,
     // Metallic ring effect
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -350,8 +368,8 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0, 0, 0, 0.25)',
   },
   playButton: {
-    width: 44,
-    height: 44,
+    width: PLAY_BUTTON_SIZE,
+    height: PLAY_BUTTON_SIZE,
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
@@ -371,13 +389,13 @@ const styles = StyleSheet.create({
   secondaryControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: SECONDARY_GAP,
   },
 
   // Icon Buttons - Industrial Treatment
   iconButton: {
-    width: 40,
-    height: 40,
+    width: ICON_BUTTON_SIZE,
+    height: ICON_BUTTON_SIZE,
     // Asymmetric chamfered corners
     borderTopLeftRadius: BorderRadius.sm,
     borderTopRightRadius: 0,

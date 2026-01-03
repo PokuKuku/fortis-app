@@ -85,6 +85,8 @@ export function NumberPadModal({
   const closeRpeHelp = useWorkoutStore(s => s.closeRpeHelp);
   const weightUnits = useWorkoutStore(s => s.weightUnits);
   const toggleWeightUnit = useWorkoutStore(s => s.toggleWeightUnit);
+  const updateSet = useWorkoutStore(s => s.updateSet);
+  const updateEditorSet = useWorkoutStore(s => s.updateEditorSet);
 
   // Get current RPE value for the active set
   const getCurrentRpe = (): RpeValue => {
@@ -174,6 +176,20 @@ export function NumberPadModal({
 
   const handleKeyboardToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (activeNumberPad) {
+      const trimmedValue = displayValue.trim();
+      if (trimmedValue.length > 0) {
+        const parsedValue = Number(trimmedValue);
+        if (!Number.isNaN(parsedValue)) {
+          const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
+          if (useEditor) {
+            updateEditorSet(exerciseLocalId, setLocalId, { [inputType]: parsedValue });
+          } else {
+            updateSet(exerciseLocalId, setLocalId, { [inputType]: parsedValue });
+          }
+        }
+      }
+    }
     onClose(); // Close the number pad
   };
 

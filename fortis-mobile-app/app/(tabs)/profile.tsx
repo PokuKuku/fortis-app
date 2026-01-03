@@ -19,6 +19,26 @@ import { PersonalRecordsCard } from '@/src/components/profile/PersonalRecordsCar
 import { WeeklyMuscleHeatmapCard } from '@/src/components/profile/WeeklyMuscleHeatmapCard';
 import { Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { scale, moderateScale } from '@/src/utils/responsive';
+
+const HORIZONTAL_PADDING = scale(Spacing['2xl']);
+const HEADER_PADDING_TOP = scale(Spacing.lg);
+const HEADER_PADDING_BOTTOM = scale(Spacing.md);
+const SETTINGS_BUTTON_SIZE = scale(40);
+const SETTINGS_ICON_SIZE = scale(24);
+const TITLE_PADDING_BOTTOM = scale(Spacing.md);
+const SECTION_TITLE_SIZE = moderateScale(24);
+const SCROLL_PADDING_BOTTOM = scale(120);
+const SECTION_SPACING = scale(Spacing.lg);
+const NOT_SIGNED_IN_PADDING_TOP = scale(80);
+const BODY_TEXT_SIZE = moderateScale(16);
+const BODY_LINE_HEIGHT = moderateScale(24);
+const BUTTON_TEXT_SIZE = moderateScale(16);
+const BUTTON_LINE_HEIGHT = moderateScale(24);
+const SIGNIN_PADDING_Y = scale(Spacing.md);
+const SIGNIN_PADDING_X = scale(Spacing['3xl']);
+const SIGNIN_RADIUS = scale(10);
+const SIGNIN_TEXT_MARGIN = scale(Spacing.xl);
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -44,7 +64,7 @@ export default function ProfileScreen() {
               onPress={handleSettingsPress}
               activeOpacity={0.7}
             >
-              <Cog6ToothIcon color={colors.textSecondary} size={24} strokeWidth={2} />
+              <Cog6ToothIcon color={colors.textSecondary} size={SETTINGS_ICON_SIZE} strokeWidth={2} />
             </TouchableOpacity>
           )}
         </View>
@@ -111,51 +131,55 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: Spacing['2xl'],
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: HEADER_PADDING_TOP,
+    paddingBottom: HEADER_PADDING_BOTTOM,
   },
   settingsButton: {
-    width: 40,
-    height: 40,
+    width: SETTINGS_BUTTON_SIZE,
+    height: SETTINGS_BUTTON_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
   titleContainer: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingBottom: Spacing.md,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: TITLE_PADDING_BOTTOM,
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: SECTION_TITLE_SIZE,
     fontFamily: 'BankGothicBT-Medium',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingBottom: 120,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: SCROLL_PADDING_BOTTOM,
   },
   section: {
-    marginBottom: Spacing.lg,
+    marginBottom: SECTION_SPACING,
   },
   notSignedIn: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingTop: 80,
+    paddingTop: NOT_SIGNED_IN_PADDING_TOP,
   },
   notSignedInText: {
     ...Typography.body,
-    marginBottom: Spacing.xl,
+    fontSize: BODY_TEXT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
+    marginBottom: SIGNIN_TEXT_MARGIN,
   },
   signInButton: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing['3xl'],
-    borderRadius: 10,
+    paddingVertical: SIGNIN_PADDING_Y,
+    paddingHorizontal: SIGNIN_PADDING_X,
+    borderRadius: SIGNIN_RADIUS,
   },
   signInButtonText: {
     ...Typography.button,
     color: '#FFFFFF',
+    fontSize: BUTTON_TEXT_SIZE,
+    lineHeight: BUTTON_LINE_HEIGHT,
   },
 });

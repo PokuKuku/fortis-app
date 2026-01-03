@@ -25,15 +25,70 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { WorkoutSession } from '../../src/types/workout';
 import { Colors } from '../../constants/Colors';
 import { Spacing, BorderRadius } from '../../constants/Sizes';
-import { scale, responsiveValue } from '../../src/utils/responsive';
+import { scale, moderateScale } from '../../src/utils/responsive';
 import { Typography } from '../../constants/Typography';
 import { WorkoutHistoryDetailModal } from '../../src/components/workout/modals/WorkoutHistoryDetailModal';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Responsive calendar day sizing
-const DAY_SIZE = responsiveValue(32, 36, 38); // Small: 32, Medium: 36, Large: 38
+const DAY_SIZE = scale(36);
 const DAY_RADIUS = DAY_SIZE / 2;
+const DAY_TEXT_SIZE = moderateScale(13);
+const DAY_WRAPPER_PADDING_Y = scale(2);
+const HORIZONTAL_PADDING = scale(Spacing['2xl']);
+const HEADER_PADDING_TOP = scale(Spacing.lg);
+const HEADER_PADDING_BOTTOM = scale(Spacing.md);
+const TITLE_PADDING_BOTTOM = scale(Spacing.md);
+const SECTION_TITLE_SIZE = moderateScale(24);
+const LIST_PADDING_BOTTOM = scale(120);
+const LOADING_GAP = scale(Spacing.md);
+const BODY_TEXT_SIZE = moderateScale(16);
+const BODY_LINE_HEIGHT = moderateScale(24);
+const CALENDAR_CARD_MARGIN = scale(Spacing.lg);
+const CALENDAR_CARD_PADDING = scale(Spacing.md);
+const CALENDAR_CARD_RADIUS = scale(16);
+const CALENDAR_HEADER_PADDING_X = scale(16);
+const CALENDAR_HEADER_PADDING_Y = scale(8);
+const CALENDAR_HEADER_RADIUS = scale(20);
+const CALENDAR_HEADER_TEXT_SIZE = moderateScale(20);
+const CALENDAR_DAY_HEADER_SIZE = moderateScale(11);
+const DATE_HEADER_PADDING_Y = scale(Spacing.md);
+const DATE_HEADER_MARGIN_BOTTOM = scale(Spacing.xs);
+const LOG_WORKOUT_PADDING_X = scale(Spacing.md);
+const LOG_WORKOUT_PADDING_Y = scale(Spacing.xs);
+const LOG_WORKOUT_TEXT_SIZE = moderateScale(11);
+const SEPARATOR_HEIGHT = scale(Spacing.md);
+const CARD_PADDING = scale(Spacing.lg);
+const CARD_RADIUS = scale(BorderRadius.xl);
+const CARD_HEADER_MARGIN = scale(Spacing.md);
+const CARD_TITLE_GAP = scale(Spacing.xs);
+const CARD_TITLE_MARGIN_RIGHT = scale(Spacing.md);
+const WORKOUT_NAME_SIZE = moderateScale(18);
+const WORKOUT_NAME_LINE_HEIGHT = moderateScale(27);
+const WORKOUT_DATE_SIZE = moderateScale(12);
+const STAT_GAP = scale(Spacing.xs);
+const STAT_VALUE_SIZE = moderateScale(14);
+const STAT_VALUE_LINE_HEIGHT = moderateScale(21);
+const STAT_DIVIDER_HEIGHT = scale(16);
+const STAT_DIVIDER_MARGIN = scale(Spacing.md);
+const PENDING_SECTION_MARGIN = scale(Spacing.lg);
+const PENDING_SECTION_GAP = scale(Spacing.sm);
+const PENDING_PILL_PADDING_X = scale(8);
+const PENDING_PILL_PADDING_Y = scale(2);
+const PENDING_TEXT_SIZE = moderateScale(10);
+const PENDING_SPINNER_MARGIN = scale(Spacing.xs);
+const EXERCISE_COUNT_SIZE = moderateScale(12);
+const EMPTY_CONTAINER_PADDING_Y = scale(Spacing['3xl']);
+const EMPTY_CONTAINER_PADDING_X = scale(Spacing['2xl']);
+const EMPTY_TEXT_MARGIN = scale(Spacing.md);
+const LOG_PAST_MARGIN = scale(Spacing.lg);
+const LOG_PAST_PADDING_Y = scale(Spacing.sm);
+const LOG_PAST_PADDING_X = scale(Spacing.lg);
+const LOG_PAST_TEXT_SIZE = moderateScale(14);
+const ICON_SIZE_SM = scale(14);
+const ICON_SIZE_MD = scale(16);
+const ICON_SIZE_LG = scale(32);
 
 // Intensity colors for heatmap - now generated dynamically from accent color
 function getIntensityColors(accentOverlay: string, accent: string) {
@@ -196,7 +251,7 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
             {session.name}
           </Text>
           {session.isSynced && (
-            <CloudIcon color={colors.accent} size={14} strokeWidth={2} />
+            <CloudIcon color={colors.accent} size={ICON_SIZE_SM} strokeWidth={2} />
           )}
         </View>
         <Text style={[styles.workoutDate, { color: colors.textSecondary }]}>{formattedDate}</Text>
@@ -204,21 +259,21 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
 
       <View style={styles.statsRow}>
         <View style={styles.stat}>
-          <ClockIcon color={colors.accent} size={16} strokeWidth={2} />
+          <ClockIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
           <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDuration(durationSeconds)}</Text>
         </View>
 
         <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
         <View style={styles.stat}>
-          <FireIcon color={colors.accent} size={16} strokeWidth={2} />
+          <FireIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
           <Text style={[styles.statValue, { color: colors.textPrimary }]}>{summary.totalSets} sets</Text>
         </View>
 
         <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
         <View style={styles.stat}>
-          <TrophyIcon color={colors.accent} size={16} strokeWidth={2} />
+          <TrophyIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
           <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatVolume(summary.totalVolume)} lbs</Text>
         </View>
       </View>
@@ -281,21 +336,21 @@ function PendingSyncCard({
 
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <ClockIcon color={colors.accent} size={16} strokeWidth={2} />
+            <ClockIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
             <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatDuration(durationSeconds)}</Text>
           </View>
 
           <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
           <View style={styles.stat}>
-            <FireIcon color={colors.accent} size={16} strokeWidth={2} />
+            <FireIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
             <Text style={[styles.statValue, { color: colors.textPrimary }]}>{summary.totalSets} sets</Text>
           </View>
 
           <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
           <View style={styles.stat}>
-            <TrophyIcon color={colors.accent} size={16} strokeWidth={2} />
+            <TrophyIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
             <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatVolume(summary.totalVolume)} lbs</Text>
           </View>
         </View>
@@ -331,7 +386,7 @@ function EmptyDateState({ onLogPastWorkout }: { onLogPastWorkout: () => void }) 
       entering={FadeIn.duration(300)}
       style={[styles.emptyDateContainer, containerTheme]}
     >
-      <CalendarDaysIcon color={colors.textSecondary} size={32} strokeWidth={1.5} />
+      <CalendarDaysIcon color={colors.textSecondary} size={ICON_SIZE_LG} strokeWidth={1.5} />
       <Text style={[styles.emptyDateText, { color: colors.textSecondary }]}>No workouts logged on this day</Text>
       <Pressable
         style={({ pressed }) => [
@@ -640,10 +695,10 @@ export default function HistoryScreen() {
                       calendarBackground: 'transparent',
                       monthTextColor: colors.textPrimary,
                       textMonthFontFamily: 'BankGothicBT-Medium',
-                      textMonthFontSize: 20,
+                      textMonthFontSize: CALENDAR_HEADER_TEXT_SIZE,
                       arrowColor: colors.accent,
                       textSectionTitleColor: colors.textSecondary,
-                      textDayHeaderFontSize: 11,
+                      textDayHeaderFontSize: CALENDAR_DAY_HEADER_SIZE,
                       textDayHeaderFontWeight: '600' as const,
                     }}
                     renderHeader={(date) => (
@@ -733,20 +788,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingTop: Spacing.lg,
-    paddingBottom: Spacing.md,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: HEADER_PADDING_TOP,
+    paddingBottom: HEADER_PADDING_BOTTOM,
     alignItems: 'flex-start',
   },
   titleContainer: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingBottom: Spacing.md,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: TITLE_PADDING_BOTTOM,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
   sectionTitle: {
-    fontSize: 24,
+    fontSize: SECTION_TITLE_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
@@ -754,17 +809,19 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.md,
+    gap: LOADING_GAP,
   },
   loadingText: {
     ...Typography.body,
+    fontSize: BODY_TEXT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
     color: Colors.textSecondary,
   },
   calendarCard: {
-    marginBottom: Spacing.lg,
-    padding: Spacing.md,
+    marginBottom: CALENDAR_CARD_MARGIN,
+    padding: CALENDAR_CARD_PADDING,
     backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 16,
+    borderRadius: CALENDAR_CARD_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.15)',
   },
@@ -772,9 +829,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: CALENDAR_HEADER_PADDING_X,
+    paddingVertical: CALENDAR_HEADER_PADDING_Y,
+    borderRadius: CALENDAR_HEADER_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
     backgroundColor: 'rgba(255,255,255,0.03)',
@@ -783,7 +840,7 @@ const styles = StyleSheet.create({
     // borderColor and backgroundColor now applied via themedStyles
   },
   calendarHeaderText: {
-    fontSize: 20,
+    fontSize: CALENDAR_HEADER_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
@@ -791,7 +848,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 2,
+    paddingVertical: DAY_WRAPPER_PADDING_Y,
   },
   dayContainer: {
     width: DAY_SIZE,
@@ -807,7 +864,7 @@ const styles = StyleSheet.create({
   dayText: {
     ...Typography.body,
     color: Colors.textPrimary,
-    fontSize: responsiveValue(12, 13, 14),
+    fontSize: DAY_TEXT_SIZE,
     fontWeight: '500',
   },
   dayTextDisabled: {
@@ -822,17 +879,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.md,
-    marginBottom: Spacing.xs,
+    paddingVertical: DATE_HEADER_PADDING_Y,
+    marginBottom: DATE_HEADER_MARGIN_BOTTOM,
   },
   dateHeaderText: {
     ...Typography.body,
     color: Colors.textSecondary,
     fontWeight: '600',
+    fontSize: BODY_TEXT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
   },
   logWorkoutButton: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingHorizontal: LOG_WORKOUT_PADDING_X,
+    paddingVertical: LOG_WORKOUT_PADDING_Y,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     // borderColor and backgroundColor now applied via themedStyles
@@ -844,68 +903,73 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     // color now applied via themedStyles (colors.accent)
     fontWeight: '600',
-    fontSize: 11,
+    fontSize: LOG_WORKOUT_TEXT_SIZE,
   },
   listContent: {
-    paddingHorizontal: Spacing['2xl'],
-    paddingBottom: 120,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: LIST_PADDING_BOTTOM,
   },
   separator: {
-    height: Spacing.md,
+    height: SEPARATOR_HEIGHT,
   },
   card: {
     backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius.xl,
+    borderRadius: CARD_RADIUS,
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    padding: Spacing.lg,
+    padding: CARD_PADDING,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: CARD_HEADER_MARGIN,
   },
   cardTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: Spacing.xs,
-    marginRight: Spacing.md,
+    gap: CARD_TITLE_GAP,
+    marginRight: CARD_TITLE_MARGIN_RIGHT,
   },
   workoutName: {
     ...Typography.h5,
     color: Colors.textPrimary,
     flex: 1,
+    fontSize: WORKOUT_NAME_SIZE,
+    lineHeight: WORKOUT_NAME_LINE_HEIGHT,
   },
   workoutDate: {
     ...Typography.caption,
     color: Colors.textSecondary,
+    fontSize: WORKOUT_DATE_SIZE,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: CARD_HEADER_MARGIN,
   },
   stat: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    gap: STAT_GAP,
   },
   statValue: {
     ...Typography.labelSmall,
     color: Colors.textPrimary,
+    fontSize: STAT_VALUE_SIZE,
+    lineHeight: STAT_VALUE_LINE_HEIGHT,
   },
   statDivider: {
     width: 1,
-    height: 16,
+    height: STAT_DIVIDER_HEIGHT,
     backgroundColor: Colors.borderLight,
-    marginHorizontal: Spacing.md,
+    marginHorizontal: STAT_DIVIDER_MARGIN,
   },
   pendingSection: {
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
+    marginTop: PENDING_SECTION_MARGIN,
+    marginBottom: PENDING_SECTION_MARGIN,
+    gap: PENDING_SECTION_GAP,
   },
   pendingTitle: {
     ...Typography.caption,
@@ -915,43 +979,46 @@ const styles = StyleSheet.create({
   pendingPill: {
     borderWidth: 1,
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: PENDING_PILL_PADDING_X,
+    paddingVertical: PENDING_PILL_PADDING_Y,
     flexDirection: 'row',
     alignItems: 'center',
   },
   pendingSpinner: {
-    marginRight: Spacing.xs,
+    marginRight: PENDING_SPINNER_MARGIN,
   },
   pendingPillText: {
     ...Typography.caption,
-    fontSize: 10,
+    fontSize: PENDING_TEXT_SIZE,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   exerciseCount: {
     ...Typography.caption,
     color: Colors.textSecondary,
+    fontSize: EXERCISE_COUNT_SIZE,
   },
   emptyDateContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing['3xl'],
-    paddingHorizontal: Spacing['2xl'],
+    paddingVertical: EMPTY_CONTAINER_PADDING_Y,
+    paddingHorizontal: EMPTY_CONTAINER_PADDING_X,
     backgroundColor: Colors.surfaceOverlay,
-    borderRadius: BorderRadius.xl,
+    borderRadius: CARD_RADIUS,
     borderWidth: 1,
     borderColor: Colors.borderLight,
   },
   emptyDateText: {
     ...Typography.body,
     color: Colors.textSecondary,
-    marginTop: Spacing.md,
+    fontSize: BODY_TEXT_SIZE,
+    lineHeight: BODY_LINE_HEIGHT,
+    marginTop: EMPTY_TEXT_MARGIN,
   },
   logPastButton: {
-    marginTop: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.lg,
+    marginTop: LOG_PAST_MARGIN,
+    paddingVertical: LOG_PAST_PADDING_Y,
+    paddingHorizontal: LOG_PAST_PADDING_X,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
     // borderColor now applied via buttonStyles (colors.accentBorder)
@@ -963,5 +1030,6 @@ const styles = StyleSheet.create({
     ...Typography.labelSmall,
     // color now applied via inline styles (colors.accent)
     fontWeight: '600',
+    fontSize: LOG_PAST_TEXT_SIZE,
   },
 });

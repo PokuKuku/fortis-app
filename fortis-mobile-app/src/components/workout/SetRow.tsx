@@ -302,17 +302,14 @@ export function SetRow({
 
       const resolvedWeight = pendingWeight ?? s.weight ?? (suggestedWeight ? previousSetForRow!.weight : null);
       const resolvedReps = pendingReps ?? s.reps ?? (suggestedReps ? previousSetForRow!.reps : null);
+      const finalWeight = resolvedWeight ?? 0;
 
-      const missingWeight = resolvedWeight == null;
       const missingReps = resolvedReps == null;
-      if (missingWeight || missingReps) {
-        errorsBySet[s.localId] = {
-          weight: missingWeight,
-          reps: missingReps,
-        };
+      if (missingReps) {
+        errorsBySet[s.localId] = { reps: true };
       }
 
-      updates.push({ setLocalId: s.localId, weight: resolvedWeight, reps: resolvedReps });
+      updates.push({ setLocalId: s.localId, weight: finalWeight, reps: resolvedReps });
     });
 
     if (Object.keys(errorsBySet).length > 0) {
@@ -392,26 +389,11 @@ export function SetRow({
       finalReps = previousSet.reps;
     }
 
-    // Validate - only error if still missing after all fallbacks
-    const missingFields: ('weight' | 'reps')[] = [];
-    if (finalWeight === null) missingFields.push('weight');
-    if (finalReps === null) missingFields.push('reps');
-
-    if (missingFields.length > 0) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      const errors: { weight?: boolean; reps?: boolean } = {};
-      missingFields.forEach(field => {
-        errors[field] = true;
-        triggerShake(field);
-      });
-      setValidationErrors(errors);
-      return;
+    if (finalWeight === null) {
+      finalWeight = 0;
     }
 
-    // Clear any previous validation errors
-    setValidationErrors({});
-
-    // Save values (including any pending value from number pad)
+    const missingReps = finalReps === null;
     if (set.weight !== finalWeight || set.reps !== finalReps) {
       updateSet(exerciseLocalId, setLocalId, {
         weight: finalWeight,
@@ -419,6 +401,17 @@ export function SetRow({
       });
     }
 
+    if (missingReps) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setValidationErrors({ reps: true });
+      triggerShake('reps');
+      return;
+    }
+
+    // Clear any previous validation errors
+    setValidationErrors({});
+
+    // Save values (including any pending value from number pad)
     // Close the number pad if it was open for this set
     if (isThisSetActive) {
       closeNumberPad();

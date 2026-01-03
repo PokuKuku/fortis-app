@@ -38,7 +38,7 @@ import { useProgramProgressStore } from '../../src/store/programProgressStore';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../../src/constants/programs';
 import { BaseModal, useModalStyles } from '../../src/components/ui/BaseModal';
 import { useDropZone } from '../../src/hooks/useDropZone';
-import { responsiveValue } from '@/src/utils/responsive';
+import { responsiveValue, scale, moderateScale } from '@/src/utils/responsive';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -69,6 +69,62 @@ const START_BUTTON_HEIGHT = responsiveValue(32, 36, 40);
 const START_BUTTON_TEXT_SIZE = responsiveValue(13, 15, 16);
 const CARD_TITLE_SIZE = responsiveValue(12, 14, 15);
 const CARD_META_SIZE = responsiveValue(11, 12, 13);
+const HORIZONTAL_PADDING = scale(24);
+const HEADER_PADDING_TOP = scale(16);
+const HEADER_PADDING_BOTTOM = scale(12);
+const TITLE_PADDING_BOTTOM = scale(12);
+const TITLE_FONT_SIZE = moderateScale(24);
+const SCROLL_PADDING_BOTTOM = scale(120);
+const SECTION_SPACING = scale(32);
+const SECTION_HEADER_MARGIN = scale(16);
+const SECTION_HEADER_GAP = scale(12);
+const SECTION_Kebab_PADDING = scale(4);
+const START_BUTTON_RADIUS = scale(8);
+const START_BUTTON_GAP = scale(8);
+const START_ICON_SIZE = scale(20);
+const SECTION_CHEVRON_SIZE = scale(16);
+const SECTION_CHEVRON_BUTTON_SIZE = scale(24);
+const KEBAB_ICON_SIZE = scale(20);
+const SMALL_ICON_SIZE = scale(16);
+const MODAL_ICON_SIZE = scale(24);
+const GRID_GAP = scale(12);
+const CARD_RADIUS = scale(16);
+const CARD_HEADER_MARGIN = scale(4);
+const CARD_TITLE_GAP = scale(6);
+const CARD_Kebab_PADDING = scale(4);
+const CARD_Kebab_MARGIN_LEFT = scale(8);
+const AI_BADGE_SIZE = scale(14);
+const AI_BADGE_MARGIN_LEFT = scale(2);
+const LOADING_PADDING = scale(24);
+const LOADING_GAP = scale(12);
+const EMPTY_PADDING = scale(32);
+const EMPTY_TEXT_SIZE = moderateScale(16);
+const EMPTY_SUBTEXT_SIZE = moderateScale(14);
+const WORKOUTS_COLUMN_GAP = scale(12);
+const WORKOUTS_COLUMN_MARGIN = scale(12);
+const KEBAB_POPOVER_RADIUS = scale(12);
+const KEBAB_POPOVER_PADDING = scale(4);
+const KEBAB_OPTION_PADDING_X = scale(16);
+const KEBAB_OPTION_PADDING_Y = scale(12);
+const KEBAB_OPTION_GAP = scale(12);
+const KEBAB_OPTION_TEXT_SIZE = moderateScale(14);
+const POPOVER_MARGIN = scale(12);
+const KEBAB_POPOVER_WIDTH = scale(200);
+const SECTION_POPOVER_WIDTH = scale(180);
+const MODAL_PADDING = scale(24);
+const MODAL_RADIUS = scale(16);
+const MODAL_TITLE_SIZE = moderateScale(20);
+const MODAL_MESSAGE_SIZE = moderateScale(14);
+const MODAL_MESSAGE_LINE_HEIGHT = moderateScale(20);
+const MODAL_BUTTON_GAP = scale(12);
+const MODAL_BUTTON_RADIUS = scale(8);
+const MODAL_BUTTON_PADDING = scale(12);
+const MODAL_BUTTON_TEXT_SIZE = moderateScale(15);
+const MODAL_ACTION_GAP = scale(8);
+const TOAST_HEIGHT = scale(48);
+const TOAST_RADIUS = scale(8);
+const TOAST_PADDING_X = scale(24);
+const TOAST_TEXT_SIZE = moderateScale(16);
 
 // Helper to format relative time
 function formatRelativeTime(dateString: string | null): string {
@@ -186,7 +242,7 @@ function KebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onDuplicate)}
         >
-          <DocumentDuplicateIcon color={colors.textSecondary} size={16} strokeWidth={2} />
+          <DocumentDuplicateIcon color={colors.textSecondary} size={SMALL_ICON_SIZE} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, { color: colors.textSecondary }]}>Duplicate</Text>
         </TouchableOpacity>
         <View style={[styles.kebabDivider, dividerStyle]} />
@@ -194,7 +250,7 @@ function KebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onDelete)}
         >
-          <TrashIcon color={colors.error} size={16} strokeWidth={2} />
+          <TrashIcon color={colors.error} size={SMALL_ICON_SIZE} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, { color: colors.error }]}>Delete</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -294,7 +350,7 @@ function ProgramsKebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onAddProgram)}
         >
-          <PlusIcon color={colors.accent} size={16} strokeWidth={2} />
+          <PlusIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, { color: colors.accent }]}>Add Program</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -394,7 +450,7 @@ function WorkoutsKebabPopover({
           style={styles.kebabOption}
           onPress={() => handleAction(onAddWorkout)}
         >
-          <PlusIcon color={colors.accent} size={16} strokeWidth={2} />
+          <PlusIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, { color: colors.accent }]}>Add Workout</Text>
         </TouchableOpacity>
       </Animated.View>
@@ -732,7 +788,7 @@ function ProgramDropCard({
             {item.name}
           </Text>
           {item.isAiCreated && (
-            <SparklesIcon color={colors.accent} size={14} strokeWidth={2} style={styles.aiBadge} />
+          <SparklesIcon color={colors.accent} size={AI_BADGE_SIZE} strokeWidth={2} style={styles.aiBadge} />
           )}
         </View>
         <TouchableOpacity
@@ -740,7 +796,7 @@ function ProgramDropCard({
           onPress={onKebabPress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <EllipsisHorizontalIcon color={colors.accent} size={16} strokeWidth={2.5} />
+          <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
       <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
@@ -874,8 +930,8 @@ export default function ProgramsScreen() {
     event.target.measure(
       (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
         const screenWidth = Dimensions.get('window').width;
-        const popoverWidth = 200;
-        const margin = 12;
+        const popoverWidth = KEBAB_POPOVER_WIDTH;
+        const margin = POPOVER_MARGIN;
         const left = Math.min(
           Math.max(margin, pageX - 4),
           screenWidth - popoverWidth - margin
@@ -1038,8 +1094,8 @@ export default function ProgramsScreen() {
     event.target.measure(
       (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
         const screenWidth = Dimensions.get('window').width;
-        const popoverWidth = 180;
-        const margin = 12;
+        const popoverWidth = SECTION_POPOVER_WIDTH;
+        const margin = POPOVER_MARGIN;
         const left = Math.min(
           Math.max(margin, pageX - popoverWidth + width),
           screenWidth - popoverWidth - margin
@@ -1061,8 +1117,8 @@ export default function ProgramsScreen() {
     event.target.measure(
       (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
         const screenWidth = Dimensions.get('window').width;
-        const popoverWidth = 180;
-        const margin = 12;
+        const popoverWidth = SECTION_POPOVER_WIDTH;
+        const margin = POPOVER_MARGIN;
         const left = Math.min(
           Math.max(margin, pageX - popoverWidth + width),
           screenWidth - popoverWidth - margin
@@ -1125,7 +1181,7 @@ export default function ProgramsScreen() {
                     {item.name}
                   </Text>
                   {item.isAiCreated && (
-                    <SparklesIcon color={colors.accent} size={14} strokeWidth={2} style={styles.aiBadge} />
+          <SparklesIcon color={colors.accent} size={AI_BADGE_SIZE} strokeWidth={2} style={styles.aiBadge} />
                   )}
                 </View>
                 <TouchableOpacity
@@ -1133,7 +1189,7 @@ export default function ProgramsScreen() {
                   onPress={(event) => handleKebabPress('workout', item.id, event)}
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <EllipsisHorizontalIcon color={colors.accent} size={16} strokeWidth={2.5} />
+                  <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
               <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
@@ -1208,7 +1264,7 @@ export default function ProgramsScreen() {
           <View style={styles.quickStartSection}>
             <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout} disabled={isWorkoutActive}>
               <View style={styles.startButtonInner}>
-                <PlayIcon color="#fff" size={20} strokeWidth={2} />
+                <PlayIcon color="#fff" size={START_ICON_SIZE} strokeWidth={2} />
                 <Text style={styles.startButtonText}>Start a Blank Workout</Text>
               </View>
             </GlassButton>
@@ -1221,10 +1277,10 @@ export default function ProgramsScreen() {
                 onPress={() => setShowPrograms(!showPrograms)}
                 style={styles.sectionHeaderButton}
               >
-                <GlassButton circular size={24} onPress={() => setShowPrograms(!showPrograms)}>
+                <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowPrograms(!showPrograms)}>
                   <ChevronRightIcon
                     color="#fff"
-                    size={16}
+                    size={SECTION_CHEVRON_SIZE}
                     style={[
                       styles.chevron,
                       showPrograms && styles.chevronRotated,
@@ -1238,7 +1294,7 @@ export default function ProgramsScreen() {
                 style={styles.sectionKebabButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <EllipsisHorizontalIcon color={colors.textTertiary} size={20} strokeWidth={2} />
+                <EllipsisHorizontalIcon color={colors.textTertiary} size={KEBAB_ICON_SIZE} strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -1254,7 +1310,7 @@ export default function ProgramsScreen() {
                     }}
                     numColumns={1}
                     itemHeight={PROGRAM_CARD_HEIGHT}
-                    gap={12}
+                    gap={GRID_GAP}
                   />
                 )
               )}
@@ -1268,10 +1324,10 @@ export default function ProgramsScreen() {
                 onPress={() => setShowWorkouts(!showWorkouts)}
                 style={styles.sectionHeaderButton}
               >
-                <GlassButton circular size={24} onPress={() => setShowWorkouts(!showWorkouts)}>
+                <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowWorkouts(!showWorkouts)}>
                   <ChevronRightIcon
                     color="#fff"
-                    size={16}
+                    size={SECTION_CHEVRON_SIZE}
                     style={[
                       styles.chevron,
                       showWorkouts && styles.chevronRotated,
@@ -1285,7 +1341,7 @@ export default function ProgramsScreen() {
                 style={styles.sectionKebabButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <EllipsisHorizontalIcon color={colors.textTertiary} size={20} strokeWidth={2} />
+                <EllipsisHorizontalIcon color={colors.textTertiary} size={KEBAB_ICON_SIZE} strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -1304,7 +1360,7 @@ export default function ProgramsScreen() {
                     }}
                     numColumns={2}
                     itemHeight={WORKOUT_CARD_HEIGHT}
-                    gap={12}
+                    gap={GRID_GAP}
                   />
                 )
               )}
@@ -1342,7 +1398,7 @@ export default function ProgramsScreen() {
             setPendingProgramDrop(null);
           }}
           title="Edit Active Program?"
-          icon={<ExclamationTriangleIcon size={24} color={colors.warning} />}
+          icon={<ExclamationTriangleIcon size={MODAL_ICON_SIZE} color={colors.warning} />}
         >
           <Text style={modalStyles.message}>
             This program is in progress. How should we handle your edits?
@@ -1436,17 +1492,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 12,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: HEADER_PADDING_TOP,
+    paddingBottom: HEADER_PADDING_BOTTOM,
     alignItems: 'flex-start',
   },
   titleContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 12,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: TITLE_PADDING_BOTTOM,
   },
   title: {
-    fontSize: 24,
+    fontSize: TITLE_FONT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: '#FFFFFF',
   },
@@ -1454,25 +1510,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 120,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: SCROLL_PADDING_BOTTOM,
   },
   quickStartSection: {
-    marginBottom: 32,
+    marginBottom: SECTION_SPACING,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: SECTION_SPACING,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: SECTION_HEADER_MARGIN,
   },
   sectionHeaderButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: SECTION_HEADER_GAP,
   },
   chevronContainer: {
     // NOTE: This style appears unused - chevron uses GlassButton circular instead
@@ -1497,17 +1553,17 @@ const styles = StyleSheet.create({
     color: '#DFE2E6',
   },
   sectionKebabButton: {
-    padding: 4,
+    padding: SECTION_Kebab_PADDING,
   },
   startButton: {
     height: START_BUTTON_HEIGHT,
-    borderRadius: 8,
+    borderRadius: START_BUTTON_RADIUS,
   },
   startButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: START_BUTTON_GAP,
   },
   startButtonText: {
     color: '#fff',
@@ -1520,46 +1576,46 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    marginBottom: CARD_HEADER_MARGIN,
   },
   cardKebabButton: {
-    padding: 4,
-    marginLeft: 8,
+    padding: CARD_Kebab_PADDING,
+    marginLeft: CARD_Kebab_MARGIN_LEFT,
   },
   cardTitleRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: CARD_TITLE_GAP,
   },
   aiBadge: {
-    marginLeft: 2,
+    marginLeft: AI_BADGE_MARGIN_LEFT,
   },
   loadingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 24,
-    gap: 12,
+    paddingVertical: LOADING_PADDING,
+    gap: LOADING_GAP,
   },
   loadingText: {
-    fontSize: 14,
+    fontSize: moderateScale(14),
     fontWeight: '500',
     color: '#9CA3AF',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 32,
+    paddingVertical: EMPTY_PADDING,
   },
   emptyText: {
-    fontSize: 16,
+    fontSize: EMPTY_TEXT_SIZE,
     fontWeight: '600',
     color: '#DFE2E6',
-    marginBottom: 4,
+    marginBottom: CARD_HEADER_MARGIN,
   },
   emptySubtext: {
-    fontSize: 14,
+    fontSize: EMPTY_SUBTEXT_SIZE,
     fontWeight: '500',
     color: '#9CA3AF',
   },
@@ -1570,8 +1626,8 @@ const styles = StyleSheet.create({
   },
   workoutsColumnWrapper: {
     justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 12,
+    gap: WORKOUTS_COLUMN_GAP,
+    marginBottom: WORKOUTS_COLUMN_MARGIN,
   },
   cardActive: {
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
@@ -1579,7 +1635,7 @@ const styles = StyleSheet.create({
   },
   programCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
+    borderRadius: CARD_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: PROGRAM_CARD_PADDING_HORIZONTAL,
@@ -1595,7 +1651,7 @@ const styles = StyleSheet.create({
   },
   workoutCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 16,
+    borderRadius: CARD_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: WORKOUT_CARD_PADDING_HORIZONTAL,
@@ -1636,27 +1692,27 @@ const styles = StyleSheet.create({
   kebabPopover: {
     position: 'absolute',
     backgroundColor: 'rgba(36, 36, 36, 0.95)',
-    borderRadius: 12,
+    borderRadius: KEBAB_POPOVER_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    paddingVertical: 4,
+    paddingVertical: KEBAB_POPOVER_PADDING,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
     elevation: 10,
     zIndex: 1000,
-    minWidth: 150,
+    minWidth: scale(150),
   },
   kebabOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
+    paddingHorizontal: KEBAB_OPTION_PADDING_X,
+    paddingVertical: KEBAB_OPTION_PADDING_Y,
+    gap: KEBAB_OPTION_GAP,
   },
   kebabOptionText: {
-    fontSize: 14,
+    fontSize: KEBAB_OPTION_TEXT_SIZE,
     fontWeight: '600',
     color: '#DFE2E6',
   },
@@ -1666,22 +1722,22 @@ const styles = StyleSheet.create({
   kebabDivider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    marginVertical: 4,
+    marginVertical: KEBAB_POPOVER_PADDING,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: MODAL_PADDING,
   },
   confirmationModal: {
     backgroundColor: '#222222',
-    borderRadius: 16,
+    borderRadius: MODAL_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     width: '100%',
-    maxWidth: 400,
+    maxWidth: scale(400),
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
@@ -1690,60 +1746,60 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   modalContent: {
-    padding: 24,
+    padding: MODAL_PADDING,
     position: 'relative',
     zIndex: 1,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: MODAL_TITLE_SIZE,
     fontWeight: '700',
     color: '#DFE2E6',
-    marginBottom: 12,
+    marginBottom: MODAL_BUTTON_GAP,
   },
   modalMessage: {
-    fontSize: 14,
+    fontSize: MODAL_MESSAGE_SIZE,
     fontWeight: '500',
     color: '#9CA3AF',
-    marginBottom: 24,
-    lineHeight: 20,
+    marginBottom: MODAL_PADDING,
+    lineHeight: MODAL_MESSAGE_LINE_HEIGHT,
   },
   modalButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: MODAL_BUTTON_GAP,
   },
   modalCancelButton: {
     flex: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 8,
+    borderRadius: MODAL_BUTTON_RADIUS,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    paddingVertical: 12,
+    paddingVertical: MODAL_BUTTON_PADDING,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalCancelText: {
-    fontSize: 15,
+    fontSize: MODAL_BUTTON_TEXT_SIZE,
     fontWeight: '700',
     color: '#DFE2E6',
   },
   modalDeleteButton: {
     flex: 1,
     backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderRadius: 8,
+    borderRadius: MODAL_BUTTON_RADIUS,
     borderWidth: 1,
     borderColor: '#ef4444',
-    paddingVertical: 12,
+    paddingVertical: MODAL_BUTTON_PADDING,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalDeleteText: {
-    fontSize: 15,
+    fontSize: MODAL_BUTTON_TEXT_SIZE,
     fontWeight: '700',
     color: '#ef4444',
   },
   modalActions: {
     flexDirection: 'column',
-    gap: 8,
+    gap: MODAL_ACTION_GAP,
   },
   modalActionButton: {
     width: '100%',
@@ -1766,9 +1822,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   toast: {
-    height: 48,
-    borderRadius: 8,
-    paddingHorizontal: 24,
+    height: TOAST_HEIGHT,
+    borderRadius: TOAST_RADIUS,
+    paddingHorizontal: TOAST_PADDING_X,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
@@ -1779,7 +1835,7 @@ const styles = StyleSheet.create({
   },
   toastText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: TOAST_TEXT_SIZE,
     fontWeight: '600',
     textAlign: 'center',
   },

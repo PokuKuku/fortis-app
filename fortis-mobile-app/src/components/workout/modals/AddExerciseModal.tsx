@@ -26,20 +26,28 @@ import { getExerciseImageUrl } from '@/src/services/exerciseService';
 interface AddExerciseModalProps {
   visible: boolean;
   onClose: () => void;
+  suspended?: boolean;
   replaceMode?: boolean;
   exerciseLocalIdToReplace?: string;
   // Callback mode for template creation (doesn't use workoutStore)
   onAddExercisesCallback?: (exercises: Array<{ id: string; name: string }>) => void;
   existingExerciseIds?: string[];
+  showRestTimerBanner?: boolean;
+  onDismissRestTimerBanner?: () => void;
+  onOpenExerciseDetails?: (exerciseId: string) => void;
 }
 
 export function AddExerciseModal({
   visible,
   onClose,
+  suspended = false,
   replaceMode = false,
   exerciseLocalIdToReplace,
   onAddExercisesCallback,
   existingExerciseIds: externalExistingIds,
+  showRestTimerBanner = false,
+  onDismissRestTimerBanner,
+  onOpenExerciseDetails,
 }: AddExerciseModalProps) {
   const { colors, isDark } = useTheme();
 
@@ -83,6 +91,11 @@ export function AddExerciseModal({
       backgroundColor: colors.accentOverlay,
       borderColor: colors.accentBorder,
     },
+    restTimerBanner: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
+    },
+    restTimerBannerText: { color: colors.accent },
   };
 
   const addExercises = useWorkoutStore(s => s.addExercises);
@@ -95,6 +108,9 @@ export function AddExerciseModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
   const isProcessing = useRef(false);
+  const listRef = useRef<FlatList<Exercise>>(null);
+  const lastScrollOffset = useRef(0);
+  const isModalVisible = visible && !suspended;
 
   // Reset state when modal closes
   useEffect(() => {
@@ -197,6 +213,29 @@ export function AddExerciseModal({
   // Check if exercise is selected
   const isSelected = (exerciseId: string) => selectedExercises.includes(exerciseId);
 
+  const handleExercisePress = (exerciseId: string) => {
+    if (onOpenExerciseDetails) {
+      onOpenExerciseDetails(exerciseId);
+      return;
+    }
+    toggleExercise(exerciseId);
+  };
+
+  const handleListScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    lastScrollOffset.current = event.nativeEvent.contentOffset.y;
+  };
+
+  useEffect(() => {
+    if (!isModalVisible || lastScrollOffset.current <= 0) return;
+    const frameId = requestAnimationFrame(() => {
+      listRef.current?.scrollToOffset({
+        offset: lastScrollOffset.current,
+        animated: false,
+      });
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [isModalVisible]);
+
   const renderExercise = ({ item }: { item: Exercise }) => {
     const selected = isSelected(item.id);
     const imageUrl = item.images.length > 0
@@ -204,7 +243,7 @@ export function AddExerciseModal({
       : null;
     return (
       <Pressable
-        onPress={() => toggleExercise(item.id)}
+        onPress={() => handleExercisePress(item.id)}
         style={({ pressed }) => [
           styles.exerciseItem,
           themedStyles.exerciseItem,
@@ -237,23 +276,30 @@ export function AddExerciseModal({
             {item.name}
           </Text>
         </View>
-        <View style={[styles.iconContainer, themedStyles.iconContainer, selected && themedStyles.iconContainerSelected]}>
+        <Pressable
+          onPress={(event) => {
+            event.stopPropagation();
+            toggleExercise(item.id);
+          }}
+          style={[styles.iconContainer, themedStyles.iconContainer, selected && themedStyles.iconContainerSelected]}
+          hitSlop={8}
+        >
           {selected ? (
             <CheckIcon size={18} color={colors.accent} strokeWidth={2} />
           ) : (
             <PlusIcon size={18} color={colors.textSecondary} strokeWidth={2} />
           )}
-        </View>
+        </Pressable>
       </Pressable>
     );
   };
 
-  if (!visible) return null;
+  if (!isModalVisible) return null;
 
   return (
     <Modal
       transparent
-      visible={visible}
+      visible={isModalVisible}
       animationType="none"
       onRequestClose={onClose}
       statusBarTranslucent
@@ -281,6 +327,20 @@ export function AddExerciseModal({
               <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
           </View>
+
+          {/* Rest timer banner */}
+          {showRestTimerBanner && (
+            <View style={[styles.restTimerBanner, themedStyles.restTimerBanner]}>
+              <Text style={[styles.restTimerBannerText, themedStyles.restTimerBannerText]}>
+                Time's up - rest complete.
+              </Text>
+              {onDismissRestTimerBanner && (
+                <Pressable onPress={onDismissRestTimerBanner} hitSlop={8}>
+                  <XMarkIcon size={16} color={colors.accent} strokeWidth={2} />
+                </Pressable>
+              )}
+            </View>
+          )}
 
           {/* Selected Exercises Chips (only in add mode) */}
           {!replaceMode && selectedExercises.length > 0 && (
@@ -335,12 +395,15 @@ export function AddExerciseModal({
 
           {/* Exercise List */}
           <FlatList
+            ref={listRef}
             data={filteredExercises}
             renderItem={renderExercise}
             keyExtractor={item => item.id}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            scrollEventThrottle={16}
+            onScroll={handleListScroll}
           />
 
           {/* Add Button (only in add mode) */}
@@ -406,6 +469,24 @@ const styles = StyleSheet.create({
   selectedScrollContent: {
     paddingHorizontal: Spacing['2xl'],
     gap: Spacing.sm,
+  },
+  restTimerBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing['2xl'],
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    zIndex: 1,
+  },
+  restTimerBannerText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   chip: {
     flexDirection: 'row',
