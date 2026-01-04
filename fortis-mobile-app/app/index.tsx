@@ -1,25 +1,13 @@
 import { useEffect, useRef, useMemo, useState } from 'react';
-import { View, StyleSheet, Animated, Dimensions, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { scale } from '@/src/utils/responsive';
-import Svg, {
-  Defs,
-  LinearGradient as SvgLinearGradient,
-  Stop,
-  Text as SvgText,
-} from 'react-native-svg';
 
 const { width, height } = Dimensions.get('window');
-
-const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGradient);
-const LOGO_VIEWBOX_WIDTH = 320;
-const LOGO_VIEWBOX_HEIGHT = 120;
-const LOGO_WIDTH = scale(LOGO_VIEWBOX_WIDTH);
-const LOGO_HEIGHT = scale(LOGO_VIEWBOX_HEIGHT);
-const SHINE_RANGE = LOGO_VIEWBOX_WIDTH;
 const PARTICLE_TRAVEL_Y = scale(120);
 
 // Floating Particle
@@ -93,13 +81,6 @@ export default function SplashScreen() {
   const { colors } = useTheme();
   const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
   const [splashComplete, setSplashComplete] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
-  const shineAnim = useRef(new Animated.Value(0)).current;
-  const shineX = shineAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-SHINE_RANGE, SHINE_RANGE],
-  });
 
   // Generate 15 particles
   const particles = useMemo(
@@ -133,31 +114,6 @@ export default function SplashScreen() {
   }, [splashComplete, isLoading, isAuthenticated, needsOnboarding, router]);
 
   useEffect(() => {
-    // Fade in animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 800,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Single pass shine animation
-    Animated.timing(shineAnim, {
-      toValue: 1,
-      duration: 2500,
-      easing: Easing.linear,
-      useNativeDriver: false,
-    }).start();
-
-    // Mark splash as complete after one full animation pass
     const timer = setTimeout(() => {
       setSplashComplete(true);
     }, 2500);
@@ -165,7 +121,7 @@ export default function SplashScreen() {
     return () => {
       clearTimeout(timer);
     };
-  }, [fadeAnim, scaleAnim, shineAnim]);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -187,48 +143,9 @@ export default function SplashScreen() {
       </View>
 
       {/* FORTIS Text */}
-      <Animated.View
-        style={[
-          styles.logoContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <Svg height={LOGO_HEIGHT} width={LOGO_WIDTH} viewBox={`0 0 ${LOGO_VIEWBOX_WIDTH} ${LOGO_VIEWBOX_HEIGHT}`}>
-          <Defs>
-            <AnimatedSvgLinearGradient
-              id="textGradient"
-              x1={shineX}
-              y1="0"
-              x2={Animated.add(shineX, SHINE_RANGE)}
-              y2="0"
-              gradientUnits="userSpaceOnUse"
-            >
-              <Stop offset="0%" stopColor={colors.accentLight} />
-              <Stop offset="30%" stopColor={colors.accent} />
-              <Stop offset="45%" stopColor={colors.accentLight} />
-              <Stop offset="50%" stopColor="#ffffff" />
-              <Stop offset="55%" stopColor={colors.accentLight} />
-              <Stop offset="70%" stopColor={colors.accent} />
-              <Stop offset="100%" stopColor={colors.accentLight} />
-            </AnimatedSvgLinearGradient>
-          </Defs>
-          <SvgText
-            fill="url(#textGradient)"
-            fontSize={38}
-            fontWeight="900"
-            letterSpacing={12}
-            x="160"
-            y="70"
-            textAnchor="middle"
-            fontFamily="BankGothicBT-Medium, sans-serif"
-          >
-            FORTIS
-          </SvgText>
-        </Svg>
-      </Animated.View>
+      <View style={styles.logoContainer}>
+        <AnimatedLogo size="large" centered />
+      </View>
     </View>
   );
 }

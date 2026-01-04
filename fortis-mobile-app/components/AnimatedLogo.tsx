@@ -21,6 +21,8 @@ interface AnimatedLogoProps {
   centered?: boolean;
 }
 
+const LOGO_TEXT = 'FORTIS';
+
 export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoProps) {
   const { colors } = useTheme();
   const shineAnim = useRef(new Animated.Value(0)).current;
@@ -32,8 +34,15 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
 
   // Size configurations
   const config = size === 'large'
-    ? { width: 280, height: 60, fontSize: 42, letterSpacing: 8, y: 48 }
+    ? { width: 280, height: 60, fontSize: 42, letterSpacing: 6, y: 48 }
     : { width: 160, height: 32, fontSize: 20, letterSpacing: 6, y: 24 };
+  const totalSpacing = config.letterSpacing * (LOGO_TEXT.length - 1);
+  const letterOffsets = LOGO_TEXT.split('').map((_, index) => {
+    if (index === 0) {
+      return centered ? -totalSpacing / 2 : 0;
+    }
+    return config.letterSpacing;
+  });
 
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
@@ -105,13 +114,13 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
             fill={`url(#${gradientId})`}
             fontSize={config.fontSize}
             fontWeight="900"
-            letterSpacing={config.letterSpacing}
+            dx={letterOffsets}
             x={centered ? config.width / 2 : 0}
             y={config.y}
             textAnchor={centered ? 'middle' : 'start'}
             fontFamily="BankGothicBT-Medium"
           >
-            FORTIS
+            {LOGO_TEXT}
           </SvgText>
         </Svg>
       </Animated.View>
