@@ -57,6 +57,12 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="auth/callback"
+            options={{
+              ...PAGE_TRANSITION,
+            }}
+          />
+          <Stack.Screen
             name="onboarding/index"
             options={{
               ...PAGE_TRANSITION,

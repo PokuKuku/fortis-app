@@ -19,12 +19,14 @@ const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGrad
 interface AnimatedLogoProps {
   size?: 'small' | 'large';
   centered?: boolean;
+  animate?: boolean;
 }
 
 const LOGO_TEXT = 'FORTIS';
 
-export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoProps) {
+export function AnimatedLogo({ size = 'small', centered = false, animate = true }: AnimatedLogoProps) {
   const { colors } = useTheme();
+  const shouldAnimate = animate;
   const shineAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -50,6 +52,13 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
   });
 
   useEffect(() => {
+    if (!shouldAnimate) {
+      fadeAnim.setValue(1);
+      scaleAnim.setValue(1);
+      shineAnim.setValue(0);
+      return;
+    }
+
     fadeAnim.setValue(0);
     scaleAnim.setValue(0.95);
     shineAnim.setValue(0);
@@ -82,33 +91,60 @@ export function AnimatedLogo({ size = 'small', centered = false }: AnimatedLogoP
     return () => {
       shineLoop.stop();
     };
-  }, [fadeAnim, scaleAnim, shineAnim]);
+  }, [fadeAnim, scaleAnim, shineAnim, shouldAnimate]);
 
   const containerStyle: ViewStyle = centered
     ? { alignItems: 'center', justifyContent: 'center' }
     : { alignItems: 'flex-start', justifyContent: 'flex-start' };
 
+  const gradientStops = shouldAnimate
+    ? [
+        { offset: '0%', color: colors.accentLight },
+        { offset: '30%', color: colors.accent },
+        { offset: '45%', color: colors.accentLight },
+        { offset: '50%', color: '#ffffff' },
+        { offset: '55%', color: colors.accentLight },
+        { offset: '70%', color: colors.accent },
+        { offset: '100%', color: colors.accentLight },
+      ]
+    : [
+        { offset: '0%', color: colors.accentLight },
+        { offset: '50%', color: colors.accent },
+        { offset: '100%', color: colors.accentLight },
+      ];
+
   return (
     <View style={containerStyle}>
-      <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
+      <Animated.View style={{ opacity: shouldAnimate ? fadeAnim : 1, transform: [{ scale: shouldAnimate ? scaleAnim : 1 }] }}>
         <Svg height={config.height} width={config.width} viewBox={`0 0 ${config.width} ${config.height}`}>
           <Defs>
-            <AnimatedSvgLinearGradient
-              id={gradientId}
-              x1={shineX}
-              y1="0"
-              x2={Animated.add(shineX, config.width)}
-              y2="0"
-              gradientUnits="userSpaceOnUse"
-            >
-              <Stop offset="0%" stopColor={colors.accentLight} />
-              <Stop offset="30%" stopColor={colors.accent} />
-              <Stop offset="45%" stopColor={colors.accentLight} />
-              <Stop offset="50%" stopColor="#ffffff" />
-              <Stop offset="55%" stopColor={colors.accentLight} />
-              <Stop offset="70%" stopColor={colors.accent} />
-              <Stop offset="100%" stopColor={colors.accentLight} />
-            </AnimatedSvgLinearGradient>
+            {shouldAnimate ? (
+              <AnimatedSvgLinearGradient
+                id={gradientId}
+                x1={shineX}
+                y1="0"
+                x2={Animated.add(shineX, config.width)}
+                y2="0"
+                gradientUnits="userSpaceOnUse"
+              >
+                {gradientStops.map((stop) => (
+                  <Stop key={stop.offset} offset={stop.offset} stopColor={stop.color} />
+                ))}
+              </AnimatedSvgLinearGradient>
+            ) : (
+              <SvgLinearGradient
+                id={gradientId}
+                x1="0"
+                y1="0"
+                x2={config.width}
+                y2="0"
+                gradientUnits="userSpaceOnUse"
+              >
+                {gradientStops.map((stop) => (
+                  <Stop key={stop.offset} offset={stop.offset} stopColor={stop.color} />
+                ))}
+              </SvgLinearGradient>
+            )}
           </Defs>
           <SvgText
             fill={`url(#${gradientId})`}

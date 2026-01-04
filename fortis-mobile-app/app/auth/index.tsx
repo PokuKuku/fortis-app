@@ -154,7 +154,7 @@ export default function AuthWelcomeScreen() {
         <View style={styles.content}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <AnimatedLogo size="large" centered />
+            <AnimatedLogo size="large" centered animate={false} />
             <Text style={[styles.tagline, themedStyles.tagline]}>Track your strength journey</Text>
           </View>
 
@@ -256,9 +256,6 @@ export default function AuthWelcomeScreen() {
           </View>
 
           {/* Terms */}
-          <Text style={[styles.terms, themedStyles.terms]}>
-            By continuing, you agree to our Terms of Service and Privacy Policy
-          </Text>
         </View>
       </SafeAreaView>
     </View>
@@ -276,9 +273,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: Spacing['2xl'],
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     paddingTop: 60,
     paddingBottom: Spacing['2xl'],
+    gap: Spacing['4xl'],
   },
   logoContainer: {
     alignItems: 'center',

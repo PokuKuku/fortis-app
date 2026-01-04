@@ -350,9 +350,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Email sign up
   const signUpWithEmail = useCallback(async (email: string, password: string) => {
     try {
+      const isExpoGo = Constants.appOwnership === 'expo';
+      let redirectTo = isExpoGo
+        ? Linking.createURL('auth/callback')
+        : makeRedirectUri({
+            scheme: 'fortis',
+            path: 'auth/callback',
+          });
+
+      if (/^https?:\/\/(localhost|127\.0\.0\.1)/.test(redirectTo)) {
+        redirectTo = Linking.createURL('auth/callback');
+      }
+
       const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: redirectTo,
+        },
       });
       return { error: error ? new Error(error.message) : null };
     } catch (err) {
