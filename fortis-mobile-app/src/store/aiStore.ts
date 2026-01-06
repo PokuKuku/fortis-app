@@ -244,7 +244,7 @@ interface AIState {
   clearSelectedImage: () => void;
 
   // Actions - Quick queries (shortcuts for common intents)
-  // Note: requestProgram and requestTemplate removed - only ANALYZE_HISTORY is active
+  // Note: requestProgram and requestTemplate removed - only FORTIS_ANALYST is active
 
   // Actions - Pending actions
   loadPendingActions: () => Promise<void>;

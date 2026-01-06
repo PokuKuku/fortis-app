@@ -18,7 +18,7 @@ import * as Haptics from 'expo-haptics';
 import { CheckCircleIcon } from 'react-native-heroicons/solid';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius, Shadows } from '@/constants/Sizes';
-import { responsiveValue } from '@/src/utils/responsive';
+import { moderateScale, scale } from '@/src/utils/responsive';
 import { Typography } from '@/constants/Typography';
 
 interface SelectionCardProps {
@@ -118,10 +118,15 @@ export function SelectionCard({
   });
   const checkOpacity = checkAnim;
 
-  const minCardHeight = responsiveValue(120, 160, 180);
-  const iconContainerSize = responsiveValue(48, 56, 64);
-  const cardPadding = responsiveValue(Spacing.lg, Spacing.xl, Spacing['2xl']);
-  const titleSize = responsiveValue(16, 18, 20);
+  const minCardHeight = scale(160);
+  const iconContainerSize = scale(56);
+  const cardPadding = scale(Spacing.xl);
+  const titleSize = moderateScale(18);
+  const titleLetterSpacing = moderateScale(2);
+  const subtitleSize = moderateScale(Typography.bodyLarge.fontSize as number);
+  const subtitleLineHeight = moderateScale(Typography.bodyLarge.lineHeight as number);
+  const checkIconSize = scale(24);
+  const checkOffset = scale(Spacing.md);
 
   return (
     <Animated.View
@@ -166,13 +171,31 @@ export function SelectionCard({
           )}
 
           {/* Title */}
-          <Text style={[styles.title, themedStyles.title, { fontSize: titleSize }]}>
+          <Text
+            style={[
+              styles.title,
+              themedStyles.title,
+              { fontSize: titleSize, letterSpacing: titleLetterSpacing },
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+          >
             {title}
           </Text>
 
           {/* Subtitle */}
           {subtitle && (
-            <Text style={[styles.subtitle, themedStyles.subtitle]}>
+            <Text
+              style={[
+                styles.subtitle,
+                themedStyles.subtitle,
+                { fontSize: subtitleSize, lineHeight: subtitleLineHeight },
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
               {subtitle}
             </Text>
           )}
@@ -185,11 +208,13 @@ export function SelectionCard({
             {
               opacity: checkOpacity,
               transform: [{ scale: checkScale }],
+              top: checkOffset,
+              right: checkOffset,
             }
           ]}
         >
           <CheckCircleIcon
-            size={24}
+            size={checkIconSize}
             color={colors.accent}
           />
         </Animated.View>

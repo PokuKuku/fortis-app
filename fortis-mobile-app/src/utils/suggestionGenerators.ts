@@ -179,7 +179,7 @@ export function generateTimeSuggestions(
   // Weekend - program creation
   if (ctx.time.isWeekend && ctx.fitness.programCount === 0) {
     suggestions.push({
-      text: 'Create a weekly program',
+      text: 'Outline a weekly program',
       score: 0.6,
       source: 'time',
     });
@@ -208,28 +208,20 @@ export function generateDefaultSuggestions(
 
   // Intent-based fallbacks (lower score as they're less contextual)
   switch (ctx.conversation.lastIntent) {
-    case 'CREATE_TEMPLATE':
+    case 'FORTIS_ANALYST':
       suggestions.push(
-        { text: 'Add a superset', score: 0.4, source: 'default' },
-        { text: 'Make it more intense', score: 0.35, source: 'default' },
-        { text: 'Add warm-up sets', score: 0.3, source: 'default' }
-      );
-      break;
-
-    case 'CREATE_PROGRAM':
-      suggestions.push(
-        { text: 'Add a rest day', score: 0.4, source: 'default' },
-        { text: 'Make it 3 days/week', score: 0.35, source: 'default' },
-        { text: 'Focus more on legs', score: 0.3, source: 'default' }
+        { text: 'Summarize my last 4 weeks', score: 0.4, source: 'default' },
+        { text: 'What should I focus on next?', score: 0.35, source: 'default' },
+        { text: 'Outline a 3-day split for me', score: 0.3, source: 'default' }
       );
       break;
 
     default:
       // Generic conversation starters
       suggestions.push(
-        { text: 'Create a workout', score: 0.35, source: 'default' },
-        { text: 'Build a training program', score: 0.3, source: 'default' },
-        { text: 'Design a push day', score: 0.25, source: 'default' }
+        { text: 'Show my weekly stats', score: 0.35, source: 'default' },
+        { text: 'How can I improve my bench press?', score: 0.3, source: 'default' },
+        { text: 'Outline a push day', score: 0.25, source: 'default' }
       );
   }
 

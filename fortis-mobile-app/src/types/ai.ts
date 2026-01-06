@@ -14,7 +14,7 @@
  * Write intents return mutation plans requiring confirmation
  * Read intents return answers without mutations
  */
-export const ALL_INTENTS = ['ANALYZE_HISTORY'] as const;
+export const ALL_INTENTS = ['FORTIS_ANALYST'] as const;
 export type AIIntent = typeof ALL_INTENTS[number];
 
 /**
@@ -35,7 +35,7 @@ export interface IntentConfigEntry {
  * Intent metadata for context assembly
  */
 export const INTENT_CONFIG: Record<AIIntent, IntentConfigEntry> = {
-  ANALYZE_HISTORY: {
+  FORTIS_ANALYST: {
     type: 'read',
     defaultContextWeeks: 52,
     includeHistory: true,

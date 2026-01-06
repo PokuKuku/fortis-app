@@ -27,9 +27,7 @@ export function buildProgramDraftFromPlan(
 ): EditableProgramDraft {
   const programMutation = plan.mutations.find((m) => m.entityType === 'workout_program');
   const programState = (programMutation?.proposedState ?? {}) as Record<string, unknown>;
-  const isTemplate =
-    plan.intent === 'CREATE_TEMPLATE' ||
-    Boolean(programState.is_template);
+  const isTemplate = Boolean(programState.is_template);
 
   const workoutsById = new Map<string, EditableProgramWorkout>();
 

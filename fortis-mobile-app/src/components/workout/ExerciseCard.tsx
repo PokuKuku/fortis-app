@@ -4,7 +4,7 @@ import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import { responsiveValue } from '@/src/utils/responsive';
+import { responsiveValue, moderateScale } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetRow } from './SetRow';
@@ -26,6 +26,14 @@ const CONTENT_PADDING = responsiveValue(Spacing.lg, Spacing.xl, Spacing.xl);
 const ROW_GAP = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 const COLUMN_PADDING_RIGHT = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 const REPS_MARGIN = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
+const HEADER_TEXT_SIZE = moderateScale(13);
+const HEADER_LETTER_SPACING = moderateScale(0.5);
+const EXERCISE_NAME_SIZE = moderateScale(FontSizes.base);
+const EXERCISE_NAME_LETTER_SPACING = moderateScale(0.5);
+const NOTES_TEXT_SIZE = moderateScale(FontSizes.base);
+const ADD_SET_TEXT_SIZE = moderateScale(FontSizes.sm);
+const ADD_SET_LETTER_SPACING = moderateScale(0.8);
+const STICKY_NOTE_TEXT_SIZE = moderateScale(FontSizes.base);
 
 interface ExerciseCardProps {
   exerciseLocalId: string;
@@ -251,10 +259,42 @@ export function ExerciseCard({
         <View style={styles.setsTable}>
           {/* Header Row */}
           <View style={styles.tableHeader}>
-            <Text style={[styles.headerText, themedStyles.headerText, styles.setCol]}>Set</Text>
-            <Text style={[styles.headerText, themedStyles.headerText, styles.previousCol]}>Prev</Text>
-            <Text style={[styles.headerText, themedStyles.headerText, styles.weightCol, !shouldShowCheckboxes && styles.flexCol]}>{weightUnit}</Text>
-            <Text style={[styles.headerText, themedStyles.headerText, styles.repsCol, !shouldShowCheckboxes && styles.flexCol]}>Reps</Text>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.setCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              Set
+            </Text>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.previousCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              Prev
+            </Text>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.weightCol, !shouldShowCheckboxes && styles.flexCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              {weightUnit}
+            </Text>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.repsCol, !shouldShowCheckboxes && styles.flexCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              Reps
+            </Text>
             {shouldShowCheckboxes && <View style={styles.checkCol} />}
           </View>
 
@@ -336,11 +376,11 @@ const styles = StyleSheet.create({
   },
   exerciseName: {
     flex: 1,
-    fontSize: FontSizes.base,
+    fontSize: EXERCISE_NAME_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: EXERCISE_NAME_LETTER_SPACING,
   },
   kebabButton: {
     padding: Spacing.sm,
@@ -350,7 +390,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   notesInput: {
-    fontSize: FontSizes.base,
+    fontSize: NOTES_TEXT_SIZE,
     fontWeight: '500',
     color: Colors.textPrimary,
     padding: 0,
@@ -373,12 +413,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   headerText: {
-    fontSize: 13,
+    fontSize: HEADER_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
     textAlign: 'center',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: HEADER_LETTER_SPACING,
   },
   setCol: {
     width: SET_BADGE_SIZE,
@@ -416,11 +456,11 @@ const styles = StyleSheet.create({
     // backgroundColor now applied via themedStyles (colors.accentBorder)
   },
   addSetText: {
-    fontSize: FontSizes.sm,
+    fontSize: ADD_SET_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     // color now applied via themedStyles (colors.accent)
     textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: ADD_SET_LETTER_SPACING,
   },
   stickyNoteBanner: {
     flexDirection: 'row',
@@ -438,7 +478,7 @@ const styles = StyleSheet.create({
   },
   stickyNoteInput: {
     flex: 1,
-    fontSize: FontSizes.base,
+    fontSize: STICKY_NOTE_TEXT_SIZE,
     fontWeight: '500',
     color: '#60a5fa',
     padding: 0,

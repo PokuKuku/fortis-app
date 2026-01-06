@@ -1000,7 +1000,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     completeSet: (exerciseLocalId, setLocalId) => {
-      const { activeSession, restTimerSettings } = get();
+      const { activeSession, restTimerSettings, weightUnits } = get();
       if (!activeSession) return;
 
       let completedSetType: SetType = 'normal';
@@ -1008,10 +1008,34 @@ export const useWorkoutStore = create<WorkoutState>()(
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
 
+        const setIndex = ex.sets.findIndex((s) => s.localId === setLocalId);
+        const previousSet = setIndex > 0 ? ex.sets[setIndex - 1] : undefined;
+        const currentWeightUnit = weightUnits[ex.exerciseId] || 'lbs';
+
         const sets = ex.sets.map((s) => {
           if (s.localId !== setLocalId) return s;
           completedSetType = s.setType;
-          return { ...s, isCompleted: !s.isCompleted };
+          const nextCompleted = !s.isCompleted;
+          if (!nextCompleted) {
+            return { ...s, isCompleted: nextCompleted };
+          }
+
+          const nextWeight =
+            s.weight !== null ? s.weight : (previousSet?.weight ?? null);
+          const nextReps =
+            s.reps !== null ? s.reps : (previousSet?.reps ?? null);
+          const nextWeightUnit =
+            nextWeight !== null
+              ? (s.weightUnit ?? currentWeightUnit)
+              : s.weightUnit ?? null;
+
+          return {
+            ...s,
+            isCompleted: nextCompleted,
+            weight: nextWeight,
+            reps: nextReps,
+            weightUnit: nextWeightUnit,
+          };
         });
 
         return { ...ex, sets };

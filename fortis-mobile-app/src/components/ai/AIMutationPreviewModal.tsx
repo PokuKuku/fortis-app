@@ -77,9 +77,9 @@ export function AIMutationPreviewModal({
     exerciseId: string;
   } | null>(null);
 
-  const isProgramDraft =
-    currentMutationPlan?.intent === 'CREATE_PROGRAM' ||
-    currentMutationPlan?.intent === 'CREATE_TEMPLATE';
+  const isProgramDraft = Boolean(
+    currentMutationPlan?.mutations?.some((mutation) => mutation.entityType === 'workout_program')
+  );
 
   useEffect(() => {
     if (visible && currentMutationPlan && isProgramDraft && !editableProgramDraft) {
@@ -99,7 +99,7 @@ export function AIMutationPreviewModal({
 
     let success: boolean;
     if (isProgramDraft && editableProgramDraft) {
-      // Use edited draft for CREATE_PROGRAM / CREATE_TEMPLATE
+      // Use edited draft for program/template mutations
       success = await applyEditableProgramDraft();
     } else {
       // Use original plan for other intents

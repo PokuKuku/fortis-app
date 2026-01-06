@@ -8,25 +8,19 @@ import { useAIStore } from '../store/aiStore';
 import { useWorkoutStore } from '../store/workoutStore';
 import { useProgramsStore } from '../store/programsStore';
 import { SuggestionContext } from '../types/suggestions';
-import { AIIntent } from '../types/ai';
 import { WorkoutSession } from '../types/workout';
 
 /**
  * Map AIIntent to mutation plan type
  */
 function getMutationPlanType(
-  intent?: AIIntent
+  intent?: string
 ): 'program' | 'template' | undefined {
   if (!intent) return undefined;
 
-  switch (intent) {
-    case 'CREATE_PROGRAM':
-      return 'program';
-    case 'CREATE_TEMPLATE':
-      return 'template';
-    default:
-      return undefined;
-  }
+  if (intent === 'CREATE_PROGRAM') return 'program';
+  if (intent === 'CREATE_TEMPLATE') return 'template';
+  return undefined;
 }
 
 /**

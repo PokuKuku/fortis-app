@@ -101,11 +101,11 @@ function AnimatedLoadingSparkles() {
   );
 }
 
-// Intent inference helper - simplified to only support ANALYZE_HISTORY
+// Intent inference helper - simplified to only support FORTIS_ANALYST
 const inferIntentFromMessage = (message: string): AIIntent => {
-  // All messages use ANALYZE_HISTORY intent
+  // All messages use FORTIS_ANALYST intent
   // CREATE_PROGRAM and CREATE_TEMPLATE intents are temporarily disabled
-  return 'ANALYZE_HISTORY';
+  return 'FORTIS_ANALYST';
 };
 
 export default function AIChatScreen() {
@@ -256,7 +256,7 @@ export default function AIChatScreen() {
   };
 
   const handleQuickAction = (_intent: AIIntent, prompt: string) => {
-    // Intent is always ANALYZE_HISTORY now, but we keep the parameter
+    // Intent is always FORTIS_ANALYST now, but we keep the parameter
     // for interface compatibility with ChatEmptyState
     setInputText(prompt);
   };

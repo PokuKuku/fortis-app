@@ -3,7 +3,7 @@ import { ClockIcon, XMarkIcon, CalendarDaysIcon } from 'react-native-heroicons/o
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
-import { scale, moderateScale } from '@/src/utils/responsive';
+import { scale, moderateScale, responsiveValue } from '@/src/utils/responsive';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
 import { useWorkoutStore, getRestTimerColor, getRestTimerBackgroundColor } from '@/src/store/workoutStore';
@@ -30,6 +30,9 @@ const REST_TIMER_MIN_WIDTH = scale(40);
 const RIGHT_COLUMN_GAP = scale(Spacing.xs);
 const RIGHT_COLUMN_MARGIN_TOP = -scale(Spacing.xs);
 const WORKOUT_NAME_SIZE = moderateScale(FontSizes.base);
+const WORKOUT_NAME_LETTER_SPACING = moderateScale(1);
+const TIMER_LETTER_SPACING = moderateScale(0.5);
+const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 
 // Weighted muscle data for the heatmap
 interface MuscleWeightData {
@@ -139,17 +142,31 @@ export function WorkoutHeader({
         <View style={styles.leftColumn}>
           {/* Workout Title */}
           {workoutName && (
-            <Text style={[styles.workoutName, themedStyles.workoutName]}>{workoutName}</Text>
+            <Text
+              style={[styles.workoutName, themedStyles.workoutName]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              allowFontScaling={false}
+            >
+              {workoutName}
+            </Text>
           )}
 
           {/* Timers Row */}
           <View style={styles.timersRow}>
             {/* Elapsed Time */}
-            <Text style={[
-              styles.elapsedTime,
-              themedStyles.elapsedTime,
-              elapsed >= 3600 && styles.elapsedTimeSmall
-            ]}>
+            <Text
+              style={[
+                styles.elapsedTime,
+                themedStyles.elapsedTime,
+                elapsed >= 3600 && styles.elapsedTimeSmall,
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              allowFontScaling={false}
+            >
               {formatElapsedTime(elapsed)}
             </Text>
 
@@ -164,7 +181,13 @@ export function WorkoutHeader({
                 { backgroundColor: restTimerBgColor }
               ]}
             >
-              <Text style={[styles.restTimerText, { color: restTimerColor }]}>
+              <Text
+                style={[styles.restTimerText, { color: restTimerColor }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.8}
+                allowFontScaling={false}
+              >
                 {formatRestTime(displaySeconds)}
               </Text>
             </Pressable>
@@ -176,7 +199,7 @@ export function WorkoutHeader({
         <View style={styles.rightColumn}>
           <MuscleHeatmap
             muscleWeights={muscleWeights || []}
-            scale={0.18}
+            scale={HEATMAP_SCALE}
             compact
           />
         </View>
@@ -230,7 +253,7 @@ const styles = StyleSheet.create({
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     fontVariant: ['tabular-nums'],
-    letterSpacing: 0.5,
+    letterSpacing: TIMER_LETTER_SPACING,
     minWidth: ELAPSED_MIN_WIDTH,
   },
   elapsedTimeSmall: {
@@ -251,7 +274,7 @@ const styles = StyleSheet.create({
     fontSize: REST_TIMER_FONT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     fontVariant: ['tabular-nums'],
-    letterSpacing: 0.5,
+    letterSpacing: TIMER_LETTER_SPACING,
     textAlign: 'center',
     minWidth: REST_TIMER_MIN_WIDTH,
   },
@@ -266,6 +289,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: WORKOUT_NAME_LETTER_SPACING,
   },
 });

@@ -6,7 +6,7 @@ import { Swipeable } from 'react-native-gesture-handler';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import { responsiveValue } from '@/src/utils/responsive';
+import { responsiveValue, moderateScale, scale } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getAccentGradient, getAccentRgba } from '@/src/utils/accentColors';
 import type { WeightUnit } from '@/src/types/workout';
@@ -33,6 +33,15 @@ const PREV_MIN_WIDTH = responsiveValue(56, 70, 80);
 const ROW_GAP = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 const COLUMN_PADDING_RIGHT = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 const REPS_MARGIN = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
+const SET_BADGE_TEXT_SIZE = moderateScale(FontSizes.sm);
+const PREVIOUS_TEXT_SIZE = moderateScale(FontSizes.sm);
+const INPUT_TEXT_SIZE = moderateScale(FontSizes.base);
+const INPUT_LETTER_SPACING = moderateScale(0.3);
+const RPE_BADGE_SIZE = scale(18);
+const RPE_BADGE_RADIUS = Math.round(RPE_BADGE_SIZE / 2);
+const RPE_BADGE_OFFSET = -scale(6);
+const RPE_BADGE_PADDING_X = scale(4);
+const RPE_BADGE_TEXT_SIZE = moderateScale(10);
 
 interface SetRowProps {
   exerciseLocalId: string;
@@ -792,9 +801,9 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   setBadgeText: {
-    fontSize: FontSizes.sm,
+    fontSize: SET_BADGE_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
-    letterSpacing: 0.3,
+    letterSpacing: INPUT_LETTER_SPACING,
   },
   previousCol: {
     flex: 1,
@@ -802,11 +811,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   previousText: {
-    fontSize: FontSizes.sm,
+    fontSize: PREVIOUS_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
     color: Colors.textTertiary,
-    letterSpacing: 0.3,
+    letterSpacing: INPUT_LETTER_SPACING,
   },
   inputWrapper: {
     // Wrapper for animated shake
@@ -840,11 +849,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   inputText: {
-    fontSize: FontSizes.base,
+    fontSize: INPUT_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textAlign: 'center',
-    letterSpacing: 0.3,
+    letterSpacing: INPUT_LETTER_SPACING,
     fontVariant: ['tabular-nums'],
   },
   placeholderText: {
@@ -896,20 +905,20 @@ const styles = StyleSheet.create({
   },
   rpeBadge: {
     position: 'absolute',
-    top: -6,
-    right: -6,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
+    top: RPE_BADGE_OFFSET,
+    right: RPE_BADGE_OFFSET,
+    minWidth: RPE_BADGE_SIZE,
+    height: RPE_BADGE_SIZE,
+    borderRadius: RPE_BADGE_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 4,
+    paddingHorizontal: RPE_BADGE_PADDING_X,
     zIndex: 10,
   },
   rpeBadgeText: {
-    fontSize: 10,
+    fontSize: RPE_BADGE_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.background,
-    letterSpacing: 0.3,
+    letterSpacing: INPUT_LETTER_SPACING,
   },
 });

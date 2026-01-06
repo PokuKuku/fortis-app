@@ -142,12 +142,12 @@ export async function sendAIMessage(
 // ============================================
 
 /**
- * Analyze user's lifting history
+ * Send a message to the Fortis analyst
  */
-export async function analyzeHistory(
+export async function askFortisAnalyst(
   query: string
 ): Promise<AIResponse> {
-  return sendAIMessage('ANALYZE_HISTORY', query);
+  return sendAIMessage('FORTIS_ANALYST', query);
 }
 // ============================================
 // Pending Actions Management
@@ -376,9 +376,7 @@ async function applyMutation(
           ...proposedState,
           created_by: proposedState.created_by ?? userId,
           is_ai_created: true,
-          is_template:
-            proposedState.is_template ??
-            (intent === 'CREATE_TEMPLATE' ? true : intent === 'CREATE_PROGRAM' ? false : undefined),
+          is_template: proposedState.is_template,
         };
       }
       if (mutation.entityType === 'workout_session') {
@@ -689,7 +687,7 @@ export function isWriteIntent(intent: AIIntent): boolean {
  */
 export function getIntentLabel(intent: AIIntent): string {
   const labels: Record<AIIntent, string> = {
-    ANALYZE_HISTORY: 'Analyze History',
+    FORTIS_ANALYST: 'Fortis Analyst',
   };
   return labels[intent];
 }

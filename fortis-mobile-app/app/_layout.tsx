@@ -14,6 +14,7 @@ import { AIContainer } from '@/src/components/ai';
 import { PostHogScreenTracker } from '@/src/components/analytics/PostHogScreenTracker';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
 import { PostHogRetentionTracker } from '@/src/components/analytics/PostHogRetentionTracker';
+import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics';
 import { isPostHogConfigured, posthogApiKey, posthogHost } from '@/src/lib/posthog';
 
 const PAGE_TRANSITION = {
@@ -169,6 +170,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             }}
           />
         </Stack>
+        <RouteChangeHaptics />
         {posthogEnabled && <PostHogScreenTracker />}
         {posthogEnabled && <PostHogRetentionTracker />}
         <WorkoutMiniBar />

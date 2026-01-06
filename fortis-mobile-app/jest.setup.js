@@ -12,9 +12,9 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 
 // Mock expo-haptics
 jest.mock('expo-haptics', () => ({
-  impactAsync: jest.fn(),
-  notificationAsync: jest.fn(),
-  selectionAsync: jest.fn(),
+  impactAsync: jest.fn(() => Promise.resolve()),
+  notificationAsync: jest.fn(() => Promise.resolve()),
+  selectionAsync: jest.fn(() => Promise.resolve()),
   ImpactFeedbackStyle: {
     Light: 'light',
     Medium: 'medium',
@@ -36,7 +36,8 @@ jest.mock('expo-router', () => ({
     canGoBack: jest.fn(() => true),
   }),
   useLocalSearchParams: () => ({}),
-  usePathname: () => '/',
+  usePathname: jest.fn(() => '/'),
+  useSegments: jest.fn(() => []),
   Link: 'Link',
   Stack: {
     Screen: 'Screen',

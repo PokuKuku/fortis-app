@@ -20,8 +20,8 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 // ============================================
 
 // Note: CREATE_PROGRAM and CREATE_TEMPLATE temporarily removed
-// Only ANALYZE_HISTORY is active
-type AIIntent = 'ANALYZE_HISTORY';
+// Only FORTIS_ANALYST is active
+type AIIntent = 'FORTIS_ANALYST';
 
 type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 
@@ -55,7 +55,7 @@ interface IntentConfig {
 }
 
 const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
-  ANALYZE_HISTORY: {
+  FORTIS_ANALYST: {
     type: 'read',
     defaultContextWeeks: 52,
     includeHistory: true,
@@ -304,7 +304,7 @@ function limitExerciseIds(ids: string[], limit: number): string[] {
 }
 
 function allowedOperationsForIntent(intent: AIIntent): Set<string> {
-  if (intent === 'ANALYZE_HISTORY') {
+  if (intent === 'FORTIS_ANALYST') {
     return new Set();
   }
   return new Set(['INSERT']);
@@ -631,14 +631,14 @@ Deno.serve(async (req: Request) => {
     const config = INTENT_CONFIG[aiRequest.intent];
     const requestId = crypto.randomUUID();
 
-    // ANALYZE_HISTORY always bypasses low signal check
-    const bypassLowSignal = aiRequest.intent === 'ANALYZE_HISTORY';
+    // FORTIS_ANALYST always bypasses low signal check
+    const bypassLowSignal = aiRequest.intent === 'FORTIS_ANALYST';
     if (!aiRequest.image && !bypassLowSignal && isLowSignalMessage(aiRequest.message)) {
       return jsonResponse({
         type: 'clarification',
         requestId,
         clarification: {
-          question: 'What would you like help with? You can ask about your stats, a specific exercise, or request a program.',
+          question: 'What would you like help with? You can ask about your stats, a specific exercise, or general training advice.',
         },
       }, 200, origin);
     }
@@ -1656,17 +1656,20 @@ function buildSystemPrompt(
   config: IntentConfig,
   context: AIContext
 ): string {
-  // Note: Only ANALYZE_HISTORY intent is currently active (read-only)
-  const intentGuidance = '\n- You are answering questions about training history and progress.'
+  // Note: Only FORTIS_ANALYST intent is currently active (read-only)
+  const intentGuidance = '\n- Blend user data with general training guidance; do not restrict answers to data only.'
+    + '\n- When mixing data with general guidance, label which parts are data-backed vs general.'
     + '\n- For time spent in a specific period, use TRAINING HISTORY totals (overview.totalDurationSeconds or weeklyVolume.totalTimeSeconds).'
     + '\n- Analytics userStats totals are lifetime-only; do not use them for week/month summaries.';
 
-  const basePrompt = `You are Fortis AI, an assistant for a strength training workout app. You help users with their training by providing data-driven insights.
+  const basePrompt = `You are Fortis AI, a training assistant for a strength training workout app. You help users by combining their training data with practical guidance.
 
 CORE PRINCIPLES:
-- Be a helpful data analyst. Surface patterns, trends, and evidence-backed insights.
-- Never invent data. Use only the provided context.
-- If evidence is weak or missing, say so explicitly and explain why. Do not hedge when evidence is strong.
+- Provide data-backed insights from the user's history when available and general training guidance when data is limited.
+- Never fabricate or imply user data that isn't in the provided context.
+- If you provide general guidance, make it clear it's general guidance.
+- Do not refer to yourself as a coach.
+- If evidence is weak or missing, say so explicitly and explain what data would help. Do not hedge when evidence is strong.
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
 - If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to and use them for analysis unless the user asks for a specific variation.
@@ -1696,7 +1699,7 @@ Respond with a JSON object:
 
 RULES:
 - Do not return mutation plans for read-only intents.
-- If the user asks to create or modify a workout/program, politely explain that workout creation is temporarily unavailable.`;
+- If the user asks to create or modify a workout/program in-app, explain that automatic creation is temporarily unavailable, but you can still suggest an outline or guidance.`;
   }
 
   // Note: Write intent prompts removed - only read intents are currently active
