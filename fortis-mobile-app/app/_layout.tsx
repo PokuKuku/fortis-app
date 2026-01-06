@@ -3,6 +3,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
 import { PostHogProvider } from 'posthog-react-native';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -21,6 +22,8 @@ const PAGE_TRANSITION = {
   animation: 'fade_from_bottom' as const,
   animationDuration: 220,
 };
+
+SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 /**
  * Themed content wrapper - uses theme context for StatusBar and Stack styling

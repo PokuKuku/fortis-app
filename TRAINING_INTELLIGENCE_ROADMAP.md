@@ -8,25 +8,33 @@ Tracking rules
 ## Phase 0: Foundations (Status: Not started)
 Last updated: TBD
 - [ ] Confirm IA change: replace Exercises tab with Insights
-- [ ] Add "Exercise Library" entry in Settings/Profile
-- [ ] Define insight types, evidence schema, and recommendation schema
-- [ ] Decide compute model (server-only vs hybrid)
-- [ ] Define conservatism settings (Chill / Standard / Aggressive)
+- [ ] Add one-tap Exercise Library entry point (Settings/Profile + Insights shortcut/search)
+- [ ] Define insight types (finite enum) and versioning
+- [ ] Define evidence item schema (key, label, value, unit, compareValue, deltaValue, source)
+- [ ] Define recommendation schema (type, payload, rationaleKey)
+- [ ] Decide compute model: server-truth + client-render (define offline stance)
+- [ ] Define conservatism thresholds (Chill / Standard / Aggressive)
 
 ## Phase 1: Insights Feed MVP (Status: Not started)
 Last updated: TBD
 - [ ] Persisted insights storage (server-side source of truth)
 - [ ] Weekly Verdict generator using existing analytics views
+- [ ] Dedupe/upsert policy for Weekly Verdict (natural key per user + window)
 - [ ] Insights tab feed with cached load (<300ms)
 - [ ] Card layout: title, summary, 2-4 evidence bullets, "Why?" CTA
-- [ ] Contextual chat opens with insightId + evidence reference
+- [ ] Contextual chat anchored to insightId; server fetches insight row
+- [ ] Prompt contract: explain only provided evidence, no invented metrics
 Acceptance criteria:
 - Weekly Verdict always shows with 2+ evidence bullets
 - Insights load from cache under 300ms
+- No duplicate Weekly Verdict per user per window
 
 ## Phase 2: Lift Watchlist (Status: Not started)
 Last updated: TBD
 - [ ] Per-exercise weekly aggregates (server-side)
+- [ ] Define top lifts selection method (frequency or volume) and window
+- [ ] Define exposure rule (completed session with >=1 working set)
+- [ ] e1RM guardrails (exclude warmups, cap reps, ignore incomplete sets)
 - [ ] Lift Stall Risk logic (flat/declining e1RM + volume)
 - [ ] Watchlist card (top 3-5 lifts)
 - [ ] "Not enough data yet" empty state
@@ -40,9 +48,14 @@ Last updated: TBD
 - [ ] Imbalance Flag logic (muscle group ratio or underdose)
 - [ ] Evidence detail view ("Why am I seeing this?")
 - [ ] Helpful / Not helpful feedback capture
+- [ ] Feedback suppression rules (suppress type or raise thresholds)
+- [ ] Card priority ordering (Weekly Verdict always, then high severity)
+- [ ] Dismiss/snooze insight cards or types
+- [ ] Instrumentation: impressions, "Why?" taps, chat opens, retention
 Acceptance criteria:
 - No more than 3 cards per refresh unless user is very active
 - Feedback can suppress noisy cards over time
+- Dismissed cards stay hidden for the window
 
 ## Phase 4: One-tap Actions (Optional) (Status: Not started)
 Last updated: TBD
@@ -51,3 +64,155 @@ Last updated: TBD
 - [ ] Track whether changes improved outcomes
 Acceptance criteria:
 - User can apply an action and undo it safely
+- Actions only update templates/programs, not historical sessions
+
+---
+
+# Implementation Addendum (Definitions + Contracts)
+
+## Insight Types (versioned enums)
+- WEEKLY_VERDICT_V1
+- LIFT_STALL_RISK_V1
+- FATIGUE_RISK_V1
+- IMBALANCE_FLAG_V1
+- Optional later: PR_READINESS_V1, CONSISTENCY_FLAG_V1
+
+## Severity enum
+- low / medium / high
+
+## Window enum
+- 7d / 4w / 12w
+
+## EvidenceItem schema (JSON)
+Required
+- key: string (stable machine key, e.g., volume_load, best_e1rm, sessions, hard_sets)
+- label: string (UI label)
+- value: number
+- unit: string (lb, kg, sets, workouts, %, e1rm)
+Optional
+- compareValue: number
+- deltaValue: number
+- source: string (weekly_workout_volume, exercise_weekly_agg, etc.)
+- period: string (this_week, last_week, last_4w, prev_4w)
+- schemaVersion: string (for backward compatibility)
+
+## Recommendation schema (JSON array)
+Each item
+- type: enum
+- ADD_SETS
+- DELOAD
+- CHANGE_REP_RANGE
+- INCREASE_FREQUENCY
+- SWAP_ACCESSORY
+- payload: object (typed by action type)
+- rationaleKey: enum
+- STALL_LOW_STIMULUS
+- STALL_TECHNIQUE_VARIATION (optional)
+- FATIGUE_ACCUMULATION
+- IMBALANCE_UNDERDOSED
+- CONSISTENCY_LOW (optional)
+
+## Conservatism thresholds (numeric)
+Chill
+- volumeSpikeWoW: +40%
+- e1rmDropForFatigue: -2.5%
+- stallFlatE1rmPct: +0.0% over 3 exposures
+- minExposures: 3
+- suggestionAddSetsMax: +1 set/week
+
+Standard
+- volumeSpikeWoW: +30%
+- e1rmDropForFatigue: -2.0%
+- stallFlatE1rmPct: +0.5% over 3 exposures
+- minExposures: 3
+- suggestionAddSetsMax: +2 sets/week
+
+Aggressive
+- volumeSpikeWoW: +20%
+- e1rmDropForFatigue: -1.5%
+- stallFlatE1rmPct: +1.0% over 3 exposures
+- minExposures: 3
+- suggestionAddSetsMax: +2 sets/week
+
+Caps
+- Never recommend > +10% weekly volume increase in one step
+- Deload recommendation: reduce sets 20-30% for 1 week
+
+## Insight dedupe/upsert (natural keys)
+Anchor date
+- WEEKLY_VERDICT_V1: week_start in user timezone
+- Other types: use current period start for window; include exercise_id or muscle_group when applicable
+Uniqueness (logical)
+- user_id + type + window + anchor_date + (exercise_id nullable) + (muscle_group nullable)
+
+## Source-of-truth rule
+- Mobile renders only persisted insights (no local computation of evidence)
+- Chat always receives insightId; server fetches insight row and uses its evidence/recommendations
+
+## Prompt contract (enforceable)
+- Use only evidence values from the insight record; do not invent metrics
+- Output: 1 diagnosis sentence + 1-3 recommended changes
+- Ask at most one question if critical context is missing
+
+## Phase 2 definitions
+Top lifts selection (recommended: frequency)
+- Look back 6 weeks
+- Rank exercises by count of distinct completed sessions containing >=1 working set
+- Take top 5; display 3-5
+
+Exposure definition
+- One exposure = one completed session with >=1 completed non-warmup working set
+
+e1RM guardrails
+- Epley: weight * (1 + min(reps, 12)/30)
+- Exclude warmups, incomplete sets, non-positive reps/weight
+- Normalize units before computing
+
+Stall risk trigger (V1)
+- Use last 3 exposures within 6 weeks
+- Trigger if e1rm_delta_pct <= stallFlatE1rmPct AND volume_delta_pct <= +5%
+- Severity: medium if flat/slight down; high if e1rm down and volume up
+Evidence
+- Best e1RM (3 exposures): X -> Y
+- Weekly sets or volume: A -> B
+
+## Phase 3 definitions
+Fatigue risk trigger (V1)
+- volume_spike_pct >= volumeSpikeWoW AND best_e1rm_delta_pct <= e1rmDropForFatigue
+Evidence
+- Volume WoW %
+- Best e1RM WoW %
+Recommendation
+- Deload 1 week (reduce sets 20-30%) or keep intensity and reduce volume
+
+Imbalance flag trigger (V1)
+- Compute hard sets per muscle group per week (working sets)
+- Flag if for 2+ weeks:
+  - push/pull ratio outside [0.7, 1.3], or
+  - any major group below baseline minimum
+Evidence
+- Back hard sets: X vs Chest: Y
+Recommendation
+- Add sets to underdosed group or swap accessory
+
+Feedback suppression
+- If "not helpful" for a type >=2 times in 30 days, suppress for 14 days or raise thresholds by +10%
+Card cap per refresh
+- Weekly Verdict always
+- Then severity desc, created_at desc
+- Max 3 unless sessions_this_week >= 5 (then allow 4)
+
+Dismiss/snooze
+- Dismiss: status=dismissed; hide until anchor_date changes
+- Snooze type: store until_date in user prefs
+
+## Phase 4 safety
+Action invariants
+- Actions only mutate templates/programs, never completed sessions
+- Each action writes an audit record (before/after + insight_id)
+- Undo restores the prior snapshot
+
+## Insights refresh trigger
+- After successful sync of a completed session, trigger:
+  - aggregate refresh for that user
+  - generate/upsert insights for current anchor_date
