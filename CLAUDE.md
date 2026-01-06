@@ -116,7 +116,8 @@ node scripts/generate-exercise-sql.js       # Generate SQL for exercises
 | Validate form input | `react-hook-form` + `zod` schema |
 | Format dates | `date-fns`: `format()`, `formatDistanceToNow()` |
 | Store data offline | `AsyncStorage.getItem/setItem` with JSON parse/stringify |
-| Generate UUIDs | `uuid.v4()` from `uuid` package |
+| Generate UUIDs | `import uuid from 'uuid'; uuid.v4()` |
+| Check network status | `@react-native-community/netinfo` |
 
 ## Architecture
 
@@ -172,13 +173,15 @@ fortis-mobile-app/
 - `fortis-mobile-app/components/` - Root-level shared glass morphism components
 - `fortis-mobile-app/src/components/` - Feature-specific components (ui/, workout/, ai/, hub/, program/)
 
-**Key Dependencies:** Zustand + AsyncStorage, react-hook-form + zod, react-native-reanimated, react-native-gesture-handler, react-native-heroicons/outline, date-fns, victory-native (charts), react-native-calendars, lucide-react-native, posthog-react-native (analytics)
+**Key Dependencies:** Zustand + AsyncStorage (state/persistence), react-hook-form + zod (forms), react-native-reanimated + react-native-gesture-handler (animations/gestures), react-native-heroicons/outline (icons), date-fns (dates), victory-native (charts), react-native-calendars, posthog-react-native (analytics), @supabase/supabase-js (backend)
 
 **TypeScript Path Alias:** Use `@/` prefix for imports from project root (e.g., `@/src/components/ui/BaseModal`)
 
 **Icons:** Use `react-native-heroicons/outline` for all icons. Props: `size`, `color`, `strokeWidth` (2-2.5 for visibility). Custom: `DumbbellIcon` in `src/components/icons/`.
 
 **Font:** `fontFamily: 'BankGothicMediumBT'` - loaded in `app/_layout.tsx`
+
+**React 19 Note:** Uses React 19 with automatic batching. No special handling needed for most cases.
 
 ## State Management
 
@@ -393,6 +396,21 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
 - `src/components/ui/`: Base primitives
 - `src/components/shared/`: Cross-feature
 - `src/components/[feature]/`: Feature-specific
+
+## AI Chat Feature
+
+The app includes an AI-powered workout assistant. See `tasks/AI_COORDINATION.md` for detailed architecture.
+
+**Key Files:**
+- `app/ai/chat.tsx` - Chat screen route
+- `src/store/aiStore.ts` - Conversation state, mutation handling
+- `src/services/aiService.ts` - API calls to edge function
+- `src/types/ai.ts` - TypeScript types and intent config
+- `supabase/functions/ai/index.ts` - Edge function (Claude integration)
+
+**Current Intents:** `CREATE_PROGRAM` (full program), `CREATE_TEMPLATE` (single workout)
+
+**Flow:** User message → aiStore → aiService → Supabase edge function → Claude → mutation preview → user confirms → applied to database
 
 ## Analytics (PostHog)
 
