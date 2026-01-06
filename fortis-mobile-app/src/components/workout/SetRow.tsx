@@ -34,7 +34,7 @@ const ROW_GAP = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 const COLUMN_PADDING_RIGHT = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 const REPS_MARGIN = responsiveValue(Spacing.xs, Spacing.sm, Spacing.sm);
 const SET_BADGE_TEXT_SIZE = moderateScale(FontSizes.sm);
-const PREVIOUS_TEXT_SIZE = moderateScale(FontSizes.sm);
+const PREVIOUS_TEXT_SIZE = moderateScale(FontSizes.base);
 const INPUT_TEXT_SIZE = moderateScale(FontSizes.base);
 const INPUT_LETTER_SPACING = moderateScale(0.3);
 const RPE_BADGE_SIZE = scale(18);
@@ -508,7 +508,7 @@ export function SetRow({
     const repsText = previousSetPerformance.reps.toString();
     if (!weightText || !repsText) return '—';
     const unitLabel = recordedWeightUnit ? ` ${recordedWeightUnit.toLowerCase()}` : '';
-    return `${repsText} reps × ${weightText}${unitLabel}`;
+    return `${repsText} × ${weightText}${unitLabel}`;
   })();
 
   const handleDelete = () => {
@@ -813,7 +813,7 @@ const styles = StyleSheet.create({
   previousText: {
     fontSize: PREVIOUS_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.textTertiary,
     letterSpacing: INPUT_LETTER_SPACING,
   },

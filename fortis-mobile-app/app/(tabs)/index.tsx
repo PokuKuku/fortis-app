@@ -1280,7 +1280,15 @@ export default function ProgramsScreen() {
             <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout} disabled={isWorkoutActive}>
               <View style={styles.startButtonInner}>
                 <PlayIcon color="#fff" size={START_ICON_SIZE} strokeWidth={2} />
-                <Text style={styles.startButtonText}>Start a Blank Workout</Text>
+                <Text
+                  style={styles.startButtonText}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  allowFontScaling={false}
+                >
+                  Start a Blank Workout
+                </Text>
               </View>
             </GlassButton>
           </View>
@@ -1584,6 +1592,8 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: START_BUTTON_TEXT_SIZE,
     fontWeight: '700',
+    flexShrink: 1,
+    textAlign: 'center',
   },
   cardsContainer: {
   },

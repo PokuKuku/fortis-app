@@ -382,15 +382,32 @@ export default function ActiveWorkoutScreen() {
       }
     }
 
-    // Validate: must have a value (either typed or autofilled)
+    // Allow empty weight to default to zero
+    if (finalValue === null && inputType === 'weight') {
+      finalValue = 0;
+    }
+
+    // Validate: reps still require a value (either typed or autofilled)
     if (finalValue === null) {
       setNumberPadError(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
-    // Save the value
-    updateSet(exerciseLocalId, setLocalId, { [inputType]: finalValue });
+    // Save the value (and default weight to 0 when logging reps)
+    const updates: { weight?: number; reps?: number } = inputType === 'weight'
+      ? { weight: finalValue }
+      : { reps: finalValue };
+    if (inputType === 'reps') {
+      const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+      const setIndex = exercise?.sets.findIndex(s => s.localId === setLocalId) ?? -1;
+      const set = setIndex >= 0 ? exercise?.sets[setIndex] : undefined;
+      const previousSet = setIndex > 0 ? exercise?.sets[setIndex - 1] : undefined;
+      if (set && set.weight === null && previousSet?.weight == null) {
+        updates.weight = 0;
+      }
+    }
+    updateSet(exerciseLocalId, setLocalId, updates);
 
     if (inputType === 'weight') {
       // Switch to reps input (keyboard stays open)
