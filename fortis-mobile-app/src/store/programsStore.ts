@@ -11,6 +11,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { syncLocalProgram, processPendingProgramQueue, removeFromPendingQueue } from '../services/programSyncService';
 import { getDefaultPrograms, getDefaultTemplates } from '../data/defaultPrograms';
 import { isLocalProgramId } from '../utils/localIds';
+import { generateUniqueName } from '../utils/nameUtils';
 import { useProgramProgressStore } from './programProgressStore';
 import { useStartPresetStore } from './startPresetStore';
 
@@ -698,6 +699,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Create a new workout template (saved as a single-workout program)
   // Falls back to local storage if Supabase is unavailable
   createWorkoutTemplate: async (name, exercises) => {
+    // Generate unique name to avoid duplicates
+    const { programs } = get();
+    const templateNames = programs.filter((p) => p.isTemplate).map((p) => p.name);
+    const uniqueName = generateUniqueName(name, templateNames);
+
     // Helper to save locally and attempt cloud sync
     const saveLocally = async () => {
       const localId = `local-${Date.now()}`;
@@ -706,7 +712,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       // Create a proper Program object with workouts array
       const localProgram: Program = {
         id: localId,
-        name,
+        name: uniqueName,
         description: undefined,
         difficulty: 'intermediate',
         goal: undefined,
@@ -721,7 +727,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         updatedAt: now,
         workouts: [{
           id: `${localId}-workout`,
-          name,
+          name: uniqueName,
           dayNumber: 1,
           exercises: exercises.map((ex, index) => ({
             id: `${localId}-ex-${index}`,
@@ -798,7 +804,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const { data: program, error: programError } = await supabase
         .from('workout_programs')
         .insert({
-          name,
+          name: uniqueName,
           difficulty: 'intermediate',
           is_public: false,
           is_default: false,
@@ -819,7 +825,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         .from('program_workouts')
         .insert({
           program_id: program.id,
-          name,
+          name: uniqueName,
           day_number: 1,
         })
         .select()
@@ -925,6 +931,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return null;
     }
 
+    // Generate unique name to avoid duplicates
+    const { programs } = get();
+    const programNames = programs.filter((p) => !p.isTemplate).map((p) => p.name);
+    const uniqueName = generateUniqueName(name, programNames);
+
     const templates = workouts.map((workout) => {
       const template = get().programs.find(
         (program) => program.id === workout.templateId && program.isTemplate
@@ -956,7 +967,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       const localProgram: Program = {
         id: localId,
-        name,
+        name: uniqueName,
         description: options?.description,
         difficulty: options?.difficulty ?? 'intermediate',
         goal: options?.goal,
@@ -1014,7 +1025,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const { data: program, error: programError } = await supabase
         .from('workout_programs')
         .insert({
-          name,
+          name: uniqueName,
           description: options?.description,
           difficulty: options?.difficulty ?? 'intermediate',
           goal: options?.goal,

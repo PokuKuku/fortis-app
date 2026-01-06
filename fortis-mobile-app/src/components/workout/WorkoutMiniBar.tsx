@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TouchableOpacity, useWindowDimensions } from 'react-native';
-import { usePathname, useSegments, useGlobalSearchParams, router } from 'expo-router';
+import { usePathname, useSegments, router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Pause, Play, X } from 'lucide-react-native';
 import { Colors } from '@/constants/Colors';
@@ -30,7 +30,6 @@ function getCurrentExerciseName(session: ReturnType<typeof useWorkoutStore>['act
 export function WorkoutMiniBar() {
   const pathname = usePathname();
   const segments = useSegments();
-  const { source } = useGlobalSearchParams<{ source?: string }>();
   const { colors, isDark } = useTheme();
   const {
     activeSession,
@@ -64,8 +63,8 @@ export function WorkoutMiniBar() {
   const isOnSplashScreen = segments.length === 0 || (segments[0] !== '(tabs)' && pathname === '/');
   const isOnWorkoutScreen = pathname === '/workout/active';
   const isOnAIScreen = pathname === '/ai/chat';
-  const isFromWorkoutModal = source === 'workout-modal';
-  const isOnFullscreenRoute = isOnWorkoutScreen || isOnAIScreen || isFromWorkoutModal;
+  const isOnExerciseDetailScreen = pathname.startsWith('/exercise/');
+  const isOnFullscreenRoute = isOnWorkoutScreen || isOnAIScreen || isOnExerciseDetailScreen;
 
   // Check if on main programs page (tabs home)
   const isOnMainProgramsPage = segments[0] === '(tabs)' && (pathname === '/' || segments[1] === 'index');

@@ -1,3 +1,153 @@
+# Fix "Save as Template" Button Not Appearing
+
+## Todo
+- [x] Replace `hasTemplateModifications()` function with Map-based approach
+- [ ] Test: Add exercise to template, verify button appears
+- [ ] Test: Change set counts, verify button appears
+- [ ] Test: No changes, verify button does NOT appear
+
+## Implementation Notes
+- Bug on line 2478 (old): condition `originalSetCounts.length === exercises.length` was too strict
+- Replaced index-based comparison with Map-based approach
+- Handles all edge cases: additions, removals, set count changes
+
+## Review
+
+### Summary
+Fixed critical bug in `hasTemplateModifications()` that prevented the "Save as Template" button from appearing when users modified workouts started from templates. The issue was caused by an overly strict array length comparison that skipped set count detection when exercise count changed.
+
+### File Modified
+**`fortis-mobile-app/src/store/workoutStore.ts`** (lines 2454-2521)
+
+### Changes Made
+
+1. **Replaced index-based set count comparison** with Map-based approach:
+   - **Old approach:** Required `originalSetCounts.length === exercises.length` before checking set counts
+   - **New approach:** Maps exercise IDs to original set counts, works regardless of array length
+
+2. **Added comprehensive JSDoc** explaining all detected modification types
+
+3. **Improved modification detection logic:**
+   - Exercise additions/removals (count check)
+   - Exercise replacements/reordering (position check)
+   - Set count changes (Map lookup by exercise ID)
+
+### Key Improvement: Map-Based Set Count Detection
+
+**Before (Buggy):**
+```typescript
+// Skipped entirely if lengths don't match!
+if (session.originalSetCounts && session.originalSetCounts.length === session.exercises.length) {
+  const hasSetChanges = session.exercises.some(
+    (ex, index) => ex.sets.length !== session.originalSetCounts![index]
+  );
+  if (hasSetChanges) return true;
+}
+```
+
+**After (Fixed):**
+```typescript
+// Build Map of exerciseId -> original set count
+const originalSetCountMap = new Map<string, number>();
+for (let i = 0; i < originalIds.length; i++) {
+  const exerciseId = originalIds[i];
+  const setCount = session.originalSetCounts[i];
+  if (exerciseId && setCount !== undefined) {
+    originalSetCountMap.set(exerciseId, setCount);
+  }
+}
+
+// Check each exercise by ID (works even if array lengths differ)
+const hasSetCountChanges = session.exercises.some(exercise => {
+  const originalSetCount = originalSetCountMap.get(exercise.exerciseId);
+  if (originalSetCount !== undefined) {
+    return exercise.sets.length !== originalSetCount;
+  }
+  return false;
+});
+```
+
+### Why This Fix Works
+
+1. **No longer dependent on array length** - Map lookup works regardless of additions/removals
+2. **Tracks modifications by exercise ID** - Survives exercise reordering
+3. **Handles edge cases** - Gracefully handles missing baseline data
+4. **Performance:** O(n) time complexity with single Map creation
+5. **Maintainable:** Clear comments and logical flow
+
+### Testing
+
+Test the following scenarios:
+
+1. **Add exercise to "KB Pull"** ✅ Button should appear
+2. **Change set counts** ✅ Button should appear
+3. **Remove exercise** ✅ Button should appear
+4. **No modifications** ✅ Button should NOT appear
+5. **Combined changes (add exercise + change set counts)** ✅ Button should appear
+
+---
+
+# Fix Mini Player Visibility on Exercise Detail Screen (V2)
+
+## Todo
+- [x] Update WorkoutMiniBar.tsx route detection logic
+- [x] Remove unused `isFromWorkoutModal` variable
+- [x] Remove unused `useGlobalSearchParams` import
+- [ ] Test implementation
+
+## Implementation Notes
+- Adding `isOnExerciseDetailScreen` check using `pathname.startsWith('/exercise/')`
+- This follows the same pattern as existing checks for `/workout/active` and `/ai/chat`
+- More reliable than query param-based detection
+
+## Review
+
+### Summary
+Fixed the mini player visibility issue by adding pathname-based detection for exercise detail routes. The mini player now correctly hides when viewing exercise details during an active workout session.
+
+### File Modified
+**`fortis-mobile-app/src/components/workout/WorkoutMiniBar.tsx`**
+
+### Changes Made
+
+1. **Line 3** - Removed unused `useGlobalSearchParams` import (no longer needed)
+
+2. **Line 33** - Removed unused `source` variable extraction (cleaned up)
+
+3. **Lines 67-68** - Updated fullscreen route detection:
+   - **Added:** `const isOnExerciseDetailScreen = pathname.startsWith('/exercise/');`
+   - **Removed:** `const isFromWorkoutModal = source === 'workout-modal';` (unreliable query param check)
+   - **Updated:** `isOnFullscreenRoute` now includes `isOnExerciseDetailScreen` instead of `isFromWorkoutModal`
+
+### Why This Works
+
+- **Pathname-based detection is reliable:** The `pathname` from `usePathname()` updates immediately on route changes
+- **Consistent with existing patterns:** Follows the same approach as `/workout/active` and `/ai/chat` checks
+- **Simpler logic:** Single boolean check instead of query parameter dependency
+- **Covers all cases:** Mini player hides on ANY exercise detail view, not just from workout context
+
+### Testing Checklist
+
+Test the following scenarios:
+
+1. **From Active Workout → Exercise Detail:**
+   - Start a workout → tap exercise name to view details
+   - ✅ Mini player should fade out and disappear
+   - Navigate back
+   - ✅ Mini player should fade back in
+
+2. **From Exercises Tab → Exercise Detail (with active workout):**
+   - Have active workout → navigate to Exercises tab
+   - ✅ Mini player should be visible
+   - Tap exercise to view details
+   - ✅ Mini player should disappear
+
+3. **No Active Workout:**
+   - Navigate to any exercise detail without active workout
+   - ✅ Mini player should not appear (existing behavior)
+
+---
+
 # Add Time Columns to CSV Export
 
 ## Overview
@@ -493,3 +643,57 @@ Implemented tighter rate limits for beta to stay within $50/month budget for 200
 cd supabase
 supabase db push --dns-resolver https
 ```
+
+---
+
+# Fix Duplicate Workout/Program Naming
+
+## Overview
+
+When users create a workout or program with a name that already exists, it now automatically appends a number suffix to avoid duplicates.
+
+## Todo
+- [x] Create nameUtils.ts utility function
+- [x] Create nameUtils.test.ts unit tests (19 passing)
+- [x] Integrate into createWorkoutTemplate()
+- [x] Integrate into createProgram()
+- [x] Run tests to verify
+
+## Review
+
+### Summary
+
+Added automatic duplicate name detection for workout templates and programs. When a user creates "KB Pull" and another "KB Pull" already exists, the new one becomes "KB Pull 2".
+
+### Files Created
+
+1. **`fortis-mobile-app/src/utils/nameUtils.ts`** (NEW)
+   - `generateUniqueName(baseName, existingNames)` function
+   - Case-insensitive comparison
+   - Handles special characters, whitespace, and numeric suffixes
+
+2. **`fortis-mobile-app/src/utils/__tests__/nameUtils.test.ts`** (NEW)
+   - 19 unit tests covering all edge cases
+
+### Files Modified
+
+1. **`fortis-mobile-app/src/store/programsStore.ts`**
+   - Added import for `generateUniqueName`
+   - Updated `createWorkoutTemplate()` to generate unique names for templates
+   - Updated `createProgram()` to generate unique names for programs
+
+### Behavior
+
+| Scenario | Input | Existing | Output |
+|----------|-------|----------|--------|
+| No duplicate | "KB Pull" | [] | "KB Pull" |
+| One duplicate | "KB Pull" | ["KB Pull"] | "KB Pull 2" |
+| Multiple duplicates | "KB Pull" | ["KB Pull", "KB Pull 2"] | "KB Pull 3" |
+| Case-insensitive | "KB Pull" | ["kb pull"] | "KB Pull 2" |
+| Gaps in numbering | "KB Pull" | ["KB Pull", "KB Pull 5"] | "KB Pull 6" |
+
+### Notes
+
+- Templates and programs are checked separately (templates only checked against templates, programs against programs)
+- The original name is preserved if it's unique
+- Special characters like parentheses and colons work correctly

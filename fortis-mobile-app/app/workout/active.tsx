@@ -90,6 +90,7 @@ export default function ActiveWorkoutScreen() {
   const setNumberPadError = useWorkoutStore(s => s.setNumberPadError);
   const showRestTimerComplete = useWorkoutStore(s => s.showRestTimerComplete);
   const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
+  const updateCompletedWorkoutName = useWorkoutStore(s => s.updateCompletedWorkoutName);
 
   const handleDismiss = () => {
     if (isNavigating.current) return;
@@ -358,9 +359,27 @@ export default function ActiveWorkoutScreen() {
   };
 
   // Handle template save success
-  const handleTemplateSaveSuccess = () => {
+  // Must update the completed workout name AFTER finishWorkout() moves it to completedSessions
+  const handleTemplateSaveSuccess = async (templateName?: string) => {
     setShowSaveTemplateModal(false);
-    handleConfirmFinish();
+
+    // Capture localId BEFORE finishWorkout() clears activeSession
+    const sessionLocalId = activeSession?.localId;
+
+    // Finish the workout (this moves session to completedSessions)
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    await finishWorkout();
+
+    // NOW update the completed workout's name (session exists in completedSessions)
+    if (templateName && sessionLocalId) {
+      await updateCompletedWorkoutName(sessionLocalId, templateName);
+    }
+
+    setShowFinishModal(false);
+    setFinishSnapshot(null);
+    router.back();
+    setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
   // Handle number pad confirm - implements perpetuating keyboard flow with autofill
@@ -566,12 +585,12 @@ export default function ActiveWorkoutScreen() {
         }}
         onConfirm={handleConfirmFinish}
         onSaveAsTemplate={
-          hasTemplateModifications(activeSession) && !activeSession?.programWorkoutId
+          hasTemplateModifications(activeSession)
             ? handleSaveAsTemplate
             : undefined
         }
         saveTemplateLabel={
-          activeSession?.programId && !activeSession?.programWorkoutId
+          activeSession?.programId
             ? 'Save as New Template'
             : undefined
         }

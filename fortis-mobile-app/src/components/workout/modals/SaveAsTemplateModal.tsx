@@ -16,7 +16,7 @@ import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanima
 interface SaveAsTemplateModalProps {
   visible: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (templateName?: string) => void;
   session: WorkoutSession | null;
 }
 
@@ -102,10 +102,11 @@ export function SaveAsTemplateModal({
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
         // Wait for success animation, then close
+        // Pass template name so parent can update completed workout name after finishWorkout()
         setTimeout(() => {
           setShowSuccess(false);
           setTemplateName('');
-          onSuccess();
+          onSuccess(templateName.trim());
         }, 1500);
       } else {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);

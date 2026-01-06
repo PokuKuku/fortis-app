@@ -221,6 +221,7 @@ interface WorkoutState {
   importCompletedSessions: (
     sessions: WorkoutSession[]
   ) => Promise<{ imported: number; skipped: number; skippedSync: number }>;
+  updateCompletedWorkoutName: (localId: string, newName: string) => Promise<void>;
   resetStore: () => void;
   clearCompletedSessions: () => Promise<void>;
 
@@ -1525,6 +1526,41 @@ export const useWorkoutStore = create<WorkoutState>()(
       return { imported: newSessions.length, skipped, skippedSync };
     },
 
+    updateCompletedWorkoutName: async (localId, newName) => {
+      const { completedSessions } = get();
+
+      // Find and update the session
+      let didChange = false;
+      const updatedSessions = completedSessions.map((session) => {
+        if (session.localId === localId && session.name !== newName) {
+          didChange = true;
+          return { ...session, name: newName };
+        }
+        return session;
+      });
+
+      if (!didChange) return;
+
+      // Update state
+      set({ completedSessions: updatedSessions });
+
+      // Persist to AsyncStorage
+      try {
+        await setScopedItem(COMPLETED_WORKOUTS_KEY, JSON.stringify(updatedSessions));
+      } catch (error) {
+        console.warn('Failed to persist updated workout name:', error);
+      }
+
+      // If the session is already synced, update in Supabase too
+      const updatedSession = updatedSessions.find((s) => s.localId === localId);
+      if (updatedSession?.isSynced) {
+        // Re-sync to update the name in the cloud
+        syncWorkoutSession(updatedSession).catch((error) => {
+          console.warn('Failed to sync updated workout name to cloud:', error);
+        });
+      }
+    },
+
     // ========================================
     // Sticky Notes Actions
     // ========================================
@@ -2417,35 +2453,70 @@ export const hasIncompleteSets = (session: WorkoutSession | null): boolean => {
 
 /**
  * Check if workout has template modifications (for showing "Save as Template" button)
- * Returns true if: blank workout OR template workout with exercise changes
+ * Returns true if: blank workout OR template workout with ANY exercise/set changes
+ *
+ * Modification types detected:
+ * - Exercise additions/removals
+ * - Exercise replacements (different ID at same position)
+ * - Exercise reordering
+ * - Set count changes for existing exercises
  */
 export const hasTemplateModifications = (session: WorkoutSession | null): boolean => {
   if (!session) return false;
 
-  // Blank workout - always show save option
+  // Blank workout (no template/program attached) - always show save option
   if (!session.programId || !session.originalExerciseIds) {
     return true;
   }
 
-  // Get current exercise IDs
+  // Get current state
   const currentIds = session.exercises.map(ex => ex.exerciseId);
   const originalIds = session.originalExerciseIds;
 
-  // Check if exercise count differs (additions or removals)
-  if (currentIds.length !== originalIds.length) return true;
-
-  // Check if any exercise was replaced (same count but different IDs)
-  const hasChanges = currentIds.some((id, index) => id !== originalIds[index]);
-  if (hasChanges) return true;
-
-  // Check if any set count changed for an exercise
-  if (session.originalSetCounts && session.originalSetCounts.length === session.exercises.length) {
-    const hasSetChanges = session.exercises.some(
-      (ex, index) => ex.sets.length !== session.originalSetCounts![index]
-    );
-    if (hasSetChanges) return true;
+  // 1. CHECK FOR EXERCISE COUNT CHANGES (additions or removals)
+  if (currentIds.length !== originalIds.length) {
+    return true;
   }
 
+  // 2. CHECK FOR EXERCISE REPLACEMENTS OR REORDERING
+  const hasPositionChanges = currentIds.some((id, index) => id !== originalIds[index]);
+  if (hasPositionChanges) {
+    return true;
+  }
+
+  // 3. CHECK FOR SET COUNT CHANGES (Map-based approach handles edge cases)
+  if (session.originalSetCounts && session.originalSetCounts.length > 0) {
+    // Build map of exercise ID → original set count
+    const originalSetCountMap = new Map<string, number>();
+
+    for (let i = 0; i < originalIds.length; i++) {
+      const exerciseId = originalIds[i];
+      const setCount = session.originalSetCounts[i];
+
+      if (exerciseId && setCount !== undefined) {
+        originalSetCountMap.set(exerciseId, setCount);
+      }
+    }
+
+    // Check if any current exercise has different set count than original
+    const hasSetCountChanges = session.exercises.some(exercise => {
+      const originalSetCount = originalSetCountMap.get(exercise.exerciseId);
+
+      // If we have baseline data for this exercise, compare set counts
+      if (originalSetCount !== undefined) {
+        return exercise.sets.length !== originalSetCount;
+      }
+
+      // No baseline data - assume no change (conservative approach)
+      return false;
+    });
+
+    if (hasSetCountChanges) {
+      return true;
+    }
+  }
+
+  // No modifications detected
   return false;
 };
 
