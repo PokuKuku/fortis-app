@@ -51,6 +51,14 @@ interface SetRowProps {
   showCheckboxes?: boolean;
   previousSet?: WorkoutSet;
   lastPerformance?: LastPerformance | null;
+  baselinePerformance?: {
+    sets: Array<{
+      weight: number | null;
+      weightUnit?: WeightUnit | null;
+      reps: number | null;
+      setType: string;
+    }>;
+  };
   completedSetTint?: 'accent' | 'success';
 }
 
@@ -62,6 +70,7 @@ export function SetRow({
   showCheckboxes,
   previousSet,
   lastPerformance,
+  baselinePerformance,
   completedSetTint = 'accent',
 }: SetRowProps) {
   const { colors, isDark } = useTheme();
@@ -496,14 +505,22 @@ export function SetRow({
     ?.filter(s => s.setType === set?.setType) ?? [];
   const previousSetPerformance = previousSetsOfType[typeIndex];
 
-  const recordedWeightUnit = previousSetPerformance?.weightUnit
+  // Fall back to baseline performance if no workout history exists
+  const baselineSetsOfType = baselinePerformance?.sets
+    ?.filter(s => s.setType === set?.setType) ?? [];
+  const baselineSetPerformance = baselineSetsOfType[typeIndex];
+
+  // Use last performance if available, otherwise fall back to baseline
+  const effectivePerformance = previousSetPerformance || baselineSetPerformance;
+
+  const recordedWeightUnit = effectivePerformance?.weightUnit
     || previousUnitRef.current
     || currentWeightUnit;
   const previousText = (() => {
-    if (!previousSetPerformance) return '—';
-    if (previousSetPerformance.weight == null || previousSetPerformance.reps == null) return '—';
-    const weightText = formatValue(previousSetPerformance.weight);
-    const repsText = previousSetPerformance.reps.toString();
+    if (!effectivePerformance) return '—';
+    if (effectivePerformance.weight == null || effectivePerformance.reps == null) return '—';
+    const weightText = formatValue(effectivePerformance.weight);
+    const repsText = effectivePerformance.reps.toString();
     if (!weightText || !repsText) return '—';
     const unitLabel = recordedWeightUnit ? ` ${recordedWeightUnit.toLowerCase()}` : '';
     return `${repsText} × ${weightText}${unitLabel}`;

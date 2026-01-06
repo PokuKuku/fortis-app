@@ -55,7 +55,8 @@ interface ProgramsState {
       reps: string;
       restSeconds?: number;
       setDetails?: TemplateSetDetail[];
-    }>
+    }>,
+    lastPerformedAt?: Date | string | null
   ) => Promise<string | null>;
   createProgram: (
     name: string,
@@ -698,11 +699,16 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   // Create a new workout template (saved as a single-workout program)
   // Falls back to local storage if Supabase is unavailable
-  createWorkoutTemplate: async (name, exercises) => {
+  createWorkoutTemplate: async (name, exercises, lastPerformedAt) => {
     // Generate unique name to avoid duplicates
     const { programs } = get();
     const templateNames = programs.filter((p) => p.isTemplate).map((p) => p.name);
     const uniqueName = generateUniqueName(name, templateNames);
+
+    // Convert lastPerformedAt to ISO string if it's a Date object
+    const lastPerformedAtISO = lastPerformedAt
+      ? (lastPerformedAt instanceof Date ? lastPerformedAt.toISOString() : lastPerformedAt)
+      : null;
 
     // Helper to save locally and attempt cloud sync
     const saveLocally = async () => {
@@ -721,7 +727,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         isDefault: false,
         isAiCreated: false,
         isTemplate: true,
-        lastPerformedAt: null,
+        lastPerformedAt: lastPerformedAtISO,
         createdBy: 'local',
         createdAt: now,
         updatedAt: now,
@@ -810,6 +816,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           is_default: false,
           is_ai_created: false,
           is_template: true,
+          last_performed_at: lastPerformedAtISO,
           created_by: session.user.id,
         })
         .select()

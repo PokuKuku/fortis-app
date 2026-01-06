@@ -312,6 +312,7 @@ export function ExerciseCard({
               showCheckboxes={shouldShowCheckboxes}
               previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
               lastPerformance={lastPerformance}
+              baselinePerformance={exercise.baselinePerformance}
               completedSetTint={completedSetTint}
             />
           ))}

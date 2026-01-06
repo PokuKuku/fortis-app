@@ -245,6 +245,7 @@ interface WorkoutState {
   updatePendingValue: (value: string) => void;
   setNumberPadError: (hasError: boolean) => void;
   setValidationErrorsBySet: (errors: Record<string, { weight?: boolean; reps?: boolean }>) => void;
+  applyPendingValueToRemainingSets: () => boolean;
 
   // Actions - RPE Selector
   openRpeSelector: () => void;
@@ -428,6 +429,14 @@ export const useWorkoutStore = create<WorkoutState>()(
             sets,
             notes: templateEx.notes || '',
             orderIndex: exIndex,
+            baselinePerformance: templateEx.setDetails ? {
+              sets: templateEx.setDetails.map((detail, idx) => ({
+                weight: detail.weight,
+                weightUnit: exerciseWeightUnit,
+                reps: detail.reps,
+                setType: sets[idx]?.setType || 'normal',
+              })),
+            } : undefined,
           };
         });
 
@@ -1833,6 +1842,45 @@ export const useWorkoutStore = create<WorkoutState>()(
         validationErrorsBySet: errors,
         validationErrorsTrigger: state.validationErrorsTrigger + 1,
       }));
+    },
+
+    applyPendingValueToRemainingSets: () => {
+      const { activeNumberPad, activeSession } = get();
+      if (!activeNumberPad || !activeSession) return false;
+
+      const { exerciseLocalId, setLocalId, inputType, pendingValue } = activeNumberPad;
+
+      // Find the exercise and current set
+      const exercise = activeSession.exercises.find(ex => ex.localId === exerciseLocalId);
+      if (!exercise) return false;
+
+      const setIndex = exercise.sets.findIndex(s => s.localId === setLocalId);
+      if (setIndex === -1) return false;
+
+      // Determine value to apply: pending value or current saved value
+      const currentSet = exercise.sets[setIndex];
+      const valueToApply = pendingValue.trim()
+        ? Number(pendingValue)
+        : currentSet[inputType];
+
+      if (valueToApply === null || valueToApply === undefined || Number.isNaN(valueToApply)) {
+        return false;
+      }
+
+      // Find remaining incomplete sets with different values
+      const remainingSets = exercise.sets.slice(setIndex + 1);
+      const setsToUpdate = remainingSets.filter(
+        s => !s.isCompleted && s[inputType] !== valueToApply
+      );
+
+      if (setsToUpdate.length === 0) return false;
+
+      // Update each set
+      setsToUpdate.forEach(s => {
+        get().updateSet(exerciseLocalId, s.localId, { [inputType]: valueToApply });
+      });
+
+      return true;
     },
 
     // ========================================

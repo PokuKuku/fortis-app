@@ -41,6 +41,14 @@ export interface WorkoutExercise {
   sets: WorkoutSet[];
   notes: string;
   orderIndex: number;
+  baselinePerformance?: {    // Template baseline for Previous column
+    sets: Array<{
+      weight: number | null;
+      weightUnit?: WeightUnit | null;
+      reps: number | null;
+      setType: SetType;
+    }>;
+  };
 }
 
 /**

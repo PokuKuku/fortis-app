@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { BackspaceIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
+import { BackspaceIcon, ChevronDoubleDownIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -87,6 +87,7 @@ export function NumberPadModal({
   const toggleWeightUnit = useWorkoutStore(s => s.toggleWeightUnit);
   const updateSet = useWorkoutStore(s => s.updateSet);
   const updateEditorSet = useWorkoutStore(s => s.updateEditorSet);
+  const applyPendingValueToRemainingSets = useWorkoutStore(s => s.applyPendingValueToRemainingSets);
 
   // Get current RPE value for the active set
   const getCurrentRpe = (): RpeValue => {
@@ -204,6 +205,16 @@ export function NumberPadModal({
     toggleWeightUnit(currentExercise.exerciseId);
   };
 
+  const handleFillDown = () => {
+    if (useEditor) return; // Only available during active workout
+    const applied = applyPendingValueToRemainingSets();
+    if (applied) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    }
+  };
+
   const panGesture = Gesture.Pan()
     .activeOffsetY(10)
     .failOffsetX([-15, 15])
@@ -242,9 +253,6 @@ export function NumberPadModal({
 
   return (
     <View style={styles.absoluteContainer} pointerEvents="box-none">
-      {/* Empty space above keyboard - pointerEvents="none" allows touches to pass through to FlatList */}
-      <View style={styles.backdrop} pointerEvents="none" />
-
       {/* Keyboard */}
       <GestureDetector gesture={panGesture}>
         <Animated.View
@@ -366,6 +374,20 @@ export function NumberPadModal({
                 </Pressable>
               </View>
 
+              {/* Fill Down button - only in active workout mode */}
+              {!useEditor && (
+                <Pressable
+                  onPress={handleFillDown}
+                  style={({ pressed }) => [
+                    styles.controlButton,
+                    themedStyles.controlButton,
+                    pressed && themedStyles.buttonPressed,
+                  ]}
+                >
+                  <ChevronDoubleDownIcon size={20} color={colors.textPrimary} strokeWidth={2} />
+                </Pressable>
+              )}
+
               {/* Next button with gradient */}
               <Pressable
                 onPress={handleNext}
@@ -416,9 +438,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 1000,
-  },
-  backdrop: {
-    flex: 1,
   },
   container: {
     position: 'absolute',

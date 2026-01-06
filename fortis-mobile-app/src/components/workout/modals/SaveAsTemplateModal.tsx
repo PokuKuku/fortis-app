@@ -57,16 +57,18 @@ export function SaveAsTemplateModal({
 
   if (!visible || !session) return null;
 
-  // Convert workout exercises to template format
-  const exercisesForTemplate = session.exercises
-    .filter(ex => ex.sets.some(s => s.isCompleted))
-    .map(ex => ({
-      exerciseId: ex.exerciseId,
-      exerciseName: ex.exerciseName,
-      sets: ex.sets.filter(s => s.isCompleted).length,
-      reps: '8-12', // Default rep range
-      restSeconds: 120,
-    }));
+  // Convert workout exercises to template format (save entire workout state including weight/reps)
+  const exercisesForTemplate = session.exercises.map(ex => ({
+    exerciseId: ex.exerciseId,
+    exerciseName: ex.exerciseName,
+    sets: ex.sets.length, // Save all sets, not just completed ones
+    reps: '8-12', // Default rep range
+    restSeconds: 120,
+    setDetails: ex.sets.map(set => ({
+      weight: set.weight,
+      reps: set.reps,
+    })),
+  }));
 
   const handleSave = async () => {
     if (!templateName.trim() || exercisesForTemplate.length === 0) {
@@ -86,7 +88,9 @@ export function SaveAsTemplateModal({
           sets: ex.sets,
           reps: ex.reps,
           restSeconds: ex.restSeconds,
-        }))
+          setDetails: ex.setDetails,
+        })),
+        session.completedAt || session.startedAt
       );
 
       if (result) {
