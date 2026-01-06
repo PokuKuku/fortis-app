@@ -449,19 +449,9 @@ export function SetRow({
     }
   };
 
-  // Get set type background color for row tinting
+  // Get set type background color for row tinting (disabled - all sets have transparent backgrounds)
   const getSetTypeStyle = () => {
-    if (set.isCompleted) return null; // Completed state takes priority
-    switch (set.setType) {
-      case 'warmup':
-        return { backgroundColor: colors.warmupOverlay, borderColor: colors.warmupBorder };
-      case 'dropset':
-        return { backgroundColor: colors.dropsetOverlay, borderColor: colors.dropsetBorder };
-      case 'failure':
-        return { backgroundColor: colors.failureOverlay, borderColor: colors.failureBorder };
-      default:
-        return null;
-    }
+    return null;
   };
 
   const weightUnits = useWorkoutStore(s => s.weightUnits);

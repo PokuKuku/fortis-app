@@ -230,6 +230,49 @@
     │ total_volume             │
     │ last_trained             │
     └──────────────────────────┘
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         TRAINING INTELLIGENCE                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ┌──────────────────┐
+    │  profiles        │
+    │──────────────────│
+    │ id (PK)          │
+    │ ...              │
+    │ conservatism_lvl │  (chill/standard/aggressive)
+    └────────┬─────────┘
+             │ 1
+             │
+             │ M
+    ┌────────▼─────────┐
+    │training_insights │
+    │──────────────────│
+    │ id (PK)          │
+    │ user_id (FK)     │
+    │ type             │  (WEEKLY_VERDICT_V1, LIFT_STALL_RISK_V1, ...)
+    │ window           │  (7d/4w/12w)
+    │ anchor_date      │
+    │ subject_key      │  (global/exercise:<uuid>/muscle:<group>)
+    │ severity         │  (low/medium/high)
+    │ status           │  (active/dismissed)
+    │ title            │
+    │ summary          │
+    │ evidence         │  (JSONB array)
+    │ recommendation   │  (JSONB array)
+    │ schema_version   │
+    │ exercise_id (FK) │──────────┐
+    │ muscle_group     │          │ optional, for filtering
+    │ created_at       │          │
+    │ updated_at       │          │
+    └──────────────────┘          ▼
+                           ┌──────────────────┐
+                           │  exercises       │
+                           │──────────────────│
+                           │ id (PK)          │
+                           │ ...              │
+                           └──────────────────┘
 ```
 
 ## Table Relationships Summary
@@ -242,6 +285,7 @@
 - `profiles` → `exercises` (user can create custom exercises)
 - `profiles` → `workout_programs` (user can create programs)
 - `profiles` → `workout_sessions` (user has many workout sessions)
+- `profiles` → `training_insights` (user has many server-generated insights)
 - `workout_programs` → `program_workouts` (program has many workouts)
 - `program_workouts` → `program_exercises` (workout has many exercises)
 - `workout_sessions` → `workout_sets` (session has many sets)
@@ -275,6 +319,12 @@ All tables have RLS policies ensuring:
 **Workout Sessions & Sets**
 - Users can only access their own workout data
 - Full CRUD operations on own data
+
+**Training Insights** (Server-truth model)
+- Users can SELECT their own insights
+- Users can UPDATE their own insights (for dismiss/reactivate only)
+- No client INSERT - server (Edge Function) inserts via service_role
+- No client DELETE - insights are dismissed, not deleted
 
 ### Offline-First Design
 
@@ -449,6 +499,14 @@ CREATE INDEX idx_exercises_category ON exercises(category);
 CREATE INDEX idx_exercises_level ON exercises(level);
 CREATE INDEX idx_exercises_equipment ON exercises(equipment);
 CREATE INDEX idx_exercises_primary_muscles ON exercises USING GIN(primary_muscles);
+
+-- Training insights queries
+CREATE INDEX idx_training_insights_user_created
+  ON training_insights(user_id, created_at DESC);
+CREATE INDEX idx_training_insights_user_status
+  ON training_insights(user_id, status) WHERE status = 'active';
+CREATE UNIQUE INDEX idx_training_insights_dedupe
+  ON training_insights(user_id, type, window, anchor_date, subject_key);
 ```
 
 ### Query Optimization Tips
@@ -553,7 +611,7 @@ ORDER BY idx_scan ASC;
 
 ---
 
-**Schema Version**: 1.0.0
-**Last Updated**: 2025-12-04
+**Schema Version**: 1.1.0
+**Last Updated**: 2026-01-06
 **PostgreSQL Version**: 15+
 **Supabase Compatible**: Yes
