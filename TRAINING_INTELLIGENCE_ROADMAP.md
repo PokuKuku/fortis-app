@@ -4,6 +4,7 @@ Tracking rules
 - Status values: Not started / In progress / Done / Blocked
 - Update cadence: update status + "Last updated" when any task changes
 - Evidence links: add PRs/screenshots/analytics notes under each phase
+- North Star: INSIGHTS_NORTH_STAR.md
 
 ## Phase 0: Foundations (Status: Not started)
 Last updated: TBD
