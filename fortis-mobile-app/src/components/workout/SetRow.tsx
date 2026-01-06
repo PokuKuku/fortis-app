@@ -487,7 +487,15 @@ export function SetRow({
       : stringValue;
   };
 
-  const previousSetPerformance = lastPerformance?.sets[setIndex];
+  // Type-aware previous matching: Warmup 1 → prev Warmup 1, Normal 1 → prev Normal 1
+  const typeIndex = exercise?.sets
+    .slice(0, setIndex)
+    .filter(s => s.setType === set?.setType)
+    .length ?? 0;
+  const previousSetsOfType = lastPerformance?.sets
+    ?.filter(s => s.setType === set?.setType) ?? [];
+  const previousSetPerformance = previousSetsOfType[typeIndex];
+
   const recordedWeightUnit = previousSetPerformance?.weightUnit
     || previousUnitRef.current
     || currentWeightUnit;

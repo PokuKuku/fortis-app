@@ -390,6 +390,46 @@ templateId → startWorkoutFromTemplate() → load template → create activeSes
 
 ---
 
+# Hide Mini Bar from Workout Modal Exercise Details
+
+## Goal
+Hide WorkoutMiniBar when viewing exercise details from AddExerciseModal during active workout.
+
+## Todo
+- [x] Update active.tsx to pass `?source=workout-modal` param (both handlers)
+- [x] Update WorkoutMiniBar.tsx to check source param and hide
+- [x] Fix: Use `useGlobalSearchParams` instead of `useLocalSearchParams`
+
+## Review
+
+### Summary
+Implemented conditional hiding of the WorkoutMiniBar when viewing exercise details from ANY context within an active workout session.
+
+### Key Learning
+`useLocalSearchParams` only reads params from the route where the component is mounted. Since `WorkoutMiniBar` is in the root layout (`_layout.tsx`), it couldn't see params from child routes like `/exercise/[id]`. Fixed by using `useGlobalSearchParams` which reads from the globally selected route.
+
+### Files Modified
+
+1. **`fortis-mobile-app/app/workout/active.tsx`**
+   - `handleViewExerciseDetails` (line 277) - Added `?source=workout-modal` param (kebab menu)
+   - `handleModalExerciseDetails` (line 285) - Added `?source=workout-modal` param (AddExerciseModal)
+
+2. **`fortis-mobile-app/src/components/workout/WorkoutMiniBar.tsx`**
+   - Changed `useLocalSearchParams` → `useGlobalSearchParams` (reads from any visible route)
+   - Added `isFromWorkoutModal` check: `source === 'workout-modal'`
+   - Extended `isOnFullscreenRoute` to include `isFromWorkoutModal`
+
+### Behavior
+
+| Navigation Path | Mini Bar Visible? |
+|----------------|-------------------|
+| Active workout → Kebab menu → View Details | ❌ Hidden |
+| Active workout → AddExerciseModal → Exercise detail | ❌ Hidden |
+| Exercises tab → Exercise detail (workout active) | ✅ Visible |
+| History → Past workout → Exercise detail | ✅ Visible |
+
+---
+
 # Beta Rate Limits
 
 ## Todo

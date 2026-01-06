@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/src/lib/supabase';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import type { WorkoutSession, WorkoutExercise, WeightUnit } from '@/src/types/workout';
+import type { WorkoutSession, WorkoutExercise, WeightUnit, SetType } from '@/src/types/workout';
 
 interface LastPerformanceSet {
   weight: number | null;
   reps: number | null;
   weightUnit: WeightUnit | null;
+  setType: SetType;
 }
 
 export interface LastPerformance {
@@ -106,7 +107,6 @@ export function useLastExercisePerformance(
           .eq('exercise_id', exerciseId)
           .eq('workout_sessions.user_id', user.id)
           .not('workout_sessions.completed_at', 'is', null)
-          .eq('is_warmup', false)
           .order('workout_sessions(completed_at)', { ascending: false })
           .order('set_number', { ascending: true });
 
@@ -146,11 +146,20 @@ export function useLastExercisePerformance(
         });
 
         if (!isActive) return;
-        setLastPerformance(buildLastPerformance(exerciseId, orderedSets.map((set) => ({
-          weight: set.weight ?? null,
-          reps: set.reps ?? null,
-          weightUnit: (set as { weight_unit?: WeightUnit | null }).weight_unit ?? null,
-        }))));
+        setLastPerformance(buildLastPerformance(exerciseId, orderedSets.map((set) => {
+          // Determine setType from database flags
+          let setType: SetType = 'normal';
+          if (set.is_warmup) setType = 'warmup';
+          else if (set.is_dropset) setType = 'dropset';
+          else if (set.is_failure) setType = 'failure';
+
+          return {
+            weight: set.weight ?? null,
+            reps: set.reps ?? null,
+            weightUnit: (set as { weight_unit?: WeightUnit | null }).weight_unit ?? null,
+            setType,
+          };
+        })));
       } catch (err) {
         console.error('Error in useLastExercisePerformance:', err);
         if (!isActive) return;
@@ -208,8 +217,9 @@ export function getLatestExercisePerformance(
 
   if (!latestExercise) return null;
 
-  const orderedSets = [...latestExercise.sets]
-    .filter((set) => set.setType !== 'warmup')
+  // Type assertion needed due to TypeScript narrowing limitation with forEach closures
+  const exercise = latestExercise as WorkoutExercise;
+  const orderedSets = [...exercise.sets]
     .sort((a, b) => a.orderIndex - b.orderIndex);
 
   if (orderedSets.length === 0) return null;
@@ -220,6 +230,7 @@ export function getLatestExercisePerformance(
       weight: set.weight ?? null,
       reps: set.reps ?? null,
       weightUnit: set.weightUnit ?? null,
+      setType: set.setType || 'normal',
     }))
   );
 }

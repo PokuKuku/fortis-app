@@ -39,6 +39,56 @@ import { generateSecureUUID as generateId } from '../utils/uuid';
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
 
+/**
+ * Helper to get the set type from the most recent matching workout history.
+ * Used to inherit set types when creating new sets.
+ */
+function getSetTypeFromHistory(
+  completedSessions: WorkoutSession[],
+  exerciseId: string,
+  setIndex: number,
+  context?: { programWorkoutId?: string; programId?: string; workoutName?: string }
+): SetType {
+  // Find the most recent matching session
+  const isMatchingWorkout = (session: WorkoutSession) => {
+    if (context?.programWorkoutId) {
+      return session.programWorkoutId === context.programWorkoutId;
+    }
+    if (context?.programId) {
+      return session.programId === context.programId;
+    }
+    if (context?.workoutName) {
+      return session.name === context.workoutName;
+    }
+    return true;
+  };
+
+  let latestExercise: WorkoutExercise | null = null;
+  let latestTimestamp = -1;
+
+  completedSessions.forEach((session) => {
+    if (!isMatchingWorkout(session)) return;
+    const exercise = session.exercises.find((ex) => ex.exerciseId === exerciseId);
+    if (!exercise) return;
+
+    const timestamp = (session.completedAt ?? session.startedAt).getTime();
+    if (timestamp > latestTimestamp) {
+      latestTimestamp = timestamp;
+      latestExercise = exercise;
+    }
+  });
+
+  if (!latestExercise) return 'normal';
+
+  // Get the set at the same index if it exists
+  // Type assertion needed due to TypeScript narrowing limitation with forEach closures
+  const exercise = latestExercise as WorkoutExercise;
+  const orderedSets = [...exercise.sets].sort((a, b) => a.orderIndex - b.orderIndex);
+  const previousSet = orderedSets[setIndex];
+
+  return previousSet?.setType || 'normal';
+}
+
 const loadProgramsStore = async () => {
   try {
     return await import('./programsStore');
@@ -336,7 +386,15 @@ export const useWorkoutStore = create<WorkoutState>()(
         }
 
         // Create exercises with pre-filled sets from template
-        const { weightUnits } = get();
+        const { weightUnits, completedSessions } = get();
+
+        // Build context for history lookup
+        const context = {
+          programWorkoutId: workout.id,
+          programId: template.id,
+          workoutName: template.name,
+        };
+
         const exercises: WorkoutExercise[] = workout.exercises.map((templateEx, exIndex) => {
           const exerciseWeightUnit = weightUnits[templateEx.exerciseId] || 'lbs';
           // Create sets based on template's setDetails or default empty sets
@@ -345,10 +403,12 @@ export const useWorkoutStore = create<WorkoutState>()(
 
           for (let i = 0; i < numSets; i++) {
             const setDetail = templateEx.setDetails?.[i];
+            const inheritedSetType = getSetTypeFromHistory(completedSessions, templateEx.exerciseId, i, context);
+
             sets.push({
               localId: generateId(),
               setNumber: i + 1,
-              setType: 'normal',
+              setType: inheritedSetType,
               weight: setDetail?.weight ?? null,
               weightUnit: exerciseWeightUnit,
               reps: setDetail?.reps ?? null,
@@ -436,17 +496,27 @@ export const useWorkoutStore = create<WorkoutState>()(
         const { useProgramProgressStore } = await loadProgramProgressStore();
         useProgramProgressStore.getState().startProgram(programId);
 
-        const { weightUnits } = get();
+        const { weightUnits, completedSessions } = get();
+
+        // Build context for history lookup
+        const context = {
+          programWorkoutId,
+          programId,
+          workoutName: workout.name,
+        };
+
         const exercises: WorkoutExercise[] = workout.exercises.map((programEx, exIndex) => {
           const exerciseWeightUnit = weightUnits[programEx.exerciseId] || 'lbs';
           const sets: WorkoutSet[] = [];
           const numSets = programEx.sets;
 
           for (let i = 0; i < numSets; i++) {
+            const inheritedSetType = getSetTypeFromHistory(completedSessions, programEx.exerciseId, i, context);
+
             sets.push({
               localId: generateId(),
               setNumber: i + 1,
-              setType: 'normal',
+              setType: inheritedSetType,
               weight: null,
               weightUnit: exerciseWeightUnit,
               reps: null,
@@ -734,9 +804,17 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     addExercise: (exerciseId, exerciseName) => {
-      const { activeSession, weightUnits } = get();
+      const { activeSession, weightUnits, completedSessions } = get();
       if (!activeSession) return;
       const exerciseWeightUnit = weightUnits[exerciseId] || 'lbs';
+
+      // Get set type from history (for first set, index 0)
+      const context = {
+        programWorkoutId: activeSession.programWorkoutId,
+        programId: activeSession.programId,
+        workoutName: activeSession.name,
+      };
+      const inheritedSetType = getSetTypeFromHistory(completedSessions, exerciseId, 0, context);
 
       const newExercise: WorkoutExercise = {
         localId: generateId(),
@@ -746,7 +824,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           {
             localId: generateId(),
             setNumber: 1,
-            setType: 'normal',
+            setType: inheritedSetType,
             weight: null,
             weightUnit: exerciseWeightUnit,
             reps: null,
@@ -771,32 +849,44 @@ export const useWorkoutStore = create<WorkoutState>()(
     },
 
     addExercises: (exercises) => {
-      const { activeSession, weightUnits } = get();
+      const { activeSession, weightUnits, completedSessions } = get();
       if (!activeSession) return;
 
+      // Build context for history lookup
+      const context = {
+        programWorkoutId: activeSession.programWorkoutId,
+        programId: activeSession.programId,
+        workoutName: activeSession.name,
+      };
+
       const startIndex = activeSession.exercises.length;
-      const newExercises: WorkoutExercise[] = exercises.map((ex, i) => ({
-        localId: generateId(),
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        sets: [
-          {
-            localId: generateId(),
-            setNumber: 1,
-            setType: 'normal',
-            weight: null,
-            weightUnit: weightUnits[ex.id] || 'lbs',
-            reps: null,
-            rpe: null,
-            restSeconds: null,
-            notes: '',
-            isCompleted: false,
-            orderIndex: 0,
-          },
-        ],
-        notes: '',
-        orderIndex: startIndex + i,
-      }));
+      const newExercises: WorkoutExercise[] = exercises.map((ex, i) => {
+        // Get inherited set type for first set
+        const inheritedSetType = getSetTypeFromHistory(completedSessions, ex.id, 0, context);
+
+        return {
+          localId: generateId(),
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          sets: [
+            {
+              localId: generateId(),
+              setNumber: 1,
+              setType: inheritedSetType,
+              weight: null,
+              weightUnit: weightUnits[ex.id] || 'lbs',
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          notes: '',
+          orderIndex: startIndex + i,
+        };
+      });
 
       set({
         activeSession: {
@@ -909,17 +999,26 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     addSet: (exerciseLocalId) => {
-      const { activeSession, weightUnits } = get();
+      const { activeSession, weightUnits, completedSessions } = get();
       if (!activeSession) return;
+
+      // Build context for history lookup
+      const context = {
+        programWorkoutId: activeSession.programWorkoutId,
+        programId: activeSession.programId,
+        workoutName: activeSession.name,
+      };
 
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
 
-        const lastSet = ex.sets[ex.sets.length - 1];
+        const newSetIndex = ex.sets.length; // Index of the new set being added
+        const inheritedSetType = getSetTypeFromHistory(completedSessions, ex.exerciseId, newSetIndex, context);
+
         const newSet: WorkoutSet = {
           localId: generateId(),
           setNumber: ex.sets.length + 1,
-          setType: 'normal',
+          setType: inheritedSetType,
           weight: null,
           weightUnit: weightUnits[ex.exerciseId] || 'lbs',
           reps: null,

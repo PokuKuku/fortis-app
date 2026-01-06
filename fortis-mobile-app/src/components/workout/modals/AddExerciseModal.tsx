@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -111,6 +111,7 @@ export function AddExerciseModal({
   const isProcessing = useRef(false);
   const listRef = useRef<FlatList<Exercise>>(null);
   const lastScrollOffset = useRef(0);
+  const pendingScrollRestore = useRef(false);
   const isModalVisible = visible && !suspended;
 
   // Reset state when modal closes
@@ -235,16 +236,28 @@ export function AddExerciseModal({
     lastScrollOffset.current = event.nativeEvent.contentOffset.y;
   };
 
-  useEffect(() => {
-    if (!isModalVisible || lastScrollOffset.current <= 0) return;
-    const frameId = requestAnimationFrame(() => {
-      listRef.current?.scrollToOffset({
-        offset: lastScrollOffset.current,
-        animated: false,
-      });
-    });
-    return () => cancelAnimationFrame(frameId);
+  // Set flag to restore scroll when modal becomes visible again
+  // useLayoutEffect runs synchronously before native layout, ensuring flag is set before onContentSizeChange fires
+  useLayoutEffect(() => {
+    if (isModalVisible && lastScrollOffset.current > 0) {
+      pendingScrollRestore.current = true;
+    }
   }, [isModalVisible]);
+
+  // Restore scroll position once FlatList content is ready
+  const handleContentSizeChange = (_width: number, height: number) => {
+    // Only attempt scroll when content has actual height (ignore initial empty-content callbacks)
+    if (pendingScrollRestore.current && lastScrollOffset.current > 0 && height > 0) {
+      pendingScrollRestore.current = false;
+      // Wait one frame for layout to fully settle
+      requestAnimationFrame(() => {
+        listRef.current?.scrollToOffset({
+          offset: lastScrollOffset.current,
+          animated: false,
+        });
+      });
+    }
+  };
 
   const renderExercise = ({ item }: { item: Exercise }) => {
     const selected = isSelected(item.id);
@@ -414,6 +427,7 @@ export function AddExerciseModal({
             keyboardShouldPersistTaps="handled"
             scrollEventThrottle={16}
             onScroll={handleListScroll}
+            onContentSizeChange={handleContentSizeChange}
           />
 
           {/* Add Button (only in add mode) */}

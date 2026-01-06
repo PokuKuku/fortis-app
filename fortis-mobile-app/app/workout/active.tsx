@@ -274,7 +274,7 @@ export default function ActiveWorkoutScreen() {
   const handleViewExerciseDetails = (exerciseId: string) => {
     if (isNavigating.current) return;
     isNavigating.current = true;
-    router.push(`/exercise/${exerciseId}`);
+    router.push(`/exercise/${exerciseId}?source=workout-modal`);
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
@@ -282,7 +282,7 @@ export default function ActiveWorkoutScreen() {
     if (isNavigating.current) return;
     isNavigating.current = true;
     setAddExerciseSuspended(true);
-    router.push(`/exercise/${exerciseId}`);
+    router.push(`/exercise/${exerciseId}?source=workout-modal`);
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 

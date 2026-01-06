@@ -412,6 +412,13 @@ The app includes an AI-powered workout assistant. See `tasks/AI_COORDINATION.md`
 
 **Flow:** User message → aiStore → aiService → Supabase edge function → Claude → mutation preview → user confirms → applied to database
 
+**Adding a New AI Intent:**
+1. Add to `AIIntent` union in `src/types/ai.ts`
+2. Add to `INTENT_CONFIG` in `src/types/ai.ts`
+3. Update `ACTION_TYPE_BY_INTENT` in `src/services/aiService.ts`
+4. Add intent handling in `supabase/functions/ai/index.ts`
+5. Update intent inference in `app/ai/chat.tsx`
+
 ## Analytics (PostHog)
 
 Track user events for product analytics:
@@ -452,3 +459,26 @@ rm -rf node_modules && npm install && npm start
 
 - Commit messages: short, imperative verbs in sentence case
 - Examples: "Add workout history", "Fix missing SVG paths", "Refactor auth UI"
+
+## Key Debugging Patterns
+
+**Active Workout Flow:**
+```
+app/(tabs)/start.tsx → router.push('/workout/active') → workoutStore.startWorkout()
+                                                      → activeSession state
+                                                      → ExerciseCard/SetRow components
+```
+
+**Template Creation Flow:**
+```
+Kebab menu → /workout/create?mode=template → workoutStore.initEditorSession()
+                                           → editorSession state
+                                           → saveEditorAsTemplate() → programsStore
+```
+
+**Offline Sync Flow:**
+```
+Local change → AsyncStorage (local_id, is_synced=false)
+Online detected → supabase.upsert({ onConflict: 'user_id,local_id' })
+Success → AsyncStorage (is_synced=true)
+```
