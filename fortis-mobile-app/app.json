@@ -9,7 +9,6 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/fortis-app-icon-gradient-fill.png",
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0a"
     },

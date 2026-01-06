@@ -13,12 +13,12 @@ Complete development plan for building the Fortis mobile app MVP.
 ## Phase 1: Foundation & Setup (Week 1)
 
 ### 1.1 Project Initialization
-- [ ] Create Expo project with TypeScript template
-- [ ] Set up Git repository structure
-- [ ] Configure `.gitignore` for React Native
-- [ ] Create environment variable setup (`.env.local`)
-- [ ] Set up ESLint and Prettier
-- [ ] Configure TypeScript strict mode
+- [x] Create Expo project with TypeScript template
+- [x] Set up Git repository structure
+- [x] Configure `.gitignore` for React Native
+- [x] Create environment variable setup (`.env.local`)
+- [x] Set up ESLint and Prettier
+- [x] Configure TypeScript strict mode
 
 ### 1.2 Project Structure
 ```
@@ -38,24 +38,24 @@ fortis-mobile-app/
 ```
 
 ### 1.3 Core Dependencies Installation
-- [ ] **Navigation**: `expo-router` (file-based routing)
-- [ ] **UI Library**: `react-native-reusables` (shadcn/ui for RN) or `tamagui`
-- [ ] **State Management**: `zustand` (lightweight, simple)
-- [ ] **Forms**: `react-hook-form` + `zod` validation
-- [ ] **Date/Time**: `date-fns`
-- [ ] **Icons**: `lucide-react-native`
+- [x] **Navigation**: `expo-router` (file-based routing)
+- [x] **UI Library**: Custom design system (Glass UI components)
+- [x] **State Management**: `zustand` (lightweight, simple)
+- [x] **Forms**: `react-hook-form` + `zod` validation
+- [x] **Date/Time**: `date-fns`
+- [x] **Icons**: `lucide-react-native`
 
 ### 1.4 Supabase Setup
-- [ ] Install `@supabase/supabase-js`
-- [ ] Create Supabase client configuration
-- [ ] Set up environment variables (URL, anon key)
-- [ ] Test connection to Supabase
+- [x] Install `@supabase/supabase-js`
+- [x] Create Supabase client configuration
+- [x] Set up environment variables (URL, anon key)
+- [x] Test connection to Supabase
 
-### 1.5 Offline Database Setup
-- [ ] Install `@powersync/react-native` or `WatermelonDB`
-- [ ] Configure local SQLite database
-- [ ] Set up schema mirroring Supabase
-- [ ] Create sync service
+### 1.5 Offline Data & Sync
+- [x] Persist active/completed sessions locally (AsyncStorage)
+- [x] Queue sync when offline and retry on reconnect
+- [x] Sync workout sessions/sets + custom exercises to Supabase
+- [ ] Local SQLite mirror (PowerSync/WatermelonDB) - not implemented
 
 ---
 
