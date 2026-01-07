@@ -23,6 +23,7 @@ import {
   SwatchIcon,
   ChatBubbleLeftEllipsisIcon,
   BugAntIcon,
+  MagnifyingGlassIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -194,6 +195,11 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleOpenExerciseLibrary = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push('/exercises');
+  };
+
   // Theme-aware card styles
   const cardStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
@@ -290,6 +296,17 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Data</Text>
 
             <View style={[styles.settingsCard, cardStyle]}>
+              <SettingsRow
+                icon={<MagnifyingGlassIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Exercise Library"
+                onPress={handleOpenExerciseLibrary}
+                showChevron
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
               <SettingsRow
                 icon={<ArrowDownTrayIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Export to CSV"

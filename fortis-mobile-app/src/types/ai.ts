@@ -80,6 +80,7 @@ export interface AIRequestContext {
   exerciseId?: string;       // For exercise-specific queries
   programId?: string;        // For program-specific queries
   templateId?: string;       // For template-specific queries
+  insightId?: string;        // For insight-specific queries
   periodWeeks?: number;      // Override default context window
   historyOnly?: boolean;     // Restrict exercises to user's history only
 }

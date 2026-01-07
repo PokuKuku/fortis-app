@@ -130,6 +130,15 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="exercises/index"
+            options={{
+              animation: 'slide_from_right',
+              animationDuration: 220,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
             name="workouts/[id]"
             options={{
               animation: 'slide_from_right',

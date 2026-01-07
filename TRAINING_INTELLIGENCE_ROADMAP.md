@@ -6,42 +6,59 @@ Tracking rules
 - Evidence links: add PRs/screenshots/analytics notes under each phase
 - North Star: INSIGHTS_NORTH_STAR.md
 
-## Phase 0: Foundations (Status: Not started)
-Last updated: TBD
-- [ ] Confirm IA change: replace Exercises tab with Insights
-- [ ] Add one-tap Exercise Library entry point (Settings/Profile + Insights shortcut/search)
-- [ ] Define insight types (finite enum) and versioning
-- [ ] Define evidence item schema (key, label, value, unit, compareValue, deltaValue, source)
-- [ ] Define recommendation schema (type, payload, rationaleKey)
-- [ ] Decide compute model: server-truth + client-render (define offline stance)
-- [ ] Define conservatism thresholds (Chill / Standard / Aggressive)
+## Phase 0: Foundations (Status: Done)
+Last updated: 2026-01-07
+- [x] Confirm IA change: replace Exercises tab with Insights
+- [x] Add one-tap Exercise Library entry point (Settings/Profile + Insights shortcut/search)
+- [x] Define insight types (finite enum) and versioning
+- [x] Define evidence item schema (key, label, value, unit, compareValue, deltaValue, source)
+- [x] Define recommendation schema (type, payload, rationaleKey)
+- [x] Decide compute model: server-truth + client-render (define offline stance)
+- [x] Define conservatism thresholds (Chill / Standard / Aggressive)
+Evidence:
+- Local changes (no PR yet)
 
-## Phase 1: Insights Feed MVP (Status: Not started)
-Last updated: TBD
-- [ ] Persisted insights storage (server-side source of truth)
-- [ ] Weekly Verdict generator using existing analytics views
-- [ ] Dedupe/upsert policy for Weekly Verdict (natural key per user + window)
-- [ ] Insights tab feed with cached load (<300ms)
-- [ ] Card layout: title, summary, 2-4 evidence bullets, "Why?" CTA
-- [ ] Contextual chat anchored to insightId; server fetches insight row
-- [ ] Prompt contract: explain only provided evidence, no invented metrics
+## Phase 1: Insights Feed MVP (Status: Done)
+Last updated: 2026-01-07
+- [x] Persisted insights storage (server-side source of truth)
+- [x] Weekly Verdict generator using existing analytics views
+- [x] Dedupe/upsert policy for Weekly Verdict (natural key per user + window)
+- [x] Insights tab feed with cached load (<300ms)
+- [x] Card layout: title, summary, 2-4 evidence bullets, "Why?" CTA
+- [x] Contextual chat anchored to insightId; server fetches insight row
+- [x] Prompt contract: explain only provided evidence, no invented metrics
+Evidence:
+- Local changes (no PR yet)
 Acceptance criteria:
 - Weekly Verdict always shows with 2+ evidence bullets
 - Insights load from cache under 300ms
 - No duplicate Weekly Verdict per user per window
 
-## Phase 2: Lift Watchlist (Status: Not started)
-Last updated: TBD
-- [ ] Per-exercise weekly aggregates (server-side)
-- [ ] Define top lifts selection method (frequency or volume) and window
-- [ ] Define exposure rule (completed session with >=1 working set)
-- [ ] e1RM guardrails (exclude warmups, cap reps, ignore incomplete sets)
-- [ ] Lift Stall Risk logic (flat/declining e1RM + volume)
-- [ ] Watchlist card (top 3-5 lifts)
-- [ ] "Not enough data yet" empty state
+## Phase 2: Lift Watchlist (Status: Done)
+Last updated: 2026-01-07
+- [x] Per-exercise weekly aggregates (server-side)
+- [x] Define top lifts selection method (frequency or volume) and window
+- [x] Define exposure rule (completed session with >=1 working set)
+- [x] e1RM guardrails (exclude warmups, cap reps, ignore incomplete sets)
+- [x] Lift Stall Risk logic (flat/declining e1RM + volume)
+- [x] Watchlist card (top 3-5 lifts)
+- [x] "Not enough data yet" empty state
+Evidence:
+- Local changes (no PR yet)
 Acceptance criteria:
 - Stall risk matches defined window and shows evidence values
 - Watchlist never shows for lifts with <3 exposures
+
+## Phase 2.5: Trust + Habit Hardening (Status: Done)
+Last updated: 2026-01-07
+- [x] Server-side week boundaries using profile timezone
+- [x] Guardrail for suspicious deltas (suppress volume delta when implausible)
+- [x] Watchlist states: all clear / not enough data
+- [x] Watchlist reason line + bounded suggestion
+- [x] Dismiss insight + snooze type for 14 days
+- [x] Instrumentation: insights_viewed, verdict_why_tapped, watchlist_item_opened, chat_opened_from_insight, insight_dismissed
+Evidence:
+- Local changes (no PR yet)
 
 ## Phase 3: Fatigue + Balance + Feedback (Status: Not started)
 Last updated: TBD

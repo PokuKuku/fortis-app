@@ -93,6 +93,43 @@ interface ThemeChangedProps {
   accentColor: string;
 }
 
+/** Insights viewed event properties */
+interface InsightsViewedProps {
+  has_weekly_verdict: boolean;
+  watchlist_count: number;
+  watchlist_eligible: number;
+}
+
+/** Verdict why tapped event properties */
+interface VerdictWhyTappedProps {
+  insight_id: string;
+}
+
+/** Watchlist item opened event properties */
+interface WatchlistItemOpenedProps {
+  insight_id: string;
+  exercise_id?: string;
+  severity: string;
+}
+
+/** Chat opened from insight event properties */
+interface ChatOpenedFromInsightProps {
+  insight_id: string;
+  insight_type: string;
+}
+
+/** Insight dismissed event properties */
+interface InsightDismissedProps {
+  insight_id: string;
+  insight_type: string;
+}
+
+/** Insight type snoozed event properties */
+interface InsightTypeSnoozedProps {
+  insight_type: string;
+  snooze_days: number;
+}
+
 // ============================================================================
 // Error/Failure Event Types
 // ============================================================================
@@ -144,6 +181,13 @@ const Events = {
   PROGRAM_CREATED: 'program_created',
   // Settings events
   THEME_CHANGED: 'theme_changed',
+  // Insights events
+  INSIGHTS_VIEWED: 'insights_viewed',
+  VERDICT_WHY_TAPPED: 'verdict_why_tapped',
+  WATCHLIST_ITEM_OPENED: 'watchlist_item_opened',
+  CHAT_OPENED_FROM_INSIGHT: 'chat_opened_from_insight',
+  INSIGHT_DISMISSED: 'insight_dismissed',
+  TYPE_SNOOZED: 'type_snoozed',
   // Error/failure events
   SYNC_FAILED: 'sync_failed',
   API_ERROR: 'api_error',
@@ -261,6 +305,67 @@ export const analytics = {
     capture(Events.THEME_CHANGED, {
       mode: props.mode,
       accent_color: props.accentColor,
+    });
+  },
+
+  /**
+   * Track when the Insights screen is viewed
+   */
+  trackInsightsViewed(props: InsightsViewedProps) {
+    capture(Events.INSIGHTS_VIEWED, {
+      has_weekly_verdict: props.has_weekly_verdict,
+      watchlist_count: props.watchlist_count,
+      watchlist_eligible: props.watchlist_eligible,
+    });
+  },
+
+  /**
+   * Track when the Weekly Verdict why CTA is tapped
+   */
+  trackVerdictWhyTapped(props: VerdictWhyTappedProps) {
+    capture(Events.VERDICT_WHY_TAPPED, {
+      insight_id: props.insight_id,
+    });
+  },
+
+  /**
+   * Track when a watchlist item is opened
+   */
+  trackWatchlistItemOpened(props: WatchlistItemOpenedProps) {
+    capture(Events.WATCHLIST_ITEM_OPENED, {
+      insight_id: props.insight_id,
+      exercise_id: props.exercise_id,
+      severity: props.severity,
+    });
+  },
+
+  /**
+   * Track when chat is opened from an insight
+   */
+  trackChatOpenedFromInsight(props: ChatOpenedFromInsightProps) {
+    capture(Events.CHAT_OPENED_FROM_INSIGHT, {
+      insight_id: props.insight_id,
+      insight_type: props.insight_type,
+    });
+  },
+
+  /**
+   * Track when an insight is dismissed
+   */
+  trackInsightDismissed(props: InsightDismissedProps) {
+    capture(Events.INSIGHT_DISMISSED, {
+      insight_id: props.insight_id,
+      insight_type: props.insight_type,
+    });
+  },
+
+  /**
+   * Track when an insight type is snoozed
+   */
+  trackInsightTypeSnoozed(props: InsightTypeSnoozedProps) {
+    capture(Events.TYPE_SNOOZED, {
+      insight_type: props.insight_type,
+      snooze_days: props.snooze_days,
     });
   },
 

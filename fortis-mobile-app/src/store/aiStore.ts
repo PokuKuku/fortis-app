@@ -15,6 +15,7 @@ import {
   AIResponse,
   AIConversation,
   AIConversationMessage,
+  AIRequestContext,
   AIPendingAction,
   AIMutationPlan,
   AIMutationRecord,
@@ -217,13 +218,7 @@ interface AIState {
   lastFailedMessage: {
     intent: AIIntent;
     message: string;
-    context?: {
-      exerciseId?: string;
-      programId?: string;
-      templateId?: string;
-      periodWeeks?: number;
-      historyOnly?: boolean;
-    };
+    context?: AIRequestContext;
     image?: { uri: string; base64: string; mimeType: AIImageMimeType };
   } | null;
 
@@ -231,13 +226,7 @@ interface AIState {
   openConversation: () => void;
   closeConversation: () => void;
   clearConversation: () => void;
-  sendMessage: (intent: AIIntent, message: string, context?: {
-    exerciseId?: string;
-    programId?: string;
-    templateId?: string;
-    periodWeeks?: number;
-    historyOnly?: boolean;
-  }) => Promise<AIResponse>;
+  sendMessage: (intent: AIIntent, message: string, context?: AIRequestContext) => Promise<AIResponse>;
 
   // Actions - Image attachment
   setSelectedImage: (image: { uri: string; base64: string; mimeType: AIImageMimeType }) => void;

@@ -2,9 +2,9 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
+import { MagnifyingGlassIcon, ChevronLeftIcon } from 'react-native-heroicons/outline';
+import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
-import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -14,8 +14,8 @@ import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseS
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
-const HEADER_PADDING_BOTTOM = scale(Spacing.md);
-const TITLE_PADDING_BOTTOM = scale(Spacing.md);
+const HEADER_PADDING_BOTTOM = scale(Spacing.sm);
+const HEADER_BUTTON_SIZE = scale(40);
 const TITLE_FONT_SIZE = moderateScale(24);
 const SEARCH_PADDING_BOTTOM = scale(Spacing.md);
 const SEARCH_RADIUS = scale(12);
@@ -74,6 +74,11 @@ export default function ExercisesScreen() {
 
   const filterPopoverScale = useRef(new Animated.Value(0)).current;
   const filterPopoverOpacity = useRef(new Animated.Value(0)).current;
+
+  const handleBackPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    router.back();
+  };
 
   useEffect(() => {
     if (activePopover) {
@@ -236,12 +241,15 @@ export default function ExercisesScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <AnimatedLogo />
-        </View>
-
-        {/* Title */}
-        <View style={styles.titleContainer}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBackPress}
+            activeOpacity={0.7}
+          >
+            <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
+          </TouchableOpacity>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Exercises</Text>
+          <View style={styles.headerSpacer} />
         </View>
 
         {/* Search Bar */}
@@ -523,11 +531,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: HEADER_PADDING_TOP,
     paddingBottom: HEADER_PADDING_BOTTOM,
-    alignItems: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  titleContainer: {
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingBottom: TITLE_PADDING_BOTTOM,
+  backButton: {
+    width: HEADER_BUTTON_SIZE,
+    height: HEADER_BUTTON_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerSpacer: {
+    width: HEADER_BUTTON_SIZE,
+    height: HEADER_BUTTON_SIZE,
   },
   title: {
     fontSize: TITLE_FONT_SIZE,

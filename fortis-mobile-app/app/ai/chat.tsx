@@ -355,7 +355,7 @@ export default function AIChatScreen() {
           onScroll={handleScroll}
           scrollEventThrottle={16}
         >
-          {messages.length === 0 ? (
+          {messages.length === 0 && !isSendingMessage ? (
             <ChatEmptyState onQuickAction={handleQuickAction} />
           ) : (
             <>

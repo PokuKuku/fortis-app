@@ -12,6 +12,7 @@ import { WorkoutSession, WorkoutExercise, WorkoutSet, WeightUnit } from '@/src/t
 import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
 import { isCustomExercise, getCustomExercises, getAllExercises } from '@/src/services/exerciseService';
+import { refreshTrainingInsights } from '@/src/services/insightsService';
 import { analytics } from '@/src/services/analyticsService';
 
 function isUuid(value: string): boolean {
@@ -527,6 +528,10 @@ export async function syncWorkoutSession(
     return { success: false, queued: true, error: result.error };
   }
 
+  refreshTrainingInsights().catch((error) => {
+    console.warn('[WorkoutSync] Failed to refresh insights:', error);
+  });
+
   return { success: true };
 }
 
@@ -591,6 +596,12 @@ export async function processPendingQueue(): Promise<{
   }
 
   await savePendingQueue(remainingQueue);
+
+  if (syncedLocalIds.length > 0) {
+    refreshTrainingInsights().catch((error) => {
+      console.warn('[WorkoutSync] Failed to refresh insights after queue sync:', error);
+    });
+  }
 
   return { processed, failed, syncedLocalIds };
 }

@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CalendarDaysIcon, Bars3Icon, Squares2X2Icon, UserIcon, SparklesIcon } from 'react-native-heroicons/outline';
+import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon } from 'react-native-heroicons/outline';
 import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
 import { GlassButton } from '../../components/GlassButton';
 import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
@@ -424,12 +424,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="exercises"
+        name="insights"
         options={{
-          title: 'Exercises',
+          title: 'Insights',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
-              <Bars3Icon color={color} size={18} strokeWidth={2} />
+              <SparklesIcon color={color} size={18} strokeWidth={2} />
             </View>
           ),
         }}
