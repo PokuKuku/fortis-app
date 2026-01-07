@@ -63,8 +63,10 @@ Evidence:
 ## Phase 2.75: Evidence Graphs (Status: Done)
 Last updated: 2026-01-07
 - [x] Inline sparklines on insight cards (evidence layer)
+- [x] Sparkline metric labels (explicit: Weekly volume / e1RM)
 - [x] Chart detail view with segmented tabs (Progress / Volume / Frequency)
 - [x] Insight-to-chart mapping + highlighted windows/exposures
+- [x] Evidence ordering aligned to chart mapping
 - [x] Server-truth chart series (weekly volume + workouts, per-exercise e1RM, exposures)
 - [x] Cached chart data client-side for fast open
 Evidence:
@@ -72,7 +74,7 @@ Evidence:
 
 ## Phase 3: Fatigue + Balance + Feedback (Status: In progress)
 Last updated: 2026-01-07
-- [ ] Fatigue Risk logic (volume spike + e1RM drop)
+- [x] Fatigue Risk logic (volume spike + e1RM drop)
 - [x] Fatigue risk card UI + wiring (client-only)
 - [ ] Imbalance Flag logic (muscle group ratio or underdose)
 - [x] Evidence detail view ("Why am I seeing this?")

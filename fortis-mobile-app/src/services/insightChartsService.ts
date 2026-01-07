@@ -110,8 +110,10 @@ export async function fetchInsightChartSeries(
       volume: getVolumeUnit(insight),
       frequency: 'workouts',
     };
+    const anchor = Number.isNaN(anchorDate.getTime()) ? new Date() : anchorDate;
+    const lastWeek = addDays(anchor, -7);
     series.highlight = {
-      range: { start: insight.anchorDate, end: insight.anchorDate },
+      range: { start: toIsoDate(lastWeek), end: toIsoDate(anchor) },
     };
 
     return series;

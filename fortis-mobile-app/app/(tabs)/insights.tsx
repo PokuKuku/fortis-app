@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useRef } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -18,10 +18,12 @@ import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightSparkline } from '@/src/components/insights/InsightSparkline';
+import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
+import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -46,6 +48,8 @@ type SparklineData = {
   values: number[];
   highlightIndices: number[];
 };
+
+type ChartTab = 'progress' | 'volume' | 'frequency';
 
 const formatWeekRange = (anchorDate: string): string => {
   const start = new Date(`${anchorDate}T00:00:00`);
@@ -77,7 +81,18 @@ const resolveSparkline = (
     return { values, highlightIndices };
   }
 
-  const preferredSeries = series.volume.length > 0 ? series.volume : series.frequency;
+  const mapping = getInsightChartMapping(insight.type);
+  const seriesMap: Record<ChartTab, InsightChartSeries['volume']> = {
+    progress: series.progress,
+    volume: series.volume,
+    frequency: series.frequency,
+  };
+  const preferredSeries =
+    seriesMap[mapping.sparklineMetric].length > 0
+      ? seriesMap[mapping.sparklineMetric]
+      : series.volume.length > 0
+      ? series.volume
+      : series.frequency;
   const values = preferredSeries.map((point) => point.value);
   if (values.length === 0) return null;
   const anchorIndex = preferredSeries.findIndex((point) => point.date === insight.anchorDate);
@@ -85,6 +100,27 @@ const resolveSparkline = (
     values,
     highlightIndices: anchorIndex >= 0 ? [anchorIndex] : [],
   };
+};
+
+const resolveEvidence = (insight: TrainingInsight) => {
+  const itemsByKey = new Map(insight.evidence.map((item) => [item.key, item]));
+  const order = getInsightEvidenceOrder(insight.type);
+  if (order.length === 0) {
+    return insight.evidence;
+  }
+  const ordered = order.map((key) => itemsByKey.get(key)).filter(Boolean) as TrainingInsight['evidence'];
+  const filtered = ordered.filter((item) => {
+    if (
+      item.key === 'volume_load' &&
+      item.unit !== '%' &&
+      item.compareValue === undefined &&
+      item.deltaValue === undefined
+    ) {
+      return false;
+    }
+    return true;
+  });
+  return filtered.length > 0 ? filtered : insight.evidence;
 };
 
 function InsightCard({
@@ -101,8 +137,8 @@ function InsightCard({
   const { colors, isDark } = useTheme();
   const { series } = useInsightChartSeries(insight);
   const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
-
-  const evidenceItems = useMemo(() => insight.evidence.slice(0, 4), [insight.evidence]);
+  const sparklineLabel = useMemo(() => getInsightChartMapping(insight.type).sparklineLabel, [insight.type]);
+  const evidenceItems = useMemo(() => resolveEvidence(insight).slice(0, 4), [insight]);
 
   const cardTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
@@ -133,6 +169,9 @@ function InsightCard({
 
       {sparkline && (
         <View style={styles.sparklineContainer}>
+          <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
+            {sparklineLabel}
+          </Text>
           <InsightSparkline
             values={sparkline.values}
             highlightIndices={sparkline.highlightIndices}
@@ -212,6 +251,7 @@ function WatchlistRow({
   const { colors } = useTheme();
   const { series } = useInsightChartSeries(insight);
   const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
+  const sparklineLabel = useMemo(() => getInsightChartMapping(insight.type).sparklineLabel, [insight.type]);
 
   const statusColor = insight.severity === 'high' ? Colors.error : Colors.warning;
   const e1rmItem = insight.evidence.find((item) => item.key === 'best_e1rm');
@@ -282,6 +322,9 @@ function WatchlistRow({
       <View style={styles.watchlistSide}>
         {sparkline && (
           <View style={styles.watchlistSparkline}>
+            <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
+              {sparklineLabel}
+            </Text>
             <InsightSparkline
               values={sparkline.values}
               highlightIndices={sparkline.highlightIndices}
@@ -338,6 +381,7 @@ export default function InsightsScreen() {
     trackInsightTypeSnoozed,
   } = useAnalytics();
   const hasTrackedView = useRef(false);
+  const [chartTab, setChartTab] = useState<ChartTab>('volume');
 
   const exerciseNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -427,8 +471,11 @@ export default function InsightsScreen() {
     );
   };
 
-  const handleOpenChart = (insight: TrainingInsight) => {
-    router.push({ pathname: '/insights/[id]', params: { id: insight.id } });
+  const handleOpenChart = (insight: TrainingInsight, tabOverride?: ChartTab) => {
+    router.push({
+      pathname: '/insights/[id]',
+      params: { id: insight.id, tab: tabOverride ?? chartTab },
+    });
   };
 
   const handleWatchlistPress = (insight: TrainingInsight) => {
@@ -495,6 +542,16 @@ export default function InsightsScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
+          <SegmentedControl
+            options={[
+              { key: 'progress', label: 'Progress' },
+              { key: 'volume', label: 'Volume' },
+              { key: 'frequency', label: 'Frequency' },
+            ]}
+            value={chartTab}
+            onChange={(value) => setChartTab(value as ChartTab)}
+          />
+
           <TouchableOpacity
             style={[styles.cardBase, styles.libraryCard, cardTheme]}
             onPress={handleOpenLibrary}
@@ -598,7 +655,7 @@ export default function InsightsScreen() {
                             exerciseName={exerciseName}
                             onWhyPress={handleWatchlistPress}
                             onDismiss={handleDismissInsight}
-                            onOpenChart={handleOpenChart}
+                            onOpenChart={(selected) => handleOpenChart(selected, 'progress')}
                           />
                         );
                       })}
@@ -822,6 +879,11 @@ const styles = StyleSheet.create({
   },
   sparklineContainer: {
     marginBottom: scale(Spacing.md),
+    gap: scale(Spacing.xs),
+  },
+  sparklineLabel: {
+    fontSize: moderateScale(11),
+    fontWeight: '600',
   },
   evidenceList: {
     gap: EVIDENCE_GAP,

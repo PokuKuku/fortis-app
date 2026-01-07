@@ -17,6 +17,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
+import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
@@ -24,9 +25,7 @@ const CARD_PADDING = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
 
 const getDefaultTab = (insight: TrainingInsight): InsightChartTab => {
-  if (insight.type === 'LIFT_STALL_RISK_V1') return 'progress';
-  if (insight.type === 'FATIGUE_RISK_V1') return 'volume';
-  return 'volume';
+  return getInsightChartMapping(insight.type).defaultTab;
 };
 
 const formatDateLabel = (value: string): string => {
@@ -37,10 +36,31 @@ const formatDateLabel = (value: string): string => {
   return format(date, 'MMM d');
 };
 
+const resolveEvidence = (insight: TrainingInsight) => {
+  const itemsByKey = new Map(insight.evidence.map((item) => [item.key, item]));
+  const order = getInsightEvidenceOrder(insight.type);
+  if (order.length === 0) {
+    return insight.evidence;
+  }
+  const ordered = order.map((key) => itemsByKey.get(key)).filter(Boolean) as TrainingInsight['evidence'];
+  const filtered = ordered.filter((item) => {
+    if (
+      item.key === 'volume_load' &&
+      item.unit !== '%' &&
+      item.compareValue === undefined &&
+      item.deltaValue === undefined
+    ) {
+      return false;
+    }
+    return true;
+  });
+  return filtered.length > 0 ? filtered : insight.evidence;
+};
+
 export default function InsightDetailScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, tab } = useLocalSearchParams<{ id?: string; tab?: string }>();
   const { insights } = useTrainingInsights({ skipRefresh: true });
 
   const insight = useMemo(
@@ -49,21 +69,22 @@ export default function InsightDetailScreen() {
   );
 
   const { series, isLoading } = useInsightChartSeries(insight ?? null);
+  const initialTab = tab === 'progress' || tab === 'volume' || tab === 'frequency' ? tab : null;
   const [selectedTab, setSelectedTab] = useState<InsightChartTab>(
-    insight ? getDefaultTab(insight) : 'volume'
+    (initialTab as InsightChartTab | null) ?? (insight ? getDefaultTab(insight) : 'volume')
   );
 
   useEffect(() => {
     if (!insight) return;
-    setSelectedTab(getDefaultTab(insight));
-  }, [insight]);
+    setSelectedTab((initialTab as InsightChartTab | null) ?? getDefaultTab(insight));
+  }, [initialTab, insight]);
 
   useEffect(() => {
     if (!series || !insight) return;
-    const defaultTab = getDefaultTab(insight);
-    const hasDefault = series[defaultTab].length > 1;
-    if (hasDefault) {
-      setSelectedTab(defaultTab);
+    const preferred = (initialTab as InsightChartTab | null) ?? getDefaultTab(insight);
+    const hasPreferred = series[preferred].length > 1;
+    if (hasPreferred) {
+      setSelectedTab(preferred);
       return;
     }
     if (series.volume.length > 1) {
@@ -73,7 +94,7 @@ export default function InsightDetailScreen() {
     } else if (series.frequency.length > 1) {
       setSelectedTab('frequency');
     }
-  }, [insight, series]);
+  }, [initialTab, insight, series]);
 
   const tabOptions = [
     { key: 'progress', label: 'Progress', disabled: (series?.progress?.length ?? 0) < 2 },
@@ -140,7 +161,7 @@ export default function InsightDetailScreen() {
             <Text style={[styles.summary, { color: colors.textSecondary }]}>{insight.summary}</Text>
 
             <View style={styles.evidenceList}>
-              {insight.evidence.map((item) => {
+              {resolveEvidence(insight).map((item) => {
                 const delta = formatEvidenceDelta(item);
                 const deltaColor = delta?.trend === 'up'
                   ? Colors.success
@@ -167,11 +188,6 @@ export default function InsightDetailScreen() {
               })}
             </View>
 
-            {suggestionText && (
-              <Text style={[styles.suggestion, { color: colors.textSecondary }]}>
-                Suggested: {suggestionText}
-              </Text>
-            )}
           </View>
 
           <View style={styles.chartSection}>
@@ -209,6 +225,22 @@ export default function InsightDetailScreen() {
                 yLabel={yLabel}
                 formatXValue={formatDateLabel}
               />
+            )}
+
+            {suggestionText && (
+              <View
+                style={[
+                  styles.suggestionCard,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                  },
+                ]}
+              >
+                <Text style={[styles.suggestionText, { color: colors.textSecondary }]}>
+                  Suggested: {suggestionText}
+                </Text>
+              </View>
             )}
           </View>
         </ScrollView>
@@ -293,7 +325,12 @@ const styles = StyleSheet.create({
   evidenceDelta: {
     fontSize: moderateScale(11),
   },
-  suggestion: {
+  suggestionCard: {
+    borderRadius: CARD_RADIUS,
+    borderWidth: 1,
+    padding: scale(Spacing.md),
+  },
+  suggestionText: {
     fontSize: moderateScale(12),
     lineHeight: moderateScale(18),
   },

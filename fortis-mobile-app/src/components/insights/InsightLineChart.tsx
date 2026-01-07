@@ -1,5 +1,6 @@
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Path, Rect, Circle } from 'react-native-svg';
+import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import type { InsightChartPoint } from '@/src/types/insightCharts';
 import { Typography } from '@/constants/Typography';
@@ -25,6 +26,7 @@ const VIEWBOX_WIDTH = 320;
 const VIEWBOX_HEIGHT = 160;
 const PADDING = 18;
 const Y_AXIS_WIDTH = scale(46);
+const GRID_LINE_COUNT = 2;
 
 const trimTrailingZero = (value: string): string => value.replace(/\.0$/, '');
 
@@ -42,25 +44,61 @@ const formatCompactNumber = (value: number): string => {
   return trimTrailingZero(value.toFixed(1));
 };
 
-const buildPath = (points: InsightChartPoint[]): string => {
+const resolveScale = (values: number[]) => {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min;
+  const pad = range === 0 ? Math.max(Math.abs(max) * 0.1, 1) : range * 0.15;
+  return {
+    min,
+    max,
+    minValue: min - pad,
+    maxValue: max + pad,
+  };
+};
+
+// Calculate coordinates for all points
+const getCoordinates = (points: InsightChartPoint[], minValue: number, maxValue: number) => {
+  const range = maxValue - minValue || 1;
+  const step = (VIEWBOX_WIDTH - PADDING * 2) / (points.length - 1);
+  return points.map((point, index) => ({
+    x: PADDING + step * index,
+    y: VIEWBOX_HEIGHT - PADDING - ((point.value - minValue) / range) * (VIEWBOX_HEIGHT - PADDING * 2),
+  }));
+};
+
+// Build smooth bezier curve path using Catmull-Rom spline conversion
+const buildSmoothPath = (points: InsightChartPoint[], minValue: number, maxValue: number): string => {
   if (points.length < 2) {
     const y = VIEWBOX_HEIGHT / 2;
     return `M ${PADDING} ${y} L ${VIEWBOX_WIDTH - PADDING} ${y}`;
   }
 
-  const values = points.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const step = (VIEWBOX_WIDTH - PADDING * 2) / (points.length - 1);
+  const coords = getCoordinates(points, minValue, maxValue);
 
-  return points
-    .map((point, index) => {
-      const x = PADDING + step * index;
-      const y = VIEWBOX_HEIGHT - PADDING - ((point.value - min) / range) * (VIEWBOX_HEIGHT - PADDING * 2);
-      return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
-    })
-    .join(' ');
+  if (coords.length === 2) {
+    return `M ${coords[0].x} ${coords[0].y} L ${coords[1].x} ${coords[1].y}`;
+  }
+
+  // Catmull-Rom to Bezier conversion with tension
+  const tension = 0.3;
+  let path = `M ${coords[0].x} ${coords[0].y}`;
+
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[Math.max(i - 1, 0)];
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const p3 = coords[Math.min(i + 2, coords.length - 1)];
+
+    const cp1x = p1.x + (p2.x - p0.x) * tension;
+    const cp1y = p1.y + (p2.y - p0.y) * tension;
+    const cp2x = p2.x - (p3.x - p1.x) * tension;
+    const cp2y = p2.y - (p3.y - p1.y) * tension;
+
+    path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+  }
+
+  return path;
 };
 
 const resolveHighlightRange = (
@@ -86,14 +124,11 @@ const resolveHighlightRange = (
   return { startIndex, endIndex };
 };
 
-const getPoint = (points: InsightChartPoint[], index: number) => {
-  const values = points.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
+const getPoint = (points: InsightChartPoint[], index: number, minValue: number, maxValue: number) => {
+  const range = maxValue - minValue || 1;
   const step = (VIEWBOX_WIDTH - PADDING * 2) / (points.length - 1);
   const x = PADDING + step * index;
-  const y = VIEWBOX_HEIGHT - PADDING - ((points[index].value - min) / range) * (VIEWBOX_HEIGHT - PADDING * 2);
+  const y = VIEWBOX_HEIGHT - PADDING - ((points[index].value - minValue) / range) * (VIEWBOX_HEIGHT - PADDING * 2);
   return { x, y };
 };
 
@@ -134,12 +169,15 @@ export function InsightLineChart({
     );
   }
 
-  const path = buildPath(points);
+  const values = points.map((point) => point.value);
+  const { min, max, minValue, maxValue } = resolveScale(values);
+  const path = buildSmoothPath(points, minValue, maxValue);
   const highlight = resolveHighlightRange(points, highlightRange);
   const highlightSet = new Set(highlightPoints);
-  const values = points.map((point) => point.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  const lastPointDate = points[points.length - 1]?.date;
+  if (lastPointDate) {
+    highlightSet.add(lastPointDate);
+  }
   const mid = (min + max) / 2;
   const yTicks = [max, mid, min];
   const xStart = points[0]?.date;
@@ -196,18 +234,64 @@ export function InsightLineChart({
                 fill={colors.accentOverlay}
               />
             )}
-            <Path d={path} stroke={lineColor} strokeWidth={2.5} fill="none" />
+
+            {/* Refined grid lines - subtle solid lines */}
+            {Array.from({ length: GRID_LINE_COUNT }).map((_, index) => {
+              const y =
+                PADDING +
+                ((VIEWBOX_HEIGHT - PADDING * 2) / (GRID_LINE_COUNT + 1)) * (index + 1);
+              return (
+                <Line
+                  key={`grid-${index}`}
+                  x1={PADDING}
+                  x2={VIEWBOX_WIDTH - PADDING}
+                  y1={y}
+                  y2={y}
+                  stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}
+                  strokeWidth={0.5}
+                />
+              );
+            })}
+
+            {/* Smooth bezier curve line */}
+            <Path
+              d={path}
+              stroke={lineColor}
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              fill="none"
+            />
+
+            {/* Enhanced data points with glow effect */}
             {points.map((point, index) => {
               if (!highlightSet.has(point.date)) return null;
-              const pos = getPoint(points, index);
+              const pos = getPoint(points, index, minValue, maxValue);
               return (
-                <Circle
-                  key={`highlight-${index}`}
-                  cx={pos.x}
-                  cy={pos.y}
-                  r={4}
-                  fill={lineColor}
-                />
+                <React.Fragment key={`highlight-${index}`}>
+                  {/* Outer glow */}
+                  <Circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={8}
+                    fill={lineColor}
+                    opacity={0.15}
+                  />
+                  {/* Main point */}
+                  <Circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={4.5}
+                    fill={lineColor}
+                  />
+                  {/* Inner highlight for depth */}
+                  <Circle
+                    cx={pos.x}
+                    cy={pos.y}
+                    r={2}
+                    fill={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.9)'}
+                  />
+                </React.Fragment>
               );
             })}
           </Svg>

@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
 type InsightRequest = {
-  type?: 'weekly_verdict' | 'lift_stall_risk' | 'all';
+  type?: 'weekly_verdict' | 'lift_stall_risk' | 'fatigue_risk' | 'all';
   anchorDate?: string;
 };
 
@@ -47,8 +47,10 @@ type VerdictOutput = {
 
 const INSIGHT_TYPE = 'WEEKLY_VERDICT_V1';
 const STALL_RISK_TYPE = 'LIFT_STALL_RISK_V1';
+const FATIGUE_RISK_TYPE = 'FATIGUE_RISK_V1';
 const WINDOW = '7d';
 const STALL_WINDOW = '4w';
+const FATIGUE_WINDOW = '7d';
 const GLOBAL_SUBJECT_KEY = 'global';
 const SCHEMA_VERSION = '1';
 
@@ -107,6 +109,7 @@ const getWeekStartInTimezone = (timeZone: string): Date => {
 };
 
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
+const toIsoDateTime = (date: Date): string => date.toISOString();
 
 const addDays = (date: Date, days: number): Date => {
   const copy = new Date(date);
@@ -292,6 +295,15 @@ const STALL_THRESHOLDS: Record<'chill' | 'standard' | 'aggressive', number> = {
   aggressive: 1.0,
 };
 
+const FATIGUE_THRESHOLDS: Record<
+  'chill' | 'standard' | 'aggressive',
+  { volumeSpikeWoW: number; e1rmDropForFatigue: number; minSessions: number }
+> = {
+  chill: { volumeSpikeWoW: 40, e1rmDropForFatigue: -2.5, minSessions: 2 },
+  standard: { volumeSpikeWoW: 30, e1rmDropForFatigue: -2.0, minSessions: 2 },
+  aggressive: { volumeSpikeWoW: 20, e1rmDropForFatigue: -1.5, minSessions: 2 },
+};
+
 const isSuspiciousDelta = (value: number, compareValue: number): boolean => {
   if (value <= 0 || compareValue <= 0) return false;
   const ratio = Math.max(value, compareValue) / Math.min(value, compareValue);
@@ -332,6 +344,176 @@ const buildStallRecommendation = ({
     type: 'CHANGE_REP_RANGE',
     payload: { text: 'Shift to 6–8 reps for the next 2 weeks.' },
     rationaleKey: 'STALL_TECHNIQUE_VARIATION',
+  };
+};
+
+const buildFatigueRecommendation = (): { type: string; payload: Record<string, unknown>; rationaleKey: string } => {
+  return {
+    type: 'DELOAD',
+    payload: { text: 'Deload for 1 week (reduce sets by 20–30%).' },
+    rationaleKey: 'FATIGUE_ACCUMULATION',
+  };
+};
+
+const buildFatigueRiskInsight = async ({
+  adminClient,
+  userId,
+  weekStart,
+  lastWeekStart,
+  conservatismLevel,
+  thisWeekVolume,
+  lastWeekVolume,
+  thisWeekWorkouts,
+  lastWeekWorkouts,
+}: {
+  adminClient: SupabaseClient;
+  userId: string;
+  weekStart: Date;
+  lastWeekStart: Date;
+  conservatismLevel: 'chill' | 'standard' | 'aggressive';
+  thisWeekVolume: number;
+  lastWeekVolume: number;
+  thisWeekWorkouts: number;
+  lastWeekWorkouts: number;
+}): Promise<Record<string, unknown> | null> => {
+  const threshold = FATIGUE_THRESHOLDS[conservatismLevel] ?? FATIGUE_THRESHOLDS.standard;
+  const totalWorkouts = thisWeekWorkouts + lastWeekWorkouts;
+  if (totalWorkouts < threshold.minSessions) {
+    return null;
+  }
+
+  if (thisWeekVolume <= 0 || lastWeekVolume <= 0) {
+    return null;
+  }
+  if (isSuspiciousDelta(thisWeekVolume, lastWeekVolume)) {
+    return null;
+  }
+
+  const volumeDeltaPct = ((thisWeekVolume - lastWeekVolume) / lastWeekVolume) * 100;
+
+  const lookbackStart = addDays(weekStart, -42);
+  const { data: exposures } = await adminClient
+    .from('exercise_exposures')
+    .select('exercise_id, exposure_at')
+    .eq('user_id', userId)
+    .gte('exposure_at', toIsoDateTime(lookbackStart));
+
+  const exposureByExercise = new Map<string, { exerciseId: string; exposures: number; lastExposureAt: number }>();
+  (exposures ?? []).forEach((row: { exercise_id: string; exposure_at: string }) => {
+    if (!row?.exercise_id || !row?.exposure_at) return;
+    const exposureAt = new Date(row.exposure_at).getTime();
+    const existing = exposureByExercise.get(row.exercise_id);
+    if (existing) {
+      existing.exposures += 1;
+      existing.lastExposureAt = Math.max(existing.lastExposureAt, exposureAt);
+    } else {
+      exposureByExercise.set(row.exercise_id, {
+        exerciseId: row.exercise_id,
+        exposures: 1,
+        lastExposureAt: exposureAt,
+      });
+    }
+  });
+
+  const ranked = Array.from(exposureByExercise.values())
+    .sort(sortByExposure)
+    .slice(0, 5);
+  const candidateIds = ranked.map((item) => item.exerciseId);
+  if (candidateIds.length === 0) {
+    return null;
+  }
+
+  const { data: weeklyAggs } = await adminClient
+    .from('exercise_weekly_agg')
+    .select('exercise_id, week_start, best_e1rm')
+    .eq('user_id', userId)
+    .in('exercise_id', candidateIds)
+    .gte('week_start', toIsoDate(lastWeekStart))
+    .lte('week_start', toIsoDate(weekStart));
+
+  const weekKey = toIsoDate(weekStart);
+  const lastWeekKey = toIsoDate(lastWeekStart);
+  const e1rmThis: number[] = [];
+  const e1rmLast: number[] = [];
+  const byExerciseWeek = new Map<string, Map<string, number>>();
+
+  (weeklyAggs ?? []).forEach((row: { exercise_id: string; week_start: string; best_e1rm: number | null }) => {
+    if (!row?.exercise_id || !row?.week_start) return;
+    const key = toIsoDate(new Date(row.week_start));
+    if (!byExerciseWeek.has(row.exercise_id)) {
+      byExerciseWeek.set(row.exercise_id, new Map());
+    }
+    byExerciseWeek.get(row.exercise_id)?.set(key, clampNumber(row.best_e1rm));
+  });
+
+  candidateIds.forEach((exerciseId) => {
+    const weekMap = byExerciseWeek.get(exerciseId);
+    if (!weekMap) return;
+    const lastValue = clampNumber(weekMap.get(lastWeekKey));
+    const thisValue = clampNumber(weekMap.get(weekKey));
+    if (lastValue > 0 && thisValue > 0) {
+      e1rmLast.push(lastValue);
+      e1rmThis.push(thisValue);
+    }
+  });
+
+  if (e1rmLast.length === 0 || e1rmThis.length === 0) {
+    return null;
+  }
+
+  const avgLast = e1rmLast.reduce((sum, value) => sum + value, 0) / e1rmLast.length;
+  const avgThis = e1rmThis.reduce((sum, value) => sum + value, 0) / e1rmThis.length;
+  if (avgLast <= 0) {
+    return null;
+  }
+  const e1rmDeltaPct = ((avgThis - avgLast) / avgLast) * 100;
+
+  if (!(volumeDeltaPct >= threshold.volumeSpikeWoW && e1rmDeltaPct <= threshold.e1rmDropForFatigue)) {
+    return null;
+  }
+
+  const severity = e1rmDeltaPct <= threshold.e1rmDropForFatigue * 2 ? 'high' : 'medium';
+
+  return {
+    user_id: userId,
+    type: FATIGUE_RISK_TYPE,
+    window: FATIGUE_WINDOW,
+    anchor_date: toIsoDate(weekStart),
+    subject_key: GLOBAL_SUBJECT_KEY,
+    severity,
+    status: 'active',
+    title: 'Fatigue risk: volume spiked',
+    summary: 'Weekly volume jumped while top-lift e1RM dipped. A short deload could help recovery.',
+    evidence: [
+      {
+        key: 'volume_load',
+        label: 'Volume change (WoW)',
+        value: Number(volumeDeltaPct.toFixed(1)),
+        unit: '%',
+        source: 'weekly_workout_volume',
+        period: 'this_week',
+      },
+      {
+        key: 'best_e1rm',
+        label: 'Best e1RM change (WoW)',
+        value: Number(e1rmDeltaPct.toFixed(1)),
+        unit: '%',
+        source: 'exercise_weekly_agg',
+        period: 'this_week',
+      },
+      {
+        key: 'sessions',
+        label: 'Workouts',
+        value: thisWeekWorkouts,
+        unit: 'workouts',
+        compareValue: lastWeekWorkouts,
+        deltaValue: thisWeekWorkouts - lastWeekWorkouts,
+        source: 'weekly_workout_volume',
+        period: 'this_week',
+      },
+    ],
+    recommendation: [buildFatigueRecommendation()],
+    schema_version: SCHEMA_VERSION,
   };
 };
 
@@ -678,13 +860,20 @@ Deno.serve(async (req) => {
     body = {};
   }
 
-  if (body.type && body.type !== 'weekly_verdict' && body.type !== 'lift_stall_risk' && body.type !== 'all') {
+  if (
+    body.type &&
+    body.type !== 'weekly_verdict' &&
+    body.type !== 'lift_stall_risk' &&
+    body.type !== 'fatigue_risk' &&
+    body.type !== 'all'
+  ) {
     return errorResponse('Unsupported insight type', 'invalid_request', 400, false, undefined, origin);
   }
 
   const requestType = body.type ?? 'all';
   const shouldRunWeekly = requestType === 'weekly_verdict' || requestType === 'all';
   const shouldRunStall = requestType === 'lift_stall_risk' || requestType === 'all';
+  const shouldRunFatigue = requestType === 'fatigue_risk' || requestType === 'all';
 
   const [{ preferredUnits, timezone }, conservatismLevel, snoozes] = await Promise.all([
     fetchUserPrefs(supabase, user.id),
@@ -697,11 +886,15 @@ Deno.serve(async (req) => {
 
   const snoozedUntilWeekly = snoozes.get(INSIGHT_TYPE);
   const snoozedUntilStall = snoozes.get(STALL_RISK_TYPE);
+  const snoozedUntilFatigue = snoozes.get(FATIGUE_RISK_TYPE);
   const shouldRunWeeklyFinal = shouldRunWeekly && (!snoozedUntilWeekly || snoozedUntilWeekly < toIsoDate(weekStart));
   const shouldRunStallFinal = shouldRunStall && (!snoozedUntilStall || snoozedUntilStall < toIsoDate(weekStart));
+  const shouldRunFatigueFinal = shouldRunFatigue && (!snoozedUntilFatigue || snoozedUntilFatigue < toIsoDate(weekStart));
+
+  const shouldFetchWeeklyVolume = shouldRunWeeklyFinal || shouldRunFatigueFinal;
 
   const [weeklyVolume, prCounts] = await Promise.all([
-    shouldRunWeeklyFinal ? fetchWeeklyVolume(supabase, user.id, weekStart, lastWeekStart) : Promise.resolve({ thisWeek: null, lastWeek: null }),
+    shouldFetchWeeklyVolume ? fetchWeeklyVolume(supabase, user.id, weekStart, lastWeekStart) : Promise.resolve({ thisWeek: null, lastWeek: null }),
     shouldRunWeeklyFinal ? fetchWeeklyPrCounts(supabase, user.id, weekStart) : Promise.resolve({ thisWeek: 0, lastWeek: 0 }),
   ]);
 
@@ -792,6 +985,29 @@ Deno.serve(async (req) => {
       conservatismLevel,
     });
     insightsToUpsert.push(...stallInsights);
+  }
+
+  if (shouldRunFatigueFinal) {
+    const thisWeekWorkouts = clampNumber(weeklyVolume.thisWeek?.workouts_count);
+    const lastWeekWorkouts = clampNumber(weeklyVolume.lastWeek?.workouts_count);
+    const thisWeekVolume = clampNumber(weeklyVolume.thisWeek?.total_volume);
+    const lastWeekVolume = clampNumber(weeklyVolume.lastWeek?.total_volume);
+
+    const fatigueInsight = await buildFatigueRiskInsight({
+      adminClient,
+      userId: user.id,
+      weekStart,
+      lastWeekStart,
+      conservatismLevel,
+      thisWeekVolume,
+      lastWeekVolume,
+      thisWeekWorkouts,
+      lastWeekWorkouts,
+    });
+
+    if (fatigueInsight) {
+      insightsToUpsert.push(fatigueInsight);
+    }
   }
 
   if (insightsToUpsert.length === 0) {
