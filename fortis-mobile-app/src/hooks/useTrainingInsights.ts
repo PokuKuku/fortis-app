@@ -9,7 +9,7 @@ type CachedInsights = {
   cachedAt: string;
 };
 
-export function useTrainingInsights() {
+export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
   const [insights, setInsights] = useState<TrainingInsight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -84,6 +84,10 @@ export function useTrainingInsights() {
     const run = async () => {
       await loadCached();
       if (!isMounted) return;
+      if (options?.skipRefresh) {
+        setIsLoading(false);
+        return;
+      }
       await refresh();
     };
 
@@ -92,7 +96,7 @@ export function useTrainingInsights() {
     return () => {
       isMounted = false;
     };
-  }, [loadCached, refresh]);
+  }, [loadCached, options?.skipRefresh, refresh]);
 
   return {
     insights,

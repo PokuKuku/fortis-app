@@ -38,6 +38,7 @@ export const ACCENT_COLOR_KEY = 'accent_color_v1';
 export const LAST_SESSION_TIMESTAMP_KEY = 'last_session_timestamp_v1';
 export const PROFILE_STATS_CACHE_KEY = 'profile_stats_cache_v1';
 export const TRAINING_INSIGHTS_CACHE_KEY = 'training_insights_cache_v1';
+export const INSIGHT_CHARTS_CACHE_KEY = 'training_insight_charts_cache_v1';
 
 // Keys that should be scoped per user and cleared on sign-out
 export const USER_SCOPED_STORAGE_KEYS = [
@@ -62,6 +63,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   AI_MUTATION_PLAN_KEY,
   PROFILE_STATS_CACHE_KEY,
   TRAINING_INSIGHTS_CACHE_KEY,
+  INSIGHT_CHARTS_CACHE_KEY,
   // Appearance (cleared on sign-out to prevent leakage between users)
   THEME_MODE_KEY,
   ACCENT_COLOR_KEY,

@@ -10,11 +10,14 @@ import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
+import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useAIStore } from '@/src/store/aiStore';
 import { TrainingInsight } from '@/src/types/insights';
+import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { useAnalytics } from '@/src/services/analyticsService';
+import { InsightSparkline } from '@/src/components/insights/InsightSparkline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -39,6 +42,11 @@ const ACTION_TEXT_SIZE = moderateScale(12);
 const LIST_PADDING_BOTTOM = scale(120);
 const EMPTY_PADDING_Y = scale(Spacing['3xl']);
 
+type SparklineData = {
+  values: number[];
+  highlightIndices: number[];
+};
+
 const formatWeekRange = (anchorDate: string): string => {
   const start = new Date(`${anchorDate}T00:00:00`);
   if (Number.isNaN(start.getTime())) {
@@ -51,16 +59,48 @@ const formatWeekRange = (anchorDate: string): string => {
   return `Week of ${startLabel}–${endLabel}`;
 };
 
+const resolveSparkline = (
+  insight: TrainingInsight,
+  series: InsightChartSeries | null
+): SparklineData | null => {
+  if (!series) {
+    return null;
+  }
+
+  if (insight.type === 'LIFT_STALL_RISK_V1') {
+    const values = series.progress.length > 0
+      ? series.progress.map((point) => point.value)
+      : series.volume.map((point) => point.value);
+    if (values.length === 0) return null;
+    const startIndex = Math.max(values.length - 3, 0);
+    const highlightIndices = values.slice(startIndex).map((_, index) => startIndex + index);
+    return { values, highlightIndices };
+  }
+
+  const preferredSeries = series.volume.length > 0 ? series.volume : series.frequency;
+  const values = preferredSeries.map((point) => point.value);
+  if (values.length === 0) return null;
+  const anchorIndex = preferredSeries.findIndex((point) => point.date === insight.anchorDate);
+  return {
+    values,
+    highlightIndices: anchorIndex >= 0 ? [anchorIndex] : [],
+  };
+};
+
 function InsightCard({
   insight,
   onWhyPress,
   onDismiss,
+  onOpenChart,
 }: {
   insight: TrainingInsight;
   onWhyPress: (insight: TrainingInsight) => void;
   onDismiss: (insight: TrainingInsight) => void;
+  onOpenChart: (insight: TrainingInsight) => void;
 }) {
   const { colors, isDark } = useTheme();
+  const { series } = useInsightChartSeries(insight);
+  const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
 
   const evidenceItems = useMemo(() => insight.evidence.slice(0, 4), [insight.evidence]);
 
@@ -91,6 +131,16 @@ function InsightCard({
         {insight.summary}
       </Text>
 
+      {sparkline && (
+        <View style={styles.sparklineContainer}>
+          <InsightSparkline
+            values={sparkline.values}
+            highlightIndices={sparkline.highlightIndices}
+            stroke={colors.accent}
+          />
+        </View>
+      )}
+
       <View style={styles.evidenceList}>
         {evidenceItems.map((item) => {
           const delta = formatEvidenceDelta(item);
@@ -120,19 +170,154 @@ function InsightCard({
         })}
       </View>
 
-      <TouchableOpacity
-        style={[
-          styles.whyButton,
-          {
-            backgroundColor: colors.accentOverlay,
-            borderColor: colors.accent,
-          },
-        ]}
-        onPress={() => onWhyPress(insight)}
-        activeOpacity={0.8}
-      >
-        <Text style={[styles.whyButtonText, { color: colors.accent }]}>Why?</Text>
-      </TouchableOpacity>
+      <View style={styles.insightActions}>
+        <TouchableOpacity
+          style={[
+            styles.whyButton,
+            {
+              backgroundColor: colors.accentOverlay,
+              borderColor: colors.accent,
+            },
+          ]}
+          onPress={() => onWhyPress(insight)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.whyButtonText, { color: colors.accent }]}>Why?</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.viewChartButton, { borderColor: colors.border }]}
+          onPress={() => onOpenChart(insight)}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.viewChartText, { color: colors.textSecondary }]}>View chart</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function WatchlistRow({
+  insight,
+  exerciseName,
+  onWhyPress,
+  onDismiss,
+  onOpenChart,
+}: {
+  insight: TrainingInsight;
+  exerciseName: string;
+  onWhyPress: (insight: TrainingInsight) => void;
+  onDismiss: (insight: TrainingInsight) => void;
+  onOpenChart: (insight: TrainingInsight) => void;
+}) {
+  const { colors } = useTheme();
+  const { series } = useInsightChartSeries(insight);
+  const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
+
+  const statusColor = insight.severity === 'high' ? Colors.error : Colors.warning;
+  const e1rmItem = insight.evidence.find((item) => item.key === 'best_e1rm');
+  const volumeItem = insight.evidence.find((item) => item.key === 'volume_load');
+  const exposuresItem = insight.evidence.find((item) => item.key === 'exposures');
+  const e1rmDelta = e1rmItem
+    ? (e1rmItem.deltaValue ?? (e1rmItem.compareValue !== undefined ? e1rmItem.value - e1rmItem.compareValue : 0))
+    : 0;
+  const e1rmDescriptor =
+    Math.abs(e1rmDelta) <= 1 ? 'e1RM flat' : e1rmDelta < 0 ? 'e1RM down' : 'e1RM up';
+  const exposuresText = exposuresItem ? `${Math.round(exposuresItem.value)} sessions` : 'recent sessions';
+  const volumeDelta = volumeItem ? formatEvidenceDelta(volumeItem) : null;
+  const volumeDeltaText = volumeDelta?.text.replace(/^[-+]/, '');
+  const volumeDescriptor = volumeDelta
+    ? `volume ${volumeDelta.trend === 'up' ? 'up' : volumeDelta.trend === 'down' ? 'down' : 'flat'} ${volumeDeltaText}`
+    : 'volume steady';
+  const suggestionPayload = insight.recommendation?.[0]?.payload as { text?: string } | undefined;
+  const suggestionText = typeof suggestionPayload?.text === 'string' ? suggestionPayload.text : null;
+
+  return (
+    <View style={styles.watchlistRow}>
+      <View style={styles.watchlistInfo}>
+        <Text style={[styles.watchlistName, { color: colors.textPrimary }]}>
+          {exerciseName}
+        </Text>
+        <Text style={[styles.watchlistStatus, { color: statusColor }]}>
+          Stall risk
+        </Text>
+        <Text style={[styles.watchlistReason, { color: colors.textSecondary }]}>
+          {e1rmDescriptor} ({exposuresText}); {volumeDescriptor}
+        </Text>
+        {suggestionText && (
+          <Text style={[styles.watchlistSuggestion, { color: colors.textSecondary }]}>
+            Suggested: {suggestionText}
+          </Text>
+        )}
+        <View style={styles.watchlistEvidence}>
+          {e1rmItem && (() => {
+            const e1rmDeltaText = formatEvidenceDelta(e1rmItem)?.text;
+            return (
+              <View style={styles.watchlistEvidenceRow}>
+                <Text style={[styles.watchlistEvidenceLabel, { color: colors.textTertiary }]}>
+                  {e1rmItem.label}
+                </Text>
+                <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
+                  {formatEvidenceValue(e1rmItem)}
+                  {e1rmDeltaText ? ` (${e1rmDeltaText})` : ''}
+                </Text>
+              </View>
+            );
+          })()}
+          {volumeItem && (() => {
+            const volumeDeltaText = formatEvidenceDelta(volumeItem)?.text;
+            return (
+              <View style={styles.watchlistEvidenceRow}>
+                <Text style={[styles.watchlistEvidenceLabel, { color: colors.textTertiary }]}>
+                  {volumeItem.label}
+                </Text>
+                <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
+                  {formatEvidenceValue(volumeItem)}
+                  {volumeDeltaText ? ` (${volumeDeltaText})` : ''}
+                </Text>
+              </View>
+            );
+          })()}
+        </View>
+      </View>
+      <View style={styles.watchlistSide}>
+        {sparkline && (
+          <View style={styles.watchlistSparkline}>
+            <InsightSparkline
+              values={sparkline.values}
+              highlightIndices={sparkline.highlightIndices}
+              stroke={colors.accent}
+              height={32}
+            />
+          </View>
+        )}
+        <View style={styles.watchlistActions}>
+          <TouchableOpacity
+            onPress={() => onWhyPress(insight)}
+            style={styles.watchlistActionButton}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.watchlistWhy, { color: colors.accent }]}>Why?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onOpenChart(insight)}
+            style={styles.watchlistActionButton}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.watchlistChart, { color: colors.textSecondary }]}>
+              Chart
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onDismiss(insight)}
+            style={styles.watchlistActionButton}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.watchlistDismiss, { color: colors.textTertiary }]}>
+              Dismiss
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 }
@@ -240,6 +425,10 @@ export default function InsightsScreen() {
       insight,
       'Explain this insight and suggest what I should do next week.'
     );
+  };
+
+  const handleOpenChart = (insight: TrainingInsight) => {
+    router.push({ pathname: '/insights/[id]', params: { id: insight.id } });
   };
 
   const handleWatchlistPress = (insight: TrainingInsight) => {
@@ -354,6 +543,7 @@ export default function InsightsScreen() {
                   insight={weeklyVerdict}
                   onWhyPress={handleWhyPress}
                   onDismiss={handleDismissInsight}
+                  onOpenChart={handleOpenChart}
                 />
               )}
 
@@ -362,6 +552,7 @@ export default function InsightsScreen() {
                   insight={fatigueRisk}
                   onWhyPress={handleFatigueWhyPress}
                   onDismiss={handleDismissInsight}
+                  onOpenChart={handleOpenChart}
                 />
               )}
 
@@ -399,92 +590,16 @@ export default function InsightsScreen() {
                         const exerciseName = insight.exerciseId
                           ? exerciseNameById.get(insight.exerciseId) ?? 'Unknown exercise'
                           : 'Unknown exercise';
-                        const statusColor =
-                          insight.severity === 'high' ? Colors.error : Colors.warning;
-                        const e1rmItem = insight.evidence.find((item) => item.key === 'best_e1rm');
-                        const volumeItem = insight.evidence.find((item) => item.key === 'volume_load');
-                        const exposuresItem = insight.evidence.find((item) => item.key === 'exposures');
-                        const e1rmDelta = e1rmItem
-                          ? (e1rmItem.deltaValue ?? (e1rmItem.compareValue !== undefined ? e1rmItem.value - e1rmItem.compareValue : 0))
-                          : 0;
-                        const e1rmDescriptor =
-                          Math.abs(e1rmDelta) <= 1 ? 'e1RM flat' : e1rmDelta < 0 ? 'e1RM down' : 'e1RM up';
-                        const exposuresText = exposuresItem ? `${Math.round(exposuresItem.value)} sessions` : 'recent sessions';
-                        const volumeDelta = volumeItem ? formatEvidenceDelta(volumeItem) : null;
-                        const volumeDeltaText = volumeDelta?.text.replace(/^[-+]/, '');
-                        const volumeDescriptor = volumeDelta
-                          ? `volume ${volumeDelta.trend === 'up' ? 'up' : volumeDelta.trend === 'down' ? 'down' : 'flat'} ${volumeDeltaText}`
-                          : 'volume steady';
-                        const suggestionPayload = insight.recommendation?.[0]?.payload as { text?: string } | undefined;
-                        const suggestionText = typeof suggestionPayload?.text === 'string' ? suggestionPayload.text : null;
 
                         return (
-                          <View key={insight.id} style={styles.watchlistRow}>
-                            <View style={styles.watchlistInfo}>
-                              <Text style={[styles.watchlistName, { color: colors.textPrimary }]}>
-                                {exerciseName}
-                              </Text>
-                              <Text style={[styles.watchlistStatus, { color: statusColor }]}>
-                                Stall risk
-                              </Text>
-                              <Text style={[styles.watchlistReason, { color: colors.textSecondary }]}>
-                                {e1rmDescriptor} ({exposuresText}); {volumeDescriptor}
-                              </Text>
-                              {suggestionText && (
-                                <Text style={[styles.watchlistSuggestion, { color: colors.textSecondary }]}>
-                                  Suggested: {suggestionText}
-                                </Text>
-                              )}
-                              <View style={styles.watchlistEvidence}>
-                                {e1rmItem && (() => {
-                                  const e1rmDeltaText = formatEvidenceDelta(e1rmItem)?.text;
-                                  return (
-                                    <View style={styles.watchlistEvidenceRow}>
-                                      <Text style={[styles.watchlistEvidenceLabel, { color: colors.textTertiary }]}>
-                                        {e1rmItem.label}
-                                      </Text>
-                                      <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
-                                        {formatEvidenceValue(e1rmItem)}
-                                        {e1rmDeltaText ? ` (${e1rmDeltaText})` : ''}
-                                      </Text>
-                                    </View>
-                                  );
-                                })()}
-                                {volumeItem && (() => {
-                                  const volumeDeltaText = formatEvidenceDelta(volumeItem)?.text;
-                                  return (
-                                    <View style={styles.watchlistEvidenceRow}>
-                                      <Text style={[styles.watchlistEvidenceLabel, { color: colors.textTertiary }]}>
-                                        {volumeItem.label}
-                                      </Text>
-                                      <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
-                                        {formatEvidenceValue(volumeItem)}
-                                        {volumeDeltaText ? ` (${volumeDeltaText})` : ''}
-                                      </Text>
-                                    </View>
-                                  );
-                                })()}
-                              </View>
-                            </View>
-                            <View style={styles.watchlistActions}>
-                              <TouchableOpacity
-                                onPress={() => handleWatchlistPress(insight)}
-                                style={styles.watchlistActionButton}
-                                activeOpacity={0.8}
-                              >
-                                <Text style={[styles.watchlistWhy, { color: colors.accent }]}>Why?</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => handleDismissInsight(insight)}
-                                style={styles.watchlistActionButton}
-                                activeOpacity={0.8}
-                              >
-                                <Text style={[styles.watchlistDismiss, { color: colors.textTertiary }]}>
-                                  Dismiss
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
-                          </View>
+                          <WatchlistRow
+                            key={insight.id}
+                            insight={insight}
+                            exerciseName={exerciseName}
+                            onWhyPress={handleWatchlistPress}
+                            onDismiss={handleDismissInsight}
+                            onOpenChart={handleOpenChart}
+                          />
                         );
                       })}
                     </View>
@@ -649,12 +764,23 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: scale(Spacing.xs),
   },
+  watchlistSide: {
+    alignItems: 'flex-end',
+    gap: scale(Spacing.xs),
+  },
+  watchlistSparkline: {
+    width: scale(90),
+  },
   watchlistActionButton: {
     paddingHorizontal: scale(Spacing.xs),
     paddingVertical: scale(2),
   },
   watchlistWhy: {
     fontSize: moderateScale(12),
+    fontWeight: '600',
+  },
+  watchlistChart: {
+    fontSize: moderateScale(11),
     fontWeight: '600',
   },
   watchlistDismiss: {
@@ -692,6 +818,9 @@ const styles = StyleSheet.create({
   insightSummary: {
     fontSize: SUMMARY_TEXT_SIZE,
     lineHeight: SUMMARY_LINE_HEIGHT,
+    marginBottom: scale(Spacing.md),
+  },
+  sparklineContainer: {
     marginBottom: scale(Spacing.md),
   },
   evidenceList: {
@@ -733,6 +862,23 @@ const styles = StyleSheet.create({
     fontSize: ACTION_TEXT_SIZE,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  insightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(Spacing.sm),
+  },
+  viewChartButton: {
+    height: ACTION_BUTTON_HEIGHT,
+    paddingHorizontal: scale(Spacing.md),
+    borderWidth: 1,
+    borderRadius: ACTION_BUTTON_HEIGHT / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewChartText: {
+    fontSize: ACTION_TEXT_SIZE,
+    fontWeight: '600',
   },
   loadingState: {
     paddingVertical: scale(Spacing.xl),

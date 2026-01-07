@@ -1,0 +1,111 @@
+import { useCallback, useEffect, useState } from 'react';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { INSIGHT_CHARTS_CACHE_KEY } from '@/src/constants/storageKeys';
+import { fetchInsightChartSeries } from '@/src/services/insightChartsService';
+import type { TrainingInsight } from '@/src/types/insights';
+import type { InsightChartSeries } from '@/src/types/insightCharts';
+
+type CachedChartEntry = {
+  cachedAt: string;
+  series: InsightChartSeries;
+};
+
+type CachedCharts = Record<string, CachedChartEntry>;
+
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+const nowIso = (): string => new Date().toISOString();
+
+const isFresh = (cachedAt?: string): boolean => {
+  if (!cachedAt) return false;
+  const cachedTime = new Date(cachedAt).getTime();
+  return Date.now() - cachedTime < CACHE_TTL_MS;
+};
+
+export function useInsightChartSeries(insight?: TrainingInsight | null) {
+  const [series, setSeries] = useState<InsightChartSeries | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const readCache = useCallback(async (): Promise<CachedCharts> => {
+    const cached = await getScopedItem(INSIGHT_CHARTS_CACHE_KEY);
+    if (!cached) return {};
+    try {
+      return JSON.parse(cached) as CachedCharts;
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const writeCache = useCallback(async (next: CachedCharts) => {
+    await setScopedItem(INSIGHT_CHARTS_CACHE_KEY, JSON.stringify(next));
+  }, []);
+
+  const refresh = useCallback(async () => {
+    if (!insight) {
+      setSeries(null);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const fetched = await fetchInsightChartSeries(insight);
+    if (fetched) {
+      setSeries(fetched);
+      const cached = await readCache();
+      cached[insight.id] = { cachedAt: nowIso(), series: fetched };
+      await writeCache(cached);
+    }
+    setIsLoading(false);
+  }, [insight, readCache, writeCache]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      if (!insight) {
+        if (isMounted) {
+          setSeries(null);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      const cached = await readCache();
+      const entry = cached[insight.id];
+      if (entry?.series && isFresh(entry.cachedAt)) {
+        if (isMounted) {
+          setSeries(entry.series);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      if (isMounted) {
+        setIsLoading(true);
+      }
+      const fetched = await fetchInsightChartSeries(insight);
+      if (fetched) {
+        cached[insight.id] = { cachedAt: nowIso(), series: fetched };
+        await writeCache(cached);
+        if (isMounted) {
+          setSeries(fetched);
+        }
+      }
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    };
+
+    load();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [insight, readCache, writeCache]);
+
+  return {
+    series,
+    isLoading,
+    refresh,
+  };
+}
