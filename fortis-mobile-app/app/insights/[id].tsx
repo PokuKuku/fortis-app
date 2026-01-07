@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
+import { format } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
@@ -26,6 +27,14 @@ const getDefaultTab = (insight: TrainingInsight): InsightChartTab => {
   if (insight.type === 'LIFT_STALL_RISK_V1') return 'progress';
   if (insight.type === 'FATIGUE_RISK_V1') return 'volume';
   return 'volume';
+};
+
+const formatDateLabel = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return format(date, 'MMM d');
 };
 
 export default function InsightDetailScreen() {
@@ -99,6 +108,13 @@ export default function InsightDetailScreen() {
   const highlightRange = selectedTab === 'progress' ? undefined : series?.highlight?.range;
   const highlightPoints = selectedTab === 'progress' ? series?.highlight?.points : undefined;
   const unit = series?.units?.[selectedTab];
+  const xLabel = selectedTab === 'progress' ? 'Exposures' : 'Week';
+  const yLabel =
+    selectedTab === 'frequency'
+      ? 'Sessions'
+      : selectedTab === 'progress'
+      ? `e1RM${unit ? ` (${unit})` : ''}`
+      : `Volume${unit ? ` (${unit})` : ''}`;
   const suggestionPayload = insight.recommendation?.[0]?.payload as { text?: string } | undefined;
   const suggestionText = typeof suggestionPayload?.text === 'string' ? suggestionPayload.text : null;
 
@@ -189,6 +205,9 @@ export default function InsightDetailScreen() {
                 stroke={colors.accent}
                 highlightRange={highlightRange}
                 highlightPoints={highlightPoints}
+                xLabel={xLabel}
+                yLabel={yLabel}
+                formatXValue={formatDateLabel}
               />
             )}
           </View>

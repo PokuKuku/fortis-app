@@ -485,9 +485,10 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    gap: Spacing.sm,
   },
   loadingIconWrapper: {
     width: IconSizes.md,
@@ -502,7 +503,8 @@ const styles = StyleSheet.create({
   loadingText: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
-    marginLeft: Spacing.sm,
+    flex: 1,
+    flexWrap: 'wrap',
   },
   errorContainer: {
     marginHorizontal: Spacing.lg,

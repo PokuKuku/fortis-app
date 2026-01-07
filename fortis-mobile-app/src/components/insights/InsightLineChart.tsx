@@ -4,6 +4,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import type { InsightChartPoint } from '@/src/types/insightCharts';
 import { Typography } from '@/constants/Typography';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { scale, moderateScale } from '@/src/utils/responsive';
 
 type HighlightRange = { start: string; end: string };
 
@@ -14,11 +15,32 @@ type InsightLineChartProps = {
   highlightRange?: HighlightRange;
   highlightPoints?: string[];
   emptyLabel?: string;
+  xLabel?: string;
+  yLabel?: string;
+  formatYValue?: (value: number) => string;
+  formatXValue?: (value: string) => string;
 };
 
 const VIEWBOX_WIDTH = 320;
 const VIEWBOX_HEIGHT = 160;
 const PADDING = 18;
+const Y_AXIS_WIDTH = scale(46);
+
+const trimTrailingZero = (value: string): string => value.replace(/\.0$/, '');
+
+const formatCompactNumber = (value: number): string => {
+  const absValue = Math.abs(value);
+  if (absValue >= 1_000_000) {
+    return trimTrailingZero((value / 1_000_000).toFixed(1)) + 'm';
+  }
+  if (absValue >= 1000) {
+    return trimTrailingZero((value / 1000).toFixed(1)) + 'k';
+  }
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+  return trimTrailingZero(value.toFixed(1));
+};
 
 const buildPath = (points: InsightChartPoint[]): string => {
   if (points.length < 2) {
@@ -82,6 +104,10 @@ export function InsightLineChart({
   highlightRange,
   highlightPoints = [],
   emptyLabel = 'Not enough data yet',
+  xLabel,
+  yLabel,
+  formatYValue,
+  formatXValue,
 }: InsightLineChartProps) {
   const { colors, isDark } = useTheme();
   const lineColor = stroke ?? colors.accent;
@@ -111,6 +137,16 @@ export function InsightLineChart({
   const path = buildPath(points);
   const highlight = resolveHighlightRange(points, highlightRange);
   const highlightSet = new Set(highlightPoints);
+  const values = points.map((point) => point.value);
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const mid = (min + max) / 2;
+  const yTicks = [max, mid, min];
+  const xStart = points[0]?.date;
+  const xEnd = points[points.length - 1]?.date;
+
+  const formatY = formatYValue ?? formatCompactNumber;
+  const formatX = formatXValue ?? ((value: string) => value.slice(5, 10).replace('-', '/'));
 
   const highlightRect = highlight
     ? (() => {
@@ -122,54 +158,116 @@ export function InsightLineChart({
     : null;
 
   return (
-    <View
-      style={[
-        styles.chartContainer,
-        {
-          height,
-          backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-        },
-      ]}
-    >
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-      >
-        {highlightRect && (
-          <Rect
-            x={highlightRect.x}
-            y={PADDING}
-            width={highlightRect.width}
-            height={VIEWBOX_HEIGHT - PADDING * 2}
-            fill={colors.accentOverlay}
-          />
+    <View style={styles.wrapper}>
+      {yLabel && (
+        <Text style={[styles.axisLabel, { color: colors.textTertiary }]}>
+          {yLabel}
+        </Text>
+      )}
+      <View style={styles.chartRow}>
+        <View style={styles.yAxis}>
+          {yTicks.map((tick, index) => (
+            <Text key={`tick-${index}`} style={[styles.yAxisText, { color: colors.textTertiary }]}>
+              {formatY(tick)}
+            </Text>
+          ))}
+        </View>
+        <View
+          style={[
+            styles.chartContainer,
+            {
+              height,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+            },
+          ]}
+        >
+          <Svg
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+          >
+            {highlightRect && (
+              <Rect
+                x={highlightRect.x}
+                y={PADDING}
+                width={highlightRect.width}
+                height={VIEWBOX_HEIGHT - PADDING * 2}
+                fill={colors.accentOverlay}
+              />
+            )}
+            <Path d={path} stroke={lineColor} strokeWidth={2.5} fill="none" />
+            {points.map((point, index) => {
+              if (!highlightSet.has(point.date)) return null;
+              const pos = getPoint(points, index);
+              return (
+                <Circle
+                  key={`highlight-${index}`}
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={4}
+                  fill={lineColor}
+                />
+              );
+            })}
+          </Svg>
+        </View>
+      </View>
+      <View style={styles.xAxis}>
+        <Text style={[styles.xAxisText, { color: colors.textTertiary }]}>
+          {xStart ? formatX(xStart) : ''}
+        </Text>
+        {xLabel && (
+          <Text style={[styles.xAxisLabel, { color: colors.textTertiary }]}>
+            {xLabel}
+          </Text>
         )}
-        <Path d={path} stroke={lineColor} strokeWidth={2.5} fill="none" />
-        {points.map((point, index) => {
-          if (!highlightSet.has(point.date)) return null;
-          const pos = getPoint(points, index);
-          return (
-            <Circle
-              key={`highlight-${index}`}
-              cx={pos.x}
-              cy={pos.y}
-              r={4}
-              fill={lineColor}
-            />
-          );
-        })}
-      </Svg>
+        <Text style={[styles.xAxisText, { color: colors.textTertiary }]}>
+          {xEnd ? formatX(xEnd) : ''}
+        </Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrapper: {
+    gap: scale(Spacing.xs),
+  },
   chartContainer: {
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
     overflow: 'hidden',
+    flex: 1,
+  },
+  chartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(Spacing.xs),
+  },
+  yAxis: {
+    width: Y_AXIS_WIDTH,
+    justifyContent: 'space-between',
+  },
+  yAxisText: {
+    fontSize: moderateScale(10),
+    textAlign: 'right',
+  },
+  axisLabel: {
+    fontSize: moderateScale(11),
+    fontWeight: '600',
+  },
+  xAxis: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  xAxisText: {
+    fontSize: moderateScale(10),
+  },
+  xAxisLabel: {
+    fontSize: moderateScale(11),
+    fontWeight: '600',
   },
   emptyState: {
     borderRadius: BorderRadius.lg,
