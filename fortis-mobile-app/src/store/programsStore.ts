@@ -121,7 +121,7 @@ interface ProgramsState {
 // DTO Mappers
 // ============================================
 
-function mapExerciseFromDTO(dto: ProgramExerciseDTO): ProgramExercise {
+function mapExerciseFromDTO(dto: ProgramExerciseDTO & { set_details?: any }): ProgramExercise {
   return {
     id: dto.id,
     exerciseId: dto.exercise_id,
@@ -131,6 +131,7 @@ function mapExerciseFromDTO(dto: ProgramExerciseDTO): ProgramExercise {
     restSeconds: dto.rest_seconds,
     notes: dto.notes,
     orderIndex: dto.order_index,
+    setDetails: dto.set_details || undefined,
   };
 }
 
@@ -855,6 +856,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           reps: ex.reps,
           rest_seconds: ex.restSeconds || 120,
           order_index: index,
+          set_details: ex.setDetails || null,
         }));
 
         const { error: exercisesError } = await supabase

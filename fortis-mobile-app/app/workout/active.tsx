@@ -359,22 +359,18 @@ export default function ActiveWorkoutScreen() {
   };
 
   // Handle template save success
-  // Must update the completed workout name AFTER finishWorkout() moves it to completedSessions
   const handleTemplateSaveSuccess = async (templateName?: string) => {
     setShowSaveTemplateModal(false);
 
-    // Capture localId BEFORE finishWorkout() clears activeSession
-    const sessionLocalId = activeSession?.localId;
+    // Update the active session name BEFORE finishing (so it gets the correct name when moved to completed)
+    if (templateName) {
+      await updateActiveSessionName(templateName);
+    }
 
-    // Finish the workout (this moves session to completedSessions)
+    // Finish the workout (this moves session to completedSessions with the updated name)
     if (isNavigating.current) return;
     isNavigating.current = true;
     await finishWorkout();
-
-    // NOW update the completed workout's name (session exists in completedSessions)
-    if (templateName && sessionLocalId) {
-      await updateCompletedWorkoutName(sessionLocalId, templateName);
-    }
 
     setShowFinishModal(false);
     setFinishSnapshot(null);

@@ -46,6 +46,7 @@ import { AIMutationPreviewModal } from '@/src/components/ai/AIMutationPreviewMod
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
   "Tip: Long-press a weight or reps cell to fill the remaining sets.",
+  "Tip: Tap the ↓↓ button on the keyboard to fill remaining sets.",
   "Tip: Long-press the checkmark to complete the remaining sets.",
   "Tip: Long-press the Start button to reconfigure what it launches.",
   "Tip: Configure the Start button to quick-start a favorite workout or program.",

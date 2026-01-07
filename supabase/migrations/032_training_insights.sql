@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS training_insights (
 
   -- Insight classification
   type TEXT NOT NULL,
-  window TEXT NOT NULL DEFAULT '7d',
+  "window" TEXT NOT NULL DEFAULT '7d',
   anchor_date DATE NOT NULL,
 
   -- Dedupe key: 'global' | 'exercise:<uuid>' | 'muscle:<group>'
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS training_insights (
 
   -- CHECK constraints for data integrity
   CONSTRAINT check_ti_severity CHECK (severity IN ('low', 'medium', 'high')),
-  CONSTRAINT check_ti_window CHECK (window IN ('7d', '4w', '12w')),
+  CONSTRAINT check_ti_window CHECK ("window" IN ('7d', '4w', '12w')),
   CONSTRAINT check_ti_status CHECK (status IN ('active', 'dismissed'))
 );
 
@@ -86,9 +86,9 @@ CREATE INDEX idx_training_insights_user_status
   ON training_insights(user_id, status) WHERE status = 'active';
 
 -- Unique constraint for dedupe/upsert (column-based, no COALESCE)
--- Allows: INSERT ... ON CONFLICT (user_id, type, window, anchor_date, subject_key) DO UPDATE
+-- Allows: INSERT ... ON CONFLICT (user_id, type, "window", anchor_date, subject_key) DO UPDATE
 CREATE UNIQUE INDEX idx_training_insights_dedupe
-  ON training_insights(user_id, type, window, anchor_date, subject_key);
+  ON training_insights(user_id, type, "window", anchor_date, subject_key);
 
 -- Optional: Index for exercise-specific queries
 CREATE INDEX idx_training_insights_exercise

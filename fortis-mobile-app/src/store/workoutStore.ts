@@ -222,6 +222,7 @@ interface WorkoutState {
     sessions: WorkoutSession[]
   ) => Promise<{ imported: number; skipped: number; skippedSync: number }>;
   updateCompletedWorkoutName: (localId: string, newName: string) => Promise<void>;
+  updateActiveSessionName: (newName: string) => Promise<void>;
   resetStore: () => void;
   clearCompletedSessions: () => Promise<void>;
 
@@ -411,9 +412,9 @@ export const useWorkoutStore = create<WorkoutState>()(
               localId: generateId(),
               setNumber: i + 1,
               setType: inheritedSetType,
-              weight: setDetail?.weight ?? null,
+              weight: null, // Always start empty - baseline data is in baselinePerformance
               weightUnit: exerciseWeightUnit,
-              reps: setDetail?.reps ?? null,
+              reps: null,   // Always start empty - baseline data is in baselinePerformance
               rpe: null,
               restSeconds: null,
               notes: '',
@@ -1567,6 +1568,22 @@ export const useWorkoutStore = create<WorkoutState>()(
         syncWorkoutSession(updatedSession).catch((error) => {
           console.warn('Failed to sync updated workout name to cloud:', error);
         });
+      }
+    },
+
+    updateActiveSessionName: async (newName) => {
+      const { activeSession } = get();
+      if (!activeSession || activeSession.name === newName) return;
+
+      // Update active session name
+      const updatedSession = { ...activeSession, name: newName };
+      set({ activeSession: updatedSession });
+
+      // Persist to AsyncStorage
+      try {
+        await setScopedItem(ACTIVE_WORKOUT_KEY, JSON.stringify(updatedSession));
+      } catch (error) {
+        console.warn('Failed to persist updated active session name:', error);
       }
     },
 
