@@ -91,6 +91,7 @@ export default function ActiveWorkoutScreen() {
   const showRestTimerComplete = useWorkoutStore(s => s.showRestTimerComplete);
   const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
   const updateCompletedWorkoutName = useWorkoutStore(s => s.updateCompletedWorkoutName);
+  const updateActiveSessionName = useWorkoutStore(s => s.updateActiveSessionName);
 
   const handleDismiss = () => {
     if (isNavigating.current) return;
