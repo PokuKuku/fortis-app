@@ -170,6 +170,11 @@ export default function InsightsScreen() {
     [insights]
   );
 
+  const fatigueRisk = useMemo(
+    () => insights.find((insight) => insight.type === 'FATIGUE_RISK_V1'),
+    [insights]
+  );
+
   const stallRisks = useMemo(
     () => insights.filter((insight) => insight.type === 'LIFT_STALL_RISK_V1'),
     [insights]
@@ -252,6 +257,13 @@ export default function InsightsScreen() {
     );
   };
 
+  const handleFatigueWhyPress = (insight: TrainingInsight) => {
+    openInsightChat(
+      insight,
+      'Explain this fatigue risk and suggest what I should adjust next week.'
+    );
+  };
+
   const handleDismissInsight = async (insight: TrainingInsight) => {
     trackInsightDismissed({ insight_id: insight.id, insight_type: insight.type });
     await dismissInsight(insight.id);
@@ -267,7 +279,7 @@ export default function InsightsScreen() {
     router.push('/exercises');
   };
 
-  const hasInsights = Boolean(weeklyVerdict) || watchlistItems.length > 0 || Boolean(watchlistSummary);
+  const hasInsights = Boolean(weeklyVerdict) || Boolean(fatigueRisk) || watchlistItems.length > 0 || Boolean(watchlistSummary);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -341,6 +353,14 @@ export default function InsightsScreen() {
                 <InsightCard
                   insight={weeklyVerdict}
                   onWhyPress={handleWhyPress}
+                  onDismiss={handleDismissInsight}
+                />
+              )}
+
+              {fatigueRisk && (
+                <InsightCard
+                  insight={fatigueRisk}
+                  onWhyPress={handleFatigueWhyPress}
                   onDismiss={handleDismissInsight}
                 />
               )}

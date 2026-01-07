@@ -69,6 +69,9 @@ ALTER VIEW weekly_workout_volume SET (security_invoker = on);
 COMMENT ON VIEW weekly_workout_volume IS 'Weekly volume stats (timezone-aware).';
 
 -- Exercise exposures + weekly aggregates (timezone-aware week start).
+DROP VIEW IF EXISTS exercise_weekly_agg;
+DROP VIEW IF EXISTS exercise_exposures;
+
 CREATE OR REPLACE VIEW exercise_exposures AS
 WITH completed_sessions AS (
   SELECT

@@ -60,9 +60,10 @@ Last updated: 2026-01-07
 Evidence:
 - Local changes (no PR yet)
 
-## Phase 3: Fatigue + Balance + Feedback (Status: Not started)
-Last updated: TBD
+## Phase 3: Fatigue + Balance + Feedback (Status: In progress)
+Last updated: 2026-01-07
 - [ ] Fatigue Risk logic (volume spike + e1RM drop)
+- [x] Fatigue risk card UI + wiring (client-only)
 - [ ] Imbalance Flag logic (muscle group ratio or underdose)
 - [ ] Evidence detail view ("Why am I seeing this?")
 - [ ] Helpful / Not helpful feedback capture
