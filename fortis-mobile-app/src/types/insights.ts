@@ -20,6 +20,9 @@ export const INSIGHT_TYPES = [
   'LIFT_STALL_RISK_V1',
   'FATIGUE_RISK_V1',
   'IMBALANCE_FLAG_V1',
+  'FIRST_WORKOUT_RECAP_V1',
+  'CONSISTENCY_STREAK_V1',
+  'WEEKLY_VOLUME_PR_V1',
 ] as const;
 export type InsightType = (typeof INSIGHT_TYPES)[number];
 
@@ -334,7 +337,11 @@ export const GLOBAL_SUBJECT_KEY = 'global';
  */
 export function parseSubjectKey(
   subjectKey: string
-): { type: 'global' } | { type: 'exercise'; exerciseId: string } | { type: 'muscle'; muscleGroup: string } {
+):
+  | { type: 'global' }
+  | { type: 'exercise'; exerciseId: string }
+  | { type: 'muscle'; muscleGroup: string }
+  | { type: 'session'; sessionId: string } {
   if (subjectKey === GLOBAL_SUBJECT_KEY) {
     return { type: 'global' };
   }
@@ -343,6 +350,9 @@ export function parseSubjectKey(
   }
   if (subjectKey.startsWith('muscle:')) {
     return { type: 'muscle', muscleGroup: subjectKey.slice(7) };
+  }
+  if (subjectKey.startsWith('session:')) {
+    return { type: 'session', sessionId: subjectKey.slice(8) };
   }
   // Fallback to global for unknown format
   return { type: 'global' };

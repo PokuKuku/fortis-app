@@ -5,6 +5,11 @@ export interface InsightChartPoint {
   value: number;
 }
 
+export interface InsightBarPoint {
+  label: string;
+  value: number;
+}
+
 export interface InsightChartSeries {
   progress: InsightChartPoint[];
   volume: InsightChartPoint[];
@@ -14,4 +19,6 @@ export interface InsightChartSeries {
     range?: { start: string; end: string };
     points?: string[];
   };
+  breakdown?: InsightBarPoint[];
+  breakdownUnit?: string;
 }

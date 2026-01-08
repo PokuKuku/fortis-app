@@ -12,6 +12,7 @@ import { useAIStore } from '@/src/store/aiStore';
 import { submitInsightFeedback } from '@/src/services/insightsService';
 import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
+import { InsightBarChart } from '@/src/components/insights/InsightBarChart';
 import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
 import type { TrainingInsight, InsightFeedbackRating } from '@/src/types/insights';
 import type { InsightChartTab } from '@/src/types/insightCharts';
@@ -46,8 +47,10 @@ const resolveEvidence = (insight: TrainingInsight) => {
     return insight.evidence;
   }
   const ordered = order.map((key) => itemsByKey.get(key)).filter(Boolean) as TrainingInsight['evidence'];
+  const shouldHideVolume = insight.type === 'WEEKLY_VERDICT_V1';
   const filtered = ordered.filter((item) => {
     if (
+      shouldHideVolume &&
       item.key === 'volume_load' &&
       item.unit !== '%' &&
       item.compareValue === undefined &&
@@ -134,6 +137,9 @@ export default function InsightDetailScreen() {
     );
   }
 
+  const isFirstRecap = insight.type === 'FIRST_WORKOUT_RECAP_V1';
+  const isShareableInsight =
+    insight.type === 'CONSISTENCY_STREAK_V1' || insight.type === 'WEEKLY_VOLUME_PR_V1';
   const activeSeries = series?.[selectedTab] ?? [];
   const isExposureProgress = insight.type === 'LIFT_STALL_RISK_V1';
   const highlightRange =
@@ -141,7 +147,11 @@ export default function InsightDetailScreen() {
   const highlightPoints =
     selectedTab === 'progress' && isExposureProgress ? series?.highlight?.points : undefined;
   const unit = series?.units?.[selectedTab];
-  const unitLabel = unit === 'ratio' ? 'x' : unit;
+  const unitLabel = isFirstRecap
+    ? series?.breakdownUnit ?? unit
+    : unit === 'ratio'
+    ? 'x'
+    : unit;
   const xLabel =
     selectedTab === 'progress' && isExposureProgress
       ? 'Exposures'
@@ -209,6 +219,10 @@ export default function InsightDetailScreen() {
     router.push('/ai/chat');
   };
 
+  const handleShare = () => {
+    router.push({ pathname: '/insights/share', params: { id: insight.id } });
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
@@ -261,15 +275,23 @@ export default function InsightDetailScreen() {
           </View>
 
           <View style={styles.chartSection}>
-            <SegmentedControl
-              options={tabOptions}
-              value={selectedTab}
-              onChange={(value) => setSelectedTab(value as InsightChartTab)}
-            />
+            {!isFirstRecap && (
+              <SegmentedControl
+                options={tabOptions}
+                value={selectedTab}
+                onChange={(value) => setSelectedTab(value as InsightChartTab)}
+              />
+            )}
 
             <View style={styles.chartHeader}>
               <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>
-                {selectedTab === 'progress' ? 'Progress' : selectedTab === 'frequency' ? 'Frequency' : 'Volume'}
+                {isFirstRecap
+                  ? 'Workout volume by exercise'
+                  : selectedTab === 'progress'
+                  ? 'Progress'
+                  : selectedTab === 'frequency'
+                  ? 'Frequency'
+                  : 'Volume'}
               </Text>
               {unitLabel && (
                 <Text style={[styles.chartUnit, { color: colors.textTertiary }]}>
@@ -285,6 +307,11 @@ export default function InsightDetailScreen() {
                   Loading chart...
                 </Text>
               </View>
+            ) : isFirstRecap ? (
+              <InsightBarChart
+                data={series?.breakdown ?? []}
+                unit={series?.breakdownUnit ?? unitLabel}
+              />
             ) : (
               <InsightLineChart
                 points={activeSeries}
@@ -311,6 +338,17 @@ export default function InsightDetailScreen() {
                   Next steps
                 </Text>
               </TouchableOpacity>
+              {isShareableInsight && (
+                <TouchableOpacity
+                  style={[styles.shareButton, { borderColor: colors.border }]}
+                  onPress={handleShare}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.shareText, { color: colors.textSecondary }]}>
+                    Share
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {suggestionText && (
@@ -464,6 +502,7 @@ const styles = StyleSheet.create({
   nextStepsRow: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
+    gap: scale(Spacing.sm),
   },
   nextStepsButton: {
     height: scale(32),
@@ -475,6 +514,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nextStepsText: {
+    fontSize: moderateScale(12),
+    fontWeight: '600',
+  },
+  shareButton: {
+    height: scale(32),
+    paddingHorizontal: scale(Spacing.md),
+    borderWidth: 1,
+    borderRadius: scale(16),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareText: {
     fontSize: moderateScale(12),
     fontWeight: '600',
   },

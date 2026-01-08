@@ -2,7 +2,7 @@ import { addDays } from 'date-fns';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { parseSubjectKey } from '@/src/types/insights';
 import type { TrainingInsight } from '@/src/types/insights';
-import type { InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
+import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
 
 const WEEKLY_SERIES_WEEKS = 12;
 const EXPOSURE_LOOKBACK_DAYS = 42;
@@ -86,6 +86,10 @@ const getProgressUnit = (insight: TrainingInsight): string | undefined => {
   return insight.evidence.find((item) => item.key === 'best_e1rm')?.unit;
 };
 
+const getVolumeUnitFallback = (insight: TrainingInsight): string => {
+  return getVolumeUnit(insight) ?? 'lbs';
+};
+
 export async function fetchInsightChartSeries(
   insight: TrainingInsight
 ): Promise<InsightChartSeries | null> {
@@ -113,7 +117,12 @@ export async function fetchInsightChartSeries(
     units: {},
   };
 
-  if (insight.type === 'WEEKLY_VERDICT_V1' || insight.type === 'FATIGUE_RISK_V1') {
+  if (
+    insight.type === 'WEEKLY_VERDICT_V1' ||
+    insight.type === 'FATIGUE_RISK_V1' ||
+    insight.type === 'CONSISTENCY_STREAK_V1' ||
+    insight.type === 'WEEKLY_VOLUME_PR_V1'
+  ) {
     const { data, error } = await supabase
       .from('weekly_workout_volume')
       .select('week_start, total_volume, workouts_count')
@@ -191,6 +200,67 @@ export async function fetchInsightChartSeries(
       points: highlightPoints,
     };
 
+    return series;
+  }
+
+  if (insight.type === 'FIRST_WORKOUT_RECAP_V1') {
+    const subject = parseSubjectKey(insight.subjectKey);
+    if (subject.type !== 'session') {
+      return series;
+    }
+    const volumeUnit = getVolumeUnitFallback(insight);
+    const { data, error } = await supabase
+      .from('workout_sets')
+      .select('exercise_id, reps, weight, weight_unit, is_warmup, exercises(name)')
+      .eq('session_id', subject.sessionId);
+
+    if (error || !data) {
+      return series;
+    }
+
+    const byExercise = new Map<string, { name: string; volume: number }>();
+    (data as Array<{
+      exercise_id: string;
+      reps: number | null;
+      weight: number | null;
+      weight_unit: string | null;
+      is_warmup: boolean | null;
+      exercises?: { name?: string } | null;
+    }>)
+      .forEach((row) => {
+        if (!row?.exercise_id) return;
+        if (row.is_warmup) return;
+        if (!row.reps || !row.weight || row.reps <= 0 || row.weight <= 0) return;
+        const weightNorm =
+          volumeUnit === 'kg'
+            ? row.weight_unit === 'lbs'
+              ? row.weight / 2.20462
+              : row.weight
+            : row.weight_unit === 'kg'
+            ? row.weight * 2.20462
+            : row.weight;
+        const volume = weightNorm * row.reps;
+        const name = row.exercises?.name ?? 'Exercise';
+        const existing = byExercise.get(row.exercise_id) ?? { name, volume: 0 };
+        existing.volume += volume;
+        byExercise.set(row.exercise_id, existing);
+      });
+
+    const breakdown: InsightBarPoint[] = Array.from(byExercise.values())
+      .map((entry) => ({
+        label: entry.name,
+        value: entry.volume,
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    const top = breakdown.slice(0, 5);
+    if (breakdown.length > 5) {
+      const otherTotal = breakdown.slice(5).reduce((sum, item) => sum + item.value, 0);
+      top.push({ label: 'Other', value: otherTotal });
+    }
+
+    series.breakdown = top;
+    series.breakdownUnit = volumeUnit;
     return series;
   }
 

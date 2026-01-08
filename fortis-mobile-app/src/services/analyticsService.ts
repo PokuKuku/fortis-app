@@ -137,6 +137,18 @@ interface InsightFeedbackSubmittedProps {
   rating: string;
 }
 
+/** Insight share started event properties */
+interface InsightShareStartedProps {
+  insight_id: string;
+  insight_type: string;
+  privacy_mode: 'private' | 'detailed';
+}
+
+/** Insight share completed event properties */
+interface InsightShareCompletedProps extends InsightShareStartedProps {
+  result: 'shared' | 'dismissed' | 'unknown' | 'error';
+}
+
 // ============================================================================
 // Error/Failure Event Types
 // ============================================================================
@@ -196,6 +208,8 @@ const Events = {
   INSIGHT_DISMISSED: 'insight_dismissed',
   TYPE_SNOOZED: 'type_snoozed',
   INSIGHT_FEEDBACK_SUBMITTED: 'insight_feedback_submitted',
+  INSIGHT_SHARE_STARTED: 'share_started',
+  INSIGHT_SHARE_COMPLETED: 'share_completed',
   // Error/failure events
   SYNC_FAILED: 'sync_failed',
   API_ERROR: 'api_error',
@@ -385,6 +399,29 @@ export const analytics = {
       insight_id: props.insight_id,
       insight_type: props.insight_type,
       rating: props.rating,
+    });
+  },
+
+  /**
+   * Track when insight sharing starts
+   */
+  trackInsightShareStarted(props: InsightShareStartedProps) {
+    capture(Events.INSIGHT_SHARE_STARTED, {
+      insight_id: props.insight_id,
+      insight_type: props.insight_type,
+      privacy_mode: props.privacy_mode,
+    });
+  },
+
+  /**
+   * Track when insight sharing completes
+   */
+  trackInsightShareCompleted(props: InsightShareCompletedProps) {
+    capture(Events.INSIGHT_SHARE_COMPLETED, {
+      insight_id: props.insight_id,
+      insight_type: props.insight_type,
+      privacy_mode: props.privacy_mode,
+      result: props.result,
     });
   },
 

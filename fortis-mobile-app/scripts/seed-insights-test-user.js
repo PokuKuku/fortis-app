@@ -1,6 +1,6 @@
 /**
  * Seed realistic workout data for a specific user to validate Insights.
- * Usage: node scripts/seed-insights-test-user.js <email> --confirm
+ * Usage: node scripts/seed-insights-test-user.js <email> --confirm [--first-only]
  */
 
 const path = require('path');
@@ -15,6 +15,7 @@ const SERVICE_ROLE_KEY =
 
 const email = process.argv[2];
 const shouldConfirm = process.argv.includes('--confirm');
+const firstOnly = process.argv.includes('--first-only');
 
 if (!email) {
   console.error('Missing email. Usage: node scripts/seed-insights-test-user.js <email> --confirm');
@@ -290,11 +291,18 @@ const run = async () => {
   let sessionCount = 0;
   let setCount = 0;
 
-  for (const config of weekConfigs) {
+  const selectedConfigs = firstOnly
+    ? [weekConfigs[weekConfigs.length - 1]]
+    : weekConfigs;
+
+  for (const config of selectedConfigs) {
     const weekBase = addDays(weekStart, config.offset * 7);
-    for (let index = 0; index < config.days.length; index += 1) {
-      const dayOffset = config.days[index];
-      const template = config.types[index];
+    const sessionDays = firstOnly ? [config.days[0]] : config.days;
+    const sessionTypes = firstOnly ? [config.types[0]] : config.types;
+
+    for (let index = 0; index < sessionDays.length; index += 1) {
+      const dayOffset = sessionDays[index];
+      const template = sessionTypes[index];
       const sessionDate = addDays(weekBase, dayOffset);
       sessionDate.setUTCHours(18, 0, 0, 0);
       const completedAt = new Date(sessionDate.getTime() + 60 * 60 * 1000);
@@ -306,7 +314,7 @@ const run = async () => {
         completed_at: completedAt.toISOString(),
         duration_seconds: 3600,
         is_synced: true,
-        local_id: `seed-${config.offset}-${index}`,
+        local_id: firstOnly ? 'seed-first' : `seed-${config.offset}-${index}`,
       };
 
       const { data: session, error: sessionError } = await supabase
@@ -335,6 +343,10 @@ const run = async () => {
 
       sessionCount += 1;
       setCount += sets.length;
+    }
+
+    if (firstOnly) {
+      break;
     }
   }
 

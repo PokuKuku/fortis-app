@@ -34,6 +34,12 @@ type MuscleGroupRow = {
   working_sets: number | null;
 };
 
+type WeeklySummaryRow = {
+  week_start: string;
+  workouts_count: number | null;
+  total_volume: number | null;
+};
+
 type EvidenceItem = {
   key: string;
   label: string;
@@ -55,10 +61,16 @@ const INSIGHT_TYPE = 'WEEKLY_VERDICT_V1';
 const STALL_RISK_TYPE = 'LIFT_STALL_RISK_V1';
 const FATIGUE_RISK_TYPE = 'FATIGUE_RISK_V1';
 const IMBALANCE_FLAG_TYPE = 'IMBALANCE_FLAG_V1';
+const FIRST_WORKOUT_RECAP_TYPE = 'FIRST_WORKOUT_RECAP_V1';
+const CONSISTENCY_STREAK_TYPE = 'CONSISTENCY_STREAK_V1';
+const WEEKLY_VOLUME_PR_TYPE = 'WEEKLY_VOLUME_PR_V1';
+const POSITIVE_INSIGHT_TYPES = [CONSISTENCY_STREAK_TYPE, WEEKLY_VOLUME_PR_TYPE];
 const WINDOW = '7d';
 const STALL_WINDOW = '4w';
 const FATIGUE_WINDOW = '7d';
 const IMBALANCE_WINDOW = '4w';
+const STREAK_WINDOW = '7d';
+const VOLUME_PR_WINDOW = '12w';
 const GLOBAL_SUBJECT_KEY = 'global';
 const SCHEMA_VERSION = '1';
 
@@ -128,6 +140,20 @@ const addDays = (date: Date, days: number): Date => {
 const clampNumber = (value: number | null | undefined): number => {
   if (value === null || value === undefined || Number.isNaN(value)) return 0;
   return Number(value);
+};
+
+const clamp = (value: number, min: number, max: number): number => {
+  return Math.min(Math.max(value, min), max);
+};
+
+const median = (values: number[]): number => {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
 };
 
 const resolveWeekStart = (timezone: string): Date => {
@@ -274,6 +300,28 @@ const fetchWeeklyPrCounts = async (
   };
 };
 
+const fetchWeeklySummary = async (
+  adminClient: SupabaseClient,
+  userId: string,
+  start: Date,
+  end: Date
+): Promise<WeeklySummaryRow[]> => {
+  const { data, error } = await adminClient
+    .from('weekly_workout_volume')
+    .select('week_start, workouts_count, total_volume')
+    .eq('user_id', userId)
+    .gte('week_start', toIsoDate(start))
+    .lte('week_start', toIsoDate(end))
+    .order('week_start', { ascending: true });
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch weekly summary:', error.message);
+    return [];
+  }
+
+  return (data as WeeklySummaryRow[]) ?? [];
+};
+
 const fetchSnoozes = async (
   adminClient: SupabaseClient,
   userId: string
@@ -371,6 +419,17 @@ const sortByExposure = (a: { exposures: number; lastExposureAt: number }, b: { e
     return b.exposures - a.exposures;
   }
   return b.lastExposureAt - a.lastExposureAt;
+};
+
+const normalizeWeight = (
+  weight: number,
+  weightUnit: string | null | undefined,
+  preferredUnits: 'imperial' | 'metric'
+): number => {
+  if (preferredUnits === 'metric') {
+    return weightUnit === 'lbs' ? weight / 2.20462 : weight;
+  }
+  return weightUnit === 'kg' ? weight * 2.20462 : weight;
 };
 
 const buildStallRecommendation = ({
@@ -771,6 +830,298 @@ const buildFatigueRiskInsight = async ({
   };
 };
 
+const buildFirstWorkoutRecapInsight = async ({
+  adminClient,
+  userId,
+  preferredUnits,
+}: {
+  adminClient: SupabaseClient;
+  userId: string;
+  preferredUnits: 'imperial' | 'metric';
+}): Promise<Record<string, unknown> | null> => {
+  const { data: sessions, count, error } = await adminClient
+    .from('workout_sessions')
+    .select('id, started_at, completed_at, duration_seconds', { count: 'exact' })
+    .eq('user_id', userId)
+    .not('completed_at', 'is', null)
+    .order('started_at', { ascending: true })
+    .limit(1);
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch first session:', error.message);
+    return null;
+  }
+
+  const completedCount = count ?? 0;
+  if (completedCount !== 1) {
+    return null;
+  }
+
+  const session = sessions?.[0];
+  if (!session?.id) {
+    return null;
+  }
+
+  const { data: sets, error: setsError } = await adminClient
+    .from('workout_sets')
+    .select('exercise_id, reps, weight, weight_unit, is_warmup')
+    .eq('session_id', session.id);
+
+  if (setsError) {
+    console.warn('[Insights] Failed to fetch session sets:', setsError.message);
+    return null;
+  }
+
+  let workingSets = 0;
+  let totalVolume = 0;
+  const exercises = new Set<string>();
+  let topSet: { exerciseId: string; weight: number; reps: number; e1rm: number } | null = null;
+
+  (sets ?? []).forEach((row: { exercise_id: string; reps: number | null; weight: number | null; weight_unit: string | null; is_warmup: boolean | null }) => {
+    if (!row?.exercise_id) return;
+    if (row.is_warmup) return;
+    if (!row.reps || !row.weight || row.reps <= 0 || row.weight <= 0) return;
+    workingSets += 1;
+    exercises.add(row.exercise_id);
+    const weightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
+    totalVolume += weightNorm * row.reps;
+    const repsClamped = Math.min(row.reps, 12);
+    const e1rm = weightNorm * (1 + repsClamped / 30.0);
+    if (!topSet || e1rm > topSet.e1rm) {
+      topSet = {
+        exerciseId: row.exercise_id,
+        weight: weightNorm,
+        reps: row.reps,
+        e1rm,
+      };
+    }
+  });
+
+  if (workingSets === 0) {
+    return null;
+  }
+
+  const exerciseIds = Array.from(exercises);
+  const { data: exerciseRows } = await adminClient
+    .from('exercises')
+    .select('id, name')
+    .in('id', exerciseIds);
+  const exerciseNameById = new Map<string, string>();
+  (exerciseRows ?? []).forEach((row: { id: string; name: string }) => {
+    if (row?.id) {
+      exerciseNameById.set(row.id, row.name);
+    }
+  });
+
+  const durationSeconds = session.duration_seconds ?? null;
+  const durationMinutes = durationSeconds ? Math.round(durationSeconds / 60) : null;
+  const volumeUnit = preferredUnits === 'metric' ? 'kg' : 'lbs';
+
+  const evidence: EvidenceItem[] = [
+    {
+      key: 'working_sets',
+      label: 'Working sets',
+      value: workingSets,
+      unit: 'sets',
+      source: 'workout_sets',
+      period: 'session',
+    },
+    {
+      key: 'total_volume',
+      label: 'Total volume',
+      value: Math.round(totalVolume),
+      unit: volumeUnit,
+      source: 'workout_sets',
+      period: 'session',
+    },
+    {
+      key: 'exercises',
+      label: 'Exercises trained',
+      value: exerciseIds.length,
+      unit: 'exercises',
+      source: 'workout_sets',
+      period: 'session',
+    },
+  ];
+
+  if (durationMinutes && durationMinutes > 0) {
+    evidence.push({
+      key: 'duration',
+      label: 'Duration',
+      value: durationMinutes,
+      unit: 'min',
+      source: 'workout_sessions',
+      period: 'session',
+    });
+  }
+
+  if (topSet) {
+    const exerciseName = exerciseNameById.get(topSet.exerciseId) ?? 'Top lift';
+    evidence.push({
+      key: 'top_set',
+      label: `Top set (${exerciseName} × ${topSet.reps} reps)`,
+      value: Math.round(topSet.weight),
+      unit: volumeUnit,
+      source: 'workout_sets',
+      period: 'session',
+    });
+  }
+
+  return {
+    user_id: userId,
+    type: FIRST_WORKOUT_RECAP_TYPE,
+    window: WINDOW,
+    anchor_date: toIsoDate(new Date(session.started_at)),
+    subject_key: `session:${session.id}`,
+    severity: 'low',
+    status: 'active',
+    title: 'First workout recap',
+    summary: 'Baseline created. Repeat this session to start trend tracking.',
+    evidence,
+    recommendation: [
+      {
+        type: 'INCREASE_FREQUENCY',
+        payload: { text: 'Repeat this workout (or 1–2 lifts) next time to start trend tracking.' },
+        rationaleKey: 'CONSISTENCY_LOW',
+      },
+    ],
+    schema_version: SCHEMA_VERSION,
+  };
+};
+
+const buildConsistencyStreakInsight = ({
+  userId,
+  weekStart,
+  thisWeekWorkouts,
+  baseline,
+  streakWeeks,
+}: {
+  userId: string;
+  weekStart: Date;
+  thisWeekWorkouts: number;
+  baseline: number;
+  streakWeeks: number;
+}): Record<string, unknown> | null => {
+  const milestones = new Set([2, 4, 8, 12]);
+  if (!milestones.has(streakWeeks)) {
+    return null;
+  }
+
+  return {
+    user_id: userId,
+    type: CONSISTENCY_STREAK_TYPE,
+    window: STREAK_WINDOW,
+    anchor_date: toIsoDate(weekStart),
+    subject_key: GLOBAL_SUBJECT_KEY,
+    severity: 'low',
+    status: 'active',
+    title: `${streakWeeks}-week consistency streak`,
+    summary: 'You’re building a strong training habit. Keep the streak alive.',
+    evidence: [
+      {
+        key: 'sessions',
+        label: 'Workouts this week',
+        value: thisWeekWorkouts,
+        unit: 'workouts',
+        source: 'weekly_workout_volume',
+        period: 'this_week',
+      },
+      {
+        key: 'streak_weeks',
+        label: 'Streak',
+        value: streakWeeks,
+        unit: 'weeks',
+        source: 'weekly_workout_volume',
+        period: 'streak',
+      },
+      {
+        key: 'baseline_sessions',
+        label: 'Baseline workouts/week',
+        value: baseline,
+        unit: 'workouts',
+        source: 'weekly_workout_volume',
+        period: 'baseline',
+      },
+    ],
+    recommendation: [
+      {
+        type: 'INCREASE_FREQUENCY',
+        payload: { text: 'Keep the streak by scheduling your next session now.' },
+        rationaleKey: 'CONSISTENCY_LOW',
+      },
+    ],
+    schema_version: SCHEMA_VERSION,
+  };
+};
+
+const buildWeeklyVolumePrInsight = ({
+  userId,
+  weekStart,
+  thisWeekVolume,
+  priorBest,
+  volumeUnit,
+}: {
+  userId: string;
+  weekStart: Date;
+  thisWeekVolume: number;
+  priorBest: number;
+  volumeUnit: string;
+}): Record<string, unknown> | null => {
+  if (priorBest <= 0) {
+    return null;
+  }
+  const pctChange = ((thisWeekVolume - priorBest) / priorBest) * 100;
+  if (pctChange < 5) {
+    return null;
+  }
+
+  return {
+    user_id: userId,
+    type: WEEKLY_VOLUME_PR_TYPE,
+    window: VOLUME_PR_WINDOW,
+    anchor_date: toIsoDate(weekStart),
+    subject_key: GLOBAL_SUBJECT_KEY,
+    severity: 'low',
+    status: 'active',
+    title: 'New 12-week volume high',
+    summary: 'This was your strongest training week in the last 12 weeks.',
+    evidence: [
+      {
+        key: 'volume_load',
+        label: 'Weekly volume',
+        value: Math.round(thisWeekVolume),
+        unit: volumeUnit,
+        source: 'weekly_workout_volume',
+        period: 'this_week',
+      },
+      {
+        key: 'prior_best',
+        label: 'Prior 12-week best',
+        value: Math.round(priorBest),
+        unit: volumeUnit,
+        source: 'weekly_workout_volume',
+        period: 'last_12w',
+      },
+      {
+        key: 'change_pct',
+        label: 'Change',
+        value: Number(pctChange.toFixed(1)),
+        unit: '%',
+        source: 'weekly_workout_volume',
+        period: 'this_week',
+      },
+    ],
+    recommendation: [
+      {
+        type: 'INCREASE_FREQUENCY',
+        payload: { text: 'Hold volume steady next week to consolidate.' },
+        rationaleKey: 'CONSISTENCY_LOW',
+      },
+    ],
+    schema_version: SCHEMA_VERSION,
+  };
+};
+
 const buildStallRiskInsights = async ({
   adminClient,
   userId,
@@ -1130,6 +1481,7 @@ Deno.serve(async (req) => {
   const shouldRunStall = requestType === 'lift_stall_risk' || requestType === 'all';
   const shouldRunFatigue = requestType === 'fatigue_risk' || requestType === 'all';
   const shouldRunImbalance = requestType === 'imbalance_flag' || requestType === 'all';
+  const shouldRunPositive = requestType === 'all';
 
   const [{ preferredUnits, timezone }, conservatismLevel, snoozes] = await Promise.all([
     fetchUserPrefs(supabase, user.id),
@@ -1159,7 +1511,7 @@ Deno.serve(async (req) => {
     (!snoozedUntilImbalance || snoozedUntilImbalance < toIsoDate(weekStart)) &&
     !feedbackSignals.suppressed.has(IMBALANCE_FLAG_TYPE);
 
-  const shouldFetchWeeklyVolume = shouldRunWeeklyFinal || shouldRunFatigueFinal;
+  const shouldFetchWeeklyVolume = shouldRunWeeklyFinal || shouldRunFatigueFinal || shouldRunPositive;
 
   if (feedbackSignals.suppressed.size > 0) {
     const suppressedTypes = Array.from(feedbackSignals.suppressed);
@@ -1178,6 +1530,10 @@ Deno.serve(async (req) => {
     shouldFetchWeeklyVolume ? fetchWeeklyVolume(supabase, user.id, weekStart, lastWeekStart) : Promise.resolve({ thisWeek: null, lastWeek: null }),
     shouldRunWeeklyFinal ? fetchWeeklyPrCounts(supabase, user.id, weekStart) : Promise.resolve({ thisWeek: 0, lastWeek: 0 }),
   ]);
+
+  const weeklySummary = shouldRunPositive
+    ? await fetchWeeklySummary(adminClient, user.id, addDays(weekStart, -7 * 11), weekStart)
+    : [];
 
   const insightsToUpsert: Record<string, unknown>[] = [];
 
@@ -1302,6 +1658,112 @@ Deno.serve(async (req) => {
 
     if (imbalanceInsight) {
       insightsToUpsert.push(imbalanceInsight);
+    }
+  }
+
+  if (shouldRunPositive) {
+    const recapInsight = await buildFirstWorkoutRecapInsight({
+      adminClient,
+      userId: user.id,
+      preferredUnits,
+    });
+    if (recapInsight) {
+      insightsToUpsert.push(recapInsight);
+    }
+
+    const thisWeekWorkouts = clampNumber(weeklyVolume.thisWeek?.workouts_count);
+    const thisWeekVolume = clampNumber(weeklyVolume.thisWeek?.total_volume);
+    const volumeUnit = preferredUnits === 'metric' ? 'kg' : 'lbs';
+
+    if (thisWeekWorkouts >= 2) {
+      const positiveLimit = thisWeekWorkouts >= 6 ? 2 : 1;
+      const positiveWindowStart = addDays(weekStart, -7);
+      const { data: recentPositive } = await adminClient
+        .from('training_insights')
+        .select('type, created_at')
+        .eq('user_id', user.id)
+        .in('type', POSITIVE_INSIGHT_TYPES)
+        .gte('created_at', toIsoDateTime(positiveWindowStart));
+
+      const positiveRemaining = Math.max(positiveLimit - (recentPositive?.length ?? 0), 0);
+
+      if (positiveRemaining > 0) {
+        const cooldownStart = addDays(weekStart, -28);
+        const { data: cooldownRows } = await adminClient
+          .from('training_insights')
+          .select('type, created_at')
+          .eq('user_id', user.id)
+          .in('type', POSITIVE_INSIGHT_TYPES)
+          .gte('created_at', toIsoDateTime(cooldownStart));
+
+        const cooldownTypes = new Set<string>((cooldownRows ?? []).map((row: { type: string }) => row.type));
+
+        const weeklyMap = new Map<string, WeeklySummaryRow>();
+        weeklySummary.forEach((row) => {
+          if (!row?.week_start) return;
+          weeklyMap.set(toIsoDate(new Date(row.week_start)), row);
+        });
+        const fullSeries = Array.from({ length: 12 }, (_, index) => {
+          const weekDate = addDays(weekStart, -7 * (11 - index));
+          const key = toIsoDate(weekDate);
+          const row = weeklyMap.get(key);
+          return {
+            week_start: key,
+            workouts_count: clampNumber(row?.workouts_count),
+            total_volume: clampNumber(row?.total_volume),
+          };
+        });
+
+        const previousWeeks = fullSeries.slice(0, fullSeries.length - 1);
+        const baselineWindow = previousWeeks.slice(-8);
+        const baselineMedian = median(baselineWindow.map((row) => row.workouts_count ?? 0));
+        const baseline = clamp(Math.round(baselineMedian), 2, 6);
+        const qualifiedThreshold = baseline <= 2 ? 2 : Math.max(3, baseline);
+        let streakWeeks = 0;
+        for (let i = fullSeries.length - 1; i >= 0; i -= 1) {
+          if ((fullSeries[i].workouts_count ?? 0) >= qualifiedThreshold) {
+            streakWeeks += 1;
+          } else {
+            break;
+          }
+        }
+
+        const positiveInsights: Record<string, unknown>[] = [];
+
+        if (!cooldownTypes.has(CONSISTENCY_STREAK_TYPE)) {
+          const streakInsight = buildConsistencyStreakInsight({
+            userId: user.id,
+            weekStart,
+            thisWeekWorkouts,
+            baseline,
+            streakWeeks,
+          });
+          if (streakInsight) {
+            positiveInsights.push(streakInsight);
+          }
+        }
+
+        if (!cooldownTypes.has(WEEKLY_VOLUME_PR_TYPE)) {
+          const priorBest = Math.max(
+            0,
+            ...previousWeeks.map((row) => row.total_volume ?? 0)
+          );
+          const volumeInsight = buildWeeklyVolumePrInsight({
+            userId: user.id,
+            weekStart,
+            thisWeekVolume,
+            priorBest,
+            volumeUnit,
+          });
+          if (volumeInsight) {
+            positiveInsights.push(volumeInsight);
+          }
+        }
+
+        positiveInsights.slice(0, positiveRemaining).forEach((insight) => {
+          insightsToUpsert.push(insight);
+        });
+      }
     }
   }
 

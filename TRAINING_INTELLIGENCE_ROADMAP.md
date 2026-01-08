@@ -91,6 +91,18 @@ Acceptance criteria:
 - Feedback can suppress noisy cards over time
 - Dismissed cards stay hidden for the window
 
+## Phase 3.5: Early Value + Positive Insights + Sharing (Status: Done)
+Last updated: 2026-01-08
+- [x] FIRST_WORKOUT_RECAP_V1 generator (baseline recap after first completed session)
+- [x] Session-based chart for recap (per-exercise volume breakdown)
+- [x] CONSISTENCY_STREAK_V1 (milestone streaks)
+- [x] WEEKLY_VOLUME_PR_V1 (12-week best with +5% threshold)
+- [x] Share preview + privacy toggle (private/detailed)
+- [x] Share instrumentation: share_started, share_completed
+- [x] Feed ordering: Weekly insight → risks → one positive (first workout recap always shown for new users)
+Evidence:
+- Implemented in code; share requires dev client rebuild, insights require function deploy
+
 ## Phase 4: One-tap Actions (Optional) (Status: Not started)
 Last updated: TBD
 - [ ] Recommendation actions schema wired to templates/programs
@@ -109,6 +121,9 @@ Acceptance criteria:
 - LIFT_STALL_RISK_V1
 - FATIGUE_RISK_V1
 - IMBALANCE_FLAG_V1
+- FIRST_WORKOUT_RECAP_V1
+- CONSISTENCY_STREAK_V1
+- WEEKLY_VOLUME_PR_V1
 - Optional later: PR_READINESS_V1, CONSISTENCY_FLAG_V1
 
 ## Severity enum

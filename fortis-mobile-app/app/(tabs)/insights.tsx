@@ -13,7 +13,7 @@ import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useAIStore } from '@/src/store/aiStore';
-import { TrainingInsight } from '@/src/types/insights';
+import { TrainingInsight, InsightType } from '@/src/types/insights';
 import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { useAnalytics } from '@/src/services/analyticsService';
@@ -50,6 +50,13 @@ type SparklineData = {
 
 type ChartTab = 'progress' | 'volume' | 'frequency';
 
+const isShareableInsight = (type: InsightType): boolean => {
+  return type === 'CONSISTENCY_STREAK_V1' || type === 'WEEKLY_VOLUME_PR_V1';
+};
+
+const POSITIVE_INSIGHT_TYPES: InsightType[] = ['CONSISTENCY_STREAK_V1', 'WEEKLY_VOLUME_PR_V1'];
+const RISK_INSIGHT_TYPES: InsightType[] = ['FATIGUE_RISK_V1', 'IMBALANCE_FLAG_V1'];
+
 const formatWeekRange = (anchorDate: string): string => {
   const start = new Date(`${anchorDate}T00:00:00`);
   if (Number.isNaN(start.getTime())) {
@@ -67,6 +74,9 @@ const resolveSparkline = (
   series: InsightChartSeries | null
 ): SparklineData | null => {
   if (!series) {
+    return null;
+  }
+  if (insight.type === 'FIRST_WORKOUT_RECAP_V1') {
     return null;
   }
 
@@ -108,8 +118,10 @@ const resolveEvidence = (insight: TrainingInsight) => {
     return insight.evidence;
   }
   const ordered = order.map((key) => itemsByKey.get(key)).filter(Boolean) as TrainingInsight['evidence'];
+  const shouldHideVolume = insight.type === 'WEEKLY_VERDICT_V1';
   const filtered = ordered.filter((item) => {
     if (
+      shouldHideVolume &&
       item.key === 'volume_load' &&
       item.unit !== '%' &&
       item.compareValue === undefined &&
@@ -127,11 +139,13 @@ function InsightCard({
   onWhyPress,
   onDismiss,
   onOpenChart,
+  onShare,
 }: {
   insight: TrainingInsight;
   onWhyPress: (insight: TrainingInsight) => void;
   onDismiss: (insight: TrainingInsight) => void;
   onOpenChart: (insight: TrainingInsight) => void;
+  onShare: (insight: TrainingInsight) => void;
 }) {
   const { colors, isDark } = useTheme();
   const { series } = useInsightChartSeries(insight);
@@ -236,6 +250,15 @@ function InsightCard({
         >
           <Text style={[styles.viewChartText, { color: colors.textSecondary }]}>View chart</Text>
         </TouchableOpacity>
+        {isShareableInsight(insight.type) && (
+          <TouchableOpacity
+            style={[styles.shareButton, { borderColor: colors.border }]}
+            onPress={() => onShare(insight)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.shareButtonText, { color: colors.textSecondary }]}>Share</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -404,10 +427,42 @@ export default function InsightsScreen() {
     [insights]
   );
 
+  const firstWorkoutRecap = useMemo(
+    () => insights.find((insight) => insight.type === 'FIRST_WORKOUT_RECAP_V1'),
+    [insights]
+  );
+
   const stallRisks = useMemo(
     () => insights.filter((insight) => insight.type === 'LIFT_STALL_RISK_V1'),
     [insights]
   );
+
+  const riskInsights = useMemo(() => {
+    const typePriority: Record<string, number> = {
+      FATIGUE_RISK_V1: 0,
+      IMBALANCE_FLAG_V1: 1,
+    };
+    const severityRank: Record<TrainingInsight['severity'], number> = {
+      high: 2,
+      medium: 1,
+      low: 0,
+    };
+    return insights
+      .filter((insight) => RISK_INSIGHT_TYPES.includes(insight.type))
+      .sort((a, b) => {
+        const bySeverity = severityRank[b.severity] - severityRank[a.severity];
+        if (bySeverity !== 0) return bySeverity;
+        const byType = (typePriority[a.type] ?? 99) - (typePriority[b.type] ?? 99);
+        if (byType !== 0) return byType;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+  }, [insights]);
+
+  const positiveInsights = useMemo(() => {
+    return insights
+      .filter((insight) => POSITIVE_INSIGHT_TYPES.includes(insight.type))
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  }, [insights]);
 
   const watchlistItems = useMemo(() => {
     const severityRank: Record<TrainingInsight['severity'], number> = {
@@ -435,30 +490,15 @@ export default function InsightsScreen() {
     return item ? Number(item.value) : 0;
   }, [watchlistSummary]);
 
-  const supplementalInsights = useMemo(() => {
-    const typePriority: Record<string, number> = {
-      FATIGUE_RISK_V1: 0,
-      IMBALANCE_FLAG_V1: 1,
-    };
-    const severityRank: Record<TrainingInsight['severity'], number> = {
-      high: 2,
-      medium: 1,
-      low: 0,
-    };
-    return insights
-      .filter((insight) => insight.type !== 'WEEKLY_VERDICT_V1' && insight.type !== 'LIFT_STALL_RISK_V1')
-      .sort((a, b) => {
-        const bySeverity = severityRank[b.severity] - severityRank[a.severity];
-        if (bySeverity !== 0) return bySeverity;
-        const byType = (typePriority[a.type] ?? 99) - (typePriority[b.type] ?? 99);
-        if (byType !== 0) return byType;
-        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
-      });
-  }, [insights]);
-
   const watchlistVisible = watchlistItems.length > 0 || Boolean(watchlistSummary);
-  const maxSupplemental = Math.max(0, 3 - (weeklyVerdict ? 1 : 0) - (watchlistVisible ? 1 : 0));
-  const visibleSupplemental = supplementalInsights.slice(0, maxSupplemental);
+  const baseCount = (weeklyVerdict ? 1 : 0) + (firstWorkoutRecap ? 1 : 0);
+  const availableSlots = Math.max(0, 3 - baseCount - (watchlistVisible ? 1 : 0));
+  const riskCandidates = firstWorkoutRecap
+    ? riskInsights.filter((insight) => insight.severity === 'high')
+    : riskInsights;
+  const visibleRisks = riskCandidates.slice(0, availableSlots);
+  const remainingSlots = Math.max(0, availableSlots - visibleRisks.length);
+  const visiblePositives = remainingSlots > 0 ? positiveInsights.slice(0, 1) : [];
 
   const cardTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
@@ -527,6 +567,10 @@ export default function InsightsScreen() {
     );
   };
 
+  const handleShareInsight = (insight: TrainingInsight) => {
+    router.push({ pathname: '/insights/share', params: { id: insight.id } });
+  };
+
   const handleDismissInsight = async (insight: TrainingInsight) => {
     trackInsightDismissed({ insight_id: insight.id, insight_type: insight.type });
     await dismissInsight(insight.id);
@@ -542,7 +586,12 @@ export default function InsightsScreen() {
     router.push('/exercises');
   };
 
-  const hasInsights = Boolean(weeklyVerdict) || visibleSupplemental.length > 0 || watchlistVisible;
+  const hasInsights =
+    Boolean(weeklyVerdict) ||
+    Boolean(firstWorkoutRecap) ||
+    watchlistVisible ||
+    visibleRisks.length > 0 ||
+    visiblePositives.length > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -604,7 +653,7 @@ export default function InsightsScreen() {
           ) : !hasInsights ? (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                No insights yet. Log a completed workout to generate your Weekly Verdict.
+                No insights yet. Log a completed workout to generate your weekly insight.
               </Text>
               <GlassButton style={styles.refreshButton} onPress={refresh}>
                 <Text style={[styles.whyButtonText, { color: colors.accent }]}>Refresh</Text>
@@ -618,6 +667,17 @@ export default function InsightsScreen() {
                   onWhyPress={handleInsightWhyPress}
                   onDismiss={handleDismissInsight}
                   onOpenChart={handleOpenChart}
+                  onShare={handleShareInsight}
+                />
+              )}
+
+              {firstWorkoutRecap && (
+                <InsightCard
+                  insight={firstWorkoutRecap}
+                  onWhyPress={handleInsightWhyPress}
+                  onDismiss={handleDismissInsight}
+                  onOpenChart={handleOpenChart}
+                  onShare={handleShareInsight}
                 />
               )}
 
@@ -672,13 +732,25 @@ export default function InsightsScreen() {
                 </View>
               )}
 
-              {visibleSupplemental.map((insight) => (
+              {visibleRisks.map((insight) => (
                 <InsightCard
                   key={insight.id}
                   insight={insight}
                   onWhyPress={handleInsightWhyPress}
                   onDismiss={handleDismissInsight}
                   onOpenChart={handleOpenChart}
+                  onShare={handleShareInsight}
+                />
+              ))}
+
+              {visiblePositives.map((insight) => (
+                <InsightCard
+                  key={insight.id}
+                  insight={insight}
+                  onWhyPress={handleInsightWhyPress}
+                  onDismiss={handleDismissInsight}
+                  onOpenChart={handleOpenChart}
+                  onShare={handleShareInsight}
                 />
               ))}
             </View>
@@ -964,6 +1036,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   viewChartText: {
+    fontSize: ACTION_TEXT_SIZE,
+    fontWeight: '600',
+  },
+  shareButton: {
+    height: ACTION_BUTTON_HEIGHT,
+    paddingHorizontal: scale(Spacing.md),
+    borderWidth: 1,
+    borderRadius: ACTION_BUTTON_HEIGHT / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareButtonText: {
     fontSize: ACTION_TEXT_SIZE,
     fontWeight: '600',
   },
