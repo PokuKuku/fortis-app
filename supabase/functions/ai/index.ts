@@ -723,8 +723,9 @@ Deno.serve(async (req: Request) => {
     return jsonResponse(response, 200, origin);
   } catch (error) {
     console.error('AI endpoint error:', error);
+    const message = error instanceof Error ? error.message : 'An unexpected error occurred';
     return errorResponse(
-      'An unexpected error occurred',
+      message,
       'INTERNAL_ERROR',
       500,
       true,
@@ -1645,6 +1646,70 @@ async function callOpenAIText(
   }
 
   const model = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini';
+  const useResponses =
+    Deno.env.get('OPENAI_USE_RESPONSES') === 'true' || model.includes('gpt-5');
+
+  if (useResponses) {
+    const input: Array<Record<string, unknown>> = [
+      {
+        role: 'system',
+        content: [{ type: 'input_text', text: systemPrompt }],
+      },
+    ];
+
+    if (request.image) {
+      input.push({
+        role: 'user',
+        content: [
+          { type: 'input_text', text: userMessage },
+          {
+            type: 'input_image',
+            image_url: `data:${request.image.mimeType};base64,${request.image.base64}`,
+          },
+        ],
+      });
+    } else {
+      input.push({
+        role: 'user',
+        content: [{ type: 'input_text', text: userMessage }],
+      });
+    }
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        input,
+        max_output_tokens: 4096,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAI API error:', errorText);
+      throw new Error(`OpenAI API error: ${errorText}`);
+    }
+
+    const data = await response.json();
+    const outputText =
+      data?.output_text ??
+      data?.output
+        ?.flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content ?? [])
+        .filter((part: { type?: string }) => part?.type === 'output_text')
+        .map((part: { text?: string }) => part.text ?? '')
+        .join('');
+
+    if (!outputText) {
+      throw new Error('OpenAI response missing output text');
+    }
+
+    return String(outputText);
+  }
+
   const messages: Array<Record<string, unknown>> = [
     { role: 'system', content: systemPrompt },
   ];
@@ -1682,13 +1747,13 @@ async function callOpenAIText(
   if (!response.ok) {
     const errorText = await response.text();
     console.error('OpenAI API error:', errorText);
-    throw new Error('Failed to get AI response');
+    throw new Error(`OpenAI API error: ${errorText}`);
   }
 
   const data = await response.json();
   const content = data?.choices?.[0]?.message?.content;
   if (!content) {
-    throw new Error('Unexpected response from OpenAI');
+    throw new Error('OpenAI response missing content');
   }
 
   if (Array.isArray(content)) {

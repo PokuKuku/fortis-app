@@ -41,6 +41,9 @@ export type InsightWindow = (typeof WINDOWS)[number];
 export const INSIGHT_STATUSES = ['active', 'dismissed'] as const;
 export type InsightStatus = (typeof INSIGHT_STATUSES)[number];
 
+export const INSIGHT_FEEDBACK_RATINGS = ['helpful', 'not_helpful'] as const;
+export type InsightFeedbackRating = (typeof INSIGHT_FEEDBACK_RATINGS)[number];
+
 // ============================================
 // Evidence Schema
 // ============================================

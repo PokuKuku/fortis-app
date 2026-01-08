@@ -16,11 +16,14 @@ const formatCompactNumber = (value: number): string => {
   return trimTrailingZero(value.toFixed(1));
 };
 
-const HIDE_UNIT_LABELS = new Set(['workouts', 'prs']);
+const HIDE_UNIT_LABELS = new Set(['workouts', 'prs', 'ratio']);
 
 const formatUnitValue = (value: number, unit?: string): string => {
   if (unit === '%') {
     return `${trimTrailingZero(value.toFixed(1))}%`;
+  }
+  if (unit === 'ratio') {
+    return `${trimTrailingZero(value.toFixed(2))}x`;
   }
 
   const normalizedUnit = unit ?? '';

@@ -72,17 +72,19 @@ Last updated: 2026-01-07
 Evidence:
 - Local changes (no PR yet)
 
-## Phase 3: Fatigue + Balance + Feedback (Status: In progress)
+## Phase 3: Fatigue + Balance + Feedback (Status: Done)
 Last updated: 2026-01-07
 - [x] Fatigue Risk logic (volume spike + e1RM drop)
 - [x] Fatigue risk card UI + wiring (client-only)
-- [ ] Imbalance Flag logic (muscle group ratio or underdose)
+- [x] Imbalance Flag logic (muscle group ratio or underdose)
 - [x] Evidence detail view ("Why am I seeing this?")
-- [ ] Helpful / Not helpful feedback capture
-- [ ] Feedback suppression rules (suppress type or raise thresholds)
-- [ ] Card priority ordering (Weekly Verdict always, then high severity)
-- [ ] Dismiss/snooze insight cards or types
-- [ ] Instrumentation: impressions, "Why?" taps, chat opens, retention
+- [x] Helpful / Not helpful feedback capture
+- [x] Feedback suppression rules (suppress type)
+- [x] Card priority ordering (Weekly Verdict always, then high severity)
+- [x] Dismiss/snooze insight cards or types
+- [x] Instrumentation: impressions, "Why?" taps, chat opens, retention
+Evidence:
+- Local changes (fatigue/imbalance charts, feedback capture)
 Acceptance criteria:
 - No more than 3 cards per refresh unless user is very active
 - Feedback can suppress noisy cards over time

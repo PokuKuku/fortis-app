@@ -489,6 +489,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
+    alignSelf: 'stretch',
   },
   loadingIconWrapper: {
     width: IconSizes.md,
@@ -505,6 +506,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     flex: 1,
     flexWrap: 'wrap',
+    flexShrink: 1,
   },
   errorContainer: {
     marginHorizontal: Spacing.lg,

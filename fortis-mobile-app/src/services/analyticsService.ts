@@ -130,6 +130,13 @@ interface InsightTypeSnoozedProps {
   snooze_days: number;
 }
 
+/** Insight feedback submitted event properties */
+interface InsightFeedbackSubmittedProps {
+  insight_id: string;
+  insight_type: string;
+  rating: string;
+}
+
 // ============================================================================
 // Error/Failure Event Types
 // ============================================================================
@@ -188,6 +195,7 @@ const Events = {
   CHAT_OPENED_FROM_INSIGHT: 'chat_opened_from_insight',
   INSIGHT_DISMISSED: 'insight_dismissed',
   TYPE_SNOOZED: 'type_snoozed',
+  INSIGHT_FEEDBACK_SUBMITTED: 'insight_feedback_submitted',
   // Error/failure events
   SYNC_FAILED: 'sync_failed',
   API_ERROR: 'api_error',
@@ -366,6 +374,17 @@ export const analytics = {
     capture(Events.TYPE_SNOOZED, {
       insight_type: props.insight_type,
       snooze_days: props.snooze_days,
+    });
+  },
+
+  /**
+   * Track when insight feedback is submitted
+   */
+  trackInsightFeedbackSubmitted(props: InsightFeedbackSubmittedProps) {
+    capture(Events.INSIGHT_FEEDBACK_SUBMITTED, {
+      insight_id: props.insight_id,
+      insight_type: props.insight_type,
+      rating: props.rating,
     });
   },
 

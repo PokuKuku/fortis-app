@@ -399,11 +399,6 @@ export default function InsightsScreen() {
     [insights]
   );
 
-  const fatigueRisk = useMemo(
-    () => insights.find((insight) => insight.type === 'FATIGUE_RISK_V1'),
-    [insights]
-  );
-
   const stallRisks = useMemo(
     () => insights.filter((insight) => insight.type === 'LIFT_STALL_RISK_V1'),
     [insights]
@@ -435,6 +430,31 @@ export default function InsightsScreen() {
     return item ? Number(item.value) : 0;
   }, [watchlistSummary]);
 
+  const supplementalInsights = useMemo(() => {
+    const typePriority: Record<string, number> = {
+      FATIGUE_RISK_V1: 0,
+      IMBALANCE_FLAG_V1: 1,
+    };
+    const severityRank: Record<TrainingInsight['severity'], number> = {
+      high: 2,
+      medium: 1,
+      low: 0,
+    };
+    return insights
+      .filter((insight) => insight.type !== 'WEEKLY_VERDICT_V1' && insight.type !== 'LIFT_STALL_RISK_V1')
+      .sort((a, b) => {
+        const bySeverity = severityRank[b.severity] - severityRank[a.severity];
+        if (bySeverity !== 0) return bySeverity;
+        const byType = (typePriority[a.type] ?? 99) - (typePriority[b.type] ?? 99);
+        if (byType !== 0) return byType;
+        return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+      });
+  }, [insights]);
+
+  const watchlistVisible = watchlistItems.length > 0 || Boolean(watchlistSummary);
+  const maxSupplemental = Math.max(0, 3 - (weeklyVerdict ? 1 : 0) - (watchlistVisible ? 1 : 0));
+  const visibleSupplemental = supplementalInsights.slice(0, maxSupplemental);
+
   const cardTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
@@ -463,12 +483,17 @@ export default function InsightsScreen() {
     router.push('/ai/chat');
   };
 
-  const handleWhyPress = (insight: TrainingInsight) => {
-    trackVerdictWhyTapped({ insight_id: insight.id });
-    openInsightChat(
-      insight,
-      'Explain this insight and suggest what I should do next week.'
-    );
+  const handleInsightWhyPress = (insight: TrainingInsight) => {
+    if (insight.type === 'WEEKLY_VERDICT_V1') {
+      trackVerdictWhyTapped({ insight_id: insight.id });
+    }
+    const prompt =
+      insight.type === 'FATIGUE_RISK_V1'
+        ? 'Explain this fatigue risk and suggest what I should adjust next week.'
+        : insight.type === 'IMBALANCE_FLAG_V1'
+        ? 'Explain this imbalance flag and suggest what I should adjust next week.'
+        : 'Explain this insight and suggest what I should do next week.';
+    openInsightChat(insight, prompt);
   };
 
   const handleOpenChart = (insight: TrainingInsight, tabOverride?: ChartTab) => {
@@ -493,13 +518,6 @@ export default function InsightsScreen() {
     );
   };
 
-  const handleFatigueWhyPress = (insight: TrainingInsight) => {
-    openInsightChat(
-      insight,
-      'Explain this fatigue risk and suggest what I should adjust next week.'
-    );
-  };
-
   const handleDismissInsight = async (insight: TrainingInsight) => {
     trackInsightDismissed({ insight_id: insight.id, insight_type: insight.type });
     await dismissInsight(insight.id);
@@ -515,7 +533,7 @@ export default function InsightsScreen() {
     router.push('/exercises');
   };
 
-  const hasInsights = Boolean(weeklyVerdict) || Boolean(fatigueRisk) || watchlistItems.length > 0 || Boolean(watchlistSummary);
+  const hasInsights = Boolean(weeklyVerdict) || visibleSupplemental.length > 0 || watchlistVisible;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -598,22 +616,13 @@ export default function InsightsScreen() {
               {weeklyVerdict && (
                 <InsightCard
                   insight={weeklyVerdict}
-                  onWhyPress={handleWhyPress}
+                  onWhyPress={handleInsightWhyPress}
                   onDismiss={handleDismissInsight}
                   onOpenChart={handleOpenChart}
                 />
               )}
 
-              {fatigueRisk && (
-                <InsightCard
-                  insight={fatigueRisk}
-                  onWhyPress={handleFatigueWhyPress}
-                  onDismiss={handleDismissInsight}
-                  onOpenChart={handleOpenChart}
-                />
-              )}
-
-              {(watchlistItems.length > 0 || watchlistSummary) && (
+              {watchlistVisible && (
                 <View style={[styles.cardBase, styles.watchlistCard, cardTheme]}>
                   <View style={styles.watchlistHeader}>
                     <View>
@@ -663,6 +672,16 @@ export default function InsightsScreen() {
                   )}
                 </View>
               )}
+
+              {visibleSupplemental.map((insight) => (
+                <InsightCard
+                  key={insight.id}
+                  insight={insight}
+                  onWhyPress={handleInsightWhyPress}
+                  onDismiss={handleDismissInsight}
+                  onOpenChart={handleOpenChart}
+                />
+              ))}
             </View>
           )}
         </ScrollView>

@@ -5,7 +5,7 @@
  */
 
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
-import { TrainingInsightDTO, TrainingInsight, dtoToTrainingInsight, InsightType } from '@/src/types/insights';
+import { TrainingInsightDTO, TrainingInsight, dtoToTrainingInsight, InsightType, InsightFeedbackRating } from '@/src/types/insights';
 
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
 
@@ -119,6 +119,39 @@ export async function snoozeInsightType(
     .eq('user_id', user.id)
     .eq('type', type)
     .eq('status', 'active');
+
+  return { success: true };
+}
+
+export async function submitInsightFeedback(params: {
+  insightId: string;
+  type: InsightType;
+  rating: InsightFeedbackRating;
+  anchorDate?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured()) {
+    return { success: false, error: 'Supabase not configured' };
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: 'Not authenticated' };
+  }
+
+  const { error } = await supabase
+    .from('training_insight_feedback')
+    .insert({
+      user_id: user.id,
+      insight_id: params.insightId,
+      type: params.type,
+      rating: params.rating,
+      anchor_date: params.anchorDate,
+    });
+
+  if (error) {
+    console.warn('[Insights] Failed to submit feedback:', error.message);
+    return { success: false, error: error.message };
+  }
 
   return { success: true };
 }

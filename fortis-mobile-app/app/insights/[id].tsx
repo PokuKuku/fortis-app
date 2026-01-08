@@ -8,9 +8,11 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
+import { submitInsightFeedback } from '@/src/services/insightsService';
+import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
 import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
-import type { TrainingInsight } from '@/src/types/insights';
+import type { TrainingInsight, InsightFeedbackRating } from '@/src/types/insights';
 import type { InsightChartTab } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { Colors } from '@/constants/Colors';
@@ -62,6 +64,7 @@ export default function InsightDetailScreen() {
   const { colors, isDark } = useTheme();
   const { id, tab } = useLocalSearchParams<{ id?: string; tab?: string }>();
   const { insights } = useTrainingInsights({ skipRefresh: true });
+  const { trackInsightFeedbackSubmitted } = useAnalytics();
 
   const insight = useMemo(
     () => insights.find((item) => item.id === id),
@@ -73,6 +76,9 @@ export default function InsightDetailScreen() {
   const [selectedTab, setSelectedTab] = useState<InsightChartTab>(
     (initialTab as InsightChartTab | null) ?? (insight ? getDefaultTab(insight) : 'volume')
   );
+  const [feedbackStatus, setFeedbackStatus] = useState<InsightFeedbackRating | null>(null);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
 
   useEffect(() => {
     if (!insight) return;
@@ -126,18 +132,63 @@ export default function InsightDetailScreen() {
   }
 
   const activeSeries = series?.[selectedTab] ?? [];
-  const highlightRange = selectedTab === 'progress' ? undefined : series?.highlight?.range;
-  const highlightPoints = selectedTab === 'progress' ? series?.highlight?.points : undefined;
+  const isExposureProgress = insight.type === 'LIFT_STALL_RISK_V1';
+  const highlightRange =
+    selectedTab === 'progress' ? (isExposureProgress ? undefined : series?.highlight?.range) : series?.highlight?.range;
+  const highlightPoints =
+    selectedTab === 'progress' && isExposureProgress ? series?.highlight?.points : undefined;
   const unit = series?.units?.[selectedTab];
-  const xLabel = selectedTab === 'progress' ? 'Exposures' : 'Week';
-  const yLabel =
-    selectedTab === 'frequency'
-      ? 'Sessions'
-      : selectedTab === 'progress'
-      ? `e1RM${unit ? ` (${unit})` : ''}`
-      : `Volume${unit ? ` (${unit})` : ''}`;
+  const unitLabel = unit === 'ratio' ? 'x' : unit;
+  const xLabel =
+    selectedTab === 'progress' && isExposureProgress
+      ? 'Exposures'
+      : 'Week';
+  const yLabel = (() => {
+    if (insight.type === 'IMBALANCE_FLAG_V1') {
+      if (selectedTab === 'progress') {
+        return unit === '%' ? 'Share (%)' : 'Balance ratio';
+      }
+      return 'Working sets';
+    }
+    if (selectedTab === 'frequency') {
+      return 'Sessions';
+    }
+    if (selectedTab === 'progress') {
+      return `e1RM${unit ? ` (${unit})` : ''}`;
+    }
+    return `Volume${unit ? ` (${unit})` : ''}`;
+  })();
+  const formatYAxisValue =
+    unit === '%'
+      ? (value: number) => `${value.toFixed(0)}%`
+      : unit === 'ratio'
+      ? (value: number) => value.toFixed(2)
+      : undefined;
   const suggestionPayload = insight.recommendation?.[0]?.payload as { text?: string } | undefined;
   const suggestionText = typeof suggestionPayload?.text === 'string' ? suggestionPayload.text : null;
+
+  const handleFeedback = async (rating: InsightFeedbackRating) => {
+    if (feedbackStatus || isSubmittingFeedback) return;
+    setIsSubmittingFeedback(true);
+    setFeedbackError(null);
+    const result = await submitInsightFeedback({
+      insightId: insight.id,
+      type: insight.type,
+      rating,
+      anchorDate: insight.anchorDate,
+    });
+    if (result.success) {
+      setFeedbackStatus(rating);
+      trackInsightFeedbackSubmitted({
+        insight_id: insight.id,
+        insight_type: insight.type,
+        rating,
+      });
+    } else {
+      setFeedbackError(result.error ?? 'Failed to save feedback');
+    }
+    setIsSubmittingFeedback(false);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -201,9 +252,9 @@ export default function InsightDetailScreen() {
               <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>
                 {selectedTab === 'progress' ? 'Progress' : selectedTab === 'frequency' ? 'Frequency' : 'Volume'}
               </Text>
-              {unit && (
+              {unitLabel && (
                 <Text style={[styles.chartUnit, { color: colors.textTertiary }]}>
-                  {unit}
+                  {unitLabel}
                 </Text>
               )}
             </View>
@@ -224,6 +275,7 @@ export default function InsightDetailScreen() {
                 xLabel={xLabel}
                 yLabel={yLabel}
                 formatXValue={formatDateLabel}
+                formatYValue={formatYAxisValue}
               />
             )}
 
@@ -242,6 +294,56 @@ export default function InsightDetailScreen() {
                 </Text>
               </View>
             )}
+
+            <View style={styles.feedbackCard}>
+              <Text style={[styles.feedbackTitle, { color: colors.textSecondary }]}>
+                Was this helpful?
+              </Text>
+              <View style={styles.feedbackActions}>
+                <TouchableOpacity
+                  onPress={() => handleFeedback('helpful')}
+                  disabled={Boolean(feedbackStatus) || isSubmittingFeedback}
+                  style={[
+                    styles.feedbackButton,
+                    {
+                      borderColor: colors.accent,
+                      backgroundColor:
+                        feedbackStatus === 'helpful' ? colors.accentOverlay : 'transparent',
+                    },
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.feedbackText, { color: colors.accent }]}>Helpful</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => handleFeedback('not_helpful')}
+                  disabled={Boolean(feedbackStatus) || isSubmittingFeedback}
+                  style={[
+                    styles.feedbackButton,
+                    {
+                      borderColor: colors.border,
+                      backgroundColor:
+                        feedbackStatus === 'not_helpful' ? colors.accentOverlay : 'transparent',
+                    },
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.feedbackText, { color: colors.textSecondary }]}>
+                    Not helpful
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {feedbackStatus && (
+                <Text style={[styles.feedbackThanks, { color: colors.textTertiary }]}>
+                  Thanks for the feedback.
+                </Text>
+              )}
+              {feedbackError && (
+                <Text style={[styles.feedbackError, { color: Colors.error }]}>
+                  {feedbackError}
+                </Text>
+              )}
+            </View>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -333,6 +435,40 @@ const styles = StyleSheet.create({
   suggestionText: {
     fontSize: moderateScale(12),
     lineHeight: moderateScale(18),
+  },
+  feedbackCard: {
+    borderRadius: CARD_RADIUS,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    padding: scale(Spacing.md),
+    gap: scale(Spacing.sm),
+  },
+  feedbackTitle: {
+    ...Typography.body,
+    fontSize: moderateScale(13),
+    fontWeight: '600',
+  },
+  feedbackActions: {
+    flexDirection: 'row',
+    gap: scale(Spacing.sm),
+  },
+  feedbackButton: {
+    flex: 1,
+    borderRadius: scale(16),
+    borderWidth: 1,
+    paddingVertical: scale(Spacing.xs),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackText: {
+    fontSize: moderateScale(12),
+    fontWeight: '600',
+  },
+  feedbackThanks: {
+    fontSize: moderateScale(11),
+  },
+  feedbackError: {
+    fontSize: moderateScale(11),
   },
   chartSection: {
     gap: scale(Spacing.md),

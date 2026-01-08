@@ -2,7 +2,7 @@ import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
 type InsightRequest = {
-  type?: 'weekly_verdict' | 'lift_stall_risk' | 'fatigue_risk' | 'all';
+  type?: 'weekly_verdict' | 'lift_stall_risk' | 'fatigue_risk' | 'imbalance_flag' | 'all';
   anchorDate?: string;
 };
 
@@ -28,6 +28,12 @@ type WeeklyExerciseAggRow = {
   total_volume: number | null;
 };
 
+type MuscleGroupRow = {
+  muscle_group: string;
+  week_start: string;
+  working_sets: number | null;
+};
+
 type EvidenceItem = {
   key: string;
   label: string;
@@ -48,9 +54,11 @@ type VerdictOutput = {
 const INSIGHT_TYPE = 'WEEKLY_VERDICT_V1';
 const STALL_RISK_TYPE = 'LIFT_STALL_RISK_V1';
 const FATIGUE_RISK_TYPE = 'FATIGUE_RISK_V1';
+const IMBALANCE_FLAG_TYPE = 'IMBALANCE_FLAG_V1';
 const WINDOW = '7d';
 const STALL_WINDOW = '4w';
 const FATIGUE_WINDOW = '7d';
+const IMBALANCE_WINDOW = '4w';
 const GLOBAL_SUBJECT_KEY = 'global';
 const SCHEMA_VERSION = '1';
 
@@ -289,6 +297,45 @@ const fetchSnoozes = async (
   return snoozes;
 };
 
+const fetchFeedbackSuppression = async (
+  adminClient: SupabaseClient,
+  userId: string,
+  weekStart: Date
+): Promise<Set<string>> => {
+  const lookbackStart = addDays(weekStart, -30);
+  const { data, error } = await adminClient
+    .from('training_insight_feedback')
+    .select('type, rating, created_at')
+    .eq('user_id', userId)
+    .gte('created_at', toIsoDateTime(lookbackStart));
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch insight feedback:', error.message);
+    return new Set();
+  }
+
+  const suppression = new Map<string, { count: number; last: number }>();
+  (data ?? []).forEach((row: { type: string; rating: string; created_at: string }) => {
+    if (row?.rating !== 'not_helpful' || !row.type || !row.created_at) return;
+    const createdAt = new Date(row.created_at).getTime();
+    const current = suppression.get(row.type) ?? { count: 0, last: 0 };
+    suppression.set(row.type, {
+      count: current.count + 1,
+      last: Math.max(current.last, createdAt),
+    });
+  });
+
+  const suppressionWindowStart = addDays(weekStart, -14).getTime();
+  const suppressed = new Set<string>();
+  suppression.forEach((value, type) => {
+    if (value.count >= 2 && value.last >= suppressionWindowStart) {
+      suppressed.add(type);
+    }
+  });
+
+  return suppressed;
+};
+
 const STALL_THRESHOLDS: Record<'chill' | 'standard' | 'aggressive', number> = {
   chill: 0,
   standard: 0.5,
@@ -302,6 +349,13 @@ const FATIGUE_THRESHOLDS: Record<
   chill: { volumeSpikeWoW: 40, e1rmDropForFatigue: -2.5, minSessions: 2 },
   standard: { volumeSpikeWoW: 30, e1rmDropForFatigue: -2.0, minSessions: 2 },
   aggressive: { volumeSpikeWoW: 20, e1rmDropForFatigue: -1.5, minSessions: 2 },
+};
+
+const IMBALANCE_THRESHOLDS = {
+  pushPullMin: 0.7,
+  pushPullMax: 1.3,
+  minTotalSets: 12,
+  underdoseSets: 4,
 };
 
 const isSuspiciousDelta = (value: number, compareValue: number): boolean => {
@@ -353,6 +407,182 @@ const buildFatigueRecommendation = (): { type: string; payload: Record<string, u
     payload: { text: 'Deload for 1 week (reduce sets by 20–30%).' },
     rationaleKey: 'FATIGUE_ACCUMULATION',
   };
+};
+
+const normalizeMuscleGroup = (group: string): string => {
+  const key = group.trim().toLowerCase();
+  if (['middle back', 'upper back', 'lower back', 'lats', 'traps'].includes(key)) return 'back';
+  if (['quadriceps', 'quads'].includes(key)) return 'quads';
+  if (['hamstrings'].includes(key)) return 'hamstrings';
+  if (['glutes', 'gluteus maximus'].includes(key)) return 'glutes';
+  if (['abdominals', 'abs', 'core'].includes(key)) return 'core';
+  if (['delts', 'deltoids', 'shoulders'].includes(key)) return 'shoulders';
+  if (['pectorals', 'chest'].includes(key)) return 'chest';
+  if (['biceps'].includes(key)) return 'biceps';
+  if (['triceps'].includes(key)) return 'triceps';
+  if (['calves'].includes(key)) return 'calves';
+  return key;
+};
+
+const formatMuscleLabel = (group: string): string => {
+  if (!group) return 'that muscle group';
+  return group
+    .split(' ')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+const buildImbalanceInsight = async ({
+  adminClient,
+  userId,
+  weekStart,
+}: {
+  adminClient: SupabaseClient;
+  userId: string;
+  weekStart: Date;
+}): Promise<Record<string, unknown> | null> => {
+  const lookbackStart = addDays(weekStart, -7);
+  const { data, error } = await adminClient
+    .from('weekly_muscle_group_sets')
+    .select('muscle_group, week_start, working_sets')
+    .eq('user_id', userId)
+    .gte('week_start', toIsoDate(lookbackStart))
+    .lte('week_start', toIsoDate(weekStart));
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch muscle group sets:', error.message);
+    return null;
+  }
+
+  const totalsByGroup = new Map<string, number>();
+  let totalSets = 0;
+  (data as MuscleGroupRow[] | null ?? []).forEach((row) => {
+    if (!row?.muscle_group) return;
+    const group = normalizeMuscleGroup(row.muscle_group);
+    const sets = clampNumber(row.working_sets);
+    totalsByGroup.set(group, (totalsByGroup.get(group) ?? 0) + sets);
+    totalSets += sets;
+  });
+
+  if (totalSets < IMBALANCE_THRESHOLDS.minTotalSets) {
+    return null;
+  }
+
+  const pushGroups = new Set(['chest', 'shoulders', 'triceps']);
+  const pullGroups = new Set(['back', 'biceps']);
+  let pushSets = 0;
+  let pullSets = 0;
+
+  totalsByGroup.forEach((value, key) => {
+    if (pushGroups.has(key)) pushSets += value;
+    if (pullGroups.has(key)) pullSets += value;
+  });
+
+  const ratio = pullSets > 0 ? pushSets / pullSets : pushSets > 0 ? 2 : 1;
+
+  if (pushSets >= IMBALANCE_THRESHOLDS.underdoseSets && pullSets >= IMBALANCE_THRESHOLDS.underdoseSets) {
+    if (ratio < IMBALANCE_THRESHOLDS.pushPullMin || ratio > IMBALANCE_THRESHOLDS.pushPullMax) {
+      const skewLabel = ratio > IMBALANCE_THRESHOLDS.pushPullMax ? 'push-heavy' : 'pull-heavy';
+      const severity = ratio > 1.6 || ratio < 0.6 ? 'high' : 'medium';
+      return {
+        user_id: userId,
+        type: IMBALANCE_FLAG_TYPE,
+        window: IMBALANCE_WINDOW,
+        anchor_date: toIsoDate(weekStart),
+        subject_key: GLOBAL_SUBJECT_KEY,
+        severity,
+        status: 'active',
+        title: 'Muscle balance check: push/pull skewed',
+        summary: `Your last two weeks were ${skewLabel}. Add a few sets to the lagging side.`,
+        evidence: [
+          {
+            key: 'push_sets',
+            label: 'Push sets (2w)',
+            value: Math.round(pushSets),
+            unit: 'sets',
+            source: 'weekly_muscle_group_sets',
+            period: 'last_2w',
+          },
+          {
+            key: 'pull_sets',
+            label: 'Pull sets (2w)',
+            value: Math.round(pullSets),
+            unit: 'sets',
+            source: 'weekly_muscle_group_sets',
+            period: 'last_2w',
+          },
+          {
+            key: 'push_pull_ratio',
+            label: 'Push/Pull ratio',
+            value: Number(ratio.toFixed(2)),
+            unit: 'ratio',
+            source: 'weekly_muscle_group_sets',
+            period: 'last_2w',
+          },
+        ],
+        recommendation: [
+          {
+            type: 'ADD_SETS',
+            payload: { text: 'Add 2 sets per week to the lagging side.' },
+            rationaleKey: 'IMBALANCE_UNDERDOSED',
+          },
+        ],
+        schema_version: SCHEMA_VERSION,
+      };
+    }
+  }
+
+  const majorGroups = ['chest', 'back', 'quads', 'hamstrings', 'glutes', 'shoulders', 'core'];
+  const underdosed = majorGroups
+    .map((group) => ({
+      group,
+      sets: totalsByGroup.get(group) ?? 0,
+    }))
+    .sort((a, b) => a.sets - b.sets)[0];
+
+  if (underdosed && underdosed.sets < IMBALANCE_THRESHOLDS.underdoseSets) {
+    const groupLabel = formatMuscleLabel(underdosed.group);
+    return {
+      user_id: userId,
+      type: IMBALANCE_FLAG_TYPE,
+      window: IMBALANCE_WINDOW,
+      anchor_date: toIsoDate(weekStart),
+      subject_key: `muscle:${underdosed.group}`,
+      severity: 'medium',
+      status: 'active',
+      title: `Undertrained ${groupLabel}`,
+      summary: `${groupLabel} volume has been light over the last two weeks. Add a few focused sets.`,
+      evidence: [
+        {
+          key: 'underdosed_sets',
+          label: `${groupLabel} sets (2w)`,
+          value: Math.round(underdosed.sets),
+          unit: 'sets',
+          source: 'weekly_muscle_group_sets',
+          period: 'last_2w',
+        },
+        {
+          key: 'total_sets',
+          label: 'Total working sets (2w)',
+          value: Math.round(totalSets),
+          unit: 'sets',
+          source: 'weekly_muscle_group_sets',
+          period: 'last_2w',
+        },
+      ],
+      recommendation: [
+        {
+          type: 'SWAP_ACCESSORY',
+          payload: { text: `Add 2 sets per week for ${groupLabel}.` },
+          rationaleKey: 'IMBALANCE_UNDERDOSED',
+        },
+      ],
+      schema_version: SCHEMA_VERSION,
+      muscle_group: underdosed.group,
+    };
+  }
+
+  return null;
 };
 
 const buildFatigueRiskInsight = async ({
@@ -865,6 +1095,7 @@ Deno.serve(async (req) => {
     body.type !== 'weekly_verdict' &&
     body.type !== 'lift_stall_risk' &&
     body.type !== 'fatigue_risk' &&
+    body.type !== 'imbalance_flag' &&
     body.type !== 'all'
   ) {
     return errorResponse('Unsupported insight type', 'invalid_request', 400, false, undefined, origin);
@@ -874,6 +1105,7 @@ Deno.serve(async (req) => {
   const shouldRunWeekly = requestType === 'weekly_verdict' || requestType === 'all';
   const shouldRunStall = requestType === 'lift_stall_risk' || requestType === 'all';
   const shouldRunFatigue = requestType === 'fatigue_risk' || requestType === 'all';
+  const shouldRunImbalance = requestType === 'imbalance_flag' || requestType === 'all';
 
   const [{ preferredUnits, timezone }, conservatismLevel, snoozes] = await Promise.all([
     fetchUserPrefs(supabase, user.id),
@@ -883,13 +1115,25 @@ Deno.serve(async (req) => {
 
   const weekStart = resolveWeekStart(timezone);
   const lastWeekStart = addDays(weekStart, -7);
+  const feedbackSuppressed = await fetchFeedbackSuppression(adminClient, user.id, weekStart);
 
   const snoozedUntilWeekly = snoozes.get(INSIGHT_TYPE);
   const snoozedUntilStall = snoozes.get(STALL_RISK_TYPE);
   const snoozedUntilFatigue = snoozes.get(FATIGUE_RISK_TYPE);
+  const snoozedUntilImbalance = snoozes.get(IMBALANCE_FLAG_TYPE);
   const shouldRunWeeklyFinal = shouldRunWeekly && (!snoozedUntilWeekly || snoozedUntilWeekly < toIsoDate(weekStart));
-  const shouldRunStallFinal = shouldRunStall && (!snoozedUntilStall || snoozedUntilStall < toIsoDate(weekStart));
-  const shouldRunFatigueFinal = shouldRunFatigue && (!snoozedUntilFatigue || snoozedUntilFatigue < toIsoDate(weekStart));
+  const shouldRunStallFinal =
+    shouldRunStall &&
+    (!snoozedUntilStall || snoozedUntilStall < toIsoDate(weekStart)) &&
+    !feedbackSuppressed.has(STALL_RISK_TYPE);
+  const shouldRunFatigueFinal =
+    shouldRunFatigue &&
+    (!snoozedUntilFatigue || snoozedUntilFatigue < toIsoDate(weekStart)) &&
+    !feedbackSuppressed.has(FATIGUE_RISK_TYPE);
+  const shouldRunImbalanceFinal =
+    shouldRunImbalance &&
+    (!snoozedUntilImbalance || snoozedUntilImbalance < toIsoDate(weekStart)) &&
+    !feedbackSuppressed.has(IMBALANCE_FLAG_TYPE);
 
   const shouldFetchWeeklyVolume = shouldRunWeeklyFinal || shouldRunFatigueFinal;
 
@@ -1007,6 +1251,18 @@ Deno.serve(async (req) => {
 
     if (fatigueInsight) {
       insightsToUpsert.push(fatigueInsight);
+    }
+  }
+
+  if (shouldRunImbalanceFinal) {
+    const imbalanceInsight = await buildImbalanceInsight({
+      adminClient,
+      userId: user.id,
+      weekStart,
+    });
+
+    if (imbalanceInsight) {
+      insightsToUpsert.push(imbalanceInsight);
     }
   }
 

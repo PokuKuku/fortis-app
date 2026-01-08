@@ -12,6 +12,7 @@ const INSIGHT_EVIDENCE_ORDER: Partial<Record<InsightType, string[]>> = {
   WEEKLY_VERDICT_V1: ['volume_load', 'sessions', 'prs'],
   LIFT_STALL_RISK_V1: ['best_e1rm', 'volume_load', 'exposures'],
   FATIGUE_RISK_V1: ['volume_load', 'best_e1rm', 'sessions'],
+  IMBALANCE_FLAG_V1: ['push_sets', 'pull_sets', 'push_pull_ratio', 'underdosed_sets', 'total_sets'],
 };
 
 const DEFAULT_MAPPING: InsightChartMapping = {
@@ -37,9 +38,9 @@ const INSIGHT_CHART_MAPPING: Record<InsightType, InsightChartMapping> = {
     sparklineLabel: 'Weekly volume',
   },
   IMBALANCE_FLAG_V1: {
-    defaultTab: 'frequency',
-    sparklineMetric: 'frequency',
-    sparklineLabel: 'Weekly sessions',
+    defaultTab: 'volume',
+    sparklineMetric: 'volume',
+    sparklineLabel: 'Working sets',
   },
 };
 
