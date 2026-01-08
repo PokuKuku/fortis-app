@@ -1,6 +1,6 @@
 /**
  * Seed realistic workout data for a specific user to validate Insights.
- * Usage: node scripts/seed-insights-test-user.js <email> --confirm [--first-only]
+ * Usage: node scripts/seed-insights-test-user.js <email> --confirm [--first-only|--positive]
  */
 
 const path = require('path');
@@ -16,6 +16,7 @@ const SERVICE_ROLE_KEY =
 const email = process.argv[2];
 const shouldConfirm = process.argv.includes('--confirm');
 const firstOnly = process.argv.includes('--first-only');
+const positiveOnly = process.argv.includes('--positive');
 
 if (!email) {
   console.error('Missing email. Usage: node scripts/seed-insights-test-user.js <email> --confirm');
@@ -175,6 +176,49 @@ const weekConfigs = [
   },
 ];
 
+const positiveWeekConfigs = [
+  {
+    offset: -3,
+    bench: { weight: 185, reps: 8, setsA: 3, setsB: 4, setsC: 3, setsD: 0 },
+    squat: { weight: 225, reps: 5, sets: 3 },
+    deadlift: { weight: 275, reps: 5, sets: 3 },
+    overhead: { weight: 95, reps: 8, setsA: 3, setsD: 0 },
+    row: { weight: 135, reps: 10, sets: 3 },
+    days: [1, 3, 5],
+    types: ['A', 'B', 'C'],
+  },
+  {
+    offset: -2,
+    bench: { weight: 190, reps: 8, setsA: 3, setsB: 4, setsC: 3, setsD: 0 },
+    squat: { weight: 235, reps: 5, sets: 3 },
+    deadlift: { weight: 285, reps: 5, sets: 3 },
+    overhead: { weight: 100, reps: 8, setsA: 3, setsD: 0 },
+    row: { weight: 135, reps: 10, sets: 3 },
+    days: [1, 3, 5],
+    types: ['A', 'B', 'C'],
+  },
+  {
+    offset: -1,
+    bench: { weight: 195, reps: 8, setsA: 3, setsB: 4, setsC: 3, setsD: 0 },
+    squat: { weight: 245, reps: 5, sets: 3 },
+    deadlift: { weight: 295, reps: 5, sets: 3 },
+    overhead: { weight: 100, reps: 8, setsA: 3, setsD: 0 },
+    row: { weight: 140, reps: 10, sets: 3 },
+    days: [1, 3, 5],
+    types: ['A', 'B', 'C'],
+  },
+  {
+    offset: 0,
+    bench: { weight: 205, reps: 8, setsA: 6, setsB: 5, setsC: 4, setsD: 4 },
+    squat: { weight: 255, reps: 5, sets: 4 },
+    deadlift: { weight: 305, reps: 5, sets: 4 },
+    overhead: { weight: 110, reps: 8, setsA: 4, setsD: 4 },
+    row: { weight: 145, reps: 10, sets: 4 },
+    days: [1, 2, 4, 5],
+    types: ['A', 'B', 'C', 'D'],
+  },
+];
+
 const resolveExercises = async () => {
   const resolved = {};
   for (const entry of exerciseQueries) {
@@ -293,6 +337,8 @@ const run = async () => {
 
   const selectedConfigs = firstOnly
     ? [weekConfigs[weekConfigs.length - 1]]
+    : positiveOnly
+    ? positiveWeekConfigs
     : weekConfigs;
 
   for (const config of selectedConfigs) {

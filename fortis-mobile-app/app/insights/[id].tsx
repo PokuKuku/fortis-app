@@ -138,8 +138,7 @@ export default function InsightDetailScreen() {
   }
 
   const isFirstRecap = insight.type === 'FIRST_WORKOUT_RECAP_V1';
-  const isShareableInsight =
-    insight.type === 'CONSISTENCY_STREAK_V1' || insight.type === 'WEEKLY_VOLUME_PR_V1';
+  const isShareableInsight = true;
   const activeSeries = series?.[selectedTab] ?? [];
   const isExposureProgress = insight.type === 'LIFT_STALL_RISK_V1';
   const highlightRange =

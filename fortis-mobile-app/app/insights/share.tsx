@@ -20,19 +20,18 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useAnalytics } from '@/src/services/analyticsService';
 import type { TrainingInsight } from '@/src/types/insights';
-import { formatEvidenceValue } from '@/src/utils/insightsFormat';
+import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
 
 type PrivacyMode = 'private' | 'detailed';
+type ShareTemplate = 'hero' | 'split' | 'grid' | 'timeline';
 
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
-
-const SHAREABLE_TYPES = new Set(['CONSISTENCY_STREAK_V1', 'WEEKLY_VOLUME_PR_V1']);
 
 const formatWeekRange = (anchorDate: string): string => {
   const start = new Date(`${anchorDate}T00:00:00`);
@@ -62,6 +61,44 @@ const renderValue = (mode: PrivacyMode, value: string): string => {
   return value;
 };
 
+const getShareTemplate = (insight: TrainingInsight): ShareTemplate => {
+  switch (insight.type) {
+    case 'WEEKLY_VERDICT_V1':
+    case 'FATIGUE_RISK_V1':
+    case 'IMBALANCE_FLAG_V1':
+      return 'timeline';
+    case 'LIFT_STALL_RISK_V1':
+      return 'split';
+    case 'FIRST_WORKOUT_RECAP_V1':
+      return 'grid';
+    case 'CONSISTENCY_STREAK_V1':
+    case 'WEEKLY_VOLUME_PR_V1':
+    default:
+      return 'hero';
+  }
+};
+
+const getShareBadge = (insight: TrainingInsight): string => {
+  switch (insight.type) {
+    case 'WEEKLY_VERDICT_V1':
+      return 'Weekly insight';
+    case 'FATIGUE_RISK_V1':
+      return 'Recovery';
+    case 'IMBALANCE_FLAG_V1':
+      return 'Balance';
+    case 'LIFT_STALL_RISK_V1':
+      return 'Stall watch';
+    case 'FIRST_WORKOUT_RECAP_V1':
+      return 'First workout';
+    case 'CONSISTENCY_STREAK_V1':
+      return 'Streak';
+    case 'WEEKLY_VOLUME_PR_V1':
+      return 'Volume PR';
+    default:
+      return 'Training highlight';
+  }
+};
+
 export default function InsightShareScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
@@ -86,14 +123,20 @@ export default function InsightShareScreen() {
     () => insights.find((item) => item.id === id),
     [id, insights]
   );
-  const isShareable = insight ? SHAREABLE_TYPES.has(insight.type) : false;
+  const isShareable = Boolean(insight);
   const evidenceItems = useMemo(() => (insight ? resolveEvidence(insight).slice(0, 3) : []), [insight]);
   const weekLabel = insight ? formatWeekRange(insight.anchorDate) : 'This week';
   const primaryEvidence = evidenceItems[0];
   const secondaryEvidence = evidenceItems.slice(1);
+  const template = insight ? getShareTemplate(insight) : 'hero';
+  const badgeLabel = insight ? getShareBadge(insight) : 'Training highlight';
+  const heroDelta = primaryEvidence ? formatEvidenceDelta(primaryEvidence) : null;
   const gradientColors = isDark
     ? ['#0c1413', '#131c1b', '#0f1918']
     : ['#f4f7f6', '#eef1f1', '#f6f8f8'];
+  const ViewShotComponent = isCaptureReady
+    ? (require('react-native-view-shot').default as any)
+    : null;
 
   const handleShare = async () => {
     if (!insight || !isShareable) return;
@@ -191,61 +234,57 @@ export default function InsightShareScreen() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.previewSection}>
-            {isCaptureReady ? (
-              // eslint-disable-next-line @typescript-eslint/no-var-requires
-              (() => {
-                const ViewShot = require('react-native-view-shot').default;
-                return (
-                  <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-                    <LinearGradient
-                      colors={gradientColors}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[
-                        styles.shareCard,
-                        {
-                          borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
-                        },
-                      ]}
-                      collapsable={false}
-                    >
-                      <View
-                        style={[
-                          styles.shareGlow,
-                          { backgroundColor: colors.accent, opacity: isDark ? 0.16 : 0.12 },
-                        ]}
-                      />
-                      <View style={styles.shareHeader}>
-                        <Text style={[styles.brand, { color: colors.accent }]}>FORTIS</Text>
-                        <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>{weekLabel}</Text>
-                      </View>
-                      <View
-                        style={[
-                          styles.shareBadge,
-                          { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
-                        ]}
-                      >
-                        <Text style={[styles.shareBadgeText, { color: colors.accent }]}>
-                          Training highlight
+            {isCaptureReady && ViewShotComponent ? (
+              <ViewShotComponent ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
+                <LinearGradient
+                  colors={gradientColors}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={[
+                    styles.shareCard,
+                    styles.templateCard,
+                    {
+                      borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
+                    },
+                  ]}
+                  collapsable={false}
+                >
+                  <View
+                    style={[
+                      styles.shareGlow,
+                      { backgroundColor: colors.accent, opacity: isDark ? 0.16 : 0.12 },
+                    ]}
+                  />
+                  <View style={styles.shareHeader}>
+                    <Text style={[styles.brand, { color: colors.accent }]}>FORTIS</Text>
+                    <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>{weekLabel}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.shareBadge,
+                      { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
+                    ]}
+                  >
+                    <Text style={[styles.shareBadgeText, { color: colors.accent }]}>
+                      {badgeLabel}
+                    </Text>
+                  </View>
+                  <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
+                  <Text style={[styles.shareSummary, { color: colors.textSecondary }]}>{insight.summary}</Text>
+
+                  {template === 'hero' && primaryEvidence && (
+                    <>
+                      <View style={styles.heroRow}>
+                        <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+                          {primaryEvidence.label}
                         </Text>
-                      </View>
-                      <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
-                      <Text style={[styles.shareSummary, { color: colors.textSecondary }]}>{insight.summary}</Text>
-
-                      {primaryEvidence && (
-                        <View style={styles.heroRow}>
-                          <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                            {primaryEvidence.label}
+                        <View style={styles.heroValueRow}>
+                          <Text style={[styles.heroValue, { color: colors.accent }]}>
+                            {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
                           </Text>
-                          <View style={styles.heroValueRow}>
-                            <Text style={[styles.heroValue, { color: colors.accent }]}>
-                              {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
-                            </Text>
-                            <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
-                          </View>
+                          <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
                         </View>
-                      )}
-
+                      </View>
                       <View style={styles.evidenceList}>
                         {secondaryEvidence.map((item) => (
                           <View
@@ -267,25 +306,104 @@ export default function InsightShareScreen() {
                           </View>
                         ))}
                       </View>
+                    </>
+                  )}
 
-                      <View style={styles.shareFooter}>
-                        {privacyMode === 'private' ? (
-                          <Text style={[styles.privacyHint, { color: colors.textTertiary }]}>
-                            Shared privately · values hidden
-                          </Text>
-                        ) : (
-                          <Text style={[styles.privacyHint, { color: colors.textTertiary }]}>
-                            Detailed numbers shown
+                  {template === 'split' && primaryEvidence && (
+                    <View style={styles.splitRow}>
+                      <View style={styles.splitColumn}>
+                        <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+                          {primaryEvidence.label}
+                        </Text>
+                        <Text style={[styles.heroValue, { color: colors.accent }]}>
+                          {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                        </Text>
+                        {heroDelta && (
+                          <Text style={[styles.deltaText, { color: colors.textTertiary }]}>
+                            {heroDelta.text}
                           </Text>
                         )}
-                        <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
-                          fortis.app
-                        </Text>
                       </View>
-                    </LinearGradient>
-                  </ViewShot>
-                );
-              })()
+                      <View style={styles.splitColumn}>
+                        {secondaryEvidence.map((item) => (
+                          <View key={item.key} style={styles.splitEvidence}>
+                            <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                              {item.label}
+                            </Text>
+                            <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                              {renderValue(privacyMode, formatEvidenceValue(item))}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  {template === 'grid' && (
+                    <View style={styles.grid}>
+                      {evidenceItems.map((item) => (
+                        <View
+                          key={item.key}
+                          style={[
+                            styles.gridTile,
+                            {
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.gridLabel, { color: colors.textSecondary }]}>
+                            {item.label}
+                          </Text>
+                          <Text style={[styles.gridValue, { color: colors.textPrimary }]}>
+                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {template === 'timeline' && primaryEvidence && (
+                    <View style={styles.timelineBlock}>
+                      <View style={styles.timelineHeader}>
+                        <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+                          {primaryEvidence.label}
+                        </Text>
+                        <Text style={[styles.heroValue, { color: colors.accent }]}>
+                          {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                        </Text>
+                        {heroDelta && (
+                          <Text style={[styles.deltaText, { color: colors.textSecondary }]}>
+                            {heroDelta.text} vs last week
+                          </Text>
+                        )}
+                      </View>
+                      <View style={[styles.timelineTrack, { backgroundColor: colors.border }]}>
+                        <View style={[styles.timelineProgress, { backgroundColor: colors.accent }]} />
+                        <View style={[styles.timelineDot, { backgroundColor: colors.accent }]} />
+                      </View>
+                      <View style={styles.timelineEvidence}>
+                        {secondaryEvidence.map((item) => (
+                          <View key={item.key} style={styles.timelineRow}>
+                            <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                              {item.label}
+                            </Text>
+                            <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                              {renderValue(privacyMode, formatEvidenceValue(item))}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                  <View style={styles.shareFooter}>
+                    <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
+                      fortis.app
+                    </Text>
+                  </View>
+                </LinearGradient>
+              </ViewShotComponent>
             ) : (
               <LinearGradient
                 colors={gradientColors}
@@ -293,6 +411,7 @@ export default function InsightShareScreen() {
                 end={{ x: 1, y: 1 }}
                 style={[
                   styles.shareCard,
+                  styles.templateCard,
                   {
                     borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
                   },
@@ -316,58 +435,138 @@ export default function InsightShareScreen() {
                   ]}
                 >
                   <Text style={[styles.shareBadgeText, { color: colors.accent }]}>
-                    Training highlight
+                    {badgeLabel}
                   </Text>
                 </View>
                 <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
                 <Text style={[styles.shareSummary, { color: colors.textSecondary }]}>{insight.summary}</Text>
 
-                {primaryEvidence && (
-                  <View style={styles.heroRow}>
-                    <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                      {primaryEvidence.label}
-                    </Text>
-                    <View style={styles.heroValueRow}>
+                {template === 'hero' && primaryEvidence && (
+                  <>
+                    <View style={styles.heroRow}>
+                      <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+                        {primaryEvidence.label}
+                      </Text>
+                      <View style={styles.heroValueRow}>
+                        <Text style={[styles.heroValue, { color: colors.accent }]}>
+                          {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                        </Text>
+                        <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
+                      </View>
+                    </View>
+                    <View style={styles.evidenceList}>
+                      {secondaryEvidence.map((item) => (
+                        <View
+                          key={item.key}
+                          style={[
+                            styles.evidenceRow,
+                            {
+                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                            },
+                          ]}
+                        >
+                          <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                            {item.label}
+                          </Text>
+                          <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {template === 'split' && primaryEvidence && (
+                  <View style={styles.splitRow}>
+                    <View style={styles.splitColumn}>
+                      <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+                        {primaryEvidence.label}
+                      </Text>
                       <Text style={[styles.heroValue, { color: colors.accent }]}>
                         {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
                       </Text>
-                      <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
+                      {heroDelta && (
+                        <Text style={[styles.deltaText, { color: colors.textTertiary }]}>
+                          {heroDelta.text}
+                        </Text>
+                      )}
+                    </View>
+                    <View style={styles.splitColumn}>
+                      {secondaryEvidence.map((item) => (
+                        <View key={item.key} style={styles.splitEvidence}>
+                          <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                            {item.label}
+                          </Text>
+                          <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
                   </View>
                 )}
 
-                <View style={styles.evidenceList}>
-                  {secondaryEvidence.map((item) => (
-                    <View
-                      key={item.key}
-                      style={[
-                        styles.evidenceRow,
-                        {
-                          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                        },
-                      ]}
-                    >
-                      <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
-                        {item.label}
+                {template === 'grid' && (
+                  <View style={styles.grid}>
+                    {evidenceItems.map((item) => (
+                      <View
+                        key={item.key}
+                        style={[
+                          styles.gridTile,
+                          {
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.gridLabel, { color: colors.textSecondary }]}>
+                          {item.label}
+                        </Text>
+                        <Text style={[styles.gridValue, { color: colors.textPrimary }]}>
+                          {renderValue(privacyMode, formatEvidenceValue(item))}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {template === 'timeline' && primaryEvidence && (
+                  <View style={styles.timelineBlock}>
+                    <View style={styles.timelineHeader}>
+                      <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+                        {primaryEvidence.label}
                       </Text>
-                      <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                        {renderValue(privacyMode, formatEvidenceValue(item))}
+                      <Text style={[styles.heroValue, { color: colors.accent }]}>
+                        {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
                       </Text>
+                      {heroDelta && (
+                        <Text style={[styles.deltaText, { color: colors.textSecondary }]}>
+                          {heroDelta.text} vs last week
+                        </Text>
+                      )}
                     </View>
-                  ))}
-                </View>
+                    <View style={[styles.timelineTrack, { backgroundColor: colors.border }]}>
+                      <View style={[styles.timelineProgress, { backgroundColor: colors.accent }]} />
+                      <View style={[styles.timelineDot, { backgroundColor: colors.accent }]} />
+                    </View>
+                    <View style={styles.timelineEvidence}>
+                      {secondaryEvidence.map((item) => (
+                        <View key={item.key} style={styles.timelineRow}>
+                          <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                            {item.label}
+                          </Text>
+                          <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
 
                 <View style={styles.shareFooter}>
-                  {privacyMode === 'private' ? (
-                    <Text style={[styles.privacyHint, { color: colors.textTertiary }]}>
-                      Shared privately · values hidden
-                    </Text>
-                  ) : (
-                    <Text style={[styles.privacyHint, { color: colors.textTertiary }]}>
-                      Detailed numbers shown
-                    </Text>
-                  )}
                   <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
                     fortis.app
                   </Text>
@@ -410,32 +609,32 @@ export default function InsightShareScreen() {
             </Text>
           </View>
 
-            <View style={styles.actionsSection}>
-              <TouchableOpacity
-                style={[
-                  styles.shareButton,
-                  { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
-                ]}
-                onPress={handleShare}
+          <View style={styles.actionsSection}>
+            <TouchableOpacity
+              style={[
+                styles.shareButton,
+                { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
+              ]}
+              onPress={handleShare}
               disabled={isSharing || !isCaptureReady}
-                activeOpacity={0.8}
-              >
-                {isSharing ? (
-                  <ActivityIndicator size="small" color={colors.accent} />
-                ) : (
-                  <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
-                )}
-              </TouchableOpacity>
-              {!isCaptureReady && (
-                <Text style={[styles.shareError, { color: colors.textTertiary }]}>
-                  Share preview requires a dev client rebuild.
-                </Text>
+              activeOpacity={0.8}
+            >
+              {isSharing ? (
+                <ActivityIndicator size="small" color={colors.accent} />
+              ) : (
+                <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
               )}
-              {shareError && (
-                <Text style={[styles.shareError, { color: colors.error }]}>
-                  {shareError}
-                </Text>
-              )}
+            </TouchableOpacity>
+            {!isCaptureReady && (
+              <Text style={[styles.shareError, { color: colors.textTertiary }]}>
+                Share preview requires a dev client rebuild.
+              </Text>
+            )}
+            {shareError && (
+              <Text style={[styles.shareError, { color: colors.error }]}>
+                {shareError}
+              </Text>
+            )}
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -491,6 +690,9 @@ const styles = StyleSheet.create({
     padding: scale(Spacing.lg),
     gap: scale(Spacing.sm),
     overflow: 'hidden',
+  },
+  templateCard: {
+    gap: scale(Spacing.md),
   },
   shareGlow: {
     position: 'absolute',
@@ -551,6 +753,10 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(28),
     fontWeight: '700',
   },
+  deltaText: {
+    fontSize: moderateScale(11),
+    marginTop: scale(Spacing.xs),
+  },
   heroAccent: {
     width: scale(36),
     height: scale(4),
@@ -576,6 +782,71 @@ const styles = StyleSheet.create({
   evidenceValue: {
     fontSize: moderateScale(11),
     fontWeight: '600',
+  },
+  splitRow: {
+    flexDirection: 'row',
+    gap: scale(Spacing.md),
+  },
+  splitColumn: {
+    flex: 1,
+    gap: scale(Spacing.sm),
+  },
+  splitEvidence: {
+    gap: scale(Spacing.xs),
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: scale(Spacing.sm),
+  },
+  gridTile: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    borderRadius: scale(BorderRadius.md),
+    borderWidth: 1,
+    paddingVertical: scale(Spacing.sm),
+    paddingHorizontal: scale(Spacing.sm),
+    gap: scale(Spacing.xs),
+  },
+  gridLabel: {
+    fontSize: moderateScale(11),
+  },
+  gridValue: {
+    fontSize: moderateScale(15),
+    fontWeight: '700',
+  },
+  timelineBlock: {
+    gap: scale(Spacing.sm),
+  },
+  timelineHeader: {
+    gap: scale(Spacing.xs),
+  },
+  timelineTrack: {
+    height: scale(2),
+    borderRadius: scale(1),
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  timelineProgress: {
+    height: '100%',
+    width: '65%',
+  },
+  timelineDot: {
+    position: 'absolute',
+    left: '65%',
+    top: -scale(4),
+    width: scale(8),
+    height: scale(8),
+    borderRadius: scale(4),
+  },
+  timelineEvidence: {
+    gap: scale(Spacing.xs),
+  },
+  timelineRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: scale(Spacing.sm),
   },
   shareFooter: {
     marginTop: scale(Spacing.xs),

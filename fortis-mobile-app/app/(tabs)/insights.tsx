@@ -50,9 +50,7 @@ type SparklineData = {
 
 type ChartTab = 'progress' | 'volume' | 'frequency';
 
-const isShareableInsight = (type: InsightType): boolean => {
-  return type === 'CONSISTENCY_STREAK_V1' || type === 'WEEKLY_VOLUME_PR_V1';
-};
+const isShareableInsight = (): boolean => true;
 
 const POSITIVE_INSIGHT_TYPES: InsightType[] = ['CONSISTENCY_STREAK_V1', 'WEEKLY_VOLUME_PR_V1'];
 const RISK_INSIGHT_TYPES: InsightType[] = ['FATIGUE_RISK_V1', 'IMBALANCE_FLAG_V1'];
@@ -490,7 +488,12 @@ export default function InsightsScreen() {
     return item ? Number(item.value) : 0;
   }, [watchlistSummary]);
 
-  const watchlistVisible = watchlistItems.length > 0 || Boolean(watchlistSummary);
+  const hasPositiveInsight = positiveInsights.length > 0;
+  const watchlistVisible = !(
+    hasPositiveInsight &&
+    watchlistItems.length === 0 &&
+    Boolean(watchlistSummary)
+  ) && (watchlistItems.length > 0 || Boolean(watchlistSummary));
   const baseCount = (weeklyVerdict ? 1 : 0) + (firstWorkoutRecap ? 1 : 0);
   const availableSlots = Math.max(0, 3 - baseCount - (watchlistVisible ? 1 : 0));
   const riskCandidates = firstWorkoutRecap

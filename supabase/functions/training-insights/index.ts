@@ -180,7 +180,7 @@ const buildWeeklyVerdict = ({
   if (totalWorkouts < 2) {
     return {
       title: 'Log more sessions to unlock insights',
-      summary: 'Log 2+ sessions to unlock your Weekly Verdict and trend insights.',
+      summary: 'Log a couple sessions and I’ll start spotting weekly trends for you.',
       severity: 'low',
     };
   }
@@ -188,7 +188,7 @@ const buildWeeklyVerdict = ({
   if (sessionDelta > 0 && volumeDelta > 0 && prThisWeek > 0) {
     return {
       title: 'Great week — keep the momentum',
-      summary: 'Sessions and volume climbed, plus you hit new PRs. Stay consistent.',
+      summary: 'Sessions and volume climbed, plus you hit new PRs — nice work! Keep the streak going.',
       severity: 'low',
     };
   }
@@ -976,7 +976,7 @@ const buildFirstWorkoutRecapInsight = async ({
     severity: 'low',
     status: 'active',
     title: 'First workout recap',
-    summary: 'Baseline created. Repeat this session to start trend tracking.',
+    summary: 'Nice work—this sets your baseline. Repeat this session and I’ll start tracking trends.',
     evidence,
     recommendation: [
       {
@@ -1016,7 +1016,7 @@ const buildConsistencyStreakInsight = ({
     severity: 'low',
     status: 'active',
     title: `${streakWeeks}-week consistency streak`,
-    summary: 'You’re building a strong training habit. Keep the streak alive.',
+    summary: 'You’re building a strong training habit — keep it rolling!',
     evidence: [
       {
         key: 'sessions',
