@@ -27,6 +27,12 @@ if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   process.exit(1);
 }
 
+if (!SERVICE_ROLE_KEY.startsWith('eyJ') || SERVICE_ROLE_KEY.length < 120) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY does not look like a valid service role JWT.');
+  console.error('Grab the service_role key from Supabase Project Settings → API.');
+  process.exit(1);
+}
+
 if (!shouldConfirm) {
   console.error('Refusing to delete data without --confirm.');
   process.exit(1);
@@ -258,19 +264,18 @@ const buildSessionSets = (template, exerciseMap, config) => {
 };
 
 const run = async () => {
-  const { data: userResult, error: userError } = await supabase.auth.admin.getUserByEmail(email);
-  if (userError || !userResult?.user) {
-    throw new Error(`Failed to find user for ${email}: ${userError?.message ?? 'Unknown error'}`);
-  }
-
-  const userId = userResult.user.id;
-  const { data: profile } = await supabase
+  const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('timezone')
-    .eq('id', userId)
+    .select('id, timezone')
+    .eq('email', email)
     .single();
 
-  const timezone = profile?.timezone || 'UTC';
+  if (profileError || !profile?.id) {
+    throw new Error(`Failed to find profile for ${email}: ${profileError?.message ?? 'Unknown error'}`);
+  }
+
+  const userId = profile.id;
+  const timezone = profile.timezone || 'UTC';
   const weekStart = getWeekStartInTimezone(timezone);
 
   console.log(`Seeding user ${email} (${userId}) with timezone ${timezone}`);

@@ -8,6 +8,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
+import { useAIStore } from '@/src/store/aiStore';
 import { submitInsightFeedback } from '@/src/services/insightsService';
 import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
@@ -64,7 +65,9 @@ export default function InsightDetailScreen() {
   const { colors, isDark } = useTheme();
   const { id, tab } = useLocalSearchParams<{ id?: string; tab?: string }>();
   const { insights } = useTrainingInsights({ skipRefresh: true });
-  const { trackInsightFeedbackSubmitted } = useAnalytics();
+  const { trackInsightFeedbackSubmitted, trackChatOpenedFromInsight } = useAnalytics();
+  const openConversation = useAIStore((state) => state.openConversation);
+  const sendMessage = useAIStore((state) => state.sendMessage);
 
   const insight = useMemo(
     () => insights.find((item) => item.id === id),
@@ -190,6 +193,22 @@ export default function InsightDetailScreen() {
     setIsSubmittingFeedback(false);
   };
 
+  const handleNextSteps = () => {
+    if (!insight) return;
+    const prompt =
+      insight.type === 'FATIGUE_RISK_V1'
+        ? 'Explain this fatigue risk and suggest what I should adjust next week.'
+        : insight.type === 'IMBALANCE_FLAG_V1'
+        ? 'Explain this imbalance flag and suggest what I should adjust next week.'
+        : insight.type === 'LIFT_STALL_RISK_V1'
+        ? 'Explain this stall risk and suggest what I should adjust next week.'
+        : 'Explain this weekly insight and suggest what I should do next week.';
+    openConversation();
+    void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
+    trackChatOpenedFromInsight({ insight_id: insight.id, insight_type: insight.type });
+    router.push('/ai/chat');
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
@@ -278,6 +297,21 @@ export default function InsightDetailScreen() {
                 formatYValue={formatYAxisValue}
               />
             )}
+
+            <View style={styles.nextStepsRow}>
+              <TouchableOpacity
+                style={[
+                  styles.nextStepsButton,
+                  { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
+                ]}
+                onPress={handleNextSteps}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.nextStepsText, { color: colors.accent }]}>
+                  Next steps
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             {suggestionText && (
               <View
@@ -426,6 +460,23 @@ const styles = StyleSheet.create({
   },
   evidenceDelta: {
     fontSize: moderateScale(11),
+  },
+  nextStepsRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+  },
+  nextStepsButton: {
+    height: scale(32),
+    minWidth: scale(120),
+    paddingHorizontal: scale(Spacing.md),
+    borderWidth: 1,
+    borderRadius: scale(16),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextStepsText: {
+    fontSize: moderateScale(12),
+    fontWeight: '600',
   },
   suggestionCard: {
     borderRadius: CARD_RADIUS,

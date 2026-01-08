@@ -82,7 +82,7 @@ Triggering:
 Verdict logic (simple and deterministic)
 Use a small decision tree based on volume + sessions + PRs:
 - If sessions and volume up and PRs > 0 -> "Great week, keep going."
-- If volume up but performance/PRs down or none -> "Volume increased; watch fatigue, consider holding intensity steady."
+- If volume up but performance/PRs down or none -> "Volume increased; watch recovery, consider holding intensity steady."
 - If sessions/volume down -> "Lower training load this week; next week aim for consistency."
 - If brand new user with not enough data -> "Log 2+ sessions to unlock deeper insights."
 

@@ -138,6 +138,8 @@ function InsightCard({
   const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
   const sparklineLabel = useMemo(() => getInsightChartMapping(insight.type).sparklineLabel, [insight.type]);
   const evidenceItems = useMemo(() => resolveEvidence(insight).slice(0, 4), [insight]);
+  const isWeeklyVerdict = insight.type === 'WEEKLY_VERDICT_V1';
+  const rangeLabel = formatWeekRange(insight.anchorDate);
 
   const cardTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
@@ -149,7 +151,7 @@ function InsightCard({
       <View style={styles.insightHeader}>
         <View style={styles.insightHeaderRow}>
           <Text style={[styles.insightRange, { color: colors.textTertiary }]}>
-            {formatWeekRange(insight.anchorDate)}
+            {rangeLabel}
           </Text>
           <TouchableOpacity
             onPress={() => onDismiss(insight)}
@@ -159,6 +161,11 @@ function InsightCard({
             <Text style={[styles.dismissButtonText, { color: colors.textTertiary }]}>Dismiss</Text>
           </TouchableOpacity>
         </View>
+        {isWeeklyVerdict && (
+          <Text style={[styles.weeklyInsightLabel, { color: colors.accent }]}>
+            Weekly insight
+          </Text>
+        )}
         <Text style={[styles.insightTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
       </View>
 
@@ -220,7 +227,7 @@ function InsightCard({
           onPress={() => onWhyPress(insight)}
           activeOpacity={0.8}
         >
-          <Text style={[styles.whyButtonText, { color: colors.accent }]}>Why?</Text>
+          <Text style={[styles.whyButtonText, { color: colors.accent }]}>Next steps</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.viewChartButton, { borderColor: colors.border }]}
@@ -882,6 +889,13 @@ const styles = StyleSheet.create({
   insightTitle: {
     ...Typography.h3,
     fontSize: moderateScale(16),
+  },
+  weeklyInsightLabel: {
+    fontSize: moderateScale(11),
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    marginBottom: scale(Spacing.xs),
   },
   insightSummary: {
     fontSize: SUMMARY_TEXT_SIZE,

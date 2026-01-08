@@ -25,8 +25,8 @@ type InsightLineChartProps = {
 const VIEWBOX_WIDTH = 320;
 const VIEWBOX_HEIGHT = 160;
 const PADDING = 18;
-const Y_AXIS_WIDTH = scale(46);
 const GRID_LINE_COUNT = 2;
+const Y_AXIS_INSET = scale(8);
 
 const trimTrailingZero = (value: string): string => value.replace(/\.0$/, '');
 
@@ -179,7 +179,8 @@ export function InsightLineChart({
     highlightSet.add(lastPointDate);
   }
   const mid = (min + max) / 2;
-  const yTicks = [max, mid, min];
+  const flatRange = max - min <= Math.max(Math.abs(max) * 0.02, 0.5);
+  const yTicks = flatRange ? [max] : [max, mid, min];
   const xStart = points[0]?.date;
   const xEnd = points[points.length - 1]?.date;
 
@@ -202,99 +203,101 @@ export function InsightLineChart({
           {yLabel}
         </Text>
       )}
-      <View style={styles.chartRow}>
-        <View style={styles.yAxis}>
+      <View
+        style={[
+          styles.chartContainer,
+          {
+            height,
+            backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+          },
+        ]}
+      >
+        <Svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+        >
+          {highlightRect && (
+            <Rect
+              x={highlightRect.x}
+              y={PADDING}
+              width={highlightRect.width}
+              height={VIEWBOX_HEIGHT - PADDING * 2}
+              fill={colors.accentOverlay}
+            />
+          )}
+
+          {/* Refined grid lines - subtle solid lines */}
+          {Array.from({ length: GRID_LINE_COUNT }).map((_, index) => {
+            const y =
+              PADDING +
+              ((VIEWBOX_HEIGHT - PADDING * 2) / (GRID_LINE_COUNT + 1)) * (index + 1);
+            return (
+              <Line
+                key={`grid-${index}`}
+                x1={PADDING}
+                x2={VIEWBOX_WIDTH - PADDING}
+                y1={y}
+                y2={y}
+                stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}
+                strokeWidth={0.5}
+              />
+            );
+          })}
+
+          {/* Smooth bezier curve line */}
+          <Path
+            d={path}
+            stroke={lineColor}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+
+          {/* Enhanced data points with glow effect */}
+          {points.map((point, index) => {
+            if (!highlightSet.has(point.date)) return null;
+            const pos = getPoint(points, index, minValue, maxValue);
+            return (
+              <React.Fragment key={`highlight-${index}`}>
+                {/* Outer glow */}
+                <Circle
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={8}
+                  fill={lineColor}
+                  opacity={0.15}
+                />
+                {/* Main point */}
+                <Circle
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={4.5}
+                  fill={lineColor}
+                />
+                {/* Inner highlight for depth */}
+                <Circle
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={2}
+                  fill={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.9)'}
+                />
+              </React.Fragment>
+            );
+          })}
+        </Svg>
+        <View style={[styles.yAxisOverlay, flatRange && styles.yAxisOverlaySingle]} pointerEvents="none">
           {yTicks.map((tick, index) => (
-            <Text key={`tick-${index}`} style={[styles.yAxisText, { color: colors.textTertiary }]}>
+            <Text
+              key={`tick-${index}`}
+              numberOfLines={1}
+              style={[styles.yAxisText, { color: colors.textTertiary }]}
+            >
               {formatY(tick)}
             </Text>
           ))}
-        </View>
-        <View
-          style={[
-            styles.chartContainer,
-            {
-              height,
-              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-            },
-          ]}
-        >
-          <Svg
-            width="100%"
-            height="100%"
-            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
-          >
-            {highlightRect && (
-              <Rect
-                x={highlightRect.x}
-                y={PADDING}
-                width={highlightRect.width}
-                height={VIEWBOX_HEIGHT - PADDING * 2}
-                fill={colors.accentOverlay}
-              />
-            )}
-
-            {/* Refined grid lines - subtle solid lines */}
-            {Array.from({ length: GRID_LINE_COUNT }).map((_, index) => {
-              const y =
-                PADDING +
-                ((VIEWBOX_HEIGHT - PADDING * 2) / (GRID_LINE_COUNT + 1)) * (index + 1);
-              return (
-                <Line
-                  key={`grid-${index}`}
-                  x1={PADDING}
-                  x2={VIEWBOX_WIDTH - PADDING}
-                  y1={y}
-                  y2={y}
-                  stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}
-                  strokeWidth={0.5}
-                />
-              );
-            })}
-
-            {/* Smooth bezier curve line */}
-            <Path
-              d={path}
-              stroke={lineColor}
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-
-            {/* Enhanced data points with glow effect */}
-            {points.map((point, index) => {
-              if (!highlightSet.has(point.date)) return null;
-              const pos = getPoint(points, index, minValue, maxValue);
-              return (
-                <React.Fragment key={`highlight-${index}`}>
-                  {/* Outer glow */}
-                  <Circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={8}
-                    fill={lineColor}
-                    opacity={0.15}
-                  />
-                  {/* Main point */}
-                  <Circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={4.5}
-                    fill={lineColor}
-                  />
-                  {/* Inner highlight for depth */}
-                  <Circle
-                    cx={pos.x}
-                    cy={pos.y}
-                    r={2}
-                    fill={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.9)'}
-                  />
-                </React.Fragment>
-              );
-            })}
-          </Svg>
         </View>
       </View>
       <View style={styles.xAxis}>
@@ -323,18 +326,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     flex: 1,
+    position: 'relative',
   },
-  chartRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: scale(Spacing.xs),
-  },
-  yAxis: {
-    width: Y_AXIS_WIDTH,
+  yAxisOverlay: {
+    position: 'absolute',
+    left: Y_AXIS_INSET,
+    top: Y_AXIS_INSET,
+    bottom: Y_AXIS_INSET,
     justifyContent: 'space-between',
   },
+  yAxisOverlaySingle: {
+    justifyContent: 'center',
+  },
   yAxisText: {
-    fontSize: moderateScale(10),
+    fontSize: moderateScale(9),
     textAlign: 'right',
   },
   axisLabel: {
