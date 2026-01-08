@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import {
   FireIcon,
   ClockIcon,
@@ -10,6 +10,8 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 /**
  * Format volume with appropriate units (K for thousands)
@@ -61,6 +63,7 @@ function StatItem({ icon, value, label, colors, iconBgStyle }: StatItemProps) {
  * StatsOverviewCard - Displays volume-focused workout statistics.
  */
 export function StatsOverviewCard() {
+  const router = useRouter();
   const { profile } = useAuth();
   const { colors, isDark } = useTheme();
   const stats = useProfileStats();
@@ -76,9 +79,23 @@ export function StatsOverviewCard() {
     backgroundColor: colors.accentOverlay,
   };
 
+  const handleShareRecap = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: '/profile/share', params: { type: 'monthly' } });
+  };
+
   return (
     <View style={[styles.container, cardStyle]}>
-      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
+        <TouchableOpacity
+          style={[styles.shareButton, { borderColor: colors.border }]}
+          onPress={handleShareRecap}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.shareButtonText, { color: colors.textSecondary }]}>Share</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.statsRow}>
         <StatItem
           icon={<FireIcon color={colors.accent} size={20} strokeWidth={2} />}
@@ -116,11 +133,16 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: Spacing.lg,
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   statItem: {
     flex: 1,
@@ -143,5 +165,15 @@ const styles = StyleSheet.create({
   statLabel: {
     ...Typography.caption,
     textAlign: 'center',
+  },
+  shareButton: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  shareButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

@@ -1,16 +1,19 @@
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 
 /**
  * WeeklyMuscleHeatmapCard - Displays a body heatmap of muscles trained
  * in the last 7 days on the Profile tab.
  */
 export function WeeklyMuscleHeatmapCard() {
+  const router = useRouter();
   const { colors, isDark } = useTheme();
   const { exercises, loading, hasWorkouts } = useWeeklyMuscles();
   const bodyType = useWorkoutStore((state) => state.bodyType);
@@ -21,11 +24,25 @@ export function WeeklyMuscleHeatmapCard() {
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
   };
 
+  const handleShareSignature = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: '/profile/share', params: { type: 'signature' } });
+  };
+
   return (
     <View style={[styles.container, cardStyle]}>
-      <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
-        Muscles Hit This Week
-      </Text>
+      <View style={styles.headerRow}>
+        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
+          Muscles Hit This Week
+        </Text>
+        <TouchableOpacity
+          style={[styles.shareButton, { borderColor: colors.border }]}
+          onPress={handleShareSignature}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.shareButtonText, { color: colors.textSecondary }]}>Share</Text>
+        </TouchableOpacity>
+      </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -55,11 +72,16 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: Spacing.xl,
   },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
   sectionHeader: {
     ...Typography.caption,
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: Spacing.md,
   },
   loadingContainer: {
     height: 140,
@@ -74,5 +96,15 @@ const styles = StyleSheet.create({
   emptyText: {
     ...Typography.body,
     textAlign: 'center',
+  },
+  shareButton: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  shareButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

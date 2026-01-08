@@ -13,6 +13,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
+import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
@@ -47,6 +48,7 @@ function getIntensityLevel(volume: number, maxVolume: number): 0 | 1 | 2 | 3 | 4
  * plus training activity heatmap.
  */
 export function ProfileHeader() {
+  const router = useRouter();
   const { user, profile, updateProfile, uploadAvatar } = useAuth();
   const { colors, isDark } = useTheme();
   const { weeks, monthLabels, maxVolume, isLoading, hasActivity } = useActivityHeatmap(user?.id);
@@ -163,6 +165,11 @@ export function ProfileHeader() {
     backgroundColor: colors.accentOverlay,
   };
 
+  const handleShareActivity = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push({ pathname: '/profile/share', params: { type: 'activity' } });
+  };
+
   return (
     <View style={[styles.container, cardStyle]}>
       {/* Top row: Avatar + User Info */}
@@ -253,6 +260,13 @@ export function ProfileHeader() {
       <View style={[styles.chartSection, dividerStyle]}>
         <View style={styles.chartHeader}>
           <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>Training Activity</Text>
+          <TouchableOpacity
+            style={[styles.shareButton, { borderColor: colors.border }]}
+            onPress={handleShareActivity}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.shareButtonText, { color: colors.textSecondary }]}>Share</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.heatmapContainer}>
@@ -449,6 +463,16 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     textTransform: 'uppercase',
     letterSpacing: 1,
+  },
+  shareButton: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  shareButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   heatmapContainer: {
     marginTop: Spacing.sm,

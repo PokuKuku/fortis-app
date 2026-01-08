@@ -131,6 +131,15 @@ export default function InsightShareScreen() {
   const template = insight ? getShareTemplate(insight) : 'hero';
   const badgeLabel = insight ? getShareBadge(insight) : 'Training highlight';
   const heroDelta = primaryEvidence ? formatEvidenceDelta(primaryEvidence) : null;
+  const comparisonBars = primaryEvidence?.compareValue !== undefined
+    ? [
+        { label: 'Last', value: primaryEvidence.compareValue },
+        { label: 'This', value: primaryEvidence.value },
+      ]
+    : null;
+  const comparisonMax = comparisonBars
+    ? Math.max(...comparisonBars.map((item) => item.value), 1)
+    : 1;
   const gradientColors = isDark
     ? ['#0c1413', '#131c1b', '#0f1918']
     : ['#f4f7f6', '#eef1f1', '#f6f8f8'];
@@ -378,10 +387,43 @@ export default function InsightShareScreen() {
                           </Text>
                         )}
                       </View>
-                      <View style={[styles.timelineTrack, { backgroundColor: colors.border }]}>
-                        <View style={[styles.timelineProgress, { backgroundColor: colors.accent }]} />
-                        <View style={[styles.timelineDot, { backgroundColor: colors.accent }]} />
-                      </View>
+                      {comparisonBars ? (
+                        <View style={styles.comparisonBlock}>
+                          {comparisonBars.map((bar) => {
+                            const width = Math.max((bar.value / comparisonMax) * 100, 8);
+                            return (
+                              <View key={bar.label} style={styles.comparisonRow}>
+                                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                                  {bar.label}
+                                </Text>
+                                <View
+                                  style={[
+                                    styles.comparisonTrack,
+                                    { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
+                                  ]}
+                                >
+                                  <View
+                                    style={[
+                                      styles.comparisonFill,
+                                      {
+                                        width: `${width}%`,
+                                        backgroundColor:
+                                          bar.label === 'This' ? colors.accent : colors.border,
+                                      },
+                                    ]}
+                                  />
+                                </View>
+                                <Text style={[styles.comparisonValue, { color: colors.textPrimary }]}>
+                                  {renderValue(privacyMode, formatEvidenceValue({
+                                    ...primaryEvidence,
+                                    value: bar.value,
+                                  }))}
+                                </Text>
+                              </View>
+                            );
+                          })}
+                        </View>
+                      ) : null}
                       <View style={styles.timelineEvidence}>
                         {secondaryEvidence.map((item) => (
                           <View key={item.key} style={styles.timelineRow}>
@@ -547,10 +589,43 @@ export default function InsightShareScreen() {
                         </Text>
                       )}
                     </View>
-                    <View style={[styles.timelineTrack, { backgroundColor: colors.border }]}>
-                      <View style={[styles.timelineProgress, { backgroundColor: colors.accent }]} />
-                      <View style={[styles.timelineDot, { backgroundColor: colors.accent }]} />
-                    </View>
+                    {comparisonBars ? (
+                      <View style={styles.comparisonBlock}>
+                        {comparisonBars.map((bar) => {
+                          const width = Math.max((bar.value / comparisonMax) * 100, 8);
+                          return (
+                            <View key={bar.label} style={styles.comparisonRow}>
+                              <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                                {bar.label}
+                              </Text>
+                              <View
+                                style={[
+                                  styles.comparisonTrack,
+                                  { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
+                                ]}
+                              >
+                                <View
+                                  style={[
+                                    styles.comparisonFill,
+                                    {
+                                      width: `${width}%`,
+                                      backgroundColor:
+                                        bar.label === 'This' ? colors.accent : colors.border,
+                                    },
+                                  ]}
+                                />
+                              </View>
+                              <Text style={[styles.comparisonValue, { color: colors.textPrimary }]}>
+                                {renderValue(privacyMode, formatEvidenceValue({
+                                  ...primaryEvidence,
+                                  value: bar.value,
+                                }))}
+                              </Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    ) : null}
                     <View style={styles.timelineEvidence}>
                       {secondaryEvidence.map((item) => (
                         <View key={item.key} style={styles.timelineRow}>
@@ -821,23 +896,33 @@ const styles = StyleSheet.create({
   timelineHeader: {
     gap: scale(Spacing.xs),
   },
-  timelineTrack: {
-    height: scale(2),
-    borderRadius: scale(1),
-    position: 'relative',
+  comparisonBlock: {
+    gap: scale(Spacing.xs),
+  },
+  comparisonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(Spacing.sm),
+  },
+  comparisonLabel: {
+    width: scale(36),
+    fontSize: moderateScale(10),
+  },
+  comparisonTrack: {
+    flex: 1,
+    height: scale(6),
+    borderRadius: scale(3),
     overflow: 'hidden',
   },
-  timelineProgress: {
+  comparisonFill: {
     height: '100%',
-    width: '65%',
+    borderRadius: scale(3),
   },
-  timelineDot: {
-    position: 'absolute',
-    left: '65%',
-    top: -scale(4),
-    width: scale(8),
-    height: scale(8),
-    borderRadius: scale(4),
+  comparisonValue: {
+    minWidth: scale(48),
+    textAlign: 'right',
+    fontSize: moderateScale(10),
+    fontWeight: '600',
   },
   timelineEvidence: {
     gap: scale(Spacing.xs),
