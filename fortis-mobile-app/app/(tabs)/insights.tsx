@@ -18,7 +18,6 @@ import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightSparkline } from '@/src/components/insights/InsightSparkline';
-import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -381,7 +380,6 @@ export default function InsightsScreen() {
     trackInsightTypeSnoozed,
   } = useAnalytics();
   const hasTrackedView = useRef(false);
-  const [chartTab, setChartTab] = useState<ChartTab>('volume');
 
   const exerciseNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -497,10 +495,14 @@ export default function InsightsScreen() {
   };
 
   const handleOpenChart = (insight: TrainingInsight, tabOverride?: ChartTab) => {
-    router.push({
-      pathname: '/insights/[id]',
-      params: { id: insight.id, tab: tabOverride ?? chartTab },
-    });
+    if (tabOverride) {
+      router.push({
+        pathname: '/insights/[id]',
+        params: { id: insight.id, tab: tabOverride },
+      });
+      return;
+    }
+    router.push({ pathname: '/insights/[id]', params: { id: insight.id } });
   };
 
   const handleWatchlistPress = (insight: TrainingInsight) => {
@@ -560,16 +562,6 @@ export default function InsightsScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          <SegmentedControl
-            options={[
-              { key: 'progress', label: 'Progress' },
-              { key: 'volume', label: 'Volume' },
-              { key: 'frequency', label: 'Frequency' },
-            ]}
-            value={chartTab}
-            onChange={(value) => setChartTab(value as ChartTab)}
-          />
-
           <TouchableOpacity
             style={[styles.cardBase, styles.libraryCard, cardTheme]}
             onPress={handleOpenLibrary}
