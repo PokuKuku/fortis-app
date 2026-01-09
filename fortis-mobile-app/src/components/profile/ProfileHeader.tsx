@@ -56,6 +56,7 @@ export function ProfileHeader() {
   const [editedName, setEditedName] = useState(profile?.full_name || '');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSavingName, setIsSavingName] = useState(false);
+  const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
   const nameInputRef = useRef<TextInput>(null);
 
   const intensityColors = useMemo(() => ({
@@ -86,19 +87,28 @@ export function ProfileHeader() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      base64: true,
     });
 
     if (!result.canceled && result.assets[0]) {
       setIsUploadingAvatar(true);
+      setLocalAvatarUri(result.assets[0].uri);
       try {
         if (uploadAvatar) {
-          await uploadAvatar(result.assets[0].uri);
+          const { error } = await uploadAvatar(result.assets[0].uri, {
+            base64: result.assets[0].base64,
+            mimeType: result.assets[0].mimeType,
+          });
+          if (error) {
+            throw error;
+          }
         } else {
           await updateProfile({ avatar_url: result.assets[0].uri });
         }
       } catch (error) {
         Alert.alert('Upload Failed', 'Failed to upload avatar. Please try again.');
       } finally {
+        setLocalAvatarUri(null);
         setIsUploadingAvatar(false);
       }
     }
@@ -185,8 +195,8 @@ export function ProfileHeader() {
             <View style={styles.avatarLoading}>
               <ActivityIndicator color={colors.accent} size="small" />
             </View>
-          ) : profile?.avatar_url ? (
-            <Image source={{ uri: profile.avatar_url }} style={styles.avatarImage} />
+          ) : (localAvatarUri || profile?.avatar_url) ? (
+            <Image source={{ uri: localAvatarUri || profile?.avatar_url || '' }} style={styles.avatarImage} />
           ) : (
             <UserCircleIcon color={colors.accent} size={56} strokeWidth={1} />
           )}

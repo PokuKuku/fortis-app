@@ -39,6 +39,15 @@ interface AddExerciseModalProps {
   onOpenExerciseDetails?: (exerciseId: string) => void;
 }
 
+const EXERCISE_PREVIEW_SIZE = 36;
+const EXERCISE_ROW_BORDER_WIDTH = 1;
+const EXERCISE_ROW_PADDING_Y = Spacing.lg;
+const EXERCISE_ROW_MARGIN_BOTTOM = Spacing.sm;
+const EXERCISE_ROW_HEIGHT = EXERCISE_PREVIEW_SIZE
+  + (EXERCISE_ROW_PADDING_Y * 2)
+  + (EXERCISE_ROW_BORDER_WIDTH * 2)
+  + EXERCISE_ROW_MARGIN_BOTTOM;
+
 export function AddExerciseModal({
   visible,
   onClose,
@@ -115,6 +124,11 @@ export function AddExerciseModal({
   const isRestoringScroll = useRef(false);
   const pendingScrollRestore = useRef(false);
   const restoreAttempts = useRef(0);
+  const wasLoading = useRef(false);
+  const contentReady = useRef(false);
+  const restoreTargetOffset = useRef(0);
+  const restoreTargetIndex = useRef(0);
+  const firstVisibleIndex = useRef(0);
   const isModalVisible = visible && !suspended;
 
   // Reset state when modal closes
@@ -229,8 +243,14 @@ export function AddExerciseModal({
 
   const handleExercisePress = (exerciseId: string) => {
     if (onOpenExerciseDetails) {
-      pendingScrollRestore.current = true;
-      restoreAttempts.current = 0;
+      if (lastScrollOffset.current > 0 || firstVisibleIndex.current > 0) {
+        restoreTargetOffset.current = lastScrollOffset.current;
+        restoreTargetIndex.current = firstVisibleIndex.current > 0
+          ? firstVisibleIndex.current
+          : Math.floor(lastScrollOffset.current / EXERCISE_ROW_HEIGHT);
+        pendingScrollRestore.current = true;
+        restoreAttempts.current = 0;
+      }
       onOpenExerciseDetails(exerciseId);
       return;
     }
@@ -240,15 +260,30 @@ export function AddExerciseModal({
   const handleListScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
     if (isRestoringScroll.current) return;
     const nextOffset = event.nativeEvent.contentOffset.y;
-    if (pendingScrollRestore.current && lastScrollOffset.current > 0 && nextOffset === 0) return;
+    if (pendingScrollRestore.current && (restoreTargetOffset.current > 0 || restoreTargetIndex.current > 0)) {
+      if (nextOffset === 0) return;
+      if (restoreTargetOffset.current > 0
+        && (Math.abs(nextOffset - restoreTargetOffset.current) <= 4 || nextOffset > restoreTargetOffset.current)) {
+        pendingScrollRestore.current = false;
+        lastScrollOffset.current = nextOffset;
+        return;
+      }
+      if (restoreTargetOffset.current <= 0) {
+        pendingScrollRestore.current = false;
+        lastScrollOffset.current = nextOffset;
+        return;
+      }
+      return;
+    }
     lastScrollOffset.current = nextOffset;
   };
 
   const attemptScrollRestore = useCallback(() => {
     if (!pendingScrollRestore.current) return;
     if (!isModalVisible) return;
-    if (loading || lastScrollOffset.current <= 0 || filteredExercises.length === 0) return;
-    if (restoreAttempts.current >= 3) {
+    if (loading || filteredExercises.length === 0) return;
+    if (!contentReady.current) return;
+    if (restoreAttempts.current >= 5) {
       pendingScrollRestore.current = false;
       return;
     }
@@ -257,16 +292,24 @@ export function AddExerciseModal({
     isRestoringScroll.current = true;
     const task = InteractionManager.runAfterInteractions(() => {
       requestAnimationFrame(() => {
-        listRef.current?.scrollToOffset({
-          offset: lastScrollOffset.current,
-          animated: false,
-        });
+        if (restoreTargetIndex.current > 0) {
+          listRef.current?.scrollToIndex({
+            index: Math.min(restoreTargetIndex.current, filteredExercises.length - 1),
+            viewPosition: 0,
+            animated: false,
+          });
+        } else if (restoreTargetOffset.current > 0) {
+          listRef.current?.scrollToOffset({
+            offset: restoreTargetOffset.current,
+            animated: false,
+          });
+        }
         requestAnimationFrame(() => {
           isRestoringScroll.current = false;
           if (pendingScrollRestore.current) {
-            attemptScrollRestore();
-          } else {
-            pendingScrollRestore.current = false;
+            setTimeout(() => {
+              attemptScrollRestore();
+            }, 120);
           }
         });
       });
@@ -277,10 +320,47 @@ export function AddExerciseModal({
   useEffect(() => {
     if (!isModalVisible) {
       isRestoringScroll.current = false;
+      contentReady.current = false;
       return;
     }
     attemptScrollRestore();
   }, [isModalVisible, loading, filteredExercises.length, attemptScrollRestore]);
+
+  useEffect(() => {
+    if (!isModalVisible) {
+      wasLoading.current = loading;
+      return;
+    }
+
+    if (!wasLoading.current && loading && lastScrollOffset.current > 0) {
+      restoreTargetOffset.current = lastScrollOffset.current;
+      restoreTargetIndex.current = firstVisibleIndex.current > 0
+        ? firstVisibleIndex.current
+        : Math.floor(lastScrollOffset.current / EXERCISE_ROW_HEIGHT);
+      pendingScrollRestore.current = true;
+      restoreAttempts.current = 0;
+    }
+
+    wasLoading.current = loading;
+  }, [loading, isModalVisible]);
+
+  const handleContentSizeChange = (_width: number, height: number) => {
+    if (!isModalVisible) return;
+    if (height > 0) {
+      contentReady.current = true;
+      attemptScrollRestore();
+    }
+  };
+
+  const handleViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
+    if (pendingScrollRestore.current || isRestoringScroll.current) return;
+    const firstIndex = viewableItems.find(item => typeof item.index === 'number')?.index;
+    if (typeof firstIndex === 'number') {
+      firstVisibleIndex.current = firstIndex;
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 10 }).current;
 
   const renderExercise = ({ item }: { item: Exercise }) => {
     const selected = isSelected(item.id);
@@ -452,7 +532,14 @@ export function AddExerciseModal({
             onScroll={handleListScroll}
             onScrollEndDrag={handleListScroll}
             onMomentumScrollEnd={handleListScroll}
-            onContentSizeChange={attemptScrollRestore}
+            onContentSizeChange={handleContentSizeChange}
+            onViewableItemsChanged={handleViewableItemsChanged}
+            viewabilityConfig={viewabilityConfig}
+            getItemLayout={(_data, index) => ({
+              length: EXERCISE_ROW_HEIGHT,
+              offset: EXERCISE_ROW_HEIGHT * index,
+              index,
+            })}
           />
 
           {/* Add Button (only in add mode) */}
@@ -594,11 +681,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.lg,
+    paddingVertical: EXERCISE_ROW_PADDING_Y,
     paddingHorizontal: Spacing.md,
-    marginBottom: Spacing.sm,
+    marginBottom: EXERCISE_ROW_MARGIN_BOTTOM,
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderWidth: 1,
+    borderWidth: EXERCISE_ROW_BORDER_WIDTH,
     borderColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: BorderRadius.xl,
   },
@@ -616,8 +703,8 @@ const styles = StyleSheet.create({
     marginRight: Spacing.md,
   },
   exercisePreview: {
-    width: 36,
-    height: 36,
+    width: EXERCISE_PREVIEW_SIZE,
+    height: EXERCISE_PREVIEW_SIZE,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
