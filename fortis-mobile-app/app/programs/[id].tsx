@@ -584,6 +584,8 @@ export default function ProgramDetailScreen() {
             keyExtractor={(item) => item.id}
             scrollEnabled={false}
             extraData={expandedWorkouts}
+            style={styles.workoutsListContainer}
+            activationDistance={0}
             onDragEnd={({ data }) => handleReorderWorkouts(data)}
             renderItem={({ item, drag, isActive }) => (
               <WorkoutSection
@@ -894,6 +896,9 @@ const styles = StyleSheet.create({
   },
   workoutsList: {
     paddingBottom: 0,
+  },
+  workoutsListContainer: {
+    flexGrow: 0,
   },
   workoutsSpacer: {
     height: Spacing.md,

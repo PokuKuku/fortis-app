@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   TextInput,
   ScrollView,
   Image,
+  InteractionManager,
 } from 'react-native';
 import { XMarkIcon, MagnifyingGlassIcon, PlusIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -111,7 +112,9 @@ export function AddExerciseModal({
   const isProcessing = useRef(false);
   const listRef = useRef<FlatList<Exercise>>(null);
   const lastScrollOffset = useRef(0);
-  const pendingScrollRestore = useRef(false);
+  const didRestoreScroll = useRef(false);
+  const isRestoringScroll = useRef(false);
+  const wasModalVisible = useRef(false);
   const isModalVisible = visible && !suspended;
 
   // Reset state when modal closes
@@ -233,31 +236,41 @@ export function AddExerciseModal({
   };
 
   const handleListScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    if (isRestoringScroll.current) return;
     lastScrollOffset.current = event.nativeEvent.contentOffset.y;
   };
 
-  // Set flag to restore scroll when modal becomes visible again
-  // useLayoutEffect runs synchronously before native layout, ensuring flag is set before onContentSizeChange fires
-  useLayoutEffect(() => {
-    if (isModalVisible && lastScrollOffset.current > 0) {
-      pendingScrollRestore.current = true;
+  useEffect(() => {
+    if (!isModalVisible) {
+      wasModalVisible.current = false;
+      didRestoreScroll.current = false;
+      isRestoringScroll.current = false;
+      return;
     }
-  }, [isModalVisible]);
 
-  // Restore scroll position once FlatList content is ready
-  const handleContentSizeChange = (_width: number, height: number) => {
-    // Only attempt scroll when content has actual height (ignore initial empty-content callbacks)
-    if (pendingScrollRestore.current && lastScrollOffset.current > 0 && height > 0) {
-      pendingScrollRestore.current = false;
-      // Wait one frame for layout to fully settle
+    if (!wasModalVisible.current) {
+      wasModalVisible.current = true;
+      didRestoreScroll.current = false;
+    }
+
+    if (didRestoreScroll.current || lastScrollOffset.current <= 0 || filteredExercises.length === 0) {
+      return;
+    }
+
+    didRestoreScroll.current = true;
+    isRestoringScroll.current = true;
+    const task = InteractionManager.runAfterInteractions(() => {
       requestAnimationFrame(() => {
         listRef.current?.scrollToOffset({
           offset: lastScrollOffset.current,
           animated: false,
         });
+        isRestoringScroll.current = false;
       });
-    }
-  };
+    });
+
+    return () => task.cancel?.();
+  }, [isModalVisible, filteredExercises.length]);
 
   const renderExercise = ({ item }: { item: Exercise }) => {
     const selected = isSelected(item.id);
@@ -427,7 +440,6 @@ export function AddExerciseModal({
             keyboardShouldPersistTaps="handled"
             scrollEventThrottle={16}
             onScroll={handleListScroll}
-            onContentSizeChange={handleContentSizeChange}
           />
 
           {/* Add Button (only in add mode) */}

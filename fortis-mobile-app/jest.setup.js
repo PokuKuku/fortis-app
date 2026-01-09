@@ -116,6 +116,16 @@ jest.mock('react-native-reanimated', () => {
 // Mock react-native-gesture-handler
 jest.mock('react-native-gesture-handler', () => {
   const View = require('react-native').View;
+  const GestureDetector = ({ children }) => children;
+  const makeGesture = () => {
+    const gesture = {
+      activeOffsetY: () => gesture,
+      failOffsetX: () => gesture,
+      onUpdate: () => gesture,
+      onEnd: () => gesture,
+    };
+    return gesture;
+  };
   return {
     Swipeable: View,
     DrawerLayout: View,
@@ -144,6 +154,10 @@ jest.mock('react-native-gesture-handler', () => {
     gestureHandlerRootHOC: jest.fn((component) => component),
     Directions: {},
     GestureHandlerRootView: View,
+    GestureDetector,
+    Gesture: {
+      Pan: makeGesture,
+    },
   };
 });
 
