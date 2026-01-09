@@ -156,10 +156,16 @@ function WorkoutSection({
           >
             <ChevronDownIcon size={16} color={colors.textSecondary} strokeWidth={2} />
           </Pressable>
-          <DeleteKebabMenu
-            deleteLabel="Delete Workout"
-            onDelete={() => onDeleteWorkout(workout.id, workout.name)}
-          />
+          <Pressable
+            onPress={() => onDeleteWorkout(workout.id, workout.name)}
+            style={({ pressed }) => [
+              styles.deleteButton,
+              pressed && styles.deleteButtonPressed,
+            ]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <TrashIcon size={18} color={Colors.error} strokeWidth={2.2} />
+          </Pressable>
         </View>
       </View>
 
@@ -201,6 +207,7 @@ export default function ProgramDetailScreen() {
   const isNavigating = useRef(false);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
+  const reorderProgramWorkouts = useProgramsStore(s => s.reorderProgramWorkouts);
   const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
   const bodyType = useWorkoutStore(s => s.bodyType);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
@@ -221,6 +228,10 @@ export default function ProgramDetailScreen() {
     name: string;
   }>({ visible: false, step: 'confirm', type: 'workout', workoutId: '', name: '' });
   const [expandedWorkouts, setExpandedWorkouts] = useState<Record<string, boolean>>({});
+  const [reorderIntent, setReorderIntent] = useState<'keep' | 'restart' | null>(null);
+  const [pendingReorder, setPendingReorder] = useState<ProgramWorkout[] | null>(null);
+  const [showReorderIntentModal, setShowReorderIntentModal] = useState(false);
+  const [hasRestarted, setHasRestarted] = useState(false);
 
   const toggleWorkout = useCallback((workoutId: string) => {
     setExpandedWorkouts((prev) => ({
@@ -235,6 +246,13 @@ export default function ProgramDetailScreen() {
       return undefined;
     }, [id])
   );
+
+  useEffect(() => {
+    setReorderIntent(null);
+    setPendingReorder(null);
+    setShowReorderIntentModal(false);
+    setHasRestarted(false);
+  }, [id]);
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -377,6 +395,62 @@ export default function ProgramDetailScreen() {
     })();
   }, [applyDelete, deleteModal, id, program, restartProgram, trimCompletedDays]);
 
+  const applyWorkoutReorder = useCallback(async (
+    nextWorkouts: ProgramWorkout[],
+    intent: 'keep' | 'restart'
+  ) => {
+    if (!id) return;
+    const orderedIds = nextWorkouts.map((workout) => workout.id);
+    const success = await reorderProgramWorkouts(id, orderedIds);
+    if (!success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
+    if (intent === 'restart' && !hasRestarted) {
+      restartProgram(id);
+      setHasRestarted(true);
+    }
+  }, [hasRestarted, id, reorderProgramWorkouts, restartProgram]);
+
+  const handleMoveWorkout = useCallback((index: number, direction: 'up' | 'down') => {
+    if (!program) return;
+    const orderedWorkouts = [...program.workouts].sort((a, b) => a.dayNumber - b.dayNumber);
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= orderedWorkouts.length) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const nextWorkouts = [...orderedWorkouts];
+    const [moved] = nextWorkouts.splice(index, 1);
+    nextWorkouts.splice(targetIndex, 0, moved);
+    const normalizedWorkouts = nextWorkouts.map((workout, idx) => ({
+      ...workout,
+      dayNumber: idx + 1,
+    }));
+
+    if (progressEntry && !reorderIntent) {
+      setPendingReorder(normalizedWorkouts);
+      setShowReorderIntentModal(true);
+      return;
+    }
+
+    void applyWorkoutReorder(normalizedWorkouts, reorderIntent ?? 'keep');
+  }, [applyWorkoutReorder, program, progressEntry, reorderIntent]);
+
+  const handleReorderIntent = useCallback((intent: 'keep' | 'restart') => {
+    setReorderIntent(intent);
+    setShowReorderIntentModal(false);
+    if (!pendingReorder) return;
+    const nextWorkouts = pendingReorder;
+    setPendingReorder(null);
+    void applyWorkoutReorder(nextWorkouts, intent);
+  }, [applyWorkoutReorder, pendingReorder]);
+
+  const handleCancelReorderIntent = useCallback(() => {
+    setPendingReorder(null);
+    setShowReorderIntentModal(false);
+  }, []);
+
   const heatmapExercises = useMemo(
     () => program?.workouts.flatMap(workout => workout.exercises) ?? [],
     [program]
@@ -400,6 +474,10 @@ export default function ProgramDetailScreen() {
 
   // Get difficulty colors with dynamic accent
   const DIFFICULTY_COLORS = getDifficultyColors(colors.accentOverlay, colors.accent);
+  const orderedWorkouts = useMemo(() => {
+    if (!program) return [];
+    return [...program.workouts].sort((a, b) => a.dayNumber - b.dayNumber);
+  }, [program]);
 
   // Not found state (avoid loading splash)
   if (!program) {
@@ -425,11 +503,11 @@ export default function ProgramDetailScreen() {
 
   const difficultyColors = DIFFICULTY_COLORS[program.difficulty] || DIFFICULTY_COLORS.beginner;
   const completedDayNumbers = progressEntry?.completedDayNumbers || [];
-  const completedIds = program.workouts
+  const completedIds = orderedWorkouts
     .filter(workout => completedDayNumbers.includes(workout.dayNumber))
     .map(workout => workout.id);
   const nextDayNumber = id
-    ? getNextDayNumber(id, program.workouts.length)
+    ? getNextDayNumber(id, orderedWorkouts.length)
     : 1;
   const currentCycle = progressEntry?.currentCycle || 1;
   const completedCycles = progressEntry?.history.length || 0;
@@ -525,12 +603,12 @@ export default function ProgramDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
             <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-              {program.workouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
+              {orderedWorkouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
             </Text>
           </View>
 
           <View style={styles.workoutsList}>
-            {program.workouts.map((workout) => (
+            {orderedWorkouts.map((workout, index) => (
               <WorkoutSection
                 key={workout.id}
                 workout={workout}
@@ -539,6 +617,10 @@ export default function ProgramDetailScreen() {
                 onExercisePress={handleExercisePress}
                 onDeleteWorkout={handleDeleteWorkout}
                 onDeleteExercise={handleDeleteExercise}
+                onMoveUp={() => handleMoveWorkout(index, 'up')}
+                onMoveDown={() => handleMoveWorkout(index, 'down')}
+                canMoveUp={index > 0}
+                canMoveDown={index < orderedWorkouts.length - 1}
               />
             ))}
           </View>
@@ -551,11 +633,11 @@ export default function ProgramDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Progress</Text>
             <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-              {completedDayNumbers.length}/{program.workouts.length} workouts
+              {completedDayNumbers.length}/{orderedWorkouts.length} workouts
             </Text>
           </View>
           <WorkoutStackPreview
-            workouts={program.workouts}
+            workouts={orderedWorkouts}
             completedIds={completedIds}
             currentDayNumber={nextDayNumber}
           />
@@ -665,6 +747,55 @@ export default function ProgramDetailScreen() {
             </View>
           </>
         )}
+      </BaseModal>
+
+      <BaseModal
+        visible={showReorderIntentModal}
+        onClose={handleCancelReorderIntent}
+        title="Edit Active Program?"
+        icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
+      >
+        <Text style={modalStyles.message}>
+          This program is in progress. How should we handle your edits?
+        </Text>
+        <View style={[modalStyles.actions, styles.modalActions]}>
+          <Pressable
+            onPress={() => handleReorderIntent('keep')}
+            style={({ pressed }) => [
+              modalStyles.successButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
+              Apply to future workouts
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleReorderIntent('restart')}
+            style={({ pressed }) => [
+              modalStyles.warningButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
+              Restart program
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleCancelReorderIntent}
+            style={({ pressed }) => [
+              modalStyles.cancelButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
+              Cancel
+            </Text>
+          </Pressable>
+        </View>
       </BaseModal>
 
     </SafeAreaView>
@@ -798,6 +929,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingLeft: Spacing.lg,
+    paddingRight: Spacing.lg,
     paddingVertical: Spacing.md,
   },
   workoutSectionTouchable: {
@@ -812,6 +944,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     flex: 1,
+  },
+  workoutSectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   dayBadge: {
     backgroundColor: 'rgba(34, 197, 94, 0.15)',
@@ -840,6 +977,31 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingTop: 0,
     gap: Spacing.sm,
+  },
+  reorderButton: {
+    width: 28,
+    height: 28,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderButtonPressed: {
+    transform: [{ scale: 0.96 }],
+  },
+  reorderButtonDisabled: {
+    opacity: 0.4,
+  },
+  deleteButton: {
+    width: 30,
+    height: 30,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.96 }],
   },
   modalActions: {
     flexDirection: 'column',

@@ -89,11 +89,14 @@ export function StatsOverviewCard() {
       <View style={styles.headerRow}>
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
         <TouchableOpacity
-          style={[styles.shareButton, { borderColor: colors.border }]}
+          style={[
+            styles.shareButton,
+            { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+          ]}
           onPress={handleShareRecap}
           activeOpacity={0.8}
         >
-          <Text style={[styles.shareButtonText, { color: colors.textSecondary }]}>Share</Text>
+          <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.statsRow}>

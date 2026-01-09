@@ -339,11 +339,14 @@ export default function InsightDetailScreen() {
               </TouchableOpacity>
               {isShareableInsight && (
                 <TouchableOpacity
-                  style={[styles.shareButton, { borderColor: colors.border }]}
+                  style={[
+                    styles.shareButton,
+                    { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+                  ]}
                   onPress={handleShare}
                   activeOpacity={0.8}
                 >
-                  <Text style={[styles.shareText, { color: colors.textSecondary }]}>
+                  <Text style={[styles.shareText, { color: colors.accent }]}>
                     Share
                   </Text>
                 </TouchableOpacity>

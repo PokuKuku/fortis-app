@@ -86,6 +86,7 @@ interface ProgramsState {
       durationWeeks?: number;
     }
   ) => Promise<string | null>;
+  reorderProgramWorkouts: (programId: string, orderedWorkoutIds: string[]) => Promise<boolean>;
   removeWorkoutFromProgram: (programId: string, workoutId: string) => Promise<boolean>;
   removeExerciseFromProgramWorkout: (
     programId: string,
@@ -1353,6 +1354,108 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         error: err instanceof Error ? err.message : 'Failed to update program',
       });
       return null;
+    }
+  },
+
+  reorderProgramWorkouts: async (programId, orderedWorkoutIds) => {
+    set({ error: null });
+
+    const program = get().programs.find((p) => p.id === programId && !p.isTemplate);
+    if (!program) {
+      set({ error: 'Program not found' });
+      return false;
+    }
+
+    const workoutMap = new Map(program.workouts.map((workout) => [workout.id, workout]));
+    if (orderedWorkoutIds.length !== program.workouts.length) {
+      set({ error: 'Invalid workout order' });
+      return false;
+    }
+
+    const nextWorkouts: ProgramWorkout[] = [];
+    for (const workoutId of orderedWorkoutIds) {
+      const workout = workoutMap.get(workoutId);
+      if (!workout) {
+        set({ error: 'Invalid workout order' });
+        return false;
+      }
+      nextWorkouts.push(workout);
+    }
+
+    const now = new Date().toISOString();
+    const previousProgram = program;
+    const updatedWorkouts = nextWorkouts.map((workout, index) => ({
+      ...workout,
+      dayNumber: index + 1,
+    }));
+    const updatedProgram = {
+      ...program,
+      workouts: updatedWorkouts,
+      updatedAt: now,
+    };
+
+    set((state) => ({
+      programs: state.programs.map((p) =>
+        p.id === programId ? updatedProgram : p
+      ),
+    }));
+
+    if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
+      get().persistLocalPrograms();
+      if (programId.startsWith('local-')) {
+        syncLocalProgram(updatedProgram).catch((err) => {
+          console.warn('Background program sync failed:', err);
+        });
+      }
+      return true;
+    }
+
+    try {
+      const tempResults = await Promise.all(
+        updatedWorkouts.map((workout, index) =>
+          supabase
+            .from('program_workouts')
+            .update({ day_number: 1000 + index + 1 })
+            .eq('id', workout.id)
+        )
+      );
+      const tempError = tempResults.find((r) => r.error)?.error;
+      if (tempError) {
+        set({ error: tempError.message });
+        throw new Error(tempError.message);
+      }
+
+      const finalResults = await Promise.all(
+        updatedWorkouts.map((workout, index) =>
+          supabase
+            .from('program_workouts')
+            .update({ day_number: index + 1 })
+            .eq('id', workout.id)
+        )
+      );
+      const finalError = finalResults.find((r) => r.error)?.error;
+      if (finalError) {
+        set({ error: finalError.message });
+        throw new Error(finalError.message);
+      }
+
+      const { error: programError } = await supabase
+        .from('workout_programs')
+        .update({ updated_at: now })
+        .eq('id', programId);
+      if (programError) {
+        set({ error: programError.message });
+      }
+
+      return true;
+    } catch (err) {
+      set((state) => ({
+        programs: state.programs.map((p) =>
+          p.id === programId ? previousProgram : p
+        ),
+        error: err instanceof Error ? err.message : 'Failed to reorder program workouts',
+      }));
+      return false;
     }
   },
 

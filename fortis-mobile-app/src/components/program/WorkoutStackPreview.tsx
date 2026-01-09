@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { CheckIcon, ChevronRightIcon } from 'react-native-heroicons/outline';
-import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { ProgramWorkout } from '@/src/types/program';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -35,19 +34,46 @@ export function WorkoutStackPreview({
   currentDayNumber,
   maxVisible = 3,
 }: WorkoutStackPreviewProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
 
   // Sort workouts by day number
   const sortedWorkouts = [...workouts].sort((a, b) => a.dayNumber - b.dayNumber);
 
   // Theme-aware styles for next workout highlighting
   const themedStyles = {
+    workoutRow: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    workoutRowCompleted: {
+      opacity: isDark ? 0.5 : 0.6,
+    },
     workoutRowNext: {
       backgroundColor: colors.accentOverlay,
       borderColor: colors.accentBorder,
+      opacity: 1,
+    },
+    dayBadge: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
     },
     dayBadgeNext: {
       backgroundColor: colors.accent,
+    },
+    dayBadgeText: {
+      color: colors.textSecondary,
+    },
+    dayBadgeTextNext: {
+      color: colors.background,
+    },
+    workoutName: {
+      color: colors.textPrimary,
+    },
+    workoutNameCompleted: {
+      color: colors.textTertiary,
+    },
+    workoutNameNext: {
+      color: colors.textPrimary,
+      fontWeight: '600' as const,
     },
   };
 
@@ -95,20 +121,23 @@ export function WorkoutStackPreview({
             key={workout.id}
             style={[
               styles.workoutRow,
+              themedStyles.workoutRow,
               completed && styles.workoutRowCompleted,
+              completed && themedStyles.workoutRowCompleted,
               next && [styles.workoutRowNext, themedStyles.workoutRowNext],
             ]}
           >
-            <View style={[styles.dayBadge, next && themedStyles.dayBadgeNext]}>
-              <Text style={[styles.dayBadgeText, next && styles.dayBadgeTextNext]}>
+            <View style={[styles.dayBadge, themedStyles.dayBadge, next && themedStyles.dayBadgeNext]}>
+              <Text style={[styles.dayBadgeText, themedStyles.dayBadgeText, next && themedStyles.dayBadgeTextNext]}>
                 D{workout.dayNumber}
               </Text>
             </View>
             <Text
               style={[
                 styles.workoutName,
-                completed && styles.workoutNameCompleted,
-                next && styles.workoutNameNext,
+                themedStyles.workoutName,
+                completed && themedStyles.workoutNameCompleted,
+                next && themedStyles.workoutNameNext,
               ]}
               numberOfLines={1}
             >
@@ -138,20 +167,16 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: 'transparent',
   },
   workoutRowCompleted: {
-    opacity: 0.5,
+    // opacity now applied via themedStyles
   },
   workoutRowNext: {
-    // backgroundColor and borderColor now applied via themedStyles
-    opacity: 1,
+    // themed styles applied in component
   },
   dayBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     paddingVertical: 2,
     paddingHorizontal: 6,
     borderRadius: 4,
@@ -162,23 +187,11 @@ const styles = StyleSheet.create({
   dayBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#9CA3AF',
     fontFamily: 'monospace',
-  },
-  dayBadgeTextNext: {
-    color: '#000',
   },
   workoutName: {
     flex: 1,
     fontSize: 11,
     fontWeight: '500',
-    color: '#9CA3AF',
-  },
-  workoutNameCompleted: {
-    color: '#9CA3AF',
-  },
-  workoutNameNext: {
-    color: '#DFE2E6',
-    fontWeight: '600',
   },
 });

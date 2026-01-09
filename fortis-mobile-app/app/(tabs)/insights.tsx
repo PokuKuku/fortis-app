@@ -239,24 +239,27 @@ function InsightCard({
           onPress={() => onWhyPress(insight)}
           activeOpacity={0.8}
         >
-          <Text style={[styles.whyButtonText, { color: colors.accent }]}>Next steps</Text>
+          <Text style={[styles.whyButtonText, { color: colors.accent }]}>Ask Fortis</Text>
         </TouchableOpacity>
+        {isShareableInsight(insight.type) && (
+          <TouchableOpacity
+            style={[
+              styles.shareButton,
+              { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+            ]}
+            onPress={() => onShare(insight)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
-          style={[styles.viewChartButton, { borderColor: colors.border }]}
+          style={[styles.viewChartButton, { borderColor: colors.border }, styles.viewChartRight]}
           onPress={() => onOpenChart(insight)}
           activeOpacity={0.8}
         >
           <Text style={[styles.viewChartText, { color: colors.textSecondary }]}>View chart</Text>
         </TouchableOpacity>
-        {isShareableInsight(insight.type) && (
-          <TouchableOpacity
-            style={[styles.shareButton, { borderColor: colors.border }]}
-            onPress={() => onShare(insight)}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.shareButtonText, { color: colors.textSecondary }]}>Share</Text>
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -1037,6 +1040,9 @@ const styles = StyleSheet.create({
     borderRadius: ACTION_BUTTON_HEIGHT / 2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  viewChartRight: {
+    marginLeft: 'auto',
   },
   viewChartText: {
     fontSize: ACTION_TEXT_SIZE,

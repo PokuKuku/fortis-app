@@ -36,11 +36,14 @@ export function WeeklyMuscleHeatmapCard() {
           Muscles Hit This Week
         </Text>
         <TouchableOpacity
-          style={[styles.shareButton, { borderColor: colors.border }]}
+          style={[
+            styles.shareButton,
+            { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+          ]}
           onPress={handleShareSignature}
           activeOpacity={0.8}
         >
-          <Text style={[styles.shareButtonText, { color: colors.textSecondary }]}>Share</Text>
+          <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
         </TouchableOpacity>
       </View>
 
