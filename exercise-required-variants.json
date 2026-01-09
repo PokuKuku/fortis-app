@@ -1,0 +1,20 @@
+[
+  {
+    "parent_canonical_key": "pull_up",
+    "variant_key": "chin_up",
+    "name": "Chin-Up",
+    "aliases": ["chin up", "chinup"]
+  },
+  {
+    "parent_canonical_key": "deadlift",
+    "variant_key": "sumo_deadlift",
+    "name": "Sumo Deadlift",
+    "aliases": ["sumo deadlift"]
+  },
+  {
+    "parent_canonical_key": "lateral_raise",
+    "variant_key": "cable_lateral_raise",
+    "name": "Cable Lateral Raise",
+    "aliases": ["cable lateral raise"]
+  }
+]

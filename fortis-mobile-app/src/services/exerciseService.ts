@@ -16,6 +16,7 @@ import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } f
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
+let baseExerciseFullCache: Exercise[] | null = null;
 let customExerciseCache: Exercise[] | null = null;
 let allExercisesCache: ExerciseWithSource[] | null = null;
 let allExercisesPromise: Promise<ExerciseWithSource[]> | null = null;
@@ -49,6 +50,14 @@ type SupabaseExerciseRow = {
   secondary_muscles: string[] | null;
   instructions: string[] | null;
   images: string[] | null;
+  aliases?: string[] | null;
+  canonical_id?: string | null;
+  canonical_key?: string | null;
+  based_on_exercise_id?: string | null;
+  is_curated?: boolean | null;
+  is_hidden?: boolean | null;
+  is_custom?: boolean | null;
+  normalized_name?: string | null;
 };
 
 function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise {
@@ -62,13 +71,25 @@ function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise
     category: row.category ?? 'strength',
     instructions: row.instructions ?? [],
     images: row.images ?? [],
+    aliases: row.aliases ?? [],
+    canonicalId: row.canonical_id ?? null,
+    canonicalKey: row.canonical_key ?? null,
+    basedOnExerciseId: row.based_on_exercise_id ?? null,
+    isCurated: row.is_curated ?? false,
+    isHidden: row.is_hidden ?? false,
+    isCustom: row.is_custom ?? false,
+    normalizedName: row.normalized_name ?? undefined,
   };
+}
+
+function isCuratedCanonical(exercise: ExerciseWithSource): boolean {
+  return !!exercise.isCurated && !exercise.canonicalId && !exercise.isHidden;
 }
 
 function upsertExerciseCaches(exercise: ExerciseWithSource): void {
   const { source, ...baseExercise } = exercise;
 
-  if (source !== 'custom') {
+  if (source !== 'custom' && isCuratedCanonical(exercise)) {
     const baseExercises = baseExerciseCache ? [...baseExerciseCache] : [];
     const existingIndex = baseExercises.findIndex(e => e.id === baseExercise.id);
     if (existingIndex >= 0) {
@@ -88,14 +109,18 @@ function upsertExerciseCaches(exercise: ExerciseWithSource): void {
     if (existingIndex >= 0) {
       targetList[existingIndex] = exercise;
     } else {
-      targetList.push(exercise);
+      if (source === 'custom' || isCuratedCanonical(exercise)) {
+        targetList.push(exercise);
+      }
     }
     if (source !== 'custom') {
       baseExercises.sort((a, b) => a.name.localeCompare(b.name));
     }
     allExercisesCache = [...customExercises, ...baseExercises];
   } else {
-    allExercisesCache = [exercise];
+    if (source === 'custom' || isCuratedCanonical(exercise)) {
+      allExercisesCache = [exercise];
+    }
   }
 
   if (!exerciseLookupCache) {
@@ -113,7 +138,7 @@ async function fetchExerciseByIdFromSupabase(id: string): Promise<Exercise | nul
 
   const { data, error } = await supabase
     .from('exercises')
-    .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
+    .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
     .eq('id', id)
     .eq('is_custom', false)
     .limit(1);
@@ -192,18 +217,20 @@ async function fetchLibraryVersion(): Promise<string | null> {
 
 // --- Core Functions ---
 
-export async function getAllExercises(): Promise<ExerciseWithSource[]> {
-  if (allExercisesCache) {
+export async function getAllExercises(options?: { includeVariants?: boolean }): Promise<ExerciseWithSource[]> {
+  const includeVariants = options?.includeVariants ?? false;
+
+  if (!includeVariants && allExercisesCache) {
     return allExercisesCache;
   }
 
-  if (allExercisesPromise) {
+  if (!includeVariants && allExercisesPromise) {
     return allExercisesPromise;
   }
 
-  allExercisesPromise = (async () => {
+  const loadExercises = async () => {
     const [baseExercises, customExercises] = await Promise.all([
-      getBaseExercises(),
+      getBaseExercises({ includeVariants }),
       getCustomExercises(),
     ]);
 
@@ -215,11 +242,18 @@ export async function getAllExercises(): Promise<ExerciseWithSource[]> {
     }));
 
     const merged = [...customWithSource, ...baseWithSource];
-    allExercisesCache = merged;
-    allExercisesPromise = null;
+    if (!includeVariants) {
+      allExercisesCache = merged;
+      allExercisesPromise = null;
+    }
     return merged;
-  })();
+  };
 
+  if (includeVariants) {
+    return loadExercises();
+  }
+
+  allExercisesPromise = loadExercises();
   return allExercisesPromise;
 }
 
@@ -310,14 +344,19 @@ export async function filterExercises(filters: {
 
 // --- Base Exercise Loading (Supabase-backed with caching) ---
 
-async function getBaseExercises(): Promise<Exercise[]> {
+async function getBaseExercises(options?: { includeVariants?: boolean }): Promise<Exercise[]> {
+  const includeVariants = options?.includeVariants ?? false;
+
   // 1. Check in-memory cache
-  if (baseExerciseCache && baseExerciseCache.length > 0) {
+  if (!includeVariants && baseExerciseCache && baseExerciseCache.length > 0) {
     return baseExerciseCache;
+  }
+  if (includeVariants && baseExerciseFullCache && baseExerciseFullCache.length > 0) {
+    return baseExerciseFullCache;
   }
 
   // 2. Check persistent cache + server version to avoid stale data
-  if (await isCacheValid()) {
+  if (!includeVariants && await isCacheValid()) {
     const [cached, cachedVersion, remoteVersion] = await Promise.all([
       loadCachedExercises(),
       loadCachedLibraryVersion(),
@@ -341,9 +380,10 @@ async function getBaseExercises(): Promise<Exercise[]> {
       fetchLibraryVersion(),
       supabase
         .from('exercises')
-        .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images')
+        .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
         .eq('is_custom', false)
-        .order('name', { ascending: true }),
+        .eq('is_hidden', false)
+        .maybeSingle()
     ]);
 
     if (error) {

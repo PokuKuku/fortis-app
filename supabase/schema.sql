@@ -96,6 +96,10 @@ CREATE TABLE exercises (
   -- Core exercise data
   name TEXT NOT NULL,
   slug TEXT NOT NULL,
+  canonical_id UUID REFERENCES exercises(id) ON DELETE SET NULL,
+  based_on_exercise_id UUID REFERENCES exercises(id) ON DELETE SET NULL,
+  canonical_key TEXT,
+  aliases TEXT[] NOT NULL DEFAULT '{}',
 
   -- Exercise classification
   force TEXT CHECK (force IN ('push', 'pull', 'static')),
@@ -114,17 +118,27 @@ CREATE TABLE exercises (
   video_url TEXT,
 
   -- Metadata
+  is_hidden BOOLEAN DEFAULT FALSE NOT NULL,
+  is_curated BOOLEAN DEFAULT FALSE NOT NULL,
+  source TEXT,
+  normalized_name TEXT,
   is_custom BOOLEAN DEFAULT FALSE,
   created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
 
+ALTER TABLE exercises
+  ADD CONSTRAINT IF NOT EXISTS exercises_canonical_id_not_self
+  CHECK (canonical_id IS NULL OR canonical_id <> id);
+
 -- Indexes for performance
 CREATE INDEX idx_exercises_category ON exercises(category);
 CREATE INDEX idx_exercises_level ON exercises(level);
 CREATE INDEX idx_exercises_equipment ON exercises(equipment);
 CREATE INDEX idx_exercises_primary_muscles ON exercises USING GIN(primary_muscles);
+CREATE INDEX idx_exercises_aliases_gin ON exercises USING GIN(aliases);
+CREATE INDEX idx_exercises_curated_hidden_canonical ON exercises(is_curated, is_hidden, canonical_id);
 
 -- Public exercises remain globally unique
 CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_name_public
@@ -135,6 +149,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_slug_public
   ON exercises(slug)
   WHERE is_custom = FALSE;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_canonical_key_unique
+  ON exercises(canonical_key)
+  WHERE is_custom = FALSE AND canonical_id IS NULL AND canonical_key IS NOT NULL;
+
 -- Custom exercises are unique per user
 CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_name_custom
   ON exercises(created_by, name)
@@ -143,6 +161,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_name_custom
 CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_slug_custom
   ON exercises(created_by, slug)
   WHERE is_custom = TRUE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_normalized_name_custom
+  ON exercises(created_by, normalized_name)
+  WHERE is_custom = TRUE AND normalized_name IS NOT NULL;
 
 ALTER TABLE exercises ENABLE ROW LEVEL SECURITY;
 

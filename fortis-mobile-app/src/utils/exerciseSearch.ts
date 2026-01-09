@@ -151,6 +151,12 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
     const idText = exercise.id ? normalizeText(exercise.id) : '';
     if (slugText && slugText !== nameText) aliasTexts.add(slugText);
     if (idText && idText !== nameText) aliasTexts.add(idText);
+    (exercise.aliases ?? []).forEach((alias) => {
+      const normalizedAlias = normalizeText(alias);
+      if (normalizedAlias && normalizedAlias !== nameText) {
+        aliasTexts.add(normalizedAlias);
+      }
+    });
 
     const instructionText = normalizeText((exercise.instructions ?? []).join(' '));
     if (instructionText) {
@@ -245,6 +251,9 @@ export function searchExercises(
     }
 
     if (score > 0) {
+      if (entry.exercise.isCurated && !entry.exercise.canonicalId) {
+        score += 6;
+      }
       results.push({ exercise: entry.exercise, score });
     }
   });

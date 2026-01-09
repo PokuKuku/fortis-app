@@ -8,6 +8,14 @@ export interface Exercise {
   category: string;
   instructions: string[];
   images: string[];
+  aliases?: string[];
+  canonicalId?: string | null;
+  canonicalKey?: string | null;
+  basedOnExerciseId?: string | null;
+  isCurated?: boolean;
+  isHidden?: boolean;
+  isCustom?: boolean;
+  normalizedName?: string;
 }
 
 export type ExerciseSource = 'local' | 'api' | 'custom';

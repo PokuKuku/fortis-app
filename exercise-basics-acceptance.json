@@ -1,0 +1,299 @@
+[
+  {
+    "canonical_key": "back_squat",
+    "name": "Back Squat",
+    "aliases": ["barbell squat", "squat"]
+  },
+  {
+    "canonical_key": "front_squat",
+    "name": "Front Squat",
+    "aliases": ["front barbell squat"]
+  },
+  {
+    "canonical_key": "goblet_squat",
+    "name": "Goblet Squat",
+    "aliases": ["kettlebell goblet squat", "dumbbell goblet squat"]
+  },
+  {
+    "canonical_key": "leg_press",
+    "name": "Leg Press",
+    "aliases": ["machine leg press"]
+  },
+  {
+    "canonical_key": "hack_squat",
+    "name": "Hack Squat",
+    "aliases": ["machine hack squat"]
+  },
+  {
+    "canonical_key": "bulgarian_split_squat",
+    "name": "Bulgarian Split Squat",
+    "aliases": ["rear foot elevated split squat", "rfess"]
+  },
+  {
+    "canonical_key": "walking_lunge",
+    "name": "Walking Lunge",
+    "aliases": ["lunges", "forward lunge"]
+  },
+  {
+    "canonical_key": "deadlift",
+    "name": "Deadlift",
+    "aliases": ["conventional deadlift"]
+  },
+  {
+    "canonical_key": "trap_bar_deadlift",
+    "name": "Trap Bar Deadlift",
+    "aliases": ["hex bar deadlift", "hex deadlift"]
+  },
+  {
+    "canonical_key": "romanian_deadlift",
+    "name": "Romanian Deadlift",
+    "aliases": ["rdl"]
+  },
+  {
+    "canonical_key": "glute_ham_raise",
+    "name": "Glute-Ham Raise",
+    "aliases": ["ghr", "glute ham raise"]
+  },
+  {
+    "canonical_key": "hip_thrust",
+    "name": "Hip Thrust",
+    "aliases": ["barbell hip thrust", "glute bridge"]
+  },
+  {
+    "canonical_key": "good_morning",
+    "name": "Good Morning",
+    "aliases": ["barbell good morning"]
+  },
+  {
+    "canonical_key": "back_extension",
+    "name": "Back Extension",
+    "aliases": ["hyperextension", "45 degree back extension", "hyper"]
+  },
+  {
+    "canonical_key": "bench_press",
+    "name": "Bench Press",
+    "aliases": ["barbell bench press", "bench"]
+  },
+  {
+    "canonical_key": "incline_bench_press",
+    "name": "Incline Bench Press",
+    "aliases": ["incline bench", "incline press"]
+  },
+  {
+    "canonical_key": "dumbbell_bench_press",
+    "name": "Dumbbell Bench Press",
+    "aliases": ["db bench", "dumbbell press"]
+  },
+  {
+    "canonical_key": "machine_chest_press",
+    "name": "Chest Press (Machine)",
+    "aliases": ["machine chest press", "seated chest press"]
+  },
+  {
+    "canonical_key": "cable_fly",
+    "name": "Cable Fly",
+    "aliases": ["cable chest fly", "cable crossover", "cable flyes"]
+  },
+  {
+    "canonical_key": "pec_deck",
+    "name": "Pec Deck",
+    "aliases": ["machine fly", "pec deck fly", "chest fly machine"]
+  },
+  {
+    "canonical_key": "overhead_press",
+    "name": "Overhead Press",
+    "aliases": ["ohp", "military press", "shoulder press"]
+  },
+  {
+    "canonical_key": "dumbbell_shoulder_press",
+    "name": "Dumbbell Shoulder Press",
+    "aliases": ["db shoulder press"]
+  },
+  {
+    "canonical_key": "dips",
+    "name": "Dips",
+    "aliases": ["parallel bar dip", "bodyweight dip"]
+  },
+  {
+    "canonical_key": "push_up",
+    "name": "Push-Up",
+    "aliases": ["push up", "press-up", "press up"]
+  },
+  {
+    "canonical_key": "pull_up",
+    "name": "Pull-Up",
+    "aliases": ["pull up", "pullup", "chin up", "chinup"]
+  },
+  {
+    "canonical_key": "assisted_pull_up",
+    "name": "Assisted Pull-Up",
+    "aliases": ["assisted pullup", "assisted pull up", "machine pull-up"]
+  },
+  {
+    "canonical_key": "inverted_row",
+    "name": "Inverted Row",
+    "aliases": ["bodyweight row", "trx row", "ring row"]
+  },
+  {
+    "canonical_key": "lat_pulldown",
+    "name": "Lat Pulldown",
+    "aliases": ["lat pull down", "pulldown"]
+  },
+  {
+    "canonical_key": "straight_arm_pulldown",
+    "name": "Straight-Arm Pulldown",
+    "aliases": [
+      "straight arm pulldown",
+      "straight arm lat pulldown",
+      "cable pullover",
+      "lat pullover"
+    ]
+  },
+  {
+    "canonical_key": "barbell_row",
+    "name": "Barbell Row",
+    "aliases": ["bent over row", "bent-over row"]
+  },
+  {
+    "canonical_key": "t_bar_row",
+    "name": "T-Bar Row",
+    "aliases": ["landmine row", "tbar row"]
+  },
+  {
+    "canonical_key": "dumbbell_row",
+    "name": "One-Arm Dumbbell Row",
+    "aliases": ["single arm dumbbell row", "db row"]
+  },
+  {
+    "canonical_key": "seated_cable_row",
+    "name": "Seated Cable Row",
+    "aliases": ["cable row"]
+  },
+  {
+    "canonical_key": "chest_supported_row",
+    "name": "Chest-Supported Row",
+    "aliases": [
+      "chest supported row",
+      "machine chest supported row",
+      "hammer strength row",
+      "iso chest supported row",
+      "iso lateral chest supported row",
+      "iso row"
+    ]
+  },
+  {
+    "canonical_key": "lateral_raise",
+    "name": "Lateral Raise",
+    "aliases": ["side raise", "cable lateral raise"]
+  },
+  {
+    "canonical_key": "rear_delt_fly",
+    "name": "Rear Delt Fly",
+    "aliases": ["rear delt raise", "reverse fly"]
+  },
+  {
+    "canonical_key": "face_pull",
+    "name": "Face Pull",
+    "aliases": ["facepull"]
+  },
+  {
+    "canonical_key": "biceps_curl",
+    "name": "Biceps Curl",
+    "aliases": ["barbell curl", "curl"]
+  },
+  {
+    "canonical_key": "dumbbell_curl",
+    "name": "Dumbbell Curl",
+    "aliases": ["db curl"]
+  },
+  {
+    "canonical_key": "hammer_curl",
+    "name": "Hammer Curl",
+    "aliases": ["neutral grip curl"]
+  },
+  {
+    "canonical_key": "triceps_pushdown",
+    "name": "Triceps Pushdown",
+    "aliases": ["triceps pressdown", "pressdown"]
+  },
+  {
+    "canonical_key": "skullcrusher",
+    "name": "Skullcrusher",
+    "aliases": ["lying triceps extension"]
+  },
+  {
+    "canonical_key": "leg_extension",
+    "name": "Leg Extension",
+    "aliases": ["machine leg extension"]
+  },
+  {
+    "canonical_key": "leg_curl",
+    "name": "Leg Curl",
+    "aliases": ["hamstring curl", "machine leg curl"]
+  },
+  {
+    "canonical_key": "calf_raise",
+    "name": "Calf Raise",
+    "aliases": ["standing calf raise", "seated calf raise"]
+  },
+  {
+    "canonical_key": "hip_abduction",
+    "name": "Hip Abduction",
+    "aliases": ["hip abduction machine", "glute med machine"]
+  },
+  {
+    "canonical_key": "cable_kickback",
+    "name": "Cable Kickback",
+    "aliases": ["glute kickback", "cable glute kickback"]
+  },
+  {
+    "canonical_key": "hip_adduction",
+    "name": "Hip Adduction",
+    "aliases": ["hip adduction machine", "adductor machine"]
+  },
+  {
+    "canonical_key": "plank",
+    "name": "Plank",
+    "aliases": ["front plank"]
+  },
+  {
+    "canonical_key": "sit_up",
+    "name": "Sit-Up",
+    "aliases": ["sit up", "situp"]
+  },
+  {
+    "canonical_key": "hanging_leg_raise",
+    "name": "Hanging Leg Raise",
+    "aliases": ["hanging knee raise"]
+  },
+  {
+    "canonical_key": "cable_crunch",
+    "name": "Cable Crunch",
+    "aliases": ["kneeling cable crunch"]
+  },
+  {
+    "canonical_key": "ab_wheel",
+    "name": "Ab Wheel",
+    "aliases": ["ab wheel rollout", "ab rollout"]
+  },
+  {
+    "canonical_key": "farmer_carry",
+    "name": "Farmer Carry",
+    "aliases": ["farmer's walk", "farmers walk"]
+  },
+  {
+    "canonical_key": "treadmill_run",
+    "name": "Treadmill Run",
+    "aliases": ["treadmill running"]
+  },
+  {
+    "canonical_key": "stationary_bike",
+    "name": "Stationary Bike",
+    "aliases": ["bike", "cycling"]
+  },
+  {
+    "canonical_key": "rowing_erg",
+    "name": "Rowing Erg",
+    "aliases": ["rowing machine", "erg"]
+  }
+]

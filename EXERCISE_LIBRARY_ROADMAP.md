@@ -8,40 +8,45 @@ Tracking rules
 Decisions (2026-01-09)
 - Target curated size: 350 (within 250-400)
 - Default UX: curated canonical results only; variants accessible from canonical detail
-- Base dataset: 873 public exercises in Supabase; use curated-exercises.json (307) as initial curated list
+- Base dataset: 1498 public exercises in Supabase; use curated-exercises.json (307) as initial curated list
 - Keep 1500 export as offline/reference only (not default)
 
-## Phase 0: Audit + Snapshot (Status: Not started)
-Last updated: TBD
-- [ ] Export public exercises to library-snapshot.json (id, name, slug, equipment, muscles, is_custom, created_by)
-- [ ] Summary report: total public, total curated, top duplicate clusters, missing basics check
-- [ ] Confirm live counts in Supabase (public vs custom)
+## Phase 0: Audit + Snapshot (Status: Done)
+Last updated: 2026-01-09
+- [x] Export public exercises to library-snapshot.json (id, name, slug, equipment, muscles, is_custom, created_by)
+- [x] Summary report: total public, total curated, top duplicate clusters, missing basics check
+- [x] Confirm live counts in Supabase (public vs custom)
 Evidence:
-- None
+- library-snapshot.json
+- exercise-library-report.md
 Acceptance criteria:
 - Snapshot + report committed and shareable
 
-## Phase 1: Canonical Layer (Schema + Indexes) (Status: Not started)
-Last updated: TBD
-- [ ] Add columns: canonical_id, canonical_key, aliases, is_hidden, is_curated, source, normalized_name
-- [ ] Indexes: GIN(aliases), (is_curated, is_hidden, canonical_id)
-- [ ] Unique index: (created_by, normalized_name) WHERE is_custom = true
+## Phase 1: Canonical Layer (Schema + Indexes) (Status: Done)
+Last updated: 2026-01-09
+- [x] Add columns: canonical_id, canonical_key, aliases, is_hidden, is_curated, source, normalized_name
+- [x] Add based_on_exercise_id for custom exercises (separate from canonical_id)
+- [x] Indexes: GIN(aliases), (is_curated, is_hidden, canonical_id)
+- [x] Unique index: (created_by, normalized_name) WHERE is_custom = true
 Evidence:
-- None
+- supabase/migrations/043_add_exercise_canonical_layer.sql
+- supabase/schema.sql
 Acceptance criteria:
 - Schema migration applied and verified
 
-## Phase 2: Curation Manifest + Apply (Status: Not started)
-Last updated: TBD
-- [ ] Build exercise-library-manifest.json from curated-exercises.json
-- [ ] Map variants to canonical_id
-- [ ] Populate aliases for search
-- [ ] Flag junk/obscure items as is_hidden
-- [ ] Apply hide vs variant rules (modifiers -> variant, obscure rehab/mobility -> hidden by default)
-- [ ] Validate curated canonicals have valid muscle taxonomy entries
-- [ ] Generate SQL migration to apply manifest updates
+## Phase 2: Curation Manifest + Apply (Status: Done)
+Last updated: 2026-01-09
+- [x] Build exercise-library-manifest.json from curated-exercises.json
+- [x] Map variants to canonical_id
+- [x] Populate aliases for search
+- [x] Flag junk/obscure items as is_hidden
+- [x] Apply hide vs variant rules (modifiers -> variant, obscure rehab/mobility -> hidden by default)
+- [x] Validate curated canonicals have valid muscle taxonomy entries
+- [x] Generate SQL/seed script to apply manifest updates
 Evidence:
-- None
+- exercise-library-manifest.json
+- fortis-mobile-app/scripts/run-exercise-library-pipeline.js
+- fortis-mobile-app/scripts/apply-exercise-library-manifest.js
 Acceptance criteria:
 - Curated canonical set present and searchable
 
@@ -61,21 +66,27 @@ Acceptance criteria:
 Last updated: TBD
 - [ ] Custom creation requires primary muscle group
 - [ ] Optional secondary muscles + equipment
-- [ ] Optional "Based on" canonical exercise (link via canonical_id or based_on_exercise_id)
+- [ ] Optional "Based on" canonical exercise (prefer based_on_exercise_id; fallback to canonical_id if needed)
 - [ ] Store custom muscles in normalized format for analytics/insights
+- [ ] Custom exercises always appear in search alongside curated canonicals
+- [ ] If based_on_exercise_id is set, inherit default muscles/metadata unless user overrides
 Evidence:
 - None
 Acceptance criteria:
 - Custom exercise appears in search immediately
 - Insights still group by muscle reliably
 
-## Phase 5: Basics Acceptance List (Status: Not started)
-Last updated: TBD
-- [ ] Create exercise-basics-acceptance.json (canonical_key + aliases)
-- [ ] Ensure each is canonical + curated + has aliases
-- [ ] Add validation check in curation pipeline
+## Phase 5: Basics Acceptance List (Status: Done)
+Last updated: 2026-01-09
+- [x] Create exercise-basics-acceptance.json (canonical_key + aliases)
+- [x] Ensure each is canonical + curated + has aliases
+- [x] Add validation check in curation pipeline
+- [x] Merge aliases onto canonical (dedupe + normalize)
+- [x] Run search smoke test for every alias in the list
 Evidence:
-- None
+- exercise-basics-acceptance.json
+- exercise-required-variants.json
+- fortis-mobile-app/scripts/exercise-alias-smoke-test.js
 Acceptance criteria:
 - All basics are present as canonical curated items
 
@@ -102,6 +113,10 @@ Hide vs variant:
 - Minor modifier (grip width, angle, implement) -> variant
 - Obscure rehab/mobility or redundant noise -> hidden by default
 - Unknown/typo -> hidden or mapped after review
+Variant candidates to prioritize:
+- chin_up (under pull_up)
+- sumo_deadlift (under deadlift)
+- cable_lateral_raise (under lateral_raise)
 
 ## Synonym starter map (manual)
 - pull up / pullup / chin up / chinup
