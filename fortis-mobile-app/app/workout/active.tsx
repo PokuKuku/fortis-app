@@ -384,11 +384,13 @@ export default function ActiveWorkoutScreen() {
     if (!activeNumberPad) return;
 
     const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
+    const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
+    const currentSet = exercise?.sets.find(s => s.localId === setLocalId);
+    const wasCompleted = currentSet?.isCompleted ?? false;
 
     // If no value entered, try to autofill from previous set
     let finalValue = value;
     if (finalValue === null) {
-      const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
       if (exercise) {
         const setIndex = exercise.sets.findIndex(s => s.localId === setLocalId);
         if (setIndex > 0) {
@@ -415,7 +417,6 @@ export default function ActiveWorkoutScreen() {
       ? { weight: finalValue }
       : { reps: finalValue };
     if (inputType === 'reps') {
-      const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
       const setIndex = exercise?.sets.findIndex(s => s.localId === setLocalId) ?? -1;
       const set = setIndex >= 0 ? exercise?.sets[setIndex] : undefined;
       const previousSet = setIndex > 0 ? exercise?.sets[setIndex - 1] : undefined;
@@ -430,7 +431,9 @@ export default function ActiveWorkoutScreen() {
       openNumberPad(exerciseLocalId, setLocalId, 'reps');
     } else {
       // inputType === 'reps' → complete the set and close keyboard
-      completeSet(exerciseLocalId, setLocalId);
+      if (!wasCompleted) {
+        completeSet(exerciseLocalId, setLocalId);
+      }
       closeNumberPad();
     }
   };
