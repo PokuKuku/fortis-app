@@ -13,16 +13,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
 import type { RefObject } from 'react';
-import { addDays, format, startOfWeek, subDays } from 'date-fns';
+import { addDays, format, startOfDay, startOfWeek, subDays } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
-import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
+import { getExerciseById } from '@/src/services/exerciseService';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
@@ -43,10 +43,15 @@ type SignatureSummary = {
   isLoading: boolean;
 };
 
+type SignatureExercise = {
+  primaryMuscles: string[];
+  secondaryMuscles?: string[];
+};
+
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
-const HEATMAP_CELL = 10;
+const HEATMAP_CELL = 12;
 const HEATMAP_GAP = 4;
 
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
@@ -71,6 +76,12 @@ const formatTime = (totalSeconds: number): string => {
   return `${hours}h ${minutes}m`;
 };
 
+const formatDecimal = (value: number, decimals = 1): string => {
+  if (!Number.isFinite(value)) return '0';
+  const rounded = value.toFixed(decimals);
+  return rounded.replace(/\.0$/, '');
+};
+
 const withAlpha = (color: string, alpha: number): string => {
   if (!color.startsWith('#') || color.length !== 7) {
     return color;
@@ -83,16 +94,19 @@ const withAlpha = (color: string, alpha: number): string => {
 
 const normalizeGroup = (group: string): string => {
   const key = group.trim().toLowerCase();
-  if (['middle back', 'upper back', 'lower back', 'lats', 'traps'].includes(key)) return 'back';
+  if (['middle back', 'mid back', 'upper back', 'lower back', 'lats', 'traps'].includes(key)) return 'back';
   if (['quadriceps', 'quads'].includes(key)) return 'quads';
-  if (['glutes', 'gluteus maximus'].includes(key)) return 'glutes';
-  if (['abdominals', 'abs', 'core'].includes(key)) return 'core';
-  if (['delts', 'deltoids', 'shoulders'].includes(key)) return 'shoulders';
-  if (['pectorals', 'chest'].includes(key)) return 'chest';
+  if (['glutes', 'gluteus maximus', 'gluteus medius', 'gluteus minimus', 'gluteal'].includes(key)) return 'glutes';
+  if (['abdominals', 'abs', 'core', 'obliques'].includes(key)) return 'core';
+  if (['delts', 'deltoids', 'shoulders', 'front delts', 'rear delts', 'side delts', 'anterior deltoid', 'posterior deltoid', 'lateral deltoid'].includes(key)) return 'shoulders';
+  if (['pectorals', 'chest', 'pec', 'pecs', 'upper chest', 'lower chest'].includes(key)) return 'chest';
   if (['hamstrings'].includes(key)) return 'hamstrings';
   if (['biceps'].includes(key)) return 'biceps';
   if (['triceps'].includes(key)) return 'triceps';
-  if (['calves'].includes(key)) return 'calves';
+  if (['calves', 'tibialis'].includes(key)) return 'calves';
+  if (['forearm', 'forearms'].includes(key)) return 'forearms';
+  if (['adductor', 'adductors'].includes(key)) return 'adductors';
+  if (['abductor', 'abductors'].includes(key)) return 'abductors';
   return key;
 };
 
@@ -131,8 +145,8 @@ export default function ProfileShareScreen() {
     'rolling',
     10
   );
-  const { exercises, loading: musclesLoading, hasWorkouts } = useWeeklyMuscles();
   const bodyType = useWorkoutStore((state) => state.bodyType);
+  const completedSessions = useWorkoutStore((state) => state.completedSessions);
 
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({
     totalVolume: 0,
@@ -147,6 +161,8 @@ export default function ProfileShareScreen() {
     stats: [],
     isLoading: true,
   });
+  const [signatureExercises, setSignatureExercises] = useState<SignatureExercise[]>([]);
+  const [signatureHasWorkouts, setSignatureHasWorkouts] = useState(false);
 
   const units = profile?.preferred_units || 'imperial';
 
@@ -199,51 +215,84 @@ export default function ProfileShareScreen() {
 
   useEffect(() => {
     let isMounted = true;
-    if (!isSupabaseConfigured() || !profile?.id) {
-      setSignatureSummary((prev) => ({ ...prev, isLoading: false }));
+    const today = startOfDay(new Date());
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const exerciseSetCounts = new Map<string, number>();
+
+    completedSessions.forEach((session) => {
+      const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
+      if (sessionDate < weekStart || sessionDate > today) return;
+
+      session.exercises.forEach((exercise) => {
+        const workingSets = exercise.sets.filter(
+          (set) => set.isCompleted && set.setType !== 'warmup' && (set.reps ?? 0) > 0
+        );
+        if (workingSets.length === 0) return;
+        exerciseSetCounts.set(
+          exercise.exerciseId,
+          (exerciseSetCounts.get(exercise.exerciseId) ?? 0) + workingSets.length
+        );
+      });
+    });
+
+    const exerciseIds = Array.from(exerciseSetCounts.keys());
+    if (exerciseIds.length === 0) {
+      if (!isMounted) return;
+      setSignatureExercises([]);
+      setSignatureHasWorkouts(false);
+      setSignatureSummary({
+        title: 'Building momentum',
+        subtitle: 'Log a few more sessions to reveal your signature.',
+        stats: [],
+        isLoading: false,
+      });
       return;
     }
 
+    setSignatureHasWorkouts(true);
+    setSignatureSummary((prev) => ({ ...prev, isLoading: true }));
+
     const loadSignature = async () => {
-      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-      const fromDate = subDays(weekStart, 7 * 2);
-      const { data, error } = await supabase
-        .from('weekly_muscle_group_sets')
-        .select('week_start, muscle_group, working_sets')
-        .eq('user_id', profile.id)
-        .gte('week_start', toIsoDate(fromDate))
-        .lte('week_start', toIsoDate(weekStart));
-
+      const results = await Promise.all(exerciseIds.map((id) => getExerciseById(id)));
       if (!isMounted) return;
-      if (error || !data) {
-        setSignatureSummary((prev) => ({ ...prev, isLoading: false }));
-        return;
-      }
 
-      const totals = new Map<string, number>();
-      let totalSets = 0;
-      (data as Array<{ muscle_group: string | null; working_sets: number | null }>).forEach((row) => {
-        if (!row.muscle_group) return;
-        const group = normalizeGroup(row.muscle_group);
-        const sets = row.working_sets ?? 0;
-        totals.set(group, (totals.get(group) ?? 0) + sets);
-        totalSets += sets;
-      });
+      const exercises = results
+        .filter(Boolean)
+        .map((exercise) => ({
+          primaryMuscles: exercise!.primaryMuscles ?? [],
+          secondaryMuscles: exercise!.secondaryMuscles ?? [],
+        }));
+      setSignatureExercises(exercises);
+      setSignatureHasWorkouts(exercises.length > 0);
 
       const pushGroups = new Set(['chest', 'shoulders', 'triceps']);
-      const pullGroups = new Set(['back', 'biceps']);
-      const legGroups = new Set(['quads', 'hamstrings', 'glutes', 'calves']);
+      const pullGroups = new Set(['back', 'biceps', 'forearms']);
+      const legGroups = new Set(['quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors']);
       const coreGroups = new Set(['core']);
 
+      let totalSets = 0;
       let pushSets = 0;
       let pullSets = 0;
       let legSets = 0;
       let coreSets = 0;
-      totals.forEach((value, key) => {
-        if (pushGroups.has(key)) pushSets += value;
-        if (pullGroups.has(key)) pullSets += value;
-        if (legGroups.has(key)) legSets += value;
-        if (coreGroups.has(key)) coreSets += value;
+
+      results.forEach((exercise, index) => {
+        if (!exercise) return;
+        const setCount = exerciseSetCounts.get(exerciseIds[index]) ?? 0;
+        if (setCount <= 0) return;
+
+        const muscleGroups = new Set<string>();
+        exercise.primaryMuscles?.forEach((muscle) => muscleGroups.add(normalizeGroup(muscle)));
+        exercise.secondaryMuscles?.forEach((muscle) => muscleGroups.add(normalizeGroup(muscle)));
+
+        muscleGroups.forEach((group) => {
+          if (!group) return;
+          totalSets += setCount;
+          if (pushGroups.has(group)) pushSets += setCount;
+          if (pullGroups.has(group)) pullSets += setCount;
+          if (legGroups.has(group)) legSets += setCount;
+          if (coreGroups.has(group)) coreSets += setCount;
+        });
       });
 
       if (totalSets < 8) {
@@ -283,6 +332,7 @@ export default function ProfileShareScreen() {
           { label: 'Push sets', value: Math.round(pushSets).toString() },
           { label: 'Pull sets', value: Math.round(pullSets).toString() },
           { label: 'Leg sets', value: Math.round(legSets).toString() },
+          { label: 'Core sets', value: Math.round(coreSets).toString() },
         ],
         isLoading: false,
       });
@@ -293,7 +343,7 @@ export default function ProfileShareScreen() {
     return () => {
       isMounted = false;
     };
-  }, [profile?.id]);
+  }, [completedSessions]);
 
   const gradientColors = isDark
     ? ['#0c1413', '#131c1b', '#0f1918']
@@ -311,6 +361,24 @@ export default function ProfileShareScreen() {
     );
   }, [weeks]);
 
+  const activityStats = useMemo(() => {
+    if (weeks.length === 0) {
+      return { averageDays: 0, bestWeek: 0, activeWeeks: 0 };
+    }
+    let bestWeek = 0;
+    let activeWeeks = 0;
+    weeks.forEach((week) => {
+      const count = week.days.filter((day) => day.hasActivity).length;
+      if (count > bestWeek) bestWeek = count;
+      if (count > 0) activeWeeks += 1;
+    });
+    return {
+      averageDays: activeDays / weeks.length,
+      bestWeek,
+      activeWeeks,
+    };
+  }, [weeks, activeDays]);
+
   const activitySubtitle = useMemo(() => {
     if (weeks.length === 0) {
       return 'Recent weeks';
@@ -319,6 +387,23 @@ export default function ProfileShareScreen() {
     const end = new Date();
     return `Last ${weeks.length} weeks · ${format(start, 'MMM d')}–${format(end, 'MMM d')}`;
   }, [weeks.length]);
+
+  const monthlyStatTiles = useMemo(() => {
+    if (monthlyStats.isLoading) return [];
+    const workouts = monthlyStats.totalWorkouts;
+    const averageVolume = workouts > 0 ? monthlyStats.totalVolume / workouts : 0;
+    const averageTimeSeconds = workouts > 0 ? monthlyStats.totalTimeSeconds / workouts : 0;
+    const workoutsPerWeek = workouts / 4;
+
+    return [
+      { label: 'Volume', value: formatVolume(monthlyStats.totalVolume, units) },
+      { label: 'Workouts', value: workouts.toString() },
+      { label: 'Time trained', value: formatTime(monthlyStats.totalTimeSeconds) },
+      { label: 'Avg volume/workout', value: formatVolume(averageVolume, units) },
+      { label: 'Avg time/workout', value: formatTime(averageTimeSeconds) },
+      { label: 'Workouts/week', value: formatDecimal(workoutsPerWeek) },
+    ];
+  }, [monthlyStats, units]);
 
   const handleShare = async () => {
     if (!isCaptureReady || !viewShotRef.current) {
@@ -404,15 +489,15 @@ export default function ProfileShareScreen() {
                       <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
                         {activitySubtitle}
                       </Text>
-                      <View style={styles.activityRow}>
-                        <View style={styles.activityMetric}>
-                          <Text style={[styles.activityValue, { color: colors.accent }]}>
-                            {activeDays}
-                          </Text>
-                          <Text style={[styles.activityLabel, { color: colors.textSecondary }]}>
-                            Active days
-                          </Text>
-                        </View>
+                      <View style={styles.activityHeadline}>
+                        <Text style={[styles.activityValue, { color: colors.accent }]}>
+                          {activeDays}
+                        </Text>
+                        <Text style={[styles.activityLabel, { color: colors.textSecondary }]}>
+                          Active days
+                        </Text>
+                      </View>
+                      <View style={styles.activityGridWrap}>
                         <View style={styles.activityGrid}>
                           {weeks.map((week, index) => (
                             <View key={`week-${index}`} style={styles.activityColumn}>
@@ -435,6 +520,32 @@ export default function ProfileShareScreen() {
                           ))}
                         </View>
                       </View>
+                      <View style={styles.activityStatsRow}>
+                        <View style={styles.activityStat}>
+                          <Text style={[styles.activityStatValue, { color: colors.textPrimary }]}>
+                            {formatDecimal(activityStats.averageDays)}
+                          </Text>
+                          <Text style={[styles.activityStatLabel, { color: colors.textSecondary }]}>
+                            Avg days/week
+                          </Text>
+                        </View>
+                        <View style={styles.activityStat}>
+                          <Text style={[styles.activityStatValue, { color: colors.textPrimary }]}>
+                            {activityStats.bestWeek}
+                          </Text>
+                          <Text style={[styles.activityStatLabel, { color: colors.textSecondary }]}>
+                            Best week
+                          </Text>
+                        </View>
+                        <View style={styles.activityStat}>
+                          <Text style={[styles.activityStatValue, { color: colors.textPrimary }]}>
+                            {activityStats.activeWeeks}
+                          </Text>
+                          <Text style={[styles.activityStatLabel, { color: colors.textSecondary }]}>
+                            Active weeks
+                          </Text>
+                        </View>
+                      </View>
                     </View>
                   )}
 
@@ -452,30 +563,16 @@ export default function ProfileShareScreen() {
                         </View>
                       ) : (
                         <View style={styles.statsGrid}>
-                          <View style={styles.statsTile}>
-                            <Text style={[styles.statsValue, { color: colors.textPrimary }]}>
-                              {formatVolume(monthlyStats.totalVolume, units)}
-                            </Text>
-                            <Text style={[styles.statsLabel, { color: colors.textSecondary }]}>
-                              Volume
-                            </Text>
-                          </View>
-                          <View style={styles.statsTile}>
-                            <Text style={[styles.statsValue, { color: colors.textPrimary }]}>
-                              {monthlyStats.totalWorkouts}
-                            </Text>
-                            <Text style={[styles.statsLabel, { color: colors.textSecondary }]}>
-                              Workouts
-                            </Text>
-                          </View>
-                          <View style={styles.statsTile}>
-                            <Text style={[styles.statsValue, { color: colors.textPrimary }]}>
-                              {formatTime(monthlyStats.totalTimeSeconds)}
-                            </Text>
-                            <Text style={[styles.statsLabel, { color: colors.textSecondary }]}>
-                              Time trained
-                            </Text>
-                          </View>
+                          {monthlyStatTiles.map((tile) => (
+                            <View key={tile.label} style={styles.statsTile}>
+                              <Text style={[styles.statsValue, { color: colors.textPrimary }]}>
+                                {tile.value}
+                              </Text>
+                              <Text style={[styles.statsLabel, { color: colors.textSecondary }]}>
+                                {tile.label}
+                              </Text>
+                            </View>
+                          ))}
                         </View>
                       )}
                     </View>
@@ -507,16 +604,16 @@ export default function ProfileShareScreen() {
                           ))}
                         </View>
                       )}
-                      {musclesLoading ? (
+                      {signatureSummary.isLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator color={colors.accent} size="small" />
                         </View>
-                      ) : hasWorkouts ? (
+                      ) : signatureHasWorkouts ? (
                         <View style={styles.signatureHeatmap}>
                           <MuscleHeatmap
-                            exercises={exercises}
+                            exercises={signatureExercises}
                             gender={bodyType}
-                            scale={0.38}
+                            scale={0.45}
                             compact
                           />
                         </View>
@@ -630,7 +727,7 @@ const styles = StyleSheet.create({
   },
   shareCard: {
     width: scale(320),
-    minHeight: scale(420),
+    minHeight: scale(360),
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
     padding: scale(Spacing.lg),
@@ -677,13 +774,9 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
-  activityRow: {
-    flexDirection: 'row',
+  activityHeadline: {
     alignItems: 'center',
-    gap: scale(Spacing.md),
-  },
-  activityMetric: {
-    width: scale(72),
+    gap: scale(Spacing.xs),
   },
   activityValue: {
     fontSize: moderateScale(26),
@@ -691,6 +784,9 @@ const styles = StyleSheet.create({
   },
   activityLabel: {
     fontSize: moderateScale(11),
+  },
+  activityGridWrap: {
+    alignItems: 'center',
   },
   activityGrid: {
     flexDirection: 'row',
@@ -704,13 +800,30 @@ const styles = StyleSheet.create({
     height: HEATMAP_CELL,
     borderRadius: 3,
   },
-  statsGrid: {
+  activityStatsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    gap: scale(Spacing.sm),
+  },
+  activityStat: {
+    flex: 1,
+    gap: scale(Spacing.xs),
+  },
+  activityStatValue: {
+    fontSize: moderateScale(14),
+    fontWeight: '700',
+  },
+  activityStatLabel: {
+    fontSize: moderateScale(10),
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: scale(Spacing.md),
   },
   statsTile: {
-    flex: 1,
+    flexBasis: '46%',
+    flexGrow: 1,
     gap: scale(Spacing.xs),
   },
   statsValue: {
@@ -722,19 +835,20 @@ const styles = StyleSheet.create({
   },
   signatureRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: scale(Spacing.md),
   },
   signatureHeatmap: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: scale(Spacing.xs),
+    paddingVertical: scale(Spacing.sm),
   },
   emptyHint: {
     fontSize: moderateScale(11),
   },
   signatureTile: {
-    flex: 1,
+    flexBasis: '46%',
+    flexGrow: 1,
     gap: scale(Spacing.xs),
   },
   signatureValue: {

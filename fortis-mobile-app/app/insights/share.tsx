@@ -106,7 +106,7 @@ export default function InsightShareScreen() {
   const { insights } = useTrainingInsights({ skipRefresh: true });
   const { trackInsightShareStarted, trackInsightShareCompleted } = useAnalytics();
   const viewShotRef = useRef<any>(null);
-  const [privacyMode, setPrivacyMode] = useState<PrivacyMode>('private');
+  const privacyMode: PrivacyMode = 'detailed';
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [isCaptureReady] = useState(() => {
@@ -650,40 +650,6 @@ export default function InsightShareScreen() {
             )}
           </View>
 
-          <View style={styles.controlsSection}>
-            <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-              Privacy mode
-            </Text>
-            <View style={[styles.toggleRow, { borderColor: colors.border }]}>
-              {(['private', 'detailed'] as PrivacyMode[]).map((mode) => {
-                const isActive = privacyMode === mode;
-                return (
-                  <TouchableOpacity
-                    key={mode}
-                    onPress={() => setPrivacyMode(mode)}
-                    style={[
-                      styles.toggleButton,
-                      isActive && { backgroundColor: colors.accentOverlay },
-                    ]}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        { color: isActive ? colors.accent : colors.textSecondary },
-                      ]}
-                    >
-                      {mode === 'private' ? 'Private' : 'Detailed'}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={[styles.toggleHint, { color: colors.textTertiary }]}>
-              Private hides exact values. Detailed includes your numbers.
-            </Text>
-          </View>
-
           <View style={styles.actionsSection}>
             <TouchableOpacity
               style={[
@@ -759,7 +725,7 @@ const styles = StyleSheet.create({
   },
   shareCard: {
     width: scale(320),
-    minHeight: scale(420),
+    minHeight: scale(360),
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
     padding: scale(Spacing.lg),
