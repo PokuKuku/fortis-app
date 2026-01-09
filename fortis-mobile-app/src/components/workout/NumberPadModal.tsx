@@ -127,16 +127,17 @@ export function NumberPadModal({
 
   const handleNumberPress = (num: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const baseValue = activeNumberPad?.shouldReplaceOnNextInput ? '' : displayValue;
 
     if (num === '.') {
       // Only allow decimal for weight, and only one decimal point
-      if (inputType === 'reps' || displayValue.includes('.')) return;
+      if (inputType === 'reps' || baseValue.includes('.')) return;
       // Add leading zero if starting with decimal
-      setDisplayValue(prev => prev === '' ? '0.' : prev + '.');
+      setDisplayValue(baseValue === '' ? '0.' : baseValue + '.');
     } else {
       // Limit length to prevent overflow
-      if (displayValue.length >= 6) return;
-      setDisplayValue(prev => prev + num);
+      if (baseValue.length >= 6) return;
+      setDisplayValue(baseValue + num);
     }
   };
 

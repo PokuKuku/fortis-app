@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { PlayIcon, TrashIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { NestableDraggableFlatList, NestableScrollContainer } from 'react-native-draggable-flatlist';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -70,6 +71,8 @@ function WorkoutSection({
   onExercisePress,
   onDeleteWorkout,
   onDeleteExercise,
+  onDrag,
+  isDragging,
 }: {
   workout: ProgramWorkout;
   isExpanded: boolean;
@@ -77,9 +80,12 @@ function WorkoutSection({
   onExercisePress: (exerciseId: string) => void;
   onDeleteWorkout: (workoutId: string, workoutName: string) => void;
   onDeleteExercise: (workoutId: string, exerciseId: string, exerciseName: string) => void;
+  onDrag?: () => void;
+  isDragging?: boolean;
 }) {
   const { colors, isDark } = useTheme();
   const handleToggle = () => {
+    if (isDragging) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onToggle();
   };
@@ -87,7 +93,7 @@ function WorkoutSection({
   // Theme-aware card styles
   const cardStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    borderColor: isDragging ? colors.accentBorder : isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   };
 
   return (
@@ -96,6 +102,8 @@ function WorkoutSection({
       <View style={styles.workoutSectionHeader}>
         <TouchableOpacity
           onPress={handleToggle}
+          onLongPress={onDrag}
+          delayLongPress={150}
           activeOpacity={0.7}
           style={styles.workoutSectionTouchable}
         >
@@ -155,6 +163,7 @@ export default function ProgramDetailScreen() {
   const isNavigating = useRef(false);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
+  const reorderProgramWorkouts = useProgramsStore(s => s.reorderProgramWorkouts);
   const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
   const bodyType = useWorkoutStore(s => s.bodyType);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
@@ -175,6 +184,13 @@ export default function ProgramDetailScreen() {
     name: string;
   }>({ visible: false, step: 'confirm', type: 'workout', workoutId: '', name: '' });
   const [expandedWorkouts, setExpandedWorkouts] = useState<Record<string, boolean>>({});
+  const [orderedWorkouts, setOrderedWorkouts] = useState<ProgramWorkout[]>([]);
+  const [pendingReorder, setPendingReorder] = useState<{
+    previousWorkouts: ProgramWorkout[];
+    nextWorkouts: ProgramWorkout[];
+  } | null>(null);
+  const [showReorderIntentModal, setShowReorderIntentModal] = useState(false);
+  const committedWorkoutsRef = useRef<ProgramWorkout[]>([]);
 
   const toggleWorkout = useCallback((workoutId: string) => {
     setExpandedWorkouts((prev) => ({
@@ -189,6 +205,17 @@ export default function ProgramDetailScreen() {
       return undefined;
     }, [id])
   );
+
+  useEffect(() => {
+    if (!program) return;
+    const sortedWorkouts = [...program.workouts].sort((a, b) => a.dayNumber - b.dayNumber);
+    const normalizedWorkouts = sortedWorkouts.map((workout, index) => ({
+      ...workout,
+      dayNumber: index + 1,
+    }));
+    committedWorkoutsRef.current = normalizedWorkouts;
+    setOrderedWorkouts(normalizedWorkouts);
+  }, [program]);
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -208,7 +235,11 @@ export default function ProgramDetailScreen() {
     if (isNavigating.current) return;
     isNavigating.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    const workouts = program?.workouts ? [...program.workouts] : [];
+    const workouts = orderedWorkouts.length > 0
+      ? [...orderedWorkouts]
+      : program?.workouts
+        ? [...program.workouts]
+        : [];
     workouts.sort((a, b) => a.dayNumber - b.dayNumber);
     const totalDays = workouts.length;
     const nextDayNumber = totalDays > 0 && id
@@ -331,6 +362,70 @@ export default function ProgramDetailScreen() {
     })();
   }, [applyDelete, deleteModal, id, program, restartProgram, trimCompletedDays]);
 
+  const commitWorkoutReorder = useCallback(async (
+    nextWorkouts: ProgramWorkout[],
+    intent?: 'keep' | 'restart',
+    previousWorkouts?: ProgramWorkout[]
+  ) => {
+    if (!id) return;
+    const orderedIds = nextWorkouts.map((workout) => workout.id);
+    const success = await reorderProgramWorkouts(id, orderedIds);
+    if (!success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setOrderedWorkouts(previousWorkouts ?? committedWorkoutsRef.current);
+      return;
+    }
+
+    committedWorkoutsRef.current = nextWorkouts;
+
+    if (intent === 'restart') {
+      restartProgram(id);
+    } else if (intent === 'keep') {
+      trimCompletedDays(id, nextWorkouts.length);
+    }
+  }, [id, reorderProgramWorkouts, restartProgram, trimCompletedDays]);
+
+  const handleReorderWorkouts = useCallback((nextWorkouts: ProgramWorkout[]) => {
+    const previousWorkouts = orderedWorkouts;
+    const normalizedWorkouts = nextWorkouts.map((workout, index) => ({
+      ...workout,
+      dayNumber: index + 1,
+    }));
+
+    const isSameOrder = previousWorkouts.length === normalizedWorkouts.length
+      && previousWorkouts.every((workout, index) => workout.id === normalizedWorkouts[index].id);
+
+    if (isSameOrder) return;
+
+    setOrderedWorkouts(normalizedWorkouts);
+
+    if (progressEntry) {
+      setPendingReorder({ previousWorkouts, nextWorkouts: normalizedWorkouts });
+      setShowReorderIntentModal(true);
+      return;
+    }
+
+    void commitWorkoutReorder(normalizedWorkouts);
+  }, [commitWorkoutReorder, orderedWorkouts, progressEntry]);
+
+  const handleCancelReorder = useCallback(() => {
+    if (pendingReorder?.previousWorkouts) {
+      setOrderedWorkouts(pendingReorder.previousWorkouts);
+    } else {
+      setOrderedWorkouts(committedWorkoutsRef.current);
+    }
+    setPendingReorder(null);
+    setShowReorderIntentModal(false);
+  }, [pendingReorder]);
+
+  const handleConfirmReorderIntent = useCallback((intent: 'keep' | 'restart') => {
+    if (!pendingReorder) return;
+    setShowReorderIntentModal(false);
+    const { previousWorkouts, nextWorkouts } = pendingReorder;
+    setPendingReorder(null);
+    void commitWorkoutReorder(nextWorkouts, intent, previousWorkouts);
+  }, [commitWorkoutReorder, pendingReorder]);
+
   const heatmapExercises = useMemo(
     () => program?.workouts.flatMap(workout => workout.exercises) ?? [],
     [program]
@@ -379,11 +474,12 @@ export default function ProgramDetailScreen() {
 
   const difficultyColors = DIFFICULTY_COLORS[program.difficulty] || DIFFICULTY_COLORS.beginner;
   const completedDayNumbers = progressEntry?.completedDayNumbers || [];
-  const completedIds = program.workouts
+  const displayWorkouts = orderedWorkouts.length > 0 ? orderedWorkouts : program.workouts;
+  const completedIds = displayWorkouts
     .filter(workout => completedDayNumbers.includes(workout.dayNumber))
     .map(workout => workout.id);
   const nextDayNumber = id
-    ? getNextDayNumber(id, program.workouts.length)
+    ? getNextDayNumber(id, displayWorkouts.length)
     : 1;
   const currentCycle = progressEntry?.currentCycle || 1;
   const completedCycles = progressEntry?.history.length || 0;
@@ -399,7 +495,7 @@ export default function ProgramDetailScreen() {
         rightAction={{ label: 'Edit', onPress: handleEdit }}
       />
 
-      <ScrollView
+      <NestableScrollContainer
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -479,23 +575,31 @@ export default function ProgramDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
             <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-              {program.workouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
+              {displayWorkouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
             </Text>
           </View>
 
-          <View style={styles.workoutsList}>
-            {program.workouts.map((workout) => (
+          <NestableDraggableFlatList
+            data={displayWorkouts}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            extraData={expandedWorkouts}
+            onDragEnd={({ data }) => handleReorderWorkouts(data)}
+            renderItem={({ item, drag, isActive }) => (
               <WorkoutSection
-                key={workout.id}
-                workout={workout}
-                isExpanded={!!expandedWorkouts[workout.id]}
-                onToggle={() => toggleWorkout(workout.id)}
+                workout={item}
+                isExpanded={!!expandedWorkouts[item.id]}
+                onToggle={() => toggleWorkout(item.id)}
                 onExercisePress={handleExercisePress}
                 onDeleteWorkout={handleDeleteWorkout}
                 onDeleteExercise={handleDeleteExercise}
+                onDrag={drag}
+                isDragging={isActive}
               />
-            ))}
-          </View>
+            )}
+            ItemSeparatorComponent={() => <View style={styles.workoutsSpacer} />}
+            contentContainerStyle={styles.workoutsList}
+          />
         </Animated.View>
 
         <Animated.View
@@ -505,11 +609,11 @@ export default function ProgramDetailScreen() {
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Progress</Text>
             <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-              {completedDayNumbers.length}/{program.workouts.length} workouts
+              {completedDayNumbers.length}/{displayWorkouts.length} workouts
             </Text>
           </View>
           <WorkoutStackPreview
-            workouts={program.workouts}
+            workouts={displayWorkouts}
             completedIds={completedIds}
             currentDayNumber={nextDayNumber}
           />
@@ -529,7 +633,7 @@ export default function ProgramDetailScreen() {
             stats={program.stats}
           />
         </Animated.View>
-      </ScrollView>
+      </NestableScrollContainer>
 
       {/* Delete Confirmation Modal */}
       <BaseModal
@@ -619,6 +723,55 @@ export default function ProgramDetailScreen() {
             </View>
           </>
         )}
+      </BaseModal>
+
+      <BaseModal
+        visible={showReorderIntentModal}
+        onClose={handleCancelReorder}
+        title="Edit Active Program?"
+        icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
+      >
+        <Text style={modalStyles.message}>
+          This program is in progress. How should we handle your edits?
+        </Text>
+        <View style={[modalStyles.actions, styles.modalActions]}>
+          <Pressable
+            onPress={() => handleConfirmReorderIntent('keep')}
+            style={({ pressed }) => [
+              modalStyles.successButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
+              Apply to future workouts
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => handleConfirmReorderIntent('restart')}
+            style={({ pressed }) => [
+              modalStyles.warningButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
+              Restart program
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={handleCancelReorder}
+            style={({ pressed }) => [
+              modalStyles.cancelButton,
+              styles.modalActionButton,
+              pressed && modalStyles.buttonPressed,
+            ]}
+          >
+            <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
+              Cancel
+            </Text>
+          </Pressable>
+        </View>
       </BaseModal>
 
     </SafeAreaView>
@@ -740,7 +893,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   workoutsList: {
-    gap: Spacing.md,
+    paddingBottom: 0,
+  },
+  workoutsSpacer: {
+    height: Spacing.md,
   },
   workoutSection: {
     borderRadius: BorderRadius.xl,

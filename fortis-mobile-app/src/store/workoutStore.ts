@@ -132,6 +132,7 @@ interface WorkoutState {
     inputType: 'weight' | 'reps';
     pendingValue: string;
     hasError: boolean;
+    shouldReplaceOnNextInput?: boolean;
   } | null;
   validationErrorsBySet: Record<string, { weight?: boolean; reps?: boolean }>;
   validationErrorsTrigger: number;
@@ -1823,12 +1824,20 @@ export const useWorkoutStore = create<WorkoutState>()(
       const exercise = activeSession?.exercises.find(e => e.localId === exerciseLocalId);
       const set_ = exercise?.sets.find(s => s.localId === setLocalId);
       const currentValue = set_?.[inputType];
-      const pendingValue = currentValue !== null && currentValue !== undefined
+      const shouldReplaceOnNextInput = currentValue !== null && currentValue !== undefined;
+      const pendingValue = shouldReplaceOnNextInput
         ? currentValue.toString()
         : '';
 
       set({
-        activeNumberPad: { exerciseLocalId, setLocalId, inputType, pendingValue, hasError: false },
+        activeNumberPad: {
+          exerciseLocalId,
+          setLocalId,
+          inputType,
+          pendingValue,
+          hasError: false,
+          shouldReplaceOnNextInput,
+        },
       });
     },
 
@@ -1841,7 +1850,12 @@ export const useWorkoutStore = create<WorkoutState>()(
       if (!activeNumberPad) return;
 
       set({
-        activeNumberPad: { ...activeNumberPad, pendingValue: value, hasError: false },
+        activeNumberPad: {
+          ...activeNumberPad,
+          pendingValue: value,
+          hasError: false,
+          shouldReplaceOnNextInput: false,
+        },
       });
     },
 
@@ -2268,12 +2282,20 @@ export const useWorkoutStore = create<WorkoutState>()(
       const exercise = editorSession?.exercises.find(e => e.localId === exerciseLocalId);
       const set_ = exercise?.sets.find(s => s.localId === setLocalId);
       const currentValue = set_?.[inputType];
-      const pendingValue = currentValue !== null && currentValue !== undefined
+      const shouldReplaceOnNextInput = currentValue !== null && currentValue !== undefined;
+      const pendingValue = shouldReplaceOnNextInput
         ? currentValue.toString()
         : '';
 
       set({
-        activeNumberPad: { exerciseLocalId, setLocalId, inputType, pendingValue, hasError: false },
+        activeNumberPad: {
+          exerciseLocalId,
+          setLocalId,
+          inputType,
+          pendingValue,
+          hasError: false,
+          shouldReplaceOnNextInput,
+        },
       });
     },
 

@@ -1445,7 +1445,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         .eq('id', programId);
       if (programError) {
         set({ error: programError.message });
-        return false;
       }
 
       return true;

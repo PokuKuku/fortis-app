@@ -120,6 +120,7 @@ export default function ActiveWorkoutScreen() {
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [showRestTimerBanner, setShowRestTimerBanner] = useState(false);
+  const [restTimerCompleteVisible, setRestTimerCompleteVisible] = useState(false);
   const [finishSnapshot, setFinishSnapshot] = useState<{
     durationSeconds: number;
     completedExercises: number;
@@ -130,6 +131,7 @@ export default function ActiveWorkoutScreen() {
   const [showReplaceConfirmModal, setShowReplaceConfirmModal] = useState(false);
   const [pendingReplaceExerciseLocalId, setPendingReplaceExerciseLocalId] = useState<string | null>(null);
   const isNavigating = useRef(false);
+  const restTimerCompleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isBlockingModalOpen = showAddExerciseModal
     || showTimerSettingsModal
@@ -147,6 +149,35 @@ export default function ActiveWorkoutScreen() {
       dismissRestTimerComplete();
     }
   }, [showRestTimerComplete, showAddExerciseModal, dismissRestTimerComplete]);
+
+  useEffect(() => {
+    if (restTimerCompleteTimeoutRef.current) {
+      clearTimeout(restTimerCompleteTimeoutRef.current);
+      restTimerCompleteTimeoutRef.current = null;
+    }
+
+    if (!showRestTimerComplete) {
+      setRestTimerCompleteVisible(false);
+      return;
+    }
+
+    if (isBlockingModalOpen) {
+      setRestTimerCompleteVisible(false);
+      return;
+    }
+
+    // Defer showing to avoid iOS modal handoff freezes.
+    restTimerCompleteTimeoutRef.current = setTimeout(() => {
+      setRestTimerCompleteVisible(true);
+    }, 200);
+
+    return () => {
+      if (restTimerCompleteTimeoutRef.current) {
+        clearTimeout(restTimerCompleteTimeoutRef.current);
+        restTimerCompleteTimeoutRef.current = null;
+      }
+    };
+  }, [showRestTimerComplete, isBlockingModalOpen]);
 
   // Initialize rest timer tick
   useRestTimerTick();
@@ -617,7 +648,7 @@ export default function ActiveWorkoutScreen() {
 
       {/* Rest Timer Complete Modal */}
       <RestTimerCompleteModal
-        visible={showRestTimerComplete && !isBlockingModalOpen}
+        visible={restTimerCompleteVisible}
         onDismiss={dismissRestTimerComplete}
       />
     </SafeAreaView>
