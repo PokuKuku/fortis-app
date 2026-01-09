@@ -100,7 +100,7 @@ export default function SplashScreen() {
   // Handle navigation when both splash is complete and auth is loaded
   // Flow: Auth → Onboarding (if needed) → Main App
   useEffect(() => {
-    if (splashComplete && !isLoading) {
+    if (splashComplete) {
       if (!isAuthenticated) {
         // Not signed in - go to auth first
         router.replace('/auth');
@@ -112,12 +112,12 @@ export default function SplashScreen() {
         router.replace('/(tabs)');
       }
     }
-  }, [splashComplete, isLoading, isAuthenticated, needsOnboarding, router]);
+  }, [splashComplete, isAuthenticated, needsOnboarding, router]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashComplete(true);
-    }, 2500);
+    }, 1500);
 
     return () => {
       clearTimeout(timer);
@@ -149,7 +149,7 @@ export default function SplashScreen() {
 
       {/* FORTIS Text */}
       <View style={styles.logoContainer}>
-        <AnimatedLogo size="large" centered />
+        <AnimatedLogo size="large" centered shineDurationMs={1500} />
       </View>
     </View>
   );

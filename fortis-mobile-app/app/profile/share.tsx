@@ -820,23 +820,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: scale(Spacing.md),
+    justifyContent: 'center',
+    alignSelf: 'center',
   },
   statsTile: {
     flexBasis: '46%',
     flexGrow: 1,
     gap: scale(Spacing.xs),
+    alignItems: 'center',
   },
   statsValue: {
     fontSize: moderateScale(16),
     fontWeight: '700',
+    textAlign: 'center',
   },
   statsLabel: {
     fontSize: moderateScale(11),
+    textAlign: 'center',
   },
   signatureRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: scale(Spacing.md),
+    justifyContent: 'center',
+    alignSelf: 'center',
   },
   signatureHeatmap: {
     alignItems: 'center',
@@ -850,13 +857,16 @@ const styles = StyleSheet.create({
     flexBasis: '46%',
     flexGrow: 1,
     gap: scale(Spacing.xs),
+    alignItems: 'center',
   },
   signatureValue: {
     fontSize: moderateScale(16),
     fontWeight: '700',
+    textAlign: 'center',
   },
   signatureLabel: {
     fontSize: moderateScale(11),
+    textAlign: 'center',
   },
   actionsSection: {
     alignItems: 'center',

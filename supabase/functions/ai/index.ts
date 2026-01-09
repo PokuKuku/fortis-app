@@ -16,6 +16,78 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
 // ============================================
+// Context Cache (Edge-instance memory)
+// ============================================
+
+const CONTEXT_CACHE_TTL_MS = Math.max(
+  0,
+  Number(Deno.env.get('AI_CONTEXT_CACHE_TTL_SECONDS') ?? '120') * 1000
+);
+const CONTEXT_CACHE_MAX_ENTRIES = Math.max(
+  0,
+  Number(Deno.env.get('AI_CONTEXT_CACHE_MAX_ENTRIES') ?? '500')
+);
+
+type CacheEntry<T> = {
+  value: T;
+  expiresAt: number;
+};
+
+const contextCache = new Map<string, CacheEntry<unknown>>();
+
+function buildCacheKey(...parts: Array<string | number | boolean | null | undefined>): string {
+  return parts.map((part) => (part === undefined || part === null ? 'na' : String(part))).join('|');
+}
+
+function normalizeIdList(ids?: string[] | string): string {
+  if (!ids) return 'na';
+  const list = Array.isArray(ids) ? ids : [ids];
+  if (list.length === 0) return 'na';
+  return [...list].sort().join(',');
+}
+
+function getCachedValue<T>(key: string): { hit: boolean; value?: T } {
+  const entry = contextCache.get(key);
+  if (!entry) return { hit: false };
+  if (Date.now() > entry.expiresAt) {
+    contextCache.delete(key);
+    return { hit: false };
+  }
+  return { hit: true, value: entry.value as T };
+}
+
+function pruneCacheIfNeeded() {
+  if (CONTEXT_CACHE_MAX_ENTRIES <= 0) return;
+  if (contextCache.size <= CONTEXT_CACHE_MAX_ENTRIES) return;
+  const now = Date.now();
+  for (const [key, entry] of contextCache) {
+    if (now > entry.expiresAt) {
+      contextCache.delete(key);
+    }
+    if (contextCache.size <= CONTEXT_CACHE_MAX_ENTRIES) return;
+  }
+  if (contextCache.size <= CONTEXT_CACHE_MAX_ENTRIES) return;
+  const oldestKey = contextCache.keys().next().value;
+  if (oldestKey) {
+    contextCache.delete(oldestKey);
+  }
+}
+
+async function withContextCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  if (CONTEXT_CACHE_TTL_MS <= 0) {
+    return fetcher();
+  }
+  const cached = getCachedValue<T>(key);
+  if (cached.hit) {
+    return cached.value as T;
+  }
+  const value = await fetcher();
+  contextCache.set(key, { value, expiresAt: Date.now() + CONTEXT_CACHE_TTL_MS });
+  pruneCacheIfNeeded();
+  return value;
+}
+
+// ============================================
 // Types (mirrored from mobile app)
 // ============================================
 
@@ -1025,9 +1097,15 @@ async function assembleContext(
   );
 
   // Always fetch user preferences (small, fast)
-  const { data: userPrefs } = await supabase.rpc('get_user_preferences_for_ai', {
-    p_user_id: userId,
-  });
+  const userPrefs = await withContextCache(
+    buildCacheKey('prefs', userId),
+    async () => {
+      const { data } = await supabase.rpc('get_user_preferences_for_ai', {
+        p_user_id: userId,
+      });
+      return data;
+    }
+  );
 
   const prefs = userPrefs?.[0] ?? {};
   const latestWeight =
@@ -1059,7 +1137,10 @@ async function assembleContext(
 
   if (request.context?.insightId) {
     fetchPromises.push(
-      fetchInsightContext(supabase, userId, request.context.insightId).then((data) => {
+      withContextCache(
+        buildCacheKey('insight', userId, request.context.insightId),
+        () => fetchInsightContext(supabase, userId, request.context!.insightId!)
+      ).then((data) => {
         if (data) {
           context.insight = data;
         }
@@ -1069,18 +1150,28 @@ async function assembleContext(
 
   if (config.includeHistory && !insightOnly) {
     fetchPromises.push(
-      fetchHistorySummary(supabase, userId, periodWeeks).then((data) => {
+      withContextCache(
+        buildCacheKey('history', userId, periodWeeks),
+        () => fetchHistorySummary(supabase, userId, periodWeeks)
+      ).then((data) => {
         context.history = data;
       })
     );
   }
 
   if (config.includeNotes && !insightOnly) {
+    const noteExerciseIds = resolvedExerciseIds.length > 0
+      ? limitExerciseIds(resolvedExerciseIds, 5)
+      : undefined;
     fetchPromises.push(
-      fetchUserNotes(
-        supabase,
-        userId,
-        resolvedExerciseIds.length > 0 ? limitExerciseIds(resolvedExerciseIds, 5) : undefined
+      withContextCache(
+        buildCacheKey('notes', userId, normalizeIdList(noteExerciseIds)),
+        () =>
+          fetchUserNotes(
+            supabase,
+            userId,
+            noteExerciseIds
+          )
       ).then((data) => {
         context.notes = data;
       })
@@ -1089,20 +1180,37 @@ async function assembleContext(
 
   if (config.includeProgram && !insightOnly && request.context?.programId) {
     fetchPromises.push(
-      fetchProgramSummary(supabase, request.context.programId).then((data) => {
+      withContextCache(
+        buildCacheKey('program', request.context.programId),
+        () => fetchProgramSummary(supabase, request.context!.programId!)
+      ).then((data) => {
         context.currentProgram = data;
       })
     );
   }
 
   if (config.includeExerciseDb && !insightOnly) {
+    const exerciseContextIds = resolvedExerciseIds.length > 0
+      ? limitExerciseIds(resolvedExerciseIds, 10)
+      : undefined;
+    const historyOnly = request.context?.historyOnly || false;
     fetchPromises.push(
-      fetchExerciseSubset(
-        supabase,
-        userId,
-        config.exerciseLimit || 50,
-        request.context?.historyOnly || false,
-        resolvedExerciseIds.length > 0 ? limitExerciseIds(resolvedExerciseIds, 10) : undefined
+      withContextCache(
+        buildCacheKey(
+          'exerciseDb',
+          userId,
+          config.exerciseLimit || 50,
+          historyOnly ? 'history' : 'all',
+          normalizeIdList(exerciseContextIds)
+        ),
+        () =>
+          fetchExerciseSubset(
+            supabase,
+            userId,
+            config.exerciseLimit || 50,
+            historyOnly,
+            exerciseContextIds
+          )
       ).then((data) => {
         context.exerciseDb = data;
       })
@@ -1111,7 +1219,10 @@ async function assembleContext(
 
   if (config.includeAnalytics && !insightOnly) {
     fetchPromises.push(
-      fetchAnalytics(supabase, userId).then((data) => {
+      withContextCache(
+        buildCacheKey('analytics', userId),
+        () => fetchAnalytics(supabase, userId)
+      ).then((data) => {
         context.analytics = data;
       })
     );

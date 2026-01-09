@@ -20,13 +20,23 @@ interface AnimatedLogoProps {
   size?: 'small' | 'large';
   centered?: boolean;
   animate?: boolean;
+  introDurationMs?: number;
+  shineDurationMs?: number;
 }
 
 const LOGO_TEXT = 'FORTIS';
 
-export function AnimatedLogo({ size = 'small', centered = false, animate = true }: AnimatedLogoProps) {
+export function AnimatedLogo({
+  size = 'small',
+  centered = false,
+  animate = true,
+  introDurationMs,
+  shineDurationMs,
+}: AnimatedLogoProps) {
   const { colors } = useTheme();
   const shouldAnimate = animate;
+  const introDuration = Math.max(0, introDurationMs ?? 800);
+  const shineDuration = Math.max(0, shineDurationMs ?? 3500);
   const shineAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
@@ -66,13 +76,13 @@ export function AnimatedLogo({ size = 'small', centered = false, animate = true 
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: introDuration,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.timing(scaleAnim, {
         toValue: 1,
-        duration: 800,
+        duration: introDuration,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
@@ -81,7 +91,7 @@ export function AnimatedLogo({ size = 'small', centered = false, animate = true 
     const shineLoop = Animated.loop(
       Animated.timing(shineAnim, {
         toValue: 1,
-        duration: 3500,
+        duration: shineDuration,
         easing: Easing.linear,
         useNativeDriver: false,
       })
@@ -91,7 +101,7 @@ export function AnimatedLogo({ size = 'small', centered = false, animate = true 
     return () => {
       shineLoop.stop();
     };
-  }, [fadeAnim, scaleAnim, shineAnim, shouldAnimate]);
+  }, [fadeAnim, scaleAnim, shineAnim, introDuration, shineDuration, shouldAnimate]);
 
   const containerStyle: ViewStyle = centered
     ? { alignItems: 'center', justifyContent: 'center' }
