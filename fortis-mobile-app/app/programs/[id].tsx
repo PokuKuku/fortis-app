@@ -6,7 +6,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { PlayIcon, TrashIcon, ExclamationTriangleIcon, Bars3Icon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { NestableDraggableFlatList, NestableScrollContainer } from 'react-native-draggable-flatlist';
+import DraggableFlatList from 'react-native-draggable-flatlist';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -207,6 +207,7 @@ export default function ProgramDetailScreen() {
   } | null>(null);
   const [showReorderIntentModal, setShowReorderIntentModal] = useState(false);
   const committedWorkoutsRef = useRef<ProgramWorkout[]>([]);
+  const [isDraggingList, setIsDraggingList] = useState(false);
 
   const toggleWorkout = useCallback((workoutId: string) => {
     setExpandedWorkouts((prev) => ({
@@ -442,6 +443,15 @@ export default function ProgramDetailScreen() {
     void commitWorkoutReorder(nextWorkouts, intent, previousWorkouts);
   }, [commitWorkoutReorder, pendingReorder]);
 
+  const handleDragBegin = useCallback(() => {
+    setIsDraggingList(true);
+  }, []);
+
+  const handleDragEnd = useCallback((nextWorkouts: ProgramWorkout[]) => {
+    setIsDraggingList(false);
+    handleReorderWorkouts(nextWorkouts);
+  }, [handleReorderWorkouts]);
+
   const heatmapExercises = useMemo(
     () => program?.workouts.flatMap(workout => workout.exercises) ?? [],
     [program]
@@ -511,147 +521,150 @@ export default function ProgramDetailScreen() {
         rightAction={{ label: 'Edit', onPress: handleEdit }}
       />
 
-      <NestableScrollContainer
-        style={styles.scrollView}
+      <DraggableFlatList
+        data={displayWorkouts}
+        keyExtractor={(item) => item.id}
+        extraData={expandedWorkouts}
+        activationDistance={0}
+        scrollEnabled={!isDraggingList}
+        onDragBegin={handleDragBegin}
+        onDragEnd={({ data }) => handleDragEnd(data)}
+        renderItem={({ item, drag, isActive }) => (
+          <WorkoutSection
+            workout={item}
+            isExpanded={!!expandedWorkouts[item.id]}
+            onToggle={() => toggleWorkout(item.id)}
+            onExercisePress={handleExercisePress}
+            onDeleteWorkout={handleDeleteWorkout}
+            onDeleteExercise={handleDeleteExercise}
+            onDrag={drag}
+            isDragging={isActive}
+          />
+        )}
+        ItemSeparatorComponent={() => <View style={styles.workoutsSpacer} />}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-      >
-        {/* Description */}
-        {program.description && (
-          <Animated.View
-            entering={FadeIn.delay(100).duration(300)}
-            style={styles.descriptionContainer}
-          >
-            <Text style={[styles.description, { color: colors.textSecondary }]}>{program.description}</Text>
-          </Animated.View>
-        )}
-
-        {/* Meta Tags */}
-        <Animated.View
-          entering={FadeIn.delay(150).duration(300)}
-          style={styles.metaTagsContainer}
-        >
-          {/* Duration */}
-          {program.durationWeeks ? (
-            <View style={[styles.metaTag, metaTagStyle]}>
-              <Text style={[styles.metaTagText, { color: colors.textPrimary }]}>
-                {program.durationWeeks} weeks
-              </Text>
-            </View>
-          ) : null}
-
-          {/* Goal */}
-          {program.goal && (
-            <View style={[styles.metaTag, metaTagStyle]}>
-              <Text style={[styles.metaTagText, { color: colors.textPrimary }]}>
-                {GOAL_LABELS[program.goal] || program.goal}
-              </Text>
-            </View>
-          )}
-        </Animated.View>
-
-        {/* Creator & Last Performed */}
-        <Animated.View
-          entering={FadeIn.delay(200).duration(300)}
-          style={styles.creatorContainer}
-        >
-          <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-            Cycle {currentCycle} - Next Day {nextDayNumber}
-          </Text>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeInDown.delay(250).duration(400)}
-          style={styles.section}
-        >
-          <MuscleHeatmap exercises={heatmapExercises} gender={bodyType} />
-        </Animated.View>
-
-        {/* Start Program Button */}
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(400)}
-          style={styles.startButtonContainer}
-        >
-          <GlassButton
-            style={styles.startButton}
-            onPress={handleStartProgram}
-          >
-            <View style={styles.startButtonContent}>
-              <PlayIcon color={colors.white} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={[styles.startButtonText, { color: colors.white }]}>Continue Program</Text>
-            </View>
-          </GlassButton>
-        </Animated.View>
-
-        {/* Workouts Section */}
-        <Animated.View
-          entering={FadeInDown.delay(350).duration(400)}
-          style={styles.section}
-        >
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
-            <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-              {displayWorkouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
-            </Text>
-          </View>
-
-          <NestableDraggableFlatList
-            data={displayWorkouts}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            extraData={expandedWorkouts}
-            style={styles.workoutsListContainer}
-            activationDistance={0}
-            onDragEnd={({ data }) => handleReorderWorkouts(data)}
-            renderItem={({ item, drag, isActive }) => (
-              <WorkoutSection
-                workout={item}
-                isExpanded={!!expandedWorkouts[item.id]}
-                onToggle={() => toggleWorkout(item.id)}
-                onExercisePress={handleExercisePress}
-                onDeleteWorkout={handleDeleteWorkout}
-                onDeleteExercise={handleDeleteExercise}
-                onDrag={drag}
-                isDragging={isActive}
-              />
+        style={styles.scrollView}
+        ListHeaderComponent={() => (
+          <View>
+            {/* Description */}
+            {program.description && (
+              <Animated.View
+                entering={FadeIn.delay(100).duration(300)}
+                style={styles.descriptionContainer}
+              >
+                <Text style={[styles.description, { color: colors.textSecondary }]}>{program.description}</Text>
+              </Animated.View>
             )}
-            ItemSeparatorComponent={() => <View style={styles.workoutsSpacer} />}
-            contentContainerStyle={styles.workoutsList}
-          />
-        </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(400).duration(400)}
-          style={styles.section}
-        >
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Progress</Text>
-            <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
-              {completedDayNumbers.length}/{displayWorkouts.length} workouts
-            </Text>
+            {/* Meta Tags */}
+            <Animated.View
+              entering={FadeIn.delay(150).duration(300)}
+              style={styles.metaTagsContainer}
+            >
+              {/* Duration */}
+              {program.durationWeeks ? (
+                <View style={[styles.metaTag, metaTagStyle]}>
+                  <Text style={[styles.metaTagText, { color: colors.textPrimary }]}>
+                    {program.durationWeeks} weeks
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Goal */}
+              {program.goal && (
+                <View style={[styles.metaTag, metaTagStyle]}>
+                  <Text style={[styles.metaTagText, { color: colors.textPrimary }]}>
+                    {GOAL_LABELS[program.goal] || program.goal}
+                  </Text>
+                </View>
+              )}
+            </Animated.View>
+
+            {/* Creator & Last Performed */}
+            <Animated.View
+              entering={FadeIn.delay(200).duration(300)}
+              style={styles.creatorContainer}
+            >
+              <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                Cycle {currentCycle} - Next Day {nextDayNumber}
+              </Text>
+            </Animated.View>
+
+            <Animated.View
+              entering={FadeInDown.delay(250).duration(400)}
+              style={styles.section}
+            >
+              <MuscleHeatmap exercises={heatmapExercises} gender={bodyType} />
+            </Animated.View>
+
+            {/* Start Program Button */}
+            <Animated.View
+              entering={FadeInDown.delay(300).duration(400)}
+              style={styles.startButtonContainer}
+            >
+              <GlassButton
+                style={styles.startButton}
+                onPress={handleStartProgram}
+              >
+                <View style={styles.startButtonContent}>
+                  <PlayIcon color={colors.white} size={IconSizes.lg} strokeWidth={2.5} />
+                  <Text style={[styles.startButtonText, { color: colors.white }]}>Continue Program</Text>
+                </View>
+              </GlassButton>
+            </Animated.View>
+
+            {/* Workouts Section Header */}
+            <Animated.View
+              entering={FadeInDown.delay(350).duration(400)}
+              style={styles.workoutsHeader}
+            >
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
+                <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
+                  {displayWorkouts.reduce((sum, w) => sum + w.exercises.length, 0)} exercises
+                </Text>
+              </View>
+            </Animated.View>
           </View>
-          <WorkoutStackPreview
-            workouts={displayWorkouts}
-            completedIds={completedIds}
-            currentDayNumber={nextDayNumber}
-          />
-          {completedCycles > 0 && (
-            <Text style={[styles.progressHistoryText, { color: colors.textSecondary }]}>
-              {completedCycles} cycle{completedCycles === 1 ? '' : 's'} completed
-            </Text>
-          )}
-        </Animated.View>
+        )}
+        ListFooterComponent={() => (
+          <View>
+            <View style={styles.workoutsFooterSpacer} />
+            <Animated.View
+              entering={FadeInDown.delay(400).duration(400)}
+              style={styles.section}
+            >
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Progress</Text>
+                <Text style={[styles.sectionCount, { color: colors.textSecondary }]}>
+                  {completedDayNumbers.length}/{displayWorkouts.length} workouts
+                </Text>
+              </View>
+              <WorkoutStackPreview
+                workouts={displayWorkouts}
+                completedIds={completedIds}
+                currentDayNumber={nextDayNumber}
+              />
+              {completedCycles > 0 && (
+                <Text style={[styles.progressHistoryText, { color: colors.textSecondary }]}>
+                  {completedCycles} cycle{completedCycles === 1 ? '' : 's'} completed
+                </Text>
+              )}
+            </Animated.View>
 
-        {/* Stats Section */}
-        <Animated.View
-          entering={FadeInDown.delay(450).duration(400)}
-          style={styles.section}
-        >
-          <HubStatsSection
-            stats={program.stats}
-          />
-        </Animated.View>
-      </NestableScrollContainer>
+            {/* Stats Section */}
+            <Animated.View
+              entering={FadeInDown.delay(450).duration(400)}
+              style={styles.section}
+            >
+              <HubStatsSection
+                stats={program.stats}
+              />
+            </Animated.View>
+          </View>
+        )}
+      />
 
       {/* Delete Confirmation Modal */}
       <BaseModal
@@ -910,11 +923,11 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '500',
   },
-  workoutsList: {
-    paddingBottom: 0,
+  workoutsHeader: {
+    marginBottom: Spacing.lg,
   },
-  workoutsListContainer: {
-    flexGrow: 0,
+  workoutsFooterSpacer: {
+    height: Spacing['2xl'],
   },
   workoutsSpacer: {
     height: Spacing.md,

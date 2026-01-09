@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -105,16 +105,16 @@ export function AddExerciseModal({
   const activeSession = useWorkoutStore(s => s.activeSession);
 
   // Use centralized exercise service
-  const { exercises: allExercises } = useExercises();
+  const { exercises: allExercises, loading } = useExercises();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
   const isProcessing = useRef(false);
   const listRef = useRef<FlatList<Exercise>>(null);
   const lastScrollOffset = useRef(0);
-  const didRestoreScroll = useRef(false);
   const isRestoringScroll = useRef(false);
-  const wasModalVisible = useRef(false);
+  const pendingScrollRestore = useRef(false);
+  const restoreAttempts = useRef(0);
   const isModalVisible = visible && !suspended;
 
   // Reset state when modal closes
@@ -229,6 +229,8 @@ export function AddExerciseModal({
 
   const handleExercisePress = (exerciseId: string) => {
     if (onOpenExerciseDetails) {
+      pendingScrollRestore.current = true;
+      restoreAttempts.current = 0;
       onOpenExerciseDetails(exerciseId);
       return;
     }
@@ -238,28 +240,20 @@ export function AddExerciseModal({
   const handleListScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
     if (isRestoringScroll.current) return;
     const nextOffset = event.nativeEvent.contentOffset.y;
-    if (!didRestoreScroll.current && lastScrollOffset.current > 0 && nextOffset === 0) return;
+    if (pendingScrollRestore.current && lastScrollOffset.current > 0 && nextOffset === 0) return;
     lastScrollOffset.current = nextOffset;
   };
 
-  useEffect(() => {
-    if (!isModalVisible) {
-      wasModalVisible.current = false;
-      didRestoreScroll.current = false;
-      isRestoringScroll.current = false;
+  const attemptScrollRestore = useCallback(() => {
+    if (!pendingScrollRestore.current) return;
+    if (!isModalVisible) return;
+    if (loading || lastScrollOffset.current <= 0 || filteredExercises.length === 0) return;
+    if (restoreAttempts.current >= 3) {
+      pendingScrollRestore.current = false;
       return;
     }
 
-    if (!wasModalVisible.current) {
-      wasModalVisible.current = true;
-      didRestoreScroll.current = false;
-    }
-
-    if (didRestoreScroll.current || lastScrollOffset.current <= 0 || filteredExercises.length === 0) {
-      return;
-    }
-
-    didRestoreScroll.current = true;
+    restoreAttempts.current += 1;
     isRestoringScroll.current = true;
     const task = InteractionManager.runAfterInteractions(() => {
       requestAnimationFrame(() => {
@@ -267,12 +261,26 @@ export function AddExerciseModal({
           offset: lastScrollOffset.current,
           animated: false,
         });
-        isRestoringScroll.current = false;
+        requestAnimationFrame(() => {
+          isRestoringScroll.current = false;
+          if (pendingScrollRestore.current) {
+            attemptScrollRestore();
+          } else {
+            pendingScrollRestore.current = false;
+          }
+        });
       });
     });
-
     return () => task.cancel?.();
-  }, [isModalVisible, filteredExercises.length]);
+  }, [filteredExercises.length, isModalVisible, loading]);
+
+  useEffect(() => {
+    if (!isModalVisible) {
+      isRestoringScroll.current = false;
+      return;
+    }
+    attemptScrollRestore();
+  }, [isModalVisible, loading, filteredExercises.length, attemptScrollRestore]);
 
   const renderExercise = ({ item }: { item: Exercise }) => {
     const selected = isSelected(item.id);
@@ -442,6 +450,9 @@ export function AddExerciseModal({
             keyboardShouldPersistTaps="handled"
             scrollEventThrottle={16}
             onScroll={handleListScroll}
+            onScrollEndDrag={handleListScroll}
+            onMomentumScrollEnd={handleListScroll}
+            onContentSizeChange={attemptScrollRestore}
           />
 
           {/* Add Button (only in add mode) */}

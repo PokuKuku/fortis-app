@@ -62,6 +62,9 @@ export function ChatMessage({
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
+  const { mainContent, tldr } = !isUser
+    ? splitTldrFromContent(message.content)
+    : { mainContent: message.content, tldr: null };
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -81,6 +84,12 @@ export function ChatMessage({
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
     },
     clarificationOptionText: { color: colors.textSecondary },
+    tldrContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
+    },
+    tldrLabel: { color: colors.textSecondary },
+    tldrText: { color: colors.textPrimary },
   };
 
   // Markdown styles matching the design system (dynamic for theme)
@@ -236,7 +245,7 @@ export function ChatMessage({
           <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
         ) : isStreaming ? (
           <StreamingText
-            text={message.content}
+            text={mainContent}
             speed={10}
             streaming={true}
             onComplete={onStreamComplete}
@@ -244,11 +253,19 @@ export function ChatMessage({
             showCursor={true}
           />
         ) : (
-          <Markdown style={markdownStyles}>{message.content}</Markdown>
+          <Markdown style={markdownStyles}>{mainContent}</Markdown>
+        )}
+
+        {/* TLDR summary (always visible for AI messages) */}
+        {!isUser && !isStreaming && tldr && (
+          <View style={[styles.tldrContainer, themedStyles.tldrContainer]}>
+            <Text style={[styles.tldrLabel, themedStyles.tldrLabel]}>TLDR</Text>
+            <Text style={[styles.tldrText, themedStyles.tldrText]}>{tldr}</Text>
+          </View>
         )}
 
         {/* Timestamp for AI messages */}
-        {!isUser && !isStreaming && message.content.length > 0 && (
+        {!isUser && !isStreaming && mainContent.length > 0 && (
           <Text style={[styles.timestamp, themedStyles.timestamp]}>
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </Text>
@@ -325,6 +342,40 @@ export function ChatMessage({
       )}
     </ReAnimated.View>
   );
+}
+
+const TLDR_REGEX = /(^|\n)TLDR:\s*([^\n\r]+)\s*$/i;
+
+function splitTldrFromContent(content: string) {
+  const match = content.match(TLDR_REGEX);
+  if (!match || match.index === undefined) {
+    return { mainContent: content, tldr: buildFallbackTldr(content) };
+  }
+
+  return {
+    mainContent: content.slice(0, match.index).trimEnd(),
+    tldr: match[2].trim(),
+  };
+}
+
+function buildFallbackTldr(content: string) {
+  const cleaned = content.replace(/[`#>*_]/g, '').trim();
+  if (!cleaned) {
+    return null;
+  }
+
+  const lines = cleaned.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const firstLine = lines[0] ?? cleaned;
+  const noBullet = firstLine.replace(/^[-*•]\s+/, '').trim();
+  if (!noBullet) {
+    return null;
+  }
+
+  if (noBullet.length <= 200) {
+    return noBullet;
+  }
+
+  return `${noBullet.slice(0, 197).trimEnd()}...`;
 }
 
 const styles = StyleSheet.create({
@@ -426,6 +477,23 @@ const styles = StyleSheet.create({
   clarificationOptionText: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
+  },
+  tldrContainer: {
+    marginTop: Spacing.md,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    gap: Spacing.xs,
+  },
+  tldrLabel: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.semibold,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  tldrText: {
+    ...Typography.bodySmall,
+    lineHeight: 20,
   },
 });
 

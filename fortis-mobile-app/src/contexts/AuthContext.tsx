@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
+import { Buffer } from 'buffer';
+import * as FileSystem from 'expo-file-system';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { processPendingQueue, getPendingSyncCount, getPendingSyncSessions, fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
@@ -53,7 +55,10 @@ export interface AuthContextValue {
 
   // Profile methods
   updateProfile: (updates: Partial<Profile>) => Promise<{ error: Error | null }>;
-  uploadAvatar: (uri: string) => Promise<{ error: Error | null }>;
+  uploadAvatar: (
+    uri: string,
+    options?: { base64?: string | null; mimeType?: string | null }
+  ) => Promise<{ error: Error | null }>;
   completeOnboarding: () => Promise<{ error: Error | null }>;
   refreshProfile: () => Promise<void>;
 }
@@ -574,27 +579,70 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user?.id, refreshProfile]);
 
   // Upload avatar
-  const uploadAvatar = useCallback(async (uri: string) => {
+  const uploadAvatar = useCallback(async (
+    uri: string,
+    options?: { base64?: string | null; mimeType?: string | null }
+  ) => {
     if (!user?.id) {
       return { error: new Error('Not authenticated') };
     }
 
     try {
-      // Fetch the image as a blob
-      const response = await fetch(uri);
-      const blob = await response.blob();
+      const resolveFileExtension = () => {
+        const mimeType = options?.mimeType?.toLowerCase() || null;
+        if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') return 'jpg';
+        if (mimeType === 'image/png') return 'png';
+        if (mimeType === 'image/webp') return 'webp';
+        if (mimeType === 'image/heic') return 'heic';
+        if (mimeType === 'image/heif') return 'heif';
+
+        const uriMatch = uri.match(/\.([a-zA-Z0-9]+)(?:\?|#|$)/);
+        if (uriMatch?.[1]) {
+          return uriMatch[1].toLowerCase();
+        }
+
+        return 'jpg';
+      };
+
+      const resolveContentType = (fileExt: string) => {
+        if (options?.mimeType) return options.mimeType;
+        const lowerExt = fileExt.toLowerCase();
+        if (lowerExt === 'png') return 'image/png';
+        if (lowerExt === 'webp') return 'image/webp';
+        if (lowerExt === 'heic') return 'image/heic';
+        if (lowerExt === 'heif') return 'image/heif';
+        return 'image/jpeg';
+      };
+
+      const fileExt = resolveFileExtension();
+      const contentType = resolveContentType(fileExt);
+      let uploadBody: Blob | Uint8Array;
+
+      if (options?.base64) {
+        uploadBody = Buffer.from(options.base64, 'base64');
+      } else {
+        try {
+          const response = await fetch(uri);
+          const blob = await response.blob();
+          uploadBody = blob;
+        } catch {
+          const fileBase64 = await FileSystem.readAsStringAsync(uri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+          uploadBody = Buffer.from(fileBase64, 'base64');
+        }
+      }
 
       // Generate a unique filename
-      const fileExt = uri.split('.').pop()?.toLowerCase() || 'jpg';
       const fileName = `${user.id}/avatar.${fileExt}`;
 
       // Upload to Supabase storage
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(fileName, blob, {
+        .upload(fileName, uploadBody, {
           cacheControl: '3600',
           upsert: true,
-          contentType: blob.type || 'image/jpeg',
+          contentType,
         });
 
       if (uploadError) {
