@@ -19,6 +19,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
+import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -128,6 +131,8 @@ export default function ProfileShareScreen() {
     'rolling',
     10
   );
+  const { exercises, loading: musclesLoading, hasWorkouts } = useWeeklyMuscles();
+  const bodyType = useWorkoutStore((state) => state.bodyType);
 
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({
     totalVolume: 0,
@@ -502,6 +507,24 @@ export default function ProfileShareScreen() {
                           ))}
                         </View>
                       )}
+                      {musclesLoading ? (
+                        <View style={styles.loadingContainer}>
+                          <ActivityIndicator color={colors.accent} size="small" />
+                        </View>
+                      ) : hasWorkouts ? (
+                        <View style={styles.signatureHeatmap}>
+                          <MuscleHeatmap
+                            exercises={exercises}
+                            gender={bodyType}
+                            scale={0.38}
+                            compact
+                          />
+                        </View>
+                      ) : (
+                        <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
+                          Log a workout to reveal your muscle map.
+                        </Text>
+                      )}
                     </View>
                   )}
 
@@ -701,6 +724,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: scale(Spacing.md),
+  },
+  signatureHeatmap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: scale(Spacing.xs),
+  },
+  emptyHint: {
+    fontSize: moderateScale(11),
   },
   signatureTile: {
     flex: 1,
