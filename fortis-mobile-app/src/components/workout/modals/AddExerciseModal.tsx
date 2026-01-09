@@ -237,7 +237,9 @@ export function AddExerciseModal({
 
   const handleListScroll = (event: { nativeEvent: { contentOffset: { y: number } } }) => {
     if (isRestoringScroll.current) return;
-    lastScrollOffset.current = event.nativeEvent.contentOffset.y;
+    const nextOffset = event.nativeEvent.contentOffset.y;
+    if (!didRestoreScroll.current && lastScrollOffset.current > 0 && nextOffset === 0) return;
+    lastScrollOffset.current = nextOffset;
   };
 
   useEffect(() => {

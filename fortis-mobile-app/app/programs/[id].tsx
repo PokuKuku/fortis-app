@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Pressable, TouchableOpacity } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { PlayIcon, TrashIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
+import { PlayIcon, TrashIcon, ExclamationTriangleIcon, Bars3Icon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { NestableDraggableFlatList, NestableScrollContainer } from 'react-native-draggable-flatlist';
@@ -95,6 +95,10 @@ function WorkoutSection({
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
     borderColor: isDragging ? colors.accentBorder : isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
   };
+  const dragHandleStyle = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
 
   return (
     <View style={[styles.workoutSection, cardStyle]}>
@@ -102,8 +106,6 @@ function WorkoutSection({
       <View style={styles.workoutSectionHeader}>
         <TouchableOpacity
           onPress={handleToggle}
-          onLongPress={onDrag}
-          delayLongPress={150}
           activeOpacity={0.7}
           style={styles.workoutSectionTouchable}
         >
@@ -119,10 +121,24 @@ function WorkoutSection({
             </View>
           </View>
         </TouchableOpacity>
-        <DeleteKebabMenu
-          deleteLabel="Delete Workout"
-          onDelete={() => onDeleteWorkout(workout.id, workout.name)}
-        />
+        <View style={styles.workoutSectionActions}>
+          <Pressable
+            onPressIn={() => onDrag?.()}
+            disabled={!onDrag}
+            style={({ pressed }) => [
+              styles.dragHandleButton,
+              dragHandleStyle,
+              pressed && styles.dragHandleButtonPressed,
+            ]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Bars3Icon size={18} color={colors.textSecondary} strokeWidth={2.5} />
+          </Pressable>
+          <DeleteKebabMenu
+            deleteLabel="Delete Workout"
+            onDelete={() => onDeleteWorkout(workout.id, workout.name)}
+          />
+        </View>
       </View>
 
       {/* Exercises List (collapsible) */}
@@ -913,6 +929,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingLeft: Spacing.lg,
+    paddingRight: Spacing.lg,
     paddingVertical: Spacing.md,
   },
   workoutSectionTouchable: {
@@ -927,6 +944,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
     flex: 1,
+  },
+  workoutSectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   dayBadge: {
     backgroundColor: 'rgba(34, 197, 94, 0.15)',
@@ -955,6 +977,17 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingTop: 0,
     gap: Spacing.sm,
+  },
+  dragHandleButton: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dragHandleButtonPressed: {
+    transform: [{ scale: 0.96 }],
   },
   modalActions: {
     flexDirection: 'column',
