@@ -1,8 +1,8 @@
 {
-  "generatedAt": "2026-01-09T20:39:51.145Z",
+  "generatedAt": "2026-01-09T21:36:53.739Z",
   "stats": {
     "canonicals": 57,
-    "inserts": 2,
+    "inserts": 0,
     "updates": 1539
   },
   "exercises": [
@@ -29,8 +29,8 @@
       "name": "Ab Wheel",
       "canonical_key": "ab_wheel",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "ab wheel rollout",
         "ab rollout",
@@ -469,8 +469,8 @@
       "name": "Back Squat",
       "canonical_key": "back_squat",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "barbell squat",
         "squat",
@@ -1888,8 +1888,8 @@
       "name": "Barbell Row",
       "canonical_key": "barbell_row",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "bent over row",
         "barbell row"
@@ -2683,8 +2683,8 @@
       "name": "Bulgarian Split Squat",
       "canonical_key": "bulgarian_split_squat",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "rear foot elevated split squat",
         "rfess",
@@ -2915,8 +2915,8 @@
       "name": "Cable Fly",
       "canonical_key": "cable_fly",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "cable chest fly",
         "cable crossover",
@@ -4295,8 +4295,8 @@
       "name": "Calf Raise",
       "canonical_key": "calf_raise",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "standing calf raise",
         "seated calf raise",
@@ -4407,8 +4407,8 @@
       "name": "Chest Press (Machine)",
       "canonical_key": "machine_chest_press",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "machine chest press",
         "seated chest press",
@@ -4447,8 +4447,8 @@
       "name": "Chest-Supported Row",
       "canonical_key": "chest_supported_row",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "chest supported row",
         "machine chest supported row",
@@ -4462,7 +4462,7 @@
       "id": "2c0b5821-950f-46e0-9b1f-532cc51bf9ce",
       "name": "chin-up",
       "canonical_key": "chin_up",
-      "canonical_id": "29348242-6983-5207-ac56-53d0f1901274",
+      "canonical_id": "05d5b3fb-4210-4017-9546-9cd444fca834",
       "is_curated": false,
       "is_hidden": false,
       "aliases": [
@@ -4711,8 +4711,8 @@
       "name": "Deadlift",
       "canonical_key": "deadlift",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "conventional deadlift",
         "deadlift"
@@ -4777,8 +4777,8 @@
       "name": "Dips",
       "canonical_key": "dips",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "parallel bar dip",
         "bodyweight dip",
@@ -5118,8 +5118,8 @@
       "name": "Dumbbell Curl",
       "canonical_key": "dumbbell_curl",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "db curl",
         "dumbbell curl"
@@ -8026,8 +8026,8 @@
       "name": "Face Pull",
       "canonical_key": "face_pull",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "facepull",
         "face pull"
@@ -8258,8 +8258,8 @@
       "name": "Front Squat",
       "canonical_key": "front_squat",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "front barbell squat",
         "front squat"
@@ -8399,8 +8399,8 @@
       "name": "Hack Squat",
       "canonical_key": "hack_squat",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "machine hack squat",
         "hack squat"
@@ -8438,8 +8438,8 @@
       "name": "Hammer Curl",
       "canonical_key": "hammer_curl",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "neutral grip curl",
         "hammer curl"
@@ -8624,8 +8624,8 @@
       "name": "Hip Abduction",
       "canonical_key": "hip_abduction",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "hip abduction machine",
         "glute med machine",
@@ -8637,8 +8637,8 @@
       "name": "Hip Adduction",
       "canonical_key": "hip_adduction",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "hip adduction machine",
         "adductor machine",
@@ -8659,8 +8659,8 @@
       "name": "Hip Thrust",
       "canonical_key": "hip_thrust",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "barbell hip thrust",
         "glute bridge",
@@ -8767,8 +8767,8 @@
       "name": "Incline Bench Press",
       "canonical_key": "incline_bench_press",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "incline bench",
         "incline press",
@@ -9640,8 +9640,8 @@
       "name": "Lat Pulldown",
       "canonical_key": "lat_pulldown",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "lat pull down",
         "pulldown",
@@ -9653,8 +9653,8 @@
       "name": "Lateral Raise",
       "canonical_key": "lateral_raise",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "lateral raise",
         "side raise",
@@ -9684,8 +9684,8 @@
       "name": "Leg Curl",
       "canonical_key": "leg_curl",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "hamstring curl",
         "machine leg curl",
@@ -9697,8 +9697,8 @@
       "name": "Leg Extension",
       "canonical_key": "leg_extension",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "machine leg extension",
         "leg extension"
@@ -9709,8 +9709,8 @@
       "name": "Leg Press",
       "canonical_key": "leg_press",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "machine leg press",
         "leg press"
@@ -10864,8 +10864,8 @@
       "name": "One-Arm Dumbbell Row",
       "canonical_key": "dumbbell_row",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "single arm dumbbell row",
         "db row",
@@ -10904,8 +10904,8 @@
       "name": "Overhead Press",
       "canonical_key": "overhead_press",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "ohp",
         "military press",
@@ -10927,8 +10927,8 @@
       "name": "Pec Deck",
       "canonical_key": "pec_deck",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "machine fly",
         "pec deck fly",
@@ -10977,8 +10977,8 @@
       "name": "Plank",
       "canonical_key": "plank",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "front plank",
         "plank"
@@ -11104,19 +11104,24 @@
     {
       "id": "05d5b3fb-4210-4017-9546-9cd444fca834",
       "name": "pull-up",
-      "canonical_key": null,
-      "canonical_id": "29348242-6983-5207-ac56-53d0f1901274",
-      "is_curated": false,
-      "is_hidden": false,
-      "aliases": []
-    },
-    {
-      "id": "29348242-6983-5207-ac56-53d0f1901274",
-      "name": "Pull-Up",
       "canonical_key": "pull_up",
       "canonical_id": null,
       "is_curated": true,
       "is_hidden": false,
+      "aliases": [
+        "pull up",
+        "pullup",
+        "chin up",
+        "chinup"
+      ]
+    },
+    {
+      "id": "29348242-6983-5207-ac56-53d0f1901274",
+      "name": "Pull-Up",
+      "canonical_key": null,
+      "canonical_id": "05d5b3fb-4210-4017-9546-9cd444fca834",
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "pull up",
         "pullup",
@@ -11375,8 +11380,8 @@
       "name": "Rear Delt Fly",
       "canonical_key": "rear_delt_fly",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "rear delt raise",
         "reverse fly",
@@ -11658,8 +11663,8 @@
       "name": "Romanian Deadlift",
       "canonical_key": "romanian_deadlift",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "rdl",
         "romanian deadlift"
@@ -11742,8 +11747,8 @@
       "name": "Rowing Erg",
       "canonical_key": "rowing_erg",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "rowing machine",
         "erg",
@@ -11827,8 +11832,8 @@
       "name": "Seated Cable Row",
       "canonical_key": "seated_cable_row",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "cable row",
         "seated cable row"
@@ -12190,8 +12195,8 @@
       "name": "Sit-Up",
       "canonical_key": "sit_up",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "sit up",
         "situp"
@@ -12265,8 +12270,8 @@
       "name": "Skullcrusher",
       "canonical_key": "skullcrusher",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "lying triceps extension",
         "skullcrusher"
@@ -13096,8 +13101,8 @@
       "name": "Stationary Bike",
       "canonical_key": "stationary_bike",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "bike",
         "cycling",
@@ -13154,8 +13159,8 @@
       "name": "Straight-Arm Pulldown",
       "canonical_key": "straight_arm_pulldown",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "straight arm pulldown",
         "straight arm lat pulldown",
@@ -13178,7 +13183,7 @@
       "canonical_key": "sumo_deadlift",
       "canonical_id": "018d2e62-8440-413d-a728-c591d27f05bb",
       "is_curated": false,
-      "is_hidden": false,
+      "is_hidden": true,
       "aliases": [
         "sumo deadlift"
       ]
@@ -13278,8 +13283,8 @@
       "name": "T-Bar Row",
       "canonical_key": "t_bar_row",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "landmine row",
         "tbar row",
@@ -13367,8 +13372,8 @@
       "name": "Treadmill Run",
       "canonical_key": "treadmill_run",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "treadmill running",
         "treadmill run"
@@ -13433,8 +13438,8 @@
       "name": "Triceps Pushdown",
       "canonical_key": "triceps_pushdown",
       "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
+      "is_curated": false,
+      "is_hidden": true,
       "aliases": [
         "triceps pressdown",
         "pressdown",
@@ -14085,65 +14090,5 @@
       "aliases": []
     }
   ],
-  "inserts": [
-    {
-      "id": "29348242-6983-5207-ac56-53d0f1901274",
-      "name": "Pull-Up",
-      "slug": "pull-up-1",
-      "canonical_key": "pull_up",
-      "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
-      "aliases": [
-        "pull up",
-        "pullup",
-        "chin up",
-        "chinup"
-      ],
-      "metadata": {
-        "level": "intermediate",
-        "equipment": null,
-        "category": "strength",
-        "primary_muscles": [
-          "middle back"
-        ],
-        "secondary_muscles": [],
-        "instructions": [
-          "Standard movement."
-        ],
-        "images": [],
-        "source": "manifest",
-        "normalized_name": "pull up"
-      }
-    },
-    {
-      "id": "e152b189-999c-575d-ac14-2bb25e7ec7d4",
-      "name": "Lateral Raise",
-      "slug": "lateral-raise-1",
-      "canonical_key": "lateral_raise",
-      "canonical_id": null,
-      "is_curated": true,
-      "is_hidden": false,
-      "aliases": [
-        "lateral raise",
-        "side raise",
-        "cable lateral raise"
-      ],
-      "metadata": {
-        "level": "intermediate",
-        "equipment": null,
-        "category": "strength",
-        "primary_muscles": [
-          "shoulders"
-        ],
-        "secondary_muscles": [],
-        "instructions": [
-          "Standard movement."
-        ],
-        "images": [],
-        "source": "manifest",
-        "normalized_name": "lateral raise"
-      }
-    }
-  ]
+  "inserts": []
 }

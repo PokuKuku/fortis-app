@@ -124,6 +124,15 @@ const inferPrimaryMuscle = (canonicalKey, name) => {
 const defaultInstructions = (category) =>
   category === 'cardio' ? ['Cardio movement.'] : ['Standard movement.'];
 
+const isPlaceholderExercise = (exercise) => {
+  const instructions = exercise.instructions || [];
+  const category = exercise.category || 'strength';
+  const defaultSet = defaultInstructions(category);
+  const hasDefaultInstruction = instructions.length === 1 && instructions[0] === defaultSet[0];
+  const hasNoImages = (exercise.images || []).length === 0;
+  return exercise.source === 'manifest' && hasDefaultInstruction && hasNoImages;
+};
+
 async function fetchAllExercises() {
   let from = 0;
   const all = [];
@@ -149,10 +158,12 @@ async function fetchAllExercises() {
 }
 
 async function backfillNormalizedNames(exercises) {
-  const updates = exercises.map((exercise) => ({
-    id: exercise.id,
-    normalized_name: normalizeText(exercise.name || ''),
-  }));
+  const updates = exercises
+    .filter((exercise) => !exercise.is_custom)
+    .map((exercise) => ({
+      id: exercise.id,
+      normalized_name: normalizeText(exercise.name || ''),
+    }));
 
   const batchSize = 50;
   for (let i = 0; i < updates.length; i += batchSize) {
@@ -216,25 +227,36 @@ function buildManifest(exercises, basics, variants, curatedList) {
     curatedList.map((entry) => normalizeText(entry.name || entry.slug || ''))
   );
 
+  const scoreMatch = (exercise) => {
+    let score = 0;
+    if (exercise.source && exercise.source !== 'manifest') score += 6;
+    if ((exercise.images || []).length > 0) score += 4;
+    if ((exercise.instructions || []).length > 1) score += 3;
+    if ((exercise.primary_muscles || []).length > 0) score += 2;
+    if ((exercise.primary_muscles || []).includes('unknown')) score -= 2;
+    return score;
+  };
+
   const findMatch = (terms) => {
     const normalizedTerms = terms.map((term) => normalizeText(term));
     const matches = publicExercises.filter((exercise) =>
       normalizedTerms.includes(normalizeText(exercise.name || ''))
-    );
+    ).filter((exercise) => !variantNameSet.has(normalizeText(exercise.name || '')));
     if (matches.length === 0) return null;
-    matches.sort((a, b) => (a.name || '').localeCompare(b.name || '') || a.id.localeCompare(b.id));
-    const candidate = matches[0];
-    if (variantNameSet.has(normalizeText(candidate.name || ''))) {
-      return null;
-    }
-    return candidate;
+    matches.sort((a, b) => {
+      const scoreDiff = scoreMatch(b) - scoreMatch(a);
+      if (scoreDiff !== 0) return scoreDiff;
+      return (a.name || '').localeCompare(b.name || '') || a.id.localeCompare(b.id);
+    });
+    return { best: matches[0], matches };
   };
 
   const insertQueue = [];
 
   basics.forEach((item) => {
-    const match = findMatch([item.name, ...(item.aliases || [])]);
-    if (match) {
+    const matchResult = findMatch([item.name, ...(item.aliases || [])]);
+    if (matchResult) {
+      const match = matchResult.best;
       const target = byId.get(match.id);
       const mergedAliases = mergeAliases(target.aliases, [item.name, ...(item.aliases || [])]);
       applyUpdate(target, {
@@ -246,6 +268,16 @@ function buildManifest(exercises, basics, variants, curatedList) {
       });
       canonicalIds.add(match.id);
       canonicalIdByKey.set(item.canonical_key, match.id);
+      matchResult.matches.forEach((candidate) => {
+        if (candidate.id === match.id) return;
+        const candidateTarget = byId.get(candidate.id);
+        if (!candidateTarget) return;
+        applyUpdate(candidateTarget, {
+          canonical_key: null,
+          canonical_id: match.id,
+          is_curated: false,
+        });
+      });
     } else {
       const generatedId = stableUuid(`canonical:${item.canonical_key}`);
       const slugBase = slugify(item.name);
@@ -259,6 +291,13 @@ function buildManifest(exercises, basics, variants, curatedList) {
       const category = inferCategory(item.name);
       const equipment = inferEquipment(item.name);
       const primaryMuscles = inferPrimaryMuscle(item.canonical_key, item.name);
+      const placeholder = {
+        source: 'manifest',
+        instructions: defaultInstructions(category),
+        images: [],
+        category,
+      };
+      const shouldHidePlaceholder = isPlaceholderExercise(placeholder);
       const insert = {
         id: generatedId,
         name: item.name,
@@ -268,14 +307,14 @@ function buildManifest(exercises, basics, variants, curatedList) {
         category,
         primary_muscles: primaryMuscles,
         secondary_muscles: [],
-        instructions: defaultInstructions(category),
-        images: [],
+        instructions: placeholder.instructions,
+        images: placeholder.images,
         is_custom: false,
         canonical_key: item.canonical_key,
         canonical_id: null,
         aliases: mergeAliases([], [item.name, ...(item.aliases || [])]),
-        is_curated: true,
-        is_hidden: false,
+        is_curated: !shouldHidePlaceholder,
+        is_hidden: shouldHidePlaceholder,
         source: 'manifest',
         normalized_name: normalizeText(item.name),
       };
@@ -453,6 +492,10 @@ function applyHiddenFlags({ byId, publicExercises, canonicalIds }) {
   publicExercises.forEach((exercise) => {
     const target = byId.get(exercise.id);
     if (!target) return;
+    if (isPlaceholderExercise(target)) {
+      applyUpdate(target, { is_hidden: true, is_curated: false });
+      return;
+    }
     if (canonicalIds.has(exercise.id) || target.is_curated) return;
     if (target.category === 'stretching' || target.equipment === 'foam roll') {
       applyUpdate(target, { is_hidden: true });

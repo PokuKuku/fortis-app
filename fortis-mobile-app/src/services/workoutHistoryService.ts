@@ -153,7 +153,7 @@ async function syncCustomExercisesToSupabase(
     for (const exercise of exercisesToSync) {
       // Generate slug from name if not provided
       const slug = exercise.slug || exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-      const normalizedName = exercise.name
+      const normalizedName = exercise.normalizedName || exercise.name
         .toLowerCase()
         .replace(/[_/]+/g, ' ')
         .replace(/[-–—]+/g, ' ')
@@ -177,6 +177,7 @@ async function syncCustomExercisesToSupabase(
           normalized_name: normalizedName,
           is_custom: true,
           created_by: userId,
+          based_on_exercise_id: exercise.basedOnExerciseId ?? null,
         }, {
           onConflict: 'id',
         });

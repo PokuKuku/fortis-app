@@ -322,6 +322,24 @@ export async function searchExercises(query: string): Promise<ExerciseWithSource
   return searchExercisesInIndex(query, index);
 }
 
+export async function getExerciseVariants(canonicalId: string): Promise<Exercise[]> {
+  if (!canonicalId || !isSupabaseConfigured()) return [];
+
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
+    .eq('is_custom', false)
+    .eq('is_hidden', false)
+    .eq('canonical_id', canonicalId)
+    .order('name', { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map(transformSupabaseExerciseToExercise);
+}
+
 export async function filterExercises(filters: {
   muscles?: string[];
   categories?: string[];
@@ -364,8 +382,18 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
     ]);
     if (cached && cached.length > 0) {
       if (!remoteVersion || !cachedVersion || cachedVersion === remoteVersion) {
-        baseExerciseCache = cached;
-        return cached;
+        const hasCurationFields = cached.some((exercise) =>
+          typeof exercise.isCurated === 'boolean' || exercise.canonicalId !== undefined
+        );
+        if (hasCurationFields) {
+          const curatedOnly = cached.filter((exercise) =>
+            exercise.isCurated && !exercise.canonicalId && !exercise.isHidden
+          );
+          if (curatedOnly.length > 0) {
+            baseExerciseCache = curatedOnly;
+            return curatedOnly;
+          }
+        }
       }
     }
   }
@@ -376,14 +404,19 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
       throw new Error('Supabase is not configured for exercise loading');
     }
 
+    const baseQuery = supabase
+      .from('exercises')
+      .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
+      .eq('is_custom', false)
+      .eq('is_hidden', false);
+
+    const filteredQuery = includeVariants
+      ? baseQuery
+      : baseQuery.eq('is_curated', true).is('canonical_id', null);
+
     const [version, { data, error }] = await Promise.all([
       fetchLibraryVersion(),
-      supabase
-        .from('exercises')
-        .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
-        .eq('is_custom', false)
-        .eq('is_hidden', false)
-        .maybeSingle()
+      filteredQuery.order('name', { ascending: true }),
     ]);
 
     if (error) {
@@ -392,9 +425,13 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
 
     const transformed = (data || []).map(transformSupabaseExerciseToExercise);
 
-    baseExerciseCache = transformed;
-    await saveCachedExercises(transformed);
-    await saveCachedLibraryVersion(version);
+    if (includeVariants) {
+      baseExerciseFullCache = transformed;
+    } else {
+      baseExerciseCache = transformed;
+      await saveCachedExercises(transformed);
+      await saveCachedLibraryVersion(version);
+    }
 
     return transformed;
   } catch (error) {
@@ -424,6 +461,7 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
  */
 export async function refreshExerciseCache(): Promise<void> {
   baseExerciseCache = null;
+  baseExerciseFullCache = null;
   allExercisesCache = null;
   exerciseLookupCache = null;
   await AsyncStorage.removeItem(EXERCISE_CACHE_KEY);
@@ -439,7 +477,11 @@ export async function getCustomExercises(): Promise<Exercise[]> {
 
   try {
     const raw = await getScopedItem(CUSTOM_EXERCISES_KEY);
-    customExerciseCache = raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    customExerciseCache = parsed.map((exercise: Exercise) => ({
+      ...exercise,
+      isCustom: true,
+    }));
     return customExerciseCache!;
   } catch (error) {
     console.warn('Failed to load custom exercises:', error);
@@ -448,13 +490,19 @@ export async function getCustomExercises(): Promise<Exercise[]> {
 }
 
 export async function saveCustomExercise(exercise: Exercise): Promise<void> {
+  const normalizedName = normalizeExerciseKey(exercise.name);
+  const exerciseWithMeta: Exercise = {
+    ...exercise,
+    normalizedName,
+    isCustom: true,
+  };
   const customs = await getCustomExercises();
   const existingIndex = customs.findIndex(e => e.id === exercise.id);
 
   if (existingIndex >= 0) {
-    customs[existingIndex] = exercise;
+    customs[existingIndex] = exerciseWithMeta;
   } else {
-    customs.unshift(exercise);
+    customs.unshift(exerciseWithMeta);
   }
 
   await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customs));
@@ -476,6 +524,7 @@ export async function deleteCustomExercise(id: string): Promise<void> {
 
 export function invalidateCache(): void {
   baseExerciseCache = null;
+  baseExerciseFullCache = null;
   customExerciseCache = null;
   allExercisesCache = null;
   exerciseLookupCache = null;

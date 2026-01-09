@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeftIcon, TrophyIcon, FireIcon, ScaleIcon, ChartBarIcon } from 'react-native-heroicons/outline';
+import { ChevronLeftIcon, TrophyIcon, FireIcon, ScaleIcon, ChartBarIcon, ChevronRightIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { ExerciseCharts } from '@/src/components/exercise/ExerciseCharts';
 import { Colors } from '@/constants/Colors';
@@ -20,7 +20,8 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
 import { useExerciseHistory } from '@/src/hooks/useExerciseHistory';
 import { useExerciseRecords } from '@/src/hooks/useExerciseRecords';
-import { getExerciseImageUrl } from '@/src/services/exerciseService';
+import { getExerciseImageUrl, getExerciseVariants } from '@/src/services/exerciseService';
+import type { Exercise } from '@/src/types/exercise';
 import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 
@@ -79,6 +80,12 @@ export default function ExerciseDetailsScreen() {
     secondaryMuscleTagText: { color: colors.textPrimary },
     instructionsSectionTitle: { color: colors.textSecondary },
     instructionText: { color: colors.textPrimary },
+    variantRow: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    variantText: { color: colors.textPrimary },
+    variantSubtext: { color: colors.textSecondary },
     historyCard: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
@@ -110,6 +117,37 @@ export default function ExerciseDetailsScreen() {
   const { exercise, loading } = useExercise(id);
   const { history } = useExerciseHistory(id);
   const records = useExerciseRecords(id);
+  const [variants, setVariants] = useState<Exercise[]>([]);
+  const shouldLoadVariants = useMemo(
+    () => !!exercise && !exercise.isCustom && !exercise.canonicalId,
+    [exercise]
+  );
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!shouldLoadVariants || !exercise) {
+      setVariants([]);
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    getExerciseVariants(exercise.id)
+      .then((rows) => {
+        if (isMounted) {
+          setVariants(rows);
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setVariants([]);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [exercise, shouldLoadVariants]);
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -255,6 +293,33 @@ export default function ExerciseDetailsScreen() {
                 ))
               )}
             </View>
+
+            {variants.length > 0 && (
+              <View style={styles.variantsSection}>
+                <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>VARIANTS</Text>
+                <View style={styles.variantsList}>
+                  {variants.map((variant) => (
+                    <TouchableOpacity
+                      key={variant.id}
+                      style={[styles.variantRow, themedStyles.variantRow]}
+                      onPress={() => router.push(`/exercise/${variant.id}`)}
+                    >
+                      <View style={styles.variantInfo}>
+                        <Text style={[styles.variantText, themedStyles.variantText]} numberOfLines={1}>
+                          {variant.name}
+                        </Text>
+                        {variant.equipment ? (
+                          <Text style={[styles.variantSubtext, themedStyles.variantSubtext]}>
+                            {variant.equipment}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <ChevronRightIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
           </>
         )}
 
@@ -638,6 +703,37 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     lineHeight: 22,
     color: Colors.textPrimary,
+  },
+  variantsSection: {
+    marginBottom: Spacing['2xl'],
+    paddingHorizontal: Spacing['2xl'],
+  },
+  variantsList: {
+    gap: Spacing.sm,
+  },
+  variantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+  },
+  variantInfo: {
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  variantText: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  variantSubtext: {
+    fontSize: FontSizes.xs,
+    fontWeight: '500',
+    textTransform: 'capitalize',
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
 
   // History tab styles

@@ -40,6 +40,8 @@ Last updated: 2026-01-09
 - [x] Map variants to canonical_id
 - [x] Populate aliases for search
 - [x] Flag junk/obscure items as is_hidden
+- [x] Prefer rich DB-backed matches over placeholder inserts when multiple matches exist
+- [x] Auto-hide manifest placeholders (no images + default instructions)
 - [x] Apply hide vs variant rules (modifiers -> variant, obscure rehab/mobility -> hidden by default)
 - [x] Validate curated canonicals have valid muscle taxonomy entries
 - [x] Generate SQL/seed script to apply manifest updates
@@ -50,28 +52,33 @@ Evidence:
 Acceptance criteria:
 - Curated canonical set present and searchable
 
-## Phase 3: Client Search + Browse Behavior (Status: Not started)
-Last updated: TBD
-- [ ] Default fetch: is_curated = true AND is_hidden = false AND canonical_id IS NULL
-- [ ] Variants list on canonical detail (canonical_id = this.id)
-- [ ] Search index includes aliases + synonym map (manual)
+## Phase 3: Client Search + Browse Behavior (Status: Done)
+Last updated: 2026-01-09
+- [x] Default fetch: is_curated = true AND is_hidden = false AND canonical_id IS NULL
+- [x] Variants list on canonical detail (canonical_id = this.id)
+- [x] Search index includes aliases (manual synonym map deferred)
 - [ ] Optional "More results" to include non-curated public exercises (deferred unless needed)
 Evidence:
-- None
+- fortis-mobile-app/src/services/exerciseService.ts
+- fortis-mobile-app/src/utils/exerciseSearch.ts
+- fortis-mobile-app/app/exercise/[id].tsx
+- fortis-mobile-app/scripts/apply-exercise-library-manifest.js
 Acceptance criteria:
 - Searching "pull up" returns Pull-Up first
 - No clutter in default browse/search
 
-## Phase 4: Custom Exercises (Insights-safe) (Status: Not started)
-Last updated: TBD
-- [ ] Custom creation requires primary muscle group
-- [ ] Optional secondary muscles + equipment
-- [ ] Optional "Based on" canonical exercise (prefer based_on_exercise_id; fallback to canonical_id if needed)
-- [ ] Store custom muscles in normalized format for analytics/insights
-- [ ] Custom exercises always appear in search alongside curated canonicals
-- [ ] If based_on_exercise_id is set, inherit default muscles/metadata unless user overrides
+## Phase 4: Custom Exercises (Insights-safe) (Status: Done)
+Last updated: 2026-01-09
+- [x] Custom creation requires primary muscle group
+- [x] Optional secondary muscles + equipment
+- [x] Optional "Based on" canonical exercise (prefer based_on_exercise_id; fallback to canonical_id if needed)
+- [x] Store custom muscles in normalized format for analytics/insights
+- [x] Custom exercises always appear in search alongside curated canonicals
+- [x] If based_on_exercise_id is set, inherit default muscles/metadata unless user overrides
 Evidence:
-- None
+- fortis-mobile-app/app/(tabs)/_layout.tsx
+- fortis-mobile-app/src/services/exerciseService.ts
+- fortis-mobile-app/src/services/workoutHistoryService.ts
 Acceptance criteria:
 - Custom exercise appears in search immediately
 - Insights still group by muscle reliably

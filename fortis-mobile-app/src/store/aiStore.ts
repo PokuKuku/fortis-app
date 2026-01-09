@@ -52,7 +52,7 @@ const resolveDraftExerciseIds = async (
 ): Promise<EditableProgramDraft> => {
   let exercises: Awaited<ReturnType<typeof ExerciseService.getAllExercises>>;
   try {
-    exercises = await ExerciseService.getAllExercises();
+    exercises = await ExerciseService.getAllExercises({ includeVariants: true });
   } catch (error) {
     console.warn('Failed to resolve exercise IDs for draft:', error);
     return draft;

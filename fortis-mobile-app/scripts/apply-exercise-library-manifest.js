@@ -91,6 +91,7 @@ async function applyManifest(manifest) {
             aliases: entry.aliases,
           })
           .eq('id', entry.id)
+          .eq('is_custom', false)
       )
     );
     results.forEach((result) => {
@@ -101,9 +102,32 @@ async function applyManifest(manifest) {
   }
 }
 
+async function bumpLibraryVersion() {
+  const { data, error } = await supabase
+    .from('exercise_library_meta')
+    .select('version')
+    .eq('id', 1)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  const nextVersion = Number(data?.version ?? 0) + 1;
+  const { error: updateError } = await supabase
+    .from('exercise_library_meta')
+    .update({ version: nextVersion, updated_at: new Date().toISOString() })
+    .eq('id', 1);
+
+  if (updateError) {
+    throw updateError;
+  }
+}
+
 async function main() {
   const manifest = loadManifest();
   await applyManifest(manifest);
+  await bumpLibraryVersion();
   console.log('Manifest applied successfully.');
 }
 

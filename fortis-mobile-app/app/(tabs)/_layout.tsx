@@ -12,11 +12,9 @@ import {
   DeviceEventEmitter,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon } from 'react-native-heroicons/outline';
 import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
 import { GlassButton } from '../../components/GlassButton';
-import { CUSTOM_EXERCISES_KEY } from '../../src/constants/storageKeys';
 import { useAIStore } from '../../src/store/aiStore';
 import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
@@ -32,6 +30,9 @@ import {
   CATEGORIES,
   EQUIPMENT_TYPES,
 } from '@/src/constants/exerciseOptions';
+import { useExercises } from '@/src/hooks/useExercises';
+import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
+import { saveCustomExercise } from '@/src/services/exerciseService';
 
 export default function TabLayout() {
   const router = useRouter();
@@ -103,10 +104,11 @@ export default function TabLayout() {
   const [category, setCategory] = useState('');
   const [equipment, setEquipment] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [basedOnQuery, setBasedOnQuery] = useState('');
+  const [basedOnExerciseId, setBasedOnExerciseId] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState({
     name: false,
     primary: false,
-    category: false,
   });
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [startConfigVisible, setStartConfigVisible] = useState(false);
@@ -114,8 +116,35 @@ export default function TabLayout() {
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const nameShake = useRef(new Animated.Value(0)).current;
   const primaryShake = useRef(new Animated.Value(0)).current;
-  const categoryShake = useRef(new Animated.Value(0)).current;
   const startActionLock = useRef(false);
+  const { exercises: allExercises } = useExercises();
+
+  const canonicalExercises = useMemo(
+    () => allExercises.filter((exercise) =>
+      exercise.source !== 'custom' &&
+      !exercise.canonicalId &&
+      !exercise.isHidden &&
+      exercise.isCurated
+    ),
+    [allExercises]
+  );
+
+  const basedOnSearchIndex = useMemo(
+    () => buildExerciseSearchIndex(canonicalExercises),
+    [canonicalExercises]
+  );
+
+  const basedOnResults = useMemo(() => {
+    if (!basedOnQuery.trim()) return [];
+    return searchExercisesInIndex(basedOnQuery, basedOnSearchIndex, {
+      includeInstructions: false,
+    }).slice(0, 8);
+  }, [basedOnQuery, basedOnSearchIndex]);
+
+  const basedOnSelection = useMemo(
+    () => canonicalExercises.find((exercise) => exercise.id === basedOnExerciseId) ?? null,
+    [canonicalExercises, basedOnExerciseId]
+  );
 
   const templates = useMemo(
     () => programs.filter((program) => program.isTemplate),
@@ -261,6 +290,8 @@ export default function TabLayout() {
     setCategory('');
     setEquipment('');
     setInstructions('');
+    setBasedOnQuery('');
+    setBasedOnExerciseId(null);
     setEditingExerciseId(null);
   };
 
@@ -268,7 +299,6 @@ export default function TabLayout() {
     const missing = {
       name: !exerciseName.trim(),
       primary: !primaryMuscle,
-      category: !category,
     };
     setFieldErrors(missing);
 
@@ -281,11 +311,10 @@ export default function TabLayout() {
       ]).start();
     };
 
-    if (missing.name || missing.primary || missing.category) {
+    if (missing.name || missing.primary) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
       if (missing.name) triggerShake(nameShake);
       if (missing.primary) triggerShake(primaryShake);
-      if (missing.category) triggerShake(categoryShake);
       return;
     }
 
@@ -300,18 +329,14 @@ export default function TabLayout() {
       primaryMuscles: [primaryMuscle],
       secondaryMuscles: secondaryMuscle ? [secondaryMuscle] : [],
       equipment: equipment || 'Bodyweight',
-      category,
+      category: category || 'Strength',
       instructions: instructionList,
       images: [],
+      basedOnExerciseId: basedOnExerciseId ?? null,
     };
 
     try {
-      const existingRaw = await AsyncStorage.getItem(CUSTOM_EXERCISES_KEY);
-      const existing = existingRaw ? JSON.parse(existingRaw) : [];
-      const updated = editingExerciseId
-        ? existing.map((ex: any) => (ex.id === editingExerciseId ? newExercise : ex))
-        : [newExercise, ...existing];
-      await AsyncStorage.setItem(CUSTOM_EXERCISES_KEY, JSON.stringify(updated));
+      await saveCustomExercise(newExercise);
       DeviceEventEmitter.emit('customExerciseUpsert', newExercise);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     } catch (err) {
@@ -336,8 +361,10 @@ export default function TabLayout() {
           ? exercise.instructions.join('\n')
           : exercise.instructions || ''
       );
+      setBasedOnExerciseId(exercise.basedOnExerciseId || null);
+      setBasedOnQuery('');
       setEditingExerciseId(exercise.id || null);
-      setFieldErrors({ name: false, primary: false, category: false });
+      setFieldErrors({ name: false, primary: false });
       setShowAddExerciseModal(true);
     });
     return () => sub.remove();
@@ -587,32 +614,26 @@ export default function TabLayout() {
               />
             </Animated.View>
 
-            <Text style={styles.inputLabel}>Category *</Text>
-            <Animated.View style={shakeStyle(categoryShake)}>
-              <View style={styles.chipWrap}>
-                {optionList.categories.map((item) => (
-                  <TouchableOpacity
-                    key={item}
-                    style={[
-                      styles.chip,
-                      category === item && themedStyles.chipActive,
-                      fieldErrors.category && styles.invalidChip,
-                    ]}
-                    onPress={() => {
-                      setCategory(item);
-                      if (fieldErrors.category) setFieldErrors(prev => ({ ...prev, category: false }));
-                    }}
-                  >
-                    <Text style={[
-                      styles.chipText,
-                      category === item && themedStyles.chipTextActive,
-                    ]}>
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </Animated.View>
+            <Text style={styles.inputLabel}>Category (optional)</Text>
+            <View style={styles.chipWrap}>
+              {optionList.categories.map((item) => (
+                <TouchableOpacity
+                  key={item}
+                  style={[
+                    styles.chip,
+                    category === item && themedStyles.chipActive,
+                  ]}
+                  onPress={() => setCategory(item === category ? '' : item)}
+                >
+                  <Text style={[
+                    styles.chipText,
+                    category === item && themedStyles.chipTextActive,
+                  ]}>
+                    {item}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <Text style={styles.inputLabel}>Primary Muscle *</Text>
             <Animated.View style={shakeStyle(primaryShake)}>
@@ -669,6 +690,74 @@ export default function TabLayout() {
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            <Text style={styles.inputLabel}>Based on (optional)</Text>
+            <View style={styles.basedOnContainer}>
+              {basedOnSelection && (
+                <View style={styles.basedOnSelectedRow}>
+                  <Text style={styles.basedOnSelectedText} numberOfLines={1}>
+                    {basedOnSelection.name}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.basedOnClear}
+                    onPress={() => setBasedOnExerciseId(null)}
+                  >
+                    <Text style={styles.basedOnClearText}>Clear</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              <TextInput
+                style={styles.textInput}
+                placeholder="Search a canonical exercise..."
+                placeholderTextColor="#6b7280"
+                value={basedOnQuery}
+                onChangeText={(value) => {
+                  setBasedOnQuery(value);
+                }}
+              />
+              {basedOnQuery.trim().length > 0 && (
+                <View style={styles.basedOnResults}>
+                  {basedOnResults.length === 0 ? (
+                    <Text style={styles.basedOnEmpty}>No matches</Text>
+                  ) : (
+                    basedOnResults.map((item) => (
+                      <TouchableOpacity
+                        key={item.id}
+                        style={styles.basedOnResultRow}
+                        onPress={() => {
+                          setBasedOnExerciseId(item.id);
+                          setBasedOnQuery('');
+                          if (!primaryMuscle && item.primaryMuscles?.[0]) {
+                            setPrimaryMuscle(item.primaryMuscles[0]);
+                          }
+                          if (!secondaryMuscle && item.secondaryMuscles?.[0]) {
+                            setSecondaryMuscle(item.secondaryMuscles[0]);
+                          }
+                          if (!equipment && item.equipment) {
+                            setEquipment(item.equipment);
+                          }
+                          if (!category && item.category) {
+                            const match = optionList.categories.find(
+                              (entry) => entry.toLowerCase() === item.category.toLowerCase()
+                            );
+                            if (match) setCategory(match);
+                          }
+                        }}
+                      >
+                        <Text style={styles.basedOnResultText} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        {item.primaryMuscles?.length ? (
+                          <Text style={styles.basedOnResultMeta}>
+                            {item.primaryMuscles[0]}
+                          </Text>
+                        ) : null}
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </View>
+              )}
             </View>
 
             <Text style={styles.inputLabel}>Instructions (optional)</Text>
@@ -860,6 +949,68 @@ const styles = StyleSheet.create({
   instructionsInput: {
     minHeight: 80,
     textAlignVertical: 'top',
+  },
+  basedOnContainer: {
+    gap: 8,
+  },
+  basedOnSelectedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  basedOnSelectedText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: 8,
+  },
+  basedOnClear: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  basedOnClearText: {
+    color: '#e5e7eb',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  basedOnResults: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  basedOnResultRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  basedOnResultText: {
+    color: '#f9fafb',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  basedOnResultMeta: {
+    color: '#9ca3af',
+    fontSize: 12,
+    marginTop: 2,
+    textTransform: 'capitalize',
+  },
+  basedOnEmpty: {
+    color: '#9ca3af',
+    fontSize: 13,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   chipRow: {
     flexGrow: 0,
