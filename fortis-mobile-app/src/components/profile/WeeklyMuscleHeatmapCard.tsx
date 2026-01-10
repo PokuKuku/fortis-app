@@ -51,19 +51,20 @@ export function WeeklyMuscleHeatmapCard() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator color={colors.accent} size="small" />
         </View>
-      ) : !hasWorkouts ? (
-        <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-            Complete a workout to see your muscle activity
-          </Text>
-        </View>
       ) : (
-        <MuscleHeatmap
-          exercises={exercises}
-          gender={bodyType}
-          scale={0.45}
-          compact
-        />
+        <View style={styles.heatmapContent}>
+          <MuscleHeatmap
+            exercises={hasWorkouts ? exercises : []}
+            gender={bodyType}
+            scale={0.45}
+            compact
+          />
+          {!hasWorkouts && (
+            <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+              Complete a workout to see your muscle activity
+            </Text>
+          )}
+        </View>
       )}
     </View>
   );
@@ -91,10 +92,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyContainer: {
-    height: 100,
+  heatmapContent: {
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: Spacing.sm,
   },
   emptyText: {
     ...Typography.body,

@@ -105,7 +105,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             name="workout/create"
             options={{
               animation: 'slide_from_bottom',
-              gestureEnabled: true,
+              gestureEnabled: false,
               gestureDirection: 'vertical',
               headerShown: false,
             }}
@@ -169,7 +169,7 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             name="programs/create"
             options={{
               animation: 'slide_from_bottom',
-              gestureEnabled: true,
+              gestureEnabled: false,
               gestureDirection: 'vertical',
               headerShown: false,
             }}

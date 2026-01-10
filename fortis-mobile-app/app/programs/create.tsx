@@ -10,6 +10,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   XMarkIcon,
@@ -34,6 +35,10 @@ import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
+import { runOnJS } from 'react-native-reanimated';
+import { responsiveValue } from '@/src/utils/responsive';
+
+const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 
 // Editor workout type for local state
 interface EditorWorkout {
@@ -88,11 +93,11 @@ export default function CreateProgramScreen() {
     modalOptionTitle: { color: colors.textPrimary },
     modalOptionSubtitle: { color: colors.textSecondary },
     modalEmptyText: { color: colors.textSecondary },
-    addButtonContainer: { backgroundColor: colors.background },
     accentButtonBorder: { borderColor: colors.accentBorder },
     accentButtonBg: { backgroundColor: colors.accentOverlay },
     accentButtonBgPressed: { backgroundColor: colors.accentOverlayMedium },
     statValue: { color: colors.accent },
+    primaryActionText: { color: colors.white },
   };
   const {
     mode,
@@ -207,6 +212,16 @@ export default function CreateProgramScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   };
+
+  const panGesture = Gesture.Pan()
+    .activeOffsetY(10)
+    .failOffsetX([-15, 15])
+    .onEnd((event) => {
+      const shouldDismiss = event.translationY > 120 || event.velocityY > 1200;
+      if (shouldDismiss) {
+        runOnJS(handleClose)();
+      }
+    });
 
   // Handle add workout
   const handleAddWorkout = useCallback(() => {
@@ -447,66 +462,80 @@ export default function CreateProgramScreen() {
     </View>
   );
 
-  const saveButtonText = isEditing ? 'Update' : 'Save';
+  const saveButtonText = isEditing ? 'Finish edit' : 'Save';
 
   return (
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        {/* Drag Handle */}
-        <View style={styles.dragHandleContainer}>
-          <View style={[styles.dragHandle, themedStyles.dragHandle]} />
-        </View>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <GestureDetector gesture={panGesture}>
+          <View>
+            {/* Drag Handle */}
+            <View style={styles.dragHandleContainer}>
+              <View style={[styles.dragHandle, themedStyles.dragHandle]} />
+            </View>
 
-        {/* Header */}
-        <View style={styles.header}>
-          <Pressable
-            onPress={handleClose}
-            style={({ pressed }) => [
-              styles.closeButton,
-              themedStyles.closeButton,
-              pressed && styles.closeButtonPressed,
-            ]}
-          >
-            <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
-          </Pressable>
-          <View style={styles.titleInputWrapper}>
-            <TextInput
-              style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
-              placeholder="Program Name"
-              placeholderTextColor={colors.textSecondary}
-              value={programName}
-              onChangeText={setProgramName}
-              autoCorrect={false}
-              autoCapitalize="words"
-              autoComplete="off"
-              editable={true}
-              maxLength={50}
-              returnKeyType="done"
-              onFocus={() => setIsNameFocused(true)}
-              onBlur={() => setIsNameFocused(false)}
-            />
-            <View style={styles.editIconSlot}>
-              {!isNameFocused && (
-                <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
-              )}
+            {/* Header */}
+            <View style={styles.headerContainer}>
+              <View style={styles.headerTopRow}>
+                <Pressable
+                  onPress={handleClose}
+                  style={({ pressed }) => [
+                    styles.closeButton,
+                    themedStyles.closeButton,
+                    pressed && styles.closeButtonPressed,
+                  ]}
+                >
+                  <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+                <View style={styles.headerTopSpacer} />
+              </View>
+              <View style={styles.headerContentRow}>
+                <View style={styles.headerLeftColumn}>
+                  <View style={styles.titleInputWrapper}>
+                    <TextInput
+                      style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
+                      placeholder="Program Name"
+                      placeholderTextColor={colors.textSecondary}
+                      value={programName}
+                      onChangeText={setProgramName}
+                      autoCorrect={false}
+                      autoCapitalize="words"
+                      autoComplete="off"
+                      editable={true}
+                      maxLength={50}
+                      returnKeyType="done"
+                      onFocus={() => setIsNameFocused(true)}
+                      onBlur={() => setIsNameFocused(false)}
+                    />
+                    <View style={styles.editIconSlot}>
+                      {!isNameFocused && (
+                        <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
+                      )}
+                    </View>
+                  </View>
+                  {workoutCount > 0 && (
+                    <View style={styles.statsRow}>
+                      <View style={styles.statItem}>
+                        <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
+                        <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
+                      </View>
+                      <View style={styles.statItem}>
+                        <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
+                        <Text style={[styles.statValue, themedStyles.statValue]}>{totalExercises}</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
+                {hasMuscles && workoutCount > 0 && (
+                  <View style={styles.headerHeatmap}>
+                    <MuscleHeatmap exercises={exercisesWithMuscles} scale={HEATMAP_SCALE} compact />
+                  </View>
+                )}
+              </View>
             </View>
           </View>
-          <GlassButton
-            style={{
-              ...styles.saveButton,
-              ...(!canSave ? styles.saveButtonDisabled : {}),
-            }}
-            onPress={handleSave}
-            disabled={!canSave}
-          >
-            {isSaving ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Text style={styles.saveButtonText}>{saveButtonText}</Text>
-            )}
-          </GlassButton>
-        </View>
+        </GestureDetector>
 
         {/* Description */}
         <View style={styles.descriptionWrapper}>
@@ -522,24 +551,6 @@ export default function CreateProgramScreen() {
           />
         </View>
 
-        {/* Stats Row */}
-        {workoutCount > 0 && (
-          <View style={styles.statsCard}>
-            <View style={styles.statsLeft}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
-                <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
-                <Text style={[styles.statValue, themedStyles.statValue]}>{totalExercises}</Text>
-              </View>
-            </View>
-            {hasMuscles && (
-              <MuscleHeatmap exercises={exercisesWithMuscles} scale={0.22} compact />
-            )}
-          </View>
-        )}
         {hasMissingTemplates && (
           <Text style={styles.missingTemplateWarning}>
             Select a template for every workout to save this program.
@@ -554,6 +565,36 @@ export default function CreateProgramScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
+          ListFooterComponent={(
+            <View style={styles.bottomActions}>
+              <Pressable
+                onPress={handleAddWorkout}
+                style={({ pressed }) => [
+                  styles.addWorkoutButton,
+                  themedStyles.accentButtonBorder,
+                  themedStyles.accentButtonBg,
+                  pressed && themedStyles.accentButtonBgPressed,
+                ]}
+              >
+                <PlusIcon size={20} color={colors.accent} strokeWidth={2} />
+                <Text style={[styles.addWorkoutText, { color: colors.accent }]}>Add Workout</Text>
+              </Pressable>
+
+              <GlassButton
+                style={styles.primaryActionButton}
+                onPress={handleSave}
+                disabled={!canSave}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={[styles.primaryActionText, themedStyles.primaryActionText]}>
+                    {saveButtonText}
+                  </Text>
+                )}
+              </GlassButton>
+            </View>
+          )}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
         />
@@ -618,21 +659,6 @@ export default function CreateProgramScreen() {
           </View>
         </Modal>
 
-        {/* Add Workout Button */}
-        <View style={[styles.addButtonContainer, themedStyles.addButtonContainer]}>
-          <Pressable
-            onPress={handleAddWorkout}
-            style={({ pressed }) => [
-              styles.addWorkoutButton,
-              themedStyles.accentButtonBorder,
-              themedStyles.accentButtonBg,
-              pressed && themedStyles.accentButtonBgPressed,
-            ]}
-          >
-            <PlusIcon size={20} color={colors.accent} strokeWidth={2} />
-            <Text style={[styles.addWorkoutText, { color: colors.accent }]}>Add Workout</Text>
-          </Pressable>
-        </View>
         <ProgramLimitModal
           visible={showLimitModal}
           programName={programName || 'This program'}
@@ -707,8 +733,8 @@ const styles = StyleSheet.create({
   },
   dragHandleContainer: {
     alignItems: 'center',
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xs,
+    paddingTop: Spacing.xs,
+    paddingBottom: 0,
   },
   dragHandle: {
     width: 36,
@@ -716,13 +742,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 2,
   },
-  header: {
+  headerContainer: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: Spacing.xs,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing['2xl'],
-    paddingVertical: Spacing.lg,
-    zIndex: 1,
   },
   closeButton: {
     width: 40,
@@ -735,13 +762,30 @@ const styles = StyleSheet.create({
   closeButtonPressed: {
     opacity: 0.6,
   },
-  titleInputWrapper: {
+  headerTopSpacer: {
+    width: 40,
+  },
+  headerContentRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginTop: 0,
+  },
+  headerLeftColumn: {
     flex: 1,
+    gap: 0,
+    paddingRight: Spacing.md,
+  },
+  headerHeatmap: {
+    alignItems: 'flex-end',
+  },
+  titleInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: Spacing.xs,
-    marginHorizontal: Spacing.md,
+    alignSelf: 'flex-start',
+    maxWidth: '80%',
   },
   editIconSlot: {
     width: 14,
@@ -749,36 +793,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitleInput: {
-    ...Typography.h3,
+    ...Typography.h4,
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
-    textAlign: 'center',
+    textAlign: 'left',
     flex: 1,
     minWidth: 100,
-    paddingVertical: Spacing.sm,
+    lineHeight: FontSizes.xl,
+    paddingVertical: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
-    lineHeight: FontSizes['2xl'] + 4,
-    minHeight: ButtonHeights.lg,
+    minHeight: ButtonHeights.sm,
   },
-  saveButton: {
-    height: 40,
-    paddingHorizontal: Spacing['2xl'],
-    borderRadius: BorderRadius.lg,
-  },
-  saveButtonDisabled: {
-    opacity: 0.5,
-  },
-  saveButtonText: {
-    ...Typography.button,
-    color: '#fff',
-  },
-  statsCard: {
+  statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing['2xl'],
-    paddingVertical: Spacing.sm,
-    marginBottom: Spacing.sm,
+    gap: Spacing['3xl'],
   },
   descriptionWrapper: {
     paddingHorizontal: Spacing['2xl'],
@@ -795,11 +825,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  statsLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: Spacing['4xl'],
-  },
   missingTemplateWarning: {
     ...Typography.bodySmall,
     color: Colors.warning ?? '#f59e0b',
@@ -811,20 +836,21 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 28,
+    fontSize: 24,
     color: Colors.success,
-    lineHeight: 34,
+    lineHeight: 28,
     paddingBottom: 2,
   },
   statLabel: {
     fontSize: 11,
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   listContent: {
     paddingHorizontal: Spacing['2xl'],
-    paddingBottom: 120,
+    paddingBottom: Spacing.lg,
     flexGrow: 1,
   },
   emptyState: {
@@ -1025,16 +1051,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingVertical: Spacing.lg,
   },
-  addButtonContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing['2xl'],
+  bottomActions: {
     paddingTop: Spacing.lg,
-    paddingBottom: Spacing['3xl'],
-    backgroundColor: Colors.background,
-    zIndex: 2,
+    paddingBottom: Spacing['6xl'],
+    gap: Spacing.lg,
   },
   addWorkoutButton: {
     flexDirection: 'row',
@@ -1042,6 +1062,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
     height: 56,
+    width: '100%',
     borderRadius: BorderRadius.xl,
     borderWidth: 2,
     borderColor: 'rgba(34, 197, 94, 0.3)',
@@ -1055,6 +1076,14 @@ const styles = StyleSheet.create({
   addWorkoutText: {
     ...Typography.button,
     color: Colors.success,
+  },
+  primaryActionButton: {
+    height: ButtonHeights.xl,
+    borderRadius: BorderRadius.xl,
+    width: '100%',
+  },
+  primaryActionText: {
+    ...Typography.button,
   },
   modalActions: {
     flexDirection: 'column',
