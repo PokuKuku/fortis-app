@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { initMixpanel } from '@/src/lib/mixpanel';
+import { initMixpanelSessionReplay } from '@/src/lib/mixpanelSessionReplay';
 
 export function MixpanelAuthSync() {
   const { user, profile } = useAuth();
@@ -9,21 +10,29 @@ export function MixpanelAuthSync() {
     let isMounted = true;
 
     const syncMixpanel = async () => {
-      const mixpanel = await initMixpanel();
-      if (!mixpanel || !isMounted) {
-        return;
-      }
+      try {
+        const mixpanel = await initMixpanel();
+        if (!mixpanel || !isMounted) {
+          return;
+        }
 
-      if (user?.id) {
-        mixpanel.identify(user.id);
-        mixpanel.getPeople().set({
-          $email: user.email ?? undefined,
-          $name: profile?.full_name ?? undefined,
-          preferred_units: profile?.preferred_units ?? undefined,
-          onboarding_completed: profile?.onboarding_completed ?? undefined,
-        });
-      } else {
+        if (user?.id) {
+          await mixpanel.identify(user.id);
+          mixpanel.getPeople().set({
+            $email: user.email ?? undefined,
+            $name: profile?.full_name ?? undefined,
+            preferred_units: profile?.preferred_units ?? undefined,
+            onboarding_completed: profile?.onboarding_completed ?? undefined,
+          });
+          await initMixpanelSessionReplay(user.id);
+          return;
+        }
+
         mixpanel.reset();
+        const distinctId = await mixpanel.getDistinctId().catch(() => null);
+        await initMixpanelSessionReplay(distinctId);
+      } catch (error) {
+        console.warn('[Mixpanel] Failed to sync identity:', error);
       }
     };
 

@@ -306,7 +306,6 @@ export default function AIChatScreen() {
         params: {
           messageId,
           mode,
-          focusCreate: action === 'create' ? '1' : undefined,
         },
       });
     },

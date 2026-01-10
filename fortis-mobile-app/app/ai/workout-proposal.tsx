@@ -69,17 +69,18 @@ export default function WorkoutProposalScreen() {
   const { colors, isDark } = useTheme();
   const { trackAIWorkoutReviewOpened, trackAIWorkoutExerciseResolved, trackAIWorkoutCreated, trackAIWorkoutEditedBeforeCreate } =
     useAnalytics();
-  const { messageId, mode, focusCreate } = useLocalSearchParams<{
+  const { messageId, mode } = useLocalSearchParams<{
     messageId?: string;
     mode?: 'review' | 'edit';
-    focusCreate?: string;
   }>();
+  const normalizedMessageId = Array.isArray(messageId) ? messageId[0] : messageId;
+  const normalizedMode = Array.isArray(mode) ? mode[0] : mode;
 
   const conversation = useAIStore((state) => state.conversation);
   const loadConversation = useAIStore((state) => state.loadConversation);
   const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
 
-  const proposalMessage = conversation?.messages.find((msg) => msg.id === messageId);
+  const proposalMessage = conversation?.messages.find((msg) => msg.id === normalizedMessageId);
   const proposal = proposalMessage?.workoutProposal;
   const [proposalDraft, setProposalDraft] = useState<WorkoutProposalV1 | null>(null);
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseWithSource[]>([]);
@@ -92,8 +93,8 @@ export default function WorkoutProposalScreen() {
   const [customPrimary, setCustomPrimary] = useState('');
   const [customEquipment, setCustomEquipment] = useState('');
   const [customError, setCustomError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(mode === 'edit');
-  const [hasEdits, setHasEdits] = useState(mode === 'edit');
+  const [isEditing, setIsEditing] = useState(normalizedMode === 'edit');
+  const [hasEdits, setHasEdits] = useState(normalizedMode === 'edit');
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const hasTrackedReview = useRef(false);
@@ -120,10 +121,10 @@ export default function WorkoutProposalScreen() {
   }, [proposalDraft, trackAIWorkoutReviewOpened]);
 
   useEffect(() => {
-    if (mode === 'edit') {
+    if (normalizedMode === 'edit') {
       setIsEditing(true);
     }
-  }, [mode]);
+  }, [normalizedMode]);
 
   const loadExercises = useCallback(async () => {
     try {
@@ -195,6 +196,7 @@ export default function WorkoutProposalScreen() {
           source: 'local',
         } as ExerciseWithSource);
       setManualResolutions((prev) => ({ ...prev, [pickerIndex]: selected }));
+      setHasEdits(true);
       trackAIWorkoutExerciseResolved({
         exerciseIndex: pickerIndex,
         isCustom: Boolean(selected.isCustom),
@@ -207,6 +209,7 @@ export default function WorkoutProposalScreen() {
   const handlePickCandidate = useCallback(
     (exercise: ExerciseWithSource, index: number) => {
       setManualResolutions((prev) => ({ ...prev, [index]: exercise }));
+      setHasEdits(true);
       trackAIWorkoutExerciseResolved({
         exerciseIndex: index,
         isCustom: Boolean(exercise.isCustom),
@@ -264,6 +267,7 @@ export default function WorkoutProposalScreen() {
       const exerciseWithSource: ExerciseWithSource = { ...newExercise, source: 'custom', isCustom: true };
       setExerciseLibrary((prev) => [exerciseWithSource, ...prev]);
       setManualResolutions((prev) => ({ ...prev, [customIndex]: exerciseWithSource }));
+      setHasEdits(true);
       trackAIWorkoutExerciseResolved({ exerciseIndex: customIndex, isCustom: true });
       DeviceEventEmitter.emit('customExerciseUpsert', newExercise);
       setCustomIndex(null);
@@ -755,7 +759,7 @@ export default function WorkoutProposalScreen() {
               <View style={styles.createButtonContent}>
                 <CheckIcon color={Colors.white} size={IconSizes.sm} strokeWidth={2.5} />
                 <Text style={styles.createButtonText}>
-                  {isCreating ? 'Creating...' : focusCreate ? 'Create workout' : 'Create workout'}
+                  {isCreating ? 'Creating...' : 'Create workout'}
                 </Text>
               </View>
             </GlassButton>
@@ -778,7 +782,12 @@ export default function WorkoutProposalScreen() {
         onRefreshOverride={loadExercises}
       />
 
-      <Modal transparent visible={customIndex !== null} animationType="fade">
+      <Modal
+        transparent
+        visible={customIndex !== null}
+        animationType="fade"
+        onRequestClose={() => setCustomIndex(null)}
+      >
         <View style={styles.modalOverlay}>
           <TouchableOpacity
             style={StyleSheet.absoluteFill}

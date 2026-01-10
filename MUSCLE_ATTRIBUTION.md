@@ -55,10 +55,40 @@ We’ll use this as a briefing for ChatGPT collaborators: it summarizes the exis
      - quads
      - hamstrings
      - calves
-     - adductors / abductors (optional)
-     - neck (optional)
+     - adductors / abductors (conditional)
+   - Exclude neck for v1.
 4) **Heatmap slug constraints**
    - Multiple canonical keys can map to the same slug(s); acceptable for visualization.
+5) **Canonical display labels**
+   - chest → Chest
+   - front_delts → Front Delts
+   - side_delts → Side Delts
+   - rear_delts → Rear Delts
+   - triceps → Triceps
+   - biceps → Biceps
+   - forearms → Forearms
+   - lats → Lats
+   - upper_back → Upper Back
+   - lower_back → Lower Back
+   - abs → Abs
+   - obliques → Obliques
+   - glutes → Glutes
+   - quads → Quads
+   - hamstrings → Hamstrings
+   - calves → Calves
+   - adductors → Adductors (only if present in DB at meaningful frequency)
+   - abductors → Abductors (only if present in DB at meaningful frequency)
+6) **Bodyweight detection**
+   - Primary rule: `exercise.equipment` indicates bodyweight (and any equivalent enum).
+   - Fallback rule: name allowlist regex for pull‑up, chin‑up, push‑up, dip, plank, sit‑up, crunch, inverted row.
+7) **User bodyweight source**
+   - Use profile bodyweight (latest at or before session date if available).
+   - If missing: fallback to reps-based units.
+8) **Historic custom exercises**
+   - No backfill required for v1.
+   - Normalize on read; ensure new/edited customs store canonical keys immediately.
+9) **Zero-volume guardrail**
+   - If `maxScore === 0`, return all intensity levels as 0 (avoid divide-by-zero).
 
 ## Proposed Direction (Implementation Brief)
 1) **Single canonical muscle module**
@@ -83,15 +113,8 @@ We’ll use this as a briefing for ChatGPT collaborators: it summarizes the exis
    - Mapping is deterministic with no casing mismatches.
 
 ## Open Decisions (Remaining)
-1) **Canonical labels to finalize**
-   - Exact display names for each canonical key.
-   - Confirm whether adductors/abductors/neck are in or out.
-2) **Bodyweight detection**
-   - Define how to detect bodyweight movements (equipment = bodyweight? exercise metadata?).
-3) **User bodyweight source**
-   - Where to read bodyweight for volume fallback (profile? settings?).
-4) **Historic data**
-   - Whether to backfill canonical muscles for existing custom exercises.
+1) **Adductors/abductors inclusion**
+   - Include only if present in DB at meaningful frequency (needs a quick inventory).
 
 ## Next Steps (Once Decisions Are Final)
 1) Inventory existing muscle strings from base + custom exercises.

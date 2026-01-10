@@ -1,0 +1,50 @@
+import {
+  MPSessionReplay,
+  MPSessionReplayConfig,
+  MPSessionReplayMask,
+} from '@mixpanel/react-native-session-replay';
+import { isMixpanelConfigured, mixpanelToken } from '@/src/lib/mixpanel';
+
+let replayInitialized = false;
+let replayDistinctId: string | null = null;
+
+export async function initMixpanelSessionReplay(distinctId?: string | null) {
+  if (!isMixpanelConfigured() || !distinctId) {
+    return;
+  }
+
+  if (!replayInitialized) {
+    const config = new MPSessionReplayConfig({
+      wifiOnly: false,
+      recordingSessionsPercent: 100,
+      autoStartRecording: true,
+      autoMaskedViews: [
+        MPSessionReplayMask.Image,
+        MPSessionReplayMask.Text,
+        MPSessionReplayMask.Web,
+        MPSessionReplayMask.Map,
+      ],
+      enableLogging: __DEV__,
+    });
+
+    try {
+      await MPSessionReplay.initialize(mixpanelToken, distinctId, config);
+      replayInitialized = true;
+      replayDistinctId = distinctId;
+      await MPSessionReplay.startRecording();
+    } catch (error) {
+      console.warn('[MixpanelReplay] Failed to initialize:', error);
+    }
+
+    return;
+  }
+
+  if (replayDistinctId !== distinctId) {
+    try {
+      await MPSessionReplay.identify(distinctId);
+      replayDistinctId = distinctId;
+    } catch (error) {
+      console.warn('[MixpanelReplay] Failed to identify:', error);
+    }
+  }
+}

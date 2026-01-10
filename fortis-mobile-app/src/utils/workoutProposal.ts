@@ -47,7 +47,7 @@ const buildSetSummary = (sets: WorkoutProposalSet[]): string | null => {
     if (entry.rir !== undefined) parts.push(`RIR ${entry.rir}`);
     if (entry.rest_sec !== undefined) parts.push(`${entry.rest_sec}s rest`);
     if (entry.kind) parts.push(entry.kind);
-    return parts.join(' • ');
+    return parts.join(' / ');
   });
 
   return summaries.length > 1 ? summaries.join(' | ') : summaries[0] ?? null;
