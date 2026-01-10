@@ -32,6 +32,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
+import { Spacing } from '@/constants/Sizes';
 import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useProgramsStore } from '../../src/store/programsStore';
 import { useProgramProgressStore } from '../../src/store/programProgressStore';
@@ -604,11 +605,13 @@ function ToastNotification({
 function DeleteConfirmationModal({
   visible,
   itemName,
+  dependentPrograms,
   onConfirm,
   onCancel,
 }: {
   visible: boolean;
   itemName: string;
+  dependentPrograms?: { name: string }[];
   onConfirm: () => void;
   onCancel: () => void;
 }) {
@@ -660,6 +663,15 @@ function DeleteConfirmationModal({
     }
   }, [visible]);
 
+  const dependentCount = dependentPrograms?.length ?? 0;
+  const dependentNames = dependentPrograms?.map((program) => program.name).filter(Boolean) ?? [];
+  const showNames = dependentNames.length > 0 && dependentNames.length <= 3;
+  const dependencyMessage = dependentCount > 0
+    ? dependentCount === 1
+      ? `This workout is used in "${dependentNames[0]}". Deleting will remove it from that program.`
+      : `This workout is used in ${dependentCount} programs. Deleting will remove it from those programs.`
+    : null;
+
   return (
     <Modal transparent visible={visible} animationType="none">
       <Animated.View style={[styles.modalOverlay, { opacity: modalOpacity, backgroundColor: backdropColor }]}>
@@ -681,6 +693,18 @@ function DeleteConfirmationModal({
           <StainlessSteelPattern />
           <View style={styles.modalContent}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Delete {itemName}?</Text>
+            {dependencyMessage && (
+              <>
+                <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
+                  {dependencyMessage}
+                </Text>
+                {showNames && (
+                  <Text style={[styles.modalSubtleText, { color: colors.textTertiary }]}>
+                    Programs: {dependentNames.join(', ')}
+                  </Text>
+                )}
+              </>
+            )}
             <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
               This action cannot be undone. Are you sure you want to delete this item?
             </Text>
@@ -844,6 +868,7 @@ export default function ProgramsScreen() {
   const duplicateProgramInStore = useProgramsStore(s => s.duplicateProgram);
   const duplicateWorkoutInStore = useProgramsStore(s => s.duplicateWorkoutTemplate);
   const appendTemplateToProgram = useProgramsStore(s => s.appendTemplateToProgram);
+  const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
   const progressByProgram = useProgramProgressStore(s => s.progressByProgram);
   const restartProgram = useProgramProgressStore(s => s.restartProgram);
@@ -879,6 +904,33 @@ export default function ProgramsScreen() {
   // Keep original workouts for backward compatibility
   const workouts: WorkoutItem[] = templates;
 
+  const getProgramsUsingTemplate = useCallback((templateId: string) => {
+    const template = storePrograms.find((program) => program.id === templateId && program.isTemplate);
+    const templateWorkout = template?.workouts[0];
+    if (!templateWorkout) return [];
+
+    const templateIds = templateWorkout.exercises.map((ex) => ex.exerciseId).join(',');
+    const templateName = template.name.toLowerCase();
+
+    return storePrograms
+      .filter((program) => !program.isTemplate)
+      .map((program) => {
+        const matchingWorkouts = program.workouts.filter((workout) => {
+          const workoutIds = workout.exercises.map((ex) => ex.exerciseId).join(',');
+          return (templateIds && workoutIds === templateIds)
+            || workout.name.toLowerCase() === templateName;
+        });
+
+        if (matchingWorkouts.length === 0) return null;
+        return {
+          id: program.id,
+          name: program.name,
+          workoutIds: matchingWorkouts.map((workout) => workout.id),
+        };
+      })
+      .filter((program): program is { id: string; name: string; workoutIds: string[] } => !!program);
+  }, [storePrograms]);
+
   // Fetch programs on mount
   useEffect(() => {
     fetchPrograms();
@@ -896,7 +948,9 @@ export default function ProgramsScreen() {
     type: 'program' | 'workout' | null;
     id: string | null;
     name: string;
+    dependentPrograms?: { id: string; name: string; workoutIds: string[] }[];
   }>({ visible: false, type: null, id: null, name: '' });
+  const pendingWorkoutDeletes = useRef<Record<string, { id: string; name: string; workoutIds: string[] }[]>>({});
   const [animatingCards, setAnimatingCards] = useState<{
     [key: string]: 'entering' | 'exiting';
   }>({});
@@ -1052,11 +1106,13 @@ export default function ProgramsScreen() {
     } else if (openKebab.type === 'workout' && openKebab.id !== null) {
       const workout = workouts.find((w) => w.id === openKebab.id);
       if (workout) {
+        const dependentPrograms = getProgramsUsingTemplate(openKebab.id);
         setDeleteConfirmation({
           visible: true,
           type: 'workout',
           id: openKebab.id,
           name: workout.name,
+          dependentPrograms,
         });
       }
     }
@@ -1068,6 +1124,9 @@ export default function ProgramsScreen() {
       setAnimatingCards(prev => ({ ...prev, [cardKey]: 'exiting' }));
     } else if (deleteConfirmation.type === 'workout' && deleteConfirmation.id !== null) {
       const cardKey = `workout-${deleteConfirmation.id}`;
+      if (deleteConfirmation.dependentPrograms) {
+        pendingWorkoutDeletes.current[deleteConfirmation.id] = deleteConfirmation.dependentPrograms;
+      }
       setAnimatingCards(prev => ({ ...prev, [cardKey]: 'exiting' }));
     }
     setDeleteConfirmation({ visible: false, type: null, id: null, name: '' });
@@ -1087,6 +1146,18 @@ export default function ProgramsScreen() {
     } else if (animState === 'exiting') {
       // Delete from database after exiting animation completes
       // Both programs and workouts (templates) use the same store
+      if (type === 'workout') {
+        const dependentPrograms = pendingWorkoutDeletes.current[id] || [];
+        if (dependentPrograms.length > 0) {
+          for (const program of dependentPrograms) {
+            for (const workoutId of program.workoutIds) {
+              // Remove linked workouts before deleting the template
+              await removeWorkoutFromProgram(program.id, workoutId);
+            }
+          }
+        }
+        delete pendingWorkoutDeletes.current[id];
+      }
       await deleteProgramFromStore(id);
       // Remove from animating cards
       setAnimatingCards(prev => {
@@ -1492,6 +1563,7 @@ export default function ProgramsScreen() {
       <DeleteConfirmationModal
         visible={deleteConfirmation.visible}
         itemName={deleteConfirmation.name}
+        dependentPrograms={deleteConfirmation.dependentPrograms}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
       />
@@ -1792,6 +1864,12 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     marginBottom: MODAL_PADDING,
     lineHeight: MODAL_MESSAGE_LINE_HEIGHT,
+  },
+  modalSubtleText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: -Spacing.xs,
+    marginBottom: MODAL_PADDING,
   },
   modalButtons: {
     flexDirection: 'row',

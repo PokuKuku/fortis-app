@@ -59,7 +59,7 @@ export default function CreateProgramScreen() {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
     },
     closeButton: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDark ? colors.errorOverlay : 'rgba(239, 68, 68, 0.1)',
     },
     headerTitleInput: { color: colors.textPrimary },
     descriptionInput: {
@@ -77,7 +77,6 @@ export default function CreateProgramScreen() {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     },
     workoutExerciseCount: { color: colors.textSecondary },
-    templateLabel: { color: colors.textTertiary },
     emptyStateText: { color: colors.textSecondary },
     emptyStateSubtext: { color: colors.textSecondary },
     modalOverlay: { backgroundColor: colors.overlayHeavy },
@@ -98,6 +97,8 @@ export default function CreateProgramScreen() {
     accentButtonBgPressed: { backgroundColor: colors.accentOverlayMedium },
     statValue: { color: colors.accent },
     primaryActionText: { color: colors.white },
+    dayBadge: { backgroundColor: colors.accentOverlay },
+    dayBadgeText: { color: colors.accent },
   };
   const {
     mode,
@@ -135,6 +136,9 @@ export default function CreateProgramScreen() {
   const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showEditIntentModal, setShowEditIntentModal] = useState(false);
+  const [headerLeftWidth, setHeaderLeftWidth] = useState(0);
+  const [titleTextWidth, setTitleTextWidth] = useState(0);
+  const isNavigating = useRef(false);
   const hasInitializedEdit = useRef(false);
 
   useEffect(() => {
@@ -152,7 +156,7 @@ export default function CreateProgramScreen() {
     setProgramName(editingProgram.name);
     setProgramDescription(editingProgram.description || '');
 
-    const mappedWorkouts = editingProgram.workouts.map((workout) => {
+    const mappedWorkouts = editingProgram.workouts.flatMap((workout) => {
       const matchingTemplate = templates.find((template) => {
         const templateWorkout = template.workouts[0];
         if (!templateWorkout) return false;
@@ -162,12 +166,14 @@ export default function CreateProgramScreen() {
         return template.name.toLowerCase() === workout.name.toLowerCase();
       });
 
-      return {
+      if (!matchingTemplate) return [];
+
+      return [{
         id: `workout-${workout.id}`,
-        templateId: matchingTemplate?.id ?? null,
+        templateId: matchingTemplate.id,
         name: workout.name,
         programWorkoutId: workout.id,
-      } as EditorWorkout;
+      } as EditorWorkout];
     });
 
     setWorkouts(mappedWorkouts);
@@ -202,10 +208,8 @@ export default function CreateProgramScreen() {
   }, [templateMap, workouts]);
   const exercisesWithMuscles = useExercisesWithMuscles(programExerciseIds);
   const hasMuscles = exercisesWithMuscles.length > 0;
-  const hasMissingTemplates = workouts.some(workout => !workout.templateId);
-
   // Check if we can save
-  const canSave = programName.trim().length > 0 && workouts.length > 0 && !hasMissingTemplates && !isSaving;
+  const canSave = programName.trim().length > 0 && workouts.length > 0 && !isSaving;
 
   // Handle close
   const handleClose = () => {
@@ -291,6 +295,14 @@ export default function CreateProgramScreen() {
     setShowTemplatePicker(false);
   }, [activeWorkoutId, templateMap]);
 
+  const handleViewWorkoutDetails = useCallback((templateId?: string | null) => {
+    if (!templateId || isNavigating.current) return;
+    isNavigating.current = true;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/workouts/${templateId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  }, [router]);
+
   // Handle save
   const performSave = async (editIntent?: 'keep' | 'restart') => {
     if (!canSave) return false;
@@ -353,21 +365,35 @@ export default function CreateProgramScreen() {
   const renderWorkoutCard = useCallback(({ item, index }: { item: EditorWorkout; index: number }) => {
     const template = item.templateId ? templateMap.get(item.templateId) : null;
     const exerciseCount = template?.workouts[0]?.exercises.length || 0;
+    const dayNumber = index + 1;
     const canMoveUp = index > 0;
     const canMoveDown = index < workouts.length - 1;
 
     return (
       <View style={[styles.workoutCard, themedStyles.workoutCard]}>
         <View style={styles.workoutCardHeader}>
-          <TextInput
-            style={[styles.workoutNameInput, themedStyles.workoutNameInput]}
-            value={item.name}
-            onChangeText={(text) => handleUpdateWorkoutName(item.id, text)}
-            placeholder="Workout Name"
-            placeholderTextColor={colors.textSecondary}
-            autoCorrect={false}
-            autoCapitalize="words"
-          />
+          <Pressable
+            onPress={() => handleViewWorkoutDetails(item.templateId)}
+            onLongPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveWorkoutId(item.id);
+              setShowTemplatePicker(true);
+            }}
+            delayLongPress={200}
+            style={styles.workoutCardPressable}
+          >
+            <View style={[styles.dayBadge, themedStyles.dayBadge]}>
+              <Text style={[styles.dayBadgeText, themedStyles.dayBadgeText]}>Day {dayNumber}</Text>
+            </View>
+            <View style={styles.workoutCardInfo}>
+              <Text style={[styles.workoutNameText, themedStyles.workoutNameInput]} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={[styles.workoutExerciseCount, themedStyles.workoutExerciseCount]} numberOfLines={1}>
+                {template ? `${exerciseCount} exercises` : 'Template not selected'}
+              </Text>
+            </View>
+          </Pressable>
           <View style={styles.workoutActions}>
             <Pressable
               onPress={() => handleMoveWorkout(item.id, 'up')}
@@ -407,34 +433,9 @@ export default function CreateProgramScreen() {
             </Pressable>
           </View>
         </View>
-        <View style={styles.workoutCardContent}>
-          <View style={styles.workoutCardInfo}>
-            <Text style={[styles.workoutExerciseCount, themedStyles.workoutExerciseCount]} numberOfLines={1}>
-              {template ? `${exerciseCount} exercises` : 'Template not selected'}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              setActiveWorkoutId(item.id);
-              setShowTemplatePicker(true);
-            }}
-            style={({ pressed }) => [
-              styles.addExerciseButton,
-              themedStyles.accentButtonBorder,
-              themedStyles.accentButtonBg,
-              pressed && themedStyles.accentButtonBgPressed,
-            ]}
-          >
-            <PlusIcon size={16} color={colors.accent} strokeWidth={2} />
-            <Text style={[styles.addExerciseText, { color: colors.accent }]}>
-              {template ? 'Change Template' : 'Select Template'}
-            </Text>
-          </Pressable>
-        </View>
       </View>
     );
-  }, [handleMoveWorkout, handleRemoveWorkout, handleUpdateWorkoutName, templateMap, workouts.length, colors, themedStyles]);
+  }, [handleMoveWorkout, handleRemoveWorkout, handleViewWorkoutDetails, templateMap, workouts.length, colors, themedStyles]);
 
   // Render empty state
   const renderEmptyState = () => (
@@ -463,6 +464,10 @@ export default function CreateProgramScreen() {
   );
 
   const saveButtonText = isEditing ? 'Finish edit' : 'Save';
+  const titleMeasureText = programName || 'Program Name';
+  const titleRowWidth = headerLeftWidth && titleTextWidth
+    ? Math.min(titleTextWidth + Spacing.xs + 14, headerLeftWidth)
+    : undefined;
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -478,21 +483,24 @@ export default function CreateProgramScreen() {
             {/* Header */}
             <View style={styles.headerContainer}>
               <View style={styles.headerTopRow}>
+                <View style={styles.headerTopSpacer} />
                 <Pressable
                   onPress={handleClose}
                   style={({ pressed }) => [
-                    styles.closeButton,
+                    styles.iconButton,
                     themedStyles.closeButton,
-                    pressed && styles.closeButtonPressed,
+                    pressed && styles.iconButtonPressed,
                   ]}
                 >
-                  <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
+                  <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
                 </Pressable>
-                <View style={styles.headerTopSpacer} />
               </View>
               <View style={styles.headerContentRow}>
-                <View style={styles.headerLeftColumn}>
-                  <View style={styles.titleInputWrapper}>
+                <View
+                  style={styles.headerLeftColumn}
+                  onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
+                >
+                  <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
                     <TextInput
                       style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
                       placeholder="Program Name"
@@ -513,6 +521,11 @@ export default function CreateProgramScreen() {
                         <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
                       )}
                     </View>
+                  </View>
+                  <View style={styles.titleMeasureContainer} pointerEvents="none">
+                    <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
+                      {titleMeasureText}
+                    </Text>
                   </View>
                   {workoutCount > 0 && (
                     <View style={styles.statsRow}>
@@ -537,26 +550,6 @@ export default function CreateProgramScreen() {
           </View>
         </GestureDetector>
 
-        {/* Description */}
-        <View style={styles.descriptionWrapper}>
-          <TextInput
-            style={[styles.descriptionInput, themedStyles.descriptionInput]}
-            placeholder="Program Description (optional)"
-            placeholderTextColor={colors.textSecondary}
-            value={programDescription}
-            onChangeText={setProgramDescription}
-            multiline
-            maxLength={180}
-            textAlignVertical="top"
-          />
-        </View>
-
-        {hasMissingTemplates && (
-          <Text style={styles.missingTemplateWarning}>
-            Select a template for every workout to save this program.
-          </Text>
-        )}
-
         {/* Workouts List */}
         <FlatList
           data={workouts}
@@ -565,6 +558,20 @@ export default function CreateProgramScreen() {
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
+          ListHeaderComponent={(
+            <View style={styles.descriptionWrapper}>
+              <TextInput
+                style={[styles.descriptionInput, themedStyles.descriptionInput]}
+                placeholder="Program Description (optional)"
+                placeholderTextColor={colors.textSecondary}
+                value={programDescription}
+                onChangeText={setProgramDescription}
+                multiline
+                maxLength={180}
+                textAlignVertical="top"
+              />
+            </View>
+          )}
           ListFooterComponent={(
             <View style={styles.bottomActions}>
               <Pressable
@@ -744,36 +751,37 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     paddingHorizontal: Spacing['2xl'],
-    paddingBottom: Spacing.xs,
+    paddingBottom: Spacing.md,
+    gap: Spacing.lg,
   },
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  closeButton: {
-    width: 40,
-    height: 40,
+  iconButton: {
+    padding: Spacing.sm,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  closeButtonPressed: {
-    opacity: 0.6,
+  iconButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   headerTopSpacer: {
-    width: 40,
+    width: 36,
   },
   headerContentRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginTop: 0,
+    marginTop: -10,
   },
   headerLeftColumn: {
     flex: 1,
-    gap: 0,
+    gap: Spacing.sm,
+    marginTop: 0,
     paddingRight: Spacing.md,
   },
   headerHeatmap: {
@@ -785,7 +793,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     gap: Spacing.xs,
     alignSelf: 'flex-start',
-    maxWidth: '80%',
   },
   editIconSlot: {
     width: 14,
@@ -798,20 +805,30 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'left',
     flex: 1,
-    minWidth: 100,
+    minWidth: 0,
     lineHeight: FontSizes.xl,
     paddingVertical: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
-    minHeight: ButtonHeights.sm,
+    minHeight: ButtonHeights.md,
+  },
+  titleMeasureContainer: {
+    position: 'absolute',
+    opacity: 0,
+    height: 0,
+  },
+  titleMeasureText: {
+    ...Typography.h4,
+    fontFamily: 'BankGothicBT-Medium',
+    lineHeight: FontSizes.xl,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['3xl'],
+    marginTop: -Spacing.md,
   },
   descriptionWrapper: {
-    paddingHorizontal: Spacing['2xl'],
     paddingBottom: Spacing.md,
   },
   descriptionInput: {
@@ -825,20 +842,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
   },
-  missingTemplateWarning: {
-    ...Typography.bodySmall,
-    color: Colors.warning ?? '#f59e0b',
-    paddingHorizontal: Spacing['2xl'],
-    marginBottom: Spacing.sm,
-  },
   statItem: {
     alignItems: 'flex-start',
   },
   statValue: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 24,
+    fontSize: 22,
     color: Colors.success,
-    lineHeight: 28,
+    lineHeight: 26,
     paddingBottom: 2,
   },
   statLabel: {
@@ -874,31 +885,40 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     marginBottom: Spacing.md,
   },
   workoutCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.md,
+    gap: Spacing.md,
   },
   workoutActions: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
   },
-  workoutNameInput: {
+  workoutCardPressable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    flex: 1,
+  },
+  dayBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+  },
+  dayBadgeText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '700',
+    color: Colors.success,
+  },
+  workoutNameText: {
     ...Typography.h4,
     color: Colors.textPrimary,
-    flex: 1,
-    flexShrink: 1,
-    minWidth: 0,
-    minHeight: Sizes.minTouchTarget,
-    paddingVertical: 0,
-    textAlignVertical: 'center',
-    includeFontPadding: false,
-    marginRight: Spacing.md,
   },
   reorderButton: {
     width: 28,
@@ -925,44 +945,13 @@ const styles = StyleSheet.create({
   deleteButtonPressed: {
     backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
-  workoutCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   workoutCardInfo: {
     flex: 1,
     minWidth: 0,
-    marginRight: Spacing.md,
   },
   workoutExerciseCount: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
-  },
-  templateLabel: {
-    ...Typography.bodySmall,
-    color: Colors.textTertiary,
-    marginTop: 4,
-  },
-  addExerciseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: 'rgba(34, 197, 94, 0.3)',
-    backgroundColor: 'rgba(34, 197, 94, 0.05)',
-    flexShrink: 0,
-  },
-  addExerciseButtonPressed: {
-    backgroundColor: 'rgba(34, 197, 94, 0.15)',
-  },
-  addExerciseText: {
-    ...Typography.bodySmall,
-    color: Colors.success,
-    fontWeight: '600',
   },
   createTemplateButton: {
     flexDirection: 'row',

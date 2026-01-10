@@ -7,8 +7,6 @@ import {
   PlayIcon,
   TrashIcon,
   ExclamationTriangleIcon,
-  ChevronUpIcon,
-  ChevronDownIcon,
 } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
@@ -76,10 +74,6 @@ function WorkoutSection({
   onExercisePress,
   onDeleteWorkout,
   onDeleteExercise,
-  onMoveUp,
-  onMoveDown,
-  canMoveUp,
-  canMoveDown,
 }: {
   workout: ProgramWorkout;
   isExpanded: boolean;
@@ -87,10 +81,6 @@ function WorkoutSection({
   onExercisePress: (exerciseId: string) => void;
   onDeleteWorkout: (workoutId: string, workoutName: string) => void;
   onDeleteExercise: (workoutId: string, exerciseId: string, exerciseName: string) => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  canMoveUp: boolean;
-  canMoveDown: boolean;
 }) {
   const { colors, isDark } = useTheme();
   const handleToggle = () => {
@@ -102,10 +92,6 @@ function WorkoutSection({
   const cardStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-  };
-  const reorderButtonStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
   };
 
   return (
@@ -130,32 +116,6 @@ function WorkoutSection({
           </View>
         </TouchableOpacity>
         <View style={styles.workoutSectionActions}>
-          <Pressable
-            onPress={onMoveUp}
-            disabled={!canMoveUp}
-            style={({ pressed }) => [
-              styles.reorderButton,
-              reorderButtonStyle,
-              !canMoveUp && styles.reorderButtonDisabled,
-              pressed && canMoveUp && styles.reorderButtonPressed,
-            ]}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <ChevronUpIcon size={16} color={colors.textSecondary} strokeWidth={2} />
-          </Pressable>
-          <Pressable
-            onPress={onMoveDown}
-            disabled={!canMoveDown}
-            style={({ pressed }) => [
-              styles.reorderButton,
-              reorderButtonStyle,
-              !canMoveDown && styles.reorderButtonDisabled,
-              pressed && canMoveDown && styles.reorderButtonPressed,
-            ]}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          >
-            <ChevronDownIcon size={16} color={colors.textSecondary} strokeWidth={2} />
-          </Pressable>
           <Pressable
             onPress={() => onDeleteWorkout(workout.id, workout.name)}
             style={({ pressed }) => [
@@ -205,9 +165,9 @@ export default function ProgramDetailScreen() {
   const { colors, isDark } = useTheme();
   const { program, loading } = useProgram(id);
   const isNavigating = useRef(false);
+  const storePrograms = useProgramsStore(s => s.programs);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
-  const reorderProgramWorkouts = useProgramsStore(s => s.reorderProgramWorkouts);
   const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
   const bodyType = useWorkoutStore(s => s.bodyType);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
@@ -228,10 +188,6 @@ export default function ProgramDetailScreen() {
     name: string;
   }>({ visible: false, step: 'confirm', type: 'workout', workoutId: '', name: '' });
   const [expandedWorkouts, setExpandedWorkouts] = useState<Record<string, boolean>>({});
-  const [reorderIntent, setReorderIntent] = useState<'keep' | 'restart' | null>(null);
-  const [pendingReorder, setPendingReorder] = useState<ProgramWorkout[] | null>(null);
-  const [showReorderIntentModal, setShowReorderIntentModal] = useState(false);
-  const [hasRestarted, setHasRestarted] = useState(false);
 
   const toggleWorkout = useCallback((workoutId: string) => {
     setExpandedWorkouts((prev) => ({
@@ -246,13 +202,6 @@ export default function ProgramDetailScreen() {
       return undefined;
     }, [id])
   );
-
-  useEffect(() => {
-    setReorderIntent(null);
-    setPendingReorder(null);
-    setShowReorderIntentModal(false);
-    setHasRestarted(false);
-  }, [id]);
 
   const handleBack = () => {
     if (isNavigating.current) return;
@@ -395,66 +344,53 @@ export default function ProgramDetailScreen() {
     })();
   }, [applyDelete, deleteModal, id, program, restartProgram, trimCompletedDays]);
 
-  const applyWorkoutReorder = useCallback(async (
-    nextWorkouts: ProgramWorkout[],
-    intent: 'keep' | 'restart'
-  ) => {
-    if (!id) return;
-    const orderedIds = nextWorkouts.map((workout) => workout.id);
-    const success = await reorderProgramWorkouts(id, orderedIds);
-    if (!success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-
-    if (intent === 'restart' && !hasRestarted) {
-      restartProgram(id);
-      setHasRestarted(true);
-    }
-  }, [hasRestarted, id, reorderProgramWorkouts, restartProgram]);
-
-  const handleMoveWorkout = useCallback((index: number, direction: 'up' | 'down') => {
-    if (!program) return;
-    const orderedWorkouts = [...program.workouts].sort((a, b) => a.dayNumber - b.dayNumber);
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= orderedWorkouts.length) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    const nextWorkouts = [...orderedWorkouts];
-    const [moved] = nextWorkouts.splice(index, 1);
-    nextWorkouts.splice(targetIndex, 0, moved);
-    const normalizedWorkouts = nextWorkouts.map((workout, idx) => ({
-      ...workout,
-      dayNumber: idx + 1,
-    }));
-
-    if (progressEntry && !reorderIntent) {
-      setPendingReorder(normalizedWorkouts);
-      setShowReorderIntentModal(true);
-      return;
-    }
-
-    void applyWorkoutReorder(normalizedWorkouts, reorderIntent ?? 'keep');
-  }, [applyWorkoutReorder, program, progressEntry, reorderIntent]);
-
-  const handleReorderIntent = useCallback((intent: 'keep' | 'restart') => {
-    setReorderIntent(intent);
-    setShowReorderIntentModal(false);
-    if (!pendingReorder) return;
-    const nextWorkouts = pendingReorder;
-    setPendingReorder(null);
-    void applyWorkoutReorder(nextWorkouts, intent);
-  }, [applyWorkoutReorder, pendingReorder]);
-
-  const handleCancelReorderIntent = useCallback(() => {
-    setPendingReorder(null);
-    setShowReorderIntentModal(false);
-  }, []);
-
   const heatmapExercises = useMemo(
     () => program?.workouts.flatMap(workout => workout.exercises) ?? [],
     [program]
   );
+
+  const templateSignatures = useMemo(() => {
+    return storePrograms
+      .filter((entry) => entry.isTemplate)
+      .map((template) => {
+        const templateWorkout = template.workouts[0];
+        const exerciseIds = templateWorkout?.exercises
+          .map((exercise) => exercise.exerciseId)
+          .join(',');
+        return {
+          name: template.name.trim().toLowerCase(),
+          exerciseIds: exerciseIds || '',
+        };
+      });
+  }, [storePrograms]);
+
+  const hasTemplateMatch = useCallback(
+    (workout: ProgramWorkout) => {
+      const workoutName = workout.name.trim().toLowerCase();
+      const workoutIds = workout.exercises
+        .map((exercise) => exercise.exerciseId)
+        .join(',');
+      return templateSignatures.some((template) => {
+        if (template.exerciseIds && workoutIds && template.exerciseIds === workoutIds) return true;
+        return template.name === workoutName;
+      });
+    },
+    [templateSignatures]
+  );
+
+  useEffect(() => {
+    if (!program || !id) return;
+    const storeProgram = storePrograms.find((entry) => entry.id === id && !entry.isTemplate);
+    if (!storeProgram || storeProgram.isDefault) return;
+    if (templateSignatures.length === 0) return;
+
+    const missingWorkouts = program.workouts.filter((workout) => !hasTemplateMatch(workout));
+    if (missingWorkouts.length === 0) return;
+
+    missingWorkouts.forEach((workout) => {
+      void removeWorkoutFromProgram(id, workout.id);
+    });
+  }, [hasTemplateMatch, id, program, removeWorkoutFromProgram, storePrograms, templateSignatures]);
 
   useEffect(() => {
     loadProgress();
@@ -617,10 +553,6 @@ export default function ProgramDetailScreen() {
                 onExercisePress={handleExercisePress}
                 onDeleteWorkout={handleDeleteWorkout}
                 onDeleteExercise={handleDeleteExercise}
-                onMoveUp={() => handleMoveWorkout(index, 'up')}
-                onMoveDown={() => handleMoveWorkout(index, 'down')}
-                canMoveUp={index > 0}
-                canMoveDown={index < orderedWorkouts.length - 1}
               />
             ))}
           </View>
@@ -747,55 +679,6 @@ export default function ProgramDetailScreen() {
             </View>
           </>
         )}
-      </BaseModal>
-
-      <BaseModal
-        visible={showReorderIntentModal}
-        onClose={handleCancelReorderIntent}
-        title="Edit Active Program?"
-        icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
-      >
-        <Text style={modalStyles.message}>
-          This program is in progress. How should we handle your edits?
-        </Text>
-        <View style={[modalStyles.actions, styles.modalActions]}>
-          <Pressable
-            onPress={() => handleReorderIntent('keep')}
-            style={({ pressed }) => [
-              modalStyles.successButton,
-              styles.modalActionButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={[modalStyles.successButtonText, styles.modalActionText]}>
-              Apply to future workouts
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={() => handleReorderIntent('restart')}
-            style={({ pressed }) => [
-              modalStyles.warningButton,
-              styles.modalActionButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={[modalStyles.warningButtonText, styles.modalActionText]}>
-              Restart program
-            </Text>
-          </Pressable>
-          <Pressable
-            onPress={handleCancelReorderIntent}
-            style={({ pressed }) => [
-              modalStyles.cancelButton,
-              styles.modalActionButton,
-              pressed && modalStyles.buttonPressed,
-            ]}
-          >
-            <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
-              Cancel
-            </Text>
-          </Pressable>
-        </View>
       </BaseModal>
 
     </SafeAreaView>
@@ -977,20 +860,6 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     paddingTop: 0,
     gap: Spacing.sm,
-  },
-  reorderButton: {
-    width: 28,
-    height: 28,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reorderButtonPressed: {
-    transform: [{ scale: 0.96 }],
-  },
-  reorderButtonDisabled: {
-    opacity: 0.4,
   },
   deleteButton: {
     width: 30,

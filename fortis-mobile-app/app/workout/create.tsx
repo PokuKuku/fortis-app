@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { XMarkIcon, PlusIcon, CalendarDaysIcon, PencilIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, PlusIcon, CalendarDaysIcon, PencilIcon, ClockIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -31,6 +31,7 @@ import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { responsiveValue } from '@/src/utils/responsive';
 import { format } from 'date-fns';
 import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
+import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 
@@ -56,8 +57,11 @@ export default function CreateWorkoutScreen() {
     dragHandle: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
     },
+    clockButton: {
+      backgroundColor: isDark ? 'rgba(163, 163, 163, 0.2)' : 'rgba(0, 0, 0, 0.06)',
+    },
     closeButton: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+      backgroundColor: isDark ? colors.errorOverlay : 'rgba(239, 68, 68, 0.1)',
     },
     headerTitleInput: { color: colors.textPrimary },
     statLabel: { color: colors.textTertiary },
@@ -98,13 +102,17 @@ export default function CreateWorkoutScreen() {
   const closeNumberPad = useWorkoutStore(s => s.closeNumberPad);
   const updateEditorSet = useWorkoutStore(s => s.updateEditorSet);
   const openEditorNumberPad = useWorkoutStore(s => s.openEditorNumberPad);
+  const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
+  const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimerSettingsModal, setShowTimerSettingsModal] = useState(false);
   const [isNameFocused, setIsNameFocused] = useState(false);
-  const [workoutName, setWorkoutName] = useState('');
+  const [headerLeftWidth, setHeaderLeftWidth] = useState(0);
+  const [titleTextWidth, setTitleTextWidth] = useState(0);
   const isNavigating = useRef(false);
 
   // Get exercise IDs and fetch muscle data for heatmap
@@ -227,6 +235,14 @@ export default function CreateWorkoutScreen() {
     }
   };
 
+  const handleSaveTimerSettings = (normal: number, warmup: number, dropset: number) => {
+    updateRestTimerSettings({
+      normalSeconds: normal,
+      warmupSeconds: warmup,
+      dropsetSeconds: dropset,
+    });
+  };
+
   // Handle number pad confirm
   const handleNumberPadConfirm = useCallback((value: number | null) => {
     if (!activeNumberPad) return;
@@ -289,6 +305,10 @@ export default function CreateWorkoutScreen() {
   );
 
   const saveButtonText = mode === 'log' ? 'Log' : (isEditingTemplate ? 'Finish edit' : 'Save');
+  const titleMeasureText = editorSession?.name || 'Workout Name';
+  const titleRowWidth = headerLeftWidth && titleTextWidth
+    ? Math.min(titleTextWidth + Spacing.xs + 14, headerLeftWidth)
+    : undefined;
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -305,20 +325,35 @@ export default function CreateWorkoutScreen() {
             <View style={styles.headerContainer}>
               <View style={styles.headerTopRow}>
                 <Pressable
-                  onPress={handleClose}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowTimerSettingsModal(true);
+                  }}
                   style={({ pressed }) => [
-                    styles.closeButton,
-                    themedStyles.closeButton,
-                    pressed && styles.closeButtonPressed,
+                    styles.iconButton,
+                    themedStyles.clockButton,
+                    pressed && styles.iconButtonPressed,
                   ]}
                 >
-                  <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
+                  <ClockIcon size={20} color={colors.textSecondary} strokeWidth={2} />
                 </Pressable>
-                <View style={styles.headerTopSpacer} />
+                <Pressable
+                  onPress={handleClose}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    themedStyles.closeButton,
+                    pressed && styles.iconButtonPressed,
+                  ]}
+                >
+                  <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
+                </Pressable>
               </View>
               <View style={styles.headerContentRow}>
-                <View style={styles.headerLeftColumn}>
-                  <View style={styles.titleInputWrapper}>
+                <View
+                  style={styles.headerLeftColumn}
+                  onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
+                >
+                  <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
                     <TextInput
                       style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
                       placeholder="Workout Name"
@@ -339,6 +374,11 @@ export default function CreateWorkoutScreen() {
                         <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
                       )}
                     </View>
+                  </View>
+                  <View style={styles.titleMeasureContainer} pointerEvents="none">
+                    <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
+                      {titleMeasureText}
+                    </Text>
                   </View>
                   {mode !== 'log' && exerciseCount > 0 && (
                     <View style={styles.statsRow}>
@@ -448,6 +488,15 @@ export default function CreateWorkoutScreen() {
         useEditor={true}
       />
 
+      <TimerSettingsModal
+        visible={showTimerSettingsModal}
+        onClose={() => setShowTimerSettingsModal(false)}
+        onSave={handleSaveTimerSettings}
+        initialNormalDuration={restTimerSettings.normalSeconds}
+        initialWarmupDuration={restTimerSettings.warmupSeconds}
+        initialDropDuration={restTimerSettings.dropsetSeconds}
+      />
+
       {/* Date Picker */}
       <DateSelector
         visible={showDatePicker}
@@ -481,36 +530,34 @@ const styles = StyleSheet.create({
   },
   headerContainer: {
     paddingHorizontal: Spacing['2xl'],
-    paddingBottom: Spacing.xs,
+    paddingBottom: Spacing.md,
+    gap: Spacing.lg,
   },
   headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  closeButton: {
-    width: 40,
-    height: 40,
+  iconButton: {
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: BorderRadius.lg,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
-  closeButtonPressed: {
-    opacity: 0.6,
-  },
-  headerTopSpacer: {
-    width: 40,
+  iconButtonPressed: {
+    opacity: 0.7,
+    transform: [{ scale: 0.98 }],
   },
   headerContentRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginTop: 0,
+    marginTop: -10,
   },
   headerLeftColumn: {
     flex: 1,
-    gap: 0,
+    gap: Spacing.sm,
+    marginTop: 0,
     paddingRight: Spacing.md,
   },
   headerHeatmap: {
@@ -522,7 +569,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     gap: Spacing.xs,
     alignSelf: 'flex-start',
-    maxWidth: '80%',
   },
   editIconSlot: {
     width: 14,
@@ -535,26 +581,37 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'left',
     flex: 1,
-    minWidth: 100,
+    minWidth: 0,
     lineHeight: FontSizes.xl,
     paddingVertical: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
-    minHeight: ButtonHeights.sm,
+    minHeight: ButtonHeights.md,
+  },
+  titleMeasureContainer: {
+    position: 'absolute',
+    opacity: 0,
+    height: 0,
+  },
+  titleMeasureText: {
+    ...Typography.h4,
+    fontFamily: 'BankGothicBT-Medium',
+    lineHeight: FontSizes.xl,
   },
   statsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing['3xl'],
+    marginTop: -Spacing.md,
   },
   statItem: {
     alignItems: 'flex-start',
   },
   statValue: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 24,
+    fontSize: 22,
     color: Colors.success,
-    lineHeight: 28,
+    lineHeight: 26,
   },
   statLabel: {
     fontSize: 11,
