@@ -385,6 +385,8 @@ export const useAIStore = create<AIState>()(
         const assistantContent =
           response.type === 'answer'
             ? response.answer?.text || ''
+            : response.type === 'workout_proposal'
+            ? response.workoutProposal?.summary || `Workout proposal: ${response.workoutProposal?.title ?? ''}`
             : response.type === 'mutation_plan'
             ? response.mutationPlan?.explanation || ''
             : response.type === 'clarification'
@@ -402,6 +404,7 @@ export const useAIStore = create<AIState>()(
           mutationPlanId: response.mutationPlan?.requestId,
           createdAt: new Date().toISOString(),
           clarification: response.type === 'clarification' ? response.clarification : undefined,
+          workoutProposal: response.type === 'workout_proposal' ? response.workoutProposal : undefined,
         };
 
         // Update conversation with assistant response
@@ -409,6 +412,14 @@ export const useAIStore = create<AIState>()(
           ...updatedConversation,
           messages: [...updatedConversation.messages, assistantMessage],
         };
+
+        // Track workout proposal event
+        if (response.type === 'workout_proposal' && response.workoutProposal) {
+          analytics.trackAIWorkoutProposed({
+            exerciseCount: response.workoutProposal.exercises.length,
+            intent,
+          });
+        }
 
         // Handle mutation plan
         if (response.type === 'mutation_plan' && response.mutationPlan) {
@@ -426,12 +437,12 @@ export const useAIStore = create<AIState>()(
               isSendingMessage: false,
             });
           } else {
-          set({
-            conversation: finalConversation,
-            error: response.error?.message || 'An error occurred',
-            isSendingMessage: false,
-            lastFailedMessage: messageParams,
-          });
+            set({
+              conversation: finalConversation,
+              error: response.error?.message || 'An error occurred',
+              isSendingMessage: false,
+              lastFailedMessage: messageParams,
+            });
           }
         } else if (response.type === 'clarification') {
           set({

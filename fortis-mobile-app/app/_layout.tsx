@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { PostHogProvider } from 'posthog-react-native';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
@@ -12,11 +11,11 @@ import { AuthProvider } from '@/src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { AIContainer } from '@/src/components/ai';
-import { PostHogScreenTracker } from '@/src/components/analytics/PostHogScreenTracker';
-import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
-import { PostHogRetentionTracker } from '@/src/components/analytics/PostHogRetentionTracker';
+import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
+import { MixpanelScreenTracker } from '@/src/components/analytics/MixpanelScreenTracker';
+import { RetentionTracker } from '@/src/components/analytics/RetentionTracker';
 import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics';
-import { isPostHogConfigured, posthogApiKey, posthogHost } from '@/src/lib/posthog';
+import { initMixpanel, isMixpanelConfigured } from '@/src/lib/mixpanel';
 
 const PAGE_TRANSITION = {
   animation: 'fade_from_bottom' as const,
@@ -28,14 +27,14 @@ SplashScreen.preventAutoHideAsync().catch(() => undefined);
 /**
  * Themed content wrapper - uses theme context for StatusBar and Stack styling
  */
-function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
+function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
   const { colors, isDark } = useTheme();
 
   return (
     <AuthProvider>
       <ThemeAuthSync />
       <DragDropProvider>
-        {posthogEnabled && <PostHogAuthSync />}
+        {mixpanelEnabled && <MixpanelAuthSync />}
         <StatusBar style={isDark ? 'light' : 'dark'} />
         <Stack
           screenOptions={{
@@ -121,6 +120,15 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="ai/workout-proposal"
+            options={{
+              animation: 'slide_from_right',
+              animationDuration: 220,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
             name="exercise/[id]"
             options={{
               animation: 'slide_from_right',
@@ -183,6 +191,15 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="profile/share"
+            options={{
+              animation: 'slide_from_right',
+              animationDuration: 220,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
             name="goals"
             options={{
               ...PAGE_TRANSITION,
@@ -192,8 +209,8 @@ function ThemedAppContent({ posthogEnabled }: { posthogEnabled: boolean }) {
           />
         </Stack>
         <RouteChangeHaptics />
-        {posthogEnabled && <PostHogScreenTracker />}
-        {posthogEnabled && <PostHogRetentionTracker />}
+        {mixpanelEnabled && <MixpanelScreenTracker />}
+        {mixpanelEnabled && <RetentionTracker />}
         <WorkoutMiniBar />
         <AIContainer />
       </DragDropProvider>
@@ -213,6 +230,8 @@ export default function RootLayout() {
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
 
+  const mixpanelEnabled = isMixpanelConfigured();
+
   // Load persisted preferences on app start
   useEffect(() => {
     loadStickyNotes();
@@ -230,39 +249,27 @@ export default function RootLayout() {
     loadRestTimerSettings,
   ]);
 
+  useEffect(() => {
+    if (!mixpanelEnabled) {
+      return;
+    }
+
+    void initMixpanel();
+  }, [mixpanelEnabled]);
+
   if (!fontsLoaded) {
     return null;
   }
 
-  const posthogEnabled = isPostHogConfigured();
   const appContent = (
     <ThemeProvider>
-      <ThemedAppContent posthogEnabled={posthogEnabled} />
+      <ThemedAppContent mixpanelEnabled={mixpanelEnabled} />
     </ThemeProvider>
   );
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {posthogEnabled ? (
-        <PostHogProvider
-          apiKey={posthogApiKey}
-          options={{
-            host: posthogHost,
-            captureApplicationLifecycleEvents: true,
-            enableSessionReplay: true,
-            sessionReplayConfig: {
-              maskAllTextInputs: true,
-              maskAllImages: true,
-              captureLog: true,
-              captureNetworkTelemetry: true,
-            },
-          }}
-        >
-          {appContent}
-        </PostHogProvider>
-      ) : (
-        appContent
-      )}
+      {appContent}
     </GestureHandlerRootView>
   );
 }

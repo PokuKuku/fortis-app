@@ -90,7 +90,7 @@ export function SaveAsTemplateModal({
           restSeconds: ex.restSeconds,
           setDetails: ex.setDetails,
         })),
-        session.completedAt || session.startedAt
+        { lastPerformedAt: session.completedAt || session.startedAt }
       );
 
       if (result) {

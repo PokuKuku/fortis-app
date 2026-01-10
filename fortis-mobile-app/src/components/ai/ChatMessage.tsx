@@ -31,6 +31,7 @@ import { Typography, FontFamily } from '@/constants/Typography';
 import { AIConversationMessage } from '@/src/types/ai';
 import { StreamingText } from './StreamingText';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { WorkoutProposalCard } from './WorkoutProposalCard';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
@@ -48,6 +49,8 @@ interface ChatMessageProps {
   onCustomizeAction?: () => void;
   /** Callback when user taps a clarification option */
   onClarificationSelect?: (option: string) => void;
+  /** Callback when user taps workout proposal actions */
+  onWorkoutProposalAction?: (action: 'review' | 'edit' | 'create', messageId: string) => void;
 }
 
 export function ChatMessage({
@@ -59,10 +62,12 @@ export function ChatMessage({
   onSaveAction,
   onCustomizeAction,
   onClarificationSelect,
+  onWorkoutProposalAction,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
-  const { mainContent, tldr } = !isUser
+  const isWorkoutProposal = !isUser && !!message.workoutProposal;
+  const { mainContent, tldr } = !isUser && !isWorkoutProposal
     ? splitTldrFromContent(message.content)
     : { mainContent: message.content, tldr: null };
 
@@ -241,7 +246,14 @@ export function ChatMessage({
         )}
 
         {/* Message text */}
-        {isUser ? (
+        {isWorkoutProposal ? (
+          <WorkoutProposalCard
+            proposal={message.workoutProposal!}
+            onReview={() => onWorkoutProposalAction?.('review', message.id)}
+            onEdit={() => onWorkoutProposalAction?.('edit', message.id)}
+            onCreate={() => onWorkoutProposalAction?.('create', message.id)}
+          />
+        ) : isUser ? (
           <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
         ) : isStreaming ? (
           <StreamingText
@@ -257,7 +269,7 @@ export function ChatMessage({
         )}
 
         {/* TLDR summary (always visible for AI messages) */}
-        {!isUser && !isStreaming && tldr && (
+        {!isUser && !isStreaming && tldr && !isWorkoutProposal && (
           <View style={[styles.tldrContainer, themedStyles.tldrContainer]}>
             <Text style={[styles.tldrLabel, themedStyles.tldrLabel]}>TLDR</Text>
             <Text style={[styles.tldrText, themedStyles.tldrText]}>{tldr}</Text>

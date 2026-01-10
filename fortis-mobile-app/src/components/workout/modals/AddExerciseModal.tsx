@@ -73,7 +73,6 @@ export function AddExerciseModal({
       borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
     },
     searchInput: { color: colors.textPrimary },
-    replaceHint: { color: colors.textSecondary },
     exerciseItem: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.02)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
@@ -440,9 +439,7 @@ export function AddExerciseModal({
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={[styles.title, themedStyles.title]}>
-              {replaceMode ? 'Replace Exercise' : 'Exercises'}
-            </Text>
+            <Text style={[styles.title, themedStyles.title]}>Exercises</Text>
             <Pressable
               onPress={onClose}
               style={({ pressed }) => [
@@ -491,13 +488,6 @@ export function AddExerciseModal({
                 ))}
               </ScrollView>
             </View>
-          )}
-
-          {/* Replace mode hint */}
-          {replaceMode && (
-            <Text style={[styles.replaceHint, themedStyles.replaceHint]}>
-              Tap an exercise to replace the current one
-            </Text>
           )}
 
           {/* Search Input */}
@@ -640,14 +630,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     // color now applied via themedStyles.chipText
     flexShrink: 1,
-  },
-  replaceHint: {
-    fontSize: FontSizes.sm,
-    fontWeight: '500',
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: Spacing['2xl'],
-    paddingBottom: Spacing.md,
   },
   searchContainer: {
     flexDirection: 'row',

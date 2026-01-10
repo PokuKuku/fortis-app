@@ -15,6 +15,7 @@ import { DumbbellIcon } from '../icons/DumbbellIcon';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { IconSizes, Spacing } from '../../../constants/Sizes';
 import { useExercises } from '../../hooks/useExercises';
+import { ExerciseWithSource } from '@/src/types/exercise';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
 import { styles, getThemedStyles } from './AIMutationPreviewModal.styles';
 
@@ -22,17 +23,29 @@ interface AIMutationExercisePickerModalProps {
   visible: boolean;
   onClose: () => void;
   onSelect: (exerciseId: string, exerciseName: string) => void;
+  exercises?: ExerciseWithSource[];
+  loadingOverride?: boolean;
+  errorOverride?: Error | null;
+  onRefreshOverride?: () => void;
 }
 
 export function AIMutationExercisePickerModal({
   visible,
   onClose,
   onSelect,
+  exercises: exercisesOverride,
+  loadingOverride,
+  errorOverride,
+  onRefreshOverride,
 }: AIMutationExercisePickerModalProps) {
   const { colors, isDark } = useTheme();
   const themedStyles = getThemedStyles(colors, isDark);
   const [searchQuery, setSearchQuery] = useState('');
-  const { exercises, loading, error, refresh } = useExercises();
+  const { exercises: hookExercises, loading, error, refresh } = useExercises();
+  const exercises = exercisesOverride ?? hookExercises;
+  const isLoading = loadingOverride ?? loading;
+  const loadError = errorOverride ?? error;
+  const handleRefresh = onRefreshOverride ?? refresh;
 
   // Reset search when modal opens
   useEffect(() => {
@@ -105,21 +118,21 @@ export function AIMutationExercisePickerModal({
             showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
           >
-            {loading && (
+            {isLoading && (
               <View style={[styles.loadingState, { paddingVertical: Spacing['3xl'] }]}>
                 <ActivityIndicator color={colors.accent} size="large" />
                 <Text style={[styles.loadingText, themedStyles.loadingText]}>Loading exercises...</Text>
               </View>
             )}
 
-            {!loading && error && (
+            {!isLoading && loadError && (
               <View style={[styles.loadingState, { paddingVertical: Spacing['3xl'] }]}>
                 <AlertCircle color={colors.textTertiary} size={32} />
                 <Text style={[styles.noResultsText, themedStyles.noResultsText]}>
                   Unable to load exercises
                 </Text>
                 <TouchableOpacity
-                  onPress={refresh}
+                  onPress={handleRefresh}
                   style={{
                     marginTop: Spacing.md,
                     paddingHorizontal: Spacing.lg,
@@ -133,7 +146,7 @@ export function AIMutationExercisePickerModal({
               </View>
             )}
 
-            {!loading && !error && exercises.length === 0 && (
+            {!isLoading && !loadError && exercises.length === 0 && (
               <View style={[styles.loadingState, { paddingVertical: Spacing['3xl'] }]}>
                 <DumbbellIcon color={colors.textTertiary} size={32} />
                 <Text style={[styles.noResultsText, themedStyles.noResultsText]}>
@@ -145,7 +158,7 @@ export function AIMutationExercisePickerModal({
               </View>
             )}
 
-            {!loading && !error && exercises.length > 0 && filteredExercises.length === 0 && (
+            {!isLoading && !loadError && exercises.length > 0 && filteredExercises.length === 0 && (
               <View style={[styles.loadingState, { paddingVertical: Spacing['3xl'] }]}>
                 <Search color={colors.textTertiary} size={32} />
                 <Text style={[styles.noResultsText, themedStyles.noResultsText]}>
@@ -154,7 +167,7 @@ export function AIMutationExercisePickerModal({
               </View>
             )}
 
-            {!loading && !error && filteredExercises.map((exercise) => (
+            {!isLoading && !loadError && filteredExercises.map((exercise) => (
               <TouchableOpacity
                 key={exercise.id}
                 style={[
@@ -186,7 +199,7 @@ export function AIMutationExercisePickerModal({
           </ScrollView>
 
           {/* Exercise count footer */}
-          {!loading && !error && exercises.length > 0 && (
+          {!isLoading && !loadError && exercises.length > 0 && (
             <View style={{
               paddingHorizontal: Spacing.lg,
               paddingVertical: Spacing.sm,

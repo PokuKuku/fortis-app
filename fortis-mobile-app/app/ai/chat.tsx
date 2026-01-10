@@ -297,6 +297,22 @@ export default function AIChatScreen() {
     }
   }, [applyCurrentMutationPlan]);
 
+  const handleWorkoutProposalAction = useCallback(
+    (action: 'review' | 'edit' | 'create', messageId: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+      const mode = action === 'edit' ? 'edit' : 'review';
+      router.push({
+        pathname: '/ai/workout-proposal',
+        params: {
+          messageId,
+          mode,
+          focusCreate: action === 'create' ? '1' : undefined,
+        },
+      });
+    },
+    [router]
+  );
+
   // Retry failed message
   const handleRetry = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -367,6 +383,7 @@ export default function AIChatScreen() {
                   isAILoading={isSendingMessage && message.role === 'assistant'}
                   onSaveAction={handleSaveAction}
                   onCustomizeAction={handleCustomizeAction}
+                  onWorkoutProposalAction={handleWorkoutProposalAction}
                   onClarificationSelect={(option) => {
                     setInputText(option);
                   }}

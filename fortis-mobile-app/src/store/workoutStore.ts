@@ -481,6 +481,10 @@ export const useWorkoutStore = create<WorkoutState>()(
           templateId: template.id,
         });
 
+        if (template.isAiCreated) {
+          analytics.trackAIWorkoutStarted({ templateId: template.id });
+        }
+
         return true;
       } catch (error) {
         console.error('Failed to start workout from template:', error);

@@ -95,6 +95,8 @@ export default function CreateProgramScreen() {
     accentButtonBorder: { borderColor: colors.accentBorder },
     accentButtonBg: { backgroundColor: colors.accentOverlay },
     accentButtonBgPressed: { backgroundColor: colors.accentOverlayMedium },
+    addWorkoutButton: { borderColor: colors.accentBorder },
+    addWorkoutText: { color: colors.accent },
     statValue: { color: colors.accent },
     primaryActionText: { color: colors.white },
     dayBadge: { backgroundColor: colors.accentOverlay },
@@ -619,13 +621,11 @@ export default function CreateProgramScreen() {
                 onPress={handleAddWorkout}
                 style={({ pressed }) => [
                   styles.addWorkoutButton,
-                  themedStyles.accentButtonBorder,
-                  themedStyles.accentButtonBg,
-                  pressed && themedStyles.accentButtonBgPressed,
+                  themedStyles.addWorkoutButton,
+                  pressed && styles.addWorkoutButtonPressed,
                 ]}
               >
-                <PlusIcon size={20} color={colors.accent} strokeWidth={2} />
-                <Text style={[styles.addWorkoutText, { color: colors.accent }]}>Add Workout</Text>
+                <Text style={[styles.addWorkoutText, themedStyles.addWorkoutText]}>+ Add Workout</Text>
               </Pressable>
 
               <GlassButton
@@ -636,7 +636,13 @@ export default function CreateProgramScreen() {
                 {isSaving ? (
                   <ActivityIndicator size="small" color={colors.white} />
                 ) : (
-                  <Text style={[styles.primaryActionText, themedStyles.primaryActionText]}>
+                  <Text
+                    style={[
+                      styles.primaryActionText,
+                      themedStyles.primaryActionText,
+                      saveButtonText === 'Finish edit' && styles.finishEditText,
+                    ]}
+                  >
                     {saveButtonText}
                   </Text>
                 )}
@@ -1124,24 +1130,22 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   addWorkoutButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    height: 56,
     width: '100%',
+    paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.xl,
     borderWidth: 2,
     borderColor: 'rgba(34, 197, 94, 0.3)',
-    borderStyle: 'dashed',
-    backgroundColor: 'rgba(34, 197, 94, 0.05)',
   },
   addWorkoutButtonPressed: {
-    opacity: 0.7,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    opacity: 0.75,
   },
   addWorkoutText: {
-    ...Typography.button,
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
     color: Colors.success,
   },
   primaryActionButton: {
@@ -1151,6 +1155,12 @@ const styles = StyleSheet.create({
   },
   primaryActionText: {
     ...Typography.button,
+  },
+  finishEditText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: FontSizes.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   modalActions: {
     flexDirection: 'column',

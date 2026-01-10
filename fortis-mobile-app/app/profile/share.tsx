@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ChevronLeftIcon } from 'react-native-heroicons/outline';
+import { ChevronLeftIcon, TrophyIcon } from 'react-native-heroicons/outline';
 import type { RefObject } from 'react';
 import { addDays, format, startOfDay, startOfWeek, subDays } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
+import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
@@ -27,7 +28,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
 
-type ShareType = 'activity' | 'monthly' | 'signature';
+type ShareType = 'activity' | 'monthly' | 'signature' | 'personal_records';
 
 type MonthlyStats = {
   totalVolume: number;
@@ -116,8 +117,10 @@ const resolveShareTitle = (type: ShareType): string => {
       return 'Monthly recap';
     case 'signature':
       return 'Training signature';
+    case 'personal_records':
+      return 'Personal records';
     default:
-      return 'Training activity';
+      return 'Workout streak';
   }
 };
 
@@ -126,7 +129,9 @@ export default function ProfileShareScreen() {
   const { colors, isDark } = useTheme();
   const { profile } = useAuth();
   const { type } = useLocalSearchParams<{ type?: ShareType }>();
-  const shareType: ShareType = type === 'monthly' || type === 'signature' ? type : 'activity';
+  const shareType: ShareType = type === 'monthly' || type === 'signature' || type === 'personal_records'
+    ? type
+    : 'activity';
   const viewShotRef = useRef<any>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -147,6 +152,7 @@ export default function ProfileShareScreen() {
   );
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const personalRecords = useTopPersonalRecords(5);
 
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({
     totalVolume: 0,
@@ -165,6 +171,7 @@ export default function ProfileShareScreen() {
   const [signatureHasWorkouts, setSignatureHasWorkouts] = useState(false);
 
   const units = profile?.preferred_units || 'imperial';
+  const unitLabel = units === 'metric' ? 'kg' : 'lbs';
 
   useEffect(() => {
     let isMounted = true;
@@ -484,7 +491,7 @@ export default function ProfileShareScreen() {
                   {shareType === 'activity' && (
                     <View style={styles.shareBlock}>
                       <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>
-                        Consistency snapshot
+                        Workout streak
                       </Text>
                       <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
                         {activitySubtitle}
@@ -494,7 +501,7 @@ export default function ProfileShareScreen() {
                           {activeDays}
                         </Text>
                         <Text style={[styles.activityLabel, { color: colors.textSecondary }]}>
-                          Active days
+                          Lifting days
                         </Text>
                       </View>
                       <View style={styles.activityGridWrap}>
@@ -526,7 +533,7 @@ export default function ProfileShareScreen() {
                             {formatDecimal(activityStats.averageDays)}
                           </Text>
                           <Text style={[styles.activityStatLabel, { color: colors.textSecondary }]}>
-                            Avg days/week
+                            Avg lifts/week
                           </Text>
                         </View>
                         <View style={styles.activityStat}>
@@ -621,6 +628,56 @@ export default function ProfileShareScreen() {
                         <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
                           Log a workout to reveal your muscle map.
                         </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {shareType === 'personal_records' && (
+                    <View style={styles.shareBlock}>
+                      <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>
+                        Personal records
+                      </Text>
+                      <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
+                        {personalRecords.length > 0
+                          ? 'Top lifts so far'
+                          : 'Log workouts to capture PRs'}
+                      </Text>
+                      {personalRecords.length === 0 ? (
+                        <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
+                          No personal records yet.
+                        </Text>
+                      ) : (
+                        <View style={styles.prList}>
+                          {personalRecords.map((pr, index) => (
+                            <View key={pr.exerciseId} style={styles.prRow}>
+                              <View
+                                style={[
+                                  styles.prRankBadge,
+                                  { backgroundColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)' },
+                                ]}
+                              >
+                                <Text style={[styles.prRankText, { color: colors.textSecondary }]}>
+                                  {index + 1}
+                                </Text>
+                              </View>
+                              <View style={styles.prInfo}>
+                                <Text style={[styles.prName, { color: colors.textPrimary }]} numberOfLines={1}>
+                                  {pr.exerciseName}
+                                </Text>
+                                <Text style={[styles.prMeta, { color: colors.textSecondary }]}>
+                                  {pr.maxWeight} {unitLabel} × {pr.reps} reps • {format(pr.date, 'MMM d')}
+                                </Text>
+                              </View>
+                              {index < 3 && (
+                                <TrophyIcon
+                                  color={index === 0 ? '#fbbf24' : index === 1 ? '#a3a3a3' : '#cd7f32'}
+                                  size={14}
+                                  strokeWidth={2}
+                                />
+                              )}
+                            </View>
+                          ))}
+                        </View>
                       )}
                     </View>
                   )}
@@ -867,6 +924,38 @@ const styles = StyleSheet.create({
   signatureLabel: {
     fontSize: moderateScale(11),
     textAlign: 'center',
+  },
+  prList: {
+    gap: scale(Spacing.xs),
+  },
+  prRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: scale(Spacing.xs),
+  },
+  prRankBadge: {
+    width: scale(20),
+    height: scale(20),
+    borderRadius: scale(10),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: scale(Spacing.sm),
+  },
+  prRankText: {
+    fontSize: moderateScale(10),
+    fontWeight: '700',
+  },
+  prInfo: {
+    flex: 1,
+    marginRight: scale(Spacing.xs),
+  },
+  prName: {
+    ...Typography.caption,
+    fontSize: moderateScale(11),
+    marginBottom: scale(Spacing.xs),
+  },
+  prMeta: {
+    fontSize: moderateScale(10),
   },
   actionsSection: {
     alignItems: 'center',

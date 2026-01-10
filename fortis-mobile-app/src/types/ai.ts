@@ -89,7 +89,7 @@ export interface AIRequestContext {
  * AI response union type
  */
 export interface AIResponse {
-  type: 'answer' | 'mutation_plan' | 'error' | 'clarification';
+  type: 'answer' | 'mutation_plan' | 'error' | 'clarification' | 'workout_proposal';
   requestId: string;
 
   // For type === 'answer' (read-only queries)
@@ -103,6 +103,9 @@ export interface AIResponse {
 
   // For type === 'clarification'
   clarification?: AIClarification;
+
+  // For type === 'workout_proposal'
+  workoutProposal?: WorkoutProposalV1;
 }
 
 /**
@@ -150,6 +153,42 @@ export type AIErrorCode =
 export interface AIClarification {
   question: string;
   options?: string[];
+}
+
+// ============================================
+// Workout Proposal Types
+// ============================================
+
+export type WorkoutProposalType = 'WORKOUT_PROPOSAL_V1';
+
+export type WorkoutProposalSetKind = 'working' | 'warmup' | 'backoff' | 'finisher' | 'accessory' | 'other';
+
+export interface WorkoutProposalSet {
+  kind?: WorkoutProposalSetKind;
+  sets: number;
+  reps_min?: number;
+  reps_max?: number;
+  rir?: number;
+  rest_sec?: number;
+}
+
+export interface WorkoutProposalExercise {
+  exercise_query: string;
+  target_muscles?: string[];
+  sets: WorkoutProposalSet[];
+  notes?: string;
+}
+
+export interface WorkoutProposalV1 {
+  type: WorkoutProposalType;
+  title: string;
+  summary?: string;
+  goal_tags?: string[];
+  duration_minutes?: number;
+  days_per_week?: number;
+  exercises: WorkoutProposalExercise[];
+  progression_rule?: string;
+  safety_notes?: string;
 }
 
 // ============================================
@@ -485,6 +524,7 @@ export interface AIConversationMessage {
   mutationPlanId?: string;
   createdAt: string;
   clarification?: AIClarification;
+  workoutProposal?: WorkoutProposalV1;
   /** Image attachment (for user messages with photos) */
   image?: {
     uri: string;

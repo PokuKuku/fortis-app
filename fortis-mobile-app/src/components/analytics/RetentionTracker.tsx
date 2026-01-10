@@ -14,11 +14,9 @@ const RETENTION_THRESHOLD_DAYS = 7;
  * - is_first_session: Whether this is the user's first ever session
  * - is_returned_user: Whether user returned after 7+ days (useful for retention cohorts)
  *
- * This allows building retention reports in PostHog:
- * - Day 1, Day 7, Day 30 retention
- * - "Resurrected users" who came back after being inactive
+ * This allows building retention reports (Day 1/7/30, resurrected users).
  */
-export function PostHogRetentionTracker() {
+export function RetentionTracker() {
   const hasTracked = useRef(false);
 
   useEffect(() => {

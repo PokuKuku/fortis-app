@@ -55,8 +55,13 @@ interface ProgramsState {
       reps: string;
       restSeconds?: number;
       setDetails?: TemplateSetDetail[];
+      notes?: string;
     }>,
-    lastPerformedAt?: Date | string | null
+    options?: {
+      lastPerformedAt?: Date | string | null;
+      description?: string;
+      isAiCreated?: boolean;
+    }
   ) => Promise<string | null>;
   createProgram: (
     name: string,
@@ -103,6 +108,7 @@ interface ProgramsState {
       reps: string;
       restSeconds?: number;
       setDetails?: TemplateSetDetail[];
+      notes?: string;
     }>
   ) => Promise<string | null>;
   updateLastPerformed: (id: string) => Promise<void>;
@@ -701,16 +707,20 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   // Create a new workout template (saved as a single-workout program)
   // Falls back to local storage if Supabase is unavailable
-  createWorkoutTemplate: async (name, exercises, lastPerformedAt) => {
+  createWorkoutTemplate: async (name, exercises, options) => {
     // Generate unique name to avoid duplicates
     const { programs } = get();
     const templateNames = programs.filter((p) => p.isTemplate).map((p) => p.name);
     const uniqueName = generateUniqueName(name, templateNames);
 
     // Convert lastPerformedAt to ISO string if it's a Date object
-    const lastPerformedAtISO = lastPerformedAt
-      ? (lastPerformedAt instanceof Date ? lastPerformedAt.toISOString() : lastPerformedAt)
+    const lastPerformedAtISO = options?.lastPerformedAt
+      ? (options?.lastPerformedAt instanceof Date
+        ? options.lastPerformedAt.toISOString()
+        : options.lastPerformedAt)
       : null;
+    const templateDescription = options?.description?.trim() || undefined;
+    const isAiCreated = options?.isAiCreated ?? false;
 
     // Helper to save locally and attempt cloud sync
     const saveLocally = async () => {
@@ -721,13 +731,13 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const localProgram: Program = {
         id: localId,
         name: uniqueName,
-        description: undefined,
+        description: templateDescription,
         difficulty: 'intermediate',
         goal: undefined,
         durationWeeks: undefined,
         isPublic: false,
         isDefault: false,
-        isAiCreated: false,
+        isAiCreated,
         isTemplate: true,
         lastPerformedAt: lastPerformedAtISO,
         createdBy: 'local',
@@ -744,7 +754,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             sets: ex.sets,
             reps: ex.reps,
             restSeconds: ex.restSeconds || 120,
-            notes: undefined,
+            notes: ex.notes,
             orderIndex: index,
             setDetails: ex.setDetails,
           })),
@@ -813,10 +823,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         .from('workout_programs')
         .insert({
           name: uniqueName,
+          description: templateDescription,
           difficulty: 'intermediate',
           is_public: false,
           is_default: false,
-          is_ai_created: false,
+          is_ai_created: isAiCreated,
           is_template: true,
           last_performed_at: lastPerformedAtISO,
           created_by: session.user.id,
@@ -857,6 +868,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           reps: ex.reps,
           rest_seconds: ex.restSeconds || 120,
           order_index: index,
+          notes: ex.notes,
           set_details: ex.setDetails || null,
         }));
 
@@ -896,7 +908,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             sets: ex.sets,
             reps: ex.reps,
             restSeconds: ex.restSeconds || 120,
-            notes: undefined,
+            notes: ex.notes,
             orderIndex: index,
             setDetails: ex.setDetails,
           })),
@@ -1630,7 +1642,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       sets: ex.sets,
       reps: ex.reps,
       restSeconds: ex.restSeconds ?? 120,
-      notes: undefined,
+      notes: ex.notes,
       orderIndex: index,
       setDetails: ex.setDetails,
     }));
@@ -1729,6 +1741,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           reps: ex.reps,
           rest_seconds: ex.restSeconds ?? 120,
           order_index: index,
+          notes: ex.notes,
         }));
 
         const { data: inserted, error: insertError } = await supabase

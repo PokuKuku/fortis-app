@@ -1,8 +1,8 @@
 /**
  * Analytics Service
  *
- * Provides typed event tracking functions for PostHog analytics.
- * All tracking is no-op when PostHog is not configured.
+ * Provides typed event tracking functions for Mixpanel analytics.
+ * All tracking is no-op when Mixpanel is not configured.
  *
  * Usage in stores/services (non-component code):
  *   import { analytics } from '@/src/services/analyticsService';
@@ -13,26 +13,8 @@
  *   const { trackWorkoutStarted } = useAnalytics();
  */
 
-import { PostHog } from 'posthog-react-native';
-import { isPostHogConfigured } from '@/src/lib/posthog';
+import { getMixpanelInstance, isMixpanelConfigured } from '@/src/lib/mixpanel';
 import type { AIIntent } from '@/src/types/ai';
-
-// PostHog instance singleton - set by PostHogProvider via setPostHogInstance
-let posthogInstance: PostHog | null = null;
-
-/**
- * Set the PostHog instance (called from PostHogAuthSync or similar)
- */
-export function setPostHogInstance(instance: PostHog | null) {
-  posthogInstance = instance;
-}
-
-/**
- * Get the PostHog instance for direct access if needed
- */
-export function getPostHogInstance(): PostHog | null {
-  return posthogInstance;
-}
 
 // ============================================================================
 // Event Types
@@ -74,6 +56,46 @@ interface AIMessageSentProps {
 /** AI chat opened event properties */
 interface AIChatOpenedProps {
   entrypoint: 'tab' | 'button' | 'deeplink' | 'unknown';
+}
+
+/** Screen viewed event properties */
+interface ScreenViewedProps {
+  route: string;
+  segments: string;
+}
+
+/** AI workout proposed event properties */
+interface AIWorkoutProposedProps {
+  intent: AIIntent;
+  exerciseCount: number;
+}
+
+/** AI workout review opened event properties */
+interface AIWorkoutReviewOpenedProps {
+  exerciseCount: number;
+  durationMinutes?: number;
+}
+
+/** AI workout exercise resolved event properties */
+interface AIWorkoutExerciseResolvedProps {
+  exerciseIndex: number;
+  isCustom: boolean;
+}
+
+/** AI workout created event properties */
+interface AIWorkoutCreatedProps {
+  exerciseCount: number;
+  isCustomExercise: boolean;
+}
+
+/** AI workout edited before create event properties */
+interface AIWorkoutEditedBeforeCreateProps {
+  exerciseCount: number;
+}
+
+/** AI workout started event properties */
+interface AIWorkoutStartedProps {
+  templateId: string;
 }
 
 /** Template created event properties */
@@ -184,7 +206,7 @@ interface AppSessionStartedProps {
 }
 
 // ============================================================================
-// Event Names (snake_case per PostHog convention)
+// Event Names (snake_case)
 // ============================================================================
 
 const Events = {
@@ -195,6 +217,13 @@ const Events = {
   // AI events
   AI_MESSAGE_SENT: 'ai_message_sent',
   AI_CHAT_OPENED: 'ai_chat_opened',
+  SCREEN_VIEWED: 'screen_viewed',
+  AI_WORKOUT_PROPOSED: 'ai_workout_proposed',
+  AI_WORKOUT_REVIEW_OPENED: 'ai_workout_review_opened',
+  AI_WORKOUT_EXERCISE_RESOLVED: 'ai_workout_exercise_resolved',
+  AI_WORKOUT_CREATED: 'ai_workout_created',
+  AI_WORKOUT_EDITED_BEFORE_CREATE: 'ai_workout_edited_before_create',
+  AI_WORKOUT_STARTED: 'ai_workout_started',
   // Program/template events
   TEMPLATE_CREATED: 'template_created',
   PROGRAM_CREATED: 'program_created',
@@ -222,18 +251,22 @@ const Events = {
 // ============================================================================
 
 /**
- * Safely capture an event - no-op if PostHog not configured or initialized
+ * Safely capture an event - no-op if Mixpanel not configured or initialized
  */
 function capture(eventName: string, properties?: Record<string, unknown>) {
-  if (!isPostHogConfigured() || !posthogInstance) {
+  const mixpanel = isMixpanelConfigured() ? getMixpanelInstance() : null;
+
+  if (!mixpanel) {
     return;
   }
 
-  try {
-    posthogInstance.capture(eventName, properties);
-  } catch (error) {
-    // Silently fail - analytics should never break the app
-    console.warn('[Analytics] Failed to capture event:', eventName, error);
+  if (mixpanel) {
+    try {
+      mixpanel.track(eventName, properties);
+    } catch (error) {
+      // Silently fail - analytics should never break the app
+      console.warn('[Analytics] Mixpanel track failed:', eventName, error);
+    }
   }
 }
 
@@ -298,6 +331,74 @@ export const analytics = {
   trackAIChatOpened(props: AIChatOpenedProps = { entrypoint: 'unknown' }) {
     capture(Events.AI_CHAT_OPENED, {
       entrypoint: props.entrypoint,
+    });
+  },
+
+  /**
+   * Track when a screen is viewed
+   */
+  trackScreenViewed(props: ScreenViewedProps) {
+    capture(Events.SCREEN_VIEWED, {
+      route: props.route,
+      segments: props.segments,
+    });
+  },
+
+  /**
+   * Track when an AI workout proposal is shown
+   */
+  trackAIWorkoutProposed(props: AIWorkoutProposedProps) {
+    capture(Events.AI_WORKOUT_PROPOSED, {
+      intent: props.intent,
+      exercise_count: props.exerciseCount,
+    });
+  },
+
+  /**
+   * Track when workout proposal review is opened
+   */
+  trackAIWorkoutReviewOpened(props: AIWorkoutReviewOpenedProps) {
+    capture(Events.AI_WORKOUT_REVIEW_OPENED, {
+      exercise_count: props.exerciseCount,
+      duration_minutes: props.durationMinutes,
+    });
+  },
+
+  /**
+   * Track when a workout proposal exercise is resolved
+   */
+  trackAIWorkoutExerciseResolved(props: AIWorkoutExerciseResolvedProps) {
+    capture(Events.AI_WORKOUT_EXERCISE_RESOLVED, {
+      exercise_index: props.exerciseIndex,
+      is_custom: props.isCustom,
+    });
+  },
+
+  /**
+   * Track when an AI workout is created
+   */
+  trackAIWorkoutCreated(props: AIWorkoutCreatedProps) {
+    capture(Events.AI_WORKOUT_CREATED, {
+      exercise_count: props.exerciseCount,
+      is_custom_exercise: props.isCustomExercise,
+    });
+  },
+
+  /**
+   * Track when a workout is edited before create
+   */
+  trackAIWorkoutEditedBeforeCreate(props: AIWorkoutEditedBeforeCreateProps) {
+    capture(Events.AI_WORKOUT_EDITED_BEFORE_CREATE, {
+      exercise_count: props.exerciseCount,
+    });
+  },
+
+  /**
+   * Track when an AI-created workout is started
+   */
+  trackAIWorkoutStarted(props: AIWorkoutStartedProps) {
+    capture(Events.AI_WORKOUT_STARTED, {
+      template_id: props.templateId,
     });
   },
 

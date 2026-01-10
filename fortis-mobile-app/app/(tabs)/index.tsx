@@ -25,7 +25,7 @@ import {
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import Reanimated, { FadeInDown, useAnimatedStyle } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -868,6 +868,8 @@ const buildDropIn = (index: number) =>
 export default function ProgramsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
+  const [highlightedWorkoutId, setHighlightedWorkoutId] = useState<string | null>(null);
   const modalStyles = useModalStyles();
   const startWorkout = useWorkoutStore(s => s.startWorkout);
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
@@ -888,6 +890,17 @@ export default function ProgramsScreen() {
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
+
+  useEffect(() => {
+    if (!highlightWorkoutId || typeof highlightWorkoutId !== 'string') {
+      return;
+    }
+    setHighlightedWorkoutId(highlightWorkoutId);
+    const timeout = setTimeout(() => {
+      setHighlightedWorkoutId(null);
+    }, 3500);
+    return () => clearTimeout(timeout);
+  }, [highlightWorkoutId]);
 
   // Transform store programs to UI format (exclude templates)
   const programs: ProgramItem[] = storePrograms
@@ -1257,6 +1270,16 @@ export default function ProgramsScreen() {
     (item: WorkoutItem, index: number, isActive: boolean) => {
       const cardKey = `workout-${item.id}`;
       const animState = animatingCards[cardKey];
+      const isHighlighted = highlightedWorkoutId === item.id;
+      const highlightStyle = isHighlighted
+        ? {
+            borderColor: colors.accent,
+            shadowColor: colors.accent,
+            shadowOpacity: isDark ? 0.35 : 0.25,
+            shadowRadius: 16,
+            shadowOffset: { width: 0, height: 6 },
+          }
+        : null;
 
       return (
         <Reanimated.View entering={buildDropIn(index)}>
@@ -1270,6 +1293,7 @@ export default function ProgramsScreen() {
               style={[
                 styles.workoutCard,
                 workoutCardThemeStyle,
+                highlightStyle,
                 isActive && [styles.cardActive, { borderColor: colors.accentBorder }],
               ]}
             >
@@ -1298,7 +1322,16 @@ export default function ProgramsScreen() {
         </Reanimated.View>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress, handleWorkoutCardPress, colors, isDark, workoutCardThemeStyle]
+    [
+      animatingCards,
+      handleAnimationComplete,
+      handleKebabPress,
+      handleWorkoutCardPress,
+      colors,
+      isDark,
+      workoutCardThemeStyle,
+      highlightedWorkoutId,
+    ]
   );
 
   // Draggable program card renderer for DraggableGrid

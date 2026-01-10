@@ -1,23 +1,22 @@
 import { useEffect, useMemo } from 'react';
 import { usePathname, useSegments } from 'expo-router';
-import { usePostHog } from 'posthog-react-native';
+import { analytics } from '@/src/services/analyticsService';
 
-export function PostHogScreenTracker() {
-  const posthog = usePostHog();
+export function MixpanelScreenTracker() {
   const pathname = usePathname();
   const segments = useSegments();
   const segmentPath = useMemo(() => segments.join('/'), [segments]);
 
   useEffect(() => {
-    if (!posthog || !pathname) {
+    if (!pathname) {
       return;
     }
 
-    posthog.capture('$screen', {
+    analytics.trackScreenViewed({
       route: pathname,
       segments: segmentPath,
     });
-  }, [posthog, pathname, segmentPath]);
+  }, [pathname, segmentPath]);
 
   return null;
 }

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { XMarkIcon, PlusIcon, CalendarDaysIcon, PencilIcon, ClockIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, CalendarDaysIcon, PencilIcon, ClockIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -78,10 +78,6 @@ export default function CreateWorkoutScreen() {
     statValue: { color: colors.accent },
     addExercisesButton: {
       borderColor: colors.accentBorder,
-      backgroundColor: colors.accentOverlay,
-    },
-    addExercisesButtonPressed: {
-      backgroundColor: colors.accentOverlayMedium,
     },
     addExercisesText: { color: colors.accent },
     primaryActionText: { color: colors.white },
@@ -305,6 +301,7 @@ export default function CreateWorkoutScreen() {
   );
 
   const saveButtonText = mode === 'log' ? 'Log' : (isEditingTemplate ? 'Finish edit' : 'Save');
+  const isFinishEdit = saveButtonText === 'Finish edit';
   const titleMeasureText = editorSession?.name || 'Workout Name';
   const titleRowWidth = headerLeftWidth && titleTextWidth
     ? Math.min(titleTextWidth + Spacing.xs + 14, headerLeftWidth)
@@ -438,11 +435,10 @@ export default function CreateWorkoutScreen() {
                 style={({ pressed }) => [
                   styles.addExercisesButton,
                   themedStyles.addExercisesButton,
-                  pressed && themedStyles.addExercisesButtonPressed,
+                  pressed && styles.addExercisesButtonPressed,
                 ]}
               >
-                <PlusIcon size={20} color={colors.accent} strokeWidth={2} />
-                <Text style={[styles.addExercisesText, themedStyles.addExercisesText]}>Add Exercises</Text>
+                <Text style={[styles.addExercisesText, themedStyles.addExercisesText]}>+ Add Exercises</Text>
               </Pressable>
 
               <GlassButton
@@ -453,7 +449,13 @@ export default function CreateWorkoutScreen() {
                 {isSaving ? (
                   <ActivityIndicator size="small" color={colors.white} />
                 ) : (
-                  <Text style={[styles.primaryActionText, themedStyles.primaryActionText]}>
+                  <Text
+                    style={[
+                      styles.primaryActionText,
+                      themedStyles.primaryActionText,
+                      isFinishEdit && styles.finishEditText,
+                    ]}
+                  >
                     {saveButtonText}
                   </Text>
                 )}
@@ -667,24 +669,22 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   addExercisesButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.sm,
-    height: 56,
     width: '100%',
+    paddingVertical: Spacing.lg,
     borderRadius: BorderRadius.xl,
     borderWidth: 2,
     borderColor: 'rgba(34, 197, 94, 0.3)',
-    borderStyle: 'dashed',
-    backgroundColor: 'rgba(34, 197, 94, 0.05)',
   },
   addExercisesButtonPressed: {
-    opacity: 0.7,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    opacity: 0.75,
   },
   addExercisesText: {
-    ...Typography.button,
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
     color: Colors.success,
   },
   primaryActionButton: {
@@ -694,5 +694,11 @@ const styles = StyleSheet.create({
   },
   primaryActionText: {
     ...Typography.button,
+  },
+  finishEditText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: FontSizes.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
 });

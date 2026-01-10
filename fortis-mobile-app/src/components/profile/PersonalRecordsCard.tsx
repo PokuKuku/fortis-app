@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TrophyIcon, ChevronRightIcon, ChevronLeftIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -55,11 +56,13 @@ function PRRow({ rank, exerciseName, weight, reps, date, unit, colors, isDark }:
  * PersonalRecordsCard - Summary card that opens a full-screen personal records modal.
  */
 export function PersonalRecordsCard() {
+  const router = useRouter();
   const { profile } = useAuth();
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [isModalVisible, setIsModalVisible] = useState(false);
   const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shareTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { width } = useWindowDimensions();
   const translateX = useSharedValue(width);
   const prs = useTopPersonalRecords(5);
@@ -70,6 +73,9 @@ export function PersonalRecordsCard() {
     return () => {
       if (closeTimeoutRef.current) {
         clearTimeout(closeTimeoutRef.current);
+      }
+      if (shareTimeoutRef.current) {
+        clearTimeout(shareTimeoutRef.current);
       }
     };
   }, []);
@@ -107,6 +113,17 @@ export function PersonalRecordsCard() {
     closeTimeoutRef.current = setTimeout(() => {
       setIsModalVisible(false);
     }, 240);
+  };
+
+  const handleShare = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (shareTimeoutRef.current) {
+      clearTimeout(shareTimeoutRef.current);
+    }
+    handleCloseModal();
+    shareTimeoutRef.current = setTimeout(() => {
+      router.push({ pathname: '/profile/share', params: { type: 'personal_records' } });
+    }, 260);
   };
 
   // Theme-aware card styles
@@ -148,15 +165,30 @@ export function PersonalRecordsCard() {
           <StainlessSteelPattern />
           <View style={styles.modalSafeArea}>
             <View style={[styles.modalHeader, { paddingTop: insets.top + Spacing.lg }]}>
-              <TouchableOpacity
-                onPress={handleCloseModal}
-                style={styles.backButton}
-                activeOpacity={0.7}
-              >
-                <ChevronLeftIcon size={24} color={colors.textPrimary} strokeWidth={2} />
-              </TouchableOpacity>
-              <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Personal Records</Text>
-              <View style={styles.headerSpacer} />
+              <View style={styles.headerSide}>
+                <TouchableOpacity
+                  onPress={handleCloseModal}
+                  style={styles.headerButton}
+                  activeOpacity={0.7}
+                >
+                  <ChevronLeftIcon size={24} color={colors.textPrimary} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.modalTitleWrapper}>
+                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Personal Records</Text>
+              </View>
+              <View style={[styles.headerSide, styles.headerSideRight]}>
+                <TouchableOpacity
+                  onPress={handleShare}
+                  style={[
+                    styles.shareButton,
+                    { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
+                </TouchableOpacity>
+              </View>
             </View>
 
             <ScrollView
@@ -232,11 +264,24 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: Spacing['2xl'],
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
     zIndex: 1,
+  },
+  headerSide: {
+    width: 72,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  headerSideRight: {
+    alignItems: 'flex-end',
+  },
+  modalTitleWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
   },
   modalTitle: {
     fontSize: 20,
@@ -244,15 +289,23 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginTop: 2,
+    textAlign: 'center',
   },
-  backButton: {
+  headerButton: {
     width: 40,
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerSpacer: {
-    width: 40,
+  shareButton: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  shareButtonText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   modalScroll: {
     flex: 1,

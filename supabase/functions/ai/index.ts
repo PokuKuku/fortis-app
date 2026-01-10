@@ -150,6 +150,36 @@ const ALLOWED_ENTITY_TYPES = new Set<string>([
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+type WorkoutProposalType = 'WORKOUT_PROPOSAL_V1';
+
+type WorkoutProposalSet = {
+  kind?: string;
+  sets: number;
+  reps_min?: number;
+  reps_max?: number;
+  rir?: number;
+  rest_sec?: number;
+};
+
+type WorkoutProposalExercise = {
+  exercise_query: string;
+  target_muscles?: string[];
+  sets: WorkoutProposalSet[];
+  notes?: string;
+};
+
+type WorkoutProposalV1 = {
+  type: WorkoutProposalType;
+  title: string;
+  summary?: string;
+  goal_tags?: string[];
+  duration_minutes?: number;
+  days_per_week?: number;
+  exercises: WorkoutProposalExercise[];
+  progression_rule?: string;
+  safety_notes?: string;
+};
+
 function sanitizeProposedState(
   entityType: string,
   proposedState: Record<string, unknown> | undefined,
@@ -1905,7 +1935,7 @@ CORE PRINCIPLES:
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
 - If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to and use them for analysis unless the user asks for a specific variation.
-- End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action).
+- End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action), unless you are returning a workout proposal JSON.
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
@@ -1915,7 +1945,9 @@ USER PREFERENCES:
     return `${basePrompt}
 
 RESPONSE FORMAT:
-Respond with a JSON object:
+Respond with a JSON object. Use exactly ONE of the following shapes:
+
+1) Standard answer:
 {
   "type": "answer",
   "answer": {
@@ -1930,9 +1962,34 @@ Respond with a JSON object:
   }
 }
 
+2) Workout proposal (ONLY when the user explicitly asks you to create a workout or template):
+{
+  "type": "WORKOUT_PROPOSAL_V1",
+  "title": "Incline + Upper Chest Focus",
+  "summary": "Upper chest emphasis with controlled eccentrics and a pump finisher.",
+  "goal_tags": ["hypertrophy"],
+  "duration_minutes": 60,
+  "days_per_week": 2,
+  "exercises": [
+    {
+      "exercise_query": "Incline Dumbbell Press",
+      "target_muscles": ["chest"],
+      "sets": [
+        { "kind": "working", "sets": 4, "reps_min": 8, "reps_max": 12, "rir": 2, "rest_sec": 120 }
+      ],
+      "notes": "Slow eccentric; add load once you hit top of range."
+    }
+  ],
+  "progression_rule": "Add reps weekly until top of range, then +5% load and reset reps to low end.",
+  "safety_notes": "Stop 1–2 reps short of failure on compounds. If shoulder pain, swap to machine press."
+}
+
 RULES:
 - Do not return mutation plans for read-only intents.
-- If the user asks to create or modify a workout/program in-app, explain that automatic creation is temporarily unavailable, but you can still suggest an outline or guidance.`;
+- For workout proposals: output ONLY the proposal JSON above (no markdown, no TLDR, no extra text).
+- Max 10 exercises, max 8 sets per exercise, no 1-rep max testing prescriptions.
+- Every exercise must be a real lift name; use the canonical exercise name when possible.
+- If unsure about a specific variation, still use exercise_query and let the app resolve it.`;
   }
 
   // Note: Write intent prompts removed - only read intents are currently active
@@ -2010,6 +2067,18 @@ function parseModelResponse(
 
     if (parsed.type === 'clarification') {
       return { ...parsed, requestId };
+    }
+
+    if (parsed.type === 'WORKOUT_PROPOSAL_V1') {
+      const validationError = validateWorkoutProposal(parsed as WorkoutProposalV1);
+      if (validationError) {
+        return buildModelError(requestId, validationError);
+      }
+      return {
+        type: 'workout_proposal',
+        requestId,
+        workoutProposal: parsed,
+      };
     }
 
     if (parsed.type === 'answer') {
@@ -2106,6 +2175,57 @@ function parseModelResponse(
 
     return buildModelError(requestId, 'Failed to parse AI response');
   }
+}
+
+function validateWorkoutProposal(proposal: WorkoutProposalV1): string | null {
+  if (!proposal || proposal.type !== 'WORKOUT_PROPOSAL_V1') {
+    return 'Invalid workout proposal type';
+  }
+  if (!proposal.title || typeof proposal.title !== 'string') {
+    return 'Workout proposal missing title';
+  }
+  if (!Array.isArray(proposal.exercises) || proposal.exercises.length === 0) {
+    return 'Workout proposal must include exercises';
+  }
+  if (proposal.exercises.length > 10) {
+    return 'Workout proposal has too many exercises (max 10)';
+  }
+
+  for (const exercise of proposal.exercises) {
+    if (!exercise.exercise_query || typeof exercise.exercise_query !== 'string') {
+      return 'Workout proposal contains an exercise without a valid name';
+    }
+    if (!Array.isArray(exercise.sets) || exercise.sets.length === 0) {
+      return `Exercise "${exercise.exercise_query}" must include at least one set prescription`;
+    }
+    let totalSets = 0;
+    for (const set of exercise.sets) {
+      if (!Number.isFinite(set.sets) || set.sets <= 0) {
+        return `Exercise "${exercise.exercise_query}" has an invalid set count`;
+      }
+      if (set.sets > 8) {
+        return `Exercise "${exercise.exercise_query}" exceeds max sets per block`;
+      }
+      totalSets += set.sets;
+      if (set.reps_min !== undefined && set.reps_min <= 0) {
+        return `Exercise "${exercise.exercise_query}" has invalid reps_min`;
+      }
+      if (set.reps_max !== undefined && set.reps_max <= 0) {
+        return `Exercise "${exercise.exercise_query}" has invalid reps_max`;
+      }
+      if (set.reps_min !== undefined && set.reps_max !== undefined && set.reps_min > set.reps_max) {
+        return `Exercise "${exercise.exercise_query}" has reps_min greater than reps_max`;
+      }
+      if (set.reps_min === 1 && set.reps_max === 1) {
+        return `Exercise "${exercise.exercise_query}" includes a 1-rep prescription`;
+      }
+    }
+    if (totalSets > 8) {
+      return `Exercise "${exercise.exercise_query}" exceeds max 8 total sets`;
+    }
+  }
+
+  return null;
 }
 
 function buildModelError(requestId: string, message: string) {
