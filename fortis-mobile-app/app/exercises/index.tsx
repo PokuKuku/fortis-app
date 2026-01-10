@@ -11,6 +11,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Sizes, Spacing } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
+import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -119,7 +120,9 @@ export default function ExercisesScreen() {
         if (muscle) muscles.add(muscle);
       });
     });
-    return Array.from(muscles).sort();
+    return ACTIVE_MUSCLE_KEYS
+      .filter((key) => muscles.has(key))
+      .sort((a, b) => getMuscleDisplayName(a).localeCompare(getMuscleDisplayName(b)));
   }, [allExercises]);
 
   const uniqueCategories = useMemo(() => {
@@ -227,7 +230,9 @@ export default function ExercisesScreen() {
         </Text>
         {item.primaryMuscles && item.primaryMuscles.length > 0 && (
           <Text style={[styles.exerciseMetaText, { color: colors.textTertiary }]} numberOfLines={1}>
-            {item.primaryMuscles.join(', ')}
+            {item.primaryMuscles
+              .map((muscle) => getMuscleDisplayName(muscle as MuscleKey))
+              .join(', ')}
           </Text>
         )}
       </View>
@@ -374,7 +379,7 @@ export default function ExercisesScreen() {
                       selectedMuscles.includes(muscle) && { color: colors.accent, fontWeight: '600' }
                     ]}
                   >
-                    {muscle}
+                    {getMuscleDisplayName(muscle as MuscleKey)}
                   </Text>
                   {selectedMuscles.includes(muscle) && (
                     <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>

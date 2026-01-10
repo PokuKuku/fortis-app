@@ -1,15 +1,6 @@
-export const PRIMARY_MUSCLES = [
-  'Chest',
-  'Back',
-  'Shoulders',
-  'Quadriceps',
-  'Hamstrings',
-  'Calves',
-  'Biceps',
-  'Triceps',
-  'Glutes',
-  'Core',
-] as const;
+import { ACTIVE_MUSCLE_KEYS } from '@/src/utils/muscleTaxonomy';
+
+export const PRIMARY_MUSCLES = ACTIVE_MUSCLE_KEYS;
 
 export const CATEGORIES = [
   'Strength',

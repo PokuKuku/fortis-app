@@ -16,6 +16,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { ExerciseCharts } from '@/src/components/exercise/ExerciseCharts';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
 import { useExerciseHistory } from '@/src/hooks/useExerciseHistory';
@@ -252,7 +253,9 @@ export default function ExerciseDetailsScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.primaryMuscleTag}
                   >
-                    <Text style={styles.primaryMuscleTagText}>{muscle}</Text>
+                    <Text style={styles.primaryMuscleTagText}>
+                      {getMuscleDisplayName(muscle as MuscleKey)}
+                    </Text>
                   </LinearGradient>
                 ))}
               </View>
@@ -264,7 +267,9 @@ export default function ExerciseDetailsScreen() {
                 <View style={styles.muscleTags}>
                   {exercise.secondaryMuscles.map((muscle, index) => (
                     <View key={index} style={[styles.secondaryMuscleTag, themedStyles.secondaryMuscleTag]}>
-                      <Text style={[styles.secondaryMuscleTagText, themedStyles.secondaryMuscleTagText]}>{muscle}</Text>
+                      <Text style={[styles.secondaryMuscleTagText, themedStyles.secondaryMuscleTagText]}>
+                        {getMuscleDisplayName(muscle as MuscleKey)}
+                      </Text>
                     </View>
                   ))}
                 </View>

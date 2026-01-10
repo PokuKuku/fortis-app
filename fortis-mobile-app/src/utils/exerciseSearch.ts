@@ -1,4 +1,5 @@
 import type { ExerciseWithSource } from '@/src/types/exercise';
+import { getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 
 type ExerciseSearchEntry = {
   exercise: ExerciseWithSource;
@@ -168,10 +169,16 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
       Array.from(aliasTexts).flatMap((text) => tokenize(text))
     );
 
-    const muscleText = normalizeText([
+    const muscleTokens = [
       ...(exercise.primaryMuscles ?? []),
       ...(exercise.secondaryMuscles ?? []),
-    ].join(' '));
+    ];
+    const muscleLabelText = muscleTokens
+      .map((muscle) => getMuscleDisplayName(muscle as MuscleKey))
+      .join(' ');
+    const muscleText = normalizeText(
+      [...muscleTokens, muscleLabelText].join(' ')
+    );
     const equipmentText = normalizeText(exercise.equipment ?? '');
 
     return {

@@ -33,7 +33,7 @@ import { useProgramsStore } from '@/src/store/programsStore';
 import { useAnalytics } from '@/src/services/analyticsService';
 import * as ExerciseService from '@/src/services/exerciseService';
 import { PRIMARY_MUSCLES, EQUIPMENT_TYPES } from '@/src/constants/exerciseOptions';
-import { normalizeMuscleName } from '@/src/utils/muscleMapping';
+import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { AIMutationExercisePickerModal } from '@/src/components/ai/AIMutationExercisePickerModal';
 import {
   buildTemplateExercisesFromProposal,
@@ -226,9 +226,8 @@ export default function WorkoutProposalScreen() {
       const targetMuscle = target.target_muscles?.[0];
       let muscle = '';
       if (targetMuscle) {
-        const normalized = normalizeMuscleName(targetMuscle).toLowerCase();
-        muscle =
-          PRIMARY_MUSCLES.find((item) => item.toLowerCase() === normalized) ?? '';
+        const normalized = normalizeMuscle(targetMuscle);
+        muscle = normalized && ACTIVE_MUSCLE_KEYS.includes(normalized) ? normalized : '';
       }
       setCustomName(defaultName);
       setCustomPrimary(muscle);
@@ -822,7 +821,7 @@ export default function WorkoutProposalScreen() {
                       customPrimary === muscle && themedStyles.chipActiveText,
                     ]}
                   >
-                    {muscle}
+                    {getMuscleDisplayName(muscle as MuscleKey)}
                   </Text>
                 </TouchableOpacity>
               ))}

@@ -7,6 +7,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getExerciseImageUrl } from '@/src/services/exerciseService';
+import { getMuscleCategory, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 
 interface HubExerciseRowProps {
   exerciseName: string;
@@ -20,27 +21,17 @@ interface HubExerciseRowProps {
 }
 
 // Muscle group colors for visual distinction
-const MUSCLE_COLORS: Record<string, string> = {
-  chest: '#ef4444',
-  back: '#3b82f6',
-  'middle back': '#3b82f6',
-  'lower back': '#3b82f6',
-  lats: '#3b82f6',
-  shoulders: '#8b5cf6',
-  biceps: '#22c55e',
-  triceps: '#22c55e',
-  forearms: '#22c55e',
-  quadriceps: '#f59e0b',
-  hamstrings: '#f59e0b',
-  glutes: '#f59e0b',
-  calves: '#f59e0b',
-  abdominals: '#ec4899',
+const MUSCLE_CATEGORY_COLORS: Record<string, string> = {
+  push: '#ef4444',
+  pull: '#0ea5e9',
+  legs: '#f59e0b',
   core: '#ec4899',
+  other: '#6b7280',
 };
 
 function getMuscleColor(muscle: string): string {
-  const normalizedMuscle = muscle.toLowerCase();
-  return MUSCLE_COLORS[normalizedMuscle] || Colors.textSecondary;
+  const category = getMuscleCategory(muscle as MuscleKey);
+  return MUSCLE_CATEGORY_COLORS[category] || Colors.textSecondary;
 }
 
 export const HubExerciseRow = React.memo(function HubExerciseRow({
@@ -75,8 +66,11 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
     onPress?.();
   };
 
-  const primaryMuscle = primaryMuscles[0] || 'General';
+  const primaryMuscle = primaryMuscles[0] || 'other';
   const muscleColor = getMuscleColor(primaryMuscle);
+  const muscleLabel = primaryMuscles.length > 0
+    ? getMuscleDisplayName(primaryMuscle as MuscleKey)
+    : 'General';
 
   return (
     <Animated.View
@@ -136,7 +130,7 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
               <Text
                 style={[styles.muscleText, { color: muscleColor }]}
               >
-                {primaryMuscle.charAt(0).toUpperCase() + primaryMuscle.slice(1)}
+                {muscleLabel}
               </Text>
             </View>
           </View>

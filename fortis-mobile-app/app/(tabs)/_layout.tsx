@@ -30,6 +30,7 @@ import {
   CATEGORIES,
   EQUIPMENT_TYPES,
 } from '@/src/constants/exerciseOptions';
+import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { useExercises } from '@/src/hooks/useExercises';
 import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 import { saveCustomExercise } from '@/src/services/exerciseService';
@@ -383,7 +384,7 @@ export default function TabLayout() {
 
   // Use centralized exercise option constants
   const optionList = {
-    primaryMuscles: [...PRIMARY_MUSCLES],
+    primaryMuscles: [...ACTIVE_MUSCLE_KEYS],
     categories: [...CATEGORIES],
     equipmentTypes: [...EQUIPMENT_TYPES],
   };
@@ -655,7 +656,7 @@ export default function TabLayout() {
                       styles.chipText,
                       primaryMuscle === item && themedStyles.chipTextActive,
                     ]}>
-                      {item}
+                      {getMuscleDisplayName(item as MuscleKey)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -671,7 +672,7 @@ export default function TabLayout() {
                   onPress={() => setSecondaryMuscle(item === secondaryMuscle ? '' : item)}
                 >
                   <Text style={[styles.chipText, secondaryMuscle === item && themedStyles.chipTextActive]}>
-                    {item}
+                    {getMuscleDisplayName(item as MuscleKey)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -750,7 +751,7 @@ export default function TabLayout() {
                         </Text>
                         {item.primaryMuscles?.length ? (
                           <Text style={styles.basedOnResultMeta}>
-                            {item.primaryMuscles[0]}
+                            {getMuscleDisplayName(item.primaryMuscles[0] as MuscleKey)}
                           </Text>
                         ) : null}
                       </TouchableOpacity>

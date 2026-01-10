@@ -83,13 +83,14 @@ export interface AIRequestContext {
   insightId?: string;        // For insight-specific queries
   periodWeeks?: number;      // Override default context window
   historyOnly?: boolean;     // Restrict exercises to user's history only
+  chatMode?: 'coach' | 'builder';
 }
 
 /**
  * AI response union type
  */
 export interface AIResponse {
-  type: 'answer' | 'mutation_plan' | 'error' | 'clarification' | 'workout_proposal';
+  type: 'answer' | 'mutation_plan' | 'error' | 'clarification' | 'workout_proposal' | 'workout_template_draft';
   requestId: string;
 
   // For type === 'answer' (read-only queries)
@@ -106,6 +107,9 @@ export interface AIResponse {
 
   // For type === 'workout_proposal'
   workoutProposal?: WorkoutProposalV1;
+
+  // For type === 'workout_template_draft'
+  workoutTemplateDraft?: WorkoutTemplateDraftV1;
 }
 
 /**
@@ -189,6 +193,28 @@ export interface WorkoutProposalV1 {
   exercises: WorkoutProposalExercise[];
   progression_rule?: string;
   safety_notes?: string;
+}
+
+// ============================================
+// Workout Template Draft Types (Builder Mode)
+// ============================================
+
+export type WorkoutTemplateDraftType = 'WORKOUT_TEMPLATE_DRAFT_V1';
+
+export interface WorkoutTemplateDraftExercise {
+  exercise_query: string;
+  sets_text: string;
+  rest_seconds?: number;
+  rir?: number;
+  notes?: string;
+}
+
+export interface WorkoutTemplateDraftV1 {
+  type: WorkoutTemplateDraftType;
+  source: 'user_specified';
+  title: string;
+  notes?: string;
+  exercises: WorkoutTemplateDraftExercise[];
 }
 
 // ============================================
@@ -525,6 +551,7 @@ export interface AIConversationMessage {
   createdAt: string;
   clarification?: AIClarification;
   workoutProposal?: WorkoutProposalV1;
+  workoutTemplateDraft?: WorkoutTemplateDraftV1;
   /** Image attachment (for user messages with photos) */
   image?: {
     uri: string;

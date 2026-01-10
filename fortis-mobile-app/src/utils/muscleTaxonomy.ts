@@ -1,0 +1,461 @@
+import type { WorkoutSession, WorkoutSet, WeightUnit } from '@/src/types/workout';
+import type { Exercise } from '@/src/types/exercise';
+
+export type MuscleKey =
+  | 'chest'
+  | 'front_delts'
+  | 'side_delts'
+  | 'rear_delts'
+  | 'triceps'
+  | 'biceps'
+  | 'forearms'
+  | 'lats'
+  | 'upper_back'
+  | 'lower_back'
+  | 'abs'
+  | 'obliques'
+  | 'glutes'
+  | 'quads'
+  | 'hamstrings'
+  | 'calves'
+  | 'adductors'
+  | 'abductors';
+
+export type HeatmapSide = 'front' | 'back' | 'both';
+
+export type HeatmapRegion = {
+  slug: string;
+  side?: HeatmapSide;
+};
+
+export const MUSCLE_KEYS: MuscleKey[] = [
+  'chest',
+  'front_delts',
+  'side_delts',
+  'rear_delts',
+  'triceps',
+  'biceps',
+  'forearms',
+  'lats',
+  'upper_back',
+  'lower_back',
+  'abs',
+  'obliques',
+  'glutes',
+  'quads',
+  'hamstrings',
+  'calves',
+  'adductors',
+  'abductors',
+];
+
+const INCLUDE_ADDUCTORS = false;
+const INCLUDE_ABDUCTORS = false;
+
+export const ACTIVE_MUSCLE_KEYS: MuscleKey[] = MUSCLE_KEYS.filter((key) => {
+  if (key === 'adductors') return INCLUDE_ADDUCTORS;
+  if (key === 'abductors') return INCLUDE_ABDUCTORS;
+  return true;
+});
+
+export const MUSCLE_DISPLAY: Record<MuscleKey, string> = {
+  chest: 'Chest',
+  front_delts: 'Front Delts',
+  side_delts: 'Side Delts',
+  rear_delts: 'Rear Delts',
+  triceps: 'Triceps',
+  biceps: 'Biceps',
+  forearms: 'Forearms',
+  lats: 'Lats',
+  upper_back: 'Upper Back',
+  lower_back: 'Lower Back',
+  abs: 'Abs',
+  obliques: 'Obliques',
+  glutes: 'Glutes',
+  quads: 'Quads',
+  hamstrings: 'Hamstrings',
+  calves: 'Calves',
+  adductors: 'Adductors',
+  abductors: 'Abductors',
+};
+
+export const MUSCLE_TO_HEATMAP_REGIONS: Record<MuscleKey, HeatmapRegion[]> = {
+  chest: [{ slug: 'chest', side: 'front' }],
+  front_delts: [{ slug: 'deltoids', side: 'both' }],
+  side_delts: [{ slug: 'deltoids', side: 'both' }],
+  rear_delts: [{ slug: 'deltoids', side: 'both' }],
+  triceps: [{ slug: 'triceps', side: 'both' }],
+  biceps: [{ slug: 'biceps', side: 'front' }],
+  forearms: [{ slug: 'forearm', side: 'both' }],
+  lats: [{ slug: 'upper-back', side: 'back' }],
+  upper_back: [{ slug: 'upper-back', side: 'back' }],
+  lower_back: [{ slug: 'lower-back', side: 'back' }],
+  abs: [{ slug: 'abs', side: 'front' }],
+  obliques: [{ slug: 'obliques', side: 'front' }],
+  glutes: [{ slug: 'gluteal', side: 'back' }],
+  quads: [{ slug: 'quadriceps', side: 'front' }],
+  hamstrings: [{ slug: 'hamstring', side: 'back' }],
+  calves: [{ slug: 'calves', side: 'both' }],
+  adductors: [{ slug: 'adductors', side: 'both' }],
+  abductors: [{ slug: 'gluteal', side: 'back' }],
+};
+
+const EXCLUDED_MUSCLES = new Set([
+  'cardiovascular system',
+  'neck',
+  'sternocleidomastoid',
+]);
+
+const MUSCLE_ALIASES: Record<string, MuscleKey> = {
+  // Chest
+  'chest': 'chest',
+  'pectorals': 'chest',
+  'pectoral': 'chest',
+  'pec': 'chest',
+  'pecs': 'chest',
+  'upper chest': 'chest',
+  'lower chest': 'chest',
+  'serratus anterior': 'chest',
+
+  // Delts / shoulders
+  'shoulders': 'side_delts',
+  'delts': 'side_delts',
+  'deltoids': 'side_delts',
+  'side delts': 'side_delts',
+  'lateral deltoid': 'side_delts',
+  'lateral delts': 'side_delts',
+  'front delts': 'front_delts',
+  'front deltoids': 'front_delts',
+  'anterior deltoid': 'front_delts',
+  'rear delts': 'rear_delts',
+  'rear deltoids': 'rear_delts',
+  'posterior deltoid': 'rear_delts',
+  'rotator cuff': 'rear_delts',
+
+  // Arms
+  'biceps': 'biceps',
+  'bicep': 'biceps',
+  'biceps brachii': 'biceps',
+  'brachialis': 'biceps',
+  'triceps': 'triceps',
+  'tricep': 'triceps',
+  'triceps brachii': 'triceps',
+  'forearm': 'forearms',
+  'forearms': 'forearms',
+  'wrist flexors': 'forearms',
+  'wrist extensors': 'forearms',
+  'wrists': 'forearms',
+  'hands': 'forearms',
+  'grip muscles': 'forearms',
+
+  // Back
+  'back': 'upper_back',
+  'upper back': 'upper_back',
+  'middle back': 'upper_back',
+  'mid back': 'upper_back',
+  'rhomboids': 'upper_back',
+  'traps': 'upper_back',
+  'trapezius': 'upper_back',
+  'levator scapulae': 'upper_back',
+  'lats': 'lats',
+  'latissimus dorsi': 'lats',
+  'lower back': 'lower_back',
+  'erector spinae': 'lower_back',
+  'spine': 'lower_back',
+
+  // Core
+  'abs': 'abs',
+  'abdominals': 'abs',
+  'abdominal': 'abs',
+  'core': 'abs',
+  'hip flexors': 'abs',
+  'lower abs': 'abs',
+  'obliques': 'obliques',
+  'oblique': 'obliques',
+
+  // Legs
+  'glutes': 'glutes',
+  'gluteus': 'glutes',
+  'gluteus maximus': 'glutes',
+  'gluteus medius': 'glutes',
+  'gluteus minimus': 'glutes',
+  'quads': 'quads',
+  'quadriceps': 'quads',
+  'hamstrings': 'hamstrings',
+  'hamstring': 'hamstrings',
+  'calves': 'calves',
+  'calf': 'calves',
+  'soleus': 'calves',
+  'tibialis anterior': 'calves',
+  'shins': 'calves',
+  'ankles': 'calves',
+  'ankle stabilizers': 'calves',
+  'adductors': 'adductors',
+  'adductor': 'adductors',
+  'inner thighs': 'adductors',
+  'groin': 'adductors',
+  'abductors': 'abductors',
+  'abductor': 'abductors',
+};
+
+const KEYWORD_RULES: Array<[RegExp, MuscleKey]> = [
+  [/\bpectoral|\bpec\b/i, 'chest'],
+  [/\bdeltoid|\bdelt\b|\bshoulder/i, 'side_delts'],
+  [/\banterior deltoid|\bfront delt/i, 'front_delts'],
+  [/\bposterior deltoid|\brear delt/i, 'rear_delts'],
+  [/\btricep/i, 'triceps'],
+  [/\bbicep/i, 'biceps'],
+  [/\bforearm|\bbrachioradialis|\bwrist|\bgrip/i, 'forearms'],
+  [/\bquad|\bquadricep/i, 'quads'],
+  [/\bhamstring/i, 'hamstrings'],
+  [/\bglute/i, 'glutes'],
+  [/\bcalf|\bsoleus|\btibialis|\bshin/i, 'calves'],
+  [/\boblique/i, 'obliques'],
+  [/\babs|\babdom|\bcore|\bhip flexor/i, 'abs'],
+  [/\badductor|\binner thigh|\bgroin/i, 'adductors'],
+  [/\babductor/i, 'abductors'],
+  [/\btrapezius|\btrap\b|\brhomboid/i, 'upper_back'],
+  [/\blat(s|issimus)?\b/i, 'lats'],
+  [/\bupper back|\bmid back|\bmiddle back/i, 'upper_back'],
+  [/\blower back|\berector/i, 'lower_back'],
+  [/\bback\b/i, 'upper_back'],
+];
+
+const normalizeInput = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+export function normalizeMuscle(input: string): MuscleKey | null {
+  if (!input) return null;
+  const normalized = normalizeInput(input);
+  if (!normalized || EXCLUDED_MUSCLES.has(normalized)) return null;
+
+  const alias = MUSCLE_ALIASES[normalized];
+  if (alias) {
+    return ACTIVE_MUSCLE_KEYS.includes(alias) ? alias : null;
+  }
+
+  const keyCandidate = normalized.replace(/\s+/g, '_') as MuscleKey;
+  if (MUSCLE_KEYS.includes(keyCandidate)) {
+    return ACTIVE_MUSCLE_KEYS.includes(keyCandidate) ? keyCandidate : null;
+  }
+
+  const rule = KEYWORD_RULES.find(([pattern]) => pattern.test(normalized));
+  if (!rule) return null;
+  return ACTIVE_MUSCLE_KEYS.includes(rule[1]) ? rule[1] : null;
+}
+
+export function normalizeMuscleArray(muscles: string[]): MuscleKey[] {
+  if (!muscles || !Array.isArray(muscles)) return [];
+  const normalized: MuscleKey[] = [];
+  muscles.forEach((muscle) => {
+    const key = normalizeMuscle(muscle);
+    if (!key) return;
+    if (!normalized.includes(key)) normalized.push(key);
+  });
+  return normalized;
+}
+
+export function getMuscleDisplayName(muscle: MuscleKey): string {
+  return MUSCLE_DISPLAY[muscle] ?? muscle;
+}
+
+export type MuscleCategory = 'push' | 'pull' | 'legs' | 'core' | 'other';
+
+const MUSCLE_CATEGORY: Record<MuscleKey, MuscleCategory> = {
+  chest: 'push',
+  front_delts: 'push',
+  side_delts: 'push',
+  rear_delts: 'pull',
+  triceps: 'push',
+  biceps: 'pull',
+  forearms: 'pull',
+  lats: 'pull',
+  upper_back: 'pull',
+  lower_back: 'pull',
+  abs: 'core',
+  obliques: 'core',
+  glutes: 'legs',
+  quads: 'legs',
+  hamstrings: 'legs',
+  calves: 'legs',
+  adductors: 'legs',
+  abductors: 'legs',
+};
+
+export function getMuscleCategory(muscle: MuscleKey): MuscleCategory {
+  return MUSCLE_CATEGORY[muscle] ?? 'other';
+}
+
+export function resolveMuscleTargetKeys(input: string): MuscleKey[] {
+  const normalized = normalizeInput(input);
+  if (!normalized) return [];
+  if (normalized === 'back') return ['upper_back', 'lower_back', 'lats'];
+  if (normalized === 'shoulders' || normalized === 'delts' || normalized === 'deltoids') {
+    return ['front_delts', 'side_delts', 'rear_delts'];
+  }
+  if (normalized === 'core' || normalized === 'abs' || normalized === 'abdominals') {
+    return ['abs', 'obliques'];
+  }
+  if (normalized === 'legs' || normalized === 'lower body') {
+    return ['quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors']
+      .filter((key) => ACTIVE_MUSCLE_KEYS.includes(key));
+  }
+  const key = normalizeMuscle(input);
+  return key ? [key] : [];
+}
+
+const BODYWEIGHT_EQUIPMENT = new Set([
+  'body only',
+  'bodyweight',
+  'body weight',
+  'assisted',
+  'assisted bodyweight',
+  'suspension',
+]);
+
+const BODYWEIGHT_NAME_REGEX = /\b(pull[- ]?up|chin[- ]?up|push[- ]?up|dip|plank|sit[- ]?up|crunch|inverted row)\b/i;
+
+export function isBodyweightExercise(exercise: Pick<Exercise, 'name' | 'equipment'>): boolean {
+  const equipment = normalizeInput(exercise.equipment || '');
+  if (equipment && BODYWEIGHT_EQUIPMENT.has(equipment)) {
+    return true;
+  }
+  if (!equipment && exercise.name) {
+    return BODYWEIGHT_NAME_REGEX.test(exercise.name);
+  }
+  return false;
+}
+
+const LBS_TO_KG = 1 / 2.20462;
+
+function toKg(weight: number, unit: WeightUnit | null | undefined): number {
+  if (!Number.isFinite(weight)) return 0;
+  if (unit === 'kg') return weight;
+  return weight * LBS_TO_KG;
+}
+
+type SetUnitOptions = {
+  isBodyweight?: boolean;
+  bodyweightKg?: number | null;
+  fallbackWeightUnit?: WeightUnit;
+};
+
+export function computeSetUnits(set: WorkoutSet, options: SetUnitOptions = {}): number {
+  if (!set.isCompleted) return 0;
+  if (set.setType === 'warmup') return 0;
+
+  const reps = set.reps ?? null;
+  const weight = set.weight ?? null;
+
+  if (reps !== null && reps <= 0) return 0;
+  if (weight !== null && weight <= 0) return 0;
+
+  if (typeof weight === 'number' && typeof reps === 'number') {
+    return toKg(weight, set.weightUnit ?? options.fallbackWeightUnit ?? 'lbs') * reps;
+  }
+
+  if (options.isBodyweight && typeof reps === 'number') {
+    if (options.bodyweightKg && options.bodyweightKg > 0) {
+      return options.bodyweightKg * reps;
+    }
+    return reps;
+  }
+
+  if (typeof reps === 'number') {
+    return reps;
+  }
+
+  return 1;
+}
+
+type AttributionOptions = {
+  bodyweightKg?: number | null;
+  weightUnitByExercise?: Record<string, WeightUnit>;
+};
+
+export function attributeSessionToMuscles(
+  session: WorkoutSession,
+  exercisesById: Map<string, Exercise>,
+  options: AttributionOptions = {}
+): Record<MuscleKey, number> {
+  const scores: Record<MuscleKey, number> = {};
+
+  session.exercises.forEach((workoutExercise) => {
+    const exercise = exercisesById.get(workoutExercise.exerciseId);
+    if (!exercise) return;
+
+    const primary = normalizeMuscleArray(exercise.primaryMuscles || []);
+    const secondary = normalizeMuscleArray(exercise.secondaryMuscles || []);
+    if (primary.length === 0 && secondary.length === 0) return;
+
+    const isBodyweight = isBodyweightExercise(exercise);
+    const fallbackWeightUnit = options.weightUnitByExercise?.[workoutExercise.exerciseId];
+
+    workoutExercise.sets.forEach((set) => {
+      const units = computeSetUnits(set, {
+        isBodyweight,
+        bodyweightKg: options.bodyweightKg ?? null,
+        fallbackWeightUnit,
+      });
+      if (units <= 0) return;
+
+      primary.forEach((muscle) => {
+        scores[muscle] = (scores[muscle] ?? 0) + units * 1.0;
+      });
+      secondary.forEach((muscle) => {
+        scores[muscle] = (scores[muscle] ?? 0) + units * 0.5;
+      });
+    });
+  });
+
+  return scores;
+}
+
+export function attributeExercisesToMuscles(exercises: Exercise[]): Record<MuscleKey, number> {
+  const scores: Record<MuscleKey, number> = {};
+
+  exercises.forEach((exercise) => {
+    const primary = normalizeMuscleArray(exercise.primaryMuscles || []);
+    const secondary = normalizeMuscleArray(exercise.secondaryMuscles || []);
+    primary.forEach((muscle) => {
+      scores[muscle] = (scores[muscle] ?? 0) + 1;
+    });
+    secondary.forEach((muscle) => {
+      scores[muscle] = (scores[muscle] ?? 0) + 0.5;
+    });
+  });
+
+  return scores;
+}
+
+export function bucketIntensity(scores: Record<MuscleKey, number>): Record<MuscleKey, number> {
+  const entries = Object.entries(scores)
+    .filter(([key]) => ACTIVE_MUSCLE_KEYS.includes(key as MuscleKey)) as Array<[MuscleKey, number]>;
+  const maxScore = entries.reduce((max, [, value]) => Math.max(max, value), 0);
+
+  if (maxScore <= 0) {
+    const empty: Record<MuscleKey, number> = {};
+    entries.forEach(([key]) => {
+      empty[key] = 0;
+    });
+    return empty;
+  }
+
+  const levels: Record<MuscleKey, number> = {};
+  entries.forEach(([muscle, value]) => {
+    const norm = value / maxScore;
+    let level = 0;
+    if (norm < 0.08) level = 0;
+    else if (norm < 0.2) level = 1;
+    else if (norm < 0.4) level = 2;
+    else if (norm < 0.65) level = 3;
+    else if (norm < 0.85) level = 4;
+    else level = 5;
+    levels[muscle] = level;
+  });
+  return levels;
+}

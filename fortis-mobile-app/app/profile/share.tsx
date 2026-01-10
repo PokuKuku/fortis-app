@@ -21,6 +21,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { getExerciseById } from '@/src/services/exerciseService';
@@ -93,23 +94,6 @@ const withAlpha = (color: string, alpha: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-const normalizeGroup = (group: string): string => {
-  const key = group.trim().toLowerCase();
-  if (['middle back', 'mid back', 'upper back', 'lower back', 'lats', 'traps'].includes(key)) return 'back';
-  if (['quadriceps', 'quads'].includes(key)) return 'quads';
-  if (['glutes', 'gluteus maximus', 'gluteus medius', 'gluteus minimus', 'gluteal'].includes(key)) return 'glutes';
-  if (['abdominals', 'abs', 'core', 'obliques'].includes(key)) return 'core';
-  if (['delts', 'deltoids', 'shoulders', 'front delts', 'rear delts', 'side delts', 'anterior deltoid', 'posterior deltoid', 'lateral deltoid'].includes(key)) return 'shoulders';
-  if (['pectorals', 'chest', 'pec', 'pecs', 'upper chest', 'lower chest'].includes(key)) return 'chest';
-  if (['hamstrings'].includes(key)) return 'hamstrings';
-  if (['biceps'].includes(key)) return 'biceps';
-  if (['triceps'].includes(key)) return 'triceps';
-  if (['calves', 'tibialis'].includes(key)) return 'calves';
-  if (['forearm', 'forearms'].includes(key)) return 'forearms';
-  if (['adductor', 'adductors'].includes(key)) return 'adductors';
-  if (['abductor', 'abductors'].includes(key)) return 'abductors';
-  return key;
-};
 
 const resolveShareTitle = (type: ShareType): string => {
   switch (type) {
@@ -272,11 +256,6 @@ export default function ProfileShareScreen() {
       setSignatureExercises(exercises);
       setSignatureHasWorkouts(exercises.length > 0);
 
-      const pushGroups = new Set(['chest', 'shoulders', 'triceps']);
-      const pullGroups = new Set(['back', 'biceps', 'forearms']);
-      const legGroups = new Set(['quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors']);
-      const coreGroups = new Set(['core']);
-
       let totalSets = 0;
       let pushSets = 0;
       let pullSets = 0;
@@ -288,17 +267,19 @@ export default function ProfileShareScreen() {
         const setCount = exerciseSetCounts.get(exerciseIds[index]) ?? 0;
         if (setCount <= 0) return;
 
-        const muscleGroups = new Set<string>();
-        exercise.primaryMuscles?.forEach((muscle) => muscleGroups.add(normalizeGroup(muscle)));
-        exercise.secondaryMuscles?.forEach((muscle) => muscleGroups.add(normalizeGroup(muscle)));
+        const muscleGroups = new Set<MuscleKey>();
+        exercise.primaryMuscles?.forEach((muscle) => {
+          const key = normalizeMuscle(muscle);
+          if (key) muscleGroups.add(key);
+        });
 
         muscleGroups.forEach((group) => {
-          if (!group) return;
           totalSets += setCount;
-          if (pushGroups.has(group)) pushSets += setCount;
-          if (pullGroups.has(group)) pullSets += setCount;
-          if (legGroups.has(group)) legSets += setCount;
-          if (coreGroups.has(group)) coreSets += setCount;
+          const category = getMuscleCategory(group);
+          if (category === 'push') pushSets += setCount;
+          if (category === 'pull') pullSets += setCount;
+          if (category === 'legs') legSets += setCount;
+          if (category === 'core') coreSets += setCount;
         });
       });
 

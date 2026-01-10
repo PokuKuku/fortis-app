@@ -112,6 +112,7 @@ interface AIRequest {
     insightId?: string;
     periodWeeks?: number;
     historyOnly?: boolean;
+    chatMode?: 'coach' | 'builder';
   };
   image?: AIImage;
 }
@@ -151,6 +152,7 @@ const ALLOWED_ENTITY_TYPES = new Set<string>([
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type WorkoutProposalType = 'WORKOUT_PROPOSAL_V1';
+type WorkoutTemplateDraftType = 'WORKOUT_TEMPLATE_DRAFT_V1';
 
 type WorkoutProposalSet = {
   kind?: string;
@@ -178,6 +180,22 @@ type WorkoutProposalV1 = {
   exercises: WorkoutProposalExercise[];
   progression_rule?: string;
   safety_notes?: string;
+};
+
+type WorkoutTemplateDraftExercise = {
+  exercise_query: string;
+  sets_text: string;
+  rest_seconds?: number;
+  rir?: number;
+  notes?: string;
+};
+
+type WorkoutTemplateDraftV1 = {
+  type: WorkoutTemplateDraftType;
+  source: 'user_specified';
+  title: string;
+  notes?: string;
+  exercises: WorkoutTemplateDraftExercise[];
 };
 
 function sanitizeProposedState(
