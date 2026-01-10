@@ -1274,10 +1274,7 @@ export default function ProgramsScreen() {
       const highlightStyle = isHighlighted
         ? {
             borderColor: colors.accent,
-            shadowColor: colors.accent,
-            shadowOpacity: isDark ? 0.35 : 0.25,
-            shadowRadius: 16,
-            shadowOffset: { width: 0, height: 6 },
+            backgroundColor: colors.accentOverlay,
           }
         : null;
 

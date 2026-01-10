@@ -1034,6 +1034,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
   },
   setText: {
     ...Typography.bodySmall,
