@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, Modal, Pressable, Dimensions } from 'react-native';
-import { XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
@@ -46,9 +45,6 @@ export function WorkoutCompleteModal({
       backgroundColor: isDark ? '#222222' : '#FFFFFF',
     },
     title: { color: colors.textPrimary },
-    closeButton: {
-      backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.05)',
-    },
     congratsText: { color: colors.accent },
     statsCard: {
       backgroundColor: isDark ? '#1a1a1a' : 'rgba(0, 0, 0, 0.04)',
@@ -113,16 +109,6 @@ export function WorkoutCompleteModal({
               {/* Header */}
               <View style={styles.header}>
                 <Text style={[styles.title, themedStyles.title]}>Workout Complete!</Text>
-                <Pressable
-                  onPress={onClose}
-                  style={({ pressed }) => [
-                    styles.closeButton,
-                    themedStyles.closeButton,
-                    pressed && styles.closeButtonPressed,
-                  ]}
-                >
-                  <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
-                </Pressable>
               </View>
 
               {/* Content */}
@@ -226,16 +212,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textPrimary,
     textAlign: 'center',
-  },
-  closeButton: {
-    position: 'absolute',
-    right: Spacing['2xl'],
-    backgroundColor: '#2a2a2a',
-    borderRadius: BorderRadius.lg,
-    padding: 4,
-  },
-  closeButtonPressed: {
-    opacity: 0.6,
   },
   content: {
     paddingHorizontal: Spacing['2xl'],

@@ -783,15 +783,18 @@ function ProgramDropCard({
   enableDropZone: boolean;
 }) {
   const { colors, isDark } = useTheme();
+  const AnimatedTouchable = Reanimated.createAnimatedComponent(TouchableOpacity);
   const { ref, onLayout, isHovered } = useDropZone({
     id: `program-${item.id}`,
     type: 'program',
     enabled: enableDropZone,
   });
 
+  const baseBackgroundColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)';
+  const baseBorderColor = isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)';
   const cardThemeStyle = {
-    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: baseBackgroundColor,
+    borderColor: baseBorderColor,
   };
   const accentOverlay = colors.accentOverlay;
   const accentBorder = colors.accent;
@@ -800,9 +803,17 @@ function ProgramDropCard({
       opacity: enableDropZone && isHovered.value ? 1 : 0,
     };
   }, [enableDropZone]);
+  const hoverBorderStyle = useAnimatedStyle(() => {
+    const isDropTarget = enableDropZone && isHovered.value;
+    return {
+      borderColor: isDropTarget ? accentBorder : baseBorderColor,
+      shadowColor: isDropTarget ? accentBorder : '#000',
+      shadowOpacity: isDropTarget ? 0.45 : 0.3,
+    };
+  }, [accentBorder, baseBorderColor, enableDropZone]);
 
   return (
-    <TouchableOpacity
+    <AnimatedTouchable
       ref={ref}
       onLayout={onLayout}
       activeOpacity={0.8}
@@ -811,6 +822,7 @@ function ProgramDropCard({
         styles.programCard,
         cardThemeStyle,
         isActive && [styles.cardActive, { borderColor: colors.accentBorder }],
+        hoverBorderStyle,
       ]}
     >
       <Reanimated.View
@@ -841,7 +853,7 @@ function ProgramDropCard({
       <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
         {item.workouts} workouts · {item.lastPerformed}
       </Text>
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 }
 
@@ -1765,7 +1777,7 @@ const styles = StyleSheet.create({
   programHoverOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: CARD_RADIUS,
-    borderWidth: 1,
+    borderWidth: 2,
   },
   cardTitle: {
     flex: 1,

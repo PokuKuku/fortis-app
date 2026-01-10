@@ -136,10 +136,16 @@ export default function CreateProgramScreen() {
   const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showEditIntentModal, setShowEditIntentModal] = useState(false);
+  const [showCancelEditModal, setShowCancelEditModal] = useState(false);
   const [headerLeftWidth, setHeaderLeftWidth] = useState(0);
   const [titleTextWidth, setTitleTextWidth] = useState(0);
   const isNavigating = useRef(false);
   const hasInitializedEdit = useRef(false);
+  const initialSnapshotRef = useRef<{
+    name: string;
+    description: string;
+    workouts: Array<{ templateId: string | null }>;
+  } | null>(null);
 
   useEffect(() => {
     fetchPrograms();
@@ -177,6 +183,11 @@ export default function CreateProgramScreen() {
     });
 
     setWorkouts(mappedWorkouts);
+    initialSnapshotRef.current = {
+      name: editingProgram.name,
+      description: editingProgram.description || '',
+      workouts: mappedWorkouts.map((workout) => ({ templateId: workout.templateId })),
+    };
     hasInitializedEdit.current = true;
   }, [editingProgram, isEditing, templates]);
 
@@ -211,9 +222,39 @@ export default function CreateProgramScreen() {
   // Check if we can save
   const canSave = programName.trim().length > 0 && workouts.length > 0 && !isSaving;
 
+  const hasUnsavedChanges = useMemo(() => {
+    if (!isEditing || !hasInitializedEdit.current || !initialSnapshotRef.current) return false;
+
+    const initialSnapshot = initialSnapshotRef.current;
+    const normalizedName = programName.trim();
+    const normalizedDescription = programDescription.trim();
+    const initialName = initialSnapshot.name.trim();
+    const initialDescription = initialSnapshot.description.trim();
+
+    if (normalizedName !== initialName) return true;
+    if (normalizedDescription !== initialDescription) return true;
+    if (workouts.length !== initialSnapshot.workouts.length) return true;
+
+    for (let i = 0; i < workouts.length; i += 1) {
+      if (workouts[i]?.templateId !== initialSnapshot.workouts[i]?.templateId) return true;
+    }
+
+    return false;
+  }, [isEditing, programDescription, programName, workouts]);
+
   // Handle close
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (isEditing && hasUnsavedChanges) {
+      setShowCancelEditModal(true);
+      return;
+    }
+    router.back();
+  };
+
+  const handleDiscardChanges = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowCancelEditModal(false);
     router.back();
   };
 
@@ -721,6 +762,43 @@ export default function CreateProgramScreen() {
             >
               <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
                 Cancel
+              </Text>
+            </Pressable>
+          </View>
+        </BaseModal>
+
+        <BaseModal
+          visible={showCancelEditModal}
+          onClose={() => setShowCancelEditModal(false)}
+          title="Discard edits?"
+          icon={<ExclamationTriangleIcon size={24} color={Colors.warning} />}
+        >
+          <Text style={modalStyles.message}>
+            You have unsaved changes. Are you sure you want to discard them?
+          </Text>
+          <View style={[modalStyles.actions, styles.modalActions]}>
+            <Pressable
+              onPress={() => setShowCancelEditModal(false)}
+              style={({ pressed }) => [
+                modalStyles.cancelButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.cancelButtonText, styles.modalActionText]}>
+                Keep editing
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleDiscardChanges}
+              style={({ pressed }) => [
+                modalStyles.errorButton,
+                styles.modalActionButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={[modalStyles.errorButtonText, styles.modalActionText]}>
+                Discard
               </Text>
             </Pressable>
           </View>

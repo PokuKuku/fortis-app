@@ -284,6 +284,8 @@ function DraggableItem<T>({
             if (remeasureContainer) {
               runOnJS(remeasureContainer)();
             }
+            // Re-measure all drop zones to account for scroll changes
+            runOnJS(dragDropContext.remeasureAllBounds)();
             // Start drag - bounds are maintained by onLayout, no need to remeasure
             // (remeasureAllBounds removed - it causes Reanimated threading warnings)
             runOnJS(dragDropContext.startDrag)(itemKey, dragType);

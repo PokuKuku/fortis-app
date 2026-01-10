@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
-import { XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
@@ -21,9 +20,6 @@ export function CancelWorkoutModal({ visible, onClose, onConfirm }: CancelWorkou
   const themedStyles = {
     container: {
       backgroundColor: isDark ? '#222222' : '#FFFFFF',
-    },
-    closeButton: {
-      backgroundColor: isDark ? '#2a2a2a' : 'rgba(0, 0, 0, 0.05)',
     },
     title: { color: colors.textPrimary },
     message: { color: colors.textSecondary },
@@ -61,16 +57,6 @@ export function CancelWorkoutModal({ visible, onClose, onConfirm }: CancelWorkou
               {/* Header */}
               <View style={styles.header}>
                 <Text style={[styles.title, themedStyles.title]}>Cancel Workout</Text>
-                <Pressable
-                  onPress={onClose}
-                  style={({ pressed }) => [
-                    styles.closeButton,
-                    themedStyles.closeButton,
-                    pressed && styles.closeButtonPressed,
-                  ]}
-                >
-                  <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
-                </Pressable>
               </View>
 
               {/* Content */}
@@ -164,16 +150,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: Colors.textPrimary,
-  },
-  closeButton: {
-    position: 'absolute',
-    right: Spacing['2xl'],
-    backgroundColor: '#2a2a2a',
-    borderRadius: BorderRadius.lg,
-    padding: 4,
-  },
-  closeButtonPressed: {
-    opacity: 0.6,
   },
   content: {
     paddingHorizontal: Spacing['2xl'],
