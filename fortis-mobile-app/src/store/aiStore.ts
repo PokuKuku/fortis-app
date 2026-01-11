@@ -25,6 +25,7 @@ import {
   EditableProgramExercise,
   AIRateLimitWindow,
   WorkoutDraftV1,
+  WorkoutDraftIntentClassificationContext,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import * as ExerciseService from '../services/exerciseService';
@@ -38,10 +39,10 @@ import type { ExerciseWithSource } from '../types/exercise';
 import {
   buildDraftSummaryFallback,
   buildResolutionPrompt,
+  formatResolutionCandidateLabel,
   resolveWorkoutDraftExercises,
   type DraftResolution,
 } from '../utils/workoutDraftResolver';
-import { parseDraftReply } from '../utils/workoutDraftIntent';
 
 const isValidUUID = (value: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -669,18 +670,75 @@ export const useAIStore = create<AIState>()(
         createdAt: new Date().toISOString(),
       };
 
-      const replyIntent = parseDraftReply(message, {
-        awaitingResolution: pending.status === 'awaiting_resolution' && !!pending.pendingResolution,
-        maxOptions: pending.pendingResolution?.candidates.length ?? 0,
-      });
+      const pendingResolution = pending.pendingResolution;
+      const draftStatus: WorkoutDraftIntentClassificationContext['draftStatus'] =
+        pending.status === 'awaiting_resolution' || pending.status === 'ready_to_save'
+          ? pending.status
+          : 'pending';
 
-      if (replyIntent.type === 'resolve' && pending.pendingResolution) {
+      const classifierContext: WorkoutDraftIntentClassificationContext = {
+        type: 'workout_draft_reply',
+        draftStatus,
+        pendingQuery: pendingResolution?.query,
+        pendingOptions: pendingResolution?.candidates.map(formatResolutionCandidateLabel),
+      };
+
+      const classification = await aiService.classifyWorkoutDraftReply(
+        message,
+        classifierContext
+      );
+
+      const classifiedIntent = classification?.intent ?? 'unknown';
+      const confidence = classification?.confidence ?? 0;
+      const saveAsTitle = classification?.saveAsTitle?.trim();
+      const minConfidence = classifiedIntent === 'confirm' ? 0.6 : 0.55;
+      const isLowConfidence = confidence < minConfidence;
+
+      const promptForResolution = async () => {
         await appendMessage(userMessage);
-        const selected = pending.pendingResolution.candidates[replyIntent.selectionIndex];
+        await appendMessage({
+          id: generateId(),
+          role: 'assistant',
+          content: 'I still need the option number from the list, or tell me the change you want.',
+          createdAt: new Date().toISOString(),
+        });
+      };
+
+      const promptForConfirmation = async () => {
+        await appendMessage(userMessage);
+        await appendMessage({
+          id: generateId(),
+          role: 'assistant',
+          content: 'Do you want me to save this template, make changes, or cancel?',
+          createdAt: new Date().toISOString(),
+        });
+      };
+
+      if (pending.status === 'awaiting_resolution' && (!pendingResolution || isLowConfidence)) {
+        await promptForResolution();
+        return { handled: true };
+      }
+
+      if (classifiedIntent === 'resolve' && pendingResolution) {
+        const optionCount = pendingResolution.candidates.length;
+        const rawIndex = classification?.optionIndex;
+        let selectionIndex =
+          typeof rawIndex === 'number' ? rawIndex : Number.NaN;
+        if (!Number.isNaN(selectionIndex) && selectionIndex >= 1 && selectionIndex <= optionCount) {
+          selectionIndex -= 1;
+        }
+
+        if (!Number.isFinite(selectionIndex) || selectionIndex < 0 || selectionIndex >= optionCount) {
+          await promptForResolution();
+          return { handled: true };
+        }
+
+        await appendMessage(userMessage);
+        const selected = pendingResolution.candidates[selectionIndex];
         const updatedDraft: WorkoutDraftV1 = {
           ...pending.draft,
           exercises: pending.draft.exercises.map((exercise, index) =>
-            index === pending.pendingResolution?.exerciseIndex
+            index === pendingResolution.exerciseIndex
               ? { ...exercise, resolved_exercise_id: selected.id, query: selected.name }
               : exercise
           ),
@@ -693,17 +751,22 @@ export const useAIStore = create<AIState>()(
         set({ pendingWorkoutDraft: updatedPending });
         await setScopedItem(AI_WORKOUT_DRAFT_KEY, JSON.stringify(updatedPending));
         analytics.trackAIWorkoutResolutionCompleted({
-          exerciseIndex: pending.pendingResolution.exerciseIndex,
+          exerciseIndex: pendingResolution.exerciseIndex,
         });
         await get().resolvePendingWorkoutDraft();
         return { handled: true };
       }
 
+      if (classifiedIntent === 'resolve' && !pendingResolution) {
+        await promptForConfirmation();
+        return { handled: true };
+      }
+
       if (
-        pending.status === 'awaiting_resolution'
-        && pending.pendingResolution
-        && pending.pendingResolution.candidates.length === 0
-        && replyIntent.type === 'edit'
+        pending.status === 'awaiting_resolution' &&
+        pendingResolution &&
+        pendingResolution.candidates.length === 0 &&
+        classifiedIntent === 'edit'
       ) {
         const trimmed = message.trim();
         if (trimmed) {
@@ -711,7 +774,7 @@ export const useAIStore = create<AIState>()(
           const updatedDraft: WorkoutDraftV1 = {
             ...pending.draft,
             exercises: pending.draft.exercises.map((exercise, index) =>
-              index === pending.pendingResolution?.exerciseIndex
+              index === pendingResolution.exerciseIndex
                 ? { ...exercise, query: trimmed, resolved_exercise_id: null }
                 : exercise
             ),
@@ -728,7 +791,7 @@ export const useAIStore = create<AIState>()(
         }
       }
 
-      if (replyIntent.type === 'cancel') {
+      if (classifiedIntent === 'cancel') {
         await appendMessage(userMessage);
         await syncWorkoutDraftToSupabase({ ...pending, status: 'canceled' });
         set({ pendingWorkoutDraft: null });
@@ -743,9 +806,26 @@ export const useAIStore = create<AIState>()(
         return { handled: true };
       }
 
-      if (replyIntent.type === 'confirm') {
+      if (classifiedIntent === 'confirm') {
+        if (pending.status === 'awaiting_resolution') {
+          if (saveAsTitle) {
+            const updatedPending: PendingWorkoutDraft = {
+              ...pending,
+              draft: {
+                ...pending.draft,
+                title: saveAsTitle,
+              },
+              updatedAt: new Date().toISOString(),
+            };
+            set({ pendingWorkoutDraft: updatedPending });
+            await setScopedItem(AI_WORKOUT_DRAFT_KEY, JSON.stringify(updatedPending));
+            await syncWorkoutDraftToSupabase(updatedPending);
+          }
+          await promptForResolution();
+          return { handled: true };
+        }
         await appendMessage(userMessage);
-        const result = await get().savePendingWorkoutDraft(replyIntent.saveAsTitle);
+        const result = await get().savePendingWorkoutDraft(saveAsTitle);
         if (!result.success) {
           await appendMessage({
             id: generateId(),
@@ -757,7 +837,7 @@ export const useAIStore = create<AIState>()(
         return { handled: true };
       }
 
-      if (replyIntent.type === 'edit') {
+      if (classifiedIntent === 'edit') {
         await syncWorkoutDraftToSupabase({ ...pending, status: 'canceled' });
         await get().clearPendingWorkoutDraft();
         return {
@@ -770,13 +850,12 @@ export const useAIStore = create<AIState>()(
       }
 
       if (pending.status === 'awaiting_resolution') {
-        await appendMessage(userMessage);
-        await appendMessage({
-          id: generateId(),
-          role: 'assistant',
-          content: 'Reply with a number from the list, or tell me the change you want.',
-          createdAt: new Date().toISOString(),
-        });
+        await promptForResolution();
+        return { handled: true };
+      }
+
+      if (isLowConfidence || classifiedIntent === 'unknown') {
+        await promptForConfirmation();
         return { handled: true };
       }
 

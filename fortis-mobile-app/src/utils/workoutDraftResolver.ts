@@ -137,7 +137,7 @@ export function resolveWorkoutDraftExercises(
   };
 }
 
-const formatCandidateLabel = (exercise: ExerciseWithSource): string => {
+export const formatResolutionCandidateLabel = (exercise: ExerciseWithSource): string => {
   const equipment = exercise.equipment?.trim();
   const primary = exercise.primaryMuscles?.[0];
   const primaryLabel = primary ? getMuscleDisplayName(primary as MuscleKey) : '';
@@ -151,7 +151,7 @@ export function buildResolutionPrompt(resolution: DraftResolution): string {
     return `I couldn't find a match for "${query}". Reply with the exercise you want instead, or say cancel.`;
   }
   const options = candidates
-    .map((candidate, index) => `${index + 1}. ${formatCandidateLabel(candidate)}`)
+    .map((candidate, index) => `${index + 1}. ${formatResolutionCandidateLabel(candidate)}`)
     .join('\n');
   const intro =
     reason === 'ambiguous'

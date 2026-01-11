@@ -13,6 +13,7 @@ import {
   AIRequest,
   AIRequestContext,
   AIResponse,
+  AIIntentClassification,
   AIMutationPlan,
   AIPendingAction,
   AIPendingActionDTO,
@@ -20,6 +21,7 @@ import {
   AIMutationRecordDTO,
   AIRateLimitStatus,
   INTENT_CONFIG,
+  WorkoutDraftIntentClassificationContext,
 } from '../types/ai';
 
 async function getAuthenticatedUserId(): Promise<string | null> {
@@ -148,6 +150,25 @@ export async function askFortisAnalyst(
   query: string
 ): Promise<AIResponse> {
   return sendAIMessage('FORTIS_ANALYST', query);
+}
+
+export async function classifyWorkoutDraftReply(
+  message: string,
+  context: WorkoutDraftIntentClassificationContext
+): Promise<AIIntentClassification | null> {
+  const response = await sendAIMessage('FORTIS_ANALYST', message, {
+    intentClassification: context,
+  });
+
+  if (response.type === 'intent_classification' && response.intentClassification) {
+    return response.intentClassification;
+  }
+
+  if (response.type === 'error') {
+    console.warn('Draft intent classification failed:', response.error?.message);
+  }
+
+  return null;
 }
 // ============================================
 // Pending Actions Management

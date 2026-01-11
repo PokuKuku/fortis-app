@@ -102,6 +102,23 @@ interface AIImage {
   mimeType: AIImageMimeType;
 }
 
+type WorkoutDraftReplyIntent = 'confirm' | 'cancel' | 'edit' | 'resolve' | 'unknown';
+
+interface WorkoutDraftIntentClassificationContext {
+  type: 'workout_draft_reply';
+  draftStatus: 'pending' | 'awaiting_resolution' | 'ready_to_save';
+  pendingQuery?: string;
+  pendingOptions?: string[];
+}
+
+interface IntentClassificationResult {
+  intent: WorkoutDraftReplyIntent;
+  confidence: number;
+  optionIndex?: number;
+  saveAsTitle?: string;
+  reason?: string;
+}
+
 interface AIRequest {
   intent: AIIntent;
   message: string;
@@ -114,6 +131,7 @@ interface AIRequest {
     historyOnly?: boolean;
     chatMode?: 'coach' | 'builder';
     workoutDraft?: WorkoutDraftV1;
+    intentClassification?: WorkoutDraftIntentClassificationContext;
   };
   image?: AIImage;
 }
@@ -936,8 +954,8 @@ function validateRequest(body: unknown): string | null {
     return 'Missing or invalid message';
   }
 
-  if (message.length < 3) {
-    return 'Message must be at least 3 characters';
+  if (message.length < 1) {
+    return 'Message must be at least 1 character';
   }
 
   if (message.length > 2000) {
@@ -976,6 +994,28 @@ function validateRequest(body: unknown): string | null {
     if (ctx.workoutDraft !== undefined) {
       if (!ctx.workoutDraft || typeof ctx.workoutDraft !== 'object') {
         return 'workoutDraft must be an object';
+      }
+    }
+    if (ctx.intentClassification !== undefined) {
+      if (!ctx.intentClassification || typeof ctx.intentClassification !== 'object') {
+        return 'intentClassification must be an object';
+      }
+      const ic = ctx.intentClassification as Record<string, unknown>;
+      if (ic.type !== 'workout_draft_reply') {
+        return 'intentClassification type must be "workout_draft_reply"';
+      }
+      if (
+        ic.draftStatus !== 'pending' &&
+        ic.draftStatus !== 'awaiting_resolution' &&
+        ic.draftStatus !== 'ready_to_save'
+      ) {
+        return 'intentClassification draftStatus must be pending, awaiting_resolution, or ready_to_save';
+      }
+      if (ic.pendingOptions !== undefined && !Array.isArray(ic.pendingOptions)) {
+        return 'intentClassification pendingOptions must be an array';
+      }
+      if (ic.pendingQuery !== undefined && typeof ic.pendingQuery !== 'string') {
+        return 'intentClassification pendingQuery must be a string';
       }
     }
   }
@@ -1147,6 +1187,7 @@ interface AIContext {
   analytics?: unknown;
   chatMode?: 'coach' | 'builder';
   workoutDraft?: WorkoutDraftV1;
+  intentClassification?: WorkoutDraftIntentClassificationContext;
 }
 
 async function assembleContext(
@@ -1157,13 +1198,7 @@ async function assembleContext(
 ): Promise<AIContext> {
   const insightOnly = !!request.context?.insightId;
   const periodWeeks = request.context?.periodWeeks || config.defaultContextWeeks;
-  const resolvedFromMessage = request.message
-    ? await resolveExerciseMatches(supabase, userId, request.message)
-    : { ids: [], matched: [] };
-  const resolvedExerciseIds = mergeExerciseIds(
-    request.context?.exerciseId ? [request.context.exerciseId] : [],
-    resolvedFromMessage.ids
-  );
+  const intentClassification = request.context?.intentClassification;
 
   // Always fetch user preferences (small, fast)
   const userPrefs = await withContextCache(
@@ -1195,7 +1230,20 @@ async function assembleContext(
     },
     chatMode: request.context?.chatMode,
     workoutDraft: request.context?.workoutDraft,
+    intentClassification,
   };
+
+  if (intentClassification) {
+    return context;
+  }
+
+  const resolvedFromMessage = request.message
+    ? await resolveExerciseMatches(supabase, userId, request.message)
+    : { ids: [], matched: [] };
+  const resolvedExerciseIds = mergeExerciseIds(
+    request.context?.exerciseId ? [request.context.exerciseId] : [],
+    resolvedFromMessage.ids
+  );
   if (resolvedFromMessage.matched.length > 0) {
     context.exerciseQuery = {
       query: request.message,
@@ -1747,6 +1795,18 @@ async function callAIProvider(
   requestId: string
 ): Promise<unknown> {
   const provider = resolveAIProvider();
+  if (context.intentClassification) {
+    const systemPrompt = buildIntentClassificationPrompt(context.intentClassification);
+    const userMessage = buildIntentClassificationMessage(
+      request.message,
+      context.intentClassification
+    );
+    const responseText =
+      provider === 'openai'
+        ? await callOpenAIText(request, systemPrompt, userMessage)
+        : await callClaudeText(request, systemPrompt, userMessage);
+    return parseIntentClassificationResponse(responseText, requestId);
+  }
   const systemPrompt = buildSystemPrompt(request.intent, config, context);
   const userMessage = buildUserMessage(request, context);
 
@@ -2254,6 +2314,119 @@ function parseModelResponse(
   }
 }
 
+function buildIntentClassificationPrompt(
+  context: WorkoutDraftIntentClassificationContext
+): string {
+  const resolutionGuidance =
+    context.draftStatus === 'awaiting_resolution'
+      ? '\n- The user must pick one option or ask for a change while awaiting resolution.'
+      : '';
+
+  return `You are an intent classifier for a fitness app. Determine the user's intent about a pending workout draft.
+
+Return ONLY JSON with this shape:
+{
+  "type": "intent_classification",
+  "intent": "confirm|cancel|edit|resolve|unknown",
+  "confidence": 0.0-1.0,
+  "option_index": 0-based index only when intent="resolve",
+  "save_as_title": "optional title if user names a template",
+  "reason": "short rationale"
+}
+
+Intent rules:
+- confirm: user clearly wants to save/create the template.
+- cancel: user clearly wants to discard or not save.
+- edit: user asks to change, tweak, swap, remove, add, or correct anything.
+- resolve: user selects one of the numbered options or clearly references a specific option.
+- unknown: unclear or ambiguous.
+- If the user requests changes and also approval, choose edit.
+- If awaiting resolution and no option is chosen, use unknown and keep confidence low.${resolutionGuidance}
+`;
+}
+
+function buildIntentClassificationMessage(
+  message: string,
+  context: WorkoutDraftIntentClassificationContext
+): string {
+  const payload = {
+    user_message: message,
+    draft_status: context.draftStatus,
+    pending_query: context.pendingQuery,
+    pending_options: context.pendingOptions,
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+function parseIntentClassificationResponse(
+  text: string,
+  requestId: string
+): { type: 'intent_classification'; requestId: string; intentClassification: IntentClassificationResult } {
+  try {
+    let jsonStr = text;
+    const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1];
+    }
+
+    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+    const intentRaw = parsed.intent;
+    const intent = typeof intentRaw === 'string'
+      ? intentRaw.toLowerCase()
+      : 'unknown';
+    const validIntents: WorkoutDraftReplyIntent[] = ['confirm', 'cancel', 'edit', 'resolve', 'unknown'];
+    const normalizedIntent = validIntents.includes(intent as WorkoutDraftReplyIntent)
+      ? (intent as WorkoutDraftReplyIntent)
+      : 'unknown';
+
+    const confidenceRaw = parsed.confidence;
+    const confidenceValue = typeof confidenceRaw === 'number'
+      ? confidenceRaw
+      : Number.parseFloat(String(confidenceRaw));
+    const confidence = Number.isFinite(confidenceValue)
+      ? Math.max(0, Math.min(1, confidenceValue))
+      : 0;
+
+    const optionIndexRaw = parsed.option_index ?? parsed.optionIndex;
+    const optionIndex = typeof optionIndexRaw === 'number'
+      ? optionIndexRaw
+      : Number.isFinite(Number(optionIndexRaw))
+        ? Number(optionIndexRaw)
+        : undefined;
+
+    const saveAsRaw = parsed.save_as_title ?? parsed.saveAsTitle;
+    const saveAsTitle = typeof saveAsRaw === 'string' && saveAsRaw.trim().length > 0
+      ? saveAsRaw.trim()
+      : undefined;
+
+    const reasonRaw = parsed.reason;
+    const reason = typeof reasonRaw === 'string' ? reasonRaw : undefined;
+
+    return {
+      type: 'intent_classification',
+      requestId,
+      intentClassification: {
+        intent: normalizedIntent,
+        confidence,
+        optionIndex,
+        saveAsTitle,
+        reason,
+      },
+    };
+  } catch (error) {
+    console.warn('Failed to parse intent classification response:', error);
+    return {
+      type: 'intent_classification',
+      requestId,
+      intentClassification: {
+        intent: 'unknown',
+        confidence: 0,
+        reason: 'parse_error',
+      },
+    };
+  }
+}
+
 function validateWorkoutProposal(proposal: WorkoutProposalV1): string | null {
   if (!proposal || proposal.type !== 'WORKOUT_PROPOSAL_V1') {
     return 'Invalid workout proposal type';
@@ -2480,4 +2653,84 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
   }
 
   return null;
+# AI Workout Proposal Roadmap
+
+Goal: Chat-only workout template creation. AI can propose or parse a workout, resolve exercises via chat prompts, and create a real workout template only after explicit user confirmation. No extra screens, no popups, no buttons beyond the chat composer.
+Goal update: The chat should feel as natural as ChatGPT, while still safely performing real in-app actions. This includes workout template creation and data-backed feedback, without rigid keyword commands.
+
+## Multi-Phase Plan
+
+### Phase 0: Decisions and Ground Rules
+- [x] Confirm edit semantics: regenerate from the user's message vs targeted field edits.
+- [x] Confirm save semantics: positive confirmation creates immediately vs always require a final confirmation line.
+- [x] Define the natural language intent parsing rules (confirm, cancel, edit) and priority when a reply contains both.
+
+### Phase 1: Contract and Prompting
+- [x] Define strict payload WORKOUT_DRAFT_V1 in shared types and edge function parsing.
+- [x] Update AI system prompt to emit WORKOUT_DRAFT_V1 when the user asks to create a template.
+- [x] Require the AI to end workout-like responses with a natural-language save prompt line
+  ("Reply yes to save, or tell me changes or cancel.").
+
+### Phase 2: Pending Draft Storage (Hidden State)
+- [x] Add hidden draft storage per chat thread (recommended: chat_workout_drafts table).
+- [x] Fields: id, user_id, chat_id, status, draft_payload (json), unresolved (json), timestamps.
+- [x] Status flow: pending -> awaiting_resolution -> ready_to_save -> saved | canceled.
+
+### Phase 3: Chat-Only Intent Handling
+- [x] Parse natural language confirmations when a pending draft exists.
+- [x] Confirm save via phrases like: "yes", "looks good", "go ahead", "save it".
+- [x] Cancel via phrases like: "no", "never mind", "cancel".
+- [x] Treat change requests as edits (e.g., "swap bench for incline", "make it 3x10").
+- [x] If no draft exists, replies are handled as normal chat input.
+- [x] For edits: regenerate or apply minimal changes based on chosen grammar.
+
+### Phase 3b: LLM Intent Classification (Natural Chat)
+- [ ] Replace naive keyword parsing with an LLM intent classifier so responses can be natural.
+- [ ] Inputs to classifier: user reply, current draft status (awaiting resolution vs ready to save),
+  and any pending choices.
+- [ ] Output contract: intent ∈ {confirm, cancel, edit, resolve, unknown}, plus confidence and
+  option_index if intent=resolve.
+- [ ] Low-confidence or ambiguous output should trigger a short clarification question in chat.
+- [ ] Ensure edits only fire when the user clearly requests a change; otherwise confirmations win.
+- [ ] Accept natural selection phrases (e.g., "option two", "pick 2") when awaiting resolution.
+
+### Phase 4: Exercise Resolution via Chat
+- [x] Implement resolveExerciseQuery(query, userId) -> candidates[].
+- [x] Auto-resolve only on strong matches (exact canonical_key, exact normalized_name, alias hit with high confidence and a clear score gap).
+- [x] If ambiguous, AI asks in chat with numbered choices (max 5). User replies 1-5.
+- [x] Mark draft as awaiting_resolution until all queries are resolved.
+
+### Phase 5: Template Creation (Server-Validated)
+- [x] On confirmation (ready_to_save only): validate limits (<= 12 exercises, sets reasonable).
+- [x] Create template using existing pipeline (workout_programs + program_workouts + program_exercises).
+- [x] Persist audit fields: created_by_ai, source_chat_id, payload_version.
+- [x] AI replies: "Saved as X. You will find it in Programs -> Workouts."
+
+### Phase 6: Analytics and QA
+- [x] Events: ai_workout_draft_created, ai_workout_resolution_requested, ai_workout_resolution_completed,
+  ai_workout_saved, ai_workout_canceled, ai_workout_started.
+- [ ] QA flows: paste workout text -> draft -> resolve -> save; ambiguous selection; cancel; edit then save.
+- [ ] QA flows (natural chat): "Great, now create it", "Resolve them then", "Option two", "Actually swap X".
+
+## Open Questions (to finalize before implementation)
+Resolved:
+- Edits take priority over saving when a reply includes both.
+- EDIT semantics: regenerate from user message (simpler and more achievable).
+- Always ask for a natural-language confirmation line before saving.
+
+Still open:
+- None.
+
+## Notes
+- This plan intentionally removes all non-chat UI. The only visible interface is the chat thread.
+- Internal draft state is required so short replies like "2" can be interpreted as resolution choices.
+
+## Implementation Status (current)
+- [x] Phase 1: Contract and prompting in edge function implemented.
+- [x] Phase 2: Pending draft storage implemented (local + Supabase sync).
+- [x] Phase 3: Chat-only intent handling implemented (confirm/cancel/edit/resolve).
+- [ ] Phase 3b: LLM intent classification for natural chat (planned).
+- [x] Phase 4: Chat resolution prompts implemented with numbered choices.
+- [x] Phase 5: Template creation via existing pipeline with AI audit fields implemented.
+- [x] Phase 6: Analytics events and unit tests added.
 }

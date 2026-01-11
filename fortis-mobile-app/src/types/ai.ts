@@ -85,13 +85,21 @@ export interface AIRequestContext {
   historyOnly?: boolean;     // Restrict exercises to user's history only
   chatMode?: 'coach' | 'builder';
   workoutDraft?: WorkoutDraftV1;
+  intentClassification?: WorkoutDraftIntentClassificationContext;
 }
 
 /**
  * AI response union type
  */
 export interface AIResponse {
-  type: 'answer' | 'mutation_plan' | 'error' | 'clarification' | 'workout_proposal' | 'workout_draft';
+  type:
+    | 'answer'
+    | 'mutation_plan'
+    | 'error'
+    | 'clarification'
+    | 'workout_proposal'
+    | 'workout_draft'
+    | 'intent_classification';
   requestId: string;
   message?: string;
 
@@ -112,6 +120,9 @@ export interface AIResponse {
 
   // For type === 'workout_draft'
   workoutDraft?: WorkoutDraftV1;
+
+  // For type === 'intent_classification'
+  intentClassification?: AIIntentClassification;
 }
 
 /**
@@ -195,6 +206,27 @@ export interface WorkoutProposalV1 {
   exercises: WorkoutProposalExercise[];
   progression_rule?: string;
   safety_notes?: string;
+}
+
+// ============================================
+// Workout Draft Reply Intent Classification
+// ============================================
+
+export type WorkoutDraftReplyIntent = 'confirm' | 'cancel' | 'edit' | 'resolve' | 'unknown';
+
+export interface WorkoutDraftIntentClassificationContext {
+  type: 'workout_draft_reply';
+  draftStatus: 'pending' | 'awaiting_resolution' | 'ready_to_save';
+  pendingQuery?: string;
+  pendingOptions?: string[];
+}
+
+export interface AIIntentClassification {
+  intent: WorkoutDraftReplyIntent;
+  confidence: number;
+  optionIndex?: number;
+  saveAsTitle?: string;
+  reason?: string;
 }
 
 // ============================================
