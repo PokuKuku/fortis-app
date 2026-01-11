@@ -1,58 +1,57 @@
 # AI Workout Proposal Roadmap
 
-Goal: Proposal -> preview -> user confirms -> real workout template appears in Programs and is startable.
+Goal: Chat-only workout template creation. AI can propose or parse a workout, resolve exercises via chat prompts, and create a real workout template only after explicit user confirmation. No extra screens, no popups, no buttons beyond the chat composer.
 
-## Progress Summary (as of now)
-- Chat can receive a strict WORKOUT_PROPOSAL_V1 payload and render a proposal card.
-- Review screen exists to resolve exercises (canonical/alias/fuzzy), create custom exercises, edit details, and confirm creation.
-- Creation reuses the existing template pipeline (`workout_programs` + `program_workouts` + `program_exercises`).
-- AI-generated templates are flagged and surfaced in Programs with a highlight.
-- Analytics events added for proposal, review, resolve, create, edited-before-create, and start.
+## Multi-Phase Plan
 
-## Milestones
+### Phase 0: Decisions and Ground Rules
+- Confirm edit semantics: regenerate from the user's message vs targeted field edits.
+- Confirm save semantics: positive confirmation creates immediately vs always require a final confirmation line.
+- Define the natural language intent parsing rules (confirm, cancel, edit) and priority when a reply contains both.
 
-### 1) Proposal Contract + Parsing (Done)
-- Added WORKOUT_PROPOSAL_V1 types and parsing/validation in edge function.
-- AI store handles new response type and logs proposal analytics.
+### Phase 1: Contract and Prompting
+- Define strict payload WORKOUT_DRAFT_V1 in shared types and edge function parsing.
+- Update AI system prompt to emit WORKOUT_DRAFT_V1 when the user asks to create a template.
+- Require the AI to end workout-like responses with a save prompt line ("Reply SAVE to add this as a template.").
 
-### 2) Chat UI Proposal Card (Done)
-- Proposal card renders inside chat with Review/Edit/Create actions.
-- TLDR suppression for proposal messages to avoid double UI.
+### Phase 2: Pending Draft Storage (Hidden State)
+- Add hidden draft storage per chat thread (recommended: chat_workout_drafts table).
+- Fields: id, user_id, chat_id, status, draft_payload (json), unresolved (json), timestamps.
+- Status flow: pending -> awaiting_resolution -> ready_to_save -> saved | canceled.
 
-### 3) Proposal Preview + Exercise Resolution (Done)
-- Review screen lists exercises, set prescriptions, and notes.
-- Resolution flow supports canonical/alias/fuzzy matches and manual selection.
-- Custom exercise creation modal included (primary muscle required).
-- Optional editing for title/summary/sets/notes.
+### Phase 3: Chat-Only Intent Handling
+- Parse natural language confirmations when a pending draft exists.
+- Confirm save via phrases like: "yes", "looks good", "go ahead", "save it".
+- Cancel via phrases like: "no", "never mind", "cancel".
+- Treat change requests as edits (e.g., "swap bench for incline", "make it 3x10").
+- If no draft exists, replies are handled as normal chat input.
+- For edits: regenerate or apply minimal changes based on chosen grammar.
 
-### 4) Template Creation (Done)
-- Reused `createWorkoutTemplate` with AI flags and description support.
-- Notes and set summaries are persisted to template exercises.
-- Navigation highlights the newly created workout card in Programs.
+### Phase 4: Exercise Resolution via Chat
+- Implement resolveExerciseQuery(query, userId) -> candidates[].
+- Auto-resolve only on strong matches (exact canonical_key, exact normalized_name, alias hit with high confidence and a clear score gap).
+- If ambiguous, AI asks in chat with numbered choices (max 5). User replies 1-5.
+- Mark draft as awaiting_resolution until all queries are resolved.
 
-### 5) Analytics (Done)
-- Added events: proposed, review opened, exercise resolved, created, edited-before-create, started.
+### Phase 5: Template Creation (Server-Validated)
+- On SAVE (ready_to_save only): validate limits (<= 12 exercises, sets reasonable).
+- Create template using existing pipeline (workout_programs + program_workouts + program_exercises).
+- Persist audit fields: created_by_ai, source_chat_id, payload_version.
+- AI replies: "Saved as X. You will find it in Programs -> Workouts."
 
-### 6) Tests (Done)
-- Unit tests for resolution + template mapping added.
+### Phase 6: Analytics and QA
+- Events: ai_workout_draft_created, ai_workout_resolution_requested, ai_workout_resolution_completed,
+  ai_workout_saved, ai_workout_canceled, ai_workout_started.
+- QA flows: paste workout text -> draft -> resolve -> save; ambiguous selection; cancel; edit then save.
 
-## Remaining Work / Next Iteration
-- Verify UI polish on the preview screen (spacing and overflow on smaller devices).
-- Confirm that offline template creation + later sync includes notes and AI flag.
-- Add any additional copy/labels if you want stronger “confirm-first” trust cues.
-- Run tests and add any missing coverage based on feedback.
+## Open Questions (to finalize before implementation)
+Resolved:
+- Edits take priority over saving when a reply includes both.
+- EDIT semantics: regenerate from user message (simpler and more achievable).
 
-## Files Touched (for reference)
-- `supabase/functions/ai/index.ts`
-- `fortis-mobile-app/src/types/ai.ts`
-- `fortis-mobile-app/src/store/aiStore.ts`
-- `fortis-mobile-app/src/components/ai/WorkoutProposalCard.tsx`
-- `fortis-mobile-app/src/components/ai/ChatMessage.tsx`
-- `fortis-mobile-app/app/ai/chat.tsx`
-- `fortis-mobile-app/app/ai/workout-proposal.tsx`
-- `fortis-mobile-app/src/utils/workoutProposal.ts`
-- `fortis-mobile-app/src/store/programsStore.ts`
-- `fortis-mobile-app/src/store/workoutStore.ts`
-- `fortis-mobile-app/src/services/analyticsService.ts`
-- `fortis-mobile-app/app/(tabs)/index.tsx`
-- `fortis-mobile-app/src/utils/__tests__/workoutProposal.test.ts`
+Still open:
+- SAVE semantics: immediate creation or always require a final confirmation line?
+
+## Notes
+- This plan intentionally removes all non-chat UI. The only visible interface is the chat thread.
+- Internal draft state is required so short replies like "2" can be interpreted as resolution choices.

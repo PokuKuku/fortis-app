@@ -28,6 +28,9 @@ import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { DateSelector } from '@/src/components/ui/DateSelector';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
+import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import type { Exercise } from '@/src/types/exercise';
 import { responsiveValue } from '@/src/utils/responsive';
 import { format } from 'date-fns';
 import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
@@ -100,6 +103,7 @@ export default function CreateWorkoutScreen() {
   const openEditorNumberPad = useWorkoutStore(s => s.openEditorNumberPad);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
+  const weightUnits = useWorkoutStore(s => s.weightUnits);
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
@@ -118,6 +122,28 @@ export default function CreateWorkoutScreen() {
   );
   const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
   const hasMuscles = exercisesWithMuscles.length > 0;
+  const { bodyweightKg } = useLatestBodyweight();
+
+  const heatmapLevels = useMemo(() => {
+    if (!editorSession || exercisesWithMuscles.length === 0) return null;
+    const hasCompletedSets = editorSession.exercises.some((exercise) =>
+      exercise.sets.some((set) => set.isCompleted)
+    );
+    if (!hasCompletedSets) return null;
+
+    const exercisesById = new Map<string, Exercise>();
+    exercisesWithMuscles.forEach((exercise) => {
+      exercisesById.set(exercise.id, exercise);
+    });
+
+    const scores = attributeSessionToMuscles(editorSession, exercisesById, {
+      bodyweightKg,
+      weightUnitByExercise: weightUnits,
+    });
+    const levels = bucketIntensity(scores);
+    const hasIntensity = Object.values(levels).some((value) => value > 0);
+    return hasIntensity ? levels : null;
+  }, [editorSession, exercisesWithMuscles, bodyweightKg, weightUnits]);
 
   // Calculate stats for the stats row
   const exerciseCount = editorSession?.exercises.length || 0;
@@ -392,7 +418,12 @@ export default function CreateWorkoutScreen() {
                 </View>
                 {mode !== 'log' && hasMuscles && (
                   <View style={styles.headerHeatmap}>
-                    <MuscleHeatmap exercises={exercisesWithMuscles} scale={HEATMAP_SCALE} compact />
+                    <MuscleHeatmap
+                      muscleLevels={heatmapLevels ?? undefined}
+                      exercises={!heatmapLevels && mode !== 'log' ? exercisesWithMuscles : undefined}
+                      scale={HEATMAP_SCALE}
+                      compact
+                    />
                   </View>
                 )}
               </View>

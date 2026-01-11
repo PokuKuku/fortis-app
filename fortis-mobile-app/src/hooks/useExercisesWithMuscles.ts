@@ -1,13 +1,9 @@
 import { useState, useEffect } from 'react';
 import { getExerciseById } from '@/src/services/exerciseService';
+import type { Exercise } from '@/src/types/exercise';
 
-interface ExerciseWithMuscles {
-  primaryMuscles: string[];
-  secondaryMuscles?: string[];
-}
-
-export function useExercisesWithMuscles(exerciseIds: string[]): ExerciseWithMuscles[] {
-  const [exercises, setExercises] = useState<ExerciseWithMuscles[]>([]);
+export function useExercisesWithMuscles(exerciseIds: string[]): Exercise[] {
+  const [exercises, setExercises] = useState<Exercise[]>([]);
 
   useEffect(() => {
     async function fetchMuscles() {
@@ -18,14 +14,7 @@ export function useExercisesWithMuscles(exerciseIds: string[]): ExerciseWithMusc
       const results = await Promise.all(
         exerciseIds.map(id => getExerciseById(id))
       );
-      setExercises(
-        results
-          .filter(Boolean)
-          .map(ex => ({
-            primaryMuscles: ex!.primaryMuscles,
-            secondaryMuscles: ex!.secondaryMuscles,
-          }))
-      );
+      setExercises(results.filter(Boolean) as Exercise[]);
     }
     fetchMuscles();
   }, [exerciseIds.join(',')]);

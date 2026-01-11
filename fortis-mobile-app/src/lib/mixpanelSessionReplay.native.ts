@@ -25,7 +25,17 @@ async function logReplayStatus(label: string) {
 }
 
 export async function initMixpanelSessionReplay(distinctId?: string | null) {
-  if (!isMixpanelConfigured() || !distinctId) {
+  if (!isMixpanelConfigured()) {
+    if (__DEV__) {
+      console.log('[MixpanelReplay] Skipping init - missing token');
+    }
+    return;
+  }
+
+  if (!distinctId) {
+    if (__DEV__) {
+      console.log('[MixpanelReplay] Skipping init - missing distinctId');
+    }
     return;
   }
 
@@ -60,6 +70,7 @@ export async function initMixpanelSessionReplay(distinctId?: string | null) {
     try {
       await MPSessionReplay.identify(distinctId);
       replayDistinctId = distinctId;
+      await MPSessionReplay.startRecording();
       await logReplayStatus('identified');
     } catch (error) {
       console.warn('[MixpanelReplay] Failed to identify:', error);

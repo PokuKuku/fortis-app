@@ -36,6 +36,22 @@ export async function initMixpanel(): Promise<Mixpanel | null> {
   return mixpanelInitPromise;
 }
 
+export async function getMixpanelDistinctId(
+  instance?: Mixpanel | null
+): Promise<string | null> {
+  const mixpanel = instance ?? (await initMixpanel());
+  if (!mixpanel) {
+    return null;
+  }
+
+  const distinctId = await mixpanel.getDistinctId().catch(() => null);
+  if (distinctId) {
+    return distinctId;
+  }
+
+  return mixpanel.getDeviceId().catch(() => null);
+}
+
 export function getMixpanelInstance(): Mixpanel | null {
   return mixpanelInstance;
 }

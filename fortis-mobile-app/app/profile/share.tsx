@@ -21,13 +21,15 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import { attributeSessionToMuscles, bucketIntensity, getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { getExerciseById } from '@/src/services/exerciseService';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import type { Exercise } from '@/src/types/exercise';
 
 type ShareType = 'activity' | 'monthly' | 'signature' | 'personal_records';
 
@@ -43,11 +45,6 @@ type SignatureSummary = {
   subtitle: string;
   stats: Array<{ label: string; value: string }>;
   isLoading: boolean;
-};
-
-type SignatureExercise = {
-  primaryMuscles: string[];
-  secondaryMuscles?: string[];
 };
 
 const HEADER_PADDING = scale(Spacing.lg);
@@ -136,6 +133,8 @@ export default function ProfileShareScreen() {
   );
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const { bodyweightKg } = useLatestBodyweight();
   const personalRecords = useTopPersonalRecords(5);
 
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({
@@ -151,7 +150,7 @@ export default function ProfileShareScreen() {
     stats: [],
     isLoading: true,
   });
-  const [signatureExercises, setSignatureExercises] = useState<SignatureExercise[]>([]);
+  const [signatureMuscleLevels, setSignatureMuscleLevels] = useState<Record<MuscleKey, number>>({});
   const [signatureHasWorkouts, setSignatureHasWorkouts] = useState(false);
 
   const units = profile?.preferred_units || 'imperial';
@@ -209,11 +208,12 @@ export default function ProfileShareScreen() {
     const today = startOfDay(new Date());
     const weekStart = startOfWeek(today, { weekStartsOn: 1 });
     const exerciseSetCounts = new Map<string, number>();
-
-    completedSessions.forEach((session) => {
+    const weeklySessions = completedSessions.filter((session) => {
       const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
-      if (sessionDate < weekStart || sessionDate > today) return;
+      return sessionDate >= weekStart && sessionDate <= today;
+    });
 
+    weeklySessions.forEach((session) => {
       session.exercises.forEach((exercise) => {
         const workingSets = exercise.sets.filter(
           (set) => set.isCompleted && set.setType !== 'warmup' && (set.reps ?? 0) > 0
@@ -229,7 +229,7 @@ export default function ProfileShareScreen() {
     const exerciseIds = Array.from(exerciseSetCounts.keys());
     if (exerciseIds.length === 0) {
       if (!isMounted) return;
-      setSignatureExercises([]);
+      setSignatureMuscleLevels({});
       setSignatureHasWorkouts(false);
       setSignatureSummary({
         title: 'Building momentum',
@@ -247,14 +247,23 @@ export default function ProfileShareScreen() {
       const results = await Promise.all(exerciseIds.map((id) => getExerciseById(id)));
       if (!isMounted) return;
 
-      const exercises = results
-        .filter(Boolean)
-        .map((exercise) => ({
-          primaryMuscles: exercise!.primaryMuscles ?? [],
-          secondaryMuscles: exercise!.secondaryMuscles ?? [],
-        }));
-      setSignatureExercises(exercises);
-      setSignatureHasWorkouts(exercises.length > 0);
+      const exercisesById = new Map<string, Exercise>();
+      results.forEach((exercise) => {
+        if (exercise) exercisesById.set(exercise.id, exercise);
+      });
+      setSignatureHasWorkouts(exercisesById.size > 0);
+
+      const scores: Record<MuscleKey, number> = {};
+      weeklySessions.forEach((session) => {
+        const sessionScores = attributeSessionToMuscles(session, exercisesById, {
+          bodyweightKg,
+          weightUnitByExercise: weightUnits,
+        });
+        Object.entries(sessionScores).forEach(([key, value]) => {
+          scores[key as MuscleKey] = (scores[key as MuscleKey] ?? 0) + value;
+        });
+      });
+      setSignatureMuscleLevels(bucketIntensity(scores));
 
       let totalSets = 0;
       let pushSets = 0;
@@ -331,7 +340,7 @@ export default function ProfileShareScreen() {
     return () => {
       isMounted = false;
     };
-  }, [completedSessions]);
+  }, [completedSessions, bodyweightKg, weightUnits]);
 
   const gradientColors = isDark
     ? ['#0c1413', '#131c1b', '#0f1918']
@@ -599,7 +608,7 @@ export default function ProfileShareScreen() {
                       ) : signatureHasWorkouts ? (
                         <View style={styles.signatureHeatmap}>
                           <MuscleHeatmap
-                            exercises={signatureExercises}
+                            muscleLevels={signatureMuscleLevels}
                             gender={bodyType}
                             scale={0.45}
                             compact
