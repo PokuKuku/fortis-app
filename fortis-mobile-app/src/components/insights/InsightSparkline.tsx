@@ -95,7 +95,8 @@ export function InsightSparkline({
   fillOpacity,
 }: InsightSparklineProps) {
   const { colors, isDark } = useTheme();
-  const lineColor = stroke ?? colors.accent;
+  const accentColor = stroke ?? colors.accent;
+  const monoStroke = colors.textPrimary;
   const canHighlight = values.length > 1;
   const highlightSet = new Set(highlightIndices);
   if (canHighlight) {
@@ -122,13 +123,21 @@ export function InsightSparkline({
             const x = PADDING + step * index + (step - barWidth) / 2;
             const y = value >= 0 ? baselineY - barHeight : baselineY;
             const isHighlight = highlightSet.has(index);
+            const monoOpacity = isHighlight ? 0.9 : 0.55;
+            const accentOpacity = isHighlight ? 0.35 : 0.2;
             return (
-              <Path
-                key={`bar-${index}`}
-                d={`M ${x} ${y} h ${barWidth} v ${barHeight} h ${-barWidth} Z`}
-                fill={lineColor}
-                opacity={isHighlight ? 0.9 : 0.35}
-              />
+              <React.Fragment key={`bar-${index}`}>
+                <Path
+                  d={`M ${x} ${y} h ${barWidth} v ${barHeight} h ${-barWidth} Z`}
+                  fill={accentColor}
+                  opacity={accentOpacity}
+                />
+                <Path
+                  d={`M ${x} ${y} h ${barWidth} v ${barHeight} h ${-barWidth} Z`}
+                  fill={monoStroke}
+                  opacity={monoOpacity}
+                />
+              </React.Fragment>
             );
           });
         })() : (() => {
@@ -145,15 +154,25 @@ export function InsightSparkline({
               {variant === 'area' && areaPath && (
                 <Path
                   d={areaPath}
-                  fill={fill ?? lineColor}
+                  fill={fill ?? accentColor}
                   opacity={fillOpacity ?? 0.2}
                 />
               )}
 
+              <Path
+                d={path}
+                stroke={accentColor}
+                strokeWidth={4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+                opacity={0.25}
+              />
+
               {/* Smooth bezier curve line */}
               <Path
                 d={path}
-                stroke={lineColor}
+                stroke={monoStroke}
                 strokeWidth={2}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -172,7 +191,7 @@ export function InsightSparkline({
                         cx={point.x}
                         cy={point.y}
                         r={5}
-                        fill={lineColor}
+                        fill={accentColor}
                         opacity={0.15}
                       />
                       {/* Main point */}
@@ -180,14 +199,14 @@ export function InsightSparkline({
                         cx={point.x}
                         cy={point.y}
                         r={3}
-                        fill={lineColor}
+                        fill={monoStroke}
                       />
                       {/* Inner highlight */}
                       <Circle
                         cx={point.x}
                         cy={point.y}
                         r={1.5}
-                        fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.8)'}
+                        fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.7)'}
                       />
                     </React.Fragment>
                   );

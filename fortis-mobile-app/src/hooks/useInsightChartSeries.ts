@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { INSIGHT_CHARTS_CACHE_KEY } from '@/src/constants/storageKeys';
 import { fetchInsightChartSeries } from '@/src/services/insightChartsService';
@@ -13,6 +14,7 @@ type CachedChartEntry = {
 type CachedCharts = Record<string, CachedChartEntry>;
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const FOCUS_REFRESH_THROTTLE_MS = 2 * 60 * 1000;
 
 const nowIso = (): string => new Date().toISOString();
 
@@ -25,6 +27,8 @@ const isFresh = (cachedAt?: string): boolean => {
 export function useInsightChartSeries(insight?: TrainingInsight | null) {
   const [series, setSeries] = useState<InsightChartSeries | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const lastRefreshAtRef = useRef(0);
+  const refreshingRef = useRef(false);
 
   const readCache = useCallback(async (): Promise<CachedCharts> => {
     const cached = await getScopedItem(INSIGHT_CHARTS_CACHE_KEY);
@@ -47,6 +51,8 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
       return;
     }
 
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
     setIsLoading(true);
     const fetched = await fetchInsightChartSeries(insight);
     if (fetched) {
@@ -56,6 +62,8 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
       await writeCache(cached);
     }
     setIsLoading(false);
+    refreshingRef.current = false;
+    lastRefreshAtRef.current = Date.now();
   }, [insight, readCache, writeCache]);
 
   useEffect(() => {
@@ -76,6 +84,10 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
         if (isMounted) {
           setSeries(entry.series);
           setIsLoading(false);
+        }
+        const now = Date.now();
+        if (now - lastRefreshAtRef.current > FOCUS_REFRESH_THROTTLE_MS) {
+          refresh();
         }
         return;
       }
@@ -102,6 +114,15 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
       isMounted = false;
     };
   }, [insight, readCache, writeCache]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!insight) return;
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < FOCUS_REFRESH_THROTTLE_MS) return;
+      refresh();
+    }, [insight, refresh])
+  );
 
   return {
     series,

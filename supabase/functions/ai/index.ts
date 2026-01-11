@@ -28,6 +28,12 @@ const CONTEXT_CACHE_MAX_ENTRIES = Math.max(
   Number(Deno.env.get('AI_CONTEXT_CACHE_MAX_ENTRIES') ?? '500')
 );
 const TIMING_LOGS_ENABLED = Deno.env.get('AI_DEBUG_TIMING') === 'true';
+const DATA_CONTEXT_CLASSIFIER_ENABLED =
+  Deno.env.get('AI_DATA_CONTEXT_CLASSIFIER_ENABLED') !== 'false';
+const DATA_CONTEXT_CLASSIFIER_MAX_TOKENS = Math.max(
+  32,
+  Number(Deno.env.get('AI_DATA_CONTEXT_CLASSIFIER_MAX_TOKENS') ?? '200')
+);
 
 type CacheEntry<T> = {
   value: T;
@@ -287,6 +293,12 @@ function isExplicitDraftRequest(message: string): boolean {
     /\bcreate (a )?(workout|template)\b/,
     /\bbuild (a )?(workout|template)\b/,
     /\bmake (a )?(workout|template)\b/,
+    /\bcreate (it|one|this)\b/,
+    /\bbuild (it|one|this)\b/,
+    /\bmake (it|one|this)\b/,
+    /\bcreate the template\b/,
+    /\bbuild the template\b/,
+    /\bmake the template\b/,
     /\bworkout template\b/,
     /\bsave (this|it|that)?\s*(as)?\s*(a )?(workout|template)\b/,
     /\bturn (this|it|that) into (a )?(workout|template)\b/,
@@ -408,6 +420,105 @@ function shouldIncludeDataContext(message: string): boolean {
     /\bsessions?\b/,
   ];
   return dataPatterns.some((pattern) => pattern.test(normalized));
+}
+
+type DataContextDecision = {
+  needsData: boolean;
+  confidence: number;
+  reason?: string;
+};
+
+function buildDataContextClassifierPrompt(): string {
+  return `You decide whether the assistant should fetch the user's training data to answer the question.
+
+Return ONLY JSON:
+{
+  "needs_data": true|false,
+  "confidence": 0.0-1.0,
+  "reason": "short rationale"
+}
+
+Use needs_data=true if the question requires user-specific stats, training history, or analytics.
+Use needs_data=false for general training advice, app capabilities, or questions that do not rely on user data.`;
+}
+
+function buildDataContextClassifierMessage(message: string): string {
+  return JSON.stringify(
+    {
+      user_message: sanitizeUserInput(message),
+    },
+    null,
+    2
+  );
+}
+
+function parseDataContextClassifierResponse(text: string): DataContextDecision | null {
+  try {
+    let jsonStr = text;
+    const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1];
+    }
+    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+    const needsRaw = parsed.needs_data ?? parsed.needsData ?? parsed.needs;
+    const needsData = needsRaw === true
+      || String(needsRaw).toLowerCase() === 'true'
+      || String(needsRaw).toLowerCase() === 'yes';
+    const confidenceRaw = parsed.confidence;
+    const confidenceValue = typeof confidenceRaw === 'number'
+      ? confidenceRaw
+      : Number.parseFloat(String(confidenceRaw));
+    const confidence = Number.isFinite(confidenceValue)
+      ? Math.max(0, Math.min(1, confidenceValue))
+      : 0;
+    const reasonRaw = parsed.reason;
+    const reason = typeof reasonRaw === 'string' ? reasonRaw : undefined;
+    return { needsData, confidence, reason };
+  } catch (error) {
+    console.warn('Failed to parse data context classifier response:', error);
+    return null;
+  }
+}
+
+async function classifyNeedsDataContext(request: AIRequest): Promise<DataContextDecision | null> {
+  if (!request.message) return null;
+  const provider = resolveAIProvider();
+  const systemPrompt = buildDataContextClassifierPrompt();
+  const userMessage = buildDataContextClassifierMessage(request.message);
+  const classifierRequest = { ...request, image: undefined };
+  try {
+    const responseText =
+      provider === 'openai'
+        ? await callOpenAIText(
+            classifierRequest,
+            systemPrompt,
+            userMessage,
+            { maxTokens: DATA_CONTEXT_CLASSIFIER_MAX_TOKENS, temperature: 0 }
+          )
+        : await callClaudeText(
+            classifierRequest,
+            systemPrompt,
+            userMessage,
+            { maxTokens: DATA_CONTEXT_CLASSIFIER_MAX_TOKENS }
+          );
+    return parseDataContextClassifierResponse(responseText);
+  } catch (error) {
+    console.warn('Data context classifier error:', error);
+    return null;
+  }
+}
+
+async function shouldIncludeDataContextForRequest(
+  request: AIRequest,
+  normalizedMessage: string
+): Promise<boolean> {
+  if (!normalizedMessage) return false;
+  if (shouldIncludeDataContext(normalizedMessage)) return true;
+  if (!DATA_CONTEXT_CLASSIFIER_ENABLED) return false;
+  if (isLowSignalMessage(normalizedMessage)) return false;
+  const decision = await classifyNeedsDataContext(request);
+  if (!decision) return false;
+  return decision.needsData;
 }
 
 function determineResponseMode(request: AIRequest): ResponseMode {
@@ -1482,7 +1593,9 @@ async function assembleContext(
   }
 
   const wantsDataContext =
-    responseMode === 'answer' && !insightOnly && shouldIncludeDataContext(normalizedMessage);
+    responseMode === 'answer'
+    && !insightOnly
+    && await shouldIncludeDataContextForRequest(request, normalizedMessage);
   const wantsNotes = wantsDataContext && resolvedExerciseIds.length > 0;
 
   // Parallel fetch based on config
@@ -2066,7 +2179,8 @@ async function callAIProvider(
 async function callClaudeText(
   request: AIRequest,
   systemPrompt: string,
-  userMessage: string
+  userMessage: string,
+  options?: { maxTokens?: number }
 ): Promise<string> {
   // Security: Validate API key exists before using
   const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
@@ -2104,7 +2218,7 @@ async function callClaudeText(
   try {
     const response = await anthropic.messages.create({
       model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-3-5-haiku-20241022',
-      max_tokens: 4096,
+      max_tokens: options?.maxTokens ?? 4096,
       system: systemPrompt,
       messages: [{ role: 'user', content: contentBlocks }],
     });
@@ -2125,7 +2239,8 @@ async function callClaudeText(
 async function callOpenAIText(
   request: AIRequest,
   systemPrompt: string,
-  userMessage: string
+  userMessage: string,
+  options?: { maxTokens?: number; temperature?: number }
 ): Promise<string> {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) {
@@ -2171,7 +2286,8 @@ async function callOpenAIText(
       body: JSON.stringify({
         model,
         input,
-        max_output_tokens: 4096,
+        max_output_tokens: options?.maxTokens ?? 4096,
+        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
       }),
     });
 
@@ -2227,7 +2343,8 @@ async function callOpenAIText(
     body: JSON.stringify({
       model,
       messages,
-      temperature: 0.2,
+      temperature: options?.temperature ?? 0.2,
+      ...(options?.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     }),
   });
 

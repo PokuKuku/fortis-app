@@ -118,7 +118,7 @@ export default function InsightDetailScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { id, tab } = useLocalSearchParams<{ id?: string; tab?: string }>();
-  const { insights } = useTrainingInsights({ skipRefresh: true });
+  const { insights } = useTrainingInsights();
   const { trackInsightFeedbackSubmitted, trackChatOpenedFromInsight } = useAnalytics();
   const openConversation = useAIStore((state) => state.openConversation);
   const sendMessage = useAIStore((state) => state.sendMessage);
@@ -412,7 +412,7 @@ export default function InsightDetailScreen() {
                 activeOpacity={0.8}
               >
                 <Text style={[styles.nextStepsText, { color: colors.accent }]}>
-                  Next steps
+                  Ask Fortis
                 </Text>
               </TouchableOpacity>
               {isShareableInsight && (

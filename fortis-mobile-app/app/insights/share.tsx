@@ -103,7 +103,7 @@ export default function InsightShareScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { insights } = useTrainingInsights({ skipRefresh: true });
+  const { insights } = useTrainingInsights();
   const { trackInsightShareStarted, trackInsightShareCompleted } = useAnalytics();
   const viewShotRef = useRef<any>(null);
   const privacyMode: PrivacyMode = 'detailed';

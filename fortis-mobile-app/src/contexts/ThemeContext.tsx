@@ -103,8 +103,8 @@ export const DarkTheme = {
 
   // Text hierarchy
   textPrimary: '#fafafa',
-  textSecondary: '#a3a3a3',
-  textTertiary: '#525252',
+  textSecondary: '#c2c2c2',
+  textTertiary: '#8a8a8a',
   textDisabled: '#3a3a3a',
 
   // Overlays

@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Svg, { Path, Rect, Circle, Line } from 'react-native-svg';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import type { InsightChartPoint } from '@/src/types/insightCharts';
@@ -30,6 +30,8 @@ const VIEWBOX_HEIGHT = 160;
 const PADDING = 18;
 const GRID_LINE_COUNT = 2;
 const Y_AXIS_INSET = scale(8);
+const TOOLTIP_WIDTH = scale(120);
+const TOOLTIP_OFFSET = scale(8);
 
 const trimTrailingZero = (value: string): string => value.replace(/\.0$/, '');
 
@@ -151,9 +153,47 @@ export function InsightLineChart({
   fillOpacity,
 }: InsightLineChartProps) {
   const { colors, isDark } = useTheme();
-  const lineColor = stroke ?? colors.accent;
+  const accentColor = stroke ?? colors.accent;
+  const monoStroke = colors.textPrimary;
   const formatY = formatYValue ?? formatCompactNumber;
   const formatX = formatXValue ?? ((value: string) => value.slice(5, 10).replace('-', '/'));
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    setSelectedIndex(null);
+  }, [points.length, variant]);
+
+  const chartScale = useMemo(() => {
+    if (!chartSize.width || !chartSize.height) {
+      return { x: 1, y: 1 };
+    }
+    return {
+      x: VIEWBOX_WIDTH / chartSize.width,
+      y: VIEWBOX_HEIGHT / chartSize.height,
+    };
+  }, [chartSize.height, chartSize.width]);
+
+  const resolveIndexFromX = (viewX: number) => {
+    if (!points.length) return null;
+    if (variant === 'bars') {
+      const step = (VIEWBOX_WIDTH - PADDING * 2) / Math.max(points.length, 1);
+      const rawIndex = Math.round((viewX - PADDING - step / 2) / step);
+      return Math.min(Math.max(rawIndex, 0), points.length - 1);
+    }
+    if (points.length < 2) return 0;
+    const step = (VIEWBOX_WIDTH - PADDING * 2) / (points.length - 1);
+    const rawIndex = Math.round((viewX - PADDING) / step);
+    return Math.min(Math.max(rawIndex, 0), points.length - 1);
+  };
+
+  const handleChartPress = (event: any) => {
+    if (!chartSize.width) return;
+    const viewX = event.nativeEvent.locationX * chartScale.x;
+    const index = resolveIndexFromX(viewX);
+    if (index === null) return;
+    setSelectedIndex(index);
+  };
 
   if (points.length < 2) {
     return (
@@ -177,6 +217,10 @@ export function InsightLineChart({
     );
   }
 
+  const selectedPoint = selectedIndex !== null ? points[selectedIndex] : null;
+  const selectedValue = selectedPoint ? formatY(selectedPoint.value) : null;
+  const selectedLabel = selectedPoint ? formatX(selectedPoint.date) : null;
+
   if (variant === 'bars') {
     const maxValue = Math.max(...points.map((point) => point.value), 0);
     const minValue = Math.min(...points.map((point) => point.value), 0);
@@ -192,6 +236,9 @@ export function InsightLineChart({
     const lastPointDate = points[points.length - 1]?.date;
     if (lastPointDate) {
       highlightSet.add(lastPointDate);
+    }
+    if (selectedPoint) {
+      highlightSet.add(selectedPoint.date);
     }
 
     return (
@@ -210,6 +257,10 @@ export function InsightLineChart({
               borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
             },
           ]}
+          onLayout={(event) => {
+            const { width, height: measuredHeight } = event.nativeEvent.layout;
+            setChartSize({ width, height: measuredHeight });
+          }}
         >
           <Svg
             width="100%"
@@ -239,20 +290,33 @@ export function InsightLineChart({
               const x = PADDING + step * index + (step - barWidth) / 2;
               const y = value >= 0 ? baselineY - barHeight : baselineY;
               const isHighlight = highlightSet.has(point.date);
+              const monoOpacity = isHighlight ? 0.9 : 0.55;
+              const accentOpacity = isHighlight ? 0.35 : 0.2;
               return (
-                <Rect
-                  key={`bar-${index}`}
-                  x={x}
-                  y={y}
-                  width={barWidth}
-                  height={Math.max(barHeight, 1)}
-                  rx={barWidth / 2}
-                  fill={lineColor}
-                  opacity={isHighlight ? 0.9 : 0.35}
-                />
+                <React.Fragment key={`bar-${index}`}>
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={Math.max(barHeight, 1)}
+                    rx={barWidth / 2}
+                    fill={accentColor}
+                    opacity={accentOpacity}
+                  />
+                  <Rect
+                    x={x}
+                    y={y}
+                    width={barWidth}
+                    height={Math.max(barHeight, 1)}
+                    rx={barWidth / 2}
+                    fill={monoStroke}
+                    opacity={monoOpacity}
+                  />
+                </React.Fragment>
               );
             })}
           </Svg>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={handleChartPress} />
           <View style={[styles.yAxisOverlay, flatRange && styles.yAxisOverlaySingle]} pointerEvents="none">
             {yTicks.map((tick, index) => (
               <Text
@@ -264,6 +328,35 @@ export function InsightLineChart({
               </Text>
             ))}
           </View>
+          {selectedPoint && chartSize.width > 0 && (
+            <View
+              style={[
+                styles.chartTooltip,
+                {
+                  left: (() => {
+                    const step = (VIEWBOX_WIDTH - PADDING * 2) / Math.max(points.length, 1);
+                    const viewX = PADDING + step * selectedIndex + step / 2;
+                    const x = (viewX / VIEWBOX_WIDTH) * chartSize.width;
+                    return Math.min(
+                      Math.max(x - TOOLTIP_WIDTH / 2, TOOLTIP_OFFSET),
+                      chartSize.width - TOOLTIP_WIDTH - TOOLTIP_OFFSET
+                    );
+                  })(),
+                  top: TOOLTIP_OFFSET,
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                  backgroundColor: isDark ? 'rgba(18,18,18,0.92)' : 'rgba(255,255,255,0.9)',
+                },
+              ]}
+              pointerEvents="none"
+            >
+              <Text style={[styles.tooltipValue, { color: colors.textPrimary }]}>
+                {selectedValue}
+              </Text>
+              <Text style={[styles.tooltipLabel, { color: colors.textTertiary }]}>
+                {selectedLabel}
+              </Text>
+            </View>
+          )}
         </View>
         <View style={styles.xAxis}>
           <Text style={[styles.xAxisText, { color: colors.textTertiary }]}>
@@ -290,6 +383,9 @@ export function InsightLineChart({
   const lastPointDate = points[points.length - 1]?.date;
   if (lastPointDate) {
     highlightSet.add(lastPointDate);
+  }
+  if (selectedPoint) {
+    highlightSet.add(selectedPoint.date);
   }
   const mid = (min + max) / 2;
   const flatRange = max - min <= Math.max(Math.abs(max) * 0.02, 0.5);
@@ -327,6 +423,10 @@ export function InsightLineChart({
             borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
           },
         ]}
+        onLayout={(event) => {
+          const { width, height: measuredHeight } = event.nativeEvent.layout;
+          setChartSize({ width, height: measuredHeight });
+        }}
       >
         <Svg
           width="100%"
@@ -364,15 +464,25 @@ export function InsightLineChart({
           {variant === 'area' && areaPath && (
             <Path
               d={areaPath}
-              fill={fill ?? lineColor}
+              fill={fill ?? accentColor}
               opacity={fillOpacity ?? 0.2}
             />
           )}
 
+          <Path
+            d={path}
+            stroke={accentColor}
+            strokeWidth={6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+            opacity={0.25}
+          />
+
           {/* Smooth bezier curve line */}
           <Path
             d={path}
-            stroke={lineColor}
+            stroke={monoStroke}
             strokeWidth={2.5}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -390,7 +500,7 @@ export function InsightLineChart({
                   cx={pos.x}
                   cy={pos.y}
                   r={8}
-                  fill={lineColor}
+                  fill={accentColor}
                   opacity={0.15}
                 />
                 {/* Main point */}
@@ -398,19 +508,20 @@ export function InsightLineChart({
                   cx={pos.x}
                   cy={pos.y}
                   r={4.5}
-                  fill={lineColor}
+                  fill={monoStroke}
                 />
                 {/* Inner highlight for depth */}
                 <Circle
                   cx={pos.x}
                   cy={pos.y}
                   r={2}
-                  fill={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.9)'}
+                  fill={isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'}
                 />
               </React.Fragment>
             );
           })}
         </Svg>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleChartPress} />
         <View style={[styles.yAxisOverlay, flatRange && styles.yAxisOverlaySingle]} pointerEvents="none">
           {yTicks.map((tick, index) => (
             <Text
@@ -422,6 +533,36 @@ export function InsightLineChart({
             </Text>
           ))}
         </View>
+        {selectedPoint && chartSize.width > 0 && (
+          <View
+            style={[
+              styles.chartTooltip,
+              {
+                left: (() => {
+                  if (points.length < 2) return TOOLTIP_OFFSET;
+                  const step = (VIEWBOX_WIDTH - PADDING * 2) / (points.length - 1);
+                  const point = getPoint(points, selectedIndex ?? 0, minValue, maxValue);
+                  const x = (point.x / VIEWBOX_WIDTH) * chartSize.width;
+                  return Math.min(
+                    Math.max(x - TOOLTIP_WIDTH / 2, TOOLTIP_OFFSET),
+                    chartSize.width - TOOLTIP_WIDTH - TOOLTIP_OFFSET
+                  );
+                })(),
+                top: TOOLTIP_OFFSET,
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                backgroundColor: isDark ? 'rgba(18,18,18,0.92)' : 'rgba(255,255,255,0.9)',
+              },
+            ]}
+            pointerEvents="none"
+          >
+            <Text style={[styles.tooltipValue, { color: colors.textPrimary }]}>
+              {selectedValue}
+            </Text>
+            <Text style={[styles.tooltipLabel, { color: colors.textTertiary }]}>
+              {selectedLabel}
+            </Text>
+          </View>
+        )}
       </View>
       <View style={styles.xAxis}>
         <Text style={[styles.xAxisText, { color: colors.textTertiary }]}>
@@ -498,5 +639,21 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontSize: 11,
     textAlign: 'center',
+  },
+  chartTooltip: {
+    position: 'absolute',
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: scale(Spacing.sm),
+    paddingVertical: scale(Spacing.xs),
+    width: TOOLTIP_WIDTH,
+  },
+  tooltipValue: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+  },
+  tooltipLabel: {
+    fontSize: moderateScale(10),
+    marginTop: scale(2),
   },
 });

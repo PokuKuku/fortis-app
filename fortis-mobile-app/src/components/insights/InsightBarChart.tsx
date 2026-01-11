@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import type { InsightBarPoint } from '@/src/types/insightCharts';
 import { Typography } from '@/constants/Typography';
@@ -30,6 +30,13 @@ const formatCompactNumber = (value: number): string => {
 export function InsightBarChart({ data, unit }: InsightBarChartProps) {
   const { colors, isDark } = useTheme();
   const maxValue = Math.max(...data.map((item) => item.value), 0);
+  const monoColor = colors.textPrimary;
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const selectedItem = selectedIndex !== null ? data[selectedIndex] : null;
+  const selectionTheme = {
+    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+    backgroundColor: isDark ? 'rgba(18,18,18,0.92)' : 'rgba(255,255,255,0.9)',
+  };
 
   if (data.length === 0) {
     return (
@@ -54,10 +61,31 @@ export function InsightBarChart({ data, unit }: InsightBarChartProps) {
 
   return (
     <View style={styles.container}>
-      {data.map((item) => {
+      {selectedItem && (
+        <View style={[styles.selectionPill, selectionTheme]}>
+          <Text style={[styles.selectionValue, { color: colors.textPrimary }]}>
+            {formatCompactNumber(selectedItem.value)}{unit ? ` ${unit}` : ''}
+          </Text>
+          <Text style={[styles.selectionLabel, { color: colors.textTertiary }]} numberOfLines={1}>
+            {selectedItem.label}
+          </Text>
+        </View>
+      )}
+      {data.map((item, index) => {
         const widthPct = maxValue > 0 ? Math.max((item.value / maxValue) * 100, 6) : 0;
+        const isSelected = selectedIndex === index;
         return (
-          <View key={item.label} style={styles.row}>
+          <Pressable
+            key={item.label}
+            style={[
+              styles.row,
+              isSelected && {
+                borderColor: colors.accentBorder,
+                backgroundColor: colors.accentOverlay,
+              },
+            ]}
+            onPress={() => setSelectedIndex(index)}
+          >
             <Text style={[styles.label, { color: colors.textSecondary }]} numberOfLines={1}>
               {item.label}
             </Text>
@@ -70,14 +98,22 @@ export function InsightBarChart({ data, unit }: InsightBarChartProps) {
               <View
                 style={[
                   styles.fill,
+                  styles.fillAccent,
                   { width: `${widthPct}%`, backgroundColor: colors.accent },
+                ]}
+              />
+              <View
+                style={[
+                  styles.fill,
+                  styles.fillMono,
+                  { width: `${widthPct}%`, backgroundColor: monoColor },
                 ]}
               />
             </View>
             <Text style={[styles.value, { color: colors.textPrimary }]}>
               {formatCompactNumber(item.value)}{unit ? ` ${unit}` : ''}
             </Text>
-          </View>
+          </Pressable>
         );
       })}
     </View>
@@ -92,6 +128,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: scale(Spacing.sm),
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    paddingHorizontal: scale(Spacing.xs),
+    paddingVertical: scale(Spacing.xs),
   },
   label: {
     flex: 1,
@@ -102,10 +143,20 @@ const styles = StyleSheet.create({
     height: scale(8),
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
+    position: 'relative',
   },
   fill: {
-    height: '100%',
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
     borderRadius: BorderRadius.full,
+  },
+  fillAccent: {
+    opacity: 0.25,
+  },
+  fillMono: {
+    opacity: 0.85,
   },
   value: {
     minWidth: scale(64),
@@ -131,5 +182,20 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     fontSize: 11,
     textAlign: 'center',
+  },
+  selectionPill: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: scale(Spacing.sm),
+    paddingVertical: scale(Spacing.xs),
+    marginBottom: scale(Spacing.xs),
+  },
+  selectionValue: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+  },
+  selectionLabel: {
+    fontSize: moderateScale(10),
+    marginTop: scale(2),
   },
 });

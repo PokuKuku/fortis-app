@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { TRAINING_INSIGHTS_CACHE_KEY } from '@/src/constants/storageKeys';
 import { fetchTrainingInsights, refreshTrainingInsights, dismissInsight, snoozeInsightType } from '@/src/services/insightsService';
@@ -14,6 +15,9 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
+  const lastRefreshAtRef = useRef(0);
+  const refreshingRef = useRef(false);
+  const REFRESH_THROTTLE_MS = 2 * 60 * 1000;
 
   const persistCache = useCallback(async (items: TrainingInsight[]) => {
     const payload: CachedInsights = {
@@ -40,6 +44,8 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
   }, []);
 
   const refresh = useCallback(async () => {
+    if (refreshingRef.current) return;
+    refreshingRef.current = true;
     setIsRefreshing(true);
     try {
       await refreshTrainingInsights();
@@ -51,6 +57,8 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     } finally {
       setIsRefreshing(false);
       setIsLoading(false);
+      refreshingRef.current = false;
+      lastRefreshAtRef.current = Date.now();
     }
   }, [persistCache]);
 
@@ -89,6 +97,7 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
         return;
       }
       await refresh();
+      lastRefreshAtRef.current = Date.now();
     };
 
     run();
@@ -97,6 +106,15 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
       isMounted = false;
     };
   }, [loadCached, options?.skipRefresh, refresh]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (options?.skipRefresh) return;
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < REFRESH_THROTTLE_MS) return;
+      refresh();
+    }, [options?.skipRefresh, refresh])
+  );
 
   return {
     insights,
