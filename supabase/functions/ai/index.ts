@@ -113,6 +113,7 @@ interface AIRequest {
     periodWeeks?: number;
     historyOnly?: boolean;
     chatMode?: 'coach' | 'builder';
+    workoutDraft?: WorkoutDraftV1;
   };
   image?: AIImage;
 }
@@ -152,7 +153,7 @@ const ALLOWED_ENTITY_TYPES = new Set<string>([
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type WorkoutProposalType = 'WORKOUT_PROPOSAL_V1';
-type WorkoutTemplateDraftType = 'WORKOUT_TEMPLATE_DRAFT_V1';
+type WorkoutDraftType = 'WORKOUT_DRAFT_V1';
 
 type WorkoutProposalSet = {
   kind?: string;
@@ -182,20 +183,30 @@ type WorkoutProposalV1 = {
   safety_notes?: string;
 };
 
-type WorkoutTemplateDraftExercise = {
-  exercise_query: string;
-  sets_text: string;
-  rest_seconds?: number;
-  rir?: number;
-  notes?: string;
+
+type WorkoutDraftSet = {
+  sets: number;
+  reps: string;
+  weight?: number;
+  rpe?: number;
+  restSec?: number;
 };
 
-type WorkoutTemplateDraftV1 = {
-  type: WorkoutTemplateDraftType;
-  source: 'user_specified';
+type WorkoutDraftExercise = {
+  query: string;
+  resolved_exercise_id: string | null;
+  sets: WorkoutDraftSet[];
+  exercise_notes?: string;
+  tempo?: string;
+  warmup?: boolean;
+};
+
+type WorkoutDraftV1 = {
+  type: WorkoutDraftType;
   title: string;
   notes?: string;
-  exercises: WorkoutTemplateDraftExercise[];
+  exercises: WorkoutDraftExercise[];
+  source_text?: string;
 };
 
 function sanitizeProposedState(
@@ -959,6 +970,14 @@ function validateRequest(body: unknown): string | null {
     if (ctx.historyOnly !== undefined && typeof ctx.historyOnly !== 'boolean') {
       return 'historyOnly must be a boolean';
     }
+    if (ctx.chatMode !== undefined && ctx.chatMode !== 'coach' && ctx.chatMode !== 'builder') {
+      return 'chatMode must be "coach" or "builder"';
+    }
+    if (ctx.workoutDraft !== undefined) {
+      if (!ctx.workoutDraft || typeof ctx.workoutDraft !== 'object') {
+        return 'workoutDraft must be an object';
+      }
+    }
   }
 
   // Validate image if present
@@ -1126,6 +1145,8 @@ interface AIContext {
   currentProgram?: unknown;
   exerciseDb?: unknown[];
   analytics?: unknown;
+  chatMode?: 'coach' | 'builder';
+  workoutDraft?: WorkoutDraftV1;
 }
 
 async function assembleContext(
@@ -1172,6 +1193,8 @@ async function assembleContext(
       goals: Array.isArray(prefs.goals) ? prefs.goals : [],
       latestBodyWeight: latestWeight,
     },
+    chatMode: request.context?.chatMode,
+    workoutDraft: request.context?.workoutDraft,
   };
   if (resolvedFromMessage.matched.length > 0) {
     context.exerciseQuery = {
@@ -1953,7 +1976,9 @@ CORE PRINCIPLES:
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
 - If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to and use them for analysis unless the user asks for a specific variation.
-- End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action), unless you are returning a workout proposal JSON.
+- If CHAT MODE is "builder", transcribe the user's requested template with minimal interpretation.
+- If a CURRENT WORKOUT DRAFT is provided, apply the user's changes to that draft rather than starting from scratch.
+- End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action), unless you are returning a workout draft JSON.
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
@@ -1980,34 +2005,34 @@ Respond with a JSON object. Use exactly ONE of the following shapes:
   }
 }
 
-2) Workout proposal (ONLY when the user explicitly asks you to create a workout or template):
+2) Workout draft (ONLY when the user asks to create a workout template or provides workout text):
 {
-  "type": "WORKOUT_PROPOSAL_V1",
-  "title": "Incline + Upper Chest Focus",
-  "summary": "Upper chest emphasis with controlled eccentrics and a pump finisher.",
-  "goal_tags": ["hypertrophy"],
-  "duration_minutes": 60,
-  "days_per_week": 2,
-  "exercises": [
-    {
-      "exercise_query": "Incline Dumbbell Press",
-      "target_muscles": ["chest"],
-      "sets": [
-        { "kind": "working", "sets": 4, "reps_min": 8, "reps_max": 12, "rir": 2, "rest_sec": 120 }
-      ],
-      "notes": "Slow eccentric; add load once you hit top of range."
-    }
-  ],
-  "progression_rule": "Add reps weekly until top of range, then +5% load and reset reps to low end.",
-  "safety_notes": "Stop 1–2 reps short of failure on compounds. If shoulder pain, swap to machine press."
+  "type": "workout_draft",
+  "message": "Summary and save prompt here. End with: Reply yes to save, or tell me changes or cancel.",
+  "workout_draft": {
+    "type": "WORKOUT_DRAFT_V1",
+    "title": "Incline + Upper",
+    "notes": "Progression: add reps weekly.",
+    "exercises": [
+      {
+        "query": "Incline dumbbell press",
+        "resolved_exercise_id": null,
+        "sets": [{ "sets": 4, "reps": "8-10" }],
+        "exercise_notes": ""
+      }
+    ],
+    "source_text": "optional raw user or AI text"
+  }
 }
 
 RULES:
 - Do not return mutation plans for read-only intents.
-- For workout proposals: output ONLY the proposal JSON above (no markdown, no TLDR, no extra text).
-- Max 10 exercises, max 8 sets per exercise, no 1-rep max testing prescriptions.
+- For workout drafts: output ONLY the JSON above (no markdown, no TLDR, no extra text).
+- Max 12 exercises, max 10 sets per exercise, no 1-rep max testing prescriptions.
+- Leave resolved_exercise_id as null (the app resolves exercise IDs).
+- The message field must include a readable summary and end with a save prompt line.
 - Every exercise must be a real lift name; use the canonical exercise name when possible.
-- If unsure about a specific variation, still use exercise_query and let the app resolve it.`;
+- If unsure about a specific variation, still use query and let the app resolve it.`;
   }
 
   // Note: Write intent prompts removed - only read intents are currently active
@@ -2029,6 +2054,14 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
 
   if (context.user.latestBodyWeight) {
     message += `\n\n--- LATEST BODY WEIGHT ---\n${JSON.stringify(context.user.latestBodyWeight, null, 2)}`;
+  }
+
+  if (context.chatMode) {
+    message += `\n\n--- CHAT MODE ---\n${context.chatMode}`;
+  }
+
+  if (context.workoutDraft) {
+    message += `\n\n--- CURRENT WORKOUT DRAFT ---\n${JSON.stringify(context.workoutDraft, null, 2)}`;
   }
 
   if (context.exerciseQuery && !insightOnly) {
@@ -2085,6 +2118,32 @@ function parseModelResponse(
 
     if (parsed.type === 'clarification') {
       return { ...parsed, requestId };
+    }
+
+    if (parsed.type === 'workout_draft') {
+      const draft = parsed.workout_draft as WorkoutDraftV1 | undefined;
+      const validationError = draft ? validateWorkoutDraft(draft) : 'Workout draft missing payload';
+      if (validationError) {
+        return buildModelError(requestId, validationError);
+      }
+      return {
+        type: 'workout_draft',
+        requestId,
+        message: typeof parsed.message === 'string' ? parsed.message : undefined,
+        workoutDraft: draft,
+      };
+    }
+
+    if (parsed.type === 'WORKOUT_DRAFT_V1') {
+      const validationError = validateWorkoutDraft(parsed as WorkoutDraftV1);
+      if (validationError) {
+        return buildModelError(requestId, validationError);
+      }
+      return {
+        type: 'workout_draft',
+        requestId,
+        workoutDraft: parsed,
+      };
     }
 
     if (parsed.type === 'WORKOUT_PROPOSAL_V1') {
@@ -2240,6 +2299,57 @@ function validateWorkoutProposal(proposal: WorkoutProposalV1): string | null {
     }
     if (totalSets > 8) {
       return `Exercise "${exercise.exercise_query}" exceeds max 8 total sets`;
+    }
+  }
+
+  return null;
+}
+
+function validateWorkoutDraft(draft: WorkoutDraftV1): string | null {
+  if (!draft || draft.type !== 'WORKOUT_DRAFT_V1') {
+    return 'Invalid workout draft type';
+  }
+  if (!draft.title || typeof draft.title !== 'string') {
+    return 'Workout draft missing title';
+  }
+  if (!Array.isArray(draft.exercises) || draft.exercises.length === 0) {
+    return 'Workout draft must include exercises';
+  }
+  if (draft.exercises.length > 12) {
+    return 'Workout draft has too many exercises (max 12)';
+  }
+
+  for (const exercise of draft.exercises) {
+    if (!exercise.query || typeof exercise.query !== 'string') {
+      return 'Workout draft contains an exercise without a valid name';
+    }
+    if (
+      exercise.resolved_exercise_id !== null
+      && exercise.resolved_exercise_id !== undefined
+      && !isValidUuid(exercise.resolved_exercise_id)
+    ) {
+      return `Exercise "${exercise.query}" has an invalid resolved_exercise_id`;
+    }
+    if (!Array.isArray(exercise.sets) || exercise.sets.length === 0) {
+      return `Exercise "${exercise.query}" must include at least one set`;
+    }
+    for (const set of exercise.sets) {
+      if (!Number.isFinite(set.sets) || set.sets <= 0 || set.sets > 10) {
+        return `Exercise "${exercise.query}" has an invalid set count`;
+      }
+      if (!set.reps || typeof set.reps !== 'string') {
+        return `Exercise "${exercise.query}" must include reps`;
+      }
+      const repsTrimmed = set.reps.trim();
+      if (repsTrimmed === '1' || repsTrimmed === '1-1') {
+        return `Exercise "${exercise.query}" includes a 1-rep prescription`;
+      }
+      if (set.rpe !== undefined && (!Number.isFinite(set.rpe) || set.rpe < 1 || set.rpe > 10)) {
+        return `Exercise "${exercise.query}" has invalid rpe`;
+      }
+      if (set.restSec !== undefined && (!Number.isFinite(set.restSec) || set.restSec < 0 || set.restSec > 600)) {
+        return `Exercise "${exercise.query}" has invalid restSec`;
+      }
     }
   }
 

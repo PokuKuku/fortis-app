@@ -9,6 +9,7 @@ import { useWorkoutStore } from '../store/workoutStore';
 import { useProgramsStore } from '../store/programsStore';
 import { SuggestionContext } from '../types/suggestions';
 import { WorkoutSession } from '../types/workout';
+import { getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 
 /**
  * Map AIIntent to mutation plan type
@@ -31,25 +32,17 @@ function extractRecentMuscleGroups(completedSessions: WorkoutSession[]): string[
   const muscleGroups = new Set<string>();
   const recentSessions = completedSessions.slice(0, 3);
 
-  // Common exercise name -> muscle group mappings
-  const musclePatterns: Record<string, RegExp> = {
-    chest: /bench|chest|fly|push.?up|pec/i,
-    back: /row|pull|lat|deadlift|chin|back/i,
-    legs: /squat|leg|lunge|calf|hamstring|quad|glute/i,
-    shoulders: /shoulder|press|delt|lateral|shrug/i,
-    arms: /curl|tricep|bicep|arm|extension/i,
-    core: /ab|core|plank|crunch|sit.?up/i,
-  };
-
   for (const session of recentSessions) {
     for (const exercise of session.exercises || []) {
-      const name = exercise.exerciseName || '';
-      for (const [group, pattern] of Object.entries(musclePatterns)) {
-        if (pattern.test(name)) {
-          muscleGroups.add(group);
-          break;
+      const primary = exercise.primaryMuscles ?? [];
+      primary.forEach((muscle) => {
+        const key = normalizeMuscle(muscle);
+        if (!key) return;
+        const category = getMuscleCategory(key as MuscleKey);
+        if (category !== 'other') {
+          muscleGroups.add(category);
         }
-      }
+      });
     }
   }
 

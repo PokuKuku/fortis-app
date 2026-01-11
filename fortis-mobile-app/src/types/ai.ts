@@ -84,14 +84,16 @@ export interface AIRequestContext {
   periodWeeks?: number;      // Override default context window
   historyOnly?: boolean;     // Restrict exercises to user's history only
   chatMode?: 'coach' | 'builder';
+  workoutDraft?: WorkoutDraftV1;
 }
 
 /**
  * AI response union type
  */
 export interface AIResponse {
-  type: 'answer' | 'mutation_plan' | 'error' | 'clarification' | 'workout_proposal' | 'workout_template_draft';
+  type: 'answer' | 'mutation_plan' | 'error' | 'clarification' | 'workout_proposal' | 'workout_draft';
   requestId: string;
+  message?: string;
 
   // For type === 'answer' (read-only queries)
   answer?: AIAnswer;
@@ -108,8 +110,8 @@ export interface AIResponse {
   // For type === 'workout_proposal'
   workoutProposal?: WorkoutProposalV1;
 
-  // For type === 'workout_template_draft'
-  workoutTemplateDraft?: WorkoutTemplateDraftV1;
+  // For type === 'workout_draft'
+  workoutDraft?: WorkoutDraftV1;
 }
 
 /**
@@ -196,25 +198,34 @@ export interface WorkoutProposalV1 {
 }
 
 // ============================================
-// Workout Template Draft Types (Builder Mode)
+// Workout Draft Types (Chat-only Flow)
 // ============================================
 
-export type WorkoutTemplateDraftType = 'WORKOUT_TEMPLATE_DRAFT_V1';
+export type WorkoutDraftType = 'WORKOUT_DRAFT_V1';
 
-export interface WorkoutTemplateDraftExercise {
-  exercise_query: string;
-  sets_text: string;
-  rest_seconds?: number;
-  rir?: number;
-  notes?: string;
+export interface WorkoutDraftSet {
+  sets: number;
+  reps: string;
+  weight?: number;
+  rpe?: number;
+  restSec?: number;
 }
 
-export interface WorkoutTemplateDraftV1 {
-  type: WorkoutTemplateDraftType;
-  source: 'user_specified';
+export interface WorkoutDraftExercise {
+  query: string;
+  resolved_exercise_id: string | null;
+  sets: WorkoutDraftSet[];
+  exercise_notes?: string;
+  tempo?: string;
+  warmup?: boolean;
+}
+
+export interface WorkoutDraftV1 {
+  type: WorkoutDraftType;
   title: string;
   notes?: string;
-  exercises: WorkoutTemplateDraftExercise[];
+  exercises: WorkoutDraftExercise[];
+  source_text?: string;
 }
 
 // ============================================
@@ -551,7 +562,7 @@ export interface AIConversationMessage {
   createdAt: string;
   clarification?: AIClarification;
   workoutProposal?: WorkoutProposalV1;
-  workoutTemplateDraft?: WorkoutTemplateDraftV1;
+  workoutDraft?: WorkoutDraftV1;
   /** Image attachment (for user messages with photos) */
   image?: {
     uri: string;

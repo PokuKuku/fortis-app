@@ -281,6 +281,8 @@ export interface Program {
   isDefault: boolean;
   isAiCreated: boolean;
   isTemplate: boolean;
+  aiSourceChatId?: string | null;
+  aiPayloadVersion?: string | null;
   lastPerformedAt: string | null;
   createdBy?: string;
   createdAt: string;
@@ -301,6 +303,8 @@ export interface ProgramDTO {
   is_public: boolean;
   is_default: boolean;
   is_ai_created: boolean;
+  ai_source_chat_id?: string | null;
+  ai_payload_version?: string | null;
   is_template?: boolean;
   last_performed_at: string | null;
   created_by?: string;

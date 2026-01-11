@@ -137,6 +137,8 @@ export default function AIChatScreen() {
   const isSendingMessage = useAIStore((state) => state.isSendingMessage);
   const error = useAIStore((state) => state.error);
   const sendMessage = useAIStore((state) => state.sendMessage);
+  const processWorkoutDraftReply = useAIStore((state) => state.processWorkoutDraftReply);
+  const loadPendingWorkoutDraft = useAIStore((state) => state.loadPendingWorkoutDraft);
   const clearError = useAIStore((state) => state.clearError);
   const clearConversation = useAIStore((state) => state.clearConversation);
   const loadConversation = useAIStore((state) => state.loadConversation);
@@ -165,9 +167,17 @@ export default function AIChatScreen() {
     loadConversation();
     loadPendingActions();
     loadMutationPlan();
+    loadPendingWorkoutDraft();
     checkRateLimits();
     trackAIChatOpened();
-  }, [loadConversation, loadPendingActions, loadMutationPlan, checkRateLimits, trackAIChatOpened]);
+  }, [
+    loadConversation,
+    loadPendingActions,
+    loadMutationPlan,
+    loadPendingWorkoutDraft,
+    checkRateLimits,
+    trackAIChatOpened,
+  ]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((animated = true) => {
@@ -253,7 +263,9 @@ export default function AIChatScreen() {
 
     setInputText('');
     setStreamingMessageId(null);
-    await sendMessage(intent, message);
+    const draftResult = await processWorkoutDraftReply(intent, message);
+    if (draftResult.handled) return;
+    await sendMessage(intent, message, draftResult.contextOverride);
   };
 
   const handleQuickAction = (_intent: AIIntent, prompt: string) => {

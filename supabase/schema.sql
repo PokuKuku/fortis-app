@@ -207,6 +207,8 @@ CREATE TABLE workout_programs (
   -- Ownership
   created_by UUID REFERENCES profiles(id) ON DELETE SET NULL,
   is_public BOOLEAN DEFAULT FALSE,
+  ai_source_chat_id UUID,
+  ai_payload_version TEXT,
 
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
@@ -286,6 +288,46 @@ CREATE POLICY "Program exercises viewable with workout"
       AND (wp.is_public = true OR wp.created_by = auth.uid())
     )
   );
+
+-- =====================================================
+-- CHAT WORKOUT DRAFTS (Pending AI templates)
+-- =====================================================
+
+CREATE TABLE chat_workout_drafts (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  chat_id UUID NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'awaiting_resolution', 'ready_to_save', 'saved', 'canceled')),
+  draft_payload JSONB NOT NULL,
+  unresolved JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+ALTER TABLE chat_workout_drafts ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Chat workout drafts viewable by owner"
+  ON chat_workout_drafts FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can create chat workout drafts"
+  ON chat_workout_drafts FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update chat workout drafts"
+  ON chat_workout_drafts FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete chat workout drafts"
+  ON chat_workout_drafts FOR DELETE
+  USING (auth.uid() = user_id);
+
+CREATE INDEX idx_chat_workout_drafts_user_id ON chat_workout_drafts(user_id);
+CREATE INDEX idx_chat_workout_drafts_chat_id ON chat_workout_drafts(chat_id);
+
+CREATE TRIGGER update_chat_workout_drafts_updated_at
+  BEFORE UPDATE ON chat_workout_drafts
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =====================================================
 -- WORKOUT SESSIONS (User's actual workouts)

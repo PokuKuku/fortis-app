@@ -61,6 +61,8 @@ interface ProgramsState {
       lastPerformedAt?: Date | string | null;
       description?: string;
       isAiCreated?: boolean;
+      aiSourceChatId?: string | null;
+      aiPayloadVersion?: string | null;
     }
   ) => Promise<string | null>;
   createProgram: (
@@ -163,6 +165,8 @@ function mapProgramFromDTO(dto: ProgramDTO): Program {
     isDefault: dto.is_default,
     isAiCreated: dto.is_ai_created ?? false,
     isTemplate: dto.is_template ?? false,
+    aiSourceChatId: dto.ai_source_chat_id ?? null,
+    aiPayloadVersion: dto.ai_payload_version ?? null,
     lastPerformedAt: dto.last_performed_at,
     createdBy: dto.created_by,
     createdAt: dto.created_at,
@@ -721,6 +725,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       : null;
     const templateDescription = options?.description?.trim() || undefined;
     const isAiCreated = options?.isAiCreated ?? false;
+    const aiPayloadVersion = options?.aiPayloadVersion ?? null;
+    const aiSourceChatId = options?.aiSourceChatId ?? null;
 
     // Helper to save locally and attempt cloud sync
     const saveLocally = async () => {
@@ -739,6 +745,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         isDefault: false,
         isAiCreated,
         isTemplate: true,
+        aiSourceChatId,
+        aiPayloadVersion,
         lastPerformedAt: lastPerformedAtISO,
         createdBy: 'local',
         createdAt: now,
@@ -828,6 +836,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           is_public: false,
           is_default: false,
           is_ai_created: isAiCreated,
+          ai_payload_version: aiPayloadVersion,
+          ai_source_chat_id: aiSourceChatId,
           is_template: true,
           last_performed_at: lastPerformedAtISO,
           created_by: session.user.id,
@@ -893,6 +903,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         isDefault: program.is_default,
         isAiCreated: program.is_ai_created ?? false,
         isTemplate: program.is_template ?? true,
+        aiSourceChatId: program.ai_source_chat_id ?? null,
+        aiPayloadVersion: program.ai_payload_version ?? null,
         lastPerformedAt: program.last_performed_at,
         createdBy: program.created_by,
         createdAt: program.created_at,

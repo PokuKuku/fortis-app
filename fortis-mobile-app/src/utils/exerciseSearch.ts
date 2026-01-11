@@ -201,14 +201,22 @@ export function searchExercises(
   index: ExerciseSearchIndex,
   options: ExerciseSearchOptions = {}
 ): ExerciseWithSource[] {
+  return searchExercisesWithScores(query, index, options).map((result) => result.exercise);
+}
+
+export function searchExercisesWithScores(
+  query: string,
+  index: ExerciseSearchIndex,
+  options: ExerciseSearchOptions = {}
+): Array<{ exercise: ExerciseWithSource; score: number }> {
   const normalizedQuery = normalizeText(query);
   if (!normalizedQuery) {
-    return index.entries.map((entry) => entry.exercise);
+    return index.entries.map((entry) => ({ exercise: entry.exercise, score: 0 }));
   }
 
   const queryTokens = tokenize(normalizedQuery);
   if (queryTokens.length === 0) {
-    return index.entries.map((entry) => entry.exercise);
+    return index.entries.map((entry) => ({ exercise: entry.exercise, score: 0 }));
   }
 
   const enableFuzzy = options.enableFuzzy ?? true;
@@ -270,5 +278,5 @@ export function searchExercises(
     return a.exercise.name.localeCompare(b.exercise.name);
   });
 
-  return results.map((result) => result.exercise);
+  return results;
 }

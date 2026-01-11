@@ -70,6 +70,34 @@ interface AIWorkoutProposedProps {
   exerciseCount: number;
 }
 
+/** AI workout draft created event properties */
+interface AIWorkoutDraftCreatedProps {
+  exerciseCount: number;
+}
+
+/** AI workout resolution requested event properties */
+interface AIWorkoutResolutionRequestedProps {
+  exerciseIndex: number;
+  candidateCount: number;
+  reason: 'ambiguous' | 'missing';
+}
+
+/** AI workout resolution completed event properties */
+interface AIWorkoutResolutionCompletedProps {
+  exerciseIndex: number;
+}
+
+/** AI workout saved event properties */
+interface AIWorkoutSavedProps {
+  exerciseCount: number;
+  templateId: string;
+}
+
+/** AI workout canceled event properties */
+interface AIWorkoutCanceledProps {
+  reason?: string;
+}
+
 /** AI workout review opened event properties */
 interface AIWorkoutReviewOpenedProps {
   exerciseCount: number;
@@ -219,6 +247,11 @@ const Events = {
   AI_CHAT_OPENED: 'ai_chat_opened',
   SCREEN_VIEWED: 'screen_viewed',
   AI_WORKOUT_PROPOSED: 'ai_workout_proposed',
+  AI_WORKOUT_DRAFT_CREATED: 'ai_workout_draft_created',
+  AI_WORKOUT_RESOLUTION_REQUESTED: 'ai_workout_resolution_requested',
+  AI_WORKOUT_RESOLUTION_COMPLETED: 'ai_workout_resolution_completed',
+  AI_WORKOUT_SAVED: 'ai_workout_saved',
+  AI_WORKOUT_CANCELED: 'ai_workout_canceled',
   AI_WORKOUT_REVIEW_OPENED: 'ai_workout_review_opened',
   AI_WORKOUT_EXERCISE_RESOLVED: 'ai_workout_exercise_resolved',
   AI_WORKOUT_CREATED: 'ai_workout_created',
@@ -351,6 +384,54 @@ export const analytics = {
     capture(Events.AI_WORKOUT_PROPOSED, {
       intent: props.intent,
       exercise_count: props.exerciseCount,
+    });
+  },
+
+  /**
+   * Track when an AI workout draft is created
+   */
+  trackAIWorkoutDraftCreated(props: AIWorkoutDraftCreatedProps) {
+    capture(Events.AI_WORKOUT_DRAFT_CREATED, {
+      exercise_count: props.exerciseCount,
+    });
+  },
+
+  /**
+   * Track when workout resolution is requested
+   */
+  trackAIWorkoutResolutionRequested(props: AIWorkoutResolutionRequestedProps) {
+    capture(Events.AI_WORKOUT_RESOLUTION_REQUESTED, {
+      exercise_index: props.exerciseIndex,
+      candidate_count: props.candidateCount,
+      reason: props.reason,
+    });
+  },
+
+  /**
+   * Track when workout resolution is completed
+   */
+  trackAIWorkoutResolutionCompleted(props: AIWorkoutResolutionCompletedProps) {
+    capture(Events.AI_WORKOUT_RESOLUTION_COMPLETED, {
+      exercise_index: props.exerciseIndex,
+    });
+  },
+
+  /**
+   * Track when an AI workout is saved
+   */
+  trackAIWorkoutSaved(props: AIWorkoutSavedProps) {
+    capture(Events.AI_WORKOUT_SAVED, {
+      exercise_count: props.exerciseCount,
+      template_id: props.templateId,
+    });
+  },
+
+  /**
+   * Track when an AI workout draft is canceled
+   */
+  trackAIWorkoutCanceled(props: AIWorkoutCanceledProps = {}) {
+    capture(Events.AI_WORKOUT_CANCELED, {
+      reason: props.reason,
     });
   },
 

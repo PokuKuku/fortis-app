@@ -24,15 +24,24 @@ import {
   EditableProgramWorkout,
   EditableProgramExercise,
   AIRateLimitWindow,
+  WorkoutDraftV1,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import * as ExerciseService from '../services/exerciseService';
-import { AI_CONVERSATION_KEY, AI_MUTATION_PLAN_KEY } from '../constants/storageKeys';
+import { AI_CONVERSATION_KEY, AI_MUTATION_PLAN_KEY, AI_WORKOUT_DRAFT_KEY } from '../constants/storageKeys';
 import { analytics } from '../services/analyticsService';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { buildProgramDraftFromPlan, buildPlanFromProgramDraft } from '../utils/aiProgramDraft';
 import { generateSecureUUID as generateId } from '../utils/uuid';
+import type { ExerciseWithSource } from '../types/exercise';
+import {
+  buildDraftSummaryFallback,
+  buildResolutionPrompt,
+  resolveWorkoutDraftExercises,
+  type DraftResolution,
+} from '../utils/workoutDraftResolver';
+import { parseDraftReply } from '../utils/workoutDraftIntent';
 
 const isValidUUID = (value: string): boolean => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -185,6 +194,56 @@ const makeRateLimitMessage = (error?: AIError): string => {
   return `Looks like you've hit your ${windowText}AI limit.${retryText}`;
 };
 
+const syncWorkoutDraftToSupabase = async (
+  pendingDraft: PendingWorkoutDraft,
+  unresolved?: DraftResolution[]
+) => {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const unresolvedPayload = unresolved
+      ? unresolved.map((entry) => ({
+          exerciseIndex: entry.exerciseIndex,
+          query: entry.query,
+          reason: entry.reason,
+          candidateIds: entry.candidates.map((candidate) => candidate.id),
+        }))
+      : null;
+
+    await supabase
+      .from('chat_workout_drafts')
+      .upsert({
+        id: pendingDraft.id,
+        user_id: session.user.id,
+        chat_id: pendingDraft.chatId,
+        status: pendingDraft.status,
+        draft_payload: pendingDraft.draft,
+        unresolved: unresolvedPayload,
+      }, { onConflict: 'id' });
+  } catch (error) {
+    console.warn('Failed to sync workout draft:', error);
+  }
+};
+
+type PendingWorkoutDraftStatus =
+  | 'pending'
+  | 'awaiting_resolution'
+  | 'ready_to_save'
+  | 'saved'
+  | 'canceled';
+
+type PendingWorkoutDraft = {
+  id: string;
+  chatId: string;
+  status: PendingWorkoutDraftStatus;
+  draft: WorkoutDraftV1;
+  pendingResolution?: DraftResolution;
+  createdAt: string;
+  updatedAt: string;
+};
+
 interface AIState {
   // Conversation
   conversation: AIConversation | null;
@@ -222,11 +281,26 @@ interface AIState {
     image?: { uri: string; base64: string; mimeType: AIImageMimeType };
   } | null;
 
+  // Pending workout draft (chat-only template flow)
+  pendingWorkoutDraft: PendingWorkoutDraft | null;
+
   // Actions - Conversation
   openConversation: () => void;
   closeConversation: () => void;
   clearConversation: () => void;
   sendMessage: (intent: AIIntent, message: string, context?: AIRequestContext) => Promise<AIResponse>;
+
+  // Actions - Pending draft
+  loadPendingWorkoutDraft: () => Promise<void>;
+  clearPendingWorkoutDraft: () => void;
+  processWorkoutDraftReply: (
+    intent: AIIntent,
+    message: string
+  ) => Promise<{ handled: boolean; contextOverride?: AIRequestContext }>;
+  initializeWorkoutDraft: (draft: WorkoutDraftV1, responseMessage?: string) => Promise<void>;
+  resolvePendingWorkoutDraft: (responseMessage?: string) => Promise<void>;
+  savePendingWorkoutDraft: (saveAsTitle?: string) => Promise<{ success: boolean; message: string }>;
+  appendAssistantMessage: (content: string) => Promise<void>;
 
   // Actions - Image attachment
   setSelectedImage: (image: { uri: string; base64: string; mimeType: AIImageMimeType }) => void;
@@ -293,15 +367,23 @@ export const useAIStore = create<AIState>()(
     rateLimitStatus: null,
     error: null,
     lastFailedMessage: null,
+    pendingWorkoutDraft: null,
 
     // Conversation actions
     openConversation: () => {
-      const { conversation, loadConversation, loadPendingActions, loadMutationPlan } = get();
+      const {
+        conversation,
+        loadConversation,
+        loadPendingActions,
+        loadMutationPlan,
+        loadPendingWorkoutDraft,
+      } = get();
       if (!conversation) {
         loadConversation();
       }
       loadPendingActions();
       loadMutationPlan();
+      loadPendingWorkoutDraft();
       set({ isConversationOpen: true });
     },
 
@@ -316,8 +398,16 @@ export const useAIStore = create<AIState>()(
         pendingActions: [],
         createdAt: new Date().toISOString(),
       };
-      set({ conversation: newConversation, currentMutationPlan: null, error: null });
+      set({
+        conversation: newConversation,
+        currentMutationPlan: null,
+        error: null,
+        pendingWorkoutDraft: null,
+      });
       get().persistConversation();
+      removeScopedItem(AI_WORKOUT_DRAFT_KEY).catch((err) => {
+        console.error('Error clearing workout draft:', err);
+      });
       removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
         console.error('Error clearing mutation plan:', err);
       });
@@ -387,6 +477,8 @@ export const useAIStore = create<AIState>()(
             ? response.answer?.text || ''
             : response.type === 'workout_proposal'
             ? response.workoutProposal?.summary || `Workout proposal: ${response.workoutProposal?.title ?? ''}`
+            : response.type === 'workout_draft'
+            ? response.message || (response.workoutDraft ? buildDraftSummaryFallback(response.workoutDraft) : '')
             : response.type === 'mutation_plan'
             ? response.mutationPlan?.explanation || ''
             : response.type === 'clarification'
@@ -405,6 +497,7 @@ export const useAIStore = create<AIState>()(
           createdAt: new Date().toISOString(),
           clarification: response.type === 'clarification' ? response.clarification : undefined,
           workoutProposal: response.type === 'workout_proposal' ? response.workoutProposal : undefined,
+          workoutDraft: response.type === 'workout_draft' ? response.workoutDraft : undefined,
         };
 
         // Update conversation with assistant response
@@ -419,6 +512,10 @@ export const useAIStore = create<AIState>()(
             exerciseCount: response.workoutProposal.exercises.length,
             intent,
           });
+        }
+
+        if (response.type === 'workout_draft' && response.workoutDraft) {
+          await get().initializeWorkoutDraft(response.workoutDraft, assistantContent);
         }
 
         // Handle mutation plan
@@ -471,6 +568,398 @@ export const useAIStore = create<AIState>()(
           },
         } as AIResponse;
       }
+    },
+
+    initializeWorkoutDraft: async (draft, responseMessage) => {
+      const { conversation } = get();
+      const chatId = conversation?.id || generateId();
+      const timestamp = new Date().toISOString();
+      const pendingDraft: PendingWorkoutDraft = {
+        id: generateId(),
+        chatId,
+        status: 'pending',
+        draft,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
+      set({ pendingWorkoutDraft: pendingDraft });
+      await setScopedItem(AI_WORKOUT_DRAFT_KEY, JSON.stringify(pendingDraft));
+      await syncWorkoutDraftToSupabase(pendingDraft);
+
+      analytics.trackAIWorkoutDraftCreated({
+        exerciseCount: draft.exercises.length,
+      });
+
+      await get().resolvePendingWorkoutDraft(responseMessage);
+    },
+
+    loadPendingWorkoutDraft: async () => {
+      try {
+        const stored = await getScopedItem(AI_WORKOUT_DRAFT_KEY);
+        if (stored) {
+          const pending = JSON.parse(stored) as PendingWorkoutDraft;
+          set({ pendingWorkoutDraft: pending });
+          if (pending.status !== 'ready_to_save' || !pending.pendingResolution) {
+            await get().resolvePendingWorkoutDraft();
+          }
+          return;
+        }
+        if (!isSupabaseConfigured()) return;
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const { data, error } = await supabase
+          .from('chat_workout_drafts')
+          .select('*')
+          .in('status', ['pending', 'awaiting_resolution', 'ready_to_save'])
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error || !data) return;
+        const pending: PendingWorkoutDraft = {
+          id: data.id,
+          chatId: data.chat_id,
+          status: data.status,
+          draft: data.draft_payload,
+          pendingResolution: undefined,
+          createdAt: data.created_at,
+          updatedAt: data.updated_at,
+        };
+        set({ pendingWorkoutDraft: pending });
+        await setScopedItem(AI_WORKOUT_DRAFT_KEY, JSON.stringify(pending));
+        if (pending.status !== 'ready_to_save') {
+          await get().resolvePendingWorkoutDraft();
+        }
+      } catch (err) {
+        console.error('Error loading workout draft:', err);
+      }
+    },
+
+    clearPendingWorkoutDraft: () => {
+      set({ pendingWorkoutDraft: null });
+      removeScopedItem(AI_WORKOUT_DRAFT_KEY).catch((err) => {
+        console.error('Error clearing workout draft:', err);
+      });
+    },
+
+    processWorkoutDraftReply: async (intent, message) => {
+      const pending = get().pendingWorkoutDraft;
+      if (!pending) {
+        return { handled: false };
+      }
+
+      const appendMessage = async (newMessage: AIConversationMessage) => {
+        const { conversation } = get();
+        const nextConversation: AIConversation = conversation
+          ? { ...conversation, messages: [...conversation.messages, newMessage] }
+          : {
+              id: generateId(),
+              messages: [newMessage],
+              pendingActions: [],
+              createdAt: new Date().toISOString(),
+            };
+        set({ conversation: nextConversation });
+        await get().persistConversation();
+      };
+
+      const userMessage: AIConversationMessage = {
+        id: generateId(),
+        role: 'user',
+        content: message,
+        intent,
+        createdAt: new Date().toISOString(),
+      };
+
+      const replyIntent = parseDraftReply(message, {
+        awaitingResolution: pending.status === 'awaiting_resolution' && !!pending.pendingResolution,
+        maxOptions: pending.pendingResolution?.candidates.length ?? 0,
+      });
+
+      if (replyIntent.type === 'resolve' && pending.pendingResolution) {
+        await appendMessage(userMessage);
+        const selected = pending.pendingResolution.candidates[replyIntent.selectionIndex];
+        const updatedDraft: WorkoutDraftV1 = {
+          ...pending.draft,
+          exercises: pending.draft.exercises.map((exercise, index) =>
+            index === pending.pendingResolution?.exerciseIndex
+              ? { ...exercise, resolved_exercise_id: selected.id, query: selected.name }
+              : exercise
+          ),
+        };
+        const updatedPending: PendingWorkoutDraft = {
+          ...pending,
+          draft: updatedDraft,
+          updatedAt: new Date().toISOString(),
+        };
+        set({ pendingWorkoutDraft: updatedPending });
+        await setScopedItem(AI_WORKOUT_DRAFT_KEY, JSON.stringify(updatedPending));
+        analytics.trackAIWorkoutResolutionCompleted({
+          exerciseIndex: pending.pendingResolution.exerciseIndex,
+        });
+        await get().resolvePendingWorkoutDraft();
+        return { handled: true };
+      }
+
+      if (
+        pending.status === 'awaiting_resolution'
+        && pending.pendingResolution
+        && pending.pendingResolution.candidates.length === 0
+        && replyIntent.type === 'edit'
+      ) {
+        const trimmed = message.trim();
+        if (trimmed) {
+          await appendMessage(userMessage);
+          const updatedDraft: WorkoutDraftV1 = {
+            ...pending.draft,
+            exercises: pending.draft.exercises.map((exercise, index) =>
+              index === pending.pendingResolution?.exerciseIndex
+                ? { ...exercise, query: trimmed, resolved_exercise_id: null }
+                : exercise
+            ),
+          };
+          const updatedPending: PendingWorkoutDraft = {
+            ...pending,
+            draft: updatedDraft,
+            updatedAt: new Date().toISOString(),
+          };
+          set({ pendingWorkoutDraft: updatedPending });
+          await setScopedItem(AI_WORKOUT_DRAFT_KEY, JSON.stringify(updatedPending));
+          await get().resolvePendingWorkoutDraft();
+          return { handled: true };
+        }
+      }
+
+      if (replyIntent.type === 'cancel') {
+        await appendMessage(userMessage);
+        await syncWorkoutDraftToSupabase({ ...pending, status: 'canceled' });
+        set({ pendingWorkoutDraft: null });
+        await removeScopedItem(AI_WORKOUT_DRAFT_KEY);
+        await appendMessage({
+          id: generateId(),
+          role: 'assistant',
+          content: 'Got it. I will not save that draft.',
+          createdAt: new Date().toISOString(),
+        });
+        analytics.trackAIWorkoutCanceled();
+        return { handled: true };
+      }
+
+      if (replyIntent.type === 'confirm') {
+        await appendMessage(userMessage);
+        const result = await get().savePendingWorkoutDraft(replyIntent.saveAsTitle);
+        if (!result.success) {
+          await appendMessage({
+            id: generateId(),
+            role: 'assistant',
+            content: result.message,
+            createdAt: new Date().toISOString(),
+          });
+        }
+        return { handled: true };
+      }
+
+      if (replyIntent.type === 'edit') {
+        await syncWorkoutDraftToSupabase({ ...pending, status: 'canceled' });
+        await get().clearPendingWorkoutDraft();
+        return {
+          handled: false,
+          contextOverride: {
+            chatMode: 'builder',
+            workoutDraft: pending.draft,
+          },
+        };
+      }
+
+      if (pending.status === 'awaiting_resolution') {
+        await appendMessage(userMessage);
+        await appendMessage({
+          id: generateId(),
+          role: 'assistant',
+          content: 'Reply with a number from the list, or tell me the change you want.',
+          createdAt: new Date().toISOString(),
+        });
+        return { handled: true };
+      }
+
+      return { handled: false };
+    },
+
+    resolvePendingWorkoutDraft: async (responseMessage) => {
+      const { pendingWorkoutDraft } = get();
+      if (!pendingWorkoutDraft) return;
+
+      let exerciseLibrary: ExerciseWithSource[] = [];
+      try {
+        exerciseLibrary = await ExerciseService.getAllExercises({ includeVariants: true });
+      } catch (error) {
+        console.warn('Failed to load exercise library for draft resolution:', error);
+      }
+      if (exerciseLibrary.length === 0) {
+        await get().appendAssistantMessage(
+          'I could not load your exercise library. Please try again in a moment.'
+        );
+        return;
+      }
+
+      const { draft: resolvedDraft, unresolved } = resolveWorkoutDraftExercises(
+        pendingWorkoutDraft.draft,
+        exerciseLibrary
+      );
+
+      const hasUnresolved = unresolved.length > 0;
+      const nextResolution = hasUnresolved ? unresolved[0] : undefined;
+
+      const updatedPending: PendingWorkoutDraft = {
+        ...pendingWorkoutDraft,
+        draft: resolvedDraft,
+        pendingResolution: nextResolution,
+        status: hasUnresolved ? 'awaiting_resolution' : 'ready_to_save',
+        updatedAt: new Date().toISOString(),
+      };
+
+      set({ pendingWorkoutDraft: updatedPending });
+      await setScopedItem(AI_WORKOUT_DRAFT_KEY, JSON.stringify(updatedPending));
+      await syncWorkoutDraftToSupabase(updatedPending, unresolved);
+
+      if (hasUnresolved && nextResolution) {
+        analytics.trackAIWorkoutResolutionRequested({
+          exerciseIndex: nextResolution.exerciseIndex,
+          candidateCount: nextResolution.candidates.length,
+          reason: nextResolution.reason,
+        });
+
+        const prompt = buildResolutionPrompt(nextResolution);
+        await get().appendAssistantMessage(prompt);
+        return;
+      }
+
+      const needsPrompt = !responseMessage || !/reply\\s+.+save/i.test(responseMessage);
+      if (needsPrompt) {
+        await get().appendAssistantMessage(
+          'All set. Reply yes to save, or tell me changes or cancel.'
+        );
+      }
+    },
+
+    savePendingWorkoutDraft: async (saveAsTitle) => {
+      const { pendingWorkoutDraft } = get();
+      if (!pendingWorkoutDraft) {
+        return { success: false, message: 'No draft to save.' };
+      }
+
+      if (pendingWorkoutDraft.status !== 'ready_to_save') {
+        return { success: false, message: 'I still need to resolve a few exercises first.' };
+      }
+
+      const draft = pendingWorkoutDraft.draft;
+      const title = saveAsTitle?.trim() || draft.title;
+      if (draft.exercises.length > 12) {
+        return { success: false, message: 'That draft has too many exercises to save.' };
+      }
+
+      let exerciseLibrary: ExerciseWithSource[] = [];
+      try {
+        exerciseLibrary = await ExerciseService.getAllExercises({ includeVariants: true });
+      } catch (error) {
+        console.warn('Failed to load exercise library for draft save:', error);
+      }
+
+      const exerciseMap = new Map(exerciseLibrary.map((exercise) => [exercise.id, exercise.name]));
+      const exercisesToSave = draft.exercises.map((exercise) => {
+        if (!exercise.resolved_exercise_id) {
+          throw new Error(`Exercise "${exercise.query}" is not resolved`);
+        }
+        exercise.sets.forEach((set) => {
+          if (set.sets <= 0 || set.sets > 10) {
+            throw new Error(`Exercise "${exercise.query}" has an invalid set count`);
+          }
+        });
+        const repsValues = exercise.sets.map((set) => set.reps);
+        const uniqueReps = new Set(repsValues);
+        const repsSummary = uniqueReps.size === 1 ? repsValues[0] : 'varied';
+        const totalSets = exercise.sets.reduce((sum, set) => sum + set.sets, 0);
+        const restSeconds = exercise.sets.find((set) => set.restSec !== undefined)?.restSec;
+        const notes = exercise.exercise_notes?.trim();
+        const canBuildSetDetails = repsValues.every((reps) => /^\\d+$/.test(reps.trim()));
+        const setDetails = canBuildSetDetails
+          ? exercise.sets.flatMap((set) =>
+              Array.from({ length: set.sets }).map(() => ({
+                weight: null,
+                reps: Number(set.reps.trim()),
+              }))
+            )
+          : undefined;
+
+        return {
+          exerciseId: exercise.resolved_exercise_id,
+          exerciseName: exerciseMap.get(exercise.resolved_exercise_id) || exercise.query,
+          sets: totalSets || 1,
+          reps: repsSummary,
+          restSeconds,
+          notes: notes || undefined,
+          setDetails,
+        };
+      });
+
+      try {
+        const createdId = await useProgramsStore.getState().createWorkoutTemplate(title, exercisesToSave, {
+          description: draft.notes,
+          isAiCreated: true,
+          aiPayloadVersion: draft.type,
+          aiSourceChatId: pendingWorkoutDraft.chatId,
+        });
+
+        if (!createdId) {
+          return { success: false, message: 'Unable to save that template right now.' };
+        }
+
+        analytics.trackAIWorkoutSaved({
+          exerciseCount: draft.exercises.length,
+          templateId: createdId,
+        });
+
+        const savedPending: PendingWorkoutDraft = {
+          ...pendingWorkoutDraft,
+          status: 'saved',
+          updatedAt: new Date().toISOString(),
+        };
+        await syncWorkoutDraftToSupabase(savedPending);
+
+        set({ pendingWorkoutDraft: null });
+        await removeScopedItem(AI_WORKOUT_DRAFT_KEY);
+
+        const createdProgram = useProgramsStore.getState().programs.find(
+          (program) => program.id === createdId
+        );
+        const savedName = createdProgram?.name || title;
+        await get().appendAssistantMessage(
+          `Saved as ${savedName}. You will find it in Programs -> Workouts.`
+        );
+
+        return { success: true, message: 'Saved.' };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unable to save that template.';
+        return { success: false, message };
+      }
+    },
+
+    appendAssistantMessage: async (content) => {
+      const { conversation } = get();
+      const assistantMessage: AIConversationMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content,
+        createdAt: new Date().toISOString(),
+      };
+      const nextConversation: AIConversation = conversation
+        ? { ...conversation, messages: [...conversation.messages, assistantMessage] }
+        : {
+            id: generateId(),
+            messages: [assistantMessage],
+            pendingActions: [],
+            createdAt: new Date().toISOString(),
+          };
+      set({ conversation: nextConversation });
+      await get().persistConversation();
     },
 
     // Image attachment actions

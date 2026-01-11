@@ -7,8 +7,8 @@ import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import type { Exercise } from '@/src/types/exercise';
 
 /**
- * Hook to aggregate muscle data from the current week's completed workouts.
- * Resets every Monday. Returns an array of exercises with their muscle groups for use with MuscleHeatmap.
+ * Aggregates volume-based muscle intensity for the current week.
+ * Resets every Monday and returns intensity levels for MuscleHeatmap.
  */
 export function useWeeklyMuscles(): {
   muscleLevels: Record<MuscleKey, number>;
