@@ -27,6 +27,7 @@ const CONTEXT_CACHE_MAX_ENTRIES = Math.max(
   0,
   Number(Deno.env.get('AI_CONTEXT_CACHE_MAX_ENTRIES') ?? '500')
 );
+const TIMING_LOGS_ENABLED = Deno.env.get('AI_DEBUG_TIMING') === 'true';
 
 type CacheEntry<T> = {
   value: T;
@@ -71,6 +72,12 @@ function pruneCacheIfNeeded() {
   if (oldestKey) {
     contextCache.delete(oldestKey);
   }
+}
+
+function logTiming(label: string, start: number): void {
+  if (!TIMING_LOGS_ENABLED) return;
+  const durationMs = Math.round(performance.now() - start);
+  console.log(`[AI] ${label}: ${durationMs}ms`);
 }
 
 async function withContextCache<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
@@ -118,6 +125,8 @@ interface IntentClassificationResult {
   saveAsTitle?: string;
   reason?: string;
 }
+
+type ResponseMode = 'answer' | 'draft' | 'intent_classification';
 
 interface AIRequest {
   intent: AIIntent;
@@ -255,6 +264,93 @@ function isValidUuid(value: unknown): boolean {
   return typeof value === 'string' && UUID_REGEX.test(value);
 }
 
+const normalizeMessage = (message: string): string => message.toLowerCase().trim();
+
+function isCapabilityQuestion(message: string): boolean {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return false;
+  const capabilityPatterns = [
+    /\bcan you\b/,
+    /\bcould you\b/,
+    /\bare you able\b/,
+    /\bdo you\b/,
+    /\bdo you support\b/,
+  ];
+  const mentionsTemplate = /\b(workout|template|program)\b/.test(normalized);
+  return capabilityPatterns.some((pattern) => pattern.test(normalized)) && mentionsTemplate;
+}
+
+function isExplicitDraftRequest(message: string): boolean {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return false;
+  const patterns = [
+    /\bcreate (a )?(workout|template)\b/,
+    /\bbuild (a )?(workout|template)\b/,
+    /\bmake (a )?(workout|template)\b/,
+    /\bworkout template\b/,
+    /\bsave (this|it|that)?\s*(as)?\s*(a )?(workout|template)\b/,
+    /\bturn (this|it|that) into (a )?(workout|template)\b/,
+    /\badd (this|it|that) to (the )?(app|programs|workouts)\b/,
+  ];
+  return patterns.some((pattern) => pattern.test(normalized));
+}
+
+function looksLikeWorkoutText(message: string): boolean {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return false;
+  const setPattern = /\b\d+\s*(x|×)\s*\d+(\s*-\s*\d+)?\b/i;
+  const setsPattern = /\b\d+\s*sets?\s*(of)?\s*\d+/i;
+  const repsPattern = /\b\d+\s*reps?\b/i;
+  const setMatches = normalized.match(/\b\d+\s*(x|×)\s*\d+(\s*-\s*\d+)?\b/gi) || [];
+  const lines = normalized.split(/\n+/).filter(Boolean).length;
+
+  if (setMatches.length >= 2) return true;
+  if (setMatches.length === 1 && (lines >= 2 || setsPattern.test(normalized))) return true;
+  if (setsPattern.test(normalized) && repsPattern.test(normalized) && lines >= 2) return true;
+
+  return false;
+}
+
+function shouldCreateDraftFromMessage(message: string): boolean {
+  if (!message) return false;
+  if (isCapabilityQuestion(message)) return false;
+  return isExplicitDraftRequest(message) || looksLikeWorkoutText(message);
+}
+
+function shouldIncludeDataContext(message: string): boolean {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return false;
+  const dataPatterns = [
+    /\bhow did i\b/,
+    /\bhow have i\b/,
+    /\blast week\b/,
+    /\bthis week\b/,
+    /\blast month\b/,
+    /\bthis month\b/,
+    /\bprogress\b/,
+    /\btrend\b/,
+    /\bvolume\b/,
+    /\bpr\b/,
+    /\bpersonal record\b/,
+    /\bstreak\b/,
+    /\bconsisten(t|cy)\b/,
+    /\bstats?\b/,
+    /\binsight\b/,
+    /\bdata\b/,
+    /\bworkouts?\b/,
+    /\bsessions?\b/,
+  ];
+  return dataPatterns.some((pattern) => pattern.test(normalized));
+}
+
+function determineResponseMode(request: AIRequest): ResponseMode {
+  if (request.context?.intentClassification) return 'intent_classification';
+  if (request.context?.insightId) return 'answer';
+  if (request.context?.workoutDraft || request.context?.chatMode === 'builder') return 'draft';
+  if (shouldCreateDraftFromMessage(request.message)) return 'draft';
+  return 'answer';
+}
+
 // Common exercise name aliases for better matching
 // Maps user-friendly terms to database exercise name patterns
 const EXERCISE_ALIASES: Record<string, string[]> = {
@@ -305,6 +401,29 @@ const EXERCISE_ALIASES: Record<string, string[]> = {
   'hamstring': ['hamstring curl', 'leg curl', 'lying leg curl'],
   'hamstrings': ['hamstring curl', 'leg curl', 'lying leg curl'],
 };
+
+const EXERCISE_ALIAS_KEYS = Object.keys(EXERCISE_ALIASES);
+const EXERCISE_ALIAS_SINGLE_WORD = new Set(
+  EXERCISE_ALIAS_KEYS.filter((key) => !key.includes(' '))
+);
+const EXERCISE_ALIAS_MULTI_WORD = EXERCISE_ALIAS_KEYS.filter((key) => key.includes(' '));
+
+function hasExerciseHint(message: string): boolean {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return false;
+  const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
+  if (tokens.length === 0) return false;
+  if (tokens.some((token) => EXERCISE_ALIAS_SINGLE_WORD.has(token))) return true;
+  return EXERCISE_ALIAS_MULTI_WORD.some((phrase) => normalized.includes(phrase));
+}
+
+function shouldResolveExerciseMatches(message: string): boolean {
+  if (!message) return false;
+  if (isLowSignalMessage(message)) return false;
+  if (looksLikeWorkoutText(message)) return true;
+  if (shouldIncludeDataContext(message)) return true;
+  return hasExerciseHint(message);
+}
 
 function expandPhraseWithAliases(phrase: string): string[] {
   const expanded = [phrase];
@@ -359,7 +478,7 @@ function extractSearchPhrases(message: string, maxPhrases = 6): string[] {
 
     if (!cleaned) continue;
 
-    const words = cleaned.split(' ').filter((word) => word.length >= 2);
+    const words = cleaned.split(' ').filter((word) => word.length >= 3);
     if (words.length === 0) continue;
 
     const maxSize = Math.min(3, words.length);
@@ -382,6 +501,9 @@ async function resolveExerciseMatches(
   message: string
 ): Promise<{ ids: string[]; matched: { id: string; name: string; source: 'history' | 'catalog' }[] }> {
   const phrases = extractSearchPhrases(message);
+  if (phrases.length === 0) {
+    return { ids: [], matched: [] };
+  }
   const matched = new Map<string, { id: string; name: string; source: 'history' | 'catalog' }>();
 
   for (const phrase of phrases) {
@@ -736,6 +858,7 @@ Deno.serve(async (req: Request) => {
 
   // Capture origin for CORS validation on all responses
   const origin = req.headers.get('origin');
+  const requestStart = performance.now();
 
   try {
     // Validate Authorization header
@@ -780,6 +903,7 @@ Deno.serve(async (req: Request) => {
     const aiRequest = body as AIRequest;
     const config = INTENT_CONFIG[aiRequest.intent];
     const requestId = crypto.randomUUID();
+    const responseMode = determineResponseMode(aiRequest);
 
     // FORTIS_ANALYST always bypasses low signal check
     const bypassLowSignal = aiRequest.intent === 'FORTIS_ANALYST';
@@ -811,10 +935,14 @@ Deno.serve(async (req: Request) => {
     }
 
     // Assemble context based on intent
-    const context = await assembleContext(supabase, user.id, aiRequest, config);
+    const contextStart = performance.now();
+    const context = await assembleContext(supabase, user.id, aiRequest, config, responseMode);
+    logTiming('assembleContext', contextStart);
 
     // Call AI provider
-    const response = await callAIProvider(aiRequest, context, config, requestId);
+    const aiStart = performance.now();
+    const response = await callAIProvider(aiRequest, context, config, requestId, responseMode);
+    logTiming('callAIProvider', aiStart);
 
     if (
       response &&
@@ -869,6 +997,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    logTiming('total', requestStart);
     return jsonResponse(response, 200, origin);
   } catch (error) {
     console.error('AI endpoint error:', error);
@@ -1194,11 +1323,24 @@ async function assembleContext(
   supabase: SupabaseClient,
   userId: string,
   request: AIRequest,
-  config: IntentConfig
+  config: IntentConfig,
+  responseMode: ResponseMode
 ): Promise<AIContext> {
   const insightOnly = !!request.context?.insightId;
   const periodWeeks = request.context?.periodWeeks || config.defaultContextWeeks;
   const intentClassification = request.context?.intentClassification;
+
+  if (responseMode === 'intent_classification') {
+    return {
+      user: {
+        preferredUnits: 'imperial',
+        timezone: 'UTC',
+        goals: [],
+        latestBodyWeight: null,
+      },
+      intentClassification,
+    };
+  }
 
   // Always fetch user preferences (small, fast)
   const userPrefs = await withContextCache(
@@ -1233,13 +1375,22 @@ async function assembleContext(
     intentClassification,
   };
 
-  if (intentClassification) {
+  if (responseMode === 'draft') {
     return context;
   }
 
-  const resolvedFromMessage = request.message
+  const normalizedMessage = normalizeMessage(request.message || '');
+  const shouldResolveExercises =
+    responseMode === 'answer'
+    && !!request.message
+    && shouldResolveExerciseMatches(request.message);
+  const resolveStart = shouldResolveExercises ? performance.now() : 0;
+  const resolvedFromMessage = shouldResolveExercises
     ? await resolveExerciseMatches(supabase, userId, request.message)
     : { ids: [], matched: [] };
+  if (shouldResolveExercises) {
+    logTiming('resolveExerciseMatches', resolveStart);
+  }
   const resolvedExerciseIds = mergeExerciseIds(
     request.context?.exerciseId ? [request.context.exerciseId] : [],
     resolvedFromMessage.ids
@@ -1250,6 +1401,10 @@ async function assembleContext(
       matchedExercises: resolvedFromMessage.matched,
     };
   }
+
+  const wantsDataContext =
+    responseMode === 'answer' && !insightOnly && shouldIncludeDataContext(normalizedMessage);
+  const wantsNotes = wantsDataContext && resolvedExerciseIds.length > 0;
 
   // Parallel fetch based on config
   const fetchPromises: Promise<void>[] = [];
@@ -1267,7 +1422,7 @@ async function assembleContext(
     );
   }
 
-  if (config.includeHistory && !insightOnly) {
+  if (config.includeHistory && wantsDataContext) {
     fetchPromises.push(
       withContextCache(
         buildCacheKey('history', userId, periodWeeks),
@@ -1278,7 +1433,7 @@ async function assembleContext(
     );
   }
 
-  if (config.includeNotes && !insightOnly) {
+  if (config.includeNotes && wantsNotes) {
     const noteExerciseIds = resolvedExerciseIds.length > 0
       ? limitExerciseIds(resolvedExerciseIds, 5)
       : undefined;
@@ -1336,7 +1491,7 @@ async function assembleContext(
     );
   }
 
-  if (config.includeAnalytics && !insightOnly) {
+  if (config.includeAnalytics && wantsDataContext) {
     fetchPromises.push(
       withContextCache(
         buildCacheKey('analytics', userId),
@@ -1792,7 +1947,8 @@ async function callAIProvider(
   request: AIRequest,
   context: AIContext,
   config: IntentConfig,
-  requestId: string
+  requestId: string,
+  responseMode: ResponseMode
 ): Promise<unknown> {
   const provider = resolveAIProvider();
   if (context.intentClassification) {
@@ -1807,7 +1963,10 @@ async function callAIProvider(
         : await callClaudeText(request, systemPrompt, userMessage);
     return parseIntentClassificationResponse(responseText, requestId);
   }
-  const systemPrompt = buildSystemPrompt(request.intent, config, context);
+  const systemPrompt =
+    responseMode === 'draft'
+      ? buildWorkoutDraftPrompt(context)
+      : buildAnswerPrompt(context);
   const userMessage = buildUserMessage(request, context);
 
   const responseText =
@@ -1815,7 +1974,14 @@ async function callAIProvider(
       ? await callOpenAIText(request, systemPrompt, userMessage)
       : await callClaudeText(request, systemPrompt, userMessage);
 
-  return parseModelResponse(responseText, request.intent, config, requestId, context.exerciseDb);
+  return parseModelResponse(
+    responseText,
+    request.intent,
+    config,
+    requestId,
+    context.exerciseDb,
+    responseMode
+  );
 }
 
 async function callClaudeText(
@@ -2007,12 +2173,7 @@ async function callOpenAIText(
   return String(content);
 }
 
-function buildSystemPrompt(
-  _intent: AIIntent,
-  config: IntentConfig,
-  context: AIContext
-): string {
-  // Note: Only FORTIS_ANALYST intent is currently active (read-only)
+function buildAnswerPrompt(context: AIContext): string {
   const insightGuidance = context.insight
     ? '\n- INSIGHT MODE: Use only the INSIGHT CONTEXT evidence values; do not invent metrics or data.'
       + '\n- Ignore any other sections even if present (TRAINING HISTORY, ANALYTICS, NOTES).'
@@ -2023,34 +2184,29 @@ function buildSystemPrompt(
       + '\n- For time spent in a specific period, use TRAINING HISTORY totals (overview.totalDurationSeconds or weeklyVolume.totalTimeSeconds).'
       + '\n- Analytics userStats totals are lifetime-only; do not use them for week/month summaries.';
 
-  const intentGuidance = insightGuidance;
-
   const basePrompt = `You are Fortis AI, a training assistant for a strength training workout app. You help users by combining their training data with practical guidance.
 
 CORE PRINCIPLES:
-- Provide data-backed insights from the user's history when available and general training guidance when data is limited.
+- Provide data-backed insights when available and general guidance when data is limited.
 - Never fabricate or imply user data that isn't in the provided context.
 - If you provide general guidance, make it clear it's general guidance.
 - Do not refer to yourself as a coach.
-- If evidence is weak or missing, say so explicitly and explain what data would help. Do not hedge when evidence is strong.
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
-- If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to and use them for analysis unless the user asks for a specific variation.
-- If CHAT MODE is "builder", transcribe the user's requested template with minimal interpretation.
-- If a CURRENT WORKOUT DRAFT is provided, apply the user's changes to that draft rather than starting from scratch.
-- End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action), unless you are returning a workout draft JSON.
+- If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to.
+- If the user asks whether you can create a workout template, respond yes and ask if they want one now.
+- Do not create a workout template draft in this response.
+- If you ask a follow-up question, keep it to one short question.
+- End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action).
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
-- Timezone: ${context.user.timezone}${intentGuidance}`;
+- Timezone: ${context.user.timezone}${insightGuidance}`;
 
-  if (config.type === 'read') {
-    return `${basePrompt}
+  return `${basePrompt}
 
 RESPONSE FORMAT:
-Respond with a JSON object. Use exactly ONE of the following shapes:
-
-1) Standard answer:
+Respond with a JSON object:
 {
   "type": "answer",
   "answer": {
@@ -2063,21 +2219,44 @@ Respond with a JSON object. Use exactly ONE of the following shapes:
       }
     ]
   }
+}`;
 }
 
-2) Workout draft (ONLY when the user asks to create a workout template or provides workout text):
+function buildWorkoutDraftPrompt(context: AIContext): string {
+  const basePrompt = `You are Fortis AI, a training assistant for a strength training workout app.
+
+TASK:
+- Create a workout template draft from the user's message.
+- If a CURRENT WORKOUT DRAFT is provided, apply the user's changes to that draft rather than starting from scratch.
+- Draft immediately using reasonable defaults; do not ask a long list of questions.
+- Only ask a single clarifying question if a valid draft is impossible without it.
+- Use the user's structure if provided; otherwise create a balanced template.
+- Avoid 1-rep prescriptions and keep within safe ranges.
+
+DEFAULTS (use when details are missing):
+- Compounds: 3-4 sets of 6-10 reps, rest 90-120s.
+- Accessories/isolations: 2-3 sets of 10-15 reps, rest 45-75s.
+
+USER PREFERENCES:
+- Units: ${context.user.preferredUnits}
+- Timezone: ${context.user.timezone}`;
+
+  return `${basePrompt}
+
+RESPONSE FORMAT:
+Return ONLY JSON (no markdown, no extra text):
 {
   "type": "workout_draft",
   "message": "Summary and save prompt here. End with: Reply yes to save, or tell me changes or cancel.",
   "workout_draft": {
     "type": "WORKOUT_DRAFT_V1",
-    "title": "Incline + Upper",
-    "notes": "Progression: add reps weekly.",
+    "title": "Template title",
+    "notes": "Optional notes",
     "exercises": [
       {
-        "query": "Incline dumbbell press",
+        "query": "Exercise name",
         "resolved_exercise_id": null,
-        "sets": [{ "sets": 4, "reps": "8-10" }],
+        "sets": [{ "sets": 3, "reps": "8-10", "rpe": 7, "restSec": 90 }],
         "exercise_notes": ""
       }
     ],
@@ -2086,18 +2265,10 @@ Respond with a JSON object. Use exactly ONE of the following shapes:
 }
 
 RULES:
-- Do not return mutation plans for read-only intents.
-- For workout drafts: output ONLY the JSON above (no markdown, no TLDR, no extra text).
-- Max 12 exercises, max 10 sets per exercise, no 1-rep max testing prescriptions.
+- Max 12 exercises, max 10 sets per exercise.
 - Leave resolved_exercise_id as null (the app resolves exercise IDs).
-- The message field must include a readable summary and end with a save prompt line.
-- Every exercise must be a real lift name; use the canonical exercise name when possible.
-- If unsure about a specific variation, still use query and let the app resolve it.`;
-  }
-
-  // Note: Write intent prompts removed - only read intents are currently active
-  // Return empty string for type safety (this path won't be reached)
-  return basePrompt;
+- The message field must include a readable summary and end with the save prompt line.
+- Do not include TLDR or any extra text outside JSON.`;
 }
 
 function buildUserMessage(request: AIRequest, context: AIContext): string {
@@ -2160,7 +2331,8 @@ function parseModelResponse(
   intent: AIIntent,
   config: IntentConfig,
   requestId: string,
-  exerciseDb?: unknown[]
+  exerciseDb?: unknown[],
+  responseMode: ResponseMode = 'answer'
 ): unknown {
   try {
     // Try to extract JSON from response (Claude sometimes wraps in markdown)
@@ -2181,6 +2353,17 @@ function parseModelResponse(
     }
 
     if (parsed.type === 'workout_draft') {
+      if (responseMode !== 'draft') {
+        return {
+          type: 'answer',
+          requestId,
+          answer: {
+            text:
+              'Yes, I can build a workout template. Tell me what you want to train or paste your workout text, and I will draft it.',
+            citations: [],
+          },
+        };
+      }
       const draft = parsed.workout_draft as WorkoutDraftV1 | undefined;
       const validationError = draft ? validateWorkoutDraft(draft) : 'Workout draft missing payload';
       if (validationError) {
@@ -2195,6 +2378,17 @@ function parseModelResponse(
     }
 
     if (parsed.type === 'WORKOUT_DRAFT_V1') {
+      if (responseMode !== 'draft') {
+        return {
+          type: 'answer',
+          requestId,
+          answer: {
+            text:
+              'Yes, I can build a workout template. Tell me what you want to train or paste your workout text, and I will draft it.',
+            citations: [],
+          },
+        };
+      }
       const validationError = validateWorkoutDraft(parsed as WorkoutDraftV1);
       if (validationError) {
         return buildModelError(requestId, validationError);
@@ -2219,6 +2413,9 @@ function parseModelResponse(
     }
 
     if (parsed.type === 'answer') {
+      if (responseMode === 'draft') {
+        return buildModelError(requestId, 'Expected workout draft JSON but received an answer.');
+      }
       if (config.type === 'write') {
         return buildWriteClarification(intent, requestId);
       }
@@ -2253,13 +2450,16 @@ function parseModelResponse(
       };
     }
 
+    if (responseMode === 'draft') {
+      return buildModelError(requestId, 'Unsupported response for workout draft mode');
+    }
     return buildModelError(requestId, 'Unsupported AI response type');
   } catch (parseError) {
     console.log('[parseModelResponse] JSON parse failed, raw text:', text.substring(0, 500));
     console.log('[parseModelResponse] Parse error:', parseError);
 
-    // For read intents, try to extract the text field from malformed JSON
-    if (config.type === 'read') {
+    // For answer mode, try to extract the text field from malformed JSON
+    if (responseMode === 'answer') {
       // Try to extract the "text" field from partially-valid JSON
       // This handles cases where JSON.parse fails due to encoding issues or special characters
       const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
@@ -2291,21 +2491,6 @@ function parseModelResponse(
         answer: {
           text: text,
           citations: [],
-        },
-      };
-    }
-
-    // For write intents, if the AI returned plain text (not JSON), treat it as a clarification
-    // This handles cases where the AI asks for more details instead of creating a template
-    const trimmedText = text.trim();
-    if (trimmedText.length > 0 && !trimmedText.startsWith('{') && !trimmedText.startsWith('```')) {
-      console.log('[parseModelResponse] Treating as clarification response');
-      return {
-        type: 'clarification',
-        requestId,
-        clarification: {
-          question: trimmedText,
-          options: [],
         },
       };
     }
@@ -2653,84 +2838,4 @@ function validateMutationPlan(intent: AIIntent, plan: any): string | null {
   }
 
   return null;
-# AI Workout Proposal Roadmap
-
-Goal: Chat-only workout template creation. AI can propose or parse a workout, resolve exercises via chat prompts, and create a real workout template only after explicit user confirmation. No extra screens, no popups, no buttons beyond the chat composer.
-Goal update: The chat should feel as natural as ChatGPT, while still safely performing real in-app actions. This includes workout template creation and data-backed feedback, without rigid keyword commands.
-
-## Multi-Phase Plan
-
-### Phase 0: Decisions and Ground Rules
-- [x] Confirm edit semantics: regenerate from the user's message vs targeted field edits.
-- [x] Confirm save semantics: positive confirmation creates immediately vs always require a final confirmation line.
-- [x] Define the natural language intent parsing rules (confirm, cancel, edit) and priority when a reply contains both.
-
-### Phase 1: Contract and Prompting
-- [x] Define strict payload WORKOUT_DRAFT_V1 in shared types and edge function parsing.
-- [x] Update AI system prompt to emit WORKOUT_DRAFT_V1 when the user asks to create a template.
-- [x] Require the AI to end workout-like responses with a natural-language save prompt line
-  ("Reply yes to save, or tell me changes or cancel.").
-
-### Phase 2: Pending Draft Storage (Hidden State)
-- [x] Add hidden draft storage per chat thread (recommended: chat_workout_drafts table).
-- [x] Fields: id, user_id, chat_id, status, draft_payload (json), unresolved (json), timestamps.
-- [x] Status flow: pending -> awaiting_resolution -> ready_to_save -> saved | canceled.
-
-### Phase 3: Chat-Only Intent Handling
-- [x] Parse natural language confirmations when a pending draft exists.
-- [x] Confirm save via phrases like: "yes", "looks good", "go ahead", "save it".
-- [x] Cancel via phrases like: "no", "never mind", "cancel".
-- [x] Treat change requests as edits (e.g., "swap bench for incline", "make it 3x10").
-- [x] If no draft exists, replies are handled as normal chat input.
-- [x] For edits: regenerate or apply minimal changes based on chosen grammar.
-
-### Phase 3b: LLM Intent Classification (Natural Chat)
-- [ ] Replace naive keyword parsing with an LLM intent classifier so responses can be natural.
-- [ ] Inputs to classifier: user reply, current draft status (awaiting resolution vs ready to save),
-  and any pending choices.
-- [ ] Output contract: intent ∈ {confirm, cancel, edit, resolve, unknown}, plus confidence and
-  option_index if intent=resolve.
-- [ ] Low-confidence or ambiguous output should trigger a short clarification question in chat.
-- [ ] Ensure edits only fire when the user clearly requests a change; otherwise confirmations win.
-- [ ] Accept natural selection phrases (e.g., "option two", "pick 2") when awaiting resolution.
-
-### Phase 4: Exercise Resolution via Chat
-- [x] Implement resolveExerciseQuery(query, userId) -> candidates[].
-- [x] Auto-resolve only on strong matches (exact canonical_key, exact normalized_name, alias hit with high confidence and a clear score gap).
-- [x] If ambiguous, AI asks in chat with numbered choices (max 5). User replies 1-5.
-- [x] Mark draft as awaiting_resolution until all queries are resolved.
-
-### Phase 5: Template Creation (Server-Validated)
-- [x] On confirmation (ready_to_save only): validate limits (<= 12 exercises, sets reasonable).
-- [x] Create template using existing pipeline (workout_programs + program_workouts + program_exercises).
-- [x] Persist audit fields: created_by_ai, source_chat_id, payload_version.
-- [x] AI replies: "Saved as X. You will find it in Programs -> Workouts."
-
-### Phase 6: Analytics and QA
-- [x] Events: ai_workout_draft_created, ai_workout_resolution_requested, ai_workout_resolution_completed,
-  ai_workout_saved, ai_workout_canceled, ai_workout_started.
-- [ ] QA flows: paste workout text -> draft -> resolve -> save; ambiguous selection; cancel; edit then save.
-- [ ] QA flows (natural chat): "Great, now create it", "Resolve them then", "Option two", "Actually swap X".
-
-## Open Questions (to finalize before implementation)
-Resolved:
-- Edits take priority over saving when a reply includes both.
-- EDIT semantics: regenerate from user message (simpler and more achievable).
-- Always ask for a natural-language confirmation line before saving.
-
-Still open:
-- None.
-
-## Notes
-- This plan intentionally removes all non-chat UI. The only visible interface is the chat thread.
-- Internal draft state is required so short replies like "2" can be interpreted as resolution choices.
-
-## Implementation Status (current)
-- [x] Phase 1: Contract and prompting in edge function implemented.
-- [x] Phase 2: Pending draft storage implemented (local + Supabase sync).
-- [x] Phase 3: Chat-only intent handling implemented (confirm/cancel/edit/resolve).
-- [ ] Phase 3b: LLM intent classification for natural chat (planned).
-- [x] Phase 4: Chat resolution prompts implemented with numbered choices.
-- [x] Phase 5: Template creation via existing pipeline with AI audit fields implemented.
-- [x] Phase 6: Analytics events and unit tests added.
 }

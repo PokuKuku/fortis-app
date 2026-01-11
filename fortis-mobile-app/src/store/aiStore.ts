@@ -393,6 +393,7 @@ export const useAIStore = create<AIState>()(
     },
 
     clearConversation: () => {
+      const pendingDraft = get().pendingWorkoutDraft;
       const newConversation: AIConversation = {
         id: generateId(),
         messages: [],
@@ -412,6 +413,16 @@ export const useAIStore = create<AIState>()(
       removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
         console.error('Error clearing mutation plan:', err);
       });
+      if (pendingDraft) {
+        const canceledDraft: PendingWorkoutDraft = {
+          ...pendingDraft,
+          status: 'canceled',
+          updatedAt: new Date().toISOString(),
+        };
+        syncWorkoutDraftToSupabase(canceledDraft).catch((err) => {
+          console.warn('Error canceling workout draft:', err);
+        });
+      }
     },
 
     sendMessage: async (intent, message, context) => {
@@ -907,7 +918,14 @@ export const useAIStore = create<AIState>()(
         });
 
         const prompt = buildResolutionPrompt(nextResolution);
-        await get().appendAssistantMessage(prompt);
+        const lastMessage = get().conversation?.messages.at(-1);
+        const shouldAppend =
+          !lastMessage
+          || lastMessage.role !== 'assistant'
+          || lastMessage.content.trim() !== prompt.trim();
+        if (shouldAppend) {
+          await get().appendAssistantMessage(prompt);
+        }
         return;
       }
 
