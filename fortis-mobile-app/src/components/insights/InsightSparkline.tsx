@@ -8,6 +8,9 @@ type InsightSparklineProps = {
   height?: number;
   stroke?: string;
   highlightIndices?: number[];
+  variant?: 'line' | 'area' | 'bars';
+  fill?: string;
+  fillOpacity?: number;
 };
 
 const VIEWBOX_WIDTH = 100;
@@ -87,11 +90,12 @@ export function InsightSparkline({
   height = 36,
   stroke,
   highlightIndices = [],
+  variant = 'line',
+  fill,
+  fillOpacity,
 }: InsightSparklineProps) {
   const { colors, isDark } = useTheme();
   const lineColor = stroke ?? colors.accent;
-  const { minValue, maxValue } = resolveScale(values);
-  const path = buildSmoothPath(values, minValue, maxValue);
   const canHighlight = values.length > 1;
   const highlightSet = new Set(highlightIndices);
   if (canHighlight) {
@@ -105,48 +109,92 @@ export function InsightSparkline({
         height="100%"
         viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
       >
-        {/* Smooth bezier curve line */}
-        <Path
-          d={path}
-          stroke={lineColor}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          fill="none"
-        />
-
-        {/* Enhanced data points with subtle glow */}
-        {canHighlight &&
-          Array.from(highlightSet).map((index) => {
-            if (index < 0 || index >= values.length) return null;
-            const point = getPoint(values, index, minValue, maxValue);
+        {variant === 'bars' ? (() => {
+          const maxValue = Math.max(...values, 0);
+          const minValue = Math.min(...values, 0);
+          const range = maxValue - minValue || 1;
+          const chartHeight = VIEWBOX_HEIGHT - PADDING * 2;
+          const step = (VIEWBOX_WIDTH - PADDING * 2) / Math.max(values.length, 1);
+          const barWidth = Math.max(step * 0.6, 4);
+          const baselineY = VIEWBOX_HEIGHT - PADDING - ((0 - minValue) / range) * chartHeight;
+          return values.map((value, index) => {
+            const barHeight = Math.abs((value - 0) / range) * chartHeight;
+            const x = PADDING + step * index + (step - barWidth) / 2;
+            const y = value >= 0 ? baselineY - barHeight : baselineY;
+            const isHighlight = highlightSet.has(index);
             return (
-              <React.Fragment key={`spark-${index}`}>
-                {/* Outer glow (smaller for sparkline) */}
-                <Circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={5}
-                  fill={lineColor}
-                  opacity={0.15}
-                />
-                {/* Main point */}
-                <Circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={3}
-                  fill={lineColor}
-                />
-                {/* Inner highlight */}
-                <Circle
-                  cx={point.x}
-                  cy={point.y}
-                  r={1.5}
-                  fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.8)'}
-                />
-              </React.Fragment>
+              <Path
+                key={`bar-${index}`}
+                d={`M ${x} ${y} h ${barWidth} v ${barHeight} h ${-barWidth} Z`}
+                fill={lineColor}
+                opacity={isHighlight ? 0.9 : 0.35}
+              />
             );
-          })}
+          });
+        })() : (() => {
+          const { minValue, maxValue } = resolveScale(values);
+          const path = buildSmoothPath(values, minValue, maxValue);
+          const coords = values.length > 1 ? getCoordinates(values, minValue, maxValue) : [];
+          const baselineY = VIEWBOX_HEIGHT - PADDING;
+          const areaPath = coords.length > 1
+            ? `${path} L ${coords[coords.length - 1].x} ${baselineY} L ${coords[0].x} ${baselineY} Z`
+            : null;
+
+          return (
+            <>
+              {variant === 'area' && areaPath && (
+                <Path
+                  d={areaPath}
+                  fill={fill ?? lineColor}
+                  opacity={fillOpacity ?? 0.2}
+                />
+              )}
+
+              {/* Smooth bezier curve line */}
+              <Path
+                d={path}
+                stroke={lineColor}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                fill="none"
+              />
+
+              {/* Enhanced data points with subtle glow */}
+              {canHighlight &&
+                Array.from(highlightSet).map((index) => {
+                  if (index < 0 || index >= values.length) return null;
+                  const point = getPoint(values, index, minValue, maxValue);
+                  return (
+                    <React.Fragment key={`spark-${index}`}>
+                      {/* Outer glow (smaller for sparkline) */}
+                      <Circle
+                        cx={point.x}
+                        cy={point.y}
+                        r={5}
+                        fill={lineColor}
+                        opacity={0.15}
+                      />
+                      {/* Main point */}
+                      <Circle
+                        cx={point.x}
+                        cy={point.y}
+                        r={3}
+                        fill={lineColor}
+                      />
+                      {/* Inner highlight */}
+                      <Circle
+                        cx={point.x}
+                        cy={point.y}
+                        r={1.5}
+                        fill={isDark ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.8)'}
+                      />
+                    </React.Fragment>
+                  );
+                })}
+            </>
+          );
+        })()}
       </Svg>
     </View>
   );

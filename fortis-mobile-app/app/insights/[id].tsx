@@ -14,7 +14,7 @@ import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
 import { InsightBarChart } from '@/src/components/insights/InsightBarChart';
 import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
-import type { TrainingInsight, InsightFeedbackRating } from '@/src/types/insights';
+import type { EvidenceItem, TrainingInsight, InsightFeedbackRating } from '@/src/types/insights';
 import type { InsightChartTab } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { Colors } from '@/constants/Colors';
@@ -30,6 +30,57 @@ const CARD_RADIUS = scale(BorderRadius.xl);
 
 const getDefaultTab = (insight: TrainingInsight): InsightChartTab => {
   return getInsightChartMapping(insight.type).defaultTab;
+};
+
+const resolveUnitLabel = (unit?: string): string | null => {
+  if (!unit) return null;
+  const normalized = unit.toLowerCase();
+  if (normalized === 'e1rm') return 'e1RM';
+  if (normalized === 'workouts') return 'Workouts';
+  if (normalized === 'sessions') return 'Sessions';
+  if (normalized === 'sets') return 'Sets';
+  return unit;
+};
+
+const resolveTabLabel = (tab: InsightChartTab, unit?: string): string => {
+  const unitLabel = resolveUnitLabel(unit);
+  if (tab === 'progress') {
+    return unitLabel === 'e1RM' ? 'e1RM' : 'Progress';
+  }
+  if (tab === 'frequency') {
+    if (unitLabel === 'Workouts') return 'Workouts';
+    if (unitLabel === 'Sessions') return 'Sessions';
+    return 'Frequency';
+  }
+  return 'Volume';
+};
+
+const resolveChartTitle = (
+  tab: InsightChartTab,
+  mapping: ReturnType<typeof getInsightChartMapping>,
+  unit?: string
+): string => {
+  if (tab === mapping.sparklineMetric) {
+    return mapping.sparklineLabel;
+  }
+  const unitLabel = resolveUnitLabel(unit);
+  if (tab === 'progress') {
+    return unitLabel ? `Progress (${unitLabel})` : 'Progress';
+  }
+  if (tab === 'frequency') {
+    return unitLabel ? `Frequency (${unitLabel})` : 'Frequency';
+  }
+  return unitLabel ? `Total volume (${unitLabel})` : 'Total volume';
+};
+
+const formatChartValue = (value: number, unit?: string): string => {
+  const item: EvidenceItem = {
+    key: 'chart_value',
+    label: 'Chart value',
+    value,
+    unit: unit ?? '',
+  };
+  return formatEvidenceValue(item);
 };
 
 const formatDateLabel = (value: string): string => {
@@ -109,9 +160,9 @@ export default function InsightDetailScreen() {
   }, [initialTab, insight, series]);
 
   const tabOptions = [
-    { key: 'progress', label: 'Progress', disabled: (series?.progress?.length ?? 0) < 2 },
-    { key: 'volume', label: 'Volume', disabled: (series?.volume?.length ?? 0) < 2 },
-    { key: 'frequency', label: 'Frequency', disabled: (series?.frequency?.length ?? 0) < 2 },
+    { key: 'progress', label: resolveTabLabel('progress', series?.units?.progress), disabled: (series?.progress?.length ?? 0) < 2 },
+    { key: 'volume', label: resolveTabLabel('volume', series?.units?.volume), disabled: (series?.volume?.length ?? 0) < 2 },
+    { key: 'frequency', label: resolveTabLabel('frequency', series?.units?.frequency), disabled: (series?.frequency?.length ?? 0) < 2 },
   ];
 
   if (!insight) {
@@ -140,12 +191,17 @@ export default function InsightDetailScreen() {
   const isFirstRecap = insight.type === 'FIRST_WORKOUT_RECAP_V1';
   const isShareableInsight = true;
   const activeSeries = series?.[selectedTab] ?? [];
+  const mapping = getInsightChartMapping(insight.type);
   const isExposureProgress = insight.type === 'LIFT_STALL_RISK_V1';
   const highlightRange =
     selectedTab === 'progress' ? (isExposureProgress ? undefined : series?.highlight?.range) : series?.highlight?.range;
   const highlightPoints =
     selectedTab === 'progress' && isExposureProgress ? series?.highlight?.points : undefined;
   const unit = series?.units?.[selectedTab];
+  const chartTitle = resolveChartTitle(selectedTab, mapping, unit);
+  const latestPoint = activeSeries.length > 0 ? activeSeries[activeSeries.length - 1] : null;
+  const latestValue = latestPoint ? formatChartValue(latestPoint.value, unit) : null;
+  const latestMeta = latestPoint ? formatDateLabel(latestPoint.date) : null;
   const unitLabel = isFirstRecap
     ? series?.breakdownUnit ?? unit
     : unit === 'ratio'
@@ -284,18 +340,27 @@ export default function InsightDetailScreen() {
 
             <View style={styles.chartHeader}>
               <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>
-                {isFirstRecap
-                  ? 'Workout volume by exercise'
-                  : selectedTab === 'progress'
-                  ? 'Progress'
-                  : selectedTab === 'frequency'
-                  ? 'Frequency'
-                  : 'Volume'}
+                {isFirstRecap ? 'Workout volume by exercise' : chartTitle}
               </Text>
-              {unitLabel && (
-                <Text style={[styles.chartUnit, { color: colors.textTertiary }]}>
-                  {unitLabel}
-                </Text>
+              {!isFirstRecap && latestValue && (
+                <View
+                  style={[
+                    styles.chartValuePill,
+                    {
+                      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)',
+                    },
+                  ]}
+                >
+                  <Text style={[styles.chartValueText, { color: colors.textPrimary }]}>
+                    {latestValue}
+                  </Text>
+                  {latestMeta && (
+                    <Text style={[styles.chartValueMeta, { color: colors.textTertiary }]}>
+                      {latestMeta}
+                    </Text>
+                  )}
+                </View>
               )}
             </View>
 
@@ -312,16 +377,29 @@ export default function InsightDetailScreen() {
                 unit={series?.breakdownUnit ?? unitLabel}
               />
             ) : (
-              <InsightLineChart
-                points={activeSeries}
-                stroke={colors.accent}
-                highlightRange={highlightRange}
-                highlightPoints={highlightPoints}
-                xLabel={xLabel}
-                yLabel={yLabel}
-                formatXValue={formatDateLabel}
-                formatYValue={formatYAxisValue}
-              />
+              <View
+                style={[
+                  styles.chartCard,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+                  },
+                ]}
+              >
+                <InsightLineChart
+                  points={activeSeries}
+                  stroke={colors.accent}
+                  highlightRange={highlightRange}
+                  highlightPoints={highlightPoints}
+                  xLabel={xLabel}
+                  yLabel={yLabel}
+                  formatXValue={formatDateLabel}
+                  formatYValue={formatYAxisValue}
+                  variant={selectedTab === 'frequency' ? 'bars' : selectedTab === 'volume' ? 'area' : 'line'}
+                  fill={selectedTab === 'volume' ? colors.accentOverlay : undefined}
+                  fillOpacity={selectedTab === 'volume' ? 1 : undefined}
+                />
+              </View>
             )}
 
             <View style={styles.nextStepsRow}>
@@ -596,6 +674,26 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: moderateScale(12),
+  },
+  chartValuePill: {
+    borderRadius: scale(12),
+    borderWidth: 1,
+    paddingHorizontal: scale(Spacing.sm),
+    paddingVertical: scale(Spacing.xs),
+    alignItems: 'flex-end',
+  },
+  chartValueText: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+  },
+  chartValueMeta: {
+    fontSize: moderateScale(10),
+    marginTop: scale(2),
+  },
+  chartCard: {
+    borderRadius: scale(14),
+    borderWidth: 1,
+    padding: scale(Spacing.sm),
   },
   emptyState: {
     flex: 1,

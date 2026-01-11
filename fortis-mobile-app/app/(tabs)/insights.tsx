@@ -13,7 +13,7 @@ import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useAIStore } from '@/src/store/aiStore';
-import { TrainingInsight, InsightType } from '@/src/types/insights';
+import { EvidenceItem, TrainingInsight, InsightType } from '@/src/types/insights';
 import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { useAnalytics } from '@/src/services/analyticsService';
@@ -54,6 +54,7 @@ const isShareableInsight = (): boolean => true;
 
 const POSITIVE_INSIGHT_TYPES: InsightType[] = ['CONSISTENCY_STREAK_V1', 'WEEKLY_VOLUME_PR_V1'];
 const RISK_INSIGHT_TYPES: InsightType[] = ['FATIGUE_RISK_V1', 'IMBALANCE_FLAG_V1'];
+const CHART_TABS: ChartTab[] = ['progress', 'volume', 'frequency'];
 
 const formatWeekRange = (anchorDate: string): string => {
   const start = new Date(`${anchorDate}T00:00:00`);
@@ -67,9 +68,70 @@ const formatWeekRange = (anchorDate: string): string => {
   return `Week of ${startLabel}–${endLabel}`;
 };
 
+const formatChartValue = (value: number, unit?: string): string => {
+  const item: EvidenceItem = {
+    key: 'chart_value',
+    label: 'Chart value',
+    value,
+    unit: unit ?? '',
+  };
+  return formatEvidenceValue(item);
+};
+
+const formatChartDate = (date: string): string | null => {
+  const normalized = date.includes('T') ? date : `${date}T00:00:00`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return format(parsed, 'MMM d');
+};
+
+const resolveUnitLabel = (unit?: string): string | null => {
+  if (!unit) return null;
+  const normalized = unit.toLowerCase();
+  if (normalized === 'e1rm') return 'e1RM';
+  if (normalized === 'workouts') return 'Workouts';
+  if (normalized === 'sessions') return 'Sessions';
+  if (normalized === 'sets') return 'Sets';
+  return unit;
+};
+
+const resolveTabPillLabel = (tab: ChartTab, unit?: string): string => {
+  const unitLabel = resolveUnitLabel(unit);
+  if (tab === 'progress') {
+    return unitLabel === 'e1RM' ? 'e1RM' : 'Progress';
+  }
+  if (tab === 'frequency') {
+    if (unitLabel === 'Workouts') return 'Workouts';
+    if (unitLabel === 'Sessions') return 'Sessions';
+    return 'Frequency';
+  }
+  return 'Volume';
+};
+
+const resolveSparklineLabel = (
+  tab: ChartTab,
+  mapping: ReturnType<typeof getInsightChartMapping>,
+  unit?: string
+): string => {
+  if (tab === mapping.sparklineMetric) {
+    return mapping.sparklineLabel;
+  }
+  const unitLabel = resolveUnitLabel(unit);
+  if (tab === 'progress') {
+    return unitLabel ? `Progress (${unitLabel})` : 'Progress';
+  }
+  if (tab === 'frequency') {
+    return unitLabel ? `Frequency (${unitLabel})` : 'Frequency';
+  }
+  return unitLabel ? `Total volume (${unitLabel})` : 'Total volume';
+};
+
 const resolveSparkline = (
   insight: TrainingInsight,
-  series: InsightChartSeries | null
+  series: InsightChartSeries | null,
+  tabOverride?: ChartTab
 ): SparklineData | null => {
   if (!series) {
     return null;
@@ -78,10 +140,18 @@ const resolveSparkline = (
     return null;
   }
 
+  const seriesMap: Record<ChartTab, InsightChartSeries['volume']> = {
+    progress: series.progress,
+    volume: series.volume,
+    frequency: series.frequency,
+  };
+  const preferredSeries = tabOverride && seriesMap[tabOverride].length > 0
+    ? seriesMap[tabOverride]
+    : null;
+
   if (insight.type === 'LIFT_STALL_RISK_V1') {
-    const values = series.progress.length > 0
-      ? series.progress.map((point) => point.value)
-      : series.volume.map((point) => point.value);
+    const values = (preferredSeries ?? (series.progress.length > 0 ? series.progress : series.volume))
+      .map((point) => point.value);
     if (values.length === 0) return null;
     const startIndex = Math.max(values.length - 3, 0);
     const highlightIndices = values.slice(startIndex).map((_, index) => startIndex + index);
@@ -89,20 +159,15 @@ const resolveSparkline = (
   }
 
   const mapping = getInsightChartMapping(insight.type);
-  const seriesMap: Record<ChartTab, InsightChartSeries['volume']> = {
-    progress: series.progress,
-    volume: series.volume,
-    frequency: series.frequency,
-  };
-  const preferredSeries =
-    seriesMap[mapping.sparklineMetric].length > 0
+  const resolvedSeries = preferredSeries
+    ?? (seriesMap[mapping.sparklineMetric].length > 0
       ? seriesMap[mapping.sparklineMetric]
       : series.volume.length > 0
       ? series.volume
-      : series.frequency;
-  const values = preferredSeries.map((point) => point.value);
+      : series.frequency);
+  const values = resolvedSeries.map((point) => point.value);
   if (values.length === 0) return null;
-  const anchorIndex = preferredSeries.findIndex((point) => point.date === insight.anchorDate);
+  const anchorIndex = resolvedSeries.findIndex((point) => point.date === insight.anchorDate);
   return {
     values,
     highlightIndices: anchorIndex >= 0 ? [anchorIndex] : [],
@@ -147,13 +212,78 @@ function InsightCard({
 }) {
   const { colors, isDark } = useTheme();
   const { series } = useInsightChartSeries(insight);
-  const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
-  const sparklineLabel = useMemo(() => getInsightChartMapping(insight.type).sparklineLabel, [insight.type]);
+  const seriesMap = useMemo(() => {
+    if (!series) return null;
+    return {
+      progress: series.progress,
+      volume: series.volume,
+      frequency: series.frequency,
+    } as const;
+  }, [series]);
+  const mapping = useMemo(() => getInsightChartMapping(insight.type), [insight.type]);
+  const defaultTab = useMemo(() => {
+    const preferred = mapping.sparklineMetric;
+    if (seriesMap?.[preferred]?.length) return preferred;
+    const fallback = CHART_TABS.find((tab) => (seriesMap?.[tab.key]?.length ?? 0) > 0);
+    return fallback?.key ?? preferred;
+  }, [mapping.sparklineMetric, seriesMap]);
+  const [activeTab, setActiveTab] = useState<ChartTab>(defaultTab);
+
+  useEffect(() => {
+    if (!seriesMap) {
+      if (activeTab !== defaultTab) {
+        setActiveTab(defaultTab);
+      }
+      return;
+    }
+    if (seriesMap[activeTab]?.length) return;
+    if (activeTab !== defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [activeTab, defaultTab, seriesMap]);
+
+  const sparkline = useMemo(
+    () => resolveSparkline(insight, series, activeTab),
+    [activeTab, insight, series]
+  );
+  const activeUnit = series?.units?.[activeTab];
+  const sparklineLabel = resolveSparklineLabel(activeTab, mapping, activeUnit);
   const evidenceItems = useMemo(() => resolveEvidence(insight).slice(0, 4), [insight]);
   const isWeeklyVerdict = insight.type === 'WEEKLY_VERDICT_V1';
   const rangeLabel = formatWeekRange(insight.anchorDate);
+  const activeSeries = seriesMap?.[activeTab] ?? [];
+  const latestPoint = activeSeries.length > 0 ? activeSeries[activeSeries.length - 1] : null;
+  const latestValue = latestPoint
+    ? formatChartValue(latestPoint.value, activeUnit)
+    : null;
+  const latestMeta = latestPoint ? formatChartDate(latestPoint.date) : null;
+  const showTabs = (CHART_TABS.filter((tab) => (seriesMap?.[tab]?.length ?? 0) > 0).length) > 1;
+  const sparklineStroke = colors.accent;
+  const sparklineVariant = activeTab === 'frequency'
+    ? 'bars'
+    : activeTab === 'volume'
+    ? 'area'
+    : 'line';
+  const sparklineFill = activeTab === 'volume'
+    ? colors.successOverlay
+    : activeTab === 'progress'
+    ? colors.accentOverlay
+    : colors.info;
+  const sparklineFillOpacity = sparklineVariant === 'area' ? 1 : undefined;
 
   const cardTheme = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
+  const summaryTheme = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
+  };
+  const sparklineTheme = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
+  const pillTheme = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
   };
@@ -181,20 +311,79 @@ function InsightCard({
         <Text style={[styles.insightTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
       </View>
 
-      <Text style={[styles.insightSummary, { color: colors.textSecondary }]}>
-        {insight.summary}
-      </Text>
+      <View style={[styles.summaryPanel, summaryTheme]}>
+        <Text style={[styles.insightSummary, { color: colors.textSecondary }]}>
+          {insight.summary}
+        </Text>
+      </View>
 
       {sparkline && (
-        <View style={styles.sparklineContainer}>
-          <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
-            {sparklineLabel}
-          </Text>
-          <InsightSparkline
-            values={sparkline.values}
-            highlightIndices={sparkline.highlightIndices}
-            stroke={colors.accent}
-          />
+        <View style={[styles.sparklineShell, sparklineTheme]}>
+          <View style={styles.sparklineHeaderRow}>
+            <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
+              {sparklineLabel}
+            </Text>
+            {latestValue && (
+              <View style={[styles.sparklineValuePill, pillTheme]}>
+                <Text style={[styles.sparklineValueText, { color: colors.textPrimary }]}>
+                  {latestValue}
+                </Text>
+                {latestMeta && (
+                  <Text style={[styles.sparklineValueMeta, { color: colors.textTertiary }]}>
+                    {latestMeta}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+
+          {showTabs && (
+            <View style={styles.sparklineTabs}>
+              {CHART_TABS.map((tab) => {
+                const hasData = (seriesMap?.[tab]?.length ?? 0) > 0;
+                const isActive = tab === activeTab;
+                const tabLabel = resolveTabPillLabel(tab, series?.units?.[tab]);
+                return (
+                  <TouchableOpacity
+                    key={tab}
+                    onPress={() => setActiveTab(tab)}
+                    disabled={!hasData}
+                    style={[
+                      styles.sparklineTab,
+                      pillTheme,
+                      isActive && {
+                        backgroundColor: colors.accentOverlay,
+                        borderColor: colors.accent,
+                      },
+                      !hasData && styles.sparklineTabDisabled,
+                    ]}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        styles.sparklineTabText,
+                        { color: isActive ? colors.accent : colors.textSecondary },
+                      ]}
+                    >
+                      {tabLabel}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+
+          <View style={styles.sparklineChart}>
+            <InsightSparkline
+              values={sparkline.values}
+              highlightIndices={sparkline.highlightIndices}
+              stroke={sparklineStroke}
+              variant={sparklineVariant}
+              fill={sparklineFill}
+              fillOpacity={sparklineFillOpacity}
+              height={44}
+            />
+          </View>
         </View>
       )}
 
@@ -278,10 +467,14 @@ function WatchlistRow({
   onDismiss: (insight: TrainingInsight) => void;
   onOpenChart: (insight: TrainingInsight) => void;
 }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { series } = useInsightChartSeries(insight);
   const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
   const sparklineLabel = useMemo(() => getInsightChartMapping(insight.type).sparklineLabel, [insight.type]);
+  const sparklineTheme = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
 
   const statusColor = insight.severity === 'high' ? Colors.error : Colors.warning;
   const e1rmItem = insight.evidence.find((item) => item.key === 'best_e1rm');
@@ -351,7 +544,7 @@ function WatchlistRow({
       </View>
       <View style={styles.watchlistSide}>
         {sparkline && (
-          <View style={styles.watchlistSparkline}>
+          <View style={[styles.watchlistSparklineCard, sparklineTheme]}>
             <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
               {sparklineLabel}
             </Text>
@@ -921,8 +1114,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: scale(Spacing.xs),
   },
-  watchlistSparkline: {
-    width: scale(90),
+  watchlistSparklineCard: {
+    width: scale(120),
+    borderRadius: scale(12),
+    borderWidth: 1,
+    paddingHorizontal: scale(Spacing.sm),
+    paddingVertical: scale(Spacing.xs),
+    gap: scale(Spacing.xs),
   },
   watchlistActionButton: {
     paddingHorizontal: scale(Spacing.xs),
@@ -975,18 +1173,74 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     marginBottom: scale(Spacing.xs),
   },
+  summaryPanel: {
+    borderRadius: scale(12),
+    borderWidth: 1,
+    paddingHorizontal: scale(Spacing.sm),
+    paddingVertical: scale(Spacing.sm),
+    marginBottom: scale(Spacing.md),
+  },
   insightSummary: {
     fontSize: SUMMARY_TEXT_SIZE,
     lineHeight: SUMMARY_LINE_HEIGHT,
-    marginBottom: scale(Spacing.md),
   },
-  sparklineContainer: {
+  sparklineShell: {
+    borderRadius: scale(14),
+    borderWidth: 1,
+    padding: scale(Spacing.sm),
     marginBottom: scale(Spacing.md),
-    gap: scale(Spacing.xs),
+    gap: scale(Spacing.sm),
+  },
+  sparklineHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: scale(Spacing.sm),
   },
   sparklineLabel: {
-    fontSize: moderateScale(11),
-    fontWeight: '600',
+    fontSize: moderateScale(10),
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  sparklineValuePill: {
+    borderRadius: scale(10),
+    borderWidth: 1,
+    paddingHorizontal: scale(Spacing.sm),
+    paddingVertical: scale(Spacing.xs),
+    alignItems: 'flex-end',
+  },
+  sparklineValueText: {
+    fontSize: moderateScale(12),
+    fontWeight: '700',
+  },
+  sparklineValueMeta: {
+    fontSize: moderateScale(10),
+    marginTop: scale(2),
+  },
+  sparklineTabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: scale(Spacing.xs),
+  },
+  sparklineTab: {
+    borderWidth: 1,
+    borderRadius: scale(12),
+    paddingHorizontal: scale(Spacing.sm),
+    paddingVertical: scale(Spacing.xs),
+  },
+  sparklineTabDisabled: {
+    opacity: 0.4,
+  },
+  sparklineTabText: {
+    fontSize: moderateScale(10),
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  sparklineChart: {
+    paddingHorizontal: scale(Spacing.xs),
+    paddingBottom: scale(Spacing.xs),
   },
   evidenceList: {
     gap: EVIDENCE_GAP,

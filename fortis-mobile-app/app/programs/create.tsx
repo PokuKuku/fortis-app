@@ -506,7 +506,7 @@ export default function CreateProgramScreen() {
     </View>
   );
 
-  const saveButtonText = isEditing ? 'Finish edit' : 'Save';
+  const saveButtonText = isEditing ? 'Finish edit' : 'Create Program';
   const titleMeasureText = programName || 'Program Name';
   const titleRowWidth = headerLeftWidth && titleTextWidth
     ? Math.min(titleTextWidth + Spacing.xs + 14, headerLeftWidth)
@@ -598,6 +598,7 @@ export default function CreateProgramScreen() {
           data={workouts}
           renderItem={renderWorkoutCard}
           keyExtractor={item => item.id}
+          extraData={canSave}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
@@ -1155,6 +1156,9 @@ const styles = StyleSheet.create({
   },
   primaryActionText: {
     ...Typography.button,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   finishEditText: {
     fontFamily: 'BankGothicBT-Medium',

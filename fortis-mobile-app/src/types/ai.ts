@@ -170,6 +170,7 @@ export type AIErrorCode =
 export interface AIClarification {
   question: string;
   options?: string[];
+  purpose?: 'draft_intake' | 'general';
 }
 
 // ============================================

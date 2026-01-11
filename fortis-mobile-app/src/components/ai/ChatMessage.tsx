@@ -70,6 +70,8 @@ export function ChatMessage({
   const { mainContent, tldr } = !isUser && !isWorkoutProposal
     ? splitTldrFromContent(message.content)
     : { mainContent: message.content, tldr: null };
+  const shouldShowTldr = !isUser && !isStreaming && tldr && !isWorkoutProposal
+    && shouldDisplayTldr(mainContent);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -269,7 +271,7 @@ export function ChatMessage({
         )}
 
         {/* TLDR summary (always visible for AI messages) */}
-        {!isUser && !isStreaming && tldr && !isWorkoutProposal && (
+        {shouldShowTldr && (
           <View style={[styles.tldrContainer, themedStyles.tldrContainer]}>
             <Text style={[styles.tldrLabel, themedStyles.tldrLabel]}>TLDR</Text>
             <Text style={[styles.tldrText, themedStyles.tldrText]}>{tldr}</Text>
@@ -357,6 +359,7 @@ export function ChatMessage({
 }
 
 const TLDR_REGEX = /(^|\n)TLDR:\s*([^\n\r]+)\s*$/i;
+const TLDR_MIN_WORDS = 40;
 
 function splitTldrFromContent(content: string) {
   const match = content.match(TLDR_REGEX);
@@ -388,6 +391,18 @@ function buildFallbackTldr(content: string) {
   }
 
   return `${noBullet.slice(0, 197).trimEnd()}...`;
+}
+
+function shouldDisplayTldr(content: string): boolean {
+  if (!content) return false;
+  const cleaned = content
+    .replace(/[`#>*_]/g, ' ')
+    .replace(/\[[^\]]*\]\([^)]+\)/g, ' ')
+    .replace(/https?:\S+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return false;
+  return cleaned.split(' ').length >= TLDR_MIN_WORDS;
 }
 
 const styles = StyleSheet.create({

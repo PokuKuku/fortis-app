@@ -20,6 +20,9 @@ type InsightLineChartProps = {
   yLabel?: string;
   formatYValue?: (value: number) => string;
   formatXValue?: (value: string) => string;
+  variant?: 'line' | 'area' | 'bars';
+  fill?: string;
+  fillOpacity?: number;
 };
 
 const VIEWBOX_WIDTH = 320;
@@ -143,9 +146,14 @@ export function InsightLineChart({
   yLabel,
   formatYValue,
   formatXValue,
+  variant = 'line',
+  fill,
+  fillOpacity,
 }: InsightLineChartProps) {
   const { colors, isDark } = useTheme();
   const lineColor = stroke ?? colors.accent;
+  const formatY = formatYValue ?? formatCompactNumber;
+  const formatX = formatXValue ?? ((value: string) => value.slice(5, 10).replace('-', '/'));
 
   if (points.length < 2) {
     return (
@@ -169,6 +177,111 @@ export function InsightLineChart({
     );
   }
 
+  if (variant === 'bars') {
+    const maxValue = Math.max(...points.map((point) => point.value), 0);
+    const minValue = Math.min(...points.map((point) => point.value), 0);
+    const range = maxValue - minValue || 1;
+    const mid = (minValue + maxValue) / 2;
+    const flatRange = maxValue - minValue <= Math.max(Math.abs(maxValue) * 0.02, 0.5);
+    const yTicks = flatRange ? [maxValue] : [maxValue, mid, minValue];
+    const chartHeight = VIEWBOX_HEIGHT - PADDING * 2;
+    const step = (VIEWBOX_WIDTH - PADDING * 2) / Math.max(points.length, 1);
+    const barWidth = Math.max(step * 0.6, 8);
+    const baselineY = VIEWBOX_HEIGHT - PADDING - ((0 - minValue) / range) * chartHeight;
+    const highlightSet = new Set(highlightPoints);
+    const lastPointDate = points[points.length - 1]?.date;
+    if (lastPointDate) {
+      highlightSet.add(lastPointDate);
+    }
+
+    return (
+      <View style={styles.wrapper}>
+        {yLabel && (
+          <Text style={[styles.axisLabel, { color: colors.textTertiary }]}>
+            {yLabel}
+          </Text>
+        )}
+        <View
+          style={[
+            styles.chartContainer,
+            {
+              height,
+              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+            },
+          ]}
+        >
+          <Svg
+            width="100%"
+            height="100%"
+            viewBox={`0 0 ${VIEWBOX_WIDTH} ${VIEWBOX_HEIGHT}`}
+          >
+            {Array.from({ length: GRID_LINE_COUNT }).map((_, index) => {
+              const y =
+                PADDING +
+                ((VIEWBOX_HEIGHT - PADDING * 2) / (GRID_LINE_COUNT + 1)) * (index + 1);
+              return (
+                <Line
+                  key={`grid-${index}`}
+                  x1={PADDING}
+                  x2={VIEWBOX_WIDTH - PADDING}
+                  y1={y}
+                  y2={y}
+                  stroke={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}
+                  strokeWidth={0.5}
+                />
+              );
+            })}
+
+            {points.map((point, index) => {
+              const value = point.value;
+              const barHeight = Math.abs((value - 0) / range) * chartHeight;
+              const x = PADDING + step * index + (step - barWidth) / 2;
+              const y = value >= 0 ? baselineY - barHeight : baselineY;
+              const isHighlight = highlightSet.has(point.date);
+              return (
+                <Rect
+                  key={`bar-${index}`}
+                  x={x}
+                  y={y}
+                  width={barWidth}
+                  height={Math.max(barHeight, 1)}
+                  rx={barWidth / 2}
+                  fill={lineColor}
+                  opacity={isHighlight ? 0.9 : 0.35}
+                />
+              );
+            })}
+          </Svg>
+          <View style={[styles.yAxisOverlay, flatRange && styles.yAxisOverlaySingle]} pointerEvents="none">
+            {yTicks.map((tick, index) => (
+              <Text
+                key={`tick-${index}`}
+                numberOfLines={1}
+                style={[styles.yAxisText, { color: colors.textTertiary }]}
+              >
+                {formatY(tick)}
+              </Text>
+            ))}
+          </View>
+        </View>
+        <View style={styles.xAxis}>
+          <Text style={[styles.xAxisText, { color: colors.textTertiary }]}>
+            {points[0]?.date ? formatX(points[0].date) : ''}
+          </Text>
+          {xLabel && (
+            <Text style={[styles.xAxisLabel, { color: colors.textTertiary }]}>
+              {xLabel}
+            </Text>
+          )}
+          <Text style={[styles.xAxisText, { color: colors.textTertiary }]}>
+            {points[points.length - 1]?.date ? formatX(points[points.length - 1].date) : ''}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   const values = points.map((point) => point.value);
   const { min, max, minValue, maxValue } = resolveScale(values);
   const path = buildSmoothPath(points, minValue, maxValue);
@@ -184,9 +297,6 @@ export function InsightLineChart({
   const xStart = points[0]?.date;
   const xEnd = points[points.length - 1]?.date;
 
-  const formatY = formatYValue ?? formatCompactNumber;
-  const formatX = formatXValue ?? ((value: string) => value.slice(5, 10).replace('-', '/'));
-
   const highlightRect = highlight
     ? (() => {
         const step = (VIEWBOX_WIDTH - PADDING * 2) / (points.length - 1);
@@ -194,6 +304,11 @@ export function InsightLineChart({
         const width = step * (highlight.endIndex - highlight.startIndex || 1);
         return { x, width };
       })()
+    : null;
+  const coords = points.length > 1 ? getCoordinates(points, minValue, maxValue) : [];
+  const baselineY = VIEWBOX_HEIGHT - PADDING;
+  const areaPath = coords.length > 1
+    ? `${path} L ${coords[coords.length - 1].x} ${baselineY} L ${coords[0].x} ${baselineY} Z`
     : null;
 
   return (
@@ -245,6 +360,14 @@ export function InsightLineChart({
               />
             );
           })}
+
+          {variant === 'area' && areaPath && (
+            <Path
+              d={areaPath}
+              fill={fill ?? lineColor}
+              opacity={fillOpacity ?? 0.2}
+            />
+          )}
 
           {/* Smooth bezier curve line */}
           <Path

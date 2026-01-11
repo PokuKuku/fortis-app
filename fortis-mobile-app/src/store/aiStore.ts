@@ -29,7 +29,12 @@ import {
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import * as ExerciseService from '../services/exerciseService';
-import { AI_CONVERSATION_KEY, AI_MUTATION_PLAN_KEY, AI_WORKOUT_DRAFT_KEY } from '../constants/storageKeys';
+import {
+  AI_CONVERSATION_KEY,
+  AI_MUTATION_PLAN_KEY,
+  AI_WORKOUT_DRAFT_KEY,
+  AI_DRAFT_INTAKE_KEY,
+} from '../constants/storageKeys';
 import { analytics } from '../services/analyticsService';
 import { useProgramsStore } from './programsStore';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -56,6 +61,11 @@ const normalizeExerciseKey = (value: string): string =>
     .replace(/[^a-z0-9\s]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
+
+const DRAFT_INTAKE_CANCEL_PATTERN = /\b(cancel|nevermind|never mind|no thanks|stop)\b/i;
+
+const isDraftIntakeCancelMessage = (message: string): boolean =>
+  DRAFT_INTAKE_CANCEL_PATTERN.test(message.trim());
 
 const resolveDraftExerciseIds = async (
   draft: EditableProgramDraft
@@ -228,6 +238,21 @@ const syncWorkoutDraftToSupabase = async (
   }
 };
 
+const cancelAllPendingWorkoutDrafts = async () => {
+  if (!isSupabaseConfigured()) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    await supabase
+      .from('chat_workout_drafts')
+      .update({ status: 'canceled' })
+      .eq('user_id', session.user.id)
+      .in('status', ['pending', 'awaiting_resolution', 'ready_to_save']);
+  } catch (error) {
+    console.warn('Failed to cancel pending workout drafts:', error);
+  }
+};
+
 type PendingWorkoutDraftStatus =
   | 'pending'
   | 'awaiting_resolution'
@@ -284,6 +309,7 @@ interface AIState {
 
   // Pending workout draft (chat-only template flow)
   pendingWorkoutDraft: PendingWorkoutDraft | null;
+  pendingDraftIntake: boolean;
 
   // Actions - Conversation
   openConversation: () => void;
@@ -293,7 +319,9 @@ interface AIState {
 
   // Actions - Pending draft
   loadPendingWorkoutDraft: () => Promise<void>;
+  loadDraftIntake: () => Promise<void>;
   clearPendingWorkoutDraft: () => void;
+  clearDraftIntake: () => void;
   processWorkoutDraftReply: (
     intent: AIIntent,
     message: string
@@ -369,6 +397,7 @@ export const useAIStore = create<AIState>()(
     error: null,
     lastFailedMessage: null,
     pendingWorkoutDraft: null,
+    pendingDraftIntake: false,
 
     // Conversation actions
     openConversation: () => {
@@ -378,6 +407,7 @@ export const useAIStore = create<AIState>()(
         loadPendingActions,
         loadMutationPlan,
         loadPendingWorkoutDraft,
+        loadDraftIntake,
       } = get();
       if (!conversation) {
         loadConversation();
@@ -385,6 +415,7 @@ export const useAIStore = create<AIState>()(
       loadPendingActions();
       loadMutationPlan();
       loadPendingWorkoutDraft();
+      loadDraftIntake();
       set({ isConversationOpen: true });
     },
 
@@ -405,10 +436,14 @@ export const useAIStore = create<AIState>()(
         currentMutationPlan: null,
         error: null,
         pendingWorkoutDraft: null,
+        pendingDraftIntake: false,
       });
       get().persistConversation();
       removeScopedItem(AI_WORKOUT_DRAFT_KEY).catch((err) => {
         console.error('Error clearing workout draft:', err);
+      });
+      removeScopedItem(AI_DRAFT_INTAKE_KEY).catch((err) => {
+        console.error('Error clearing draft intake:', err);
       });
       removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
         console.error('Error clearing mutation plan:', err);
@@ -423,10 +458,23 @@ export const useAIStore = create<AIState>()(
           console.warn('Error canceling workout draft:', err);
         });
       }
+      cancelAllPendingWorkoutDrafts().catch((err) => {
+        console.warn('Error canceling pending workout drafts:', err);
+      });
     },
 
     sendMessage: async (intent, message, context) => {
-      const { conversation, persistConversation, selectedImage } = get();
+      const { conversation, persistConversation, selectedImage, pendingDraftIntake } = get();
+      let resolvedContext = context;
+
+      if (pendingDraftIntake) {
+        if (isDraftIntakeCancelMessage(message)) {
+          get().clearDraftIntake();
+        } else {
+          resolvedContext = { ...(context ?? {}), chatMode: 'builder' };
+          get().clearDraftIntake();
+        }
+      }
 
       // Create user message (include image reference if present)
       const userMessage: AIConversationMessage = {
@@ -472,7 +520,7 @@ export const useAIStore = create<AIState>()(
       const messageParams = {
         intent,
         message,
-        context,
+        context: resolvedContext,
         image: selectedImage ? { ...selectedImage } : undefined,
       };
 
@@ -481,7 +529,7 @@ export const useAIStore = create<AIState>()(
 
       try {
         // Send to AI service (with image if present)
-        const response = await aiService.sendAIMessage(intent, message, context, imageForApi);
+        const response = await aiService.sendAIMessage(intent, message, resolvedContext, imageForApi);
 
         const isRateLimited = response.type === 'error' && response.error?.code === 'RATE_LIMITED';
         const assistantContent =
@@ -531,6 +579,13 @@ export const useAIStore = create<AIState>()(
         }
 
         // Handle mutation plan
+        if (response.type === 'clarification' && response.clarification?.purpose === 'draft_intake') {
+          set({ pendingDraftIntake: true });
+          setScopedItem(AI_DRAFT_INTAKE_KEY, 'true').catch((err) => {
+            console.error('Error persisting draft intake:', err);
+          });
+        }
+
         if (response.type === 'mutation_plan' && response.mutationPlan) {
           set({
             conversation: finalConversation,
@@ -646,10 +701,26 @@ export const useAIStore = create<AIState>()(
       }
     },
 
+    loadDraftIntake: async () => {
+      try {
+        const stored = await getScopedItem(AI_DRAFT_INTAKE_KEY);
+        set({ pendingDraftIntake: stored === 'true' });
+      } catch (err) {
+        console.error('Error loading draft intake:', err);
+      }
+    },
+
     clearPendingWorkoutDraft: () => {
       set({ pendingWorkoutDraft: null });
       removeScopedItem(AI_WORKOUT_DRAFT_KEY).catch((err) => {
         console.error('Error clearing workout draft:', err);
+      });
+    },
+
+    clearDraftIntake: () => {
+      set({ pendingDraftIntake: false });
+      removeScopedItem(AI_DRAFT_INTAKE_KEY).catch((err) => {
+        console.error('Error clearing draft intake:', err);
       });
     },
 
@@ -1455,9 +1526,13 @@ export const useAIStore = create<AIState>()(
         rateLimitStatus: null,
         error: null,
         lastFailedMessage: null,
+        pendingDraftIntake: false,
       });
       removeScopedItem(AI_MUTATION_PLAN_KEY).catch((err) => {
         console.error('Error clearing mutation plan:', err);
+      });
+      removeScopedItem(AI_DRAFT_INTAKE_KEY).catch((err) => {
+        console.error('Error clearing draft intake:', err);
       });
     },
   }))

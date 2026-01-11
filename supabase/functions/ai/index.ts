@@ -317,6 +317,73 @@ function shouldCreateDraftFromMessage(message: string): boolean {
   return isExplicitDraftRequest(message) || looksLikeWorkoutText(message);
 }
 
+const GOAL_OR_BODY_PART_PATTERNS = [
+  /\b(full body|upper body|lower body|upper\/lower|push pull legs|push\/pull\/legs|ppl)\b/,
+  /\b(strength|hypertrophy|muscle gain|size|fat loss|conditioning|endurance|power)\b/,
+  /\b(chest|back|legs|glutes|shoulders|arms|biceps|triceps|core|abs|quads|hamstrings|calves)\b/,
+];
+
+const DAY_WORDS: Record<string, number> = {
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+};
+
+function hasGoalOrBodyPart(message: string): boolean {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return false;
+  return GOAL_OR_BODY_PART_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+function extractDaysPerWeek(message: string): number | null {
+  const normalized = normalizeMessage(message);
+  if (!normalized) return null;
+  const numericMatches = [
+    /\b([1-7])\s*(?:x|times)?\s*(?:per|a)?\s*(?:week|wk)\b/,
+    /\b([1-7])\s*days?\s*(?:per|a)?\s*(?:week|wk)\b/,
+    /\b([1-7])\s*(?:x|\/)\s*(?:week|wk)\b/,
+  ];
+  for (const pattern of numericMatches) {
+    const match = normalized.match(pattern);
+    if (match?.[1]) {
+      return Number(match[1]);
+    }
+  }
+  const wordMatch = normalized.match(
+    /\b(one|two|three|four|five|six|seven)\s*days?\s*(?:per|a)?\s*(?:week|wk)\b/
+  );
+  if (wordMatch?.[1]) {
+    return DAY_WORDS[wordMatch[1]] ?? null;
+  }
+  return null;
+}
+
+function buildDraftIntakeQuestion(missingGoal: boolean, missingDays: boolean): string {
+  if (missingGoal && missingDays) {
+    return 'Before I build it, what type of workout do you want (goal or body part), and how many days per week?';
+  }
+  if (missingGoal) {
+    return 'Before I build it, what type of workout do you want (goal or body part)?';
+  }
+  return 'Before I build it, how many days per week do you want?';
+}
+
+function getDraftIntakeClarification(request: AIRequest): { question: string } | null {
+  if (request.context?.workoutDraft || request.context?.chatMode === 'builder') return null;
+  if (!isExplicitDraftRequest(request.message)) return null;
+  if (looksLikeWorkoutText(request.message)) return null;
+  const hasGoal = hasGoalOrBodyPart(request.message);
+  const daysPerWeek = extractDaysPerWeek(request.message);
+  if (hasGoal && daysPerWeek) return null;
+  return {
+    question: buildDraftIntakeQuestion(!hasGoal, !daysPerWeek),
+  };
+}
+
 function shouldIncludeDataContext(message: string): boolean {
   const normalized = normalizeMessage(message);
   if (!normalized) return false;
@@ -932,6 +999,18 @@ Deno.serve(async (req: Request) => {
           ...(rateLimitResult.limitWindow && { limitWindow: rateLimitResult.limitWindow }),
         },
       }, 429, origin);
+    }
+
+    const draftIntake = getDraftIntakeClarification(aiRequest);
+    if (draftIntake) {
+      return jsonResponse({
+        type: 'clarification',
+        requestId,
+        clarification: {
+          question: draftIntake.question,
+          purpose: 'draft_intake',
+        },
+      }, 200, origin);
     }
 
     // Assemble context based on intent

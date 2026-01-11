@@ -30,6 +30,7 @@ export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
 export const AI_PENDING_ACTIONS_KEY = 'ai_pending_actions_v1';
 export const AI_MUTATION_PLAN_KEY = 'ai_mutation_plan_v1';
 export const AI_WORKOUT_DRAFT_KEY = 'ai_workout_draft_v1';
+export const AI_DRAFT_INTAKE_KEY = 'ai_draft_intake_v1';
 
 // Appearance
 export const THEME_MODE_KEY = 'theme_mode_v1';
@@ -63,6 +64,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   AI_PENDING_ACTIONS_KEY,
   AI_MUTATION_PLAN_KEY,
   AI_WORKOUT_DRAFT_KEY,
+  AI_DRAFT_INTAKE_KEY,
   PROFILE_STATS_CACHE_KEY,
   TRAINING_INSIGHTS_CACHE_KEY,
   INSIGHT_CHARTS_CACHE_KEY,

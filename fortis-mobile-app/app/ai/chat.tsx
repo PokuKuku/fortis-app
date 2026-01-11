@@ -144,6 +144,7 @@ export default function AIChatScreen() {
   const loadConversation = useAIStore((state) => state.loadConversation);
   const loadMutationPlan = useAIStore((state) => state.loadMutationPlan);
   const loadPendingActions = useAIStore((state) => state.loadPendingActions);
+  const loadDraftIntake = useAIStore((state) => state.loadDraftIntake);
   const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
   const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
   const lastFailedMessage = useAIStore((state) => state.lastFailedMessage);
@@ -168,6 +169,7 @@ export default function AIChatScreen() {
     loadPendingActions();
     loadMutationPlan();
     loadPendingWorkoutDraft();
+    loadDraftIntake();
     checkRateLimits();
     trackAIChatOpened();
   }, [
@@ -175,6 +177,7 @@ export default function AIChatScreen() {
     loadPendingActions,
     loadMutationPlan,
     loadPendingWorkoutDraft,
+    loadDraftIntake,
     checkRateLimits,
     trackAIChatOpened,
   ]);

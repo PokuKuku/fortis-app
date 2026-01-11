@@ -326,7 +326,7 @@ export default function CreateWorkoutScreen() {
     </View>
   );
 
-  const saveButtonText = mode === 'log' ? 'Log' : (isEditingTemplate ? 'Finish edit' : 'Save');
+  const saveButtonText = mode === 'log' ? 'Log' : (isEditingTemplate ? 'Finish edit' : 'Create Workout');
   const isFinishEdit = saveButtonText === 'Finish edit';
   const titleMeasureText = editorSession?.name || 'Workout Name';
   const titleRowWidth = headerLeftWidth && titleTextWidth
@@ -453,6 +453,7 @@ export default function CreateWorkoutScreen() {
           data={editorSession?.exercises || []}
           renderItem={renderExerciseCard}
           keyExtractor={item => item.localId}
+          extraData={canSave}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
@@ -725,6 +726,9 @@ const styles = StyleSheet.create({
   },
   primaryActionText: {
     ...Typography.button,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   finishEditText: {
     fontFamily: 'BankGothicBT-Medium',
