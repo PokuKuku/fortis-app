@@ -15,7 +15,7 @@ import * as Haptics from 'expo-haptics';
 export function WeeklyMuscleHeatmapCard() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { exercises, loading, hasWorkouts } = useWeeklyMuscles();
+  const { muscleLevels, loading, hasWorkouts } = useWeeklyMuscles();
   const bodyType = useWorkoutStore((state) => state.bodyType);
 
   // Theme-aware card styles
@@ -54,7 +54,7 @@ export function WeeklyMuscleHeatmapCard() {
       ) : (
         <View style={styles.heatmapContent}>
           <MuscleHeatmap
-            exercises={hasWorkouts ? exercises : []}
+            muscleLevels={hasWorkouts ? muscleLevels : {}}
             gender={bodyType}
             scale={0.45}
             compact

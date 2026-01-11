@@ -3,6 +3,7 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { parseSubjectKey } from '@/src/types/insights';
 import type { TrainingInsight } from '@/src/types/insights';
 import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
+import { getMuscleCategory, normalizeMuscle, resolveMuscleTargetKeys, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 
 const WEEKLY_SERIES_WEEKS = 12;
 const EXPOSURE_LOOKBACK_DAYS = 42;
@@ -61,21 +62,6 @@ const normalizeExposureSeries = (rows: ExerciseExposureRow[]): InsightChartPoint
       value: parseNumber(row.best_e1rm),
     }))
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-};
-
-const normalizeMuscleGroup = (group: string): string => {
-  const key = group.trim().toLowerCase();
-  if (['middle back', 'upper back', 'lower back', 'lats', 'traps'].includes(key)) return 'back';
-  if (['quadriceps', 'quads'].includes(key)) return 'quads';
-  if (['glutes', 'gluteus maximus'].includes(key)) return 'glutes';
-  if (['abdominals', 'abs', 'core'].includes(key)) return 'core';
-  if (['delts', 'deltoids', 'shoulders'].includes(key)) return 'shoulders';
-  if (['pectorals', 'chest'].includes(key)) return 'chest';
-  if (['hamstrings'].includes(key)) return 'hamstrings';
-  if (['biceps'].includes(key)) return 'biceps';
-  if (['triceps'].includes(key)) return 'triceps';
-  if (['calves'].includes(key)) return 'calves';
-  return key;
 };
 
 const getVolumeUnit = (insight: TrainingInsight): string | undefined => {
@@ -281,25 +267,26 @@ export async function fetchInsightChartSeries(
     const targetGroup =
       insight.muscleGroup ??
       (subject.type === 'muscle' ? subject.muscleGroup : undefined);
-    const targetKey = targetGroup ? normalizeMuscleGroup(targetGroup) : null;
+    const targetKeys = targetGroup ? resolveMuscleTargetKeys(targetGroup) : [];
     const hasPushPullEvidence = insight.evidence.some((item) =>
       ['push_sets', 'pull_sets', 'push_pull_ratio'].includes(item.key)
     );
     const isPushPull = subject.type === 'global' || hasPushPullEvidence;
-    const pushGroups = new Set(['chest', 'shoulders', 'triceps']);
-    const pullGroups = new Set(['back', 'biceps']);
 
     const byWeek = new Map<string, { push: number; pull: number; total: number; target: number }>();
     rows.forEach((row) => {
       if (!row.week_start) return;
       const weekKey = row.week_start;
-      const group = row.muscle_group ? normalizeMuscleGroup(row.muscle_group) : '';
+      const group = row.muscle_group ? normalizeMuscle(row.muscle_group) : null;
       const sets = parseNumber(row.working_sets);
       const bucket = byWeek.get(weekKey) ?? { push: 0, pull: 0, total: 0, target: 0 };
       bucket.total += sets;
-      if (group && pushGroups.has(group)) bucket.push += sets;
-      if (group && pullGroups.has(group)) bucket.pull += sets;
-      if (targetKey && group === targetKey) bucket.target += sets;
+      if (group) {
+        const category = getMuscleCategory(group);
+        if (category === 'push') bucket.push += sets;
+        if (category === 'pull') bucket.pull += sets;
+        if (targetKeys.length > 0 && targetKeys.includes(group)) bucket.target += sets;
+      }
       byWeek.set(weekKey, bucket);
     });
 

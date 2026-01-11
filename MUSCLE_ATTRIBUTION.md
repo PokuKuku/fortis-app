@@ -112,9 +112,10 @@ We’ll use this as a briefing for ChatGPT collaborators: it summarizes the exis
    - All screens show consistent labels and grouping.
    - Mapping is deterministic with no casing mismatches.
 
-## Open Decisions (Remaining)
+## Resolved Decisions
 1) **Adductors/abductors inclusion**
-   - Include only if present in DB at meaningful frequency (needs a quick inventory).
+   - Inventory results: ~10 occurrences each across local exercise exports.
+   - Outcome: treat as inactive for v1 (excluded from active muscle keys).
 
 ## Next Steps (Once Decisions Are Final)
 1) Inventory existing muscle strings from base + custom exercises.

@@ -26,7 +26,6 @@ import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
 import { StartButtonConfigModal } from '@/src/components/workout/modals/StartButtonConfigModal';
 import {
-  PRIMARY_MUSCLES,
   CATEGORIES,
   EQUIPMENT_TYPES,
 } from '@/src/constants/exerciseOptions';

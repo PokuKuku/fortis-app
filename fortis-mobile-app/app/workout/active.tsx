@@ -33,8 +33,11 @@ import { RestTimerCompleteModal } from '@/src/components/workout/modals/RestTime
 import { SaveAsTemplateModal } from '@/src/components/workout/modals/SaveAsTemplateModal';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { WorkoutSession } from '@/src/types/workout';
+import type { Exercise } from '@/src/types/exercise';
 import { GlassButton } from '@/components/GlassButton';
 import { getExerciseById } from '@/src/services/exerciseService';
+import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import * as Haptics from 'expo-haptics';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
@@ -83,6 +86,7 @@ export default function ActiveWorkoutScreen() {
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+  const weightUnits = useWorkoutStore(s => s.weightUnits);
   const updateSet = useWorkoutStore(s => s.updateSet);
   const closeNumberPad = useWorkoutStore(s => s.closeNumberPad);
   const openNumberPad = useWorkoutStore(s => s.openNumberPad);
@@ -190,9 +194,7 @@ export default function ActiveWorkoutScreen() {
   );
 
   // Heatmap: Cache for exercise muscle data
-  const [exerciseMuscleCache, setExerciseMuscleCache] = useState<
-    Record<string, { primaryMuscles: string[]; secondaryMuscles: string[] }>
-  >({});
+  const [exerciseMuscleCache, setExerciseMuscleCache] = useState<Record<string, Exercise>>({});
 
   // Fetch muscle data for exercises when they change
   useEffect(() => {
@@ -207,19 +209,14 @@ export default function ActiveWorkoutScreen() {
       const results = await Promise.all(
         missingIds.map(async id => {
           const exercise = await getExerciseById(id);
-          return exercise
-            ? { id, primaryMuscles: exercise.primaryMuscles, secondaryMuscles: exercise.secondaryMuscles }
-            : null;
+          return exercise ? { id, exercise } : null;
         })
       );
 
       const newCache: typeof exerciseMuscleCache = {};
       results.forEach(result => {
         if (result) {
-          newCache[result.id] = {
-            primaryMuscles: result.primaryMuscles,
-            secondaryMuscles: result.secondaryMuscles,
-          };
+          newCache[result.id] = result.exercise;
         }
       });
 
@@ -231,25 +228,21 @@ export default function ActiveWorkoutScreen() {
     fetchMissingMuscles();
   }, [activeSession?.exercises.map(e => e.exerciseId).join(',')]);
 
-  // Compute muscle weights for heatmap (only completed sets)
-  const muscleWeights = useMemo(() => {
-    if (!activeSession?.exercises) return [];
+  const { bodyweightKg } = useLatestBodyweight();
 
-    const exercisesWithCompletedSets = activeSession.exercises.filter(ex => ex.sets.some(s => s.isCompleted));
-
-    return exercisesWithCompletedSets
-      .map(ex => {
-        const muscleData = exerciseMuscleCache[ex.exerciseId];
-        const completedSets = ex.sets.filter(s => s.isCompleted).length;
-
-        return {
-          primaryMuscles: muscleData?.primaryMuscles || [],
-          secondaryMuscles: muscleData?.secondaryMuscles || [],
-          weight: completedSets,
-        };
-      })
-      .filter(mw => mw.primaryMuscles.length > 0 || (mw.secondaryMuscles?.length || 0) > 0);
-  }, [activeSession?.exercises, exerciseMuscleCache]);
+  // Compute muscle intensity levels for heatmap (volume-based)
+  const muscleLevels = useMemo(() => {
+    if (!activeSession) return {};
+    const exercisesById = new Map<string, Exercise>();
+    Object.entries(exerciseMuscleCache).forEach(([id, exercise]) => {
+      exercisesById.set(id, exercise);
+    });
+    const scores = attributeSessionToMuscles(activeSession, exercisesById, {
+      bodyweightKg,
+      weightUnitByExercise: weightUnits,
+    });
+    return bucketIntensity(scores);
+  }, [activeSession, exerciseMuscleCache, bodyweightKg, weightUnits]);
 
   // Handle cancel workout
   const handleCancelPress = () => {
@@ -534,8 +527,8 @@ export default function ActiveWorkoutScreen() {
               onCancelPress={handleCancelPress}
               onTimerSettingsPress={() => setShowTimerSettingsModal(true)}
               onRestTimerPress={() => setShowRestTimerControls(true)}
-              muscleWeights={muscleWeights}
-            />
+            muscleLevels={muscleLevels}
+          />
           </View>
         </GestureDetector>
 

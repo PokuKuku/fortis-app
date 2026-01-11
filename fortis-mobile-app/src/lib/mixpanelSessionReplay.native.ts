@@ -8,6 +8,22 @@ import { isMixpanelConfigured, mixpanelToken } from '@/src/lib/mixpanel';
 let replayInitialized = false;
 let replayDistinctId: string | null = null;
 
+async function logReplayStatus(label: string) {
+  if (!__DEV__) {
+    return;
+  }
+
+  try {
+    const [isRecording, replayId] = await Promise.all([
+      MPSessionReplay.isRecording(),
+      MPSessionReplay.getReplayId(),
+    ]);
+    console.log('[MixpanelReplay]', label, { isRecording, replayId });
+  } catch (error) {
+    console.warn('[MixpanelReplay] Status check failed:', error);
+  }
+}
+
 export async function initMixpanelSessionReplay(distinctId?: string | null) {
   if (!isMixpanelConfigured() || !distinctId) {
     return;
@@ -32,6 +48,7 @@ export async function initMixpanelSessionReplay(distinctId?: string | null) {
       replayInitialized = true;
       replayDistinctId = distinctId;
       await MPSessionReplay.startRecording();
+      await logReplayStatus('initialized');
     } catch (error) {
       console.warn('[MixpanelReplay] Failed to initialize:', error);
     }
@@ -43,6 +60,7 @@ export async function initMixpanelSessionReplay(distinctId?: string | null) {
     try {
       await MPSessionReplay.identify(distinctId);
       replayDistinctId = distinctId;
+      await logReplayStatus('identified');
     } catch (error) {
       console.warn('[MixpanelReplay] Failed to identify:', error);
     }

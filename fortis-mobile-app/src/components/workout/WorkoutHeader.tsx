@@ -8,6 +8,7 @@ import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
 import { useWorkoutStore, getRestTimerColor, getRestTimerBackgroundColor } from '@/src/store/workoutStore';
 import { MuscleHeatmap } from './MuscleHeatmap';
+import type { MuscleKey } from '@/src/utils/muscleTaxonomy';
 import * as Haptics from 'expo-haptics';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
@@ -34,25 +35,18 @@ const WORKOUT_NAME_LETTER_SPACING = moderateScale(1);
 const TIMER_LETTER_SPACING = moderateScale(0.5);
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 
-// Weighted muscle data for the heatmap
-interface MuscleWeightData {
-  primaryMuscles: string[];
-  secondaryMuscles?: string[];
-  weight: number;
-}
-
 interface WorkoutHeaderProps {
   onCancelPress: () => void;
   onTimerSettingsPress: () => void;
   onRestTimerPress: () => void;
-  muscleWeights?: MuscleWeightData[];
+  muscleLevels?: Record<MuscleKey, number>;
 }
 
 export function WorkoutHeader({
   onCancelPress,
   onTimerSettingsPress,
   onRestTimerPress,
-  muscleWeights,
+  muscleLevels,
 }: WorkoutHeaderProps) {
   const { colors, isDark } = useTheme();
   const elapsed = useElapsedTime();
@@ -198,7 +192,7 @@ export function WorkoutHeader({
         {/* Right Column - Heatmap and Program Name */}
         <View style={styles.rightColumn}>
           <MuscleHeatmap
-            muscleWeights={muscleWeights || []}
+            muscleLevels={muscleLevels}
             scale={HEATMAP_SCALE}
             compact
           />

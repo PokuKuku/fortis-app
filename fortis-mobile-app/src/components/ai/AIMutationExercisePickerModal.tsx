@@ -17,6 +17,7 @@ import { IconSizes, Spacing } from '../../../constants/Sizes';
 import { useExercises } from '../../hooks/useExercises';
 import { ExerciseWithSource } from '@/src/types/exercise';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
+import { getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { styles, getThemedStyles } from './AIMutationPreviewModal.styles';
 
 interface AIMutationExercisePickerModalProps {
@@ -190,7 +191,10 @@ export function AIMutationExercisePickerModal({
                   <Text style={[styles.exerciseOptionText, themedStyles.exerciseOptionText]}>{exercise.name}</Text>
                   {exercise.primaryMuscles && exercise.primaryMuscles.length > 0 && (
                     <Text style={{ color: colors.textTertiary, fontSize: 12 }}>
-                      {exercise.primaryMuscles.slice(0, 2).join(', ')}
+                      {exercise.primaryMuscles
+                        .slice(0, 2)
+                        .map((muscle) => getMuscleDisplayName(muscle as MuscleKey))
+                        .join(', ')}
                     </Text>
                   )}
                 </View>

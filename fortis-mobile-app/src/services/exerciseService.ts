@@ -480,6 +480,8 @@ export async function getCustomExercises(): Promise<Exercise[]> {
     const parsed = raw ? JSON.parse(raw) : [];
     customExerciseCache = parsed.map((exercise: Exercise) => ({
       ...exercise,
+      primaryMuscles: normalizeMuscleArray(exercise.primaryMuscles ?? []),
+      secondaryMuscles: normalizeMuscleArray(exercise.secondaryMuscles ?? []),
       isCustom: true,
     }));
     return customExerciseCache!;
@@ -493,6 +495,8 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
   const normalizedName = normalizeExerciseKey(exercise.name);
   const exerciseWithMeta: Exercise = {
     ...exercise,
+    primaryMuscles: normalizeMuscleArray(exercise.primaryMuscles ?? []),
+    secondaryMuscles: normalizeMuscleArray(exercise.secondaryMuscles ?? []),
     normalizedName,
     isCustom: true,
   };
