@@ -19,6 +19,25 @@ function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
+function getFkDropTargets(error: unknown): { dropProgramId: boolean; dropProgramWorkoutId: boolean } {
+  if (!error || typeof error !== 'object') {
+    return { dropProgramId: false, dropProgramWorkoutId: false };
+  }
+
+  const details = [
+    (error as { details?: string }).details,
+    (error as { message?: string }).message,
+    (error as { hint?: string }).hint,
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+    .join(' ');
+
+  return {
+    dropProgramId: /program_id/i.test(details),
+    dropProgramWorkoutId: /program_workout_id/i.test(details),
+  };
+}
+
 // Types for Supabase DTOs
 interface WorkoutSessionInsert {
   user_id: string;
@@ -336,24 +355,27 @@ async function uploadSession(
       started_at: session.startedAt.toISOString(),
       completed_at: session.completedAt?.toISOString() || null,
       duration_seconds: calculateDuration(session),
-      program_id: isLocalId(session.programId) ? undefined : session.programId ?? undefined,
-      program_workout_id: isLocalId(session.programWorkoutId) ? undefined : session.programWorkoutId ?? undefined,
+      program_id: isLocalId(session.programId) || (session.programId && !isUuid(session.programId))
+        ? undefined
+        : session.programId ?? undefined,
+      program_workout_id: isLocalId(session.programWorkoutId) || (session.programWorkoutId && !isUuid(session.programWorkoutId))
+        ? undefined
+        : session.programWorkoutId ?? undefined,
       is_synced: true,
     };
 
-    const { data: insertedSession, error: sessionError } = await supabase
-      .from('workout_sessions')
-      .insert(sessionInsert)
-      .select('id')
-      .single();
+    const insertSession = async (payload: WorkoutSessionInsert) => {
+      const { data, error } = await supabase
+        .from('workout_sessions')
+        .insert(payload)
+        .select('id')
+        .single();
 
-    let sessionId = insertedSession?.id ?? null;
-    let sessionWasCreated = true;
+      if (!error) {
+        return { sessionId: data?.id ?? null, sessionWasCreated: true };
+      }
 
-    if (sessionError) {
-      // Check if it's a duplicate (already synced)
-      if (sessionError.code === '23505') {
-        sessionWasCreated = false;
+      if (error.code === '23505') {
         const { data: existingSession, error: lookupError } = await supabase
           .from('workout_sessions')
           .select('id')
@@ -365,13 +387,56 @@ async function uploadSession(
           throw lookupError;
         }
 
-        sessionId = existingSession?.id ?? null;
-      } else {
-        throw sessionError;
+        return { sessionId: existingSession?.id ?? null, sessionWasCreated: false };
+      }
+
+      throw error;
+    };
+
+    let sessionId: string | null = null;
+    let sessionWasCreated = true;
+    let insertPayload = { ...sessionInsert };
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const result = await insertSession(insertPayload);
+        sessionId = result.sessionId;
+        sessionWasCreated = result.sessionWasCreated;
+        break;
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code !== '23503' || (!insertPayload.program_id && !insertPayload.program_workout_id)) {
+          throw error;
+        }
+
+        const { dropProgramId, dropProgramWorkoutId } = getFkDropTargets(error);
+        const nextPayload = { ...insertPayload };
+        let changed = false;
+
+        if ((dropProgramWorkoutId || (!dropProgramId && !dropProgramWorkoutId)) && nextPayload.program_workout_id) {
+          nextPayload.program_workout_id = undefined;
+          changed = true;
+        }
+
+        if ((dropProgramId || (!dropProgramId && !dropProgramWorkoutId)) && nextPayload.program_id) {
+          nextPayload.program_id = undefined;
+          changed = true;
+        }
+
+        if (!changed) {
+          throw error;
+        }
+
+        lastError = error;
+        insertPayload = nextPayload;
       }
     }
 
     if (!sessionId) {
+      if (lastError) {
+        throw lastError;
+      }
       throw new Error('No session ID available for set sync');
     }
 
@@ -618,9 +683,19 @@ export async function processPendingQueue(): Promise<{
 /**
  * Fetch workout history from Supabase
  */
+type FetchWorkoutHistoryOptions = {
+  limit?: number;
+  dateFrom?: Date;
+  dateTo?: Date;
+};
+
 export async function fetchWorkoutHistory(
-  limit: number = 50
+  optionsOrLimit?: number | FetchWorkoutHistoryOptions
 ): Promise<{ sessions: WorkoutSession[]; error?: string }> {
+  const options = typeof optionsOrLimit === 'number' || typeof optionsOrLimit === 'undefined'
+    ? { limit: optionsOrLimit ?? 50 }
+    : optionsOrLimit;
+  const { limit, dateFrom, dateTo } = options;
   // Check if Supabase is configured
   if (!isSupabaseConfigured()) {
     return { sessions: [], error: 'Supabase not configured' };
@@ -647,7 +722,7 @@ export async function fetchWorkoutHistory(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
-    const { data: sessions, error } = await supabase
+    let query = supabase
       .from('workout_sessions')
       .select(`
         id,
@@ -676,9 +751,20 @@ export async function fetchWorkoutHistory(
           order_index
         )
       `)
-      .eq('user_id', user.id)
+      .eq('user_id', user.id);
+
+    if (dateFrom) {
+      query = query.gte('started_at', dateFrom.toISOString());
+    }
+    if (dateTo) {
+      query = query.lte('started_at', dateTo.toISOString());
+    }
+    if (typeof limit === 'number') {
+      query = query.limit(limit);
+    }
+
+    const { data: sessions, error } = await query
       .order('started_at', { ascending: false })
-      .limit(limit)
       .abortSignal(controller.signal);
 
     clearTimeout(timeoutId);

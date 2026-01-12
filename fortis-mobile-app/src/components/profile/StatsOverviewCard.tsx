@@ -5,9 +5,10 @@ import {
   ClockIcon,
   TrophyIcon,
 } from 'react-native-heroicons/outline';
-import { useProfileStats } from '@/src/hooks/useProfileStats';
+import { useMonthlyStats } from '@/src/hooks/useMonthlyStats';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
@@ -66,7 +67,8 @@ export function StatsOverviewCard() {
   const router = useRouter();
   const { profile } = useAuth();
   const { colors, isDark } = useTheme();
-  const stats = useProfileStats();
+  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const monthlyStats = useMonthlyStats(completedSessions, profile?.id);
   const units = profile?.preferred_units || 'imperial';
 
   // Theme-aware card styles
@@ -87,7 +89,20 @@ export function StatsOverviewCard() {
   return (
     <View style={[styles.container, cardStyle]}>
       <View style={styles.headerRow}>
-        <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
+        <View style={styles.headerLeft}>
+          <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
+          <View
+            style={[
+              styles.rangeTag,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
+              },
+            ]}
+          >
+            <Text style={[styles.rangeTagText, { color: colors.textTertiary }]}>Last 4 weeks</Text>
+          </View>
+        </View>
         <TouchableOpacity
           style={[
             styles.shareButton,
@@ -102,21 +117,21 @@ export function StatsOverviewCard() {
       <View style={styles.statsRow}>
         <StatItem
           icon={<FireIcon color={colors.accent} size={20} strokeWidth={2} />}
-          value={formatVolume(stats.totalVolume, units)}
+          value={formatVolume(monthlyStats.totalVolume, units)}
           label="Volume Lifted"
           colors={colors}
           iconBgStyle={statIconStyle}
         />
         <StatItem
           icon={<TrophyIcon color={colors.accent} size={20} strokeWidth={2} />}
-          value={stats.totalWorkouts.toString()}
+          value={monthlyStats.totalWorkouts.toString()}
           label="Workouts"
           colors={colors}
           iconBgStyle={statIconStyle}
         />
         <StatItem
           icon={<ClockIcon color={colors.accent} size={20} strokeWidth={2} />}
-          value={formatTime(stats.totalTimeSeconds)}
+          value={formatTime(monthlyStats.totalTimeSeconds)}
           label="Time Trained"
           colors={colors}
           iconBgStyle={statIconStyle}
@@ -146,6 +161,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.lg,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rangeTag: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    marginLeft: Spacing.sm,
+  },
+  rangeTagText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   statItem: {
     flex: 1,

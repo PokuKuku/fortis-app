@@ -35,6 +35,7 @@ type WorkoutSetRow = {
 };
 
 type WorkoutSessionRow = {
+  local_id: string | null;
   completed_at: string | null;
   started_at: string;
   workout_sets: WorkoutSetRow[] | null;
@@ -83,13 +84,14 @@ export function useActivityHeatmap(
       if (mode === 'year' && date > yearEnd) return false;
       return true;
     };
-
-    if (hasLocalSessions) {
+    const buildLocalMaps = (sessions: WorkoutSession[]) => {
       const volumeByDay: Record<string, number> = {};
       const activityByDay: Record<string, boolean> = {};
+      const localIds = new Set<string>();
 
-      localSessions?.forEach((session) => {
-        const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
+      sessions.forEach((session) => {
+        localIds.add(session.localId);
+        const sessionDate = startOfDay(new Date(session.startedAt));
         if (!isInRange(sessionDate)) return;
 
         let dayVolume = 0;
@@ -113,16 +115,15 @@ export function useActivityHeatmap(
         activityByDay[key] = activityByDay[key] || dayHasActivity;
       });
 
-      if (!isMounted) return;
-      setDayVolumes(volumeByDay);
-      setDayActivity(activityByDay);
-      setIsLoading(false);
-      return;
-    }
+      return { volumeByDay, activityByDay, localIds };
+    };
+    const localMaps = hasLocalSessions
+      ? buildLocalMaps(localSessions ?? [])
+      : { volumeByDay: {}, activityByDay: {}, localIds: new Set<string>() };
 
     if (!userId || !isSupabaseConfigured()) {
-      setDayVolumes({});
-      setDayActivity({});
+      setDayVolumes(localMaps.volumeByDay);
+      setDayActivity(localMaps.activityByDay);
       setIsLoading(false);
       return;
     }
@@ -132,13 +133,13 @@ export function useActivityHeatmap(
     const load = async () => {
       let query = supabase
         .from('workout_sessions')
-        .select('completed_at, started_at, workout_sets!session_id(weight, reps, is_warmup)')
+        .select('local_id, completed_at, started_at, workout_sets!session_id(weight, reps, is_warmup)')
         .eq('user_id', userId)
         .not('completed_at', 'is', null)
-        .gte('completed_at', startDate.toISOString());
+        .gte('started_at', startDate.toISOString());
 
       if (mode === 'year') {
-        query = query.lte('completed_at', yearEnd.toISOString());
+        query = query.lte('started_at', yearEnd.toISOString());
       }
 
       const { data, error } = await query;
@@ -147,15 +148,20 @@ export function useActivityHeatmap(
 
       if (error) {
         console.warn('[ActivityHeatmap] Failed to load activity data:', error.message);
-        setDayVolumes({});
+        setDayVolumes(localMaps.volumeByDay);
+        setDayActivity(localMaps.activityByDay);
         setIsLoading(false);
         return;
       }
 
       const volumeByDay: Record<string, number> = {};
       const activityByDay: Record<string, boolean> = {};
+      const remoteLocalIds = new Set<string>();
       (data as WorkoutSessionRow[] | null)?.forEach((session) => {
-        const sessionDate = startOfDay(new Date(session.completed_at || session.started_at));
+        if (session.local_id) {
+          remoteLocalIds.add(session.local_id);
+        }
+        const sessionDate = startOfDay(new Date(session.started_at));
         const key = format(sessionDate, 'yyyy-MM-dd');
         let dayVolume = 0;
 
@@ -173,6 +179,34 @@ export function useActivityHeatmap(
         volumeByDay[key] = (volumeByDay[key] || 0) + dayVolume;
         activityByDay[key] = activityByDay[key] || dayHasActivity;
       });
+
+      if (hasLocalSessions) {
+        localSessions?.forEach((session) => {
+          if (remoteLocalIds.has(session.localId)) return;
+          const sessionDate = startOfDay(new Date(session.startedAt));
+          if (!isInRange(sessionDate)) return;
+
+          let dayVolume = 0;
+          let dayHasActivity = false;
+
+          session.exercises.forEach((exercise) => {
+            exercise.sets.forEach((set) => {
+              if (!set.isCompleted) return;
+              dayHasActivity = true;
+              if (set.setType === 'warmup') return;
+              const weight = set.weight ?? 0;
+              const reps = set.reps ?? 0;
+              dayVolume += weight * reps;
+            });
+          });
+
+          if (!dayHasActivity) return;
+
+          const key = format(sessionDate, 'yyyy-MM-dd');
+          volumeByDay[key] = (volumeByDay[key] || 0) + dayVolume;
+          activityByDay[key] = activityByDay[key] || dayHasActivity;
+        });
+      }
 
       setDayVolumes(volumeByDay);
       setDayActivity(activityByDay);

@@ -13,32 +13,26 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeftIcon, TrophyIcon } from 'react-native-heroicons/outline';
 import type { RefObject } from 'react';
-import { addDays, format, startOfDay, startOfWeek, subDays } from 'date-fns';
+import { addDays, endOfDay, format, startOfDay, startOfWeek, subDays } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
+import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
+import { useMonthlyStats } from '@/src/hooks/useMonthlyStats';
+import { useWorkoutHistoryRange } from '@/src/hooks/useWorkoutHistoryRange';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
-import { getWorkoutSummary, useWorkoutStore } from '@/src/store/workoutStore';
-import { attributeSessionToMuscles, bucketIntensity, getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
-import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { getExerciseById } from '@/src/services/exerciseService';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
-import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import type { Exercise } from '@/src/types/exercise';
 
 type ShareType = 'activity' | 'monthly' | 'signature' | 'personal_records';
-
-type MonthlyStats = {
-  totalVolume: number;
-  totalWorkouts: number;
-  totalTimeSeconds: number;
-  isLoading: boolean;
-};
 
 type SignatureSummary = {
   title: string;
@@ -52,8 +46,6 @@ const SECTION_GAP = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
 const HEATMAP_CELL = 12;
 const HEATMAP_GAP = 4;
-
-const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
 
 const formatVolume = (volume: number, units: 'imperial' | 'metric'): string => {
   const unit = units === 'metric' ? 'kg' : 'lbs';
@@ -89,6 +81,34 @@ const withAlpha = (color: string, alpha: number): string => {
   const g = parseInt(color.slice(3, 5), 16);
   const b = parseInt(color.slice(5, 7), 16);
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+type HeatmapThresholds = {
+  p25: number;
+  p50: number;
+  p75: number;
+  max: number;
+};
+
+const getPercentileValue = (sorted: number[], percentile: number): number => {
+  if (sorted.length === 0) return 0;
+  const index = Math.floor((sorted.length - 1) * percentile);
+  return sorted[Math.max(0, Math.min(sorted.length - 1, index))];
+};
+
+const getRelativeIntensity = (
+  volume: number,
+  hasActivity: boolean,
+  thresholds: HeatmapThresholds | null
+): 0 | 1 | 2 | 3 | 4 => {
+  if (!hasActivity) return 0;
+  if (!thresholds) return 1;
+  if (volume <= 0) return 1;
+  if (thresholds.max <= 0 || thresholds.max === thresholds.p25) return 4;
+  if (volume <= thresholds.p25) return 1;
+  if (volume <= thresholds.p50) return 2;
+  if (volume <= thresholds.p75) return 3;
+  return 4;
 };
 
 
@@ -128,22 +148,33 @@ export default function ProfileShareScreen() {
 
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
-  const weightUnits = useWorkoutStore((state) => state.weightUnits);
-  const { weeks, maxVolume, isLoading: activityLoading } = useActivityHeatmap(
-    profile?.id,
+  const todayKey = startOfDay(new Date()).getTime();
+  const today = new Date(todayKey);
+  const activityRangeStart = subDays(startOfWeek(today, { weekStartsOn: 1 }), (10 - 1) * 7);
+  const activityRangeEnd = endOfDay(today);
+  const { sessions: activityHistorySessions } = useWorkoutHistoryRange({
+    dateFrom: activityRangeStart,
+    dateTo: activityRangeEnd,
+    localSessions: completedSessions,
+    enabled: shareType === 'activity',
+  });
+  const activitySessions = shareType === 'activity' ? activityHistorySessions : completedSessions;
+  const { weeks } = useActivityHeatmap(
+    shareType === 'activity' ? undefined : profile?.id,
     'rolling',
     10,
-    completedSessions
+    activitySessions
   );
-  const { bodyweightKg } = useLatestBodyweight();
+  const displayWeeks = useMemo(() => [...weeks].reverse(), [weeks]);
+  const {
+    muscleLevels: weeklyMuscleLevels,
+    loading: weeklyMuscleLoading,
+    hasWorkouts: weeklyHasWorkouts,
+    sessions: weeklyMuscleSessions,
+  } = useWeeklyMuscles();
   const personalRecords = useTopPersonalRecords(5);
 
-  const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({
-    totalVolume: 0,
-    totalWorkouts: 0,
-    totalTimeSeconds: 0,
-    isLoading: true,
-  });
+  const monthlyStats = useMonthlyStats(completedSessions, profile?.id);
 
   const [signatureSummary, setSignatureSummary] = useState<SignatureSummary>({
     title: 'Building momentum',
@@ -151,104 +182,37 @@ export default function ProfileShareScreen() {
     stats: [],
     isLoading: true,
   });
-  const [signatureMuscleLevels, setSignatureMuscleLevels] = useState<Record<MuscleKey, number>>({});
-  const [signatureHasWorkouts, setSignatureHasWorkouts] = useState(false);
 
   const units = profile?.preferred_units || 'imperial';
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
-
-  const localMonthlyStats = useMemo(() => {
-    if (completedSessions.length === 0) return null;
-    const today = startOfDay(new Date());
-    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
-    const fromDate = subDays(weekStart, 7 * 3);
-    let totalVolume = 0;
-    let totalWorkouts = 0;
-    let totalTimeSeconds = 0;
-
-    completedSessions.forEach((session) => {
-      const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
-      if (sessionDate < fromDate || sessionDate > today) return;
-      const summary = getWorkoutSummary(session);
-      if (summary.totalSets === 0) return;
-
-      totalWorkouts += 1;
-      totalVolume += summary.totalVolume;
-
-      const durationSeconds = session.durationSeconds
-        ?? (session.completedAt
-          ? Math.round((session.completedAt.getTime() - session.startedAt.getTime()) / 1000)
-          : 0);
-      totalTimeSeconds += Math.max(0, durationSeconds);
-    });
-
+  const signatureLoading = signatureSummary.isLoading || weeklyMuscleLoading;
+  const activityIntensityThresholds = useMemo<HeatmapThresholds | null>(() => {
+    const volumes = weeks.flatMap((week) =>
+      week.days
+        .filter((day) => day.hasActivity && day.volume > 0)
+        .map((day) => day.volume)
+    );
+    if (volumes.length === 0) return null;
+    const sorted = [...volumes].sort((a, b) => a - b);
     return {
-      totalVolume,
-      totalWorkouts,
-      totalTimeSeconds,
+      p25: getPercentileValue(sorted, 0.25),
+      p50: getPercentileValue(sorted, 0.5),
+      p75: getPercentileValue(sorted, 0.75),
+      max: sorted[sorted.length - 1],
     };
-  }, [completedSessions]);
+  }, [weeks]);
+
 
   useEffect(() => {
     let isMounted = true;
-    if (localMonthlyStats) {
-      setMonthlyStats({ ...localMonthlyStats, isLoading: false });
-      return;
+    if (weeklyMuscleLoading) {
+      setSignatureSummary((prev) => (prev.isLoading ? prev : { ...prev, isLoading: true }));
+      return () => {
+        isMounted = false;
+      };
     }
-    if (!isSupabaseConfigured() || !profile?.id) {
-      setMonthlyStats((prev) => ({ ...prev, isLoading: false }));
-      return;
-    }
-
-    const loadMonthly = async () => {
-      const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-      const fromDate = subDays(weekStart, 7 * 3);
-      const { data, error } = await supabase
-        .from('weekly_workout_volume')
-        .select('total_volume, workouts_count, total_time_seconds, week_start')
-        .eq('user_id', profile.id)
-        .gte('week_start', toIsoDate(fromDate))
-        .lte('week_start', toIsoDate(weekStart));
-
-      if (!isMounted) return;
-      if (error || !data) {
-        setMonthlyStats((prev) => ({ ...prev, isLoading: false }));
-        return;
-      }
-
-      const totals = (data as Array<{
-        total_volume: number | null;
-        workouts_count: number | null;
-        total_time_seconds: number | null;
-      }>).reduce(
-        (acc, row) => {
-          acc.totalVolume += row.total_volume ?? 0;
-          acc.totalWorkouts += row.workouts_count ?? 0;
-          acc.totalTimeSeconds += row.total_time_seconds ?? 0;
-          return acc;
-        },
-        { totalVolume: 0, totalWorkouts: 0, totalTimeSeconds: 0 }
-      );
-
-      setMonthlyStats({ ...totals, isLoading: false });
-    };
-
-    loadMonthly();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [localMonthlyStats, profile?.id]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const today = startOfDay(new Date());
-    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
     const exerciseSetCounts = new Map<string, number>();
-    const weeklySessions = completedSessions.filter((session) => {
-      const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
-      return sessionDate >= weekStart && sessionDate <= today;
-    });
+    const weeklySessions = weeklyMuscleSessions;
 
     weeklySessions.forEach((session) => {
       session.exercises.forEach((exercise) => {
@@ -266,8 +230,6 @@ export default function ProfileShareScreen() {
     const exerciseIds = Array.from(exerciseSetCounts.keys());
     if (exerciseIds.length === 0) {
       if (!isMounted) return;
-      setSignatureMuscleLevels({});
-      setSignatureHasWorkouts(false);
       setSignatureSummary({
         title: 'Building momentum',
         subtitle: 'Log a few more sessions to reveal your signature.',
@@ -277,7 +239,6 @@ export default function ProfileShareScreen() {
       return;
     }
 
-    setSignatureHasWorkouts(true);
     setSignatureSummary((prev) => ({ ...prev, isLoading: true }));
 
     const loadSignature = async () => {
@@ -288,19 +249,6 @@ export default function ProfileShareScreen() {
       results.forEach((exercise) => {
         if (exercise) exercisesById.set(exercise.id, exercise);
       });
-      setSignatureHasWorkouts(exercisesById.size > 0);
-
-      const scores: Record<MuscleKey, number> = {};
-      weeklySessions.forEach((session) => {
-        const sessionScores = attributeSessionToMuscles(session, exercisesById, {
-          bodyweightKg,
-          weightUnitByExercise: weightUnits,
-        });
-        Object.entries(sessionScores).forEach(([key, value]) => {
-          scores[key as MuscleKey] = (scores[key as MuscleKey] ?? 0) + value;
-        });
-      });
-      setSignatureMuscleLevels(bucketIntensity(scores));
 
       let totalSets = 0;
       let pushSets = 0;
@@ -377,7 +325,7 @@ export default function ProfileShareScreen() {
     return () => {
       isMounted = false;
     };
-  }, [completedSessions, bodyweightKg, weightUnits]);
+  }, [weeklyMuscleLoading, weeklyMuscleSessions]);
 
   const gradientColors = isDark
     ? ['#0c1413', '#131c1b', '#0f1918']
@@ -533,13 +481,23 @@ export default function ProfileShareScreen() {
                       </View>
                       <View style={styles.activityGridWrap}>
                         <View style={styles.activityGrid}>
-                          {weeks.map((week, index) => (
+                          {displayWeeks.map((week, index) => (
                             <View key={`week-${index}`} style={styles.activityColumn}>
                               {week.days.map((day, dayIndex) => {
-                                const intensity = maxVolume > 0 ? day.volume / maxVolume : 0;
-                                const alpha = day.hasActivity ? Math.max(0.2, intensity) : 0.08;
+                                const intensity = getRelativeIntensity(
+                                  day.volume,
+                                  day.hasActivity,
+                                  activityIntensityThresholds
+                                );
+                                const alpha = intensity === 1
+                                  ? 0.2
+                                  : intensity === 2
+                                  ? 0.45
+                                  : intensity === 3
+                                  ? 0.7
+                                  : 1;
                                 const backgroundColor = day.hasActivity
-                                  ? withAlpha(accentBase, Math.min(alpha, 1))
+                                  ? withAlpha(accentBase, alpha)
                                   : isDark
                                   ? 'rgba(255,255,255,0.08)'
                                   : 'rgba(0,0,0,0.06)';
@@ -620,7 +578,7 @@ export default function ProfileShareScreen() {
                       <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
                         {signatureSummary.subtitle}
                       </Text>
-                      {signatureSummary.isLoading ? (
+                      {signatureLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator color={colors.accent} size="small" />
                         </View>
@@ -638,7 +596,7 @@ export default function ProfileShareScreen() {
                           ))}
                         </View>
                       )}
-                      {signatureSummary.isLoading ? (
+                      {signatureLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator color={colors.accent} size="small" />
                         </View>
@@ -646,13 +604,13 @@ export default function ProfileShareScreen() {
                         <>
                           <View style={styles.signatureHeatmap}>
                             <MuscleHeatmap
-                              muscleLevels={signatureHasWorkouts ? signatureMuscleLevels : {}}
+                              muscleLevels={weeklyHasWorkouts ? weeklyMuscleLevels : {}}
                               gender={bodyType}
                               scale={0.45}
                               compact
                             />
                           </View>
-                          {!signatureHasWorkouts && (
+                          {!weeklyHasWorkouts && (
                             <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
                               Log a workout to reveal your muscle map.
                             </Text>

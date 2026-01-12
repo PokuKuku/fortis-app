@@ -17,6 +17,7 @@ export function useWeeklyMuscles(): {
   muscleLevels: Record<MuscleKey, number>;
   loading: boolean;
   hasWorkouts: boolean;
+  sessions: WorkoutSession[];
 } {
   const { profile } = useAuth();
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
@@ -254,5 +255,6 @@ export function useWeeklyMuscles(): {
     muscleLevels,
     loading: isFetchingRemote || isComputing,
     hasWorkouts: weeklyExerciseIds.length > 0,
+    sessions: sourceSessions,
   };
 }

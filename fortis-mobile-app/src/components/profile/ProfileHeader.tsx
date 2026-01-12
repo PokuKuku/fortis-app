@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { startOfDay, startOfWeek, startOfYear, endOfYear } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
@@ -17,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
+import { useWorkoutHistoryRange } from '@/src/hooks/useWorkoutHistoryRange';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Spacing, BorderRadius, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -35,12 +37,31 @@ function withAlpha(color: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function getIntensityLevel(volume: number, maxVolume: number): 0 | 1 | 2 | 3 | 4 {
-  if (volume <= 0 || maxVolume <= 0) return 0;
-  const ratio = volume / maxVolume;
-  if (ratio <= 0.25) return 1;
-  if (ratio <= 0.5) return 2;
-  if (ratio <= 0.75) return 3;
+type HeatmapThresholds = {
+  p25: number;
+  p50: number;
+  p75: number;
+  max: number;
+};
+
+function getPercentileValue(sorted: number[], percentile: number): number {
+  if (sorted.length === 0) return 0;
+  const index = Math.floor((sorted.length - 1) * percentile);
+  return sorted[Math.max(0, Math.min(sorted.length - 1, index))];
+}
+
+function getRelativeIntensity(
+  volume: number,
+  hasActivity: boolean,
+  thresholds: HeatmapThresholds | null
+): 0 | 1 | 2 | 3 | 4 {
+  if (!hasActivity) return 0;
+  if (!thresholds) return 1;
+  if (volume <= 0) return 1;
+  if (thresholds.max <= 0 || thresholds.max === thresholds.p25) return 4;
+  if (volume <= thresholds.p25) return 1;
+  if (volume <= thresholds.p50) return 2;
+  if (volume <= thresholds.p75) return 3;
   return 4;
 }
 
@@ -53,11 +74,22 @@ export function ProfileHeader() {
   const { user, profile, updateProfile, uploadAvatar } = useAuth();
   const { colors, isDark } = useTheme();
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
-  const { weeks, monthLabels, maxVolume, isLoading, hasActivity } = useActivityHeatmap(
+  const todayKey = startOfDay(new Date()).getTime();
+  const today = new Date(todayKey);
+  const yearStart = startOfYear(today);
+  const rangeStart = startOfWeek(yearStart, { weekStartsOn: 1 });
+  const rangeEnd = endOfYear(today);
+  const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistoryRange({
+    dateFrom: rangeStart,
+    dateTo: rangeEnd,
+    localSessions: completedSessions,
+    enabled: Boolean(user?.id),
+  });
+  const { weeks, monthLabels, isLoading, hasActivity } = useActivityHeatmap(
     user?.id,
     'year',
     52,
-    completedSessions
+    historySessions
   );
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(profile?.full_name || '');
@@ -72,6 +104,21 @@ export function ProfileHeader() {
     level3: withAlpha(colors.accent, 0.6),
     level4: colors.accent,
   }), [colors.accent]);
+  const intensityThresholds = useMemo<HeatmapThresholds | null>(() => {
+    const volumes = weeks.flatMap((week) =>
+      week.days
+        .filter((day) => day.hasActivity && day.volume > 0)
+        .map((day) => day.volume)
+    );
+    if (volumes.length === 0) return null;
+    const sorted = [...volumes].sort((a, b) => a - b);
+    return {
+      p25: getPercentileValue(sorted, 0.25),
+      p50: getPercentileValue(sorted, 0.5),
+      p75: getPercentileValue(sorted, 0.75),
+      max: sorted[sorted.length - 1],
+    };
+  }, [weeks]);
   const gridWidth = useMemo(() => {
     if (weeks.length === 0) return 0;
     return (weeks.length * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP)) - HEATMAP_CELL_GAP;
@@ -327,9 +374,9 @@ export function ProfileHeader() {
                     <View key={`week-${weekIndex}`} style={styles.weekColumn}>
                   {week.days.map((day, dayIndex) => {
                     const baseColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-                    const intensity = getIntensityLevel(day.volume, maxVolume);
+                    const intensity = getRelativeIntensity(day.volume, day.hasActivity, intensityThresholds);
                     const backgroundColor = day.hasActivity
-                      ? (intensity === 0 || maxVolume <= 0
+                      ? (intensity === 0
                         ? intensityColors.level1
                         : intensity === 1
                           ? intensityColors.level1
@@ -367,7 +414,7 @@ export function ProfileHeader() {
             <Text style={[styles.legendLabel, { color: colors.textTertiary }]}>More</Text>
           </View>
 
-          {!hasActivity && !isLoading && (
+          {!hasActivity && !(isLoading || historyLoading) && (
             <Text style={[styles.emptyStateText, { color: colors.textTertiary }]}>No workouts logged yet</Text>
           )}
         </View>
