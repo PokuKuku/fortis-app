@@ -223,6 +223,7 @@ interface WorkoutState {
     sessions: WorkoutSession[]
   ) => Promise<{ imported: number; skipped: number; skippedSync: number }>;
   updateCompletedWorkoutName: (localId: string, newName: string) => Promise<void>;
+  deleteCompletedSession: (localId: string) => Promise<void>;
   updateActiveSessionName: (newName: string) => Promise<void>;
   resetStore: () => void;
   clearCompletedSessions: () => Promise<void>;
@@ -1573,6 +1574,24 @@ export const useWorkoutStore = create<WorkoutState>()(
         syncWorkoutSession(updatedSession).catch((error) => {
           console.warn('Failed to sync updated workout name to cloud:', error);
         });
+      }
+    },
+
+    deleteCompletedSession: async (localId) => {
+      const { completedSessions, syncingSessionIds } = get();
+      const updatedSessions = completedSessions.filter((session) => session.localId !== localId);
+      const updatedSyncingIds = syncingSessionIds.filter((id) => id !== localId);
+
+      if (updatedSessions.length === completedSessions.length && updatedSyncingIds.length === syncingSessionIds.length) {
+        return;
+      }
+
+      set({ completedSessions: updatedSessions, syncingSessionIds: updatedSyncingIds });
+
+      try {
+        await setScopedItem(COMPLETED_WORKOUTS_KEY, JSON.stringify(updatedSessions));
+      } catch (error) {
+        console.warn('Failed to persist deleted workout session:', error);
       }
     },
 

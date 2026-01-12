@@ -1,8 +1,8 @@
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ClockIcon, ScaleIcon, TrophyIcon } from 'react-native-heroicons/outline';
-import { BaseModal } from '@/src/components/ui/BaseModal';
+import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
 import type { WeightUnit, WorkoutSession, WorkoutSet } from '@/src/types/workout';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -21,6 +21,8 @@ function isUUID(value: string): boolean {
 interface WorkoutHistoryDetailModalProps {
   visible: boolean;
   onClose: () => void;
+  onDelete?: (session: WorkoutSession) => void;
+  onRetry?: () => void;
   session: WorkoutSession | null;
 }
 
@@ -79,9 +81,12 @@ function formatSetDetails(set: WorkoutSet): string {
 export function WorkoutHistoryDetailModal({
   visible,
   onClose,
+  onDelete,
+  onRetry,
   session,
 }: WorkoutHistoryDetailModalProps) {
   const { colors, isDark } = useTheme();
+  const modalStyles = useModalStyles();
 
   // Map of exerciseId -> resolved exercise name (for UUID exercise names)
   const [resolvedNames, setResolvedNames] = useState<Record<string, string>>({});
@@ -165,6 +170,29 @@ export function WorkoutHistoryDetailModal({
   const volumeLabel = sessionWeightUnit
     ? `${formatVolume(summary.totalVolume)} ${formatWeightUnit(sessionWeightUnit)}`
     : `${formatVolume(summary.totalVolume)} ${formatWeightUnit()}`;
+  const canRetry = !session.isSynced && typeof onRetry === 'function';
+
+  const handleDeletePress = () => {
+    if (!session || !onDelete) return;
+    Alert.alert(
+      'Delete workout?',
+      'This will remove this workout from your history. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => onDelete(session),
+        },
+      ]
+    );
+  };
+
+  const handleRetryPress = () => {
+    if (!canRetry) return;
+    onRetry?.();
+    onClose();
+  };
 
   return (
     <BaseModal
@@ -220,6 +248,33 @@ export function WorkoutHistoryDetailModal({
           );
         })}
       </ScrollView>
+
+      {(onDelete || canRetry) && (
+        <View style={[modalStyles.actions, styles.actions]}>
+          {canRetry && (
+            <Pressable
+              onPress={handleRetryPress}
+              style={({ pressed }) => [
+                modalStyles.successButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={modalStyles.successButtonText}>Retry sync</Text>
+            </Pressable>
+          )}
+          {onDelete && (
+            <Pressable
+              onPress={handleDeletePress}
+              style={({ pressed }) => [
+                modalStyles.errorButton,
+                pressed && modalStyles.buttonPressed,
+              ]}
+            >
+              <Text style={modalStyles.errorButtonText}>Delete workout</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
     </BaseModal>
   );
 }
@@ -280,5 +335,8 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '500',
     color: Colors.textPrimary,
+  },
+  actions: {
+    marginTop: Spacing.lg,
   },
 });

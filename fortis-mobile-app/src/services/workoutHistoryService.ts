@@ -797,6 +797,35 @@ export async function clearPendingQueue(): Promise<void> {
 }
 
 /**
+ * Delete a workout session from the pending queue and Supabase (if available).
+ */
+export async function deleteWorkoutSession(session: WorkoutSession): Promise<{ success: boolean; error?: string }> {
+  await removeFromPendingQueue(session.localId);
+
+  if (!isSupabaseConfigured()) {
+    return { success: true };
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: true };
+  }
+
+  const { error } = await supabase
+    .from('workout_sessions')
+    .delete()
+    .eq('user_id', user.id)
+    .or(`local_id.eq.${session.localId},id.eq.${session.localId}`);
+
+  if (error) {
+    console.warn('[WorkoutHistory] Failed to delete session:', error);
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+/**
  * Clear all workout history for the current user in Supabase.
  */
 export async function clearWorkoutHistory(): Promise<{ success: boolean; error?: string }> {

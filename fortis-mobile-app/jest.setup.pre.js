@@ -33,3 +33,18 @@ jest.mock('@/src/lib/supabase', () => ({
   },
   isSupabaseConfigured: () => false,
 }));
+
+jest.mock('mixpanel-react-native', () => ({
+  Mixpanel: jest.fn().mockImplementation(() => ({
+    init: jest.fn().mockResolvedValue(undefined),
+    track: jest.fn(),
+    identify: jest.fn(),
+    reset: jest.fn(),
+    flush: jest.fn(),
+    getDistinctId: jest.fn().mockResolvedValue(null),
+    getDeviceId: jest.fn().mockResolvedValue(null),
+    people: {
+      set: jest.fn(),
+    },
+  })),
+}));
