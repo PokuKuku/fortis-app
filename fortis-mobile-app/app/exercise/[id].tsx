@@ -7,13 +7,15 @@ import {
   TouchableOpacity,
   Image,
   Pressable,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ChevronLeftIcon, TrophyIcon, FireIcon, ScaleIcon, ChartBarIcon, ChevronRightIcon } from 'react-native-heroicons/outline';
+import { ChevronLeftIcon, TrophyIcon, FireIcon, ScaleIcon, ChartBarIcon, ChevronRightIcon, TrashIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { ExerciseCharts } from '@/src/components/exercise/ExerciseCharts';
+import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
@@ -21,7 +23,7 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
 import { useExerciseHistory } from '@/src/hooks/useExerciseHistory';
 import { useExerciseRecords } from '@/src/hooks/useExerciseRecords';
-import { getExerciseImageUrl, getExerciseVariants } from '@/src/services/exerciseService';
+import { getExerciseImageUrl, getExerciseVariants, deleteCustomExercise } from '@/src/services/exerciseService';
 import type { Exercise } from '@/src/types/exercise';
 import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
@@ -42,7 +44,9 @@ export default function ExerciseDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const modalStyles = useModalStyles();
   const [selectedTab, setSelectedTab] = useState<TabType>('About');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const isNavigating = useRef(false);
 
   // Dynamic theme-aware styles
@@ -158,6 +162,20 @@ export default function ExerciseDetailsScreen() {
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
+  const handleDeleteCustomExercise = async () => {
+    if (!exercise?.id) return;
+    try {
+      await deleteCustomExercise(exercise.id);
+      DeviceEventEmitter.emit('customExerciseUpsert', { id: exercise.id, deleted: true });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.back();
+    } catch (error) {
+      console.warn('Failed to delete custom exercise:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
+    setShowDeleteConfirm(false);
+  };
+
   if (!exercise) {
     return (
       <SafeAreaView style={[styles.container, themedStyles.container]}>
@@ -195,7 +213,16 @@ export default function ExerciseDetailsScreen() {
         <Text style={[styles.headerTitle, themedStyles.headerTitle]} numberOfLines={1}>
           {exercise.name}
         </Text>
-        <View style={styles.headerSpacer} />
+        {exercise.isCustom ? (
+          <TouchableOpacity
+            onPress={() => setShowDeleteConfirm(true)}
+            style={[styles.backButton, themedStyles.backButton]}
+          >
+            <TrashIcon color={Colors.error} size={22} strokeWidth={2} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.headerSpacer} />
+        )}
       </View>
 
       {/* Tabs */}
@@ -496,6 +523,25 @@ export default function ExerciseDetailsScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <BaseModal
+        visible={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        title="Delete Exercise?"
+      >
+        <Text style={modalStyles.message}>
+          This will permanently delete "{exercise.name}". This action cannot be undone.
+        </Text>
+        <View style={modalStyles.actions}>
+          <Pressable style={modalStyles.cancelButton} onPress={() => setShowDeleteConfirm(false)}>
+            <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+          </Pressable>
+          <Pressable style={modalStyles.errorButton} onPress={handleDeleteCustomExercise}>
+            <Text style={modalStyles.errorButtonText}>Delete</Text>
+          </Pressable>
+        </View>
+      </BaseModal>
     </SafeAreaView>
   );
 }

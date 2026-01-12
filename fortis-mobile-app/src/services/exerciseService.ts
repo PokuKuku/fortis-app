@@ -602,15 +602,43 @@ export async function getCustomExercises(): Promise<Exercise[]> {
   if (customExerciseCache) return customExerciseCache;
 
   try {
+    // Load from local storage
     const raw = await getScopedItem(CUSTOM_EXERCISES_KEY);
-    const parsed = raw ? JSON.parse(raw) : [];
-    customExerciseCache = parsed.map((exercise: Exercise) => ({
+    const localExercises: Exercise[] = raw ? JSON.parse(raw) : [];
+    const normalizedLocal = localExercises.map((exercise: Exercise) => ({
       ...exercise,
       primaryMuscles: normalizeMuscleArray(exercise.primaryMuscles ?? []),
       secondaryMuscles: normalizeMuscleArray(exercise.secondaryMuscles ?? []),
       isCustom: true,
     }));
-    return customExerciseCache!;
+
+    // Fetch from Supabase and merge (for cross-device sync)
+    const remoteExercises = await fetchCustomExercisesFromSupabase();
+
+    if (remoteExercises.length > 0) {
+      // Merge: local exercises take priority, add remote-only exercises
+      const localIds = new Set(normalizedLocal.map(e => e.id));
+      const localSlugs = new Set(normalizedLocal.map(e =>
+        e.slug || e.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+      ));
+
+      const remoteOnly = remoteExercises.filter(remote => {
+        const remoteSlug = remote.slug || remote.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        // Include if not in local by ID or slug (handles ID mismatch)
+        return !localIds.has(remote.id) && !localSlugs.has(remoteSlug);
+      });
+
+      if (remoteOnly.length > 0) {
+        const merged = [...normalizedLocal, ...remoteOnly];
+        // Persist merged list to local storage
+        await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(merged));
+        customExerciseCache = merged;
+        return merged;
+      }
+    }
+
+    customExerciseCache = normalizedLocal;
+    return customExerciseCache;
   } catch (error) {
     console.warn('Failed to load custom exercises:', error);
     return [];
@@ -635,19 +663,50 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
     customs.unshift(exerciseWithMeta);
   }
 
+  // Save to local storage first (offline-first)
   await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customs));
   customExerciseCache = customs;
   allExercisesCache = null;
   exerciseLookupCache = null;
+
+  // Sync to Supabase in background (fire-and-forget)
+  upsertCustomExerciseToSupabase(exerciseWithMeta).catch((err) => {
+    console.warn('Failed to sync custom exercise to Supabase:', err);
+  });
 }
 
 export async function deleteCustomExercise(id: string): Promise<void> {
   const customs = await getCustomExercises();
+  const exerciseToDelete = customs.find(e => e.id === id);
   const filtered = customs.filter(e => e.id !== id);
+
+  // Delete from local storage first (offline-first)
   await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(filtered));
   customExerciseCache = filtered;
   allExercisesCache = null;
   exerciseLookupCache = null;
+
+  // Delete from Supabase in background (fire-and-forget)
+  if (exerciseToDelete && isSupabaseConfigured()) {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      // Delete by ID or by slug (in case IDs don't match between local and remote)
+      const slug = exerciseToDelete.slug ||
+        exerciseToDelete.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+      supabase
+        .from('exercises')
+        .delete()
+        .eq('created_by', user.id)
+        .eq('is_custom', true)
+        .or(`id.eq.${id},slug.eq.${slug}`)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('Failed to delete custom exercise from Supabase:', error);
+          }
+        });
+    });
+  }
 }
 
 // --- Cache Management ---

@@ -36,7 +36,7 @@ export function CustomExerciseModal({
   const { exercises: allExercises } = useExercises();
   const [exerciseName, setExerciseName] = useState('');
   const [primaryMuscle, setPrimaryMuscle] = useState('');
-  const [secondaryMuscle, setSecondaryMuscle] = useState('');
+  const [secondaryMuscles, setSecondaryMuscles] = useState<string[]>([]);
   const [category, setCategory] = useState('');
   const [equipment, setEquipment] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -86,7 +86,7 @@ export function CustomExerciseModal({
   const resetExerciseForm = () => {
     setExerciseName('');
     setPrimaryMuscle('');
-    setSecondaryMuscle('');
+    setSecondaryMuscles([]);
     setCategory('');
     setEquipment('');
     setInstructions('');
@@ -106,7 +106,7 @@ export function CustomExerciseModal({
       setExerciseName(initialExercise.name ?? '');
       setCategory(initialExercise.category ?? '');
       setPrimaryMuscle(initialExercise.primaryMuscles?.[0] ?? '');
-      setSecondaryMuscle(initialExercise.secondaryMuscles?.[0] ?? '');
+      setSecondaryMuscles(initialExercise.secondaryMuscles?.slice(0, 3) ?? []);
       setEquipment(initialExercise.equipment ?? '');
       setInstructions(
         Array.isArray(initialExercise.instructions)
@@ -167,7 +167,7 @@ export function CustomExerciseModal({
       id: editingExerciseId ?? `custom-${Date.now()}`,
       name: exerciseName.trim(),
       primaryMuscles: [primaryMuscle],
-      secondaryMuscles: secondaryMuscle ? [secondaryMuscle] : [],
+      secondaryMuscles: secondaryMuscles,
       equipment: equipment || 'Bodyweight',
       category: category || 'Strength',
       instructions: instructionList,
@@ -343,27 +343,42 @@ export function CustomExerciseModal({
               </View>
             </Animated.View>
 
-            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Secondary Muscle (optional)</Text>
+            <Text style={[styles.inputLabel, themedStyles.inputLabel]}>
+              Secondary Muscles (optional, up to 3){secondaryMuscles.length > 0 ? ` — ${secondaryMuscles.length}/3` : ''}
+            </Text>
             <View style={styles.chipWrap}>
-              {optionList.primaryMuscles.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[
-                    styles.chip,
-                    themedStyles.chip,
-                    secondaryMuscle === item && themedStyles.chipActive,
-                  ]}
-                  onPress={() => setSecondaryMuscle(item === secondaryMuscle ? '' : item)}
-                >
-                  <Text style={[
-                    styles.chipText,
-                    themedStyles.chipText,
-                    secondaryMuscle === item && themedStyles.chipTextActive,
-                  ]}>
-                    {getMuscleDisplayName(item as MuscleKey)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+              {optionList.primaryMuscles.map((item) => {
+                const isSelected = secondaryMuscles.includes(item);
+                const isDisabled = !isSelected && secondaryMuscles.length >= 3;
+                return (
+                  <TouchableOpacity
+                    key={item}
+                    style={[
+                      styles.chip,
+                      themedStyles.chip,
+                      isSelected && themedStyles.chipActive,
+                      isDisabled && styles.chipDisabled,
+                    ]}
+                    onPress={() => {
+                      if (isSelected) {
+                        setSecondaryMuscles(secondaryMuscles.filter(m => m !== item));
+                      } else if (secondaryMuscles.length < 3) {
+                        setSecondaryMuscles([...secondaryMuscles, item]);
+                      }
+                    }}
+                    disabled={isDisabled}
+                  >
+                    <Text style={[
+                      styles.chipText,
+                      themedStyles.chipText,
+                      isSelected && themedStyles.chipTextActive,
+                      isDisabled && styles.chipTextDisabled,
+                    ]}>
+                      {getMuscleDisplayName(item as MuscleKey)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
 
             <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Equipment (optional)</Text>
@@ -426,8 +441,8 @@ export function CustomExerciseModal({
                           if (!primaryMuscle && item.primaryMuscles?.[0]) {
                             setPrimaryMuscle(item.primaryMuscles[0]);
                           }
-                          if (!secondaryMuscle && item.secondaryMuscles?.[0]) {
-                            setSecondaryMuscle(item.secondaryMuscles[0]);
+                          if (secondaryMuscles.length === 0 && item.secondaryMuscles?.length) {
+                            setSecondaryMuscles(item.secondaryMuscles.slice(0, 3));
                           }
                           if (!equipment && item.equipment) {
                             setEquipment(item.equipment);
@@ -612,6 +627,12 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 13,
     fontWeight: '600',
+  },
+  chipDisabled: {
+    opacity: 0.4,
+  },
+  chipTextDisabled: {
+    opacity: 0.6,
   },
   invalidInput: {
     borderColor: Colors.error,

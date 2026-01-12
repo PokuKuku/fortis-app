@@ -8,6 +8,7 @@
  * - Rate limiting via ai_rate_limits table
  * - Read-only context assembly (history + analytics)
  * - Claude/OpenAI provider integration
+ * - Reasoning model support (o1/o3 series - no temperature param)
  */
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -988,6 +989,9 @@ async function callOpenAIText(
   const useResponses =
     Deno.env.get('OPENAI_USE_RESPONSES') === 'true' || model.includes('gpt-5');
 
+  // Only include temperature for models that support it (not o1/o3 reasoning models)
+  const supportsTemp = modelSupportsTemperature(model);
+
   if (useResponses) {
     const input: Array<Record<string, unknown>> = [
       {
@@ -1024,7 +1028,7 @@ async function callOpenAIText(
         model,
         input,
         max_output_tokens: options?.maxTokens ?? 4096,
-        ...(options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+        ...(supportsTemp && options?.temperature !== undefined ? { temperature: options.temperature } : {}),
       }),
     });
 
@@ -1070,9 +1074,6 @@ async function callOpenAIText(
   } else {
     messages.push({ role: 'user', content: userMessage });
   }
-
-  // Only include temperature for models that support it (not o1/o3 reasoning models)
-  const supportsTemp = modelSupportsTemperature(model);
 
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',

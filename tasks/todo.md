@@ -1,4 +1,4 @@
-# Custom Exercises Implementation Analysis
+# Custom Exercises Implementation
 
 ## Todo
 - [x] Investigate current custom exercise implementation
@@ -7,66 +7,88 @@
 - [x] Verify database schema and RLS policies
 - [x] Check CustomExerciseModal and UI layer
 - [x] Identify gaps and prepare recommendations
+- [x] Modify saveCustomExercise() to sync to Supabase
+- [x] Modify getCustomExercises() to fetch and merge from Supabase
+- [x] Modify deleteCustomExercise() to sync deletion to Supabase
+- [x] Verify TypeScript compiles correctly
+- [x] Add delete UI to exercise detail page
 
-## Findings
+## Changes Made
 
-### ✅ What's Working
+### Summary
+Wired up the existing (but unused) Supabase sync functions to make custom exercises properly user-scoped and persisted to the database.
 
-**Database Layer (Properly Configured):**
-- `exercises` table has `is_custom` and `created_by` columns
-- RLS policies correctly scope custom exercises to their owners:
-  - SELECT: `is_custom = FALSE OR created_by = auth.uid()`
-  - INSERT: `auth.uid() = created_by AND is_custom = true`
-  - UPDATE/DELETE: `auth.uid() = created_by AND is_custom = TRUE`
-- Per-user unique indexes on `(created_by, name)` and `(created_by, slug)`
+### Files Modified
+- `fortis-mobile-app/src/services/exerciseService.ts`
+- `fortis-mobile-app/app/exercise/[id].tsx`
 
-**Partial Sync (workoutHistoryService.ts):**
-- `syncCustomExercisesToSupabase()` exists and syncs custom exercises to DB
-- Called when workouts are saved (lines 380 and 917)
-- Uses `onConflict: 'id'` with the local exercise ID
+### Implementation Details
 
-### ❌ Gaps Identified
+**1. saveCustomExercise() (line 648-676)**
+- Added call to `upsertCustomExerciseToSupabase()` after saving to local storage
+- Fire-and-forget pattern: local save completes immediately, Supabase sync happens in background
+- If Supabase sync fails, logs warning but doesn't block the user
 
-**1. saveCustomExercise() doesn't sync to database** (`exerciseService.ts:620-642`)
-- Only saves to AsyncStorage via `setScopedItem()`
-- `upsertCustomExerciseToSupabase()` exists (line 177) but is NEVER called
+**2. getCustomExercises() (line 601-646)**
+- Now fetches from both local storage AND Supabase
+- Merge strategy: local exercises take priority (offline-first)
+- Remote-only exercises are added to local list (cross-device sync)
+- Uses both ID and slug matching to handle ID mismatches
+- Merged results are persisted to local storage
 
-**2. getCustomExercises() doesn't load from database** (`exerciseService.ts:601-616`)
-- Only loads from AsyncStorage via `getScopedItem()`
-- `fetchCustomExercisesFromSupabase()` exists (line 148) but is NEVER called
+**3. deleteCustomExercise() (line 678-710)**
+- Added Supabase delete in background after local delete
+- Deletes by both ID and slug (handles ID mismatch between devices)
+- Fire-and-forget pattern: local delete completes immediately
 
-**3. No proactive sync on create/edit**
-- Custom exercises only sync to DB when used in a workout that gets synced
-- Creating a custom exercise and NOT using it = never synced
+**4. Delete UI in exercise detail page (app/exercise/[id].tsx)**
+- Added `showDeleteConfirm` state for confirmation modal
+- Added `handleDeleteCustomExercise()` handler that:
+  - Calls `deleteCustomExercise(exercise.id)` from exerciseService
+  - Emits `customExerciseUpsert` event with `deleted: true` to notify other components
+  - Provides haptic feedback (success/error)
+  - Navigates back after deletion
+- Added conditional delete button in header (trash icon, only for custom exercises)
+- Added confirmation modal using `BaseModal` with Cancel/Delete actions
 
-**4. Cross-device sync broken**
-- Device A creates custom exercise → saved to local AsyncStorage
-- Device A uses it in workout → syncs to DB
-- Device B logs in → doesn't see the custom exercise (only loads from local storage)
+### Sync Flow
 
-### Code References
+```
+Create/Edit Exercise:
+  User creates exercise
+    → Save to AsyncStorage (sync, fast)
+    → Upsert to Supabase (async, background)
+    → RLS ensures created_by = current user
 
-| File | Line | Issue |
-|------|------|-------|
-| `exerciseService.ts` | 620-642 | `saveCustomExercise()` - missing DB upsert |
-| `exerciseService.ts` | 601-616 | `getCustomExercises()` - missing DB fetch |
-| `exerciseService.ts` | 148-163 | `fetchCustomExercisesFromSupabase()` - UNUSED |
-| `exerciseService.ts` | 177-209 | `upsertCustomExerciseToSupabase()` - UNUSED |
-| `CustomExerciseModal.tsx` | 166-167 | Uses timestamp ID: `custom-${Date.now()}` |
+Load Exercises:
+  App loads exercises
+    → Check cache (instant if cached)
+    → Load from AsyncStorage
+    → Fetch from Supabase
+    → Merge (local priority, add remote-only)
+    → Persist merged list
+    → User sees all their exercises from any device
 
-## Proposed Fix
+Delete Exercise:
+  User deletes exercise
+    → Remove from AsyncStorage (sync, fast)
+    → Delete from Supabase (async, background)
+```
 
-### Option A: Immediate Sync (Recommended)
-1. Modify `saveCustomExercise()` to call `upsertCustomExerciseToSupabase()` after local save
-2. Modify `getCustomExercises()` to also fetch from Supabase and merge results
-3. Local data takes priority (offline-first), Supabase syncs in background
+### Database Schema (Already Configured)
+- `is_custom` column marks custom exercises
+- `created_by` column stores user ID (FK to profiles)
+- RLS policies restrict access to owner only
+- Per-user unique indexes on (created_by, name) and (created_by, slug)
 
-### Option B: Background Sync
-1. Keep current local-first behavior
-2. Add sync trigger on app startup/online event
-3. Merge local and remote custom exercises
+## Review
 
-### Implementation Notes
-- ID handling: The local ID (`custom-${Date.now()}`) works with `workoutHistoryService` using `onConflict: 'id'`
-- Should consider switching to UUID for consistency
-- Need to handle merge conflicts (same exercise modified on multiple devices)
+The implementation:
+1. Maintains offline-first behavior (local operations are fast and work offline)
+2. Syncs to Supabase in background (cross-device sync)
+3. Uses existing, well-configured RLS policies for user scoping
+4. Handles ID mismatches between devices via slug-based matching
+5. No breaking changes to existing functionality
+6. Users can now delete custom exercises from the exercise detail page
+7. Delete button only appears for custom exercises (not standard library exercises)
+8. Confirmation modal prevents accidental deletions
