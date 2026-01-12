@@ -6,9 +6,8 @@
  *
  * Features:
  * - Rate limiting via ai_rate_limits table
- * - Intent-based context assembly
- * - Claude 3.5 Haiku integration
- * - Audit logging for mutations
+ * - Read-only context assembly (history + analytics)
+ * - Claude/OpenAI provider integration
  */
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -28,12 +27,7 @@ const CONTEXT_CACHE_MAX_ENTRIES = Math.max(
   Number(Deno.env.get('AI_CONTEXT_CACHE_MAX_ENTRIES') ?? '500')
 );
 const TIMING_LOGS_ENABLED = Deno.env.get('AI_DEBUG_TIMING') === 'true';
-const DATA_CONTEXT_CLASSIFIER_ENABLED =
-  Deno.env.get('AI_DATA_CONTEXT_CLASSIFIER_ENABLED') !== 'false';
-const DATA_CONTEXT_CLASSIFIER_MAX_TOKENS = Math.max(
-  32,
-  Number(Deno.env.get('AI_DATA_CONTEXT_CLASSIFIER_MAX_TOKENS') ?? '200')
-);
+const AI_MAX_TOKENS = Math.max(256, Number(Deno.env.get('AI_MAX_TOKENS') ?? '1200'));
 
 type CacheEntry<T> = {
   value: T;
@@ -44,13 +38,6 @@ const contextCache = new Map<string, CacheEntry<unknown>>();
 
 function buildCacheKey(...parts: Array<string | number | boolean | null | undefined>): string {
   return parts.map((part) => (part === undefined || part === null ? 'na' : String(part))).join('|');
-}
-
-function normalizeIdList(ids?: string[] | string): string {
-  if (!ids) return 'na';
-  const list = Array.isArray(ids) ? ids : [ids];
-  if (list.length === 0) return 'na';
-  return [...list].sort().join(',');
 }
 
 function getCachedValue<T>(key: string): { hit: boolean; value?: T } {
@@ -124,15 +111,8 @@ interface WorkoutDraftIntentClassificationContext {
   pendingOptions?: string[];
 }
 
-interface IntentClassificationResult {
-  intent: WorkoutDraftReplyIntent;
-  confidence: number;
-  optionIndex?: number;
-  saveAsTitle?: string;
-  reason?: string;
-}
 
-type ResponseMode = 'answer' | 'draft' | 'intent_classification';
+type ResponseMode = 'answer';
 
 interface AIRequest {
   intent: AIIntent;
@@ -165,23 +145,14 @@ interface IntentConfig {
 const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
   FORTIS_ANALYST: {
     type: 'read',
-    defaultContextWeeks: 52,
+    defaultContextWeeks: 12,
     includeHistory: true,
-    includeNotes: true,
+    includeNotes: false,
     includeProgram: false,
     includeExerciseDb: false,
     includeAnalytics: true,
   },
 };
-
-// Mapping removed - no write intents currently active
-const ACTION_TYPE_BY_INTENT: Partial<Record<AIIntent, string>> = {};
-
-const ALLOWED_ENTITY_TYPES = new Set<string>([
-  'workout_program',
-  'program_workout',
-  'program_exercise',
-]);
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -242,788 +213,15 @@ type WorkoutDraftV1 = {
   source_text?: string;
 };
 
-function sanitizeProposedState(
-  entityType: string,
-  proposedState: Record<string, unknown> | undefined,
-  userId: string,
-  _intent?: AIIntent
-): Record<string, unknown> {
-  const sanitized: Record<string, unknown> = { ...(proposedState || {}) };
-
-  if (entityType === 'workout_program') {
-    sanitized.created_by = userId;
-    sanitized.is_default = false; // Prevent privilege escalation
-    sanitized.is_public = false; // Default to private for security
-    sanitized.is_ai_created = true;
-    // Note: is_template handling removed - no write intents currently active
-  }
-
-  // Remove any server-controlled fields that shouldn't be set by AI
-  delete sanitized.id;
-  delete sanitized.created_at;
-  delete sanitized.updated_at;
-
-  return sanitized;
-}
-
 function isValidUuid(value: unknown): boolean {
   return typeof value === 'string' && UUID_REGEX.test(value);
 }
 
-const normalizeMessage = (message: string): string => message.toLowerCase().trim();
-
-function isCapabilityQuestion(message: string): boolean {
-  const normalized = normalizeMessage(message);
-  if (!normalized) return false;
-  const capabilityPatterns = [
-    /\bcan you\b/,
-    /\bcould you\b/,
-    /\bare you able\b/,
-    /\bdo you\b/,
-    /\bdo you support\b/,
-  ];
-  const mentionsTemplate = /\b(workout|template|program)\b/.test(normalized);
-  return capabilityPatterns.some((pattern) => pattern.test(normalized)) && mentionsTemplate;
-}
-
-function isExplicitDraftRequest(message: string): boolean {
-  const normalized = normalizeMessage(message);
-  if (!normalized) return false;
-  const patterns = [
-    /\bcreate (a )?(workout|template)\b/,
-    /\bbuild (a )?(workout|template)\b/,
-    /\bmake (a )?(workout|template)\b/,
-    /\bcreate (it|one|this)\b/,
-    /\bbuild (it|one|this)\b/,
-    /\bmake (it|one|this)\b/,
-    /\bcreate the template\b/,
-    /\bbuild the template\b/,
-    /\bmake the template\b/,
-    /\bworkout template\b/,
-    /\bsave (this|it|that)?\s*(as)?\s*(a )?(workout|template)\b/,
-    /\bturn (this|it|that) into (a )?(workout|template)\b/,
-    /\badd (this|it|that) to (the )?(app|programs|workouts)\b/,
-  ];
-  return patterns.some((pattern) => pattern.test(normalized));
-}
-
-function looksLikeWorkoutText(message: string): boolean {
-  const normalized = normalizeMessage(message);
-  if (!normalized) return false;
-  const setPattern = /\b\d+\s*(x|×)\s*\d+(\s*-\s*\d+)?\b/i;
-  const setsPattern = /\b\d+\s*sets?\s*(of)?\s*\d+/i;
-  const repsPattern = /\b\d+\s*reps?\b/i;
-  const setMatches = normalized.match(/\b\d+\s*(x|×)\s*\d+(\s*-\s*\d+)?\b/gi) || [];
-  const lines = normalized.split(/\n+/).filter(Boolean).length;
-
-  if (setMatches.length >= 2) return true;
-  if (setMatches.length === 1 && (lines >= 2 || setsPattern.test(normalized))) return true;
-  if (setsPattern.test(normalized) && repsPattern.test(normalized) && lines >= 2) return true;
-
-  return false;
-}
-
-function shouldCreateDraftFromMessage(message: string): boolean {
-  if (!message) return false;
-  if (isCapabilityQuestion(message)) return false;
-  return isExplicitDraftRequest(message) || looksLikeWorkoutText(message);
-}
-
-const GOAL_OR_BODY_PART_PATTERNS = [
-  /\b(full body|upper body|lower body|upper\/lower|push pull legs|push\/pull\/legs|ppl)\b/,
-  /\b(strength|hypertrophy|muscle gain|size|fat loss|conditioning|endurance|power)\b/,
-  /\b(chest|back|legs|glutes|shoulders|arms|biceps|triceps|core|abs|quads|hamstrings|calves)\b/,
-];
-
-const DAY_WORDS: Record<string, number> = {
-  one: 1,
-  two: 2,
-  three: 3,
-  four: 4,
-  five: 5,
-  six: 6,
-  seven: 7,
-};
-
-function hasGoalOrBodyPart(message: string): boolean {
-  const normalized = normalizeMessage(message);
-  if (!normalized) return false;
-  return GOAL_OR_BODY_PART_PATTERNS.some((pattern) => pattern.test(normalized));
-}
-
-function extractDaysPerWeek(message: string): number | null {
-  const normalized = normalizeMessage(message);
-  if (!normalized) return null;
-  const numericMatches = [
-    /\b([1-7])\s*(?:x|times)?\s*(?:per|a)?\s*(?:week|wk)\b/,
-    /\b([1-7])\s*days?\s*(?:per|a)?\s*(?:week|wk)\b/,
-    /\b([1-7])\s*(?:x|\/)\s*(?:week|wk)\b/,
-  ];
-  for (const pattern of numericMatches) {
-    const match = normalized.match(pattern);
-    if (match?.[1]) {
-      return Number(match[1]);
-    }
-  }
-  const wordMatch = normalized.match(
-    /\b(one|two|three|four|five|six|seven)\s*days?\s*(?:per|a)?\s*(?:week|wk)\b/
-  );
-  if (wordMatch?.[1]) {
-    return DAY_WORDS[wordMatch[1]] ?? null;
-  }
-  return null;
-}
-
-function buildDraftIntakeQuestion(missingGoal: boolean, missingDays: boolean): string {
-  if (missingGoal && missingDays) {
-    return 'Before I build it, what type of workout do you want (goal or body part), and how many days per week?';
-  }
-  if (missingGoal) {
-    return 'Before I build it, what type of workout do you want (goal or body part)?';
-  }
-  return 'Before I build it, how many days per week do you want?';
-}
-
-function getDraftIntakeClarification(request: AIRequest): { question: string } | null {
-  if (request.context?.workoutDraft || request.context?.chatMode === 'builder') return null;
-  if (!isExplicitDraftRequest(request.message)) return null;
-  if (looksLikeWorkoutText(request.message)) return null;
-  const hasGoal = hasGoalOrBodyPart(request.message);
-  const daysPerWeek = extractDaysPerWeek(request.message);
-  if (hasGoal && daysPerWeek) return null;
-  return {
-    question: buildDraftIntakeQuestion(!hasGoal, !daysPerWeek),
-  };
-}
-
-function shouldIncludeDataContext(message: string): boolean {
-  const normalized = normalizeMessage(message);
-  if (!normalized) return false;
-  const dataPatterns = [
-    /\bhow did i\b/,
-    /\bhow have i\b/,
-    /\blast week\b/,
-    /\bthis week\b/,
-    /\blast month\b/,
-    /\bthis month\b/,
-    /\bprogress\b/,
-    /\btrend\b/,
-    /\bvolume\b/,
-    /\bpr\b/,
-    /\bpersonal record\b/,
-    /\bstreak\b/,
-    /\bconsisten(t|cy)\b/,
-    /\bstats?\b/,
-    /\binsight\b/,
-    /\bdata\b/,
-    /\bworkouts?\b/,
-    /\bsessions?\b/,
-  ];
-  return dataPatterns.some((pattern) => pattern.test(normalized));
-}
-
-type DataContextDecision = {
-  needsData: boolean;
-  confidence: number;
-  reason?: string;
-};
-
-function buildDataContextClassifierPrompt(): string {
-  return `You decide whether the assistant should fetch the user's training data to answer the question.
-
-Return ONLY JSON:
-{
-  "needs_data": true|false,
-  "confidence": 0.0-1.0,
-  "reason": "short rationale"
-}
-
-Use needs_data=true if the question requires user-specific stats, training history, or analytics.
-Use needs_data=false for general training advice, app capabilities, or questions that do not rely on user data.`;
-}
-
-function buildDataContextClassifierMessage(message: string): string {
-  return JSON.stringify(
-    {
-      user_message: sanitizeUserInput(message),
-    },
-    null,
-    2
-  );
-}
-
-function parseDataContextClassifierResponse(text: string): DataContextDecision | null {
-  try {
-    let jsonStr = text;
-    const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1];
-    }
-    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-    const needsRaw = parsed.needs_data ?? parsed.needsData ?? parsed.needs;
-    const needsData = needsRaw === true
-      || String(needsRaw).toLowerCase() === 'true'
-      || String(needsRaw).toLowerCase() === 'yes';
-    const confidenceRaw = parsed.confidence;
-    const confidenceValue = typeof confidenceRaw === 'number'
-      ? confidenceRaw
-      : Number.parseFloat(String(confidenceRaw));
-    const confidence = Number.isFinite(confidenceValue)
-      ? Math.max(0, Math.min(1, confidenceValue))
-      : 0;
-    const reasonRaw = parsed.reason;
-    const reason = typeof reasonRaw === 'string' ? reasonRaw : undefined;
-    return { needsData, confidence, reason };
-  } catch (error) {
-    console.warn('Failed to parse data context classifier response:', error);
-    return null;
-  }
-}
-
-async function classifyNeedsDataContext(request: AIRequest): Promise<DataContextDecision | null> {
-  if (!request.message) return null;
-  const provider = resolveAIProvider();
-  const systemPrompt = buildDataContextClassifierPrompt();
-  const userMessage = buildDataContextClassifierMessage(request.message);
-  const classifierRequest = { ...request, image: undefined };
-  try {
-    const responseText =
-      provider === 'openai'
-        ? await callOpenAIText(
-            classifierRequest,
-            systemPrompt,
-            userMessage,
-            { maxTokens: DATA_CONTEXT_CLASSIFIER_MAX_TOKENS, temperature: 0 }
-          )
-        : await callClaudeText(
-            classifierRequest,
-            systemPrompt,
-            userMessage,
-            { maxTokens: DATA_CONTEXT_CLASSIFIER_MAX_TOKENS }
-          );
-    return parseDataContextClassifierResponse(responseText);
-  } catch (error) {
-    console.warn('Data context classifier error:', error);
-    return null;
-  }
-}
-
-async function shouldIncludeDataContextForRequest(
-  request: AIRequest,
-  normalizedMessage: string
-): Promise<boolean> {
-  if (!normalizedMessage) return false;
-  if (shouldIncludeDataContext(normalizedMessage)) return true;
-  if (!DATA_CONTEXT_CLASSIFIER_ENABLED) return false;
-  if (isLowSignalMessage(normalizedMessage)) return false;
-  const decision = await classifyNeedsDataContext(request);
-  if (!decision) return false;
-  return decision.needsData;
-}
-
-function determineResponseMode(request: AIRequest): ResponseMode {
-  if (request.context?.intentClassification) return 'intent_classification';
-  if (request.context?.insightId) return 'answer';
-  if (request.context?.workoutDraft || request.context?.chatMode === 'builder') return 'draft';
-  if (shouldCreateDraftFromMessage(request.message)) return 'draft';
+function determineResponseMode(_request: AIRequest): ResponseMode {
   return 'answer';
 }
 
-// Common exercise name aliases for better matching
-// Maps user-friendly terms to database exercise name patterns
-const EXERCISE_ALIASES: Record<string, string[]> = {
-  'squat': ['barbell squat', 'back squat', 'squat', 'goblet squat'],
-  'squats': ['barbell squat', 'back squat', 'squat', 'goblet squat'],
-  'bench': ['bench press', 'barbell bench press', 'dumbbell bench press'],
-  'deadlift': ['deadlift', 'conventional deadlift', 'barbell deadlift'],
-  'deadlifts': ['deadlift', 'conventional deadlift', 'barbell deadlift'],
-  'lunge': ['lunge', 'walking lunge', 'dumbbell lunge', 'barbell lunge'],
-  'lunges': ['lunge', 'walking lunge', 'dumbbell lunge', 'barbell lunge'],
-  'press': ['overhead press', 'shoulder press', 'military press'],
-  'ohp': ['overhead press', 'shoulder press', 'military press'],
-  'row': ['barbell row', 'bent over row', 'dumbbell row', 'cable row'],
-  'rows': ['barbell row', 'bent over row', 'dumbbell row', 'cable row'],
-  'curl': ['bicep curl', 'barbell curl', 'dumbbell curl', 'hammer curl'],
-  'curls': ['bicep curl', 'barbell curl', 'dumbbell curl', 'hammer curl'],
-  'pullup': ['pull up', 'pullup', 'chin up', 'pull-up'],
-  'pullups': ['pull up', 'pullup', 'chin up', 'pull-up'],
-  'pull-up': ['pull up', 'pullup', 'chin up', 'pull-up'],
-  'pull-ups': ['pull up', 'pullup', 'chin up', 'pull-up'],
-  'pushup': ['push up', 'pushup', 'push-up'],
-  'pushups': ['push up', 'pushup', 'push-up'],
-  'push-up': ['push up', 'pushup', 'push-up'],
-  'push-ups': ['push up', 'pushup', 'push-up'],
-  'dip': ['dip', 'tricep dip', 'chest dip'],
-  'dips': ['dip', 'tricep dip', 'chest dip'],
-  'fly': ['fly', 'chest fly', 'dumbbell fly', 'cable fly'],
-  'flys': ['fly', 'chest fly', 'dumbbell fly', 'cable fly'],
-  'flies': ['fly', 'chest fly', 'dumbbell fly', 'cable fly'],
-  'shrug': ['shrug', 'barbell shrug', 'dumbbell shrug'],
-  'shrugs': ['shrug', 'barbell shrug', 'dumbbell shrug'],
-  'extension': ['extension', 'tricep extension', 'leg extension'],
-  'extensions': ['extension', 'tricep extension', 'leg extension'],
-  'crunch': ['crunch', 'ab crunch', 'cable crunch'],
-  'crunches': ['crunch', 'ab crunch', 'cable crunch'],
-  'plank': ['plank', 'forearm plank', 'side plank'],
-  'planks': ['plank', 'forearm plank', 'side plank'],
-  'calf': ['calf raise', 'standing calf raise', 'seated calf raise'],
-  'calves': ['calf raise', 'standing calf raise', 'seated calf raise'],
-  'lat': ['lat pulldown', 'lat pull down', 'wide grip pulldown'],
-  'lats': ['lat pulldown', 'lat pull down', 'wide grip pulldown'],
-  'rdl': ['romanian deadlift', 'rdl', 'stiff leg deadlift'],
-  'hip thrust': ['hip thrust', 'barbell hip thrust', 'glute bridge'],
-  'hip thrusts': ['hip thrust', 'barbell hip thrust', 'glute bridge'],
-  'leg press': ['leg press', 'machine leg press', '45 degree leg press'],
-  'leg curl': ['leg curl', 'lying leg curl', 'seated leg curl', 'hamstring curl'],
-  'leg curls': ['leg curl', 'lying leg curl', 'seated leg curl', 'hamstring curl'],
-  'hamstring': ['hamstring curl', 'leg curl', 'lying leg curl'],
-  'hamstrings': ['hamstring curl', 'leg curl', 'lying leg curl'],
-};
-
-const EXERCISE_ALIAS_KEYS = Object.keys(EXERCISE_ALIASES);
-const EXERCISE_ALIAS_SINGLE_WORD = new Set(
-  EXERCISE_ALIAS_KEYS.filter((key) => !key.includes(' '))
-);
-const EXERCISE_ALIAS_MULTI_WORD = EXERCISE_ALIAS_KEYS.filter((key) => key.includes(' '));
-
-function hasExerciseHint(message: string): boolean {
-  const normalized = normalizeMessage(message);
-  if (!normalized) return false;
-  const tokens = normalized.split(/[^a-z0-9]+/).filter(Boolean);
-  if (tokens.length === 0) return false;
-  if (tokens.some((token) => EXERCISE_ALIAS_SINGLE_WORD.has(token))) return true;
-  return EXERCISE_ALIAS_MULTI_WORD.some((phrase) => normalized.includes(phrase));
-}
-
-function shouldResolveExerciseMatches(message: string): boolean {
-  if (!message) return false;
-  if (isLowSignalMessage(message)) return false;
-  if (looksLikeWorkoutText(message)) return true;
-  if (shouldIncludeDataContext(message)) return true;
-  return hasExerciseHint(message);
-}
-
-function expandPhraseWithAliases(phrase: string): string[] {
-  const expanded = [phrase];
-  const lowerPhrase = phrase.toLowerCase();
-
-  // Check each alias key
-  for (const [key, aliases] of Object.entries(EXERCISE_ALIASES)) {
-    if (lowerPhrase === key || lowerPhrase.includes(key)) {
-      expanded.push(...aliases);
-    }
-  }
-
-  return [...new Set(expanded)]; // dedupe
-}
-
-function extractSearchPhrases(message: string, maxPhrases = 6): string[] {
-  const normalized = message
-    .toLowerCase()
-    .replace(/\bdb\b/g, 'dumbbell')
-    .replace(/\bbb\b/g, 'barbell')
-    .replace(/\bkb\b/g, 'kettlebell')
-    .replace(/\b\d+\s*x\s*\d+\b/g, ',')
-    .replace(/[\n•;]+/g, ',')
-    .replace(/\band\b/g, ',')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  if (!normalized) return [];
-
-  const segments = normalized
-    .split(',')
-    .map((segment) => segment.trim())
-    .filter(Boolean);
-
-  const phrases: string[] = [];
-
-  const addPhrase = (phrase: string) => {
-    if (!phrases.includes(phrase)) {
-      phrases.push(phrase);
-    }
-  };
-
-  for (const segment of segments) {
-    if (phrases.length >= maxPhrases) break;
-
-    const cleaned = segment
-      .replace(/\b\d+\s*(sets?|set|reps?|rep|rest|seconds?|secs?|mins?|minutes?)\b/g, ' ')
-      .replace(/\b\d+\b/g, ' ')
-      .replace(/[^a-z\s]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (!cleaned) continue;
-
-    const words = cleaned.split(' ').filter((word) => word.length >= 3);
-    if (words.length === 0) continue;
-
-    const maxSize = Math.min(3, words.length);
-    for (let size = maxSize; size >= 1; size -= 1) {
-      if (words.length > 1 && size === 1) continue;
-      for (let i = 0; i <= words.length - size; i += 1) {
-        addPhrase(words.slice(i, i + size).join(' '));
-        if (phrases.length >= maxPhrases) break;
-      }
-      if (phrases.length >= maxPhrases) break;
-    }
-  }
-
-  return phrases;
-}
-
-async function resolveExerciseMatches(
-  supabase: SupabaseClient,
-  userId: string,
-  message: string
-): Promise<{ ids: string[]; matched: { id: string; name: string; source: 'history' | 'catalog' }[] }> {
-  const phrases = extractSearchPhrases(message);
-  if (phrases.length === 0) {
-    return { ids: [], matched: [] };
-  }
-  const matched = new Map<string, { id: string; name: string; source: 'history' | 'catalog' }>();
-
-  for (const phrase of phrases) {
-    if (matched.size >= 12) break;
-
-    // Expand phrase with common aliases (e.g., "squat" -> ["squat", "barbell squat", "back squat"])
-    const expandedPhrases = expandPhraseWithAliases(phrase);
-
-    for (const searchPhrase of expandedPhrases) {
-      if (matched.size >= 12) break;
-
-      // Search user's workout history first
-      const { data: historyMatches } = await supabase
-        .from('workout_sets')
-        .select('exercise_id, exercises(id, name), workout_sessions!inner(user_id)')
-        .eq('workout_sessions.user_id', userId)
-        .ilike('exercises.name', `%${searchPhrase}%`)
-        .limit(8);
-
-      historyMatches?.forEach((row) => {
-        if (matched.size >= 12) return;
-        const exercise = row.exercises as { id?: string; name?: string } | null;
-        if (exercise?.id && exercise.name && !matched.has(exercise.id)) {
-          matched.set(exercise.id, { id: exercise.id, name: exercise.name, source: 'history' });
-        }
-      });
-
-      if (matched.size >= 12) break;
-
-      // Search exercise catalog
-      const { data: catalogMatches } = await supabase
-        .from('exercises')
-        .select('id, name')
-        .ilike('name', `%${searchPhrase}%`)
-        .limit(8);
-
-      catalogMatches?.forEach((row) => {
-        if (matched.size >= 12) return;
-        if (row.id && row.name && !matched.has(row.id)) {
-          matched.set(row.id, { id: row.id, name: row.name, source: 'catalog' });
-        }
-      });
-    }
-  }
-
-  return {
-    ids: Array.from(matched.keys()),
-    matched: Array.from(matched.values()),
-  };
-}
-
-function uniqueExerciseIds(ids: Array<string | null | undefined>): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  ids.forEach((id) => {
-    if (id && !seen.has(id)) {
-      seen.add(id);
-      result.push(id);
-    }
-  });
-  return result;
-}
-
-function mergeExerciseIds(primary: string[], secondary: string[]): string[] {
-  return uniqueExerciseIds([...primary, ...secondary]);
-}
-
-function limitExerciseIds(ids: string[], limit: number): string[] {
-  return ids.slice(0, limit);
-}
-
-function allowedOperationsForIntent(intent: AIIntent): Set<string> {
-  if (intent === 'FORTIS_ANALYST') {
-    return new Set();
-  }
-  return new Set(['INSERT']);
-}
-
-function collectExerciseIdsFromPlan(plan: {
-  mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }>;
-}): string[] {
-  const ids: string[] = [];
-  for (const mutation of plan.mutations ?? []) {
-    if (mutation?.entityType === 'program_exercise') {
-      const exerciseId = mutation.proposedState?.exercise_id;
-      if (typeof exerciseId === 'string') {
-        ids.push(exerciseId);
-      }
-    }
-  }
-  return ids;
-}
-
-function getUnknownExerciseIds(plan: { mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }> }, availableExercises?: unknown[]): string[] {
-  if (!Array.isArray(availableExercises) || availableExercises.length === 0) return [];
-  const availableIds = new Set(
-    availableExercises
-      .map((ex) => (ex && typeof ex === 'object' ? (ex as { id?: string }).id : undefined))
-      .filter((id): id is string => typeof id === 'string')
-  );
-  return collectExerciseIdsFromPlan(plan).filter((id) => !availableIds.has(id));
-}
-
-function normalizeExerciseKey(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[_-]+/g, ' ')
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function resolveExerciseIdsInPlan(
-  plan: { mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }> },
-  availableExercises?: unknown[]
-): string[] {
-  const unresolved: string[] = [];
-  const lookup = new Map<string, string>();
-
-  if (Array.isArray(availableExercises)) {
-    availableExercises.forEach((ex) => {
-      if (!ex || typeof ex !== 'object') return;
-      const { id, name } = ex as { id?: string; name?: string };
-      if (id) {
-        lookup.set(id, id);
-        if (name) {
-          lookup.set(normalizeExerciseKey(name), id);
-        }
-      }
-    });
-  }
-
-  for (const mutation of plan.mutations ?? []) {
-    if (mutation?.entityType !== 'program_exercise') continue;
-    const proposedState = mutation.proposedState;
-    if (!proposedState || typeof proposedState !== 'object') continue;
-    const exerciseId = proposedState.exercise_id;
-    if (typeof exerciseId !== 'string' || exerciseId.length === 0) continue;
-    if (isValidUuid(exerciseId)) continue;
-
-    const fallbackName =
-      typeof proposedState.exercise_name === 'string' && proposedState.exercise_name.length > 0
-        ? proposedState.exercise_name
-        : exerciseId;
-    const resolved =
-      lookup.get(exerciseId) || lookup.get(normalizeExerciseKey(fallbackName));
-
-    if (resolved) {
-      proposedState.exercise_id = resolved;
-    } else {
-      unresolved.push(exerciseId);
-    }
-  }
-
-  return unresolved;
-}
-
-// Auto-correct invalid exercise IDs by matching against exercise names
-// This handles cases where the AI outputs exercise names instead of UUIDs
-function correctExerciseIds(
-  plan: { mutations?: Array<{ entityType?: string; proposedState?: Record<string, unknown> }> },
-  availableExercises?: unknown[]
-): void {
-  console.log('[correctExerciseIds] Called with', availableExercises?.length ?? 0, 'exercises');
-
-  if (!Array.isArray(availableExercises) || availableExercises.length === 0) {
-    console.log('[correctExerciseIds] No exercises available, skipping correction');
-    return;
-  }
-  if (!Array.isArray(plan?.mutations)) {
-    console.log('[correctExerciseIds] No mutations in plan, skipping');
-    return;
-  }
-
-  // Build lookup maps for exercises
-  const exerciseById = new Map<string, { id: string; name: string }>();
-  const exerciseByNameLower = new Map<string, { id: string; name: string }>();
-
-  for (const ex of availableExercises) {
-    if (ex && typeof ex === 'object') {
-      const exercise = ex as { id?: string; name?: string };
-      if (exercise.id && exercise.name) {
-        exerciseById.set(exercise.id, { id: exercise.id, name: exercise.name });
-        exerciseByNameLower.set(exercise.name.toLowerCase(), { id: exercise.id, name: exercise.name });
-      }
-    }
-  }
-
-  console.log('[correctExerciseIds] Built lookup with', exerciseByNameLower.size, 'exercises');
-
-  // Correct any invalid exercise IDs in mutations
-  for (const mutation of plan.mutations) {
-    if (mutation?.entityType === 'program_exercise' && mutation.proposedState) {
-      const exerciseId = mutation.proposedState.exercise_id;
-      console.log('[correctExerciseIds] Checking exercise_id:', exerciseId);
-
-      if (typeof exerciseId === 'string') {
-        // If it's already a valid UUID that exists, keep it
-        if (isValidUuid(exerciseId) && exerciseById.has(exerciseId)) {
-          console.log('[correctExerciseIds] Valid UUID, keeping:', exerciseId);
-          continue;
-        }
-
-        // Try to match by name (case-insensitive)
-        const lowerName = exerciseId.toLowerCase();
-        const matchByName = exerciseByNameLower.get(lowerName);
-        if (matchByName) {
-          console.log('[correctExerciseIds] Exact name match:', exerciseId, '->', matchByName.id);
-          mutation.proposedState.exercise_id = matchByName.id;
-          continue;
-        }
-
-        // Try word-level fuzzy matching
-        // Split both the input and exercise names into words and count matches
-        const inputWords = lowerName.split(/\s+/).filter((w) => w.length >= 3);
-        let bestMatch: { exercise: { id: string; name: string }; score: number } | null = null;
-
-        for (const [name, exercise] of exerciseByNameLower) {
-          const exerciseWords = name.split(/\s+/).filter((w) => w.length >= 3);
-
-          // Count matching words (including partial word matches)
-          let matchingWords = 0;
-          for (const inputWord of inputWords) {
-            for (const exerciseWord of exerciseWords) {
-              if (
-                inputWord === exerciseWord ||
-                inputWord.includes(exerciseWord) ||
-                exerciseWord.includes(inputWord)
-              ) {
-                matchingWords++;
-                break; // Count each input word only once
-              }
-            }
-          }
-
-          // Calculate match score (percentage of input words that matched)
-          const score = inputWords.length > 0 ? matchingWords / inputWords.length : 0;
-
-          // Require at least 2 matching words and 50% match rate
-          if (matchingWords >= 2 && score >= 0.5) {
-            if (!bestMatch || score > bestMatch.score) {
-              bestMatch = { exercise, score };
-            }
-          }
-        }
-
-        if (bestMatch) {
-          console.log(
-            '[correctExerciseIds] Fuzzy match:',
-            exerciseId,
-            '->',
-            bestMatch.exercise.id,
-            `(${bestMatch.exercise.name}, score: ${bestMatch.score.toFixed(2)})`
-          );
-          mutation.proposedState.exercise_id = bestMatch.exercise.id;
-        } else {
-          console.log('[correctExerciseIds] NO MATCH FOUND for:', exerciseId);
-        }
-      }
-    }
-  }
-}
-
-async function persistPendingActions(params: {
-  adminClient: SupabaseClient;
-  userId: string;
-  intent: AIIntent;
-  requestId: string;
-  mutationPlan: {
-    mutations: Array<{
-      operation?: string;
-      entityType: string;
-      entityId?: string;
-      proposedState?: Record<string, unknown>;
-      description?: string;
-    }>;
-    summary?: string;
-    expiresAt?: string;
-    conversationId?: string;
-  };
-}): Promise<void> {
-  const actionType = ACTION_TYPE_BY_INTENT[params.intent];
-  if (!actionType) {
-    return;
-  }
-
-  const { data: existing, error: existingError } = await params.adminClient
-    .from('ai_pending_actions')
-    .select('id')
-    .eq('user_id', params.userId)
-    .eq('request_id', params.requestId)
-    .limit(1);
-
-  if (existingError) {
-    console.error('Error checking pending actions:', existingError);
-    return;
-  }
-
-  if (existing && existing.length > 0) {
-    return;
-  }
-
-  const expiresAt = params.mutationPlan.expiresAt
-    ? params.mutationPlan.expiresAt
-    : new Date(Date.now() + 60 * 60 * 1000).toISOString();
-
-  const rows = params.mutationPlan.mutations
-    .filter(
-      (mutation) =>
-        ALLOWED_ENTITY_TYPES.has(mutation.entityType) &&
-        allowedOperationsForIntent(params.intent).has(mutation.operation || '')
-    )
-    .map((mutation) => ({
-      user_id: params.userId,
-      action_type: actionType,
-      entity_type: mutation.entityType,
-      target_entity_id: mutation.entityId ?? null,
-      proposed_state: sanitizeProposedState(
-        mutation.entityType,
-        mutation.proposedState,
-        params.userId,
-        params.intent
-      ),
-      description: mutation.description || params.mutationPlan.summary || 'Pending AI change',
-      expires_at: expiresAt,
-      status: 'pending',
-      request_id: params.requestId,
-      ai_conversation_id: params.mutationPlan.conversationId ?? null,
-    }));
-
-  if (rows.length === 0) {
-    return;
-  }
-
-  const { error: insertError } = await params.adminClient
-    .from('ai_pending_actions')
-    .insert(rows);
-
-  if (insertError) {
-    console.error('Error inserting pending actions:', insertError);
-  }
-}
+// Data context is always included to keep answers data-backed and reduce routing complexity.
 
 // ============================================
 // Main Handler
@@ -1060,16 +258,6 @@ Deno.serve(async (req: Request) => {
     if (authError || !user) {
       return errorResponse('Unauthorized', 'UNAUTHORIZED', 401, false, undefined, origin);
     }
-
-    const serviceRoleKey =
-      Deno.env.get('SERVICE_ROLE_KEY') ??
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const adminClient = serviceRoleKey
-      ? createClient(
-          Deno.env.get('SUPABASE_URL')!,
-          serviceRoleKey
-        )
-      : null;
 
     // Parse and validate request body
     const body = await req.json();
@@ -1112,18 +300,6 @@ Deno.serve(async (req: Request) => {
       }, 429, origin);
     }
 
-    const draftIntake = getDraftIntakeClarification(aiRequest);
-    if (draftIntake) {
-      return jsonResponse({
-        type: 'clarification',
-        requestId,
-        clarification: {
-          question: draftIntake.question,
-          purpose: 'draft_intake',
-        },
-      }, 200, origin);
-    }
-
     // Assemble context based on intent
     const contextStart = performance.now();
     const context = await assembleContext(supabase, user.id, aiRequest, config, responseMode);
@@ -1133,59 +309,6 @@ Deno.serve(async (req: Request) => {
     const aiStart = performance.now();
     const response = await callAIProvider(aiRequest, context, config, requestId, responseMode);
     logTiming('callAIProvider', aiStart);
-
-    if (
-      response &&
-      typeof response === 'object' &&
-      'type' in response &&
-      (response as { type?: string }).type === 'mutation_plan' &&
-      (response as { mutationPlan?: unknown }).mutationPlan
-    ) {
-      const mutationPlan = (response as { mutationPlan: any }).mutationPlan;
-      const unresolvedExercises = resolveExerciseIdsInPlan(mutationPlan, context.exerciseDb);
-      if (unresolvedExercises.length > 0) {
-        return jsonResponse({
-          type: 'clarification',
-          requestId,
-          clarification: {
-            question:
-              "I couldn't match a few exercises to your database. Can you pick replacements from your exercise list?",
-          },
-        }, 200, origin);
-      }
-      const unknownExerciseIds = getUnknownExerciseIds(mutationPlan, context.exerciseDb);
-      if (unknownExerciseIds.length > 0) {
-        return jsonResponse({
-          type: 'clarification',
-          requestId,
-          clarification: {
-            question:
-              "I couldn't match a few exercises to your database. Can you pick replacements from your exercise list?",
-          },
-        }, 200, origin);
-      }
-    }
-
-    if (
-      adminClient &&
-      response &&
-      typeof response === 'object' &&
-      'type' in response &&
-      (response as { type?: string }).type === 'mutation_plan' &&
-      (response as { mutationPlan?: unknown }).mutationPlan
-    ) {
-      try {
-        await persistPendingActions({
-          adminClient,
-          userId: user.id,
-          intent: aiRequest.intent,
-          requestId,
-          mutationPlan: (response as { mutationPlan: any }).mutationPlan,
-        });
-      } catch (error) {
-        console.error('Failed to persist pending actions:', error);
-      }
-    }
 
     logTiming('total', requestStart);
     return jsonResponse(response, 200, origin);
@@ -1495,18 +618,8 @@ interface AIContext {
     recommendation: unknown[];
     schema_version: string;
   };
-  exerciseQuery?: {
-    query: string;
-    matchedExercises: { id: string; name: string; source: 'history' | 'catalog' }[];
-  };
   history?: unknown;
-  notes?: unknown;
-  currentProgram?: unknown;
-  exerciseDb?: unknown[];
   analytics?: unknown;
-  chatMode?: 'coach' | 'builder';
-  workoutDraft?: WorkoutDraftV1;
-  intentClassification?: WorkoutDraftIntentClassificationContext;
 }
 
 async function assembleContext(
@@ -1514,23 +627,10 @@ async function assembleContext(
   userId: string,
   request: AIRequest,
   config: IntentConfig,
-  responseMode: ResponseMode
+  _responseMode: ResponseMode
 ): Promise<AIContext> {
   const insightOnly = !!request.context?.insightId;
   const periodWeeks = request.context?.periodWeeks || config.defaultContextWeeks;
-  const intentClassification = request.context?.intentClassification;
-
-  if (responseMode === 'intent_classification') {
-    return {
-      user: {
-        preferredUnits: 'imperial',
-        timezone: 'UTC',
-        goals: [],
-        latestBodyWeight: null,
-      },
-      intentClassification,
-    };
-  }
 
   // Always fetch user preferences (small, fast)
   const userPrefs = await withContextCache(
@@ -1560,43 +660,7 @@ async function assembleContext(
       goals: Array.isArray(prefs.goals) ? prefs.goals : [],
       latestBodyWeight: latestWeight,
     },
-    chatMode: request.context?.chatMode,
-    workoutDraft: request.context?.workoutDraft,
-    intentClassification,
   };
-
-  if (responseMode === 'draft') {
-    return context;
-  }
-
-  const normalizedMessage = normalizeMessage(request.message || '');
-  const shouldResolveExercises =
-    responseMode === 'answer'
-    && !!request.message
-    && shouldResolveExerciseMatches(request.message);
-  const resolveStart = shouldResolveExercises ? performance.now() : 0;
-  const resolvedFromMessage = shouldResolveExercises
-    ? await resolveExerciseMatches(supabase, userId, request.message)
-    : { ids: [], matched: [] };
-  if (shouldResolveExercises) {
-    logTiming('resolveExerciseMatches', resolveStart);
-  }
-  const resolvedExerciseIds = mergeExerciseIds(
-    request.context?.exerciseId ? [request.context.exerciseId] : [],
-    resolvedFromMessage.ids
-  );
-  if (resolvedFromMessage.matched.length > 0) {
-    context.exerciseQuery = {
-      query: request.message,
-      matchedExercises: resolvedFromMessage.matched,
-    };
-  }
-
-  const wantsDataContext =
-    responseMode === 'answer'
-    && !insightOnly
-    && await shouldIncludeDataContextForRequest(request, normalizedMessage);
-  const wantsNotes = wantsDataContext && resolvedExerciseIds.length > 0;
 
   // Parallel fetch based on config
   const fetchPromises: Promise<void>[] = [];
@@ -1614,7 +678,7 @@ async function assembleContext(
     );
   }
 
-  if (config.includeHistory && wantsDataContext) {
+  if (config.includeHistory && !insightOnly) {
     fetchPromises.push(
       withContextCache(
         buildCacheKey('history', userId, periodWeeks),
@@ -1625,65 +689,7 @@ async function assembleContext(
     );
   }
 
-  if (config.includeNotes && wantsNotes) {
-    const noteExerciseIds = resolvedExerciseIds.length > 0
-      ? limitExerciseIds(resolvedExerciseIds, 5)
-      : undefined;
-    fetchPromises.push(
-      withContextCache(
-        buildCacheKey('notes', userId, normalizeIdList(noteExerciseIds)),
-        () =>
-          fetchUserNotes(
-            supabase,
-            userId,
-            noteExerciseIds
-          )
-      ).then((data) => {
-        context.notes = data;
-      })
-    );
-  }
-
-  if (config.includeProgram && !insightOnly && request.context?.programId) {
-    fetchPromises.push(
-      withContextCache(
-        buildCacheKey('program', request.context.programId),
-        () => fetchProgramSummary(supabase, request.context!.programId!)
-      ).then((data) => {
-        context.currentProgram = data;
-      })
-    );
-  }
-
-  if (config.includeExerciseDb && !insightOnly) {
-    const exerciseContextIds = resolvedExerciseIds.length > 0
-      ? limitExerciseIds(resolvedExerciseIds, 10)
-      : undefined;
-    const historyOnly = request.context?.historyOnly || false;
-    fetchPromises.push(
-      withContextCache(
-        buildCacheKey(
-          'exerciseDb',
-          userId,
-          config.exerciseLimit || 50,
-          historyOnly ? 'history' : 'all',
-          normalizeIdList(exerciseContextIds)
-        ),
-        () =>
-          fetchExerciseSubset(
-            supabase,
-            userId,
-            config.exerciseLimit || 50,
-            historyOnly,
-            exerciseContextIds
-          )
-      ).then((data) => {
-        context.exerciseDb = data;
-      })
-    );
-  }
-
-  if (config.includeAnalytics && wantsDataContext) {
+  if (config.includeAnalytics && !insightOnly) {
     fetchPromises.push(
       withContextCache(
         buildCacheKey('analytics', userId),
@@ -1715,32 +721,11 @@ async function fetchHistorySummary(
     .gte('week_start', startDate.toISOString())
     .order('week_start', { ascending: false });
 
-  // Fetch exercise personal records
-  const { data: prs } = await supabase
-    .from('exercise_personal_records')
-    .select('*')
-    .eq('user_id', userId);
-
-  // Fetch recent sessions with exercise summary
-  const { data: sessions } = await supabase
-    .from('workout_sessions')
-    .select(`
-      id,
-      name,
-      started_at,
-      completed_at,
-      duration_seconds
-    `)
-    .eq('user_id', userId)
-    .gte('started_at', startDate.toISOString())
-    .not('completed_at', 'is', null)
-    .order('started_at', { ascending: false })
-    .limit(50);
-
   // Calculate overview
-  const totalWorkouts = sessions?.length || 0;
+  const totalWorkouts = weeklyVolume?.reduce((sum, w) => sum + (w.workouts_count || 0), 0) || 0;
   const totalVolume = weeklyVolume?.reduce((sum, w) => sum + (w.total_volume || 0), 0) || 0;
-  const totalDuration = sessions?.reduce((sum, s) => sum + (s.duration_seconds || 0), 0) || 0;
+  const totalDuration =
+    weeklyVolume?.reduce((sum, w) => sum + (w.total_time_seconds || 0), 0) || 0;
   const recentWeeks = weeklyVolume?.slice(0, 4) || [];
   const previousWeeks = weeklyVolume?.slice(4, 8) || [];
   const avgRecentVolume =
@@ -1790,14 +775,6 @@ async function fetchHistorySummary(
       avgWorkoutsPrevious4Weeks: Math.round(avgPreviousWorkouts * 10) / 10,
       workoutChangePct: workoutChangePct !== null ? Math.round(workoutChangePct * 10) / 10 : null,
     },
-    recentPRs: prs?.slice(0, 10).map((pr) => ({
-      exerciseId: pr.exercise_id,
-      exerciseName: pr.exercise_name,
-      weight: pr.max_weight,
-      reps: pr.max_reps,
-      estimatedOneRM: pr.estimated_1rm,
-      achievedAt: pr.achieved_at,
-    })),
   };
 }
 
@@ -1819,240 +796,6 @@ async function fetchInsightContext(
   }
 
   return data as AIContext['insight'];
-}
-
-async function fetchUserNotes(
-  supabase: SupabaseClient,
-  userId: string,
-  exerciseId?: string | string[]
-): Promise<unknown> {
-  if (Array.isArray(exerciseId) && exerciseId.length > 0) {
-    const limitedIds = exerciseId.slice(0, 5);
-    const results = await Promise.all(
-      limitedIds.map((id) =>
-        supabase.rpc('get_exercise_notes_for_ai', {
-          p_user_id: userId,
-          p_exercise_id: id,
-        })
-      )
-    );
-    return {
-      exerciseNotes: limitedIds.map((id, index) => ({
-        exerciseId: id,
-        notes: results[index]?.data ?? [],
-      })),
-    };
-  }
-
-  if (typeof exerciseId === 'string') {
-    const { data } = await supabase.rpc('get_exercise_notes_for_ai', {
-      p_user_id: userId,
-      p_exercise_id: exerciseId,
-    });
-    return { exerciseNotes: data };
-  }
-
-  // Fetch all user notes
-  const { data } = await supabase.rpc('get_user_notes_for_ai', {
-    p_user_id: userId,
-  });
-
-  // Separate sticky notes (high priority) from session notes
-  const stickyNotes = data?.filter((n: { note_type: string }) => n.note_type === 'sticky') || [];
-  const sessionNotes = data?.filter((n: { note_type: string }) => n.note_type === 'session') || [];
-
-  return {
-    stickyNotes: stickyNotes.map((n: { exercise_id: string; exercise_name: string; content: string; set_index: number | null }) => ({
-      exerciseId: n.exercise_id,
-      exerciseName: n.exercise_name,
-      content: n.content,
-      setIndex: n.set_index,
-    })),
-    recentSessionNotes: sessionNotes.slice(0, 20).map((n: { exercise_id: string; exercise_name: string; content: string; session_date: string }) => ({
-      exerciseId: n.exercise_id,
-      exerciseName: n.exercise_name,
-      content: n.content,
-      sessionDate: n.session_date,
-    })),
-  };
-}
-
-async function fetchProgramSummary(
-  supabase: SupabaseClient,
-  programId: string
-): Promise<unknown> {
-  const { data: program } = await supabase
-    .from('workout_programs')
-    .select(`
-      id,
-      name,
-      description,
-      difficulty,
-      goal,
-      duration_weeks,
-      program_workouts (
-        id,
-        name,
-        day_number,
-        program_exercises (
-          id,
-          exercise_id,
-          order_index,
-          sets,
-          reps,
-          rest_seconds,
-          notes,
-          exercises (
-            name
-          )
-        )
-      )
-    `)
-    .eq('id', programId)
-    .single();
-
-  if (!program) return null;
-
-  return {
-    id: program.id,
-    name: program.name,
-    description: program.description,
-    difficulty: program.difficulty,
-    goal: program.goal,
-    durationWeeks: program.duration_weeks,
-    workouts: program.program_workouts
-      ?.sort((a, b) => a.day_number - b.day_number)
-      .map((w) => ({
-        id: w.id,
-        name: w.name,
-        dayNumber: w.day_number,
-        exercises: w.program_exercises
-          ?.sort((a, b) => a.order_index - b.order_index)
-          .map((e) => ({
-            exerciseId: e.exercise_id,
-            exerciseName: e.exercises?.name,
-            sets: e.sets,
-            reps: e.reps,
-            restSeconds: e.rest_seconds,
-            notes: e.notes,
-          })),
-      })),
-  };
-}
-
-async function fetchExerciseSubset(
-  supabase: SupabaseClient,
-  userId: string,
-  limit: number,
-  historyOnly: boolean,
-  specificExerciseId?: string | string[]
-): Promise<unknown[]> {
-  // Dedupe by exercise ID
-  const seen = new Set<string>();
-  const exercises: unknown[] = [];
-
-  // First, fetch any specifically requested exercises (matched from user's message)
-  if (Array.isArray(specificExerciseId) && specificExerciseId.length > 0) {
-    const { data } = await supabase
-      .from('exercises')
-      .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
-      .in('id', specificExerciseId);
-    data?.forEach((ex) => {
-      if (!seen.has(ex.id)) {
-        seen.add(ex.id);
-        exercises.push(ex);
-      }
-    });
-  } else if (typeof specificExerciseId === 'string') {
-    const { data } = await supabase
-      .from('exercises')
-      .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
-      .eq('id', specificExerciseId)
-      .single();
-    if (data && !seen.has(data.id)) {
-      seen.add(data.id);
-      exercises.push(data);
-    }
-  }
-
-  // If we have enough from specific IDs and historyOnly is true, return early
-  if (historyOnly && exercises.length >= limit) {
-    return exercises.slice(0, limit);
-  }
-
-  // Fetch user's session IDs first
-  const { data: sessions } = await supabase
-    .from('workout_sessions')
-    .select('id')
-    .eq('user_id', userId)
-    .order('started_at', { ascending: false })
-    .limit(100);
-
-  const sessionIds = sessions?.map((s) => s.id) ?? [];
-
-  // Fetch user's historical exercises (most relevant)
-  let userExercises: Array<{ exercise_id: string; exercises: unknown }> | null = null;
-  if (sessionIds.length > 0) {
-    const { data } = await supabase
-      .from('workout_sets')
-      .select('exercise_id, exercises(id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions)')
-      .in('session_id', sessionIds)
-      .order('created_at', { ascending: false })
-      .limit(limit);
-    userExercises = data;
-  }
-
-  // Add user's historical exercises
-  userExercises?.forEach((ws) => {
-    if (ws.exercises && !seen.has(ws.exercises.id)) {
-      seen.add(ws.exercises.id);
-      exercises.push(ws.exercises);
-    }
-  });
-
-  // If history-only mode or we have enough, return
-  if (historyOnly || exercises.length >= limit) {
-    return exercises.slice(0, limit);
-  }
-
-  // Fill remaining slots with popular compound exercises
-  // Note: 'category' in free-exercise-db is muscle group (e.g., 'quadriceps', 'chest')
-  // We filter by mechanic='compound' to get the most useful exercises
-  const remaining = limit - exercises.length;
-  if (remaining > 0) {
-    const { data: popularExercises } = await supabase
-      .from('exercises')
-      .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
-      .eq('is_custom', false)
-      .eq('mechanic', 'compound')
-      .limit(remaining);
-
-    popularExercises?.forEach((ex) => {
-      if (!seen.has(ex.id)) {
-        seen.add(ex.id);
-        exercises.push(ex);
-      }
-    });
-  }
-
-  // If still not enough, get any exercises (isolation included)
-  if (exercises.length < limit) {
-    const stillNeeded = limit - exercises.length;
-    const { data: anyExercises } = await supabase
-      .from('exercises')
-      .select('id, name, force, level, mechanic, equipment, category, primary_muscles, secondary_muscles, instructions')
-      .eq('is_custom', false)
-      .limit(stillNeeded);
-
-    anyExercises?.forEach((ex) => {
-      if (!seen.has(ex.id)) {
-        seen.add(ex.id);
-        exercises.push(ex);
-      }
-    });
-  }
-
-  return exercises;
 }
 
 async function fetchAnalytics(
@@ -2118,6 +861,16 @@ async function fetchAnalytics(
 
 type AIProvider = 'anthropic' | 'openai';
 
+/**
+ * Check if an OpenAI model supports the temperature parameter.
+ * Reasoning models (o1, o3 series) don't support temperature.
+ */
+function modelSupportsTemperature(model: string): boolean {
+  const reasoningModelPrefixes = ['o1', 'o3'];
+  const lowerModel = model.toLowerCase();
+  return !reasoningModelPrefixes.some(prefix => lowerModel.startsWith(prefix));
+}
+
 function resolveAIProvider(): AIProvider {
   const configured = Deno.env.get('AI_PROVIDER');
   if (configured === 'openai' || configured === 'anthropic') {
@@ -2138,40 +891,24 @@ function resolveAIProvider(): AIProvider {
 async function callAIProvider(
   request: AIRequest,
   context: AIContext,
-  config: IntentConfig,
+  _config: IntentConfig,
   requestId: string,
   responseMode: ResponseMode
 ): Promise<unknown> {
   const provider = resolveAIProvider();
-  if (context.intentClassification) {
-    const systemPrompt = buildIntentClassificationPrompt(context.intentClassification);
-    const userMessage = buildIntentClassificationMessage(
-      request.message,
-      context.intentClassification
-    );
-    const responseText =
-      provider === 'openai'
-        ? await callOpenAIText(request, systemPrompt, userMessage)
-        : await callClaudeText(request, systemPrompt, userMessage);
-    return parseIntentClassificationResponse(responseText, requestId);
-  }
-  const systemPrompt =
-    responseMode === 'draft'
-      ? buildWorkoutDraftPrompt(context)
-      : buildAnswerPrompt(context);
+  const systemPrompt = buildAnswerPrompt(context);
   const userMessage = buildUserMessage(request, context);
 
   const responseText =
     provider === 'openai'
-      ? await callOpenAIText(request, systemPrompt, userMessage)
-      : await callClaudeText(request, systemPrompt, userMessage);
+      ? await callOpenAIText(request, systemPrompt, userMessage, { maxTokens: AI_MAX_TOKENS, temperature: 0.2 })
+      : await callClaudeText(request, systemPrompt, userMessage, { maxTokens: AI_MAX_TOKENS });
 
   return parseModelResponse(
     responseText,
     request.intent,
-    config,
+    _config,
     requestId,
-    context.exerciseDb,
     responseMode
   );
 }
@@ -2334,6 +1071,9 @@ async function callOpenAIText(
     messages.push({ role: 'user', content: userMessage });
   }
 
+  // Only include temperature for models that support it (not o1/o3 reasoning models)
+  const supportsTemp = modelSupportsTemperature(model);
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -2343,7 +1083,7 @@ async function callOpenAIText(
     body: JSON.stringify({
       model,
       messages,
-      temperature: options?.temperature ?? 0.2,
+      ...(supportsTemp ? { temperature: options?.temperature ?? 0.2 } : {}),
       ...(options?.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     }),
   });
@@ -2389,11 +1129,22 @@ CORE PRINCIPLES:
 - Do not refer to yourself as a coach.
 - Be concise but thorough. Prioritize actionable information.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
-- If EXERCISE QUERY MATCHES are provided, treat them as the related movements the user is referring to.
-- If the user asks whether you can create a workout template, respond yes and ask if they want one now.
-- Do not create a workout template draft in this response.
-- If you ask a follow-up question, keep it to one short question.
+- TRAINING HISTORY and ANALYTICS are provided for normal chat; use them when relevant.
+- Do not say you lack training data if TRAINING HISTORY or ANALYTICS are present.
+- If the user asks to create a workout template, respond with a structured outline in chat (do not save anything).
+- Ask at most two short questions only when required to build a reasonable outline. Prioritize: goal/body part and days per week.
+- If details are missing, ask the questions first instead of guessing.
+- If you ask a follow-up question, keep it short and focused.
 - End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action).
+
+TEMPLATE OUTLINE FORMAT (when asked to create a template):
+- Title
+- Goal / focus
+- Days per week
+- Split (if relevant)
+- Session length (estimate)
+- Exercises (list with sets/reps/rest)
+- Notes (optional)
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
@@ -2418,55 +1169,6 @@ Respond with a JSON object:
 }`;
 }
 
-function buildWorkoutDraftPrompt(context: AIContext): string {
-  const basePrompt = `You are Fortis AI, a training assistant for a strength training workout app.
-
-TASK:
-- Create a workout template draft from the user's message.
-- If a CURRENT WORKOUT DRAFT is provided, apply the user's changes to that draft rather than starting from scratch.
-- Draft immediately using reasonable defaults; do not ask a long list of questions.
-- Only ask a single clarifying question if a valid draft is impossible without it.
-- Use the user's structure if provided; otherwise create a balanced template.
-- Avoid 1-rep prescriptions and keep within safe ranges.
-
-DEFAULTS (use when details are missing):
-- Compounds: 3-4 sets of 6-10 reps, rest 90-120s.
-- Accessories/isolations: 2-3 sets of 10-15 reps, rest 45-75s.
-
-USER PREFERENCES:
-- Units: ${context.user.preferredUnits}
-- Timezone: ${context.user.timezone}`;
-
-  return `${basePrompt}
-
-RESPONSE FORMAT:
-Return ONLY JSON (no markdown, no extra text):
-{
-  "type": "workout_draft",
-  "message": "Summary and save prompt here. End with: Reply yes to save, or tell me changes or cancel.",
-  "workout_draft": {
-    "type": "WORKOUT_DRAFT_V1",
-    "title": "Template title",
-    "notes": "Optional notes",
-    "exercises": [
-      {
-        "query": "Exercise name",
-        "resolved_exercise_id": null,
-        "sets": [{ "sets": 3, "reps": "8-10", "rpe": 7, "restSec": 90 }],
-        "exercise_notes": ""
-      }
-    ],
-    "source_text": "optional raw user or AI text"
-  }
-}
-
-RULES:
-- Max 12 exercises, max 10 sets per exercise.
-- Leave resolved_exercise_id as null (the app resolves exercise IDs).
-- The message field must include a readable summary and end with the save prompt line.
-- Do not include TLDR or any extra text outside JSON.`;
-}
-
 function buildUserMessage(request: AIRequest, context: AIContext): string {
   // Sanitize user input to prevent prompt injection
   const sanitizedUserMessage = sanitizeUserInput(request.message);
@@ -2483,36 +1185,12 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
     message += `\n\n--- LATEST BODY WEIGHT ---\n${JSON.stringify(context.user.latestBodyWeight, null, 2)}`;
   }
 
-  if (context.chatMode) {
-    message += `\n\n--- CHAT MODE ---\n${context.chatMode}`;
-  }
-
-  if (context.workoutDraft) {
-    message += `\n\n--- CURRENT WORKOUT DRAFT ---\n${JSON.stringify(context.workoutDraft, null, 2)}`;
-  }
-
-  if (context.exerciseQuery && !insightOnly) {
-    message += `\n\n--- EXERCISE QUERY MATCHES ---\n${JSON.stringify(context.exerciseQuery, null, 2)}`;
-  }
-
   if (context.insight) {
     message += `\n\n--- INSIGHT CONTEXT ---\n${JSON.stringify(context.insight, null, 2)}`;
   }
 
   if (context.history && !insightOnly) {
     message += `\n\n--- TRAINING HISTORY ---\n${JSON.stringify(context.history, null, 2)}`;
-  }
-
-  if (context.notes && !insightOnly) {
-    message += `\n\n--- USER NOTES ---\n${JSON.stringify(context.notes, null, 2)}`;
-  }
-
-  if (context.currentProgram && !insightOnly) {
-    message += `\n\n--- CURRENT PROGRAM ---\n${JSON.stringify(context.currentProgram, null, 2)}`;
-  }
-
-  if (context.exerciseDb && context.exerciseDb.length > 0 && !insightOnly) {
-    message += `\n\n--- AVAILABLE EXERCISES ---\n${JSON.stringify(context.exerciseDb, null, 2)}`;
   }
 
   if (context.analytics && !insightOnly) {
@@ -2524,10 +1202,9 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
 
 function parseModelResponse(
   text: string,
-  intent: AIIntent,
-  config: IntentConfig,
+  _intent: AIIntent,
+  _config: IntentConfig,
   requestId: string,
-  exerciseDb?: unknown[],
   responseMode: ResponseMode = 'answer'
 ): unknown {
   try {
@@ -2548,106 +1225,25 @@ function parseModelResponse(
       return { ...parsed, requestId };
     }
 
-    if (parsed.type === 'workout_draft') {
-      if (responseMode !== 'draft') {
-        return {
-          type: 'answer',
-          requestId,
-          answer: {
-            text:
-              'Yes, I can build a workout template. Tell me what you want to train or paste your workout text, and I will draft it.',
-            citations: [],
-          },
-        };
-      }
-      const draft = parsed.workout_draft as WorkoutDraftV1 | undefined;
-      const validationError = draft ? validateWorkoutDraft(draft) : 'Workout draft missing payload';
-      if (validationError) {
-        return buildModelError(requestId, validationError);
-      }
+    if (
+      parsed.type === 'workout_draft'
+      || parsed.type === 'WORKOUT_DRAFT_V1'
+      || parsed.type === 'WORKOUT_PROPOSAL_V1'
+      || parsed.type === 'mutation_plan'
+    ) {
       return {
-        type: 'workout_draft',
+        type: 'answer',
         requestId,
-        message: typeof parsed.message === 'string' ? parsed.message : undefined,
-        workoutDraft: draft,
-      };
-    }
-
-    if (parsed.type === 'WORKOUT_DRAFT_V1') {
-      if (responseMode !== 'draft') {
-        return {
-          type: 'answer',
-          requestId,
-          answer: {
-            text:
-              'Yes, I can build a workout template. Tell me what you want to train or paste your workout text, and I will draft it.',
-            citations: [],
-          },
-        };
-      }
-      const validationError = validateWorkoutDraft(parsed as WorkoutDraftV1);
-      if (validationError) {
-        return buildModelError(requestId, validationError);
-      }
-      return {
-        type: 'workout_draft',
-        requestId,
-        workoutDraft: parsed,
-      };
-    }
-
-    if (parsed.type === 'WORKOUT_PROPOSAL_V1') {
-      const validationError = validateWorkoutProposal(parsed as WorkoutProposalV1);
-      if (validationError) {
-        return buildModelError(requestId, validationError);
-      }
-      return {
-        type: 'workout_proposal',
-        requestId,
-        workoutProposal: parsed,
-      };
-    }
-
-    if (parsed.type === 'answer') {
-      if (responseMode === 'draft') {
-        return buildModelError(requestId, 'Expected workout draft JSON but received an answer.');
-      }
-      if (config.type === 'write') {
-        return buildWriteClarification(intent, requestId);
-      }
-      return { ...parsed, requestId };
-    }
-
-    if (parsed.type === 'mutation_plan') {
-      if (config.type !== 'write') {
-        return buildModelError(requestId, 'Mutation plan not allowed for read intent');
-      }
-
-      // Auto-correct any exercise IDs that are names instead of UUIDs
-      // This handles cases where the AI outputs exercise names instead of copying the id
-      if (parsed.mutationPlan) {
-        correctExerciseIds(parsed.mutationPlan, exerciseDb);
-      }
-
-      const validationError = validateMutationPlan(intent, parsed.mutationPlan);
-      if (validationError) {
-        return buildModelError(requestId, validationError);
-      }
-
-      return {
-        ...parsed,
-        requestId,
-        mutationPlan: {
-          ...parsed.mutationPlan,
-          requestId,
-          intent,
-          expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour
+        answer: {
+          text:
+            "I can outline a workout template in chat, but I can't save it in the app right now. Tell me your goal or body part and how many days per week, and I'll draft an outline.",
+          citations: [],
         },
       };
     }
 
-    if (responseMode === 'draft') {
-      return buildModelError(requestId, 'Unsupported response for workout draft mode');
+    if (parsed.type === 'answer') {
+      return { ...parsed, requestId };
     }
     return buildModelError(requestId, 'Unsupported AI response type');
   } catch (parseError) {
@@ -2695,221 +1291,6 @@ function parseModelResponse(
   }
 }
 
-function buildIntentClassificationPrompt(
-  context: WorkoutDraftIntentClassificationContext
-): string {
-  const resolutionGuidance =
-    context.draftStatus === 'awaiting_resolution'
-      ? '\n- The user must pick one option or ask for a change while awaiting resolution.'
-      : '';
-
-  return `You are an intent classifier for a fitness app. Determine the user's intent about a pending workout draft.
-
-Return ONLY JSON with this shape:
-{
-  "type": "intent_classification",
-  "intent": "confirm|cancel|edit|resolve|unknown",
-  "confidence": 0.0-1.0,
-  "option_index": 0-based index only when intent="resolve",
-  "save_as_title": "optional title if user names a template",
-  "reason": "short rationale"
-}
-
-Intent rules:
-- confirm: user clearly wants to save/create the template.
-- cancel: user clearly wants to discard or not save.
-- edit: user asks to change, tweak, swap, remove, add, or correct anything.
-- resolve: user selects one of the numbered options or clearly references a specific option.
-- unknown: unclear or ambiguous.
-- If the user requests changes and also approval, choose edit.
-- If awaiting resolution and no option is chosen, use unknown and keep confidence low.${resolutionGuidance}
-`;
-}
-
-function buildIntentClassificationMessage(
-  message: string,
-  context: WorkoutDraftIntentClassificationContext
-): string {
-  const payload = {
-    user_message: message,
-    draft_status: context.draftStatus,
-    pending_query: context.pendingQuery,
-    pending_options: context.pendingOptions,
-  };
-  return JSON.stringify(payload, null, 2);
-}
-
-function parseIntentClassificationResponse(
-  text: string,
-  requestId: string
-): { type: 'intent_classification'; requestId: string; intentClassification: IntentClassificationResult } {
-  try {
-    let jsonStr = text;
-    const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
-    if (jsonMatch) {
-      jsonStr = jsonMatch[1];
-    }
-
-    const parsed = JSON.parse(jsonStr) as Record<string, unknown>;
-    const intentRaw = parsed.intent;
-    const intent = typeof intentRaw === 'string'
-      ? intentRaw.toLowerCase()
-      : 'unknown';
-    const validIntents: WorkoutDraftReplyIntent[] = ['confirm', 'cancel', 'edit', 'resolve', 'unknown'];
-    const normalizedIntent = validIntents.includes(intent as WorkoutDraftReplyIntent)
-      ? (intent as WorkoutDraftReplyIntent)
-      : 'unknown';
-
-    const confidenceRaw = parsed.confidence;
-    const confidenceValue = typeof confidenceRaw === 'number'
-      ? confidenceRaw
-      : Number.parseFloat(String(confidenceRaw));
-    const confidence = Number.isFinite(confidenceValue)
-      ? Math.max(0, Math.min(1, confidenceValue))
-      : 0;
-
-    const optionIndexRaw = parsed.option_index ?? parsed.optionIndex;
-    const optionIndex = typeof optionIndexRaw === 'number'
-      ? optionIndexRaw
-      : Number.isFinite(Number(optionIndexRaw))
-        ? Number(optionIndexRaw)
-        : undefined;
-
-    const saveAsRaw = parsed.save_as_title ?? parsed.saveAsTitle;
-    const saveAsTitle = typeof saveAsRaw === 'string' && saveAsRaw.trim().length > 0
-      ? saveAsRaw.trim()
-      : undefined;
-
-    const reasonRaw = parsed.reason;
-    const reason = typeof reasonRaw === 'string' ? reasonRaw : undefined;
-
-    return {
-      type: 'intent_classification',
-      requestId,
-      intentClassification: {
-        intent: normalizedIntent,
-        confidence,
-        optionIndex,
-        saveAsTitle,
-        reason,
-      },
-    };
-  } catch (error) {
-    console.warn('Failed to parse intent classification response:', error);
-    return {
-      type: 'intent_classification',
-      requestId,
-      intentClassification: {
-        intent: 'unknown',
-        confidence: 0,
-        reason: 'parse_error',
-      },
-    };
-  }
-}
-
-function validateWorkoutProposal(proposal: WorkoutProposalV1): string | null {
-  if (!proposal || proposal.type !== 'WORKOUT_PROPOSAL_V1') {
-    return 'Invalid workout proposal type';
-  }
-  if (!proposal.title || typeof proposal.title !== 'string') {
-    return 'Workout proposal missing title';
-  }
-  if (!Array.isArray(proposal.exercises) || proposal.exercises.length === 0) {
-    return 'Workout proposal must include exercises';
-  }
-  if (proposal.exercises.length > 10) {
-    return 'Workout proposal has too many exercises (max 10)';
-  }
-
-  for (const exercise of proposal.exercises) {
-    if (!exercise.exercise_query || typeof exercise.exercise_query !== 'string') {
-      return 'Workout proposal contains an exercise without a valid name';
-    }
-    if (!Array.isArray(exercise.sets) || exercise.sets.length === 0) {
-      return `Exercise "${exercise.exercise_query}" must include at least one set prescription`;
-    }
-    let totalSets = 0;
-    for (const set of exercise.sets) {
-      if (!Number.isFinite(set.sets) || set.sets <= 0) {
-        return `Exercise "${exercise.exercise_query}" has an invalid set count`;
-      }
-      if (set.sets > 8) {
-        return `Exercise "${exercise.exercise_query}" exceeds max sets per block`;
-      }
-      totalSets += set.sets;
-      if (set.reps_min !== undefined && set.reps_min <= 0) {
-        return `Exercise "${exercise.exercise_query}" has invalid reps_min`;
-      }
-      if (set.reps_max !== undefined && set.reps_max <= 0) {
-        return `Exercise "${exercise.exercise_query}" has invalid reps_max`;
-      }
-      if (set.reps_min !== undefined && set.reps_max !== undefined && set.reps_min > set.reps_max) {
-        return `Exercise "${exercise.exercise_query}" has reps_min greater than reps_max`;
-      }
-      if (set.reps_min === 1 && set.reps_max === 1) {
-        return `Exercise "${exercise.exercise_query}" includes a 1-rep prescription`;
-      }
-    }
-    if (totalSets > 8) {
-      return `Exercise "${exercise.exercise_query}" exceeds max 8 total sets`;
-    }
-  }
-
-  return null;
-}
-
-function validateWorkoutDraft(draft: WorkoutDraftV1): string | null {
-  if (!draft || draft.type !== 'WORKOUT_DRAFT_V1') {
-    return 'Invalid workout draft type';
-  }
-  if (!draft.title || typeof draft.title !== 'string') {
-    return 'Workout draft missing title';
-  }
-  if (!Array.isArray(draft.exercises) || draft.exercises.length === 0) {
-    return 'Workout draft must include exercises';
-  }
-  if (draft.exercises.length > 12) {
-    return 'Workout draft has too many exercises (max 12)';
-  }
-
-  for (const exercise of draft.exercises) {
-    if (!exercise.query || typeof exercise.query !== 'string') {
-      return 'Workout draft contains an exercise without a valid name';
-    }
-    if (
-      exercise.resolved_exercise_id !== null
-      && exercise.resolved_exercise_id !== undefined
-      && !isValidUuid(exercise.resolved_exercise_id)
-    ) {
-      return `Exercise "${exercise.query}" has an invalid resolved_exercise_id`;
-    }
-    if (!Array.isArray(exercise.sets) || exercise.sets.length === 0) {
-      return `Exercise "${exercise.query}" must include at least one set`;
-    }
-    for (const set of exercise.sets) {
-      if (!Number.isFinite(set.sets) || set.sets <= 0 || set.sets > 10) {
-        return `Exercise "${exercise.query}" has an invalid set count`;
-      }
-      if (!set.reps || typeof set.reps !== 'string') {
-        return `Exercise "${exercise.query}" must include reps`;
-      }
-      const repsTrimmed = set.reps.trim();
-      if (repsTrimmed === '1' || repsTrimmed === '1-1') {
-        return `Exercise "${exercise.query}" includes a 1-rep prescription`;
-      }
-      if (set.rpe !== undefined && (!Number.isFinite(set.rpe) || set.rpe < 1 || set.rpe > 10)) {
-        return `Exercise "${exercise.query}" has invalid rpe`;
-      }
-      if (set.restSec !== undefined && (!Number.isFinite(set.restSec) || set.restSec < 0 || set.restSec > 600)) {
-        return `Exercise "${exercise.query}" has invalid restSec`;
-      }
-    }
-  }
-
-  return null;
-}
-
 function buildModelError(requestId: string, message: string) {
   return {
     type: 'error',
@@ -2920,118 +1301,4 @@ function buildModelError(requestId: string, message: string) {
       retryable: false,
     },
   };
-}
-
-function buildWriteClarification(_intent: AIIntent, requestId: string) {
-  // Note: Intent-specific clarifications removed - no write intents currently active
-  return {
-    type: 'clarification',
-    requestId,
-    clarification: {
-      question: 'I need a bit more detail to help you. Could you provide more specifics?',
-      options: [] as string[],
-    },
-  };
-}
-
-function validateMutationPlan(intent: AIIntent, plan: any): string | null {
-  // Note: This function is currently unused - no write intents active
-  if (!plan || typeof plan !== 'object') {
-    return 'Missing mutation plan';
-  }
-
-  if (!Array.isArray(plan.mutations) || plan.mutations.length === 0) {
-    return 'Mutation plan must include at least one mutation';
-  }
-
-  const allowedOperations = allowedOperationsForIntent(intent);
-  // Note: hasProgram check removed - no write intents currently require it
-  void intent; // Suppress unused parameter warning
-
-  for (const mutation of plan.mutations) {
-    if (!mutation || typeof mutation !== 'object') {
-      return 'Invalid mutation format';
-    }
-
-    if (!allowedOperations.has(mutation.operation)) {
-      return 'Only INSERT operations are allowed';
-    }
-
-    if (!ALLOWED_ENTITY_TYPES.has(mutation.entityType)) {
-      return `Unsupported entity type: ${String(mutation.entityType)}`;
-    }
-
-    if (mutation.operation !== 'DELETE' && (!mutation.proposedState || typeof mutation.proposedState !== 'object')) {
-      return 'Missing proposedState for mutation';
-    }
-
-    if (mutation.operation !== 'INSERT' && !mutation.entityId) {
-      return 'Update and delete mutations require entityId';
-    }
-
-    if (mutation.entityType === 'workout_program') {
-      if (!mutation.proposedState.name || !mutation.proposedState.difficulty) {
-        return 'Workout program requires name and difficulty';
-      }
-    }
-
-    if (mutation.entityType === 'program_workout') {
-      if (!mutation.proposedState.name || mutation.proposedState.day_number === undefined) {
-        return 'Program workout requires name and day_number';
-      }
-    }
-
-    if (mutation.entityType === 'program_exercise') {
-      if (!mutation.proposedState.exercise_id || mutation.proposedState.order_index === undefined) {
-        return 'Program exercise requires exercise_id and order_index';
-      }
-      if (mutation.proposedState.sets === undefined) {
-        return 'Program exercise requires sets';
-      }
-    }
-
-    if (mutation.entityType === 'workout_session') {
-      if (!mutation.proposedState.started_at) {
-        return 'Workout session requires started_at';
-      }
-    }
-
-    if (mutation.entityType === 'workout_set') {
-      if (!mutation.proposedState.session_id) {
-        return 'Workout set requires session_id';
-      }
-      if (!mutation.proposedState.exercise_id) {
-        return 'Workout set requires exercise_id';
-      }
-      if (!isValidUuid(mutation.proposedState.exercise_id)) {
-        return 'Workout set requires a valid exercise_id';
-      }
-      if (mutation.proposedState.set_number === undefined) {
-        return 'Workout set requires set_number';
-      }
-      if (mutation.proposedState.order_index === undefined) {
-        return 'Workout set requires order_index';
-      }
-    }
-
-    if (mutation.entityType === 'user_goal' && mutation.operation === 'INSERT') {
-      if (!mutation.proposedState.goal_name) {
-        return 'User goal requires goal_name';
-      }
-    }
-
-    if (mutation.entityType === 'training_summary') {
-      if (!mutation.proposedState.period_start || !mutation.proposedState.period_end) {
-        return 'Training summary requires period_start and period_end';
-      }
-      if (!mutation.proposedState.title || !mutation.proposedState.summary_text) {
-        return 'Training summary requires title and summary_text';
-      }
-      if (!mutation.proposedState.metrics) {
-        return 'Training summary requires metrics';
-      }
-    }
-  }
-
-  return null;
 }

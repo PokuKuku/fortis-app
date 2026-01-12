@@ -2,9 +2,10 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { MagnifyingGlassIcon, ChevronLeftIcon } from 'react-native-heroicons/outline';
+import { MagnifyingGlassIcon, ChevronLeftIcon, PlusIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
+import { CustomExerciseModal } from '@/src/components/exercises/CustomExerciseModal';
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -25,6 +26,7 @@ const SEARCH_ICON_MARGIN = scale(8);
 const SEARCH_ICON_SIZE = scale(20);
 const SEARCH_INPUT_SIZE = moderateScale(16);
 const SEARCH_HEIGHT = scale(Sizes.minTouchTarget);
+const SEARCH_MIN_WIDTH = scale(220);
 const FILTER_PADDING_BOTTOM = scale(Spacing.md);
 const FILTER_GAP = scale(8);
 const FILTER_RADIUS = scale(6);
@@ -59,6 +61,12 @@ const MUSCLE_OPTION_TEXT_SIZE = moderateScale(13);
 const CHECKMARK_SIZE = scale(16);
 const CHECKMARK_RADIUS = CHECKMARK_SIZE / 2;
 const CHECKMARK_TEXT_SIZE = moderateScale(9);
+const CUSTOM_BUTTON_RADIUS = scale(Spacing.lg);
+const CUSTOM_BUTTON_TEXT_SIZE = moderateScale(11);
+const CUSTOM_BUTTON_ICON_SIZE = scale(12);
+const CUSTOM_BUTTON_PADDING_X = scale(Spacing.sm);
+const CUSTOM_BUTTON_PADDING_Y = scale(Spacing.xs);
+const CUSTOM_BUTTON_GAP = scale(Spacing.xs);
 
 export default function ExercisesScreen() {
   const router = useRouter();
@@ -68,6 +76,7 @@ export default function ExercisesScreen() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [activePopover, setActivePopover] = useState<'muscle' | 'category' | 'equipment' | null>(null);
+  const [customModalVisible, setCustomModalVisible] = useState(false);
   const isNavigating = useRef(false);
 
   // Use centralized exercise service
@@ -79,6 +88,11 @@ export default function ExercisesScreen() {
   const handleBackPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     router.back();
+  };
+
+  const handleAddCustomExercise = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    setCustomModalVisible(true);
   };
 
   useEffect(() => {
@@ -149,6 +163,10 @@ export default function ExercisesScreen() {
 
   const filterButtonTheme = {
     backgroundColor: isDark ? '#2C2C2E' : 'rgba(0,0,0,0.06)',
+  };
+  const addCustomButtonTheme = {
+    backgroundColor: colors.accentOverlay,
+    borderColor: colors.accentBorder,
   };
 
   const exerciseCardTheme = {
@@ -259,6 +277,16 @@ export default function ExercisesScreen() {
 
         {/* Search Bar */}
         <View style={styles.searchContainer}>
+          <View style={styles.addCustomRow}>
+            <TouchableOpacity
+              style={[styles.addCustomButton, addCustomButtonTheme]}
+              onPress={handleAddCustomExercise}
+              activeOpacity={0.8}
+            >
+              <PlusIcon size={CUSTOM_BUTTON_ICON_SIZE} color={colors.accent} strokeWidth={2.5} />
+              <Text style={[styles.addCustomText, { color: colors.accent }]}>Add Custom Exercise</Text>
+            </TouchableOpacity>
+          </View>
           <View style={[styles.searchWrapper, searchWrapperTheme]}>
             <MagnifyingGlassIcon color={colors.textTertiary} size={SEARCH_ICON_SIZE} style={styles.searchIcon} />
             <TextInput
@@ -520,6 +548,11 @@ export default function ExercisesScreen() {
           </Animated.View>
         </Animated.View>
       )}
+
+      <CustomExerciseModal
+        visible={customModalVisible}
+        onClose={() => setCustomModalVisible(false)}
+      />
     </View>
   );
 }
@@ -558,10 +591,32 @@ const styles = StyleSheet.create({
   searchContainer: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: SEARCH_PADDING_BOTTOM,
+    gap: scale(Spacing.sm),
+  },
+  addCustomRow: {
+    alignItems: 'flex-end',
+    width: '100%',
+  },
+  addCustomButton: {
+    borderRadius: CUSTOM_BUTTON_RADIUS,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: CUSTOM_BUTTON_GAP,
+    paddingHorizontal: CUSTOM_BUTTON_PADDING_X,
+    paddingVertical: CUSTOM_BUTTON_PADDING_Y,
+  },
+  addCustomText: {
+    fontSize: CUSTOM_BUTTON_TEXT_SIZE,
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 0.3,
   },
   searchWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '100%',
+    minWidth: SEARCH_MIN_WIDTH,
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderRadius: SEARCH_RADIUS,
     borderWidth: 1,

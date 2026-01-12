@@ -370,6 +370,16 @@ export default function TabLayout() {
     return () => sub.remove();
   }, [isExercises]);
 
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('openCreateExercise', () => {
+      if (!isExercises) return;
+      resetExerciseForm();
+      setFieldErrors({ name: false, primary: false });
+      setShowAddExerciseModal(true);
+    });
+    return () => sub.remove();
+  }, [isExercises]);
+
   const shakeStyle = (anim: Animated.Value) => ({
     transform: [
       {

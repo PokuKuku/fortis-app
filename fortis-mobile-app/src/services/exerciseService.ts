@@ -24,6 +24,7 @@ let exerciseLookupCache: Map<string, ExerciseWithSource> | null = null;
 
 const EXERCISE_LIBRARY_UPDATED_EVENT = 'exerciseLibraryUpdated';
 const WIDE_GRIP_LAT_PULLDOWN_ID = 'c56d8350-56c1-4bc4-99e1-4de71e680c21';
+const CUSTOM_EXERCISE_PREFIX = 'custom-';
 
 // --- Helpers ---
 
@@ -80,6 +81,131 @@ function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise
     isCustom: row.is_custom ?? false,
     normalizedName: row.normalized_name ?? undefined,
   };
+}
+
+function isValidUUID(value: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(value);
+}
+
+function normalizeCategoryForDb(category?: string | null): string {
+  const normalized = (category ?? '').trim().toLowerCase();
+  if (!normalized) return 'strength';
+
+  if (normalized === 'power') return 'powerlifting';
+  if (normalized === 'mobility') return 'stretching';
+
+  const allowed = new Set([
+    'strength',
+    'powerlifting',
+    'olympic weightlifting',
+    'strongman',
+    'stretching',
+    'cardio',
+    'plyometrics',
+  ]);
+
+  return allowed.has(normalized) ? normalized : 'strength';
+}
+
+function normalizeEquipmentForDb(equipment?: string | null): string {
+  const normalized = (equipment ?? '').trim().toLowerCase();
+  if (!normalized) return 'bodyweight';
+
+  const mapping: Record<string, string> = {
+    bodyweight: 'bodyweight',
+    'body weight': 'body weight',
+    'body only': 'body weight',
+    bands: 'band',
+    band: 'band',
+    cable: 'cable',
+    machine: 'machine',
+    dumbbell: 'dumbbell',
+    barbell: 'barbell',
+    kettlebell: 'kettlebell',
+    kettlebells: 'kettlebell',
+    'medicine ball': 'medicine ball',
+    'resistance band': 'resistance band',
+    suspension: 'suspension',
+    assisted: 'assisted',
+    rope: 'rope',
+  };
+
+  return mapping[normalized] ?? normalized;
+}
+
+function normalizeCustomExerciseSlug(exercise: Exercise): string {
+  if (exercise.slug) return exercise.slug;
+  if (exercise.id?.startsWith(CUSTOM_EXERCISE_PREFIX)) {
+    return exercise.id;
+  }
+  return exercise.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || `${CUSTOM_EXERCISE_PREFIX}${exercise.id}`;
+}
+
+async function fetchCustomExercisesFromSupabase(): Promise<Exercise[]> {
+  if (!isSupabaseConfigured()) return [];
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from('exercises')
+    .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
+    .eq('is_custom', true)
+    .eq('created_by', user.id)
+    .order('updated_at', { ascending: false });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return data.map((row) => {
+    const exercise = transformSupabaseExerciseToExercise(row);
+    const slug = row.slug ?? undefined;
+    return {
+      ...exercise,
+      id: slug ?? exercise.id,
+      slug,
+      isCustom: true,
+    };
+  });
+}
+
+async function upsertCustomExerciseToSupabase(exercise: Exercise): Promise<void> {
+  if (!isSupabaseConfigured()) return;
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const slug = normalizeCustomExerciseSlug(exercise);
+  const normalizedName = exercise.normalizedName || normalizeExerciseKey(exercise.name);
+
+  const payload = {
+    slug,
+    name: exercise.name,
+    level: 'intermediate',
+    equipment: normalizeEquipmentForDb(exercise.equipment),
+    category: normalizeCategoryForDb(exercise.category),
+    primary_muscles: exercise.primaryMuscles?.length ? exercise.primaryMuscles : ['unknown'],
+    secondary_muscles: exercise.secondaryMuscles ?? [],
+    instructions: exercise.instructions ?? [],
+    images: exercise.images ?? [],
+    normalized_name: normalizedName,
+    is_custom: true,
+    created_by: user.id,
+    based_on_exercise_id: exercise.basedOnExerciseId ?? null,
+  };
+
+  const { error } = await supabase
+    .from('exercises')
+    .upsert(payload, { onConflict: 'created_by,slug' });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 function isCuratedCanonical(exercise: ExerciseWithSource): boolean {

@@ -142,7 +142,8 @@ fortis-mobile-app/
 │   ├── workout/active.tsx  # Active workout logger
 │   ├── exercise/[id].tsx   # Exercise detail
 │   ├── workouts/[id].tsx   # Workout detail
-│   └── programs/[id].tsx   # Program detail
+│   ├── programs/[id].tsx   # Program detail
+│   └── insights/           # Analytics and progress insights
 │
 ├── src/
 │   ├── components/         # UI components (ui/, workout/, ai/, hub/, program/)
@@ -190,6 +191,8 @@ fortis-mobile-app/
 - **workoutStore**: Active session, sets, rest timer, number pad state
 - **programsStore**: Programs/templates, CRUD operations
 - **aiStore**: Conversation, pending mutations, image attachments
+- **programProgressStore**: Program completion tracking, progress per program
+- **startPresetStore**: Workout start presets, default exercise selections
 
 **Key Patterns:**
 - Offline-first: All stores persist to AsyncStorage
@@ -220,6 +223,9 @@ await AsyncStorage.setItem(key, JSON.stringify({ ...synced, is_synced: true }));
 - **aiService.ts**: AI chat integration with Supabase edge function
 - **stickyNotesService.ts**: Notes attached to exercises/workouts
 - **exerciseDbClient.ts**: External exercise database API client
+- **analyticsService.ts**: PostHog/Mixpanel event tracking abstraction
+- **insightsService.ts**: Analytics data queries for insights page
+- **insightChartsService.ts**: Chart data generation for insights visualizations
 
 ## Backend (Supabase)
 
