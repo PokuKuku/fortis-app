@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Spacing, BorderRadius, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
@@ -51,7 +52,13 @@ export function ProfileHeader() {
   const router = useRouter();
   const { user, profile, updateProfile, uploadAvatar } = useAuth();
   const { colors, isDark } = useTheme();
-  const { weeks, monthLabels, maxVolume, isLoading, hasActivity } = useActivityHeatmap(user?.id);
+  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const { weeks, monthLabels, maxVolume, isLoading, hasActivity } = useActivityHeatmap(
+    user?.id,
+    'year',
+    52,
+    completedSessions
+  );
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState(profile?.full_name || '');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);

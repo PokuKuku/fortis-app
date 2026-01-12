@@ -11,6 +11,7 @@ import {
   subDays,
 } from 'date-fns';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
+import type { WorkoutSession } from '@/src/types/workout';
 
 export interface HeatmapDay {
   date: Date;
@@ -42,7 +43,8 @@ type WorkoutSessionRow = {
 export function useActivityHeatmap(
   userId?: string,
   mode: 'year' | 'rolling' = 'year',
-  weekCount: number = 52
+  weekCount: number = 52,
+  localSessions?: WorkoutSession[]
 ): {
   weeks: HeatmapWeek[];
   monthLabels: HeatmapMonthLabel[];
@@ -75,6 +77,48 @@ export function useActivityHeatmap(
 
   useEffect(() => {
     let isMounted = true;
+    const hasLocalSessions = (localSessions?.length ?? 0) > 0;
+    const isInRange = (date: Date) => {
+      if (date < startDate) return false;
+      if (mode === 'year' && date > yearEnd) return false;
+      return true;
+    };
+
+    if (hasLocalSessions) {
+      const volumeByDay: Record<string, number> = {};
+      const activityByDay: Record<string, boolean> = {};
+
+      localSessions?.forEach((session) => {
+        const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
+        if (!isInRange(sessionDate)) return;
+
+        let dayVolume = 0;
+        let dayHasActivity = false;
+
+        session.exercises.forEach((exercise) => {
+          exercise.sets.forEach((set) => {
+            if (!set.isCompleted) return;
+            dayHasActivity = true;
+            if (set.setType === 'warmup') return;
+            const weight = set.weight ?? 0;
+            const reps = set.reps ?? 0;
+            dayVolume += weight * reps;
+          });
+        });
+
+        if (!dayHasActivity) return;
+
+        const key = format(sessionDate, 'yyyy-MM-dd');
+        volumeByDay[key] = (volumeByDay[key] || 0) + dayVolume;
+        activityByDay[key] = activityByDay[key] || dayHasActivity;
+      });
+
+      if (!isMounted) return;
+      setDayVolumes(volumeByDay);
+      setDayActivity(activityByDay);
+      setIsLoading(false);
+      return;
+    }
 
     if (!userId || !isSupabaseConfigured()) {
       setDayVolumes({});
@@ -140,7 +184,7 @@ export function useActivityHeatmap(
     return () => {
       isMounted = false;
     };
-  }, [mode, startDate, userId, yearEnd]);
+  }, [localSessions, mode, startDate, userId, yearEnd]);
 
   const weeks = useMemo(() => {
     const result: HeatmapWeek[] = [];

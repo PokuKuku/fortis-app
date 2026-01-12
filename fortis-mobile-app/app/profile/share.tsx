@@ -20,7 +20,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { getWorkoutSummary, useWorkoutStore } from '@/src/store/workoutStore';
 import { attributeSessionToMuscles, bucketIntensity, getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
@@ -126,14 +126,15 @@ export default function ProfileShareScreen() {
     }
   });
 
-  const { weeks, maxVolume, isLoading: activityLoading } = useActivityHeatmap(
-    profile?.id,
-    'rolling',
-    10
-  );
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const { weeks, maxVolume, isLoading: activityLoading } = useActivityHeatmap(
+    profile?.id,
+    'rolling',
+    10,
+    completedSessions
+  );
   const { bodyweightKg } = useLatestBodyweight();
   const personalRecords = useTopPersonalRecords(5);
 
@@ -156,8 +157,44 @@ export default function ProfileShareScreen() {
   const units = profile?.preferred_units || 'imperial';
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
 
+  const localMonthlyStats = useMemo(() => {
+    if (completedSessions.length === 0) return null;
+    const today = startOfDay(new Date());
+    const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+    const fromDate = subDays(weekStart, 7 * 3);
+    let totalVolume = 0;
+    let totalWorkouts = 0;
+    let totalTimeSeconds = 0;
+
+    completedSessions.forEach((session) => {
+      const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
+      if (sessionDate < fromDate || sessionDate > today) return;
+      const summary = getWorkoutSummary(session);
+      if (summary.totalSets === 0) return;
+
+      totalWorkouts += 1;
+      totalVolume += summary.totalVolume;
+
+      const durationSeconds = session.durationSeconds
+        ?? (session.completedAt
+          ? Math.round((session.completedAt.getTime() - session.startedAt.getTime()) / 1000)
+          : 0);
+      totalTimeSeconds += Math.max(0, durationSeconds);
+    });
+
+    return {
+      totalVolume,
+      totalWorkouts,
+      totalTimeSeconds,
+    };
+  }, [completedSessions]);
+
   useEffect(() => {
     let isMounted = true;
+    if (localMonthlyStats) {
+      setMonthlyStats({ ...localMonthlyStats, isLoading: false });
+      return;
+    }
     if (!isSupabaseConfigured() || !profile?.id) {
       setMonthlyStats((prev) => ({ ...prev, isLoading: false }));
       return;
@@ -201,7 +238,7 @@ export default function ProfileShareScreen() {
     return () => {
       isMounted = false;
     };
-  }, [profile?.id]);
+  }, [localMonthlyStats, profile?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -605,19 +642,22 @@ export default function ProfileShareScreen() {
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator color={colors.accent} size="small" />
                         </View>
-                      ) : signatureHasWorkouts ? (
-                        <View style={styles.signatureHeatmap}>
-                          <MuscleHeatmap
-                            muscleLevels={signatureMuscleLevels}
-                            gender={bodyType}
-                            scale={0.45}
-                            compact
-                          />
-                        </View>
                       ) : (
-                        <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
-                          Log a workout to reveal your muscle map.
-                        </Text>
+                        <>
+                          <View style={styles.signatureHeatmap}>
+                            <MuscleHeatmap
+                              muscleLevels={signatureHasWorkouts ? signatureMuscleLevels : {}}
+                              gender={bodyType}
+                              scale={0.45}
+                              compact
+                            />
+                          </View>
+                          {!signatureHasWorkouts && (
+                            <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
+                              Log a workout to reveal your muscle map.
+                            </Text>
+                          )}
+                        </>
                       )}
                     </View>
                   )}
