@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { startOfDay } from 'date-fns';
 import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
+import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import type { WorkoutSession } from '@/src/types/workout';
 
 type WorkoutHistoryRangeOptions = {
@@ -9,20 +10,6 @@ type WorkoutHistoryRangeOptions = {
   localSessions?: WorkoutSession[];
   limit?: number;
   enabled?: boolean;
-};
-
-const mergeSessions = (remote: WorkoutSession[], local: WorkoutSession[]) => {
-  const merged = new Map<string, WorkoutSession>();
-  remote.forEach((session) => {
-    merged.set(session.localId, session);
-  });
-  local.forEach((session) => {
-    if (!merged.has(session.localId)) {
-      merged.set(session.localId, session);
-    }
-  });
-  return Array.from(merged.values())
-    .sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
 };
 
 export function useWorkoutHistoryRange({
@@ -84,7 +71,7 @@ export function useWorkoutHistoryRange({
       ).getTime();
       return sessionDateKey >= rangeStartKey && sessionDateKey <= rangeEndKey;
     });
-    return mergeSessions(remoteSessions, filteredLocal);
+    return mergeWorkoutSessions(remoteSessions, filteredLocal);
   }, [remoteSessions, localSessions, rangeStartKey, rangeEndKey]);
 
   return { sessions, isLoading };

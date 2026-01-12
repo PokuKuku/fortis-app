@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { WorkoutSet } from '@/src/types/workout';
 
 export interface ExerciseHistoryEntry {
@@ -14,14 +14,14 @@ export interface ExerciseHistoryEntry {
 }
 
 export function useExerciseHistory(exerciseId: string | undefined) {
-  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const { sessions, isLoading } = useWorkoutHistorySource();
 
   const history = useMemo(() => {
     if (!exerciseId) return [];
 
     const entries: ExerciseHistoryEntry[] = [];
 
-    for (const session of completedSessions) {
+    for (const session of sessions) {
       // Find the exercise in this session
       const exerciseData = session.exercises.find(
         (ex) => ex.exerciseId === exerciseId
@@ -65,10 +65,10 @@ export function useExerciseHistory(exerciseId: string | undefined) {
     entries.sort((a, b) => b.date.getTime() - a.date.getTime());
 
     return entries;
-  }, [exerciseId, completedSessions]);
+  }, [exerciseId, sessions]);
 
   return {
     history,
-    loading: false,
+    loading: isLoading,
   };
 }

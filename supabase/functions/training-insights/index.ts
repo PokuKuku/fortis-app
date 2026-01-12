@@ -1778,6 +1778,49 @@ Deno.serve(async (req) => {
     );
   }
 
+  const insightKeys = insightsToUpsert
+    .map((insight) => ({
+      type: String(insight.type),
+      window: String(insight.window),
+      anchor_date: String(insight.anchor_date),
+      subject_key: String(insight.subject_key),
+    }))
+    .filter((key) => key.type && key.window && key.anchor_date && key.subject_key);
+
+  const types = Array.from(new Set(insightKeys.map((key) => key.type)));
+  const windows = Array.from(new Set(insightKeys.map((key) => key.window)));
+  const anchorDates = Array.from(new Set(insightKeys.map((key) => key.anchor_date)));
+  const subjectKeys = Array.from(new Set(insightKeys.map((key) => key.subject_key)));
+
+  if (types.length > 0 && windows.length > 0 && anchorDates.length > 0 && subjectKeys.length > 0) {
+    const { data: dismissedRows, error: dismissedError } = await adminClient
+      .from('training_insights')
+      .select('type, window, anchor_date, subject_key, status')
+      .eq('user_id', user.id)
+      .in('type', types)
+      .in('window', windows)
+      .in('anchor_date', anchorDates)
+      .in('subject_key', subjectKeys)
+      .eq('status', 'dismissed');
+
+    if (dismissedError) {
+      console.warn('[Insights] Failed to fetch dismissed insights:', dismissedError.message);
+    } else {
+      const dismissedKeys = new Set(
+        (dismissedRows ?? []).map((row) =>
+          `${row.type}|${row.window}|${row.anchor_date}|${row.subject_key}`
+        )
+      );
+
+      insightsToUpsert.forEach((insight) => {
+        const key = `${insight.type}|${insight.window}|${insight.anchor_date}|${insight.subject_key}`;
+        if (dismissedKeys.has(key)) {
+          insight.status = 'dismissed';
+        }
+      });
+    }
+  }
+
   const { data: upsertedInsights, error: upsertError } = await adminClient
     .from('training_insights')
     .upsert(insightsToUpsert, {

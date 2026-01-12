@@ -17,7 +17,7 @@ import { ProfileHeader } from '@/src/components/profile/ProfileHeader';
 import { StatsOverviewCard } from '@/src/components/profile/StatsOverviewCard';
 import { PersonalRecordsCard } from '@/src/components/profile/PersonalRecordsCard';
 import { WeeklyMuscleHeatmapCard } from '@/src/components/profile/WeeklyMuscleHeatmapCard';
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
@@ -52,13 +52,13 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { colors, isDark } = useTheme();
-  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const { sessions: historySessions } = useWorkoutHistorySource({ enabled: isAuthenticated });
 
   const weeklyStreak = (() => {
     if (!isAuthenticated) return 0;
-    if (completedSessions.length === 0) return 0;
+    if (historySessions.length === 0) return 0;
     const weekStarts = new Set<string>();
-    completedSessions.forEach((session) => {
+    historySessions.forEach((session) => {
       const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
       const weekStart = startOfWeek(sessionDate, { weekStartsOn: 1 });
       weekStarts.add(format(weekStart, 'yyyy-MM-dd'));

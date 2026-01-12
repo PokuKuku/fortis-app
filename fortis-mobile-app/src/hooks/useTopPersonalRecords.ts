@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
-import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useExercises } from '@/src/hooks/useExercises';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 
 export interface PersonalRecord {
   exerciseId: string;
@@ -15,8 +15,8 @@ export interface PersonalRecord {
  * Returns the top 5 exercises by max weight lifted (non-warmup sets only).
  */
 export function useTopPersonalRecords(limit: number = 5): PersonalRecord[] {
-  const completedSessions = useWorkoutStore((state) => state.completedSessions);
   const { exercises } = useExercises();
+  const { sessions } = useWorkoutHistorySource();
 
   const exerciseNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -33,7 +33,7 @@ export function useTopPersonalRecords(limit: number = 5): PersonalRecord[] {
     // Map to store best lift per exercise
     const prMap = new Map<string, PersonalRecord>();
 
-    for (const session of completedSessions) {
+    for (const session of sessions) {
       const sessionDate = new Date(session.completedAt || session.startedAt);
 
       for (const exercise of session.exercises) {
@@ -64,5 +64,5 @@ export function useTopPersonalRecords(limit: number = 5): PersonalRecord[] {
 
     // Return top N
     return prs.slice(0, limit);
-  }, [completedSessions, limit, exerciseNameById]);
+  }, [sessions, limit, exerciseNameById]);
 }

@@ -86,7 +86,7 @@ export function ProfileHeader() {
     enabled: Boolean(user?.id),
   });
   const { weeks, monthLabels, isLoading, hasActivity } = useActivityHeatmap(
-    user?.id,
+    undefined,
     'year',
     52,
     historySessions

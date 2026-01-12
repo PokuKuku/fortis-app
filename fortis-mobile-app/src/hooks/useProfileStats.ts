@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react';
-import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
-import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
-import { PROFILE_STATS_CACHE_KEY } from '@/src/constants/storageKeys';
+import { useMemo } from 'react';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 
 export interface ProfileStats {
   totalVolume: number;        // Sum of weight × reps across all sessions
@@ -10,10 +8,6 @@ export interface ProfileStats {
   uniqueExercises: number;    // Count of unique exercise IDs
   lastWorkoutDate: Date | null;
 }
-
-type ProfileStatsCache = Omit<ProfileStats, 'lastWorkoutDate'> & {
-  lastWorkoutDate: string | null;
-};
 
 const EMPTY_STATS: ProfileStats = {
   totalVolume: 0,
@@ -28,68 +22,47 @@ const EMPTY_STATS: ProfileStats = {
  * Falls back to cached stats when offline.
  */
 export function useProfileStats(): ProfileStats {
-  const [stats, setStats] = useState<ProfileStats>(EMPTY_STATS);
+  const { sessions } = useWorkoutHistorySource();
 
-  useEffect(() => {
-    let isMounted = true;
+  return useMemo(() => {
+    if (sessions.length === 0) return EMPTY_STATS;
 
-    const loadCachedStats = async () => {
-      const cached = await getScopedItem(PROFILE_STATS_CACHE_KEY);
-      if (!cached || !isMounted) return;
+    let totalVolume = 0;
+    let totalWorkouts = 0;
+    let totalTimeSeconds = 0;
+    const uniqueExercises = new Set<string>();
 
-      try {
-        const parsed = JSON.parse(cached) as ProfileStatsCache;
-        setStats({
-          totalVolume: parsed.totalVolume,
-          totalWorkouts: parsed.totalWorkouts,
-          totalTimeSeconds: parsed.totalTimeSeconds,
-          uniqueExercises: parsed.uniqueExercises,
-          lastWorkoutDate: parsed.lastWorkoutDate ? new Date(parsed.lastWorkoutDate) : null,
+    sessions.forEach((session) => {
+      let hasCompletedSet = false;
+      session.exercises.forEach((exercise) => {
+        uniqueExercises.add(exercise.exerciseId);
+        exercise.sets.forEach((set) => {
+          if (!set.isCompleted) return;
+          hasCompletedSet = true;
+          const weight = set.weight ?? 0;
+          const reps = set.reps ?? 0;
+          totalVolume += weight * reps;
         });
-      } catch {
-        // Ignore cache parse errors
-      }
+      });
+
+      if (!hasCompletedSet) return;
+      totalWorkouts += 1;
+      const durationSeconds = session.durationSeconds
+        ?? (session.completedAt
+          ? Math.round((session.completedAt.getTime() - session.startedAt.getTime()) / 1000)
+          : 0);
+      totalTimeSeconds += Math.max(0, durationSeconds);
+    });
+
+    const lastSession = sessions[0];
+    const lastWorkoutDate = lastSession?.completedAt ?? lastSession?.startedAt ?? null;
+
+    return {
+      totalVolume: Math.round(totalVolume),
+      totalWorkouts,
+      totalTimeSeconds,
+      uniqueExercises: uniqueExercises.size,
+      lastWorkoutDate,
     };
-
-    const fetchRemoteStats = async () => {
-      if (!isSupabaseConfigured()) return;
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from('user_workout_stats')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error || !data || !isMounted) {
-        return;
-      }
-
-      const nextStats: ProfileStats = {
-        totalVolume: Math.round(data.total_volume ?? 0),
-        totalWorkouts: data.total_workouts ?? 0,
-        totalTimeSeconds: data.total_time_seconds ?? 0,
-        uniqueExercises: data.unique_exercises_performed ?? 0,
-        lastWorkoutDate: data.last_workout_date ? new Date(data.last_workout_date) : null,
-      };
-
-      setStats(nextStats);
-
-      const cachePayload: ProfileStatsCache = {
-        ...nextStats,
-        lastWorkoutDate: nextStats.lastWorkoutDate ? nextStats.lastWorkoutDate.toISOString() : null,
-      };
-      await setScopedItem(PROFILE_STATS_CACHE_KEY, JSON.stringify(cachePayload));
-    };
-
-    loadCachedStats().finally(fetchRemoteStats);
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  return stats;
+  }, [sessions]);
 }

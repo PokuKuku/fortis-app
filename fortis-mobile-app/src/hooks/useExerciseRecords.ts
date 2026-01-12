@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 
 interface RecordEntry {
   value: number;
@@ -34,7 +34,7 @@ function calculateEstimated1RM(weight: number, reps: number): number {
 }
 
 export function useExerciseRecords(exerciseId: string | undefined): ExerciseRecords {
-  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const { sessions } = useWorkoutHistorySource();
 
   return useMemo(() => {
     const emptyRecords: ExerciseRecords = {
@@ -55,7 +55,7 @@ export function useExerciseRecords(exerciseId: string | undefined): ExerciseReco
     let totalSets = 0;
     let totalWorkouts = 0;
 
-    for (const session of completedSessions) {
+    for (const session of sessions) {
       const exerciseData = session.exercises.find(
         (ex) => ex.exerciseId === exerciseId
       );
@@ -117,5 +117,5 @@ export function useExerciseRecords(exerciseId: string | undefined): ExerciseReco
       totalSets,
       totalWorkouts,
     };
-  }, [exerciseId, completedSessions]);
+  }, [exerciseId, sessions]);
 }

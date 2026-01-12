@@ -29,6 +29,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme, type ThemeMode, ACCENT_COLOR_LABELS } from '@/src/contexts/ThemeContext';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { Colors } from '@/constants/Colors';
@@ -80,7 +81,7 @@ export default function SettingsScreen() {
   const { profile, updateProfile, signOut } = useAuth();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
-  const completedSessions = useWorkoutStore((s) => s.completedSessions);
+  const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
@@ -116,7 +117,7 @@ export default function SettingsScreen() {
   const handleExportData = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
-    if (completedSessions.length === 0) {
+    if (historySessions.length === 0) {
       Alert.alert('No Data', 'You have no workout history to export.');
       return;
     }
@@ -124,7 +125,7 @@ export default function SettingsScreen() {
     setIsExporting(true);
     try {
       const weightUnit = profile?.preferred_units === 'metric' ? 'kg' : 'lbs';
-      const result = await exportWorkoutsToCSV(completedSessions, weightUnit);
+      const result = await exportWorkoutsToCSV(historySessions, weightUnit);
 
       if (!result.success) {
         Alert.alert('Export Failed', result.error || 'Failed to export workouts.');
@@ -310,10 +311,10 @@ export default function SettingsScreen() {
               <SettingsRow
                 icon={<ArrowDownTrayIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Export to CSV"
-                value={`${completedSessions.length} workout${completedSessions.length !== 1 ? 's' : ''}`}
+                value={`${historySessions.length} workout${historySessions.length !== 1 ? 's' : ''}`}
                 onPress={handleExportData}
                 showChevron
-                isLoading={isExporting}
+                isLoading={isExporting || historyLoading}
                 colors={colors}
                 isDark={isDark}
               />

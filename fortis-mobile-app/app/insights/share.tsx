@@ -26,7 +26,6 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
 
-type PrivacyMode = 'private' | 'detailed';
 type ShareTemplate = 'hero' | 'split' | 'grid' | 'timeline';
 
 const HEADER_PADDING = scale(Spacing.lg);
@@ -52,13 +51,6 @@ const resolveEvidence = (insight: TrainingInsight) => {
     return insight.evidence;
   }
   return order.map((key) => itemsByKey.get(key)).filter(Boolean) as TrainingInsight['evidence'];
-};
-
-const renderValue = (mode: PrivacyMode, value: string): string => {
-  if (mode === 'private') {
-    return '—';
-  }
-  return value;
 };
 
 const getShareTemplate = (insight: TrainingInsight): ShareTemplate => {
@@ -106,7 +98,6 @@ export default function InsightShareScreen() {
   const { insights } = useTrainingInsights();
   const { trackInsightShareStarted, trackInsightShareCompleted } = useAnalytics();
   const viewShotRef = useRef<any>(null);
-  const privacyMode: PrivacyMode = 'detailed';
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [isCaptureReady] = useState(() => {
@@ -158,7 +149,7 @@ export default function InsightShareScreen() {
     trackInsightShareStarted({
       insight_id: insight.id,
       insight_type: insight.type,
-      privacy_mode: privacyMode,
+      privacy_mode: 'detailed',
     });
 
     try {
@@ -186,7 +177,7 @@ export default function InsightShareScreen() {
       trackInsightShareCompleted({
         insight_id: insight.id,
         insight_type: insight.type,
-        privacy_mode: privacyMode,
+        privacy_mode: 'detailed',
         result,
       });
     } catch (error) {
@@ -194,7 +185,7 @@ export default function InsightShareScreen() {
       trackInsightShareCompleted({
         insight_id: insight.id,
         insight_type: insight.type,
-        privacy_mode: privacyMode,
+        privacy_mode: 'detailed',
         result: 'error',
       });
     } finally {
@@ -289,7 +280,7 @@ export default function InsightShareScreen() {
                         </Text>
                         <View style={styles.heroValueRow}>
                           <Text style={[styles.heroValue, { color: colors.accent }]}>
-                            {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                            {formatEvidenceValue(primaryEvidence)}
                           </Text>
                           <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
                         </View>
@@ -310,7 +301,7 @@ export default function InsightShareScreen() {
                               {item.label}
                             </Text>
                             <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                              {renderValue(privacyMode, formatEvidenceValue(item))}
+                              {formatEvidenceValue(item)}
                             </Text>
                           </View>
                         ))}
@@ -325,7 +316,7 @@ export default function InsightShareScreen() {
                           {primaryEvidence.label}
                         </Text>
                         <Text style={[styles.heroValue, { color: colors.accent }]}>
-                          {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                          {formatEvidenceValue(primaryEvidence)}
                         </Text>
                         {heroDelta && (
                           <Text style={[styles.deltaText, { color: colors.textTertiary }]}>
@@ -340,7 +331,7 @@ export default function InsightShareScreen() {
                               {item.label}
                             </Text>
                             <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                              {renderValue(privacyMode, formatEvidenceValue(item))}
+                              {formatEvidenceValue(item)}
                             </Text>
                           </View>
                         ))}
@@ -365,7 +356,7 @@ export default function InsightShareScreen() {
                             {item.label}
                           </Text>
                           <Text style={[styles.gridValue, { color: colors.textPrimary }]}>
-                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                            {formatEvidenceValue(item)}
                           </Text>
                         </View>
                       ))}
@@ -379,7 +370,7 @@ export default function InsightShareScreen() {
                           {primaryEvidence.label}
                         </Text>
                         <Text style={[styles.heroValue, { color: colors.accent }]}>
-                          {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                          {formatEvidenceValue(primaryEvidence)}
                         </Text>
                         {heroDelta && (
                           <Text style={[styles.deltaText, { color: colors.textSecondary }]}>
@@ -414,7 +405,7 @@ export default function InsightShareScreen() {
                                   />
                                 </View>
                                 <Text style={[styles.comparisonValue, { color: colors.textPrimary }]}>
-                                  {renderValue(privacyMode, formatEvidenceValue({
+                                  {formatEvidenceValue({
                                     ...primaryEvidence,
                                     value: bar.value,
                                   }))}
@@ -431,7 +422,7 @@ export default function InsightShareScreen() {
                               {item.label}
                             </Text>
                             <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                              {renderValue(privacyMode, formatEvidenceValue(item))}
+                              {formatEvidenceValue(item)}
                             </Text>
                           </View>
                         ))}
@@ -491,7 +482,7 @@ export default function InsightShareScreen() {
                       </Text>
                       <View style={styles.heroValueRow}>
                         <Text style={[styles.heroValue, { color: colors.accent }]}>
-                          {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                          {formatEvidenceValue(primaryEvidence)}
                         </Text>
                         <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
                       </View>
@@ -512,7 +503,7 @@ export default function InsightShareScreen() {
                             {item.label}
                           </Text>
                           <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                            {formatEvidenceValue(item)}
                           </Text>
                         </View>
                       ))}
@@ -527,7 +518,7 @@ export default function InsightShareScreen() {
                         {primaryEvidence.label}
                       </Text>
                       <Text style={[styles.heroValue, { color: colors.accent }]}>
-                        {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                        {formatEvidenceValue(primaryEvidence)}
                       </Text>
                       {heroDelta && (
                         <Text style={[styles.deltaText, { color: colors.textTertiary }]}>
@@ -542,7 +533,7 @@ export default function InsightShareScreen() {
                             {item.label}
                           </Text>
                           <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                            {formatEvidenceValue(item)}
                           </Text>
                         </View>
                       ))}
@@ -567,7 +558,7 @@ export default function InsightShareScreen() {
                           {item.label}
                         </Text>
                         <Text style={[styles.gridValue, { color: colors.textPrimary }]}>
-                          {renderValue(privacyMode, formatEvidenceValue(item))}
+                          {formatEvidenceValue(item)}
                         </Text>
                       </View>
                     ))}
@@ -581,7 +572,7 @@ export default function InsightShareScreen() {
                         {primaryEvidence.label}
                       </Text>
                       <Text style={[styles.heroValue, { color: colors.accent }]}>
-                        {renderValue(privacyMode, formatEvidenceValue(primaryEvidence))}
+                        {formatEvidenceValue(primaryEvidence)}
                       </Text>
                       {heroDelta && (
                         <Text style={[styles.deltaText, { color: colors.textSecondary }]}>
@@ -616,7 +607,7 @@ export default function InsightShareScreen() {
                                 />
                               </View>
                               <Text style={[styles.comparisonValue, { color: colors.textPrimary }]}>
-                                {renderValue(privacyMode, formatEvidenceValue({
+                                {formatEvidenceValue({
                                   ...primaryEvidence,
                                   value: bar.value,
                                 }))}
@@ -633,7 +624,7 @@ export default function InsightShareScreen() {
                             {item.label}
                           </Text>
                           <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                            {renderValue(privacyMode, formatEvidenceValue(item))}
+                            {formatEvidenceValue(item)}
                           </Text>
                         </View>
                       ))}
