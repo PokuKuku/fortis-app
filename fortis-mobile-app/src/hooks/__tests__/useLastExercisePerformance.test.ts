@@ -116,8 +116,8 @@ describe('getLatestExercisePerformance', () => {
     expect(performance?.weight).toBe(155);
     expect(performance?.weightUnit).toBe('lbs');
     expect(performance?.sets).toEqual([
-      { weight: 135, reps: 10, weightUnit: 'lbs' },
-      { weight: 155, reps: 8, weightUnit: 'lbs' },
+      { weight: 135, reps: 10, weightUnit: 'lbs', setType: 'normal' },
+      { weight: 155, reps: 8, weightUnit: 'lbs', setType: 'normal' },
     ]);
   });
 
