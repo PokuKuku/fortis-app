@@ -93,6 +93,7 @@ const resolveUnitLabel = (unit?: string): string | null => {
   if (!unit) return null;
   const normalized = unit.toLowerCase();
   if (normalized === 'e1rm') return 'e1RM';
+  if (normalized === 'prs') return 'PRs';
   if (normalized === 'workouts') return 'Workouts';
   if (normalized === 'sessions') return 'Sessions';
   if (normalized === 'sets') return 'Sets';
@@ -129,7 +130,9 @@ const resolveTabPillLabel = (tab: ChartTab, unit?: string, insight?: TrainingIns
   }
   const unitLabel = resolveUnitLabel(unit);
   if (tab === 'progress') {
-    return unitLabel === 'e1RM' ? 'e1RM' : 'Progress';
+    if (unitLabel === 'e1RM') return 'e1RM';
+    if (unitLabel === 'PRs') return 'PRs';
+    return 'Progress';
   }
   if (tab === 'frequency') {
     if (unitLabel === 'Workouts') return 'Workouts';
@@ -149,6 +152,7 @@ const resolveSparklineLabel = (
     return resolveImbalanceLabels(insight)[tab];
   }
   if (insight.type === 'WEEKLY_VERDICT_V1' && hasWeekToDateEvidence(insight)) {
+    if (tab === 'progress' && unit?.toLowerCase() === 'prs') return 'PRs (WTD)';
     if (tab === 'volume') return 'Week-to-date volume';
     if (tab === 'frequency') return 'Workouts (WTD)';
   }
@@ -287,6 +291,7 @@ function InsightCard({
   const sparklineLabel = resolveSparklineLabel(activeTab, mapping, activeUnit, insight);
   const evidenceItems = useMemo(() => resolveEvidence(insight).slice(0, 4), [insight]);
   const isWeeklyVerdict = insight.type === 'WEEKLY_VERDICT_V1';
+  const isImbalance = insight.type === 'IMBALANCE_FLAG_V1';
   const rangeLabel = formatWeekRange(insight.anchorDate);
   const activeSeries = seriesMap?.[activeTab] ?? [];
   const latestPoint = activeSeries.length > 0 ? activeSeries[activeSeries.length - 1] : null;
@@ -296,16 +301,16 @@ function InsightCard({
   const latestMeta = latestPoint ? formatChartDate(latestPoint.date) : null;
   const showTabs = (CHART_TABS.filter((tab) => (seriesMap?.[tab]?.length ?? 0) > 0).length) > 1;
   const sparklineStroke = colors.accent;
-  const sparklineVariant = activeTab === 'frequency'
+  const sparklineVariant = isImbalance
+    ? (activeTab === 'progress' ? 'line' : 'bars')
+    : activeTab === 'frequency'
     ? 'bars'
     : activeTab === 'volume'
     ? 'area'
     : 'line';
-  const sparklineFill = activeTab === 'volume'
-    ? colors.successOverlay
-    : activeTab === 'progress'
-    ? colors.accentOverlay
-    : colors.info;
+  const sparklineFill = sparklineVariant === 'area'
+    ? (activeTab === 'volume' ? colors.successOverlay : colors.accentOverlay)
+    : undefined;
   const sparklineFillOpacity = sparklineVariant === 'area' ? 1 : undefined;
 
   const cardTheme = {
@@ -375,39 +380,79 @@ function InsightCard({
           </View>
 
           {showTabs && (
-            <View style={styles.sparklineTabs}>
-              {CHART_TABS.map((tab) => {
-                const hasData = (seriesMap?.[tab]?.length ?? 0) > 0;
-                const isActive = tab === activeTab;
-                const tabLabel = resolveTabPillLabel(tab, series?.units?.[tab], insight);
-                return (
-                  <TouchableOpacity
-                    key={tab}
-                    onPress={() => setActiveTab(tab)}
-                    disabled={!hasData}
-                    style={[
-                      styles.sparklineTab,
-                      pillTheme,
-                      isActive && {
-                        backgroundColor: colors.accentOverlay,
-                        borderColor: colors.accent,
-                      },
-                      !hasData && styles.sparklineTabDisabled,
-                    ]}
-                    activeOpacity={0.8}
-                  >
-                    <Text
+            isImbalance ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={[styles.sparklineTabs, styles.sparklineTabsScrollable]}
+              >
+                {CHART_TABS.map((tab) => {
+                  const hasData = (seriesMap?.[tab]?.length ?? 0) > 0;
+                  const isActive = tab === activeTab;
+                  const tabLabel = resolveTabPillLabel(tab, series?.units?.[tab], insight);
+                  return (
+                    <TouchableOpacity
+                      key={tab}
+                      onPress={() => setActiveTab(tab)}
+                      disabled={!hasData}
                       style={[
-                        styles.sparklineTabText,
-                        { color: isActive ? colors.accent : colors.textSecondary },
+                        styles.sparklineTab,
+                        pillTheme,
+                        isActive && {
+                          backgroundColor: colors.accentOverlay,
+                          borderColor: colors.accent,
+                        },
+                        !hasData && styles.sparklineTabDisabled,
                       ]}
+                      activeOpacity={0.8}
                     >
-                      {tabLabel}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                      <Text
+                        style={[
+                          styles.sparklineTabText,
+                          { color: isActive ? colors.accent : colors.textSecondary },
+                        ]}
+                      >
+                        {tabLabel}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            ) : (
+              <View style={styles.sparklineTabs}>
+                {CHART_TABS.map((tab) => {
+                  const hasData = (seriesMap?.[tab]?.length ?? 0) > 0;
+                  const isActive = tab === activeTab;
+                  const tabLabel = resolveTabPillLabel(tab, series?.units?.[tab], insight);
+                  return (
+                    <TouchableOpacity
+                      key={tab}
+                      onPress={() => setActiveTab(tab)}
+                      disabled={!hasData}
+                      style={[
+                        styles.sparklineTab,
+                        pillTheme,
+                        isActive && {
+                          backgroundColor: colors.accentOverlay,
+                          borderColor: colors.accent,
+                        },
+                        !hasData && styles.sparklineTabDisabled,
+                      ]}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          styles.sparklineTabText,
+                          { color: isActive ? colors.accent : colors.textSecondary },
+                        ]}
+                      >
+                        {tabLabel}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )
           )}
 
           <View style={styles.sparklineChart}>
@@ -1282,6 +1327,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: scale(Spacing.xs),
+  },
+  sparklineTabsScrollable: {
+    flexWrap: 'nowrap',
   },
   sparklineTab: {
     borderWidth: 1,

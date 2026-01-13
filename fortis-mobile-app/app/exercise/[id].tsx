@@ -18,6 +18,7 @@ import { ExerciseCharts } from '@/src/components/exercise/ExerciseCharts';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
@@ -40,10 +41,18 @@ function formatVolume(volume: number): string {
   return volume.toString();
 }
 
+function calculateEstimated1RM(weight: number, reps: number): number {
+  if (reps <= 0 || weight <= 0) return 0;
+  if (reps === 1) return Math.round(weight);
+  const repsClamped = Math.min(reps, 12);
+  return Math.round(weight * (1 + repsClamped / 30));
+}
+
 export default function ExerciseDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { profile } = useAuth();
   const modalStyles = useModalStyles();
   const [selectedTab, setSelectedTab] = useState<TabType>('About');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -176,6 +185,72 @@ export default function ExerciseDetailsScreen() {
     setShowDeleteConfirm(false);
   };
 
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
+  const unitLabel = preferredUnits === 'metric' ? 'kg' : 'lbs';
+
+  const chartData = useMemo(() => {
+    const normalizeWeight = (weight: number, unit?: 'lbs' | 'kg' | null) => {
+      if (!Number.isFinite(weight)) return 0;
+      const resolvedUnit = unit ?? unitLabel;
+      if (preferredUnits === 'metric') {
+        return resolvedUnit === 'lbs' ? weight / 2.20462 : weight;
+      }
+      return resolvedUnit === 'kg' ? weight * 2.20462 : weight;
+    };
+    const points = history
+      .slice()
+      .reverse()
+      .map((entry) => {
+        const workingSets = entry.sets.filter(
+          (set) =>
+            set.isCompleted &&
+            set.setType !== 'warmup' &&
+            (set.weight ?? 0) > 0 &&
+            (set.reps ?? 0) > 0
+        );
+
+        if (workingSets.length === 0) return null;
+
+        let totalVolume = 0;
+        let maxWeight = 0;
+        let maxE1rm = 0;
+
+        workingSets.forEach((set) => {
+          const weight = normalizeWeight(set.weight ?? 0, set.weightUnit ?? unitLabel);
+          const reps = set.reps ?? 0;
+          if (!Number.isFinite(weight) || !Number.isFinite(reps)) return;
+          totalVolume += weight * reps;
+          if (weight > maxWeight) {
+            maxWeight = weight;
+          }
+          const e1rm = calculateEstimated1RM(weight, reps);
+          if (e1rm > maxE1rm) {
+            maxE1rm = e1rm;
+          }
+        });
+
+        if (!Number.isFinite(totalVolume) || !Number.isFinite(maxWeight) || !Number.isFinite(maxE1rm)) {
+          return null;
+        }
+        if (totalVolume <= 0 || maxWeight <= 0 || maxE1rm <= 0) {
+          return null;
+        }
+
+        return {
+          weight: maxWeight,
+          volume: totalVolume,
+          e1rm: maxE1rm,
+          date: entry.date,
+        };
+      })
+      .filter((point): point is { weight: number; volume: number; e1rm: number; date: Date } => Boolean(point));
+
+    return points.map((point, index) => ({
+      x: index + 1,
+      ...point,
+    }));
+  }, [history, preferredUnits, unitLabel]);
+
   if (!exercise) {
     return (
       <SafeAreaView style={[styles.container, themedStyles.container]}>
@@ -189,17 +264,6 @@ export default function ExerciseDetailsScreen() {
       </SafeAreaView>
     );
   }
-
-  // Prepare chart data
-  const chartData = history
-    .slice()
-    .reverse()
-    .map((entry, index) => ({
-      x: index + 1,
-      weight: entry.maxWeight,
-      volume: entry.totalVolume,
-      date: entry.date,
-    }));
 
   return (
     <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
@@ -404,7 +468,7 @@ export default function ExerciseDetailsScreen() {
         {/* ==================== CHARTS TAB ==================== */}
         {selectedTab === 'Charts' && (
           <View style={styles.tabContent}>
-            <ExerciseCharts chartData={chartData} formatVolume={formatVolume} />
+            <ExerciseCharts chartData={chartData} formatVolume={formatVolume} unitLabel={unitLabel} />
           </View>
         )}
 

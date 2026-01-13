@@ -29,7 +29,7 @@ params AS (
     prefs.timezone AS timezone
   FROM prefs
 ),
-window AS (
+window_bounds AS (
   SELECT
     current_week_start_local,
     last_week_start_local,
@@ -44,10 +44,10 @@ window AS (
 exposures AS (
   SELECT
     ee.exercise_id,
-    (ee.exposure_at AT TIME ZONE window.timezone) AS exposure_at_local,
+    (ee.exposure_at AT TIME ZONE window_bounds.timezone) AS exposure_at_local,
     ee.best_e1rm
   FROM exercise_exposures ee
-  CROSS JOIN window
+  CROSS JOIN window_bounds
   WHERE ee.user_id = (SELECT user_id FROM resolved_user)
     AND ee.best_e1rm IS NOT NULL
 ),
@@ -68,7 +68,7 @@ rollups AS (
     MAX(best_e1rm) FILTER (
       WHERE exposure_at_local < last_week_start_local
     ) AS prior_best_before_last
-  FROM exposures, window
+  FROM exposures, window_bounds
   GROUP BY exercise_id
 )
 SELECT

@@ -22,6 +22,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
+import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonomy';
 
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
@@ -36,16 +37,46 @@ const resolveUnitLabel = (unit?: string): string | null => {
   if (!unit) return null;
   const normalized = unit.toLowerCase();
   if (normalized === 'e1rm') return 'e1RM';
+  if (normalized === 'prs') return 'PRs';
   if (normalized === 'workouts') return 'Workouts';
   if (normalized === 'sessions') return 'Sessions';
   if (normalized === 'sets') return 'Sets';
   return unit;
 };
 
-const resolveTabLabel = (tab: InsightChartTab, unit?: string): string => {
+const resolveImbalanceLabels = (insight: TrainingInsight): Record<InsightChartTab, string> => {
+  const hasPushPull = insight.evidence.some((item) =>
+    item.key === 'push_sets' || item.key === 'pull_sets' || item.key === 'push_pull_ratio'
+  );
+  if (hasPushPull) {
+    return {
+      volume: 'Push sets',
+      frequency: 'Pull sets',
+      progress: 'Push/Pull ratio',
+    };
+  }
+  const muscleKey = insight.muscleGroup ? normalizeMuscle(insight.muscleGroup) : null;
+  const muscleLabel = muscleKey ? getMuscleDisplayName(muscleKey) : 'Target';
+  return {
+    volume: `${muscleLabel} sets`,
+    frequency: 'Total sets',
+    progress: 'Share %',
+  };
+};
+
+const resolveTabLabel = (
+  tab: InsightChartTab,
+  unit?: string,
+  insight?: TrainingInsight
+): string => {
+  if (insight?.type === 'IMBALANCE_FLAG_V1') {
+    return resolveImbalanceLabels(insight)[tab];
+  }
   const unitLabel = resolveUnitLabel(unit);
   if (tab === 'progress') {
-    return unitLabel === 'e1RM' ? 'e1RM' : 'Progress';
+    if (unitLabel === 'e1RM') return 'e1RM';
+    if (unitLabel === 'PRs') return 'PRs';
+    return 'Progress';
   }
   if (tab === 'frequency') {
     if (unitLabel === 'Workouts') return 'Workouts';
@@ -58,8 +89,15 @@ const resolveTabLabel = (tab: InsightChartTab, unit?: string): string => {
 const resolveChartTitle = (
   tab: InsightChartTab,
   mapping: ReturnType<typeof getInsightChartMapping>,
-  unit?: string
+  unit: string | undefined,
+  insight: TrainingInsight
 ): string => {
+  if (insight.type === 'IMBALANCE_FLAG_V1') {
+    return resolveImbalanceLabels(insight)[tab];
+  }
+  if (tab === 'progress' && unit?.toLowerCase() === 'prs') {
+    return 'PRs per week';
+  }
   if (tab === mapping.sparklineMetric) {
     return mapping.sparklineLabel;
   }
@@ -160,9 +198,9 @@ export default function InsightDetailScreen() {
   }, [initialTab, insight, series]);
 
   const tabOptions = [
-    { key: 'progress', label: resolveTabLabel('progress', series?.units?.progress), disabled: (series?.progress?.length ?? 0) < 2 },
-    { key: 'volume', label: resolveTabLabel('volume', series?.units?.volume), disabled: (series?.volume?.length ?? 0) < 2 },
-    { key: 'frequency', label: resolveTabLabel('frequency', series?.units?.frequency), disabled: (series?.frequency?.length ?? 0) < 2 },
+    { key: 'progress', label: resolveTabLabel('progress', series?.units?.progress, insight), disabled: (series?.progress?.length ?? 0) < 2 },
+    { key: 'volume', label: resolveTabLabel('volume', series?.units?.volume, insight), disabled: (series?.volume?.length ?? 0) < 2 },
+    { key: 'frequency', label: resolveTabLabel('frequency', series?.units?.frequency, insight), disabled: (series?.frequency?.length ?? 0) < 2 },
   ];
 
   if (!insight) {
@@ -198,7 +236,7 @@ export default function InsightDetailScreen() {
   const highlightPoints =
     selectedTab === 'progress' && isExposureProgress ? series?.highlight?.points : undefined;
   const unit = series?.units?.[selectedTab];
-  const chartTitle = resolveChartTitle(selectedTab, mapping, unit);
+  const chartTitle = resolveChartTitle(selectedTab, mapping, unit, insight);
   const latestPoint = activeSeries.length > 0 ? activeSeries[activeSeries.length - 1] : null;
   const latestValue = latestPoint ? formatChartValue(latestPoint.value, unit) : null;
   const latestMeta = latestPoint ? formatDateLabel(latestPoint.date) : null;
@@ -214,14 +252,17 @@ export default function InsightDetailScreen() {
   const yLabel = (() => {
     if (insight.type === 'IMBALANCE_FLAG_V1') {
       if (selectedTab === 'progress') {
-        return unit === '%' ? 'Share (%)' : 'Balance ratio';
+        return unit === '%' ? 'Share (%)' : 'Push/Pull ratio';
       }
-      return 'Working sets';
+      return 'Sets';
     }
     if (selectedTab === 'frequency') {
       return 'Sessions';
     }
     if (selectedTab === 'progress') {
+      if (unit?.toLowerCase() === 'prs') {
+        return 'PRs';
+      }
       return `e1RM${unit ? ` (${unit})` : ''}`;
     }
     return `Volume${unit ? ` (${unit})` : ''}`;
@@ -335,6 +376,7 @@ export default function InsightDetailScreen() {
                 options={tabOptions}
                 value={selectedTab}
                 onChange={(value) => setSelectedTab(value as InsightChartTab)}
+                scrollable={insight.type === 'IMBALANCE_FLAG_V1'}
               />
             )}
 
@@ -395,9 +437,31 @@ export default function InsightDetailScreen() {
                   yLabel={yLabel}
                   formatXValue={formatDateLabel}
                   formatYValue={formatYAxisValue}
-                  variant={selectedTab === 'frequency' ? 'bars' : selectedTab === 'volume' ? 'area' : 'line'}
-                  fill={selectedTab === 'volume' ? colors.accentOverlay : undefined}
-                  fillOpacity={selectedTab === 'volume' ? 1 : undefined}
+                  variant={
+                    insight.type === 'IMBALANCE_FLAG_V1'
+                      ? selectedTab === 'progress'
+                        ? 'line'
+                        : 'bars'
+                      : selectedTab === 'frequency'
+                      ? 'bars'
+                      : selectedTab === 'volume'
+                      ? 'area'
+                      : 'line'
+                  }
+                  fill={
+                    insight.type === 'IMBALANCE_FLAG_V1'
+                      ? undefined
+                      : selectedTab === 'volume'
+                      ? colors.accentOverlay
+                      : undefined
+                  }
+                  fillOpacity={
+                    insight.type === 'IMBALANCE_FLAG_V1'
+                      ? undefined
+                      : selectedTab === 'volume'
+                      ? 1
+                      : undefined
+                  }
                 />
               </View>
             )}

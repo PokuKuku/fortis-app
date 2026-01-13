@@ -14,6 +14,11 @@ type WeeklyVolumeRow = {
   workouts_count: number | null;
 };
 
+type WeeklyPrCountRow = {
+  week_start: string;
+  pr_count: number | null;
+};
+
 type ExerciseWeeklyRow = {
   week_start: string;
   total_volume: number | null;
@@ -105,8 +110,11 @@ const applyWeekToDateOverrides = (
   const sessionEvidence = insight.evidence.find(
     (item) => item.key === 'sessions' && item.period === 'week_to_date'
   );
+  const prEvidence = insight.evidence.find(
+    (item) => item.key === 'prs' && item.period === 'week_to_date'
+  );
 
-  if (!volumeEvidence && !sessionEvidence) {
+  if (!volumeEvidence && !sessionEvidence && !prEvidence) {
     return series;
   }
 
@@ -129,6 +137,11 @@ const applyWeekToDateOverrides = (
       upsertWeekPoint(series.frequency, lastWeekKey, sessionEvidence?.compareValue),
       thisWeekKey,
       sessionEvidence?.value
+    ),
+    progress: upsertWeekPoint(
+      upsertWeekPoint(series.progress, lastWeekKey, prEvidence?.compareValue),
+      thisWeekKey,
+      prEvidence?.value
     ),
   };
 };
@@ -184,6 +197,26 @@ export async function fetchInsightChartSeries(
       volume: getVolumeUnit(insight),
       frequency: 'workouts',
     };
+
+    if (insight.type === 'WEEKLY_VERDICT_V1') {
+      const { data: prRows, error: prError } = await supabase
+        .from('weekly_pr_counts')
+        .select('week_start, pr_count')
+        .eq('user_id', user.id)
+        .gte('week_start', toIsoDate(weeklyStart))
+        .order('week_start', { ascending: true });
+
+      if (!prError && prRows) {
+        series.progress = normalizeWeekSeries(
+          prRows as WeeklyPrCountRow[],
+          (row) => parseNumber(row.pr_count)
+        );
+        series.units = {
+          ...series.units,
+          progress: 'prs',
+        };
+      }
+    }
     const anchor = Number.isNaN(anchorDate.getTime()) ? new Date() : anchorDate;
     const lastWeek = addDays(anchor, -7);
     series.highlight = {

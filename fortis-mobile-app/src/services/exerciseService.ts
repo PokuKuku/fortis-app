@@ -508,17 +508,12 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
     ]);
     if (cached && cached.length > 0) {
       if (!remoteVersion || !cachedVersion || cachedVersion === remoteVersion) {
-        const hasCurationFields = cached.some((exercise) =>
-          typeof exercise.isCurated === 'boolean' || exercise.canonicalId !== undefined
+        const hasNonCuratedOrVariant = cached.some(
+          (exercise) => exercise.isCurated === false || !!exercise.canonicalId
         );
-        if (hasCurationFields) {
-          const curatedOnly = cached.filter((exercise) =>
-            exercise.isCurated && !exercise.canonicalId && !exercise.isHidden
-          );
-          if (curatedOnly.length > 0) {
-            baseExerciseCache = curatedOnly;
-            return curatedOnly;
-          }
+        if (hasNonCuratedOrVariant) {
+          baseExerciseCache = cached;
+          return cached;
         }
       }
     }
@@ -536,9 +531,7 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
       .eq('is_custom', false)
       .eq('is_hidden', false);
 
-    const filteredQuery = includeVariants
-      ? baseQuery
-      : baseQuery.eq('is_curated', true).is('canonical_id', null);
+    const filteredQuery = baseQuery;
 
     const [version, { data, error }] = await Promise.all([
       fetchLibraryVersion(),

@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { useFont } from '@shopify/react-native-skia';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
@@ -21,16 +22,23 @@ interface ChartDataPoint {
   x: number;
   weight: number;
   volume: number;
+  e1rm: number;
   date: Date;
 }
 
 interface ExerciseChartsProps {
   chartData: ChartDataPoint[];
   formatVolume: (volume: number) => string;
+  unitLabel: string;
 }
 
-export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps) {
+export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseChartsProps) {
   const { colors, isDark } = useTheme();
+  const axisFont = useFont(
+    require('../../../assets/fonts/BankGothicMediumBT.ttf'),
+    10
+  );
+  const formatSessionIndex = (value: number) => `${Math.round(value)}`;
 
   // Theme-aware styles
   const themedStyles = {
@@ -42,6 +50,7 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
     },
     gridLineColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
     frameColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+    axisLabel: { color: colors.textTertiary },
   };
 
   // Not enough data
@@ -77,15 +86,18 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
           data={chartData}
           xKey="x"
           yKeys={['weight']}
-          padding={{ top: 20, bottom: 20, left: 10, right: 10 }}
+          padding={{ top: 20, bottom: 30, left: 34, right: 12 }}
           domainPadding={{ top: 20, bottom: 10 }}
           axisOptions={{
             tickCount: { x: 5, y: 5 },
             labelColor: colors.textSecondary,
+            labelOffset: { x: 6, y: 6 },
+            font: axisFont ?? undefined,
             lineColor: {
               grid: { x: 'transparent', y: themedStyles.gridLineColor },
               frame: themedStyles.frameColor,
             },
+            formatXLabel: formatSessionIndex,
             formatYLabel: (value: number) => `${value}`,
           }}
         >
@@ -107,6 +119,10 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
             </>
           )}
         </CartesianChart>
+        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Session</Text>
+        <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
+          Max weight ({unitLabel})
+        </Text>
       </View>
 
       {/* Volume Progress Chart */}
@@ -116,15 +132,18 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
           data={chartData}
           xKey="x"
           yKeys={['volume']}
-          padding={{ top: 20, bottom: 20, left: 10, right: 10 }}
+          padding={{ top: 20, bottom: 30, left: 34, right: 12 }}
           domainPadding={{ top: 20, bottom: 10 }}
           axisOptions={{
             tickCount: { x: 5, y: 5 },
             labelColor: colors.textSecondary,
+            labelOffset: { x: 6, y: 6 },
+            font: axisFont ?? undefined,
             lineColor: {
               grid: { x: 'transparent', y: themedStyles.gridLineColor },
               frame: themedStyles.frameColor,
             },
+            formatXLabel: formatSessionIndex,
             formatYLabel: (value: number) => formatVolume(Number(value)),
           }}
         >
@@ -146,6 +165,56 @@ export function ExerciseCharts({ chartData, formatVolume }: ExerciseChartsProps)
             </>
           )}
         </CartesianChart>
+        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Session</Text>
+        <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
+          Volume ({unitLabel})
+        </Text>
+      </View>
+
+      {/* Estimated 1RM Progress Chart */}
+      <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>E1RM PROGRESS</Text>
+      <View style={[styles.chartContainer, themedStyles.chartContainer]}>
+        <CartesianChart
+          data={chartData}
+          xKey="x"
+          yKeys={['e1rm']}
+          padding={{ top: 20, bottom: 30, left: 34, right: 12 }}
+          domainPadding={{ top: 20, bottom: 10 }}
+          axisOptions={{
+            tickCount: { x: 5, y: 5 },
+            labelColor: colors.textSecondary,
+            labelOffset: { x: 6, y: 6 },
+            font: axisFont ?? undefined,
+            lineColor: {
+              grid: { x: 'transparent', y: themedStyles.gridLineColor },
+              frame: themedStyles.frameColor,
+            },
+            formatXLabel: formatSessionIndex,
+            formatYLabel: (value: number) => `${Math.round(Number(value))}`,
+          }}
+        >
+          {({ points }: { points: { e1rm: any[] } }) => (
+            <>
+              <Line
+                points={points.e1rm}
+                color={Colors.success}
+                strokeWidth={2}
+                curveType="natural"
+                animate={{ type: 'timing', duration: 500 }}
+              />
+              <Scatter
+                points={points.e1rm}
+                radius={5}
+                color={Colors.success}
+                animate={{ type: 'timing', duration: 500 }}
+              />
+            </>
+          )}
+        </CartesianChart>
+        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Session</Text>
+        <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
+          Estimated 1RM ({unitLabel})
+        </Text>
       </View>
     </>
   );
@@ -165,6 +234,24 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.xl,
     overflow: 'hidden',
+  },
+  axisLabel: {
+    position: 'absolute',
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  axisLabelX: {
+    bottom: Spacing.xs,
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+  },
+  axisLabelY: {
+    left: Spacing.xs,
+    top: '50%',
+    transform: [{ translateY: -40 }, { rotate: '-90deg' }],
   },
   placeholderTab: {
     flex: 1,
