@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from 'react-native';
+import { format } from 'date-fns';
 import { useFont } from '@shopify/react-native-skia';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -38,7 +39,21 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
     require('../../../assets/fonts/BankGothicMediumBT.ttf'),
     10
   );
-  const formatSessionIndex = (value: number) => `${Math.round(value)}`;
+  const dateTicks = (() => {
+    if (!chartData.length) return [];
+    const targetCount = Math.min(4, chartData.length);
+    if (targetCount === 1) return [chartData[0].x];
+    const step = (chartData.length - 1) / (targetCount - 1);
+    return Array.from({ length: targetCount }, (_, index) => {
+      const pointIndex = Math.round(index * step);
+      return chartData[pointIndex]?.x ?? chartData[0].x;
+    });
+  })();
+  const formatDateTick = (value: number) => {
+    if (!Number.isFinite(value)) return '';
+    return format(new Date(value), 'MMM d');
+  };
+  const chartPadding = { top: 18, bottom: 38, left: 80, right: 4 };
 
   // Theme-aware styles
   const themedStyles = {
@@ -86,10 +101,10 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
           data={chartData}
           xKey="x"
           yKeys={['weight']}
-          padding={{ top: 20, bottom: 30, left: 34, right: 12 }}
+          padding={chartPadding}
           domainPadding={{ top: 20, bottom: 10 }}
           axisOptions={{
-            tickCount: { x: 5, y: 5 },
+            tickCount: 5,
             labelColor: colors.textSecondary,
             labelOffset: { x: 6, y: 6 },
             font: axisFont ?? undefined,
@@ -97,8 +112,16 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
               grid: { x: 'transparent', y: themedStyles.gridLineColor },
               frame: themedStyles.frameColor,
             },
-            formatXLabel: formatSessionIndex,
             formatYLabel: (value: number) => `${value}`,
+          }}
+          xAxis={{
+            tickValues: dateTicks,
+            tickCount: dateTicks.length || 4,
+            labelColor: colors.textSecondary,
+            labelOffset: 6,
+            font: axisFont ?? undefined,
+            lineColor: 'transparent',
+            formatXLabel: formatDateTick,
           }}
         >
           {({ points }: { points: { weight: any[] } }) => (
@@ -119,7 +142,7 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
             </>
           )}
         </CartesianChart>
-        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Session</Text>
+        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Date</Text>
         <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
           Max weight ({unitLabel})
         </Text>
@@ -132,10 +155,10 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
           data={chartData}
           xKey="x"
           yKeys={['volume']}
-          padding={{ top: 20, bottom: 30, left: 34, right: 12 }}
+          padding={chartPadding}
           domainPadding={{ top: 20, bottom: 10 }}
           axisOptions={{
-            tickCount: { x: 5, y: 5 },
+            tickCount: 5,
             labelColor: colors.textSecondary,
             labelOffset: { x: 6, y: 6 },
             font: axisFont ?? undefined,
@@ -143,8 +166,16 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
               grid: { x: 'transparent', y: themedStyles.gridLineColor },
               frame: themedStyles.frameColor,
             },
-            formatXLabel: formatSessionIndex,
             formatYLabel: (value: number) => formatVolume(Number(value)),
+          }}
+          xAxis={{
+            tickValues: dateTicks,
+            tickCount: dateTicks.length || 4,
+            labelColor: colors.textSecondary,
+            labelOffset: 6,
+            font: axisFont ?? undefined,
+            lineColor: 'transparent',
+            formatXLabel: formatDateTick,
           }}
         >
           {({ points }: { points: { volume: any[] } }) => (
@@ -165,7 +196,7 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
             </>
           )}
         </CartesianChart>
-        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Session</Text>
+        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Date</Text>
         <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
           Volume ({unitLabel})
         </Text>
@@ -178,10 +209,10 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
           data={chartData}
           xKey="x"
           yKeys={['e1rm']}
-          padding={{ top: 20, bottom: 30, left: 34, right: 12 }}
+          padding={chartPadding}
           domainPadding={{ top: 20, bottom: 10 }}
           axisOptions={{
-            tickCount: { x: 5, y: 5 },
+            tickCount: 5,
             labelColor: colors.textSecondary,
             labelOffset: { x: 6, y: 6 },
             font: axisFont ?? undefined,
@@ -189,8 +220,16 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
               grid: { x: 'transparent', y: themedStyles.gridLineColor },
               frame: themedStyles.frameColor,
             },
-            formatXLabel: formatSessionIndex,
             formatYLabel: (value: number) => `${Math.round(Number(value))}`,
+          }}
+          xAxis={{
+            tickValues: dateTicks,
+            tickCount: dateTicks.length || 4,
+            labelColor: colors.textSecondary,
+            labelOffset: 6,
+            font: axisFont ?? undefined,
+            lineColor: 'transparent',
+            formatXLabel: formatDateTick,
           }}
         >
           {({ points }: { points: { e1rm: any[] } }) => (
@@ -211,7 +250,7 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
             </>
           )}
         </CartesianChart>
-        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Session</Text>
+        <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Date</Text>
         <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
           Estimated 1RM ({unitLabel})
         </Text>
@@ -224,6 +263,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
     letterSpacing: 0.5,
@@ -249,9 +289,11 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   axisLabelY: {
-    left: Spacing.xs,
+    left: -Spacing['3xl'],
     top: '50%',
-    transform: [{ translateY: -40 }, { rotate: '-90deg' }],
+    width: 150,
+    textAlign: 'center',
+    transform: [{ translateY: -34 }, { rotate: '-90deg' }],
   },
   placeholderTab: {
     flex: 1,

@@ -245,8 +245,8 @@ export default function ExerciseDetailsScreen() {
       })
       .filter((point): point is { weight: number; volume: number; e1rm: number; date: Date } => Boolean(point));
 
-    return points.map((point, index) => ({
-      x: index + 1,
+    return points.map((point) => ({
+      x: point.date.getTime(),
       ...point,
     }));
   }, [history, preferredUnits, unitLabel]);

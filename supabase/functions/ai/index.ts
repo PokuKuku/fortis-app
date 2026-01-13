@@ -869,7 +869,24 @@ type AIProvider = 'anthropic' | 'openai';
 function modelSupportsTemperature(model: string): boolean {
   const reasoningModelPrefixes = ['o1', 'o3'];
   const lowerModel = model.toLowerCase();
-  return !reasoningModelPrefixes.some(prefix => lowerModel.startsWith(prefix));
+  if (reasoningModelPrefixes.some(prefix => lowerModel.startsWith(prefix))) {
+    return false;
+  }
+  if (lowerModel.startsWith('gpt-5') || lowerModel.includes('gpt-5')) {
+    return false;
+  }
+  return true;
+}
+
+function modelSupportsChatCompletions(model: string): boolean {
+  const lowerModel = model.toLowerCase();
+  if (lowerModel.startsWith('o1') || lowerModel.startsWith('o3')) {
+    return false;
+  }
+  if (lowerModel.startsWith('gpt-5') || lowerModel.includes('gpt-5')) {
+    return false;
+  }
+  return true;
 }
 
 function resolveAIProvider(): AIProvider {
@@ -1039,21 +1056,57 @@ async function callOpenAIText(
     }
 
     const data = await response.json();
-    const outputText =
-      data?.output_text ??
-      data?.output
-        ?.flatMap((item: { content?: Array<{ type?: string; text?: string }> }) => item.content ?? [])
-        .filter((part: { type?: string }) => part?.type === 'output_text')
-        .map((part: { text?: string }) => part.text ?? '')
-        .join('');
+    const outputText = extractOpenAIOutputText(data) || extractOpenAIChatText(data);
 
     if (!outputText) {
+      const responseStatus =
+        data && typeof data === 'object' && 'status' in data
+          ? (data as { status?: string }).status
+          : undefined;
+      console.warn('[OpenAI] Response missing output text', {
+        status: responseStatus,
+        model,
+      });
+
+      const fallbackModel = Deno.env.get('OPENAI_FALLBACK_MODEL') || model;
+      if (modelSupportsChatCompletions(fallbackModel)) {
+        return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
+          maxTokens: options?.maxTokens,
+          temperature: supportsTemp ? options?.temperature : undefined,
+        }, fallbackModel);
+      }
+
+      if (Deno.env.get('ANTHROPIC_API_KEY')) {
+        return await callClaudeText(request, systemPrompt, userMessage, {
+          maxTokens: options?.maxTokens,
+        });
+      }
+
       throw new Error('OpenAI response missing output text');
     }
 
     return String(outputText);
   }
 
+  return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
+    maxTokens: options?.maxTokens,
+    temperature: options?.temperature,
+  }, model);
+}
+
+async function callOpenAIChatCompletions(
+  request: AIRequest,
+  systemPrompt: string,
+  userMessage: string,
+  options: { maxTokens?: number; temperature?: number },
+  model: string
+): Promise<string> {
+  const apiKey = Deno.env.get('OPENAI_API_KEY');
+  if (!apiKey) {
+    throw new Error('AI service configuration error');
+  }
+
+  const supportsTemp = modelSupportsTemperature(model);
   const messages: Array<Record<string, unknown>> = [
     { role: 'system', content: systemPrompt },
   ];
@@ -1084,8 +1137,8 @@ async function callOpenAIText(
     body: JSON.stringify({
       model,
       messages,
-      ...(supportsTemp ? { temperature: options?.temperature ?? 0.2 } : {}),
-      ...(options?.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+      ...(supportsTemp ? { temperature: options.temperature ?? 0.2 } : {}),
+      ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
     }),
   });
 
@@ -1108,6 +1161,183 @@ async function callOpenAIText(
   }
 
   return String(content);
+}
+
+function extractOpenAIOutputText(data: unknown): string {
+  const record = data as {
+    output_text?: unknown;
+    output_json?: unknown;
+    output?: Array<{
+      content?: Array<{
+        type?: string;
+        text?: unknown;
+        json?: unknown;
+        refusal?: string;
+        output_text?: unknown;
+        output_json?: unknown;
+      }> | {
+        type?: string;
+        text?: unknown;
+        json?: unknown;
+        refusal?: string;
+        output_text?: unknown;
+        output_json?: unknown;
+      };
+      type?: string;
+      text?: unknown;
+      json?: unknown;
+      refusal?: string;
+      output_text?: unknown;
+      output_json?: unknown;
+    }> | {
+      content?: Array<{
+        type?: string;
+        text?: unknown;
+        json?: unknown;
+        refusal?: string;
+        output_text?: unknown;
+        output_json?: unknown;
+      }> | {
+        type?: string;
+        text?: unknown;
+        json?: unknown;
+        refusal?: string;
+        output_text?: unknown;
+        output_json?: unknown;
+      };
+      type?: string;
+      text?: unknown;
+      json?: unknown;
+      refusal?: string;
+      output_text?: unknown;
+      output_json?: unknown;
+    };
+  };
+
+  const normalizeText = (value: unknown): string => {
+    if (typeof value === 'string') {
+      return value;
+    }
+    if (value && typeof value === 'object') {
+      const typed = value as { value?: string; text?: string; output_text?: string; output_json?: unknown };
+      if (typeof typed.value === 'string') {
+        return typed.value;
+      }
+      if (typeof typed.text === 'string') {
+        return typed.text;
+      }
+      if (typeof typed.output_text === 'string') {
+        return typed.output_text;
+      }
+      if (typed.output_json !== undefined) {
+        return JSON.stringify(typed.output_json);
+      }
+    }
+    return '';
+  };
+
+  const normalizeJson = (value: unknown): string => {
+    if (value === undefined) {
+      return '';
+    }
+    return JSON.stringify(value);
+  };
+
+  if (typeof record?.output_text === 'string') {
+    return record.output_text;
+  }
+
+  if (record?.output_json !== undefined) {
+    return normalizeJson(record.output_json);
+  }
+
+  if (Array.isArray(record?.output_text)) {
+    const text = record.output_text
+      .map((part) => normalizeText(part))
+      .join('');
+    if (text) {
+      return text;
+    }
+  }
+
+  const outputItems = Array.isArray(record?.output)
+    ? record.output
+    : record?.output
+      ? [record.output]
+      : [];
+
+  if (outputItems.length > 0) {
+    const parts = outputItems.flatMap((item) => {
+      if (!item) {
+        return [];
+      }
+      if (Array.isArray(item.content)) {
+        return item.content;
+      }
+      if (item.content && typeof item.content === 'object') {
+        return [item.content];
+      }
+      if (
+        item.type === 'output_text'
+        || item.type === 'text'
+        || item.type === 'refusal'
+        || item.type === 'output_json'
+        || item.type === 'json'
+      ) {
+        return [{
+          type: item.type,
+          text: item.text ?? item.output_text,
+          json: item.json ?? item.output_json,
+          refusal: item.refusal,
+          output_text: item.output_text,
+          output_json: item.output_json,
+        }];
+      }
+      return [];
+    });
+
+    const text = parts
+      .map((part) => {
+        if (part.type === 'output_text' || part.type === 'text') {
+          return normalizeText(part.text ?? part.output_text);
+        }
+        if (part.type === 'output_json' || part.type === 'json') {
+          return normalizeJson(part.json ?? part.output_json ?? part.text);
+        }
+        if (part.type === 'refusal') {
+          return part.refusal ?? normalizeText(part.text);
+        }
+        return normalizeText(part.text ?? part.output_text);
+      })
+      .join('');
+
+    if (text) {
+      return text;
+    }
+  }
+
+  return '';
+}
+
+function extractOpenAIChatText(data: unknown): string {
+  const record = data as {
+    choices?: Array<{
+      message?: { content?: unknown };
+    }>;
+  };
+
+  const content = record?.choices?.[0]?.message?.content;
+  if (!content) {
+    return '';
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (part?.type === 'text' ? part.text : ''))
+      .join('');
+  }
+
+  return typeof content === 'string' ? content : '';
 }
 
 function buildAnswerPrompt(context: AIContext): string {
