@@ -34,7 +34,7 @@ function calculateEstimated1RM(weight: number, reps: number): number {
 }
 
 export function useExerciseRecords(exerciseId: string | undefined): ExerciseRecords {
-  const { sessions } = useWorkoutHistorySource();
+  const { sessions } = useWorkoutHistorySource({ enabled: Boolean(exerciseId) });
 
   return useMemo(() => {
     const emptyRecords: ExerciseRecords = {

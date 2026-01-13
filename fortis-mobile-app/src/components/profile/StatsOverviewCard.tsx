@@ -6,9 +6,9 @@ import {
   TrophyIcon,
 } from 'react-native-heroicons/outline';
 import { useMonthlyStats } from '@/src/hooks/useMonthlyStats';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
@@ -67,8 +67,8 @@ export function StatsOverviewCard() {
   const router = useRouter();
   const { profile } = useAuth();
   const { colors, isDark } = useTheme();
-  const completedSessions = useWorkoutStore((state) => state.completedSessions);
-  const monthlyStats = useMonthlyStats(completedSessions, profile?.id);
+  const { sessions: historySessions } = useWorkoutHistorySource({ enabled: Boolean(profile?.id) });
+  const monthlyStats = useMonthlyStats(historySessions, profile?.id);
   const units = profile?.preferred_units || 'imperial';
 
   // Theme-aware card styles

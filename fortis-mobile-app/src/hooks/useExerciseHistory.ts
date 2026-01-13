@@ -14,7 +14,7 @@ export interface ExerciseHistoryEntry {
 }
 
 export function useExerciseHistory(exerciseId: string | undefined) {
-  const { sessions, isLoading } = useWorkoutHistorySource();
+  const { sessions, isLoading } = useWorkoutHistorySource({ enabled: Boolean(exerciseId) });
 
   const history = useMemo(() => {
     if (!exerciseId) return [];

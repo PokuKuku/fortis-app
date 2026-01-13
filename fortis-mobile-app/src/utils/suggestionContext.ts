@@ -9,6 +9,7 @@ import { useWorkoutStore } from '../store/workoutStore';
 import { useProgramsStore } from '../store/programsStore';
 import { SuggestionContext } from '../types/suggestions';
 import { WorkoutSession } from '../types/workout';
+import { getCachedWorkoutHistory } from '@/src/hooks/useWorkoutHistorySource';
 import { getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 
 /**
@@ -78,6 +79,10 @@ export function buildSuggestionContext(): SuggestionContext {
   const aiState = useAIStore.getState();
   const workoutState = useWorkoutStore.getState();
   const programsState = useProgramsStore.getState();
+  const cachedHistory = getCachedWorkoutHistory();
+  const historySessions = cachedHistory.length > 0
+    ? cachedHistory
+    : workoutState.completedSessions;
 
   // Get conversation data
   const messages = aiState.conversation?.messages || [];
@@ -110,8 +115,8 @@ export function buildSuggestionContext(): SuggestionContext {
       intent: mutationPlan?.intent,
     },
     fitness: {
-      daysSinceLastWorkout: getDaysSinceLastWorkout(workoutState.completedSessions),
-      recentMuscleGroups: extractRecentMuscleGroups(workoutState.completedSessions),
+      daysSinceLastWorkout: getDaysSinceLastWorkout(historySessions),
+      recentMuscleGroups: extractRecentMuscleGroups(historySessions),
       hasActiveWorkout: workoutState.activeSession !== null,
       templateCount: templates.length,
       programCount: programs.length,

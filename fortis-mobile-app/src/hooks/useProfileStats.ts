@@ -18,8 +18,7 @@ const EMPTY_STATS: ProfileStats = {
 };
 
 /**
- * Hook to fetch aggregate workout statistics from Supabase.
- * Falls back to cached stats when offline.
+ * Hook to aggregate workout statistics from the workout history source.
  */
 export function useProfileStats(): ProfileStats {
   const { sessions } = useWorkoutHistorySource();

@@ -79,7 +79,9 @@ export function useMonthlyStats(
     }
 
     if (localMonthlyStats) {
-      setStats({ ...localMonthlyStats, isLoading: true });
+      setStats({ ...localMonthlyStats, isLoading: false });
+    } else {
+      setStats((prev) => (prev.isLoading ? prev : { ...prev, isLoading: true }));
     }
 
     const loadMonthly = async () => {

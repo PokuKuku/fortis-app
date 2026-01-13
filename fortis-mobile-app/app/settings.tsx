@@ -81,7 +81,9 @@ export default function SettingsScreen() {
   const { profile, updateProfile, signOut } = useAuth();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
-  const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource();
+  const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
+    enabled: Boolean(profile?.id),
+  });
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);

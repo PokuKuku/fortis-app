@@ -142,6 +142,51 @@ const getWeekStartInTimezone = (timeZone: string): Date => {
   }
 };
 
+const getLocalDateParts = (date: Date, timeZone: string) => {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  });
+  const parts = formatter.formatToParts(date);
+  const partMap = parts.reduce<Record<string, string>>((acc, part) => {
+    acc[part.type] = part.value;
+    return acc;
+  }, {});
+  const year = Number(partMap.year);
+  const month = Number(partMap.month);
+  const day = Number(partMap.day);
+  const hour = Number(partMap.hour);
+  const minute = Number(partMap.minute);
+  const second = Number(partMap.second);
+  const weekday = partMap.weekday;
+
+  if (!year || !month || !day || !weekday) {
+    return null;
+  }
+
+  return {
+    year,
+    month,
+    day,
+    hour: Number.isNaN(hour) ? 0 : hour,
+    minute: Number.isNaN(minute) ? 0 : minute,
+    second: Number.isNaN(second) ? 0 : second,
+    weekday,
+  };
+};
+
+const getMondayIndex = (weekday: string): number => {
+  const index = WEEKDAY_INDEX[weekday] ?? 0;
+  return index === 0 ? 6 : index - 1;
+};
+
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
 const toIsoDateTime = (date: Date): string => date.toISOString();
 
@@ -301,7 +346,8 @@ const fetchWeekToDateVolume = async (
   userId: string,
   weekStart: Date,
   lastWeekStart: Date,
-  preferredUnits: 'imperial' | 'metric'
+  preferredUnits: 'imperial' | 'metric',
+  timezone: string
 ): Promise<{ thisWeek: WeeklyVolumeRow; lastWeek: WeeklyVolumeRow }> => {
   const empty = {
     week_start: toIsoDate(weekStart),
@@ -310,15 +356,24 @@ const fetchWeekToDateVolume = async (
     total_time_seconds: 0,
   };
   const now = new Date();
-  const elapsedMs = Math.max(now.getTime() - weekStart.getTime(), 0);
-  const lastWeekEnd = new Date(lastWeekStart.getTime() + elapsedMs);
+  const nowLocal = getLocalDateParts(now, timezone);
+  if (!nowLocal) {
+    return { thisWeek: empty, lastWeek: { ...empty, week_start: toIsoDate(lastWeekStart) } };
+  }
+  const nowLocalDate = new Date(Date.UTC(nowLocal.year, nowLocal.month - 1, nowLocal.day));
+  const currentDayIndex = getMondayIndex(nowLocal.weekday);
+  const nowLocalSeconds = nowLocal.hour * 3600 + nowLocal.minute * 60 + nowLocal.second;
+  const currentWeekStartDate = new Date(nowLocalDate);
+  currentWeekStartDate.setUTCDate(currentWeekStartDate.getUTCDate() - currentDayIndex);
+  const lastWeekStartDate = addDays(currentWeekStartDate, -7);
+  const dayMs = 24 * 60 * 60 * 1000;
 
   const { data, error } = await supabase
     .from('workout_sessions')
     .select('id, started_at, duration_seconds, workout_sets(weight, reps, weight_unit, is_warmup)')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
-    .gte('started_at', toIsoDateTime(lastWeekStart))
+    .gte('started_at', toIsoDateTime(lastWeekStartDate))
     .lt('started_at', toIsoDateTime(now));
 
   if (error) {
@@ -326,16 +381,37 @@ const fetchWeekToDateVolume = async (
     return { thisWeek: empty, lastWeek: { ...empty, week_start: toIsoDate(lastWeekStart) } };
   }
 
-  const thisWeek = { ...empty };
-  const lastWeek = { ...empty, week_start: toIsoDate(lastWeekStart) };
+  const thisWeek = { ...empty, week_start: toIsoDate(currentWeekStartDate) };
+  const lastWeek = { ...empty, week_start: toIsoDate(lastWeekStartDate) };
 
   (data as WorkoutSessionWithSetsRow[] | null)?.forEach((session) => {
     const startedAt = new Date(session.started_at);
-    const isThisWeek = startedAt >= weekStart && startedAt <= now;
-    const isLastWeek = startedAt >= lastWeekStart && startedAt < weekStart && startedAt < lastWeekEnd;
-    if (!isThisWeek && !isLastWeek) return;
+    const localParts = getLocalDateParts(startedAt, timezone);
+    if (!localParts) return;
+    const sessionLocalDate = new Date(Date.UTC(localParts.year, localParts.month - 1, localParts.day));
+    const sessionDayDiff = Math.floor((sessionLocalDate.getTime() - currentWeekStartDate.getTime()) / dayMs);
+    const sessionSeconds = localParts.hour * 3600 + localParts.minute * 60 + localParts.second;
+    const isThisWeek = sessionDayDiff >= 0 && sessionDayDiff <= 6;
+    const isLastWeek = sessionDayDiff >= -7 && sessionDayDiff <= -1;
 
-    const target = isThisWeek ? thisWeek : lastWeek;
+    let shouldInclude = false;
+    let target = thisWeek;
+
+    if (isThisWeek) {
+      shouldInclude =
+        sessionDayDiff < currentDayIndex ||
+        (sessionDayDiff === currentDayIndex && sessionSeconds <= nowLocalSeconds);
+      target = thisWeek;
+    } else if (isLastWeek) {
+      const lastWeekDayIndex = sessionDayDiff + 7;
+      shouldInclude =
+        lastWeekDayIndex < currentDayIndex ||
+        (lastWeekDayIndex === currentDayIndex && sessionSeconds <= nowLocalSeconds);
+      target = lastWeek;
+    }
+
+    if (!shouldInclude) return;
+
     target.workouts_count = clampNumber(target.workouts_count) + 1;
     target.total_time_seconds = clampNumber(target.total_time_seconds) + clampNumber(session.duration_seconds);
 
@@ -1605,7 +1681,7 @@ Deno.serve(async (req) => {
   ]);
 
   const weekToDateVolume = shouldRunWeeklyFinal
-    ? await fetchWeekToDateVolume(supabase, user.id, weekStart, lastWeekStart, preferredUnits)
+    ? await fetchWeekToDateVolume(supabase, user.id, weekStart, lastWeekStart, preferredUnits, timezone)
     : null;
 
   const weeklySummary = shouldRunPositive

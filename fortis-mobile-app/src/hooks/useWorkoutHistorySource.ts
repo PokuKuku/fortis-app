@@ -18,6 +18,13 @@ let inFlight: Promise<WorkoutSession[]> | null = null;
 const DEFAULT_LIMIT = 10000;
 const DEFAULT_STALE_MS = 5 * 60 * 1000;
 
+export const getCachedWorkoutHistory = () => cachedSessions ?? [];
+
+export const setCachedWorkoutHistory = (sessions: WorkoutSession[]) => {
+  cachedSessions = sessions;
+  cachedAt = Date.now();
+};
+
 export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {}) {
   const {
     limit = DEFAULT_LIMIT,
@@ -36,6 +43,7 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
   useEffect(() => {
     let isMounted = true;
     if (!enabled) {
+      setRemoteSessions([]);
       setIsLoading(false);
       return () => {
         isMounted = false;
@@ -55,8 +63,7 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     if (!inFlight) {
       inFlight = fetchWorkoutHistory({ limit })
         .then(({ sessions }) => {
-          cachedSessions = sessions;
-          cachedAt = Date.now();
+          setCachedWorkoutHistory(sessions);
           return sessions;
         })
         .finally(() => {

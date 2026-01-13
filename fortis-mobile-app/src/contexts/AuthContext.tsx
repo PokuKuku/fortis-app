@@ -8,6 +8,7 @@ import { processPendingQueue, getPendingSyncCount, getPendingSyncSessions, fetch
 import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { setCachedWorkoutHistory } from '@/src/hooks/useWorkoutHistorySource';
 import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
@@ -276,6 +277,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             fetchWorkoutHistory(10000)
               .then(({ sessions }) => {
                 if (sessions.length > 0) {
+                  setCachedWorkoutHistory(sessions);
                   useWorkoutStore.getState().importCompletedSessions(sessions).catch(error => {
                     console.warn('Failed to import remote workout history:', error);
                   });
