@@ -12,6 +12,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useExercises } from '@/src/hooks/useExercises';
+import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { useAIStore } from '@/src/store/aiStore';
 import { EvidenceItem, TrainingInsight, InsightType } from '@/src/types/insights';
 import type { InsightChartSeries } from '@/src/types/insightCharts';
@@ -496,13 +497,30 @@ function WatchlistRow({
 
   return (
     <View style={styles.watchlistRow}>
-      <View style={styles.watchlistInfo}>
-        <Text style={[styles.watchlistName, { color: colors.textPrimary }]}>
-          {exerciseName}
-        </Text>
+      <View style={styles.watchlistHeaderRow}>
+        <View>
+          <Text style={[styles.watchlistName, { color: colors.textPrimary }]}>
+            {exerciseName}
+          </Text>
         <Text style={[styles.watchlistStatus, { color: statusColor }]}>
-          Stall risk
+          Plateau risk
         </Text>
+        </View>
+      </View>
+      {sparkline && (
+        <View style={[styles.watchlistSparklineCard, sparklineTheme]}>
+          <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
+            {sparklineLabel}
+          </Text>
+          <InsightSparkline
+            values={sparkline.values}
+            highlightIndices={sparkline.highlightIndices}
+            stroke={colors.accent}
+            height={42}
+          />
+        </View>
+      )}
+      <View style={styles.watchlistInfo}>
         <Text style={[styles.watchlistReason, { color: colors.textSecondary }]}>
           {e1rmDescriptor} ({exposuresText}); {volumeDescriptor}
         </Text>
@@ -541,41 +559,32 @@ function WatchlistRow({
             );
           })()}
         </View>
-      </View>
-      <View style={styles.watchlistSide}>
-        {sparkline && (
-          <View style={[styles.watchlistSparklineCard, sparklineTheme]}>
-            <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
-              {sparklineLabel}
-            </Text>
-            <InsightSparkline
-              values={sparkline.values}
-              highlightIndices={sparkline.highlightIndices}
-              stroke={colors.accent}
-              height={32}
-            />
-          </View>
-        )}
-        <View style={styles.watchlistActions}>
+        <View style={styles.watchlistActionsRow}>
           <TouchableOpacity
+            style={[
+              styles.whyButton,
+              {
+                backgroundColor: colors.accentOverlay,
+                borderColor: colors.accent,
+              },
+            ]}
             onPress={() => onWhyPress(insight)}
-            style={styles.watchlistActionButton}
             activeOpacity={0.8}
           >
-            <Text style={[styles.watchlistWhy, { color: colors.accent }]}>Why?</Text>
+            <Text style={[styles.whyButtonText, { color: colors.accent }]}>Ask Fortis</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            style={[styles.viewChartButton, { borderColor: colors.border }, styles.watchlistChartButton]}
             onPress={() => onOpenChart(insight)}
-            style={styles.watchlistActionButton}
             activeOpacity={0.8}
           >
-            <Text style={[styles.watchlistChart, { color: colors.textSecondary }]}>
-              Chart
-            </Text>
+            <Text style={[styles.viewChartText, { color: colors.textSecondary }]}>View chart</Text>
           </TouchableOpacity>
+        </View>
+        <View style={styles.watchlistDismissRow}>
           <TouchableOpacity
             onPress={() => onDismiss(insight)}
-            style={styles.watchlistActionButton}
+            style={styles.watchlistDismissButton}
             activeOpacity={0.8}
           >
             <Text style={[styles.watchlistDismiss, { color: colors.textTertiary }]}>
@@ -673,6 +682,22 @@ export default function InsightsScreen() {
       })
       .slice(0, 5);
   }, [stallRisks]);
+
+  const watchlistExerciseIds = useMemo(
+    () => watchlistItems.map((insight) => insight.exerciseId).filter(Boolean) as string[],
+    [watchlistItems]
+  );
+  const watchlistExercises = useExercisesWithMuscles(watchlistExerciseIds);
+  const watchlistNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    watchlistExercises.forEach((exercise) => {
+      map.set(exercise.id, exercise.name);
+      if (exercise.slug) {
+        map.set(exercise.slug, exercise.name);
+      }
+    });
+    return map;
+  }, [watchlistExercises]);
 
   const watchlistSummary = useMemo(
     () => stallRisks.find((insight) => insight.subjectKey === 'global'),
@@ -912,7 +937,9 @@ export default function InsightsScreen() {
                     <View style={styles.watchlistList}>
                       {watchlistItems.map((insight) => {
                         const exerciseName = insight.exerciseId
-                          ? exerciseNameById.get(insight.exerciseId) ?? 'Unknown exercise'
+                          ? watchlistNameById.get(insight.exerciseId) ??
+                            exerciseNameById.get(insight.exerciseId) ??
+                            'Unknown exercise'
                           : 'Unknown exercise';
 
                         return (
@@ -1064,14 +1091,15 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.sm),
   },
   watchlistRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
     paddingVertical: scale(Spacing.sm),
     gap: scale(Spacing.sm),
   },
+  watchlistHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   watchlistInfo: {
-    flex: 1,
     gap: scale(Spacing.xs),
   },
   watchlistName: {
@@ -1106,33 +1134,29 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(11),
     fontWeight: '600',
   },
-  watchlistActions: {
-    alignItems: 'flex-end',
-    gap: scale(Spacing.xs),
-  },
-  watchlistSide: {
-    alignItems: 'flex-end',
-    gap: scale(Spacing.xs),
-  },
   watchlistSparklineCard: {
-    width: scale(120),
     borderRadius: scale(12),
     borderWidth: 1,
     paddingHorizontal: scale(Spacing.sm),
-    paddingVertical: scale(Spacing.xs),
+    paddingVertical: scale(Spacing.sm),
     gap: scale(Spacing.xs),
   },
-  watchlistActionButton: {
+  watchlistActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(Spacing.sm),
+    marginTop: scale(Spacing.sm),
+  },
+  watchlistChartButton: {
+    marginLeft: 'auto',
+  },
+  watchlistDismissRow: {
+    alignItems: 'flex-end',
+    marginTop: scale(Spacing.sm),
+  },
+  watchlistDismissButton: {
     paddingHorizontal: scale(Spacing.xs),
     paddingVertical: scale(2),
-  },
-  watchlistWhy: {
-    fontSize: moderateScale(12),
-    fontWeight: '600',
-  },
-  watchlistChart: {
-    fontSize: moderateScale(11),
-    fontWeight: '600',
   },
   watchlistDismiss: {
     fontSize: moderateScale(11),

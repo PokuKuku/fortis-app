@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   addDays,
   differenceInCalendarDays,
+  endOfDay,
   endOfWeek,
   endOfYear,
   format,
@@ -10,7 +11,8 @@ import {
   startOfYear,
   subDays,
 } from 'date-fns';
-import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
+import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
+import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import type { WorkoutSession } from '@/src/types/workout';
 
 export interface HeatmapDay {
@@ -27,19 +29,6 @@ export interface HeatmapMonthLabel {
   label: string;
   weekIndex: number;
 }
-
-type WorkoutSetRow = {
-  weight: number | null;
-  reps: number | null;
-  is_warmup: boolean | null;
-};
-
-type WorkoutSessionRow = {
-  local_id: string | null;
-  completed_at: string | null;
-  started_at: string;
-  workout_sets: WorkoutSetRow[] | null;
-};
 
 export function useActivityHeatmap(
   userId?: string,
@@ -84,13 +73,11 @@ export function useActivityHeatmap(
       if (mode === 'year' && date > yearEnd) return false;
       return true;
     };
-    const buildLocalMaps = (sessions: WorkoutSession[]) => {
+    const buildMaps = (sessions: WorkoutSession[]) => {
       const volumeByDay: Record<string, number> = {};
       const activityByDay: Record<string, boolean> = {};
-      const localIds = new Set<string>();
 
       sessions.forEach((session) => {
-        localIds.add(session.localId);
         const sessionDate = startOfDay(new Date(session.startedAt));
         if (!isInRange(sessionDate)) return;
 
@@ -115,110 +102,53 @@ export function useActivityHeatmap(
         activityByDay[key] = activityByDay[key] || dayHasActivity;
       });
 
-      return { volumeByDay, activityByDay, localIds };
+      return { volumeByDay, activityByDay };
     };
-    const localMaps = hasLocalSessions
-      ? buildLocalMaps(localSessions ?? [])
-      : { volumeByDay: {}, activityByDay: {}, localIds: new Set<string>() };
+    const applyMaps = (sessions: WorkoutSession[]) => {
+      const { volumeByDay, activityByDay } = buildMaps(sessions);
+      setDayVolumes(volumeByDay);
+      setDayActivity(activityByDay);
+    };
 
-    if (!userId || !isSupabaseConfigured()) {
-      setDayVolumes(localMaps.volumeByDay);
-      setDayActivity(localMaps.activityByDay);
+    if (!userId) {
+      applyMaps(localSessions ?? []);
       setIsLoading(false);
-      return;
+      return () => {
+        isMounted = false;
+      };
     }
 
+    if (hasLocalSessions) {
+      applyMaps(localSessions ?? []);
+    }
     setIsLoading(true);
 
     const load = async () => {
-      let query = supabase
-        .from('workout_sessions')
-        .select('local_id, completed_at, started_at, workout_sets!session_id(weight, reps, is_warmup)')
-        .eq('user_id', userId)
-        .not('completed_at', 'is', null)
-        .gte('started_at', startDate.toISOString());
-
-      if (mode === 'year') {
-        query = query.lte('started_at', yearEnd.toISOString());
-      }
-
-      const { data, error } = await query;
-
-      if (!isMounted) return;
-
-      if (error) {
-        console.warn('[ActivityHeatmap] Failed to load activity data:', error.message);
-        setDayVolumes(localMaps.volumeByDay);
-        setDayActivity(localMaps.activityByDay);
-        setIsLoading(false);
-        return;
-      }
-
-      const volumeByDay: Record<string, number> = {};
-      const activityByDay: Record<string, boolean> = {};
-      const remoteLocalIds = new Set<string>();
-      (data as WorkoutSessionRow[] | null)?.forEach((session) => {
-        if (session.local_id) {
-          remoteLocalIds.add(session.local_id);
-        }
-        const sessionDate = startOfDay(new Date(session.started_at));
-        const key = format(sessionDate, 'yyyy-MM-dd');
-        let dayVolume = 0;
-
-        // Mark as having activity if session is completed (query already filters for completed_at != null)
-        // This ensures activity shows even if workout_sets relationship fails to load
-        let dayHasActivity = session.completed_at !== null;
-
-        (session.workout_sets || []).forEach((set) => {
-          if (set.is_warmup) return;
-          const weight = set.weight ?? 0;
-          const reps = set.reps ?? 0;
-          dayVolume += weight * reps;
-        });
-
-        volumeByDay[key] = (volumeByDay[key] || 0) + dayVolume;
-        activityByDay[key] = activityByDay[key] || dayHasActivity;
+      const rangeEnd = mode === 'year' ? endOfDay(yearEnd) : endOfDay(today);
+      const { sessions } = await fetchWorkoutHistory({
+        dateFrom: startDate,
+        dateTo: rangeEnd,
       });
 
-      if (hasLocalSessions) {
-        localSessions?.forEach((session) => {
-          if (remoteLocalIds.has(session.localId)) return;
-          const sessionDate = startOfDay(new Date(session.startedAt));
-          if (!isInRange(sessionDate)) return;
-
-          let dayVolume = 0;
-          let dayHasActivity = false;
-
-          session.exercises.forEach((exercise) => {
-            exercise.sets.forEach((set) => {
-              if (!set.isCompleted) return;
-              dayHasActivity = true;
-              if (set.setType === 'warmup') return;
-              const weight = set.weight ?? 0;
-              const reps = set.reps ?? 0;
-              dayVolume += weight * reps;
-            });
-          });
-
-          if (!dayHasActivity) return;
-
-          const key = format(sessionDate, 'yyyy-MM-dd');
-          volumeByDay[key] = (volumeByDay[key] || 0) + dayVolume;
-          activityByDay[key] = activityByDay[key] || dayHasActivity;
-        });
-      }
-
-      setDayVolumes(volumeByDay);
-      setDayActivity(activityByDay);
+      if (!isMounted) return;
+      const mergedSessions = hasLocalSessions
+        ? mergeWorkoutSessions(sessions, localSessions ?? [])
+        : sessions;
+      applyMaps(mergedSessions);
       setIsLoading(false);
     };
 
-    load();
+    load().catch((error) => {
+      if (!isMounted) return;
+      console.warn('[ActivityHeatmap] Failed to load activity data:', error);
+      applyMaps(localSessions ?? []);
+      setIsLoading(false);
+    });
 
     return () => {
       isMounted = false;
     };
-  }, [localSessions, mode, startDate, userId, yearEnd]);
+  }, [localSessions, mode, startDate, userId, yearEnd, today]);
 
   const weeks = useMemo(() => {
     const result: HeatmapWeek[] = [];

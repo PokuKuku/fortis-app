@@ -22,6 +22,7 @@ import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
 import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
 import { useMonthlyStats } from '@/src/hooks/useMonthlyStats';
 import { useWorkoutHistoryRange } from '@/src/hooks/useWorkoutHistoryRange';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
@@ -148,6 +149,9 @@ export default function ProfileShareScreen() {
 
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const { sessions: historySessions } = useWorkoutHistorySource({
+    enabled: shareType === 'monthly' && Boolean(profile?.id),
+  });
   const todayKey = startOfDay(new Date()).getTime();
   const today = new Date(todayKey);
   const activityRangeStart = subDays(startOfWeek(today, { weekStartsOn: 1 }), (10 - 1) * 7);
@@ -158,12 +162,12 @@ export default function ProfileShareScreen() {
     localSessions: completedSessions,
     enabled: shareType === 'activity',
   });
-  const activitySessions = shareType === 'activity' ? activityHistorySessions : completedSessions;
+  const activityHeatmapSessions = shareType === 'activity' ? activityHistorySessions : [];
   const { weeks } = useActivityHeatmap(
-    shareType === 'activity' ? undefined : profile?.id,
+    undefined,
     'rolling',
     10,
-    activitySessions
+    activityHeatmapSessions
   );
   const displayWeeks = useMemo(() => [...weeks].reverse(), [weeks]);
   const {
@@ -174,7 +178,10 @@ export default function ProfileShareScreen() {
   } = useWeeklyMuscles();
   const personalRecords = useTopPersonalRecords(5);
 
-  const monthlyStats = useMonthlyStats(completedSessions, profile?.id);
+  const monthlyStats = useMonthlyStats(
+    historySessions,
+    shareType === 'monthly' ? profile?.id : undefined
+  );
 
   const [signatureSummary, setSignatureSummary] = useState<SignatureSummary>({
     title: 'Building momentum',
@@ -185,7 +192,8 @@ export default function ProfileShareScreen() {
 
   const units = profile?.preferred_units || 'imperial';
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
-  const signatureLoading = signatureSummary.isLoading || weeklyMuscleLoading;
+  const signatureStatsLoading = signatureSummary.isLoading;
+  const signatureHeatmapReady = !weeklyMuscleLoading;
   const activityIntensityThresholds = useMemo<HeatmapThresholds | null>(() => {
     const volumes = weeks.flatMap((week) =>
       week.days
@@ -578,7 +586,7 @@ export default function ProfileShareScreen() {
                       <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
                         {signatureSummary.subtitle}
                       </Text>
-                      {signatureLoading ? (
+                      {signatureStatsLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator color={colors.accent} size="small" />
                         </View>
@@ -596,27 +604,21 @@ export default function ProfileShareScreen() {
                           ))}
                         </View>
                       )}
-                      {signatureLoading ? (
-                        <View style={styles.loadingContainer}>
-                          <ActivityIndicator color={colors.accent} size="small" />
+                      <>
+                        <View style={styles.signatureHeatmap}>
+                          <MuscleHeatmap
+                            muscleLevels={weeklyHasWorkouts && signatureHeatmapReady ? weeklyMuscleLevels : {}}
+                            gender={bodyType}
+                            scale={0.45}
+                            compact
+                          />
                         </View>
-                      ) : (
-                        <>
-                          <View style={styles.signatureHeatmap}>
-                            <MuscleHeatmap
-                              muscleLevels={weeklyHasWorkouts ? weeklyMuscleLevels : {}}
-                              gender={bodyType}
-                              scale={0.45}
-                              compact
-                            />
-                          </View>
-                          {!weeklyHasWorkouts && (
-                            <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
-                              Log a workout to reveal your muscle map.
-                            </Text>
-                          )}
-                        </>
-                      )}
+                        {!weeklyHasWorkouts && signatureHeatmapReady && (
+                          <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
+                            Log a workout to reveal your muscle map.
+                          </Text>
+                        )}
+                      </>
                     </View>
                   )}
 

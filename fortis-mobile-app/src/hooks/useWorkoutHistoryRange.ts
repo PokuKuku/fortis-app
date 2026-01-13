@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { startOfDay } from 'date-fns';
+import { startOfDay, endOfDay } from 'date-fns';
 import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
 import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import type { WorkoutSession } from '@/src/types/workout';
@@ -23,7 +23,7 @@ export function useWorkoutHistoryRange({
   const [isLoading, setIsLoading] = useState(false);
 
   const rangeStartKey = startOfDay(dateFrom).getTime();
-  const rangeEndKey = startOfDay(dateTo ?? new Date()).getTime();
+  const rangeEndKey = endOfDay(dateTo ?? new Date()).getTime();
   const rangeStartDate = useMemo(() => new Date(rangeStartKey), [rangeStartKey]);
   const rangeEndDate = useMemo(() => new Date(rangeEndKey), [rangeEndKey]);
 
