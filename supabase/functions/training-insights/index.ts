@@ -40,6 +40,20 @@ type WeeklySummaryRow = {
   total_volume: number | null;
 };
 
+type WorkoutSetRow = {
+  weight: number | null;
+  reps: number | null;
+  weight_unit: string | null;
+  is_warmup: boolean | null;
+};
+
+type WorkoutSessionWithSetsRow = {
+  id: string;
+  started_at: string;
+  duration_seconds: number | null;
+  workout_sets: WorkoutSetRow[] | null;
+};
+
 type EvidenceItem = {
   key: string;
   label: string;
@@ -166,16 +180,20 @@ const buildWeeklyVerdict = ({
   thisWeekVolume,
   lastWeekVolume,
   prThisWeek,
+  isWeekToDate,
 }: {
   thisWeekWorkouts: number;
   lastWeekWorkouts: number;
   thisWeekVolume: number;
   lastWeekVolume: number;
   prThisWeek: number;
+  isWeekToDate: boolean;
 }): VerdictOutput => {
   const totalWorkouts = thisWeekWorkouts + lastWeekWorkouts;
   const volumeDelta = thisWeekVolume - lastWeekVolume;
   const sessionDelta = thisWeekWorkouts - lastWeekWorkouts;
+  const timeframe = isWeekToDate ? 'So far this week, ' : '';
+  const compareLabel = isWeekToDate ? 'the same time last week' : 'last week';
 
   if (totalWorkouts < 2) {
     return {
@@ -187,31 +205,31 @@ const buildWeeklyVerdict = ({
 
   if (sessionDelta > 0 && volumeDelta > 0 && prThisWeek > 0) {
     return {
-      title: 'Great week — keep the momentum',
-      summary: 'Sessions and volume climbed, plus you hit new PRs — nice work! Keep the streak going.',
+      title: isWeekToDate ? 'Strong start — keep the momentum' : 'Great week — keep the momentum',
+      summary: `${timeframe}sessions and volume climbed, plus you hit new PRs — nice work! Keep the streak going.`,
       severity: 'low',
     };
   }
 
   if (volumeDelta > 0 && prThisWeek === 0) {
     return {
-      title: 'Volume climbed — watch recovery',
-      summary: 'Training load went up without clear performance gains. Keep intensity steady and monitor recovery.',
+      title: isWeekToDate ? 'Load is up so far — watch recovery' : 'Volume climbed — watch recovery',
+      summary: `${timeframe}training load went up without clear performance gains. Keep intensity steady and monitor recovery.`,
       severity: 'medium',
     };
   }
 
   if (sessionDelta < 0 || volumeDelta < 0) {
     return {
-      title: 'Lower training load this week',
-      summary: 'Overall load dipped compared to last week. Aim for consistency next week.',
+      title: isWeekToDate ? 'Lower training load so far' : 'Lower training load this week',
+      summary: `${timeframe}overall load dipped compared to ${compareLabel}. Aim for consistency as the week continues.`,
       severity: 'medium',
     };
   }
 
   return {
-    title: 'Steady week of training',
-    summary: 'Your weekly load held steady. Keep building and progress will follow.',
+    title: isWeekToDate ? 'Steady start this week' : 'Steady week of training',
+    summary: `${timeframe}your weekly load held steady. Keep building and progress will follow.`,
     severity: 'low',
   };
 };
@@ -276,6 +294,61 @@ const fetchWeeklyVolume = async (
     thisWeek: map.get(toIsoDate(weekStart)) ?? null,
     lastWeek: map.get(toIsoDate(lastWeekStart)) ?? null,
   };
+};
+
+const fetchWeekToDateVolume = async (
+  supabase: SupabaseClient,
+  userId: string,
+  weekStart: Date,
+  lastWeekStart: Date,
+  preferredUnits: 'imperial' | 'metric'
+): Promise<{ thisWeek: WeeklyVolumeRow; lastWeek: WeeklyVolumeRow }> => {
+  const empty = {
+    week_start: toIsoDate(weekStart),
+    workouts_count: 0,
+    total_volume: 0,
+    total_time_seconds: 0,
+  };
+  const now = new Date();
+  const elapsedMs = Math.max(now.getTime() - weekStart.getTime(), 0);
+  const lastWeekEnd = new Date(lastWeekStart.getTime() + elapsedMs);
+
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id, started_at, duration_seconds, workout_sets(weight, reps, weight_unit, is_warmup)')
+    .eq('user_id', userId)
+    .not('completed_at', 'is', null)
+    .gte('started_at', toIsoDateTime(lastWeekStart))
+    .lt('started_at', toIsoDateTime(now));
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch week-to-date volume:', error.message);
+    return { thisWeek: empty, lastWeek: { ...empty, week_start: toIsoDate(lastWeekStart) } };
+  }
+
+  const thisWeek = { ...empty };
+  const lastWeek = { ...empty, week_start: toIsoDate(lastWeekStart) };
+
+  (data as WorkoutSessionWithSetsRow[] | null)?.forEach((session) => {
+    const startedAt = new Date(session.started_at);
+    const isThisWeek = startedAt >= weekStart && startedAt <= now;
+    const isLastWeek = startedAt >= lastWeekStart && startedAt < weekStart && startedAt < lastWeekEnd;
+    if (!isThisWeek && !isLastWeek) return;
+
+    const target = isThisWeek ? thisWeek : lastWeek;
+    target.workouts_count = clampNumber(target.workouts_count) + 1;
+    target.total_time_seconds = clampNumber(target.total_time_seconds) + clampNumber(session.duration_seconds);
+
+    (session.workout_sets ?? []).forEach((set) => {
+      if (set.is_warmup) return;
+      if (set.reps === null || set.weight === null) return;
+      if (set.reps <= 0 || set.weight <= 0) return;
+      const normalizedWeight = normalizeWeight(set.weight, set.weight_unit, preferredUnits);
+      target.total_volume = clampNumber(target.total_volume) + normalizedWeight * set.reps;
+    });
+  });
+
+  return { thisWeek, lastWeek };
 };
 
 const fetchWeeklyPrCounts = async (
@@ -1531,6 +1604,10 @@ Deno.serve(async (req) => {
     shouldRunWeeklyFinal ? fetchWeeklyPrCounts(supabase, user.id, weekStart) : Promise.resolve({ thisWeek: 0, lastWeek: 0 }),
   ]);
 
+  const weekToDateVolume = shouldRunWeeklyFinal
+    ? await fetchWeekToDateVolume(supabase, user.id, weekStart, lastWeekStart, preferredUnits)
+    : null;
+
   const weeklySummary = shouldRunPositive
     ? await fetchWeeklySummary(adminClient, user.id, addDays(weekStart, -7 * 11), weekStart)
     : [];
@@ -1538,10 +1615,10 @@ Deno.serve(async (req) => {
   const insightsToUpsert: Record<string, unknown>[] = [];
 
   if (shouldRunWeeklyFinal) {
-    const thisWeekWorkouts = clampNumber(weeklyVolume.thisWeek?.workouts_count);
-    const lastWeekWorkouts = clampNumber(weeklyVolume.lastWeek?.workouts_count);
-    const thisWeekVolume = clampNumber(weeklyVolume.thisWeek?.total_volume);
-    const lastWeekVolume = clampNumber(weeklyVolume.lastWeek?.total_volume);
+    const thisWeekWorkouts = clampNumber(weekToDateVolume?.thisWeek.workouts_count);
+    const lastWeekWorkouts = clampNumber(weekToDateVolume?.lastWeek.workouts_count);
+    const thisWeekVolume = clampNumber(weekToDateVolume?.thisWeek.total_volume);
+    const lastWeekVolume = clampNumber(weekToDateVolume?.lastWeek.total_volume);
 
     const verdict = buildWeeklyVerdict({
       thisWeekWorkouts,
@@ -1549,6 +1626,7 @@ Deno.serve(async (req) => {
       thisWeekVolume,
       lastWeekVolume,
       prThisWeek: prCounts.thisWeek,
+      isWeekToDate: true,
     });
 
     const volumeUnit = preferredUnits === 'metric' ? 'kg' : 'lbs';
@@ -1564,23 +1642,23 @@ Deno.serve(async (req) => {
     const evidence: EvidenceItem[] = [
       {
         key: 'sessions',
-        label: 'Workouts',
+        label: 'Workouts (WTD)',
         value: thisWeekWorkouts,
         unit: 'workouts',
         compareValue: lastWeekWorkouts,
         deltaValue: thisWeekWorkouts - lastWeekWorkouts,
-        source: 'weekly_workout_volume',
-        period: 'this_week',
+        source: 'workout_sessions',
+        period: 'week_to_date',
       },
       {
         key: 'volume_load',
-        label: 'Total volume',
+        label: 'Total volume (WTD)',
         value: Math.round(thisWeekVolume),
         unit: volumeUnit,
         compareValue: shouldSuppressVolumeDelta ? undefined : Math.round(lastWeekVolume),
         deltaValue: shouldSuppressVolumeDelta ? undefined : Math.round(thisWeekVolume - lastWeekVolume),
-        source: 'weekly_workout_volume',
-        period: 'this_week',
+        source: 'workout_sets',
+        period: 'week_to_date',
       },
     ];
 

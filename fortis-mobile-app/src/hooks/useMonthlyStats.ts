@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { startOfDay, startOfWeek, subDays, endOfDay } from 'date-fns';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
 import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
+import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import type { WorkoutSession } from '@/src/types/workout';
 
 export type MonthlyStats = {
@@ -88,11 +89,7 @@ export function useMonthlyStats(
       });
 
       if (!isMounted) return;
-      const merged = localInRange.length === 0
-        ? sessions
-        : [...sessions, ...localInRange.filter((session) => (
-          !sessions.some((remote) => remote.localId === session.localId)
-        ))];
+      const merged = mergeWorkoutSessions(sessions, localInRange);
       const nextStats = getStatsFromSessions(merged);
       setStats({ ...nextStats, isLoading: false });
     };

@@ -408,7 +408,7 @@ export default function InsightShareScreen() {
                                   {formatEvidenceValue({
                                     ...primaryEvidence,
                                     value: bar.value,
-                                  }))}
+                                  })}
                                 </Text>
                               </View>
                             );
@@ -610,7 +610,7 @@ export default function InsightShareScreen() {
                                 {formatEvidenceValue({
                                   ...primaryEvidence,
                                   value: bar.value,
-                                }))}
+                                })}
                               </Text>
                             </View>
                           );
