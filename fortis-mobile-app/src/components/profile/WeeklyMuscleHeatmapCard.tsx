@@ -84,6 +84,7 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     ...Typography.caption,
+    fontFamily: 'BankGothicBT-Medium',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },

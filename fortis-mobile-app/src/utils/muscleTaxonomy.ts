@@ -90,7 +90,10 @@ export const MUSCLE_TO_HEATMAP_REGIONS: Record<MuscleKey, HeatmapRegion[]> = {
   biceps: [{ slug: 'biceps', side: 'front' }],
   forearms: [{ slug: 'forearm', side: 'both' }],
   lats: [{ slug: 'upper-back', side: 'back' }],
-  upper_back: [{ slug: 'upper-back', side: 'back' }],
+  upper_back: [
+    { slug: 'trapezius', side: 'back' },
+    { slug: 'deltoids', side: 'front' },
+  ],
   lower_back: [{ slug: 'lower-back', side: 'back' }],
   abs: [{ slug: 'abs', side: 'front' }],
   obliques: [{ slug: 'obliques', side: 'front' }],

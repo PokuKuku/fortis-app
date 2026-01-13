@@ -116,7 +116,7 @@ const getRelativeIntensity = (
 const resolveShareTitle = (type: ShareType): string => {
   switch (type) {
     case 'monthly':
-      return 'Monthly recap';
+      return 'All-time stats';
     case 'signature':
       return 'Training signature';
     case 'personal_records':
@@ -192,6 +192,13 @@ export default function ProfileShareScreen() {
 
   const units = profile?.preferred_units || 'imperial';
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
+  const firstName = useMemo(() => {
+    const name = profile?.full_name?.trim();
+    if (!name) return null;
+    const [first] = name.split(/\s+/);
+    return first || null;
+  }, [profile?.full_name]);
+  const allTimeTitle = firstName ? `${firstName}'s all-time stats` : 'Your all-time stats';
   const signatureStatsLoading = signatureSummary.isLoading;
   const signatureHeatmapReady = !weeklyMuscleLoading;
   const activityIntensityThresholds = useMemo<HeatmapThresholds | null>(() => {
@@ -552,10 +559,10 @@ export default function ProfileShareScreen() {
                   {shareType === 'monthly' && (
                     <View style={styles.shareBlock}>
                       <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>
-                        {format(new Date(), 'MMMM')} recap
+                        {allTimeTitle}
                       </Text>
                       <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
-                        Last 4 weeks of training
+                        Lifetime training totals
                       </Text>
                       {monthlyStats.isLoading ? (
                         <View style={styles.loadingContainer}>

@@ -517,6 +517,7 @@ const styles = StyleSheet.create({
   },
   chartTitle: {
     ...Typography.caption,
+    fontFamily: 'BankGothicBT-Medium',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },

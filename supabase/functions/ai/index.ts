@@ -1052,7 +1052,14 @@ async function callOpenAIText(
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${errorText}`);
+      return await fallbackFromOpenAIResponses(
+        request,
+        systemPrompt,
+        userMessage,
+        options,
+        model,
+        `OpenAI API error: ${errorText}`
+      );
     }
 
     const data = await response.json();
@@ -1067,31 +1074,61 @@ async function callOpenAIText(
         status: responseStatus,
         model,
       });
-
-      const fallbackModel = Deno.env.get('OPENAI_FALLBACK_MODEL') || model;
-      if (modelSupportsChatCompletions(fallbackModel)) {
-        return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
-          maxTokens: options?.maxTokens,
-          temperature: supportsTemp ? options?.temperature : undefined,
-        }, fallbackModel);
-      }
-
-      if (Deno.env.get('ANTHROPIC_API_KEY')) {
-        return await callClaudeText(request, systemPrompt, userMessage, {
-          maxTokens: options?.maxTokens,
-        });
-      }
-
-      throw new Error('OpenAI response missing output text');
+      return await fallbackFromOpenAIResponses(
+        request,
+        systemPrompt,
+        userMessage,
+        options,
+        model,
+        'OpenAI response missing output text'
+      );
     }
 
     return String(outputText);
   }
 
-  return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
-    maxTokens: options?.maxTokens,
-    temperature: options?.temperature,
-  }, model);
+  try {
+    return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
+      maxTokens: options?.maxTokens,
+      temperature: options?.temperature,
+    }, model);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'OpenAI chat error';
+    console.error('OpenAI chat error:', error);
+    if (Deno.env.get('ANTHROPIC_API_KEY')) {
+      return await callClaudeText(request, systemPrompt, userMessage, {
+        maxTokens: options?.maxTokens,
+      });
+    }
+    throw new Error(errorMessage);
+  }
+}
+
+async function fallbackFromOpenAIResponses(
+  request: AIRequest,
+  systemPrompt: string,
+  userMessage: string,
+  options: { maxTokens?: number; temperature?: number } | undefined,
+  primaryModel: string,
+  reason: string
+): Promise<string> {
+  const fallbackModel = Deno.env.get('OPENAI_FALLBACK_MODEL') || primaryModel;
+
+  if (modelSupportsChatCompletions(fallbackModel)) {
+    const supportsTemp = modelSupportsTemperature(fallbackModel);
+    return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
+      maxTokens: options?.maxTokens,
+      temperature: supportsTemp ? options?.temperature : undefined,
+    }, fallbackModel);
+  }
+
+  if (Deno.env.get('ANTHROPIC_API_KEY')) {
+    return await callClaudeText(request, systemPrompt, userMessage, {
+      maxTokens: options?.maxTokens,
+    });
+  }
+
+  throw new Error(reason);
 }
 
 async function callOpenAIChatCompletions(
@@ -1367,6 +1404,7 @@ CORE PRINCIPLES:
 - If details are missing, ask the questions first instead of guessing.
 - If you ask a follow-up question, keep it short and focused.
 - End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action).
+- TLDR must be a compressed paraphrase (not a repeat of any full sentence above). It should summarize the key takeaway and/or next step in fewer words.
 
 TEMPLATE OUTLINE FORMAT (when asked to create a template):
 - Title
@@ -1474,7 +1512,15 @@ function parseModelResponse(
     }
 
     if (parsed.type === 'answer') {
-      return { ...parsed, requestId };
+      const answerText = typeof parsed?.answer?.text === 'string' ? parsed.answer.text : '';
+      return {
+        ...parsed,
+        requestId,
+        answer: {
+          ...parsed.answer,
+          text: ensureTldrLine(answerText),
+        },
+      };
     }
     return buildModelError(requestId, 'Unsupported AI response type');
   } catch (parseError) {
@@ -1500,7 +1546,7 @@ function parseModelResponse(
           type: 'answer',
           requestId,
           answer: {
-            text: extractedText,
+            text: ensureTldrLine(extractedText),
             citations: [],
           },
         };
@@ -1512,7 +1558,7 @@ function parseModelResponse(
         type: 'answer',
         requestId,
         answer: {
-          text: text,
+          text: ensureTldrLine(text),
           citations: [],
         },
       };
@@ -1532,4 +1578,101 @@ function buildModelError(requestId: string, message: string) {
       retryable: false,
     },
   };
+}
+
+const TLDR_PREFIX_REGEX = /^TLDR:\s*/i;
+const TLDR_LINE_REGEX = /^TLDR:\s*.+$/i;
+
+function ensureTldrLine(content: string): string {
+  const trimmed = stripExistingTldr(content);
+  const tldr = buildTldrFromText(trimmed);
+  if (!tldr) {
+    return trimmed;
+  }
+  return `${trimmed}\n\nTLDR: ${tldr}`;
+}
+
+function stripExistingTldr(content: string): string {
+  if (!content) return '';
+  const lines = content.split(/\r?\n/);
+  const filtered = lines.filter((line) => !TLDR_LINE_REGEX.test(line.trim()));
+  return filtered.join('\n').trimEnd();
+}
+
+function buildTldrFromText(content: string): string | null {
+  const cleaned = content
+    .replace(/\[[^\]]*]\([^)]+\)/g, '')
+    .replace(/[`#>*_]/g, '')
+    .trim();
+
+  if (!cleaned) {
+    return null;
+  }
+
+  const lines = cleaned
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const bulletLines = lines
+    .filter((line) => /^[-*•]\s+/.test(line))
+    .map((line) => line.replace(/^[-*•]\s+/, '').trim())
+    .filter(Boolean);
+
+  const proseLines = lines.filter((line) => !/^[-*•]\s+/.test(line));
+  const firstProse = proseLines[0] ?? '';
+  const firstSentence = extractFirstSentence(firstProse || bulletLines[0] || cleaned);
+
+  let summary = compressSentence(firstSentence, 20, 120);
+  let action = '';
+
+  if (bulletLines.length > 0) {
+    const firstAction = compressSentence(bulletLines[0], 14, 80);
+    const secondAction = bulletLines.length > 1 ? compressSentence(bulletLines[1], 12, 70) : '';
+    action = [firstAction, secondAction].filter(Boolean).join('; ');
+  }
+
+  if (action && normalizeText(summary) !== normalizeText(action)) {
+    summary = `${summary}; ${action}`;
+  }
+
+  const normalizedSummary = normalizeText(summary);
+  const normalizedFirst = normalizeText(firstSentence);
+  if (normalizedSummary === normalizedFirst && action) {
+    summary = `${compressSentence(firstSentence, 12, 80)}; ${action}`;
+  }
+
+  if (normalizedSummary === normalizedFirst && !action) {
+    summary = compressSentence(firstSentence, 12, 80);
+  }
+
+  if (summary.length > 200) {
+    summary = summary.slice(0, 197).trimEnd() + '...';
+  }
+
+  return summary || null;
+}
+
+function extractFirstSentence(text: string): string {
+  const match = text.match(/(.+?[.!?])(\s|$)/);
+  if (match) {
+    return match[1].trim();
+  }
+  return text.trim();
+}
+
+function compressSentence(text: string, maxWords: number, maxChars: number): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  const trimmed = words.slice(0, maxWords).join(' ');
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  return trimmed.slice(0, maxChars).trimEnd();
+}
+
+function normalizeText(text: string): string {
+  return text.toLowerCase().replace(TLDR_PREFIX_REGEX, '').replace(/\s+/g, ' ').trim();
 }

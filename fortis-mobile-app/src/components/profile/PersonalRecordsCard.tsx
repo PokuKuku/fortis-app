@@ -250,6 +250,7 @@ const styles = StyleSheet.create({
   summaryTitle: {
     ...Typography.body,
     fontWeight: '600',
+    fontFamily: 'BankGothicBT-Medium',
     marginBottom: Spacing.xs,
   },
   summarySubtitle: {

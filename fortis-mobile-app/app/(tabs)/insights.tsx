@@ -542,12 +542,14 @@ function WatchlistRow({
   onWhyPress,
   onDismiss,
   onOpenChart,
+  onShare,
 }: {
   insight: TrainingInsight;
   exerciseName: string;
   onWhyPress: (insight: TrainingInsight) => void;
   onDismiss: (insight: TrainingInsight) => void;
   onOpenChart: (insight: TrainingInsight) => void;
+  onShare: (insight: TrainingInsight) => void;
 }) {
   const { colors, isDark } = useTheme();
   const { series } = useInsightChartSeries(insight);
@@ -653,6 +655,16 @@ function WatchlistRow({
             activeOpacity={0.8}
           >
             <Text style={[styles.whyButtonText, { color: colors.accent }]}>Ask Fortis</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.shareButton,
+              { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+            ]}
+            onPress={() => onShare(insight)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.viewChartButton, { borderColor: colors.border }, styles.watchlistChartButton]}
@@ -1031,6 +1043,7 @@ export default function InsightsScreen() {
                             onWhyPress={handleWatchlistPress}
                             onDismiss={handleDismissInsight}
                             onOpenChart={(selected) => handleOpenChart(selected, 'progress')}
+                            onShare={handleShareInsight}
                           />
                         );
                       })}

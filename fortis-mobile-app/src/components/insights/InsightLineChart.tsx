@@ -23,6 +23,8 @@ type InsightLineChartProps = {
   variant?: 'line' | 'area' | 'bars';
   fill?: string;
   fillOpacity?: number;
+  baselineValue?: number;
+  baselineColor?: string;
 };
 
 const VIEWBOX_WIDTH = 320;
@@ -151,6 +153,8 @@ export function InsightLineChart({
   variant = 'line',
   fill,
   fillOpacity,
+  baselineValue,
+  baselineColor,
 }: InsightLineChartProps) {
   const { colors, isDark } = useTheme();
   const accentColor = stroke ?? colors.accent;
@@ -406,6 +410,18 @@ export function InsightLineChart({
   const areaPath = coords.length > 1
     ? `${path} L ${coords[coords.length - 1].x} ${baselineY} L ${coords[0].x} ${baselineY} Z`
     : null;
+  const hasBaseline = typeof baselineValue === 'number' && Number.isFinite(baselineValue);
+  const chartHeight = VIEWBOX_HEIGHT - PADDING * 2;
+  const baselineLineY = hasBaseline
+    ? Math.min(
+      Math.max(
+        VIEWBOX_HEIGHT - PADDING - ((baselineValue - minValue) / (maxValue - minValue || 1)) * chartHeight,
+        PADDING
+      ),
+      VIEWBOX_HEIGHT - PADDING
+    )
+    : null;
+  const baselineStroke = baselineColor ?? (isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.25)');
 
   return (
     <View style={styles.wrapper}>
@@ -466,6 +482,18 @@ export function InsightLineChart({
               d={areaPath}
               fill={fill ?? accentColor}
               opacity={fillOpacity ?? 0.2}
+            />
+          )}
+
+          {hasBaseline && baselineLineY !== null && (
+            <Line
+              x1={PADDING}
+              x2={VIEWBOX_WIDTH - PADDING}
+              y1={baselineLineY}
+              y2={baselineLineY}
+              stroke={baselineStroke}
+              strokeWidth={1}
+              strokeDasharray="4 4"
             />
           )}
 

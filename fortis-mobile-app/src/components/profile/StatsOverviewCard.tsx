@@ -90,18 +90,9 @@ export function StatsOverviewCard() {
     <View style={[styles.container, cardStyle]}>
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Your Stats</Text>
-          <View
-            style={[
-              styles.rangeTag,
-              {
-                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-                borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
-              },
-            ]}
-          >
-            <Text style={[styles.rangeTagText, { color: colors.textTertiary }]}>Last 4 weeks</Text>
-          </View>
+          <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
+            Your all time stats
+          </Text>
         </View>
         <TouchableOpacity
           style={[
@@ -149,6 +140,7 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     ...Typography.caption,
+    fontFamily: 'BankGothicBT-Medium',
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
@@ -165,17 +157,6 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  rangeTag: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-    marginLeft: Spacing.sm,
-  },
-  rangeTagText: {
-    fontSize: 10,
-    fontWeight: '600',
   },
   statItem: {
     flex: 1,

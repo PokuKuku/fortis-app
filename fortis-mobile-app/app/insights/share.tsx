@@ -17,9 +17,13 @@ import { addDays, format } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useAnalytics } from '@/src/services/analyticsService';
+import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
+import { InsightBarChart } from '@/src/components/insights/InsightBarChart';
 import type { TrainingInsight } from '@/src/types/insights';
+import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
@@ -28,9 +32,35 @@ import { scale, moderateScale } from '@/src/utils/responsive';
 
 type ShareTemplate = 'hero' | 'split' | 'grid' | 'timeline';
 
+type ShareChartConfig =
+  | {
+      kind: 'line';
+      points: InsightChartPoint[];
+      variant: 'line' | 'area' | 'bars';
+      yLabel?: string;
+      xLabel?: string;
+      highlightRange?: { start: string; end: string };
+      highlightPoints?: string[];
+      formatYValue?: (value: number) => string;
+      baselineValue?: number;
+    }
+  | {
+      kind: 'bar';
+      data: InsightBarPoint[];
+      unit?: string;
+    };
+
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
+
+const formatDateLabel = (value: string): string => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return format(date, 'MMM d');
+};
 
 const formatWeekRange = (anchorDate: string): string => {
   const start = new Date(`${anchorDate}T00:00:00`);
@@ -42,6 +72,81 @@ const formatWeekRange = (anchorDate: string): string => {
   const startLabel = format(start, 'MMM d');
   const endLabel = format(end, sameMonth ? 'd' : 'MMM d');
   return `Week of ${startLabel}–${endLabel}`;
+};
+
+const resolveShareYAxisLabel = (
+  insight: TrainingInsight,
+  metric: 'progress' | 'volume' | 'frequency',
+  unit?: string
+): string => {
+  if (insight.type === 'IMBALANCE_FLAG_V1') {
+    if (metric === 'progress') {
+      return unit === '%' ? 'Share (%)' : 'Push/Pull ratio';
+    }
+    return 'Sets';
+  }
+  if (metric === 'frequency') {
+    return 'Sessions';
+  }
+  if (metric === 'progress') {
+    if (unit?.toLowerCase() === 'prs') {
+      return 'PRs';
+    }
+    return `e1RM${unit ? ` (${unit})` : ''}`;
+  }
+  return `Volume${unit ? ` (${unit})` : ''}`;
+};
+
+const resolveShareChart = (
+  insight: TrainingInsight,
+  series: InsightChartSeries
+): ShareChartConfig => {
+  if (insight.type === 'FIRST_WORKOUT_RECAP_V1') {
+    return {
+      kind: 'bar',
+      data: series.breakdown ?? [],
+      unit: series.breakdownUnit ?? series.units.volume,
+    };
+  }
+
+  let metric: 'progress' | 'volume' | 'frequency' = 'volume';
+  let variant: 'line' | 'area' | 'bars' = 'area';
+
+  if (insight.type === 'LIFT_STALL_RISK_V1') {
+    metric = 'progress';
+    variant = 'line';
+  } else if (insight.type === 'CONSISTENCY_STREAK_V1') {
+    metric = 'frequency';
+    variant = 'bars';
+  } else if (insight.type === 'IMBALANCE_FLAG_V1') {
+    metric = 'progress';
+    variant = 'line';
+  }
+
+  const points = series[metric] ?? [];
+  const unit = series.units?.[metric];
+  const isExposureProgress = insight.type === 'LIFT_STALL_RISK_V1' && metric === 'progress';
+  const formatYValue =
+    unit === '%'
+      ? (value: number) => `${value.toFixed(0)}%`
+      : unit === 'ratio'
+      ? (value: number) => value.toFixed(2)
+      : undefined;
+
+  return {
+    kind: 'line',
+    points,
+    variant,
+    yLabel: resolveShareYAxisLabel(insight, metric, unit),
+    xLabel: isExposureProgress ? 'Exposures' : 'Week',
+    highlightRange: isExposureProgress ? undefined : series.highlight?.range,
+    highlightPoints: isExposureProgress ? series.highlight?.points : undefined,
+    formatYValue,
+    baselineValue:
+      insight.type === 'IMBALANCE_FLAG_V1' && unit === 'ratio'
+        ? 1
+        : undefined,
+  };
 };
 
 const resolveEvidence = (insight: TrainingInsight) => {
@@ -114,6 +219,12 @@ export default function InsightShareScreen() {
     () => insights.find((item) => item.id === id),
     [id, insights]
   );
+  const { series, isLoading: isChartLoading } = useInsightChartSeries(insight ?? null);
+  const shareChart = useMemo(
+    () => (insight && series ? resolveShareChart(insight, series) : null),
+    [insight, series]
+  );
+  const chartIsLoading = Boolean(insight) && isChartLoading && !shareChart;
   const isShareable = Boolean(insight);
   const evidenceItems = useMemo(() => (insight ? resolveEvidence(insight).slice(0, 3) : []), [insight]);
   const weekLabel = insight ? formatWeekRange(insight.anchorDate) : 'This week';
@@ -137,9 +248,11 @@ export default function InsightShareScreen() {
   const ViewShotComponent = isCaptureReady
     ? (require('react-native-view-shot').default as any)
     : null;
+  const shareButtonDisabled = isSharing || !isCaptureReady || chartIsLoading;
 
   const handleShare = async () => {
     if (!insight || !isShareable) return;
+    if (chartIsLoading) return;
     if (!isCaptureReady || !viewShotRef.current) {
       setShareError('Share preview requires a dev client rebuild.');
       return;
@@ -193,6 +306,265 @@ export default function InsightShareScreen() {
     }
   };
 
+  const renderShareChart = () => {
+    if (chartIsLoading) {
+      return (
+        <View
+          style={[
+            styles.chartLoading,
+            {
+              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+            },
+          ]}
+        >
+          <ActivityIndicator size="small" color={colors.textSecondary} />
+          <Text style={[styles.chartLoadingText, { color: colors.textSecondary }]}>
+            Loading chart...
+          </Text>
+        </View>
+      );
+    }
+
+    if (!shareChart) {
+      return null;
+    }
+
+    if (shareChart.kind === 'bar') {
+      return <InsightBarChart data={shareChart.data} unit={shareChart.unit} />;
+    }
+
+    const fill = shareChart.variant === 'area' ? colors.accentOverlay : undefined;
+
+    return (
+      <InsightLineChart
+        points={shareChart.points}
+        height={scale(150)}
+        stroke={colors.accent}
+        highlightRange={shareChart.highlightRange}
+        highlightPoints={shareChart.highlightPoints}
+        xLabel={shareChart.xLabel}
+        yLabel={shareChart.yLabel}
+        formatXValue={formatDateLabel}
+        formatYValue={shareChart.formatYValue}
+        variant={shareChart.variant}
+        fill={fill}
+        fillOpacity={shareChart.variant === 'area' ? 1 : undefined}
+        baselineValue={shareChart.baselineValue}
+        baselineColor={isDark ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.3)'}
+      />
+    );
+  };
+
+  const shareCard = insight ? (
+    <LinearGradient
+      colors={gradientColors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[
+        styles.shareCard,
+        styles.templateCard,
+        {
+          borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
+        },
+      ]}
+      collapsable={false}
+    >
+      <View
+        style={[
+          styles.shareGlow,
+          { backgroundColor: colors.accent, opacity: isDark ? 0.16 : 0.12 },
+        ]}
+      />
+      <View style={styles.shareHeader}>
+        <Text style={[styles.brand, { color: colors.accent }]}>FORTIS</Text>
+        <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>{weekLabel}</Text>
+      </View>
+      <View
+        style={[
+          styles.shareBadge,
+          { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
+        ]}
+      >
+        <Text style={[styles.shareBadgeText, { color: colors.accent }]}>
+          {badgeLabel}
+        </Text>
+      </View>
+      <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
+      <Text style={[styles.shareSummary, { color: colors.textSecondary }]}>{insight.summary}</Text>
+
+      {(shareChart || chartIsLoading) && (
+        <View style={styles.shareChart}>
+          {renderShareChart()}
+        </View>
+      )}
+
+      {template === 'hero' && primaryEvidence && (
+        <>
+          <View style={styles.heroRow}>
+            <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+              {primaryEvidence.label}
+            </Text>
+            <View style={styles.heroValueRow}>
+              <Text style={[styles.heroValue, { color: colors.accent }]}>
+                {formatEvidenceValue(primaryEvidence)}
+              </Text>
+              <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
+            </View>
+          </View>
+          <View style={styles.evidenceList}>
+            {secondaryEvidence.map((item) => (
+              <View
+                key={item.key}
+                style={[
+                  styles.evidenceRow,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                  },
+                ]}
+              >
+                <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                  {item.label}
+                </Text>
+                <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                  {formatEvidenceValue(item)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </>
+      )}
+
+      {template === 'split' && primaryEvidence && (
+        <View style={styles.splitRow}>
+          <View style={styles.splitColumn}>
+            <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+              {primaryEvidence.label}
+            </Text>
+            <Text style={[styles.heroValue, { color: colors.accent }]}>
+              {formatEvidenceValue(primaryEvidence)}
+            </Text>
+            {heroDelta && (
+              <Text style={[styles.deltaText, { color: colors.textTertiary }]}>
+                {heroDelta.text}
+              </Text>
+            )}
+          </View>
+          <View style={styles.splitColumn}>
+            {secondaryEvidence.map((item) => (
+              <View key={item.key} style={styles.splitEvidence}>
+                <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                  {item.label}
+                </Text>
+                <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                  {formatEvidenceValue(item)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      {template === 'grid' && (
+        <View style={styles.grid}>
+          {evidenceItems.map((item) => (
+            <View
+              key={item.key}
+              style={[
+                styles.gridTile,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+                },
+              ]}
+            >
+              <Text style={[styles.gridLabel, { color: colors.textSecondary }]}>
+                {item.label}
+              </Text>
+              <Text style={[styles.gridValue, { color: colors.textPrimary }]}>
+                {formatEvidenceValue(item)}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {template === 'timeline' && primaryEvidence && (
+        <View style={styles.timelineBlock}>
+          <View style={styles.timelineHeader}>
+            <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
+              {primaryEvidence.label}
+            </Text>
+            <Text style={[styles.heroValue, { color: colors.accent }]}>
+              {formatEvidenceValue(primaryEvidence)}
+            </Text>
+            {heroDelta && (
+              <Text style={[styles.deltaText, { color: colors.textSecondary }]}>
+                {heroDelta.text} vs last week
+              </Text>
+            )}
+          </View>
+          {comparisonBars ? (
+            <View style={styles.comparisonBlock}>
+              {comparisonBars.map((bar) => {
+                const width = Math.max((bar.value / comparisonMax) * 100, 8);
+                return (
+                  <View key={bar.label} style={styles.comparisonRow}>
+                    <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
+                      {bar.label}
+                    </Text>
+                    <View
+                      style={[
+                        styles.comparisonTrack,
+                        { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.comparisonFill,
+                          {
+                            width: `${width}%`,
+                            backgroundColor:
+                              bar.label === 'This' ? colors.accent : colors.border,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={[styles.comparisonValue, { color: colors.textPrimary }]}>
+                      {formatEvidenceValue({
+                        ...primaryEvidence,
+                        value: bar.value,
+                      })}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          ) : null}
+          <View style={styles.timelineEvidence}>
+            {secondaryEvidence.map((item) => (
+              <View key={item.key} style={styles.timelineRow}>
+                <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+                  {item.label}
+                </Text>
+                <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
+                  {formatEvidenceValue(item)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
+      <View style={styles.shareFooter}>
+        <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
+          fortis.app
+        </Text>
+      </View>
+    </LinearGradient>
+  ) : null;
+
   if (!insight || !isShareable) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -236,408 +608,10 @@ export default function InsightShareScreen() {
           <View style={styles.previewSection}>
             {isCaptureReady && ViewShotComponent ? (
               <ViewShotComponent ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-                <LinearGradient
-                  colors={gradientColors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={[
-                    styles.shareCard,
-                    styles.templateCard,
-                    {
-                      borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
-                    },
-                  ]}
-                  collapsable={false}
-                >
-                  <View
-                    style={[
-                      styles.shareGlow,
-                      { backgroundColor: colors.accent, opacity: isDark ? 0.16 : 0.12 },
-                    ]}
-                  />
-                  <View style={styles.shareHeader}>
-                    <Text style={[styles.brand, { color: colors.accent }]}>FORTIS</Text>
-                    <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>{weekLabel}</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.shareBadge,
-                      { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
-                    ]}
-                  >
-                    <Text style={[styles.shareBadgeText, { color: colors.accent }]}>
-                      {badgeLabel}
-                    </Text>
-                  </View>
-                  <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
-                  <Text style={[styles.shareSummary, { color: colors.textSecondary }]}>{insight.summary}</Text>
-
-                  {template === 'hero' && primaryEvidence && (
-                    <>
-                      <View style={styles.heroRow}>
-                        <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                          {primaryEvidence.label}
-                        </Text>
-                        <View style={styles.heroValueRow}>
-                          <Text style={[styles.heroValue, { color: colors.accent }]}>
-                            {formatEvidenceValue(primaryEvidence)}
-                          </Text>
-                          <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
-                        </View>
-                      </View>
-                      <View style={styles.evidenceList}>
-                        {secondaryEvidence.map((item) => (
-                          <View
-                            key={item.key}
-                            style={[
-                              styles.evidenceRow,
-                              {
-                                backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                              },
-                            ]}
-                          >
-                            <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
-                              {item.label}
-                            </Text>
-                            <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                              {formatEvidenceValue(item)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </>
-                  )}
-
-                  {template === 'split' && primaryEvidence && (
-                    <View style={styles.splitRow}>
-                      <View style={styles.splitColumn}>
-                        <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                          {primaryEvidence.label}
-                        </Text>
-                        <Text style={[styles.heroValue, { color: colors.accent }]}>
-                          {formatEvidenceValue(primaryEvidence)}
-                        </Text>
-                        {heroDelta && (
-                          <Text style={[styles.deltaText, { color: colors.textTertiary }]}>
-                            {heroDelta.text}
-                          </Text>
-                        )}
-                      </View>
-                      <View style={styles.splitColumn}>
-                        {secondaryEvidence.map((item) => (
-                          <View key={item.key} style={styles.splitEvidence}>
-                            <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
-                              {item.label}
-                            </Text>
-                            <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                              {formatEvidenceValue(item)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  {template === 'grid' && (
-                    <View style={styles.grid}>
-                      {evidenceItems.map((item) => (
-                        <View
-                          key={item.key}
-                          style={[
-                            styles.gridTile,
-                            {
-                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.gridLabel, { color: colors.textSecondary }]}>
-                            {item.label}
-                          </Text>
-                          <Text style={[styles.gridValue, { color: colors.textPrimary }]}>
-                            {formatEvidenceValue(item)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
-                  {template === 'timeline' && primaryEvidence && (
-                    <View style={styles.timelineBlock}>
-                      <View style={styles.timelineHeader}>
-                        <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                          {primaryEvidence.label}
-                        </Text>
-                        <Text style={[styles.heroValue, { color: colors.accent }]}>
-                          {formatEvidenceValue(primaryEvidence)}
-                        </Text>
-                        {heroDelta && (
-                          <Text style={[styles.deltaText, { color: colors.textSecondary }]}>
-                            {heroDelta.text} vs last week
-                          </Text>
-                        )}
-                      </View>
-                      {comparisonBars ? (
-                        <View style={styles.comparisonBlock}>
-                          {comparisonBars.map((bar) => {
-                            const width = Math.max((bar.value / comparisonMax) * 100, 8);
-                            return (
-                              <View key={bar.label} style={styles.comparisonRow}>
-                                <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                                  {bar.label}
-                                </Text>
-                                <View
-                                  style={[
-                                    styles.comparisonTrack,
-                                    { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
-                                  ]}
-                                >
-                                  <View
-                                    style={[
-                                      styles.comparisonFill,
-                                      {
-                                        width: `${width}%`,
-                                        backgroundColor:
-                                          bar.label === 'This' ? colors.accent : colors.border,
-                                      },
-                                    ]}
-                                  />
-                                </View>
-                                <Text style={[styles.comparisonValue, { color: colors.textPrimary }]}>
-                                  {formatEvidenceValue({
-                                    ...primaryEvidence,
-                                    value: bar.value,
-                                  })}
-                                </Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      ) : null}
-                      <View style={styles.timelineEvidence}>
-                        {secondaryEvidence.map((item) => (
-                          <View key={item.key} style={styles.timelineRow}>
-                            <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
-                              {item.label}
-                            </Text>
-                            <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                              {formatEvidenceValue(item)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-
-                  <View style={styles.shareFooter}>
-                    <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
-                      fortis.app
-                    </Text>
-                  </View>
-                </LinearGradient>
+                {shareCard}
               </ViewShotComponent>
             ) : (
-              <LinearGradient
-                colors={gradientColors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[
-                  styles.shareCard,
-                  styles.templateCard,
-                  {
-                    borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
-                  },
-                ]}
-                collapsable={false}
-              >
-                <View
-                  style={[
-                    styles.shareGlow,
-                    { backgroundColor: colors.accent, opacity: isDark ? 0.16 : 0.12 },
-                  ]}
-                />
-                <View style={styles.shareHeader}>
-                  <Text style={[styles.brand, { color: colors.accent }]}>FORTIS</Text>
-                  <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>{weekLabel}</Text>
-                </View>
-                <View
-                  style={[
-                    styles.shareBadge,
-                    { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
-                  ]}
-                >
-                  <Text style={[styles.shareBadgeText, { color: colors.accent }]}>
-                    {badgeLabel}
-                  </Text>
-                </View>
-                <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
-                <Text style={[styles.shareSummary, { color: colors.textSecondary }]}>{insight.summary}</Text>
-
-                {template === 'hero' && primaryEvidence && (
-                  <>
-                    <View style={styles.heroRow}>
-                      <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                        {primaryEvidence.label}
-                      </Text>
-                      <View style={styles.heroValueRow}>
-                        <Text style={[styles.heroValue, { color: colors.accent }]}>
-                          {formatEvidenceValue(primaryEvidence)}
-                        </Text>
-                        <View style={[styles.heroAccent, { backgroundColor: colors.accent }]} />
-                      </View>
-                    </View>
-                    <View style={styles.evidenceList}>
-                      {secondaryEvidence.map((item) => (
-                        <View
-                          key={item.key}
-                          style={[
-                            styles.evidenceRow,
-                            {
-                              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                            },
-                          ]}
-                        >
-                          <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
-                            {item.label}
-                          </Text>
-                          <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                            {formatEvidenceValue(item)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                {template === 'split' && primaryEvidence && (
-                  <View style={styles.splitRow}>
-                    <View style={styles.splitColumn}>
-                      <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                        {primaryEvidence.label}
-                      </Text>
-                      <Text style={[styles.heroValue, { color: colors.accent }]}>
-                        {formatEvidenceValue(primaryEvidence)}
-                      </Text>
-                      {heroDelta && (
-                        <Text style={[styles.deltaText, { color: colors.textTertiary }]}>
-                          {heroDelta.text}
-                        </Text>
-                      )}
-                    </View>
-                    <View style={styles.splitColumn}>
-                      {secondaryEvidence.map((item) => (
-                        <View key={item.key} style={styles.splitEvidence}>
-                          <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
-                            {item.label}
-                          </Text>
-                          <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                            {formatEvidenceValue(item)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {template === 'grid' && (
-                  <View style={styles.grid}>
-                    {evidenceItems.map((item) => (
-                      <View
-                        key={item.key}
-                        style={[
-                          styles.gridTile,
-                          {
-                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-                          },
-                        ]}
-                      >
-                        <Text style={[styles.gridLabel, { color: colors.textSecondary }]}>
-                          {item.label}
-                        </Text>
-                        <Text style={[styles.gridValue, { color: colors.textPrimary }]}>
-                          {formatEvidenceValue(item)}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {template === 'timeline' && primaryEvidence && (
-                  <View style={styles.timelineBlock}>
-                    <View style={styles.timelineHeader}>
-                      <Text style={[styles.heroLabel, { color: colors.textTertiary }]}>
-                        {primaryEvidence.label}
-                      </Text>
-                      <Text style={[styles.heroValue, { color: colors.accent }]}>
-                        {formatEvidenceValue(primaryEvidence)}
-                      </Text>
-                      {heroDelta && (
-                        <Text style={[styles.deltaText, { color: colors.textSecondary }]}>
-                          {heroDelta.text} vs last week
-                        </Text>
-                      )}
-                    </View>
-                    {comparisonBars ? (
-                      <View style={styles.comparisonBlock}>
-                        {comparisonBars.map((bar) => {
-                          const width = Math.max((bar.value / comparisonMax) * 100, 8);
-                          return (
-                            <View key={bar.label} style={styles.comparisonRow}>
-                              <Text style={[styles.comparisonLabel, { color: colors.textSecondary }]}>
-                                {bar.label}
-                              </Text>
-                              <View
-                                style={[
-                                  styles.comparisonTrack,
-                                  { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' },
-                                ]}
-                              >
-                                <View
-                                  style={[
-                                    styles.comparisonFill,
-                                    {
-                                      width: `${width}%`,
-                                      backgroundColor:
-                                        bar.label === 'This' ? colors.accent : colors.border,
-                                    },
-                                  ]}
-                                />
-                              </View>
-                              <Text style={[styles.comparisonValue, { color: colors.textPrimary }]}>
-                                {formatEvidenceValue({
-                                  ...primaryEvidence,
-                                  value: bar.value,
-                                })}
-                              </Text>
-                            </View>
-                          );
-                        })}
-                      </View>
-                    ) : null}
-                    <View style={styles.timelineEvidence}>
-                      {secondaryEvidence.map((item) => (
-                        <View key={item.key} style={styles.timelineRow}>
-                          <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
-                            {item.label}
-                          </Text>
-                          <Text style={[styles.evidenceValue, { color: colors.textPrimary }]}>
-                            {formatEvidenceValue(item)}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                <View style={styles.shareFooter}>
-                  <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
-                    fortis.app
-                  </Text>
-                </View>
-              </LinearGradient>
+              shareCard
             )}
           </View>
 
@@ -648,7 +622,7 @@ export default function InsightShareScreen() {
                 { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
               ]}
               onPress={handleShare}
-              disabled={isSharing || !isCaptureReady}
+              disabled={shareButtonDisabled}
               activeOpacity={0.8}
             >
               {isSharing ? (
@@ -657,6 +631,11 @@ export default function InsightShareScreen() {
                 <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
               )}
             </TouchableOpacity>
+            {chartIsLoading && (
+              <Text style={[styles.shareError, { color: colors.textTertiary }]}>
+                Loading chart data...
+              </Text>
+            )}
             {!isCaptureReady && (
               <Text style={[styles.shareError, { color: colors.textTertiary }]}>
                 Share preview requires a dev client rebuild.
@@ -796,6 +775,20 @@ const styles = StyleSheet.create({
   },
   evidenceList: {
     gap: scale(Spacing.xs),
+  },
+  shareChart: {
+    marginTop: scale(Spacing.xs),
+  },
+  chartLoading: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: scale(Spacing.md),
+    gap: scale(Spacing.xs),
+  },
+  chartLoadingText: {
+    fontSize: moderateScale(11),
   },
   evidenceRow: {
     flexDirection: 'row',
