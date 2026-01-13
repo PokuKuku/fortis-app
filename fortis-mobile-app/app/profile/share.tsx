@@ -162,7 +162,7 @@ export default function ProfileShareScreen() {
     localSessions: completedSessions,
     enabled: shareType === 'activity',
   });
-  const activityHeatmapSessions = shareType === 'activity' ? activityHistorySessions : [];
+  const activityHeatmapSessions = shareType === 'activity' ? activityHistorySessions : undefined;
   const { weeks } = useActivityHeatmap(
     undefined,
     'rolling',

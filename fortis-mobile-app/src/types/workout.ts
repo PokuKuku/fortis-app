@@ -130,6 +130,9 @@ export interface WorkoutSetDTO {
   id?: string;
   session_id: string;
   exercise_id: string;
+  exercise_name_snapshot?: string | null;
+  primary_muscles_snapshot?: string[] | null;
+  secondary_muscles_snapshot?: string[] | null;
   set_number: number;
   reps: number | null;
   weight: number | null;
@@ -331,6 +334,7 @@ export interface ProgramExerciseDTO {
   id: string;
   program_workout_id: string;
   exercise_id: string;
+  exercise_name_snapshot?: string | null;
   sets: number;
   reps: string;
   rest_seconds?: number;

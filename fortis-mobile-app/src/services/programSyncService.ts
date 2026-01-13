@@ -255,13 +255,14 @@ async function uploadProgram(
           }
 
           return {
-          program_workout_id: insertedWorkout.id,
-          exercise_id: resolvedId,
-          sets: ex.sets,
-          reps: ex.reps,
-          rest_seconds: ex.restSeconds || 120,
-          notes: ex.notes,
-          order_index: ex.orderIndex ?? index,
+            program_workout_id: insertedWorkout.id,
+            exercise_id: resolvedId,
+            exercise_name_snapshot: ex.exerciseName ?? null,
+            sets: ex.sets,
+            reps: ex.reps,
+            rest_seconds: ex.restSeconds || 120,
+            notes: ex.notes,
+            order_index: ex.orderIndex ?? index,
           };
         });
 

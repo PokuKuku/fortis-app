@@ -210,6 +210,7 @@ interface WorkoutState {
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
   loadCompletedSessions: () => Promise<void>;
+  replaceCompletedSessions: (sessions: WorkoutSession[]) => Promise<void>;
   markSessionsSyncing: (localIds: string[]) => void;
   clearSessionsSyncing: (localIds: string[]) => void;
   markSessionsSynced: (localIds: string[]) => Promise<void>;
@@ -1435,6 +1436,15 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to load completed sessions:', error);
         set({ completedSessions: [] });
+      }
+    },
+
+    replaceCompletedSessions: async (sessions) => {
+      set({ completedSessions: sessions });
+      try {
+        await setScopedItem(COMPLETED_WORKOUTS_KEY, JSON.stringify(sessions));
+      } catch (error) {
+        console.warn('Failed to persist replaced workout sessions:', error);
       }
     },
 

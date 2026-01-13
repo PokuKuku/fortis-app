@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { startOfDay, startOfWeek, startOfYear, endOfYear } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
@@ -18,8 +17,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
-import { useWorkoutHistoryRange } from '@/src/hooks/useWorkoutHistoryRange';
-import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { Spacing, BorderRadius, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
@@ -73,16 +71,7 @@ export function ProfileHeader() {
   const router = useRouter();
   const { user, profile, updateProfile, uploadAvatar } = useAuth();
   const { colors, isDark } = useTheme();
-  const completedSessions = useWorkoutStore((state) => state.completedSessions);
-  const todayKey = startOfDay(new Date()).getTime();
-  const today = new Date(todayKey);
-  const yearStart = startOfYear(today);
-  const rangeStart = startOfWeek(yearStart, { weekStartsOn: 1 });
-  const rangeEnd = endOfYear(today);
-  const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistoryRange({
-    dateFrom: rangeStart,
-    dateTo: rangeEnd,
-    localSessions: completedSessions,
+  const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: Boolean(user?.id),
   });
   const { weeks, monthLabels, isLoading, hasActivity } = useActivityHeatmap(

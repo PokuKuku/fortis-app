@@ -76,6 +76,63 @@ const getVolumeUnitFallback = (insight: TrainingInsight): string => {
   return getVolumeUnit(insight) ?? 'lbs';
 };
 
+const upsertWeekPoint = (
+  points: InsightChartPoint[],
+  weekKey: string,
+  value: number | null | undefined
+): InsightChartPoint[] => {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return points;
+  }
+  const nextValue = Number(value);
+  const existingIndex = points.findIndex((point) => point.date === weekKey);
+  if (existingIndex >= 0) {
+    return points.map((point, index) =>
+      index === existingIndex ? { ...point, value: nextValue } : point
+    );
+  }
+  const next = [...points, { date: weekKey, value: nextValue }];
+  return next.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+};
+
+const applyWeekToDateOverrides = (
+  series: InsightChartSeries,
+  insight: TrainingInsight
+): InsightChartSeries => {
+  const volumeEvidence = insight.evidence.find(
+    (item) => item.key === 'volume_load' && item.period === 'week_to_date'
+  );
+  const sessionEvidence = insight.evidence.find(
+    (item) => item.key === 'sessions' && item.period === 'week_to_date'
+  );
+
+  if (!volumeEvidence && !sessionEvidence) {
+    return series;
+  }
+
+  const anchor = new Date(`${insight.anchorDate}T00:00:00`);
+  if (Number.isNaN(anchor.getTime())) {
+    return series;
+  }
+
+  const thisWeekKey = toIsoDate(anchor);
+  const lastWeekKey = toIsoDate(addDays(anchor, -7));
+
+  return {
+    ...series,
+    volume: upsertWeekPoint(
+      upsertWeekPoint(series.volume, lastWeekKey, volumeEvidence?.compareValue),
+      thisWeekKey,
+      volumeEvidence?.value
+    ),
+    frequency: upsertWeekPoint(
+      upsertWeekPoint(series.frequency, lastWeekKey, sessionEvidence?.compareValue),
+      thisWeekKey,
+      sessionEvidence?.value
+    ),
+  };
+};
+
 export async function fetchInsightChartSeries(
   insight: TrainingInsight
 ): Promise<InsightChartSeries | null> {
@@ -133,7 +190,8 @@ export async function fetchInsightChartSeries(
       range: { start: toIsoDate(lastWeek), end: toIsoDate(anchor) },
     };
 
-    return series;
+    const hasWeekToDate = insight.evidence.some((item) => item.period === 'week_to_date');
+    return hasWeekToDate ? applyWeekToDateOverrides(series, insight) : series;
   }
 
   if (insight.type === 'LIFT_STALL_RISK_V1') {

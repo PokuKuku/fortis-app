@@ -9,6 +9,7 @@ type WorkoutHistorySourceOptions = {
   enabled?: boolean;
   localSessions?: WorkoutSession[];
   staleTimeMs?: number;
+  syncToStore?: boolean;
 };
 
 let cachedSessions: WorkoutSession[] | null = null;
@@ -31,8 +32,10 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     enabled = true,
     localSessions,
     staleTimeMs = DEFAULT_STALE_MS,
+    syncToStore = limit === DEFAULT_LIMIT,
   } = options;
   const fallbackLocal = useWorkoutStore((state) => state.completedSessions);
+  const replaceCompletedSessions = useWorkoutStore((state) => state.replaceCompletedSessions);
   const local = localSessions ?? fallbackLocal;
 
   const [remoteSessions, setRemoteSessions] = useState<WorkoutSession[]>(
@@ -62,9 +65,19 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
 
     if (!inFlight) {
       inFlight = fetchWorkoutHistory({ limit })
-        .then(({ sessions }) => {
-          setCachedWorkoutHistory(sessions);
-          return sessions;
+        .then(({ sessions, error }) => {
+          if (error) {
+            return cachedSessions ?? [];
+          }
+          const latestLocal = localSessions ?? useWorkoutStore.getState().completedSessions;
+          const merged = mergeWorkoutSessions(sessions, latestLocal);
+          setCachedWorkoutHistory(merged);
+          if (syncToStore && sessions.length > 0) {
+            replaceCompletedSessions(merged).catch((storeError) => {
+              console.warn('[WorkoutHistorySource] Failed to persist merged sessions:', storeError);
+            });
+          }
+          return merged;
         })
         .finally(() => {
           inFlight = null;
@@ -88,7 +101,7 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     return () => {
       isMounted = false;
     };
-  }, [enabled, limit, staleTimeMs]);
+  }, [enabled, limit, staleTimeMs, syncToStore]);
 
   const sessions = useMemo(
     () => mergeWorkoutSessions(remoteSessions, local),

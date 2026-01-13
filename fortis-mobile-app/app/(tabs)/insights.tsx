@@ -24,6 +24,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
+import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonomy';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -98,7 +99,34 @@ const resolveUnitLabel = (unit?: string): string | null => {
   return unit;
 };
 
-const resolveTabPillLabel = (tab: ChartTab, unit?: string): string => {
+const hasWeekToDateEvidence = (insight: TrainingInsight): boolean => {
+  return insight.evidence.some((item) => item.period === 'week_to_date');
+};
+
+const resolveImbalanceLabels = (insight: TrainingInsight): Record<ChartTab, string> => {
+  const hasPushPull = insight.evidence.some((item) =>
+    item.key === 'push_sets' || item.key === 'pull_sets' || item.key === 'push_pull_ratio'
+  );
+  if (hasPushPull) {
+    return {
+      volume: 'Push sets',
+      frequency: 'Pull sets',
+      progress: 'Push/Pull ratio',
+    };
+  }
+  const muscleKey = insight.muscleGroup ? normalizeMuscle(insight.muscleGroup) : null;
+  const muscleLabel = muscleKey ? getMuscleDisplayName(muscleKey) : 'Target';
+  return {
+    volume: `${muscleLabel} sets`,
+    frequency: 'Total sets',
+    progress: 'Share %',
+  };
+};
+
+const resolveTabPillLabel = (tab: ChartTab, unit?: string, insight?: TrainingInsight): string => {
+  if (insight?.type === 'IMBALANCE_FLAG_V1') {
+    return resolveImbalanceLabels(insight)[tab];
+  }
   const unitLabel = resolveUnitLabel(unit);
   if (tab === 'progress') {
     return unitLabel === 'e1RM' ? 'e1RM' : 'Progress';
@@ -114,8 +142,16 @@ const resolveTabPillLabel = (tab: ChartTab, unit?: string): string => {
 const resolveSparklineLabel = (
   tab: ChartTab,
   mapping: ReturnType<typeof getInsightChartMapping>,
-  unit?: string
+  unit: string | undefined,
+  insight: TrainingInsight
 ): string => {
+  if (insight.type === 'IMBALANCE_FLAG_V1') {
+    return resolveImbalanceLabels(insight)[tab];
+  }
+  if (insight.type === 'WEEKLY_VERDICT_V1' && hasWeekToDateEvidence(insight)) {
+    if (tab === 'volume') return 'Week-to-date volume';
+    if (tab === 'frequency') return 'Workouts (WTD)';
+  }
   if (tab === mapping.sparklineMetric) {
     return mapping.sparklineLabel;
   }
@@ -248,7 +284,7 @@ function InsightCard({
     [activeTab, insight, series]
   );
   const activeUnit = series?.units?.[activeTab];
-  const sparklineLabel = resolveSparklineLabel(activeTab, mapping, activeUnit);
+  const sparklineLabel = resolveSparklineLabel(activeTab, mapping, activeUnit, insight);
   const evidenceItems = useMemo(() => resolveEvidence(insight).slice(0, 4), [insight]);
   const isWeeklyVerdict = insight.type === 'WEEKLY_VERDICT_V1';
   const rangeLabel = formatWeekRange(insight.anchorDate);
@@ -343,7 +379,7 @@ function InsightCard({
               {CHART_TABS.map((tab) => {
                 const hasData = (seriesMap?.[tab]?.length ?? 0) > 0;
                 const isActive = tab === activeTab;
-                const tabLabel = resolveTabPillLabel(tab, series?.units?.[tab]);
+                const tabLabel = resolveTabPillLabel(tab, series?.units?.[tab], insight);
                 return (
                   <TouchableOpacity
                     key={tab}

@@ -449,6 +449,28 @@ const fetchWeeklyPrCounts = async (
   };
 };
 
+const fetchWeekToDatePrCounts = async (
+  supabase: SupabaseClient,
+  userId: string,
+  weekStart: Date
+): Promise<{ thisWeek: number; lastWeek: number }> => {
+  const { data, error } = await supabase.rpc('get_week_to_date_pr_counts', {
+    p_user_id: userId,
+    p_week_start: toIsoDate(weekStart),
+  });
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch week-to-date PR counts:', error.message);
+    return { thisWeek: 0, lastWeek: 0 };
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    thisWeek: Number(row?.this_week ?? 0),
+    lastWeek: Number(row?.last_week ?? 0),
+  };
+};
+
 const fetchWeeklySummary = async (
   adminClient: SupabaseClient,
   userId: string,
@@ -1677,7 +1699,7 @@ Deno.serve(async (req) => {
 
   const [weeklyVolume, prCounts] = await Promise.all([
     shouldFetchWeeklyVolume ? fetchWeeklyVolume(supabase, user.id, weekStart, lastWeekStart) : Promise.resolve({ thisWeek: null, lastWeek: null }),
-    shouldRunWeeklyFinal ? fetchWeeklyPrCounts(supabase, user.id, weekStart) : Promise.resolve({ thisWeek: 0, lastWeek: 0 }),
+    shouldRunWeeklyFinal ? fetchWeekToDatePrCounts(supabase, user.id, weekStart) : Promise.resolve({ thisWeek: 0, lastWeek: 0 }),
   ]);
 
   const weekToDateVolume = shouldRunWeeklyFinal
@@ -1741,13 +1763,13 @@ Deno.serve(async (req) => {
     if (prCounts.thisWeek > 0 || prCounts.lastWeek > 0) {
       evidence.push({
         key: 'prs',
-        label: 'PRs',
+        label: 'PRs (WTD)',
         value: prCounts.thisWeek,
         unit: 'prs',
         compareValue: prCounts.lastWeek,
         deltaValue: prCounts.thisWeek - prCounts.lastWeek,
-        source: 'exercise_personal_records',
-        period: 'this_week',
+        source: 'exercise_exposures',
+        period: 'week_to_date',
       });
     }
 

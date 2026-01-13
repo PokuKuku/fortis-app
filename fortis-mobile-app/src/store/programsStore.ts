@@ -134,7 +134,7 @@ function mapExerciseFromDTO(dto: ProgramExerciseDTO & { set_details?: any }): Pr
   return {
     id: dto.id,
     exerciseId: dto.exercise_id,
-    exerciseName: '', // Will be populated from join or cache
+    exerciseName: dto.exercise_name_snapshot ?? '', // Will be populated from join or cache
     sets: dto.sets,
     reps: dto.reps,
     restSeconds: dto.rest_seconds,
@@ -395,7 +395,9 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         programs.forEach((program) => {
           program.workouts.forEach((workout) => {
             workout.exercises.forEach((exercise) => {
-              exercise.exerciseName = exerciseMap.get(exercise.exerciseId) || 'Unknown Exercise';
+              exercise.exerciseName = exerciseMap.get(exercise.exerciseId) ||
+                exercise.exerciseName ||
+                'Unknown Exercise';
             });
           });
         });
@@ -540,6 +542,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const exercisesToInsert = resolvedExercises.map((ex) => ({
           program_workout_id: newWorkout.id,
           exercise_id: ex.resolvedExerciseId,
+          exercise_name_snapshot: ex.exerciseName ?? null,
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds,
@@ -682,6 +685,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const exercisesToInsert = resolvedExercises.map((exercise, index) => ({
           program_workout_id: workout.id,
           exercise_id: exercise.resolvedExerciseId,
+          exercise_name_snapshot: exercise.exerciseName ?? null,
           sets: exercise.sets,
           reps: exercise.reps,
           rest_seconds: exercise.restSeconds ?? 120,
@@ -874,6 +878,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const exercisesToInsert = resolvedExercises.map((ex, index) => ({
           program_workout_id: workout.id,
           exercise_id: ex.resolvedExerciseId,
+          exercise_name_snapshot: ex.exerciseName ?? null,
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds || 120,
@@ -1106,6 +1111,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           const exercisesToInsert = resolvedExercises.map((exercise, exerciseIndex) => ({
             program_workout_id: workout.id,
             exercise_id: exercise.resolvedExerciseId,
+            exercise_name_snapshot: exercise.exerciseName ?? null,
             sets: exercise.sets,
             reps: exercise.reps,
             rest_seconds: exercise.restSeconds ?? 120,
@@ -1314,6 +1320,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             const exercisesToInsert = resolvedExercises.map((exercise, exerciseIndex) => ({
               program_workout_id: entry.workoutId,
               exercise_id: exercise.resolvedExerciseId,
+              exercise_name_snapshot: exercise.exerciseName ?? null,
               sets: exercise.sets,
               reps: exercise.reps,
               rest_seconds: exercise.restSeconds ?? 120,
@@ -1353,6 +1360,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             const exercisesToInsert = resolvedExercises.map((exercise, exerciseIndex) => ({
               program_workout_id: workout.id,
               exercise_id: exercise.resolvedExerciseId,
+              exercise_name_snapshot: exercise.exerciseName ?? null,
               sets: exercise.sets,
               reps: exercise.reps,
               rest_seconds: exercise.restSeconds ?? 120,
@@ -1749,6 +1757,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const exercisesToInsert = resolvedExercises.map((ex, index) => ({
           program_workout_id: workoutId,
           exercise_id: ex.resolvedExerciseId,
+          exercise_name_snapshot: ex.exerciseName ?? null,
           sets: ex.sets,
           reps: ex.reps,
           rest_seconds: ex.restSeconds ?? 120,

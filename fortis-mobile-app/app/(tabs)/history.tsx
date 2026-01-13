@@ -19,7 +19,8 @@ import Animated, {
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { getWorkoutSummary, useWorkoutStore } from '../../src/store/workoutStore';
-import { fetchWorkoutHistory, getPendingSyncSessions, processPendingQueue, deleteWorkoutSession } from '../../src/services/workoutHistoryService';
+import { getPendingSyncSessions, processPendingQueue, deleteWorkoutSession } from '../../src/services/workoutHistoryService';
+import { useWorkoutHistorySource } from '../../src/hooks/useWorkoutHistorySource';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { WorkoutSession } from '../../src/types/workout';
@@ -449,21 +450,23 @@ export default function HistoryScreen() {
   const clearSessionsSyncing = useWorkoutStore((state) => state.clearSessionsSyncing);
   const markSessionsSynced = useWorkoutStore((state) => state.markSessionsSynced);
   const deleteCompletedSession = useWorkoutStore((state) => state.deleteCompletedSession);
-  const [remoteSessions, setRemoteSessions] = useState<WorkoutSession[]>([]);
   const [pendingSessions, setPendingSessions] = useState<WorkoutSession[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPendingLoading, setIsPendingLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [displayedMonth, setDisplayedMonth] = useState<Date>(new Date());
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
   const previousSyncCount = useRef(0);
   const appState = useRef(AppState.currentState);
+  const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
+    enabled: isAuthenticated,
+  });
 
   // Supabase is the source of truth for history
   const allSessions = useMemo(() => {
-    return [...remoteSessions].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
-  }, [remoteSessions]);
+    return [...historySessions].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
+  }, [historySessions]);
 
   const volumeByDate = useMemo(() => getVolumeByDate(allSessions), [allSessions]);
   const maxVolume = useMemo(() => Math.max(...Object.values(volumeByDate), 1), [volumeByDate]);
@@ -513,20 +516,14 @@ export default function HistoryScreen() {
   }, [syncingSessions, pendingSessions]);
 
   const loadData = useCallback(async () => {
+    setIsPendingLoading(true);
     const pending = await getPendingSyncSessions();
     setPendingSessions(pending);
-
-    if (isAuthenticated) {
-      const { sessions: remote } = await fetchWorkoutHistory();
-      setRemoteSessions(remote);
-    } else {
-      setRemoteSessions([]);
-    }
-  }, [isAuthenticated]);
+    setIsPendingLoading(false);
+  }, []);
 
   useEffect(() => {
-    setIsLoading(true);
-    loadData().finally(() => setIsLoading(false));
+    loadData();
   }, [loadData]);
 
   const resetCalendarToToday = useCallback(() => {
@@ -672,6 +669,7 @@ export default function HistoryScreen() {
 
   const hasPendingSessions = pendingEntries.length > 0;
   const hasRemoteSessions = allSessions.length > 0;
+  const isLoading = historyLoading || isPendingLoading;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

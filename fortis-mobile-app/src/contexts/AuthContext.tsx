@@ -9,6 +9,7 @@ import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { setCachedWorkoutHistory } from '@/src/hooks/useWorkoutHistorySource';
+import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
@@ -275,11 +276,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Users need full history for strength tracking/progress
             // Using high limit (10000) covers even 10+ years of daily workouts
             fetchWorkoutHistory(10000)
-              .then(({ sessions }) => {
+              .then(({ sessions, error }) => {
+                if (error) {
+                  return;
+                }
+                const localSessions = useWorkoutStore.getState().completedSessions;
+                const mergedSessions = mergeWorkoutSessions(sessions, localSessions);
+                setCachedWorkoutHistory(mergedSessions);
                 if (sessions.length > 0) {
-                  setCachedWorkoutHistory(sessions);
-                  useWorkoutStore.getState().importCompletedSessions(sessions).catch(error => {
-                    console.warn('Failed to import remote workout history:', error);
+                  useWorkoutStore.getState().replaceCompletedSessions(mergedSessions).catch(storeError => {
+                    console.warn('Failed to replace workout history from cloud:', storeError);
                   });
                 }
               })

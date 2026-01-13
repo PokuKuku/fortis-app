@@ -30,6 +30,20 @@ export interface HeatmapMonthLabel {
   weekIndex: number;
 }
 
+const areMapsEqual = <T extends number | boolean>(
+  left: Record<string, T>,
+  right: Record<string, T>
+): boolean => {
+  if (left === right) return true;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  if (leftKeys.length !== rightKeys.length) return false;
+  for (const key of leftKeys) {
+    if (left[key] !== right[key]) return false;
+  }
+  return true;
+};
+
 export function useActivityHeatmap(
   userId?: string,
   mode: 'year' | 'rolling' = 'year',
@@ -106,8 +120,8 @@ export function useActivityHeatmap(
     };
     const applyMaps = (sessions: WorkoutSession[]) => {
       const { volumeByDay, activityByDay } = buildMaps(sessions);
-      setDayVolumes(volumeByDay);
-      setDayActivity(activityByDay);
+      setDayVolumes((prev) => (areMapsEqual(prev, volumeByDay) ? prev : volumeByDay));
+      setDayActivity((prev) => (areMapsEqual(prev, activityByDay) ? prev : activityByDay));
     };
 
     if (!userId) {

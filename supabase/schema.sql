@@ -262,7 +262,8 @@ CREATE POLICY "Program workouts viewable with program"
 CREATE TABLE program_exercises (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   program_workout_id UUID REFERENCES program_workouts(id) ON DELETE CASCADE NOT NULL,
-  exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE NOT NULL,
+  exercise_id UUID NOT NULL,
+  exercise_name_snapshot TEXT,
 
   -- Exercise prescription
   order_index INTEGER NOT NULL,
@@ -391,7 +392,10 @@ CREATE POLICY "Users can delete own workout sessions"
 CREATE TABLE workout_sets (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   session_id UUID REFERENCES workout_sessions(id) ON DELETE CASCADE NOT NULL,
-  exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE NOT NULL,
+  exercise_id UUID NOT NULL,
+  exercise_name_snapshot TEXT,
+  primary_muscles_snapshot TEXT[],
+  secondary_muscles_snapshot TEXT[],
 
   -- Set details
   set_number INTEGER NOT NULL,
@@ -605,16 +609,16 @@ CREATE OR REPLACE VIEW exercise_personal_records AS
 SELECT
   wst.exercise_id,
   ws.user_id,
-  e.name as exercise_name,
+  COALESCE(MAX(e.name), MAX(wst.exercise_name_snapshot), 'Unknown Exercise') as exercise_name,
   MAX(wst.weight) as max_weight,
   MAX(wst.weight * (1 + wst.reps::DECIMAL / 30)) as estimated_1rm,
   MAX(wst.reps) as max_reps,
   MAX(ws.started_at) as achieved_at
 FROM workout_sets wst
 JOIN workout_sessions ws ON wst.session_id = ws.id
-JOIN exercises e ON wst.exercise_id = e.id
+LEFT JOIN exercises e ON wst.exercise_id = e.id
 WHERE wst.is_warmup = FALSE
-GROUP BY wst.exercise_id, ws.user_id, e.name;
+GROUP BY wst.exercise_id, ws.user_id;
 
 -- View: Weekly workout volume
 CREATE OR REPLACE VIEW weekly_workout_volume AS
@@ -633,13 +637,13 @@ GROUP BY ws.user_id, DATE_TRUNC('week', ws.started_at);
 CREATE OR REPLACE VIEW muscle_group_frequency AS
 SELECT
   ws.user_id,
-  unnest(e.primary_muscles) as muscle_group,
+  unnest(COALESCE(wst.primary_muscles_snapshot, e.primary_muscles, '{}'::text[])) as muscle_group,
   COUNT(*) as times_trained,
   SUM(wst.reps * wst.weight) as total_volume,
   MAX(ws.started_at) as last_trained
 FROM workout_sets wst
 JOIN workout_sessions ws ON wst.session_id = ws.id
-JOIN exercises e ON wst.exercise_id = e.id
+LEFT JOIN exercises e ON wst.exercise_id = e.id
 WHERE ws.completed_at IS NOT NULL
 GROUP BY ws.user_id, muscle_group;
 

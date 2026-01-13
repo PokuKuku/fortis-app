@@ -9,6 +9,7 @@ import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { WorkoutSession, WorkoutExercise, WorkoutSet, WeightUnit } from '@/src/types/workout';
+import type { ExerciseWithSource } from '@/src/types/exercise';
 import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
 import { isCustomExercise, getCustomExercises, getAllExercises } from '@/src/services/exerciseService';
@@ -55,6 +56,9 @@ interface WorkoutSessionInsert {
 interface WorkoutSetInsert {
   session_id: string;
   exercise_id: string;
+  exercise_name_snapshot: string | null;
+  primary_muscles_snapshot: string[] | null;
+  secondary_muscles_snapshot: string[] | null;
   set_number: number;
   reps: number | null;
   weight: number | null;
@@ -450,6 +454,14 @@ async function uploadSession(
 
     // Resolve exercise IDs to Supabase UUIDs (handles RapidAPI ID → UUID mapping)
     const exerciseIdMap = await resolveExerciseIds(session.exercises);
+    const exerciseMeta = await getAllExercises();
+    const exerciseMetaById = new Map<string, ExerciseWithSource>();
+    exerciseMeta.forEach((exercise) => {
+      exerciseMetaById.set(exercise.id, exercise);
+      if (exercise.slug) {
+        exerciseMetaById.set(exercise.slug, exercise);
+      }
+    });
 
     // Insert all sets for each exercise
     const setsToInsert: WorkoutSetInsert[] = [];
@@ -465,6 +477,11 @@ async function uploadSession(
         continue;
       }
 
+      const exerciseMetaEntry = exerciseMetaById.get(exercise.exerciseId);
+      const exerciseNameSnapshot = exercise.exerciseName || exerciseMetaEntry?.name || null;
+      const primaryMusclesSnapshot = exerciseMetaEntry?.primaryMuscles ?? null;
+      const secondaryMusclesSnapshot = exerciseMetaEntry?.secondaryMuscles ?? null;
+
       for (const set of exercise.sets) {
         if (!set.isCompleted) {
           skippedIncomplete++;
@@ -474,6 +491,9 @@ async function uploadSession(
         setsToInsert.push({
           session_id: sessionId,
           exercise_id: resolvedExerciseId,
+          exercise_name_snapshot: exerciseNameSnapshot,
+          primary_muscles_snapshot: primaryMusclesSnapshot,
+          secondary_muscles_snapshot: secondaryMusclesSnapshot,
           set_number: set.setNumber,
           reps: set.reps,
           weight: set.weight,
@@ -738,6 +758,7 @@ export async function fetchWorkoutHistory(
           id,
           local_id,
           exercise_id,
+          exercise_name_snapshot,
           set_number,
           reps,
           weight,
@@ -783,11 +804,15 @@ export async function fetchWorkoutHistory(
       .map(session => {
       // Group sets by exercise_id
       const exerciseMap = new Map<string, WorkoutSet[]>();
+      const exerciseNameSnapshots = new Map<string, string>();
 
       for (const set of session.workout_sets || []) {
         const exerciseId = set.exercise_id;
         if (!exerciseMap.has(exerciseId)) {
           exerciseMap.set(exerciseId, []);
+        }
+        if (set.exercise_name_snapshot && !exerciseNameSnapshots.has(exerciseId)) {
+          exerciseNameSnapshots.set(exerciseId, set.exercise_name_snapshot);
         }
 
         exerciseMap.get(exerciseId)!.push({
@@ -813,7 +838,9 @@ export async function fetchWorkoutHistory(
         .map(([exerciseId, sets], index) => ({
           localId: `${session.local_id}-ex-${index}`,
           exerciseId,
-          exerciseName: exerciseNameById.get(exerciseId) || exerciseId,
+          exerciseName: exerciseNameById.get(exerciseId) ||
+            exerciseNameSnapshots.get(exerciseId) ||
+            exerciseId,
           sets: sets.sort((a, b) => a.orderIndex - b.orderIndex),
           notes: '',
           orderIndex: index,
