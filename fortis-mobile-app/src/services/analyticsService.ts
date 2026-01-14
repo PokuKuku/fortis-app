@@ -50,7 +50,6 @@ interface SetLoggedProps {
 /** AI message sent event properties */
 interface AIMessageSentProps {
   intent: AIIntent;
-  hasImage: boolean;
 }
 
 /** AI chat opened event properties */
@@ -287,7 +286,6 @@ export const analytics = {
   trackAIMessageSent(props: AIMessageSentProps) {
     capture(Events.AI_MESSAGE_SENT, {
       intent: props.intent,
-      has_image: props.hasImage,
     });
   },
 

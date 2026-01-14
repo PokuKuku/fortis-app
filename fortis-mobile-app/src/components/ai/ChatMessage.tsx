@@ -13,7 +13,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
 } from 'react-native';
 import { formatDistanceToNow } from 'date-fns';
 import ReAnimated, { FadeIn } from 'react-native-reanimated';
@@ -200,16 +199,6 @@ export function ChatMessage({
       style={[styles.container, isUser ? [styles.userContainer, themedStyles.userContainer] : styles.aiContainer]}
     >
       <View style={[styles.content, isUser ? styles.userContent : styles.aiContent]}>
-        {message.image && (
-          <Image
-            source={{ uri: message.image.uri }}
-            style={styles.messageImage}
-            resizeMode="cover"
-            accessibilityLabel="Attached image"
-            accessibilityRole="image"
-          />
-        )}
-
         {isUser ? (
           <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
         ) : (
@@ -336,13 +325,6 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textPrimary,
     lineHeight: 24,
-  },
-  messageImage: {
-    width: '100%',
-    maxWidth: 280,
-    height: 180,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
   },
   timestamp: {
     ...Typography.caption,

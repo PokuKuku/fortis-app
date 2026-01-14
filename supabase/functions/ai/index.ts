@@ -834,14 +834,26 @@ async function fallbackFromOpenAIResponses(
   options: { maxTokens?: number; temperature?: number } | undefined,
   primaryModel: string
 ): Promise<string> {
-  const fallbackModel = Deno.env.get('OPENAI_FALLBACK_MODEL') || primaryModel;
+  const configuredFallback = Deno.env.get('OPENAI_FALLBACK_MODEL') || primaryModel;
+  const defaultFallback = 'gpt-4o-mini';
+  const candidates = Array.from(new Set([configuredFallback, defaultFallback]));
 
-  if (modelSupportsChatCompletions(fallbackModel)) {
-    const supportsTemp = modelSupportsTemperature(fallbackModel);
-    return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
-      maxTokens: options?.maxTokens,
-      temperature: supportsTemp ? options?.temperature : undefined,
-    }, fallbackModel);
+  for (const candidate of candidates) {
+    if (!modelSupportsChatCompletions(candidate)) {
+      continue;
+    }
+    try {
+      const supportsTemp = modelSupportsTemperature(candidate);
+      return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
+        maxTokens: options?.maxTokens,
+        temperature: supportsTemp ? options?.temperature : undefined,
+      }, candidate);
+    } catch (error) {
+      console.error('[OpenAI] Chat completions fallback failed', {
+        model: candidate,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   throw new Error('OpenAI response fallback unavailable for this model');
@@ -1197,7 +1209,26 @@ function parseModelResponse(
       jsonStr = jsonMatch[1];
     }
 
-    const parsed = JSON.parse(jsonStr);
+    let parsed: unknown = safeParseJson(jsonStr);
+    if (parsed === null) {
+      throw new Error('JSON parse failed');
+    }
+
+    if (typeof parsed === 'string') {
+      const nested = safeParseJson(parsed);
+      if (nested && typeof nested === 'object') {
+        parsed = nested;
+      } else {
+        return {
+          type: 'answer',
+          requestId,
+          answer: {
+            text: ensureTldrLine(parsed),
+            citations: [],
+          },
+        };
+      }
+    }
 
     if (!parsed || typeof parsed !== 'object') {
       return buildModelError(requestId, 'Invalid AI response format');
@@ -1223,18 +1254,8 @@ function parseModelResponse(
     console.log('[parseModelResponse] JSON parse failed, raw text:', text.substring(0, 500));
     console.log('[parseModelResponse] Parse error:', parseError);
 
-    // Try to extract the "text" field from partially-valid JSON
-    // This handles cases where JSON.parse fails due to encoding issues or special characters
-    const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-    if (textMatch) {
-      // Unescape common JSON escape sequences
-      const extractedText = textMatch[1]
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r')
-        .replace(/\\t/g, '\t')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\');
-
+    const extractedText = extractJsonTextField(text, 'text');
+    if (extractedText) {
       console.log('[parseModelResponse] Extracted text from malformed JSON');
       return {
         type: 'answer',
@@ -1257,6 +1278,77 @@ function parseModelResponse(
       },
     };
   }
+}
+
+function safeParseJson(input: string): unknown {
+  try {
+    return JSON.parse(input);
+  } catch {
+    return null;
+  }
+}
+
+function extractJsonTextField(raw: string, fieldName: string): string | null {
+  const keyRegex = new RegExp(`\"${fieldName}\"\\s*:\\s*`, 'i');
+  const keyMatch = raw.match(keyRegex);
+  if (!keyMatch || keyMatch.index === undefined) {
+    return null;
+  }
+
+  let index = keyMatch.index + keyMatch[0].length;
+  while (index < raw.length && /\s/.test(raw[index])) {
+    index += 1;
+  }
+
+  const quote = raw[index];
+  if (quote !== '"') {
+    return null;
+  }
+  index += 1;
+
+  let result = '';
+  let escaped = false;
+  for (; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (escaped) {
+      switch (char) {
+        case 'n':
+          result += '\n';
+          break;
+        case 'r':
+          result += '\r';
+          break;
+        case 't':
+          result += '\t';
+          break;
+        case '"':
+          result += '"';
+          break;
+        case '\\':
+          result += '\\';
+          break;
+        default:
+          result += char;
+          break;
+      }
+      escaped = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escaped = true;
+      continue;
+    }
+
+    if (char === '"') {
+      break;
+    }
+
+    result += char;
+  }
+
+  const trimmed = result.trim();
+  return trimmed ? trimmed : null;
 }
 
 function buildModelError(requestId: string, message: string) {

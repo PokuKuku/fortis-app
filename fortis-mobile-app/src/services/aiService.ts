@@ -8,7 +8,6 @@ import * as Crypto from 'expo-crypto';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   AIIntent,
-  AIImage,
   AIRequest,
   AIRequestContext,
   AIResponse,
@@ -30,8 +29,7 @@ async function getAuthenticatedUserId(): Promise<string | null> {
 export async function sendAIMessage(
   intent: AIIntent,
   message: string,
-  context?: AIRequestContext,
-  image?: AIImage
+  context?: AIRequestContext
 ): Promise<AIResponse> {
   if (!isSupabaseConfigured()) {
     return {
@@ -62,7 +60,6 @@ export async function sendAIMessage(
     intent,
     message,
     context,
-    image,
   };
 
   try {

@@ -15,13 +15,6 @@ export type AIIntent = typeof ALL_INTENTS[number];
 // Request/Response Types
 // ============================================
 
-export type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
-
-export interface AIImage {
-  base64: string;
-  mimeType: AIImageMimeType;
-}
-
 export interface AIRequestContext {
   insightId?: string;
   periodWeeks?: number;
@@ -31,7 +24,6 @@ export interface AIRequest {
   intent: AIIntent;
   message: string;
   context?: AIRequestContext;
-  image?: AIImage;
 }
 
 export interface AIResponse {
@@ -88,10 +80,6 @@ export interface AIConversationMessage {
   intent?: AIIntent;
   createdAt: string;
   clarification?: AIClarification;
-  image?: {
-    uri: string;
-    mimeType: AIImageMimeType;
-  };
 }
 
 export interface AIConversation {

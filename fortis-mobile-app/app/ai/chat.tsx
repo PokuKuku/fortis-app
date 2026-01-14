@@ -140,9 +140,6 @@ export default function AIChatScreen() {
   const retryLastMessage = useAIStore((state) => state.retryLastMessage);
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
   const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
-  const selectedImage = useAIStore((state) => state.selectedImage);
-  const setSelectedImage = useAIStore((state) => state.setSelectedImage);
-  const clearSelectedImage = useAIStore((state) => state.clearSelectedImage);
 
   const messages = conversation?.messages || [];
 
@@ -319,7 +316,6 @@ export default function AIChatScreen() {
                 <ChatMessage
                   key={message.id}
                   message={message}
-                  isStreaming={false}
                   onClarificationSelect={(option) => {
                     setInputText(option);
                   }}
@@ -376,9 +372,6 @@ export default function AIChatScreen() {
           value={inputText}
           onChangeText={setInputText}
           onSend={handleSend}
-          onImageSelect={setSelectedImage}
-          onImageClear={clearSelectedImage}
-          selectedImage={selectedImage}
           disabled={isSendingMessage}
         />
       </KeyboardAvoidingView>

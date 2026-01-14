@@ -8,7 +8,6 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import { getScopedItem, setScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
 import {
   AIIntent,
-  AIImageMimeType,
   AIError,
   AIResponse,
   AIConversation,
@@ -60,21 +59,17 @@ interface LastFailedMessage {
   intent: AIIntent;
   message: string;
   context?: AIRequestContext;
-  image?: { uri: string; base64: string; mimeType: AIImageMimeType };
 }
 
 interface AIState {
   conversation: AIConversation | null;
   isSendingMessage: boolean;
-  selectedImage: { uri: string; base64: string; mimeType: AIImageMimeType } | null;
   error: string | null;
   lastFailedMessage: LastFailedMessage | null;
   rateLimitStatus: AIRateLimitStatus | null;
 
   sendMessage: (intent: AIIntent, message: string, context?: AIRequestContext) => Promise<AIResponse>;
   retryLastMessage: () => Promise<AIResponse | null>;
-  setSelectedImage: (image: { uri: string; base64: string; mimeType: AIImageMimeType }) => void;
-  clearSelectedImage: () => void;
   checkRateLimits: () => Promise<void>;
   loadConversation: () => Promise<void>;
   persistConversation: () => Promise<void>;
@@ -86,13 +81,12 @@ export const useAIStore = create<AIState>()(
   subscribeWithSelector((set, get) => ({
     conversation: null,
     isSendingMessage: false,
-    selectedImage: null,
     error: null,
     lastFailedMessage: null,
     rateLimitStatus: null,
 
     sendMessage: async (intent, message, context) => {
-      const { conversation, persistConversation, selectedImage } = get();
+      const { conversation, persistConversation } = get();
 
       const userMessage: AIConversationMessage = {
         id: generateId(),
@@ -100,7 +94,6 @@ export const useAIStore = create<AIState>()(
         content: message,
         intent,
         createdAt: new Date().toISOString(),
-        image: selectedImage ? { uri: selectedImage.uri, mimeType: selectedImage.mimeType } : undefined,
       };
 
       const updatedConversation: AIConversation = conversation
@@ -122,24 +115,16 @@ export const useAIStore = create<AIState>()(
 
       analytics.trackAIMessageSent({
         intent,
-        hasImage: !!selectedImage,
       });
-
-      const imageForApi = selectedImage
-        ? { base64: selectedImage.base64, mimeType: selectedImage.mimeType }
-        : undefined;
 
       const messageParams: LastFailedMessage = {
         intent,
         message,
         context,
-        image: selectedImage ? { ...selectedImage } : undefined,
       };
 
-      set({ selectedImage: null });
-
       try {
-        const response = await aiService.sendAIMessage(intent, message, context, imageForApi);
+        const response = await aiService.sendAIMessage(intent, message, context);
         const isRateLimited = response.type === 'error' && response.error?.code === 'RATE_LIMITED';
 
         const assistantContent =
@@ -209,10 +194,6 @@ export const useAIStore = create<AIState>()(
       const { lastFailedMessage, sendMessage } = get();
       if (!lastFailedMessage) return null;
 
-      if (lastFailedMessage.image) {
-        set({ selectedImage: lastFailedMessage.image });
-      }
-
       set({ lastFailedMessage: null, error: null });
 
       return sendMessage(
@@ -220,14 +201,6 @@ export const useAIStore = create<AIState>()(
         lastFailedMessage.message,
         lastFailedMessage.context
       );
-    },
-
-    setSelectedImage: (image) => {
-      set({ selectedImage: image });
-    },
-
-    clearSelectedImage: () => {
-      set({ selectedImage: null });
     },
 
     checkRateLimits: async () => {
@@ -240,6 +213,13 @@ export const useAIStore = create<AIState>()(
     },
 
     loadConversation: async () => {
+      const { conversation, isSendingMessage } = get();
+      if (isSendingMessage) {
+        return;
+      }
+      if (conversation && conversation.messages.length > 0) {
+        return;
+      }
       try {
         const stored = await getScopedItem(AI_CONVERSATION_KEY);
         if (stored) {

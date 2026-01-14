@@ -38,8 +38,7 @@
     },
     "plugins": [
       "expo-router",
-      "expo-secure-store",
-      "expo-speech-recognition"
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
