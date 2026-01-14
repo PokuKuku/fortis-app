@@ -738,7 +738,7 @@ async function callOpenAIText(
     throw new Error('AI service configuration error');
   }
 
-  const model = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini';
+  const model = Deno.env.get('OPENAI_MODEL') || 'gpt-5.2-mini';
   const useResponses =
     Deno.env.get('OPENAI_USE_RESPONSES') === 'true' || model.includes('gpt-5');
 
@@ -1109,10 +1109,15 @@ function buildAnswerPrompt(context: AIContext): string {
   const insightGuidance = context.insight
     ? '\n- INSIGHT MODE: Use only the INSIGHT CONTEXT evidence values; do not invent metrics or data.'
       + '\n- Ignore any other sections even if present (TRAINING HISTORY, ANALYTICS, NOTES).'
-      + '\n- Output must be: 1 diagnosis sentence + 1-3 recommended changes (short bullets are OK).'
+      + '\n- Output must be: 1 short diagnosis sentence, then an "Evidence" section with 2-3 bullets, then 1-3 recommendations.'
+      + '\n- Evidence bullets must include numbers and at least one simple calculation (e.g., delta or percent change).'
       + '\n- Ask at most one question only if critical context is missing.'
     : '\n- Blend user data with general training guidance; do not restrict answers to data only.'
       + '\n- When mixing data with general guidance, label which parts are data-backed vs general.'
+      + '\n- Provide an "Evidence" section with 2-4 data-backed bullets (include numbers + simple math).'
+      + '\n- Use explicit calculations in parentheses (e.g., "18 sessions / 12 weeks = 1.5 per week").'
+      + '\n- Provide an "Actionable next steps" section with 2-4 bullets tied to the evidence.'
+      + '\n- If data is sparse or missing, say so clearly and limit math to what is available.'
       + '\n- For time spent in a specific period, use TRAINING HISTORY totals (overview.totalDurationSeconds or weeklyVolume.totalTimeSeconds).'
       + '\n- Analytics userStats totals are lifetime-only; do not use them for week/month summaries.';
 
@@ -1123,7 +1128,7 @@ CORE PRINCIPLES:
 - Never fabricate or imply user data that isn't in the provided context.
 - If you provide general guidance, make it clear it's general guidance.
 - Do not refer to yourself as a coach.
-- Be concise but thorough. Prioritize actionable information.
+- Be concise but thorough. Prioritize actionable information and clear evidence.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
 - TRAINING HISTORY and ANALYTICS are provided for normal chat; use them when relevant.
 - Do not say you lack training data if TRAINING HISTORY or ANALYTICS are present.
@@ -1133,6 +1138,8 @@ CORE PRINCIPLES:
 - If you ask a follow-up question, keep it short and focused.
 - End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action).
 - TLDR must be a compressed paraphrase (not a repeat of any full sentence above). It should summarize the key takeaway and/or next step in fewer words.
+- When you cite numbers, include units and show simple math to build credibility.
+- Prefer concrete references to the provided data (dates, counts, averages, deltas) and connect them to recommendations.
 
 TEMPLATE OUTLINE FORMAT (when asked to create a template):
 - Title
