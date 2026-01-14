@@ -2,7 +2,6 @@
  * AI Chat Screen
  *
  * Premium ChatGPT-style interface with:
- * - Smooth streaming text animations
  * - Clean, minimal design
  * - Full-width centered messages
  * - Refined input experience
@@ -41,7 +40,6 @@ import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
-import { AIMutationPreviewModal } from '@/src/components/ai/AIMutationPreviewModal';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -115,9 +113,7 @@ export default function AIChatScreen() {
   const { trackAIChatOpened } = useAnalytics();
   const isNavigating = useRef(false);
   const [inputText, setInputText] = useState('');
-  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
 
@@ -137,20 +133,16 @@ export default function AIChatScreen() {
   const isSendingMessage = useAIStore((state) => state.isSendingMessage);
   const error = useAIStore((state) => state.error);
   const sendMessage = useAIStore((state) => state.sendMessage);
-  const processWorkoutDraftReply = useAIStore((state) => state.processWorkoutDraftReply);
-  const loadPendingWorkoutDraft = useAIStore((state) => state.loadPendingWorkoutDraft);
   const clearError = useAIStore((state) => state.clearError);
   const clearConversation = useAIStore((state) => state.clearConversation);
   const loadConversation = useAIStore((state) => state.loadConversation);
-  const loadMutationPlan = useAIStore((state) => state.loadMutationPlan);
-  const loadPendingActions = useAIStore((state) => state.loadPendingActions);
-  const loadDraftIntake = useAIStore((state) => state.loadDraftIntake);
-  const currentMutationPlan = useAIStore((state) => state.currentMutationPlan);
-  const applyCurrentMutationPlan = useAIStore((state) => state.applyCurrentMutationPlan);
   const lastFailedMessage = useAIStore((state) => state.lastFailedMessage);
   const retryLastMessage = useAIStore((state) => state.retryLastMessage);
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
   const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
+  const selectedImage = useAIStore((state) => state.selectedImage);
+  const setSelectedImage = useAIStore((state) => state.setSelectedImage);
+  const clearSelectedImage = useAIStore((state) => state.clearSelectedImage);
 
   const messages = conversation?.messages || [];
 
@@ -166,18 +158,10 @@ export default function AIChatScreen() {
 
   useEffect(() => {
     loadConversation();
-    loadPendingActions();
-    loadMutationPlan();
-    loadPendingWorkoutDraft();
-    loadDraftIntake();
     checkRateLimits();
     trackAIChatOpened();
   }, [
     loadConversation,
-    loadPendingActions,
-    loadMutationPlan,
-    loadPendingWorkoutDraft,
-    loadDraftIntake,
     checkRateLimits,
     trackAIChatOpened,
   ]);
@@ -194,16 +178,6 @@ export default function AIChatScreen() {
       scrollToBottom(true);
     }
   }, [messages.length, scrollToBottom]);
-
-  // Track streaming state for latest AI message
-  useEffect(() => {
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant' && !streamingMessageId) {
-        setStreamingMessageId(lastMessage.id);
-      }
-    }
-  }, [messages, streamingMessageId]);
 
   // Cycle through loading messages every 5 seconds while AI is responding
   useEffect(() => {
@@ -250,7 +224,6 @@ export default function AIChatScreen() {
     clearConversation();
     clearError();
     setInputText('');
-    setStreamingMessageId(null);
     shouldAutoScrollRef.current = true;
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: false });
@@ -265,10 +238,7 @@ export default function AIChatScreen() {
     const intent = inferIntentFromMessage(message);
 
     setInputText('');
-    setStreamingMessageId(null);
-    const draftResult = await processWorkoutDraftReply(intent, message);
-    if (draftResult.handled) return;
-    await sendMessage(intent, message, draftResult.contextOverride);
+    await sendMessage(intent, message);
   };
 
   const handleQuickAction = (_intent: AIIntent, prompt: string) => {
@@ -284,53 +254,9 @@ export default function AIChatScreen() {
       contentOffset.y + layoutMeasurement.height >= contentSize.height - paddingToBottom;
   };
 
-  const handleStreamComplete = useCallback(() => {
-    setStreamingMessageId(null);
-  }, []);
-
-  // Save action - directly apply the mutation plan
-  const handleSaveAction = useCallback(async () => {
-    const success = await applyCurrentMutationPlan();
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    }
-  }, [applyCurrentMutationPlan]);
-
-  // Customize action - open preview modal
-  const handleCustomizeAction = useCallback(() => {
-    setShowPreviewModal(true);
-  }, []);
-
-  // Preview modal confirm
-  const handlePreviewConfirm = useCallback(async () => {
-    const success = await applyCurrentMutationPlan();
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setShowPreviewModal(false);
-    }
-  }, [applyCurrentMutationPlan]);
-
-  const handleWorkoutProposalAction = useCallback(
-    (action: 'review' | 'edit' | 'create', messageId: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-      const mode = action === 'edit' ? 'edit' : 'review';
-      router.push({
-        pathname: '/ai/workout-proposal',
-        params: {
-          messageId,
-          mode,
-        },
-      });
-    },
-    [router]
-  );
-
   // Retry failed message
   const handleRetry = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setStreamingMessageId(null);
     await retryLastMessage();
   }, [retryLastMessage]);
 
@@ -394,10 +320,6 @@ export default function AIChatScreen() {
                   key={message.id}
                   message={message}
                   isStreaming={false}
-                  isAILoading={isSendingMessage && message.role === 'assistant'}
-                  onSaveAction={handleSaveAction}
-                  onCustomizeAction={handleCustomizeAction}
-                  onWorkoutProposalAction={handleWorkoutProposalAction}
                   onClarificationSelect={(option) => {
                     setInputText(option);
                   }}
@@ -454,17 +376,13 @@ export default function AIChatScreen() {
           value={inputText}
           onChangeText={setInputText}
           onSend={handleSend}
+          onImageSelect={setSelectedImage}
+          onImageClear={clearSelectedImage}
+          selectedImage={selectedImage}
           disabled={isSendingMessage}
         />
       </KeyboardAvoidingView>
       </SafeAreaView>
-
-      {/* Mutation Preview Modal */}
-      <AIMutationPreviewModal
-        visible={showPreviewModal}
-        onClose={() => setShowPreviewModal(false)}
-        onConfirm={handlePreviewConfirm}
-      />
     </View>
   );
 }

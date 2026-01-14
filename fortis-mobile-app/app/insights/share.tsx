@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -155,7 +155,21 @@ const resolveEvidence = (insight: TrainingInsight) => {
   if (order.length === 0) {
     return insight.evidence;
   }
-  return order.map((key) => itemsByKey.get(key)).filter(Boolean) as TrainingInsight['evidence'];
+  const ordered = order.map((key) => itemsByKey.get(key)).filter(Boolean) as TrainingInsight['evidence'];
+  const shouldHideVolume = insight.type === 'WEEKLY_VERDICT_V1';
+  const filtered = ordered.filter((item) => {
+    if (
+      shouldHideVolume
+      && item.key === 'volume_load'
+      && item.unit !== '%'
+      && item.compareValue === undefined
+      && item.deltaValue === undefined
+    ) {
+      return false;
+    }
+    return true;
+  });
+  return filtered.length > 0 ? filtered : insight.evidence;
 };
 
 const getShareTemplate = (insight: TrainingInsight): ShareTemplate => {
@@ -219,7 +233,7 @@ export default function InsightShareScreen() {
     () => insights.find((item) => item.id === id),
     [id, insights]
   );
-  const { series, isLoading: isChartLoading } = useInsightChartSeries(insight ?? null);
+  const { series, isLoading: isChartLoading, refresh: refreshChart } = useInsightChartSeries(insight ?? null);
   const shareChart = useMemo(
     () => (insight && series ? resolveShareChart(insight, series) : null),
     [insight, series]
@@ -249,6 +263,11 @@ export default function InsightShareScreen() {
     ? (require('react-native-view-shot').default as any)
     : null;
   const shareButtonDisabled = isSharing || !isCaptureReady || chartIsLoading;
+
+  useEffect(() => {
+    if (!insight) return;
+    refreshChart();
+  }, [insight, refreshChart]);
 
   const handleShare = async () => {
     if (!insight || !isShareable) return;

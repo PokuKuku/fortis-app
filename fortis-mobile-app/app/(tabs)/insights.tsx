@@ -696,7 +696,6 @@ export default function InsightsScreen() {
   const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights();
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
-  const openConversation = useAIStore((state) => state.openConversation);
   const {
     trackInsightsViewed,
     trackVerdictWhyTapped,
@@ -836,7 +835,6 @@ export default function InsightsScreen() {
 
   const openInsightChat = (insight: TrainingInsight, prompt: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    openConversation();
     void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
     trackChatOpenedFromInsight({
       insight_id: insight.id,

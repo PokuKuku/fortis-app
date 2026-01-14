@@ -4,13 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Notifications from 'expo-notifications';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
-import { AIContainer } from '@/src/components/ai';
 import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
 import { MixpanelScreenTracker } from '@/src/components/analytics/MixpanelScreenTracker';
 import { RetentionTracker } from '@/src/components/analytics/RetentionTracker';
@@ -23,6 +23,14 @@ const PAGE_TRANSITION = {
 };
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: false,
+    shouldShowList: false,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 /**
  * Themed content wrapper - uses theme context for StatusBar and Stack styling
@@ -120,15 +128,6 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             }}
           />
           <Stack.Screen
-            name="ai/workout-proposal"
-            options={{
-              animation: 'slide_from_right',
-              animationDuration: 220,
-              gestureEnabled: true,
-              gestureDirection: 'horizontal',
-            }}
-          />
-          <Stack.Screen
             name="exercise/[id]"
             options={{
               animation: 'slide_from_right',
@@ -212,7 +211,6 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
         {mixpanelEnabled && <MixpanelScreenTracker />}
         {mixpanelEnabled && <RetentionTracker />}
         <WorkoutMiniBar />
-        <AIContainer />
       </DragDropProvider>
     </AuthProvider>
   );

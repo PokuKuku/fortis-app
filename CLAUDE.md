@@ -190,7 +190,7 @@ fortis-mobile-app/
 
 - **workoutStore**: Active session, sets, rest timer, number pad state
 - **programsStore**: Programs/templates, CRUD operations
-- **aiStore**: Conversation, pending mutations, image attachments
+- **aiStore**: Conversation, image attachments
 - **programProgressStore**: Program completion tracking, progress per program
 - **startPresetStore**: Workout start presets, default exercise selections
 
@@ -237,7 +237,6 @@ See `BACKEND.md` for detailed backend architecture, RLS patterns, and security d
 - `workout_programs` - Program templates
 - `workout_sessions` - Active workouts
 - `workout_sets` - Individual sets
-- `ai_conversations` - AI chat history
 
 **Analytics Views** (for dashboard):
 - `user_workout_stats` - Overall user statistics
@@ -252,7 +251,7 @@ See `BACKEND.md` for detailed backend architecture, RLS patterns, and security d
 **AI Edge Function** (`supabase/functions/ai/index.ts`):
 ```bash
 supabase functions deploy ai
-supabase secrets set ANTHROPIC_API_KEY=<key>
+supabase secrets set OPENAI_API_KEY=<key>
 ```
 
 **Environment:** Copy `.env.example` to `.env.local` with Supabase URL/key.
@@ -405,25 +404,24 @@ Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);  // Set completion
 
 ## AI Chat Feature
 
-The app includes an AI-powered workout assistant. See `tasks/AI_COORDINATION.md` for detailed architecture.
+The app includes a read-only AI analytics assistant. See `tasks/AI_COORDINATION.md` for detailed architecture.
 
 **Key Files:**
 - `app/ai/chat.tsx` - Chat screen route
-- `src/store/aiStore.ts` - Conversation state, mutation handling
+- `src/store/aiStore.ts` - Conversation state
 - `src/services/aiService.ts` - API calls to edge function
 - `src/types/ai.ts` - TypeScript types and intent config
-- `supabase/functions/ai/index.ts` - Edge function (Claude integration)
+- `supabase/functions/ai/index.ts` - Edge function (OpenAI integration)
 
-**Current Intents:** `CREATE_PROGRAM` (full program), `CREATE_TEMPLATE` (single workout)
+**Current Intents:** `FORTIS_ANALYST` (read-only insights + Q&A)
 
-**Flow:** User message → aiStore → aiService → Supabase edge function → Claude → mutation preview → user confirms → applied to database
+**Flow:** User message → aiStore → aiService → Supabase edge function → OpenAI → response rendered
 
 **Adding a New AI Intent:**
 1. Add to `AIIntent` union in `src/types/ai.ts`
-2. Add to `INTENT_CONFIG` in `src/types/ai.ts`
-3. Update `ACTION_TYPE_BY_INTENT` in `src/services/aiService.ts`
-4. Add intent handling in `supabase/functions/ai/index.ts`
-5. Update intent inference in `app/ai/chat.tsx`
+2. Add/update intent config in `src/types/ai.ts` (if needed)
+3. Add intent handling in `supabase/functions/ai/index.ts`
+4. Update intent inference in `app/ai/chat.tsx`
 
 ## Analytics (PostHog)
 

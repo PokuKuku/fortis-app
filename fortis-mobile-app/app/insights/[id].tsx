@@ -158,7 +158,6 @@ export default function InsightDetailScreen() {
   const { id, tab } = useLocalSearchParams<{ id?: string; tab?: string }>();
   const { insights } = useTrainingInsights();
   const { trackInsightFeedbackSubmitted, trackChatOpenedFromInsight } = useAnalytics();
-  const openConversation = useAIStore((state) => state.openConversation);
   const sendMessage = useAIStore((state) => state.sendMessage);
 
   const insight = useMemo(
@@ -309,7 +308,6 @@ export default function InsightDetailScreen() {
         : insight.type === 'LIFT_STALL_RISK_V1'
         ? 'Explain this stall risk and suggest what I should adjust next week.'
         : 'Explain this weekly insight and suggest what I should do next week.';
-    openConversation();
     void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
     trackChatOpenedFromInsight({ insight_id: insight.id, insight_type: insight.type });
     router.push('/ai/chat');

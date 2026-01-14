@@ -108,7 +108,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         workoutStore.loadBodyType(),
         programProgressStore.loadProgress(),
         aiStore.loadConversation(),
-        aiStore.loadMutationPlan(),
       ]);
     } finally {
       if (runId === hydrateRunRef.current) {

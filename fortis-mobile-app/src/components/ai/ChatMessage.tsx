@@ -4,7 +4,6 @@
  * ChatGPT-style message display with:
  * - Full-width centered layout
  * - Markdown rendering for AI responses
- * - Copy button for AI messages
  * - Animated sparkles icon when loading
  */
 
@@ -20,58 +19,31 @@ import { formatDistanceToNow } from 'date-fns';
 import ReAnimated, { FadeIn } from 'react-native-reanimated';
 import Markdown from 'react-native-markdown-display';
 import * as Haptics from 'expo-haptics';
-import {
-  CheckIcon,
-  PencilIcon,
-} from 'react-native-heroicons/outline';
-import { GlassButton } from '@/components/GlassButton';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
+import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography, FontFamily } from '@/constants/Typography';
 import { AIConversationMessage } from '@/src/types/ai';
-import { StreamingText } from './StreamingText';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { WorkoutProposalCard } from './WorkoutProposalCard';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
-  /** Whether this message should stream (for new AI messages) */
-  isStreaming?: boolean;
-  /** Whether the AI is currently loading/generating */
-  isAILoading?: boolean;
-  /** Callback when streaming completes */
-  onStreamComplete?: () => void;
   /** Animation delay for staggered entrance */
   delay?: number;
-  /** Callback when user taps Save button (for actionable messages) */
-  onSaveAction?: () => void;
-  /** Callback when user taps Customize button (for actionable messages) */
-  onCustomizeAction?: () => void;
   /** Callback when user taps a clarification option */
   onClarificationSelect?: (option: string) => void;
-  /** Callback when user taps workout proposal actions */
-  onWorkoutProposalAction?: (action: 'review' | 'edit' | 'create', messageId: string) => void;
 }
 
 export function ChatMessage({
   message,
-  isStreaming = false,
-  isAILoading = false,
-  onStreamComplete,
   delay = 0,
-  onSaveAction,
-  onCustomizeAction,
   onClarificationSelect,
-  onWorkoutProposalAction,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
-  const isWorkoutProposal = !isUser && !!message.workoutProposal;
-  const { mainContent, tldr } = !isUser && !isWorkoutProposal
+  const { mainContent, tldr } = !isUser
     ? splitTldrFromContent(message.content)
     : { mainContent: message.content, tldr: null };
-  const shouldShowTldr = !isUser && !isStreaming && tldr && !isWorkoutProposal
-    && shouldDisplayTldr(mainContent);
+  const shouldShowTldr = !isUser && tldr && shouldDisplayTldr(mainContent);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -81,11 +53,6 @@ export function ChatMessage({
     userText: { color: colors.textPrimary },
     timestamp: { color: colors.textTertiary },
     userIndicatorText: { color: colors.textTertiary },
-    customizeButton: {
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)',
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
-    },
-    customizeButtonText: { color: colors.textPrimary },
     clarificationOption: {
       borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.12)',
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
@@ -99,7 +66,6 @@ export function ChatMessage({
     tldrText: { color: colors.textPrimary },
   };
 
-  // Markdown styles matching the design system (dynamic for theme)
   const markdownStyles = {
     body: {
       ...Typography.body,
@@ -233,10 +199,7 @@ export function ChatMessage({
       entering={FadeIn.duration(300).delay(delay)}
       style={[styles.container, isUser ? [styles.userContainer, themedStyles.userContainer] : styles.aiContainer]}
     >
-
-      {/* Message Content */}
       <View style={[styles.content, isUser ? styles.userContent : styles.aiContent]}>
-        {/* Image attachment if present */}
         {message.image && (
           <Image
             source={{ uri: message.image.uri }}
@@ -247,30 +210,12 @@ export function ChatMessage({
           />
         )}
 
-        {/* Message text */}
-        {isWorkoutProposal ? (
-          <WorkoutProposalCard
-            proposal={message.workoutProposal!}
-            onReview={() => onWorkoutProposalAction?.('review', message.id)}
-            onEdit={() => onWorkoutProposalAction?.('edit', message.id)}
-            onCreate={() => onWorkoutProposalAction?.('create', message.id)}
-          />
-        ) : isUser ? (
+        {isUser ? (
           <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
-        ) : isStreaming ? (
-          <StreamingText
-            text={mainContent}
-            speed={10}
-            streaming={true}
-            onComplete={onStreamComplete}
-            style={markdownStyles.body}
-            showCursor={true}
-          />
         ) : (
           <Markdown style={markdownStyles}>{mainContent}</Markdown>
         )}
 
-        {/* TLDR summary (always visible for AI messages) */}
         {shouldShowTldr && (
           <View style={[styles.tldrContainer, themedStyles.tldrContainer]}>
             <Text style={[styles.tldrLabel, themedStyles.tldrLabel]}>TLDR</Text>
@@ -278,55 +223,18 @@ export function ChatMessage({
           </View>
         )}
 
-        {/* Timestamp for AI messages */}
-        {!isUser && !isStreaming && mainContent.length > 0 && (
+        {!isUser && mainContent.length > 0 && (
           <Text style={[styles.timestamp, themedStyles.timestamp]}>
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </Text>
         )}
 
-        {/* Timestamp for user messages */}
         {isUser && (
           <Text style={[styles.timestamp, themedStyles.timestamp]}>
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </Text>
         )}
 
-        {/* Action buttons for actionable messages (workouts/programs) */}
-        {!isUser && !isStreaming && message.mutationPlanId && onSaveAction && onCustomizeAction && (
-          <View style={styles.actionButtonsContainer}>
-            <TouchableOpacity
-              style={[styles.customizeButton, themedStyles.customizeButton]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onCustomizeAction();
-              }}
-              activeOpacity={0.7}
-              accessibilityLabel="Customize workout"
-              accessibilityHint="Review and edit before saving"
-              accessibilityRole="button"
-            >
-              <PencilIcon color={colors.textPrimary} size={14} />
-              <Text style={[styles.customizeButtonText, themedStyles.customizeButtonText]}>Customize</Text>
-            </TouchableOpacity>
-            <GlassButton
-              style={styles.saveButton}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onSaveAction();
-              }}
-              accessibilityLabel="Save workout"
-              accessibilityRole="button"
-            >
-              <View style={styles.saveButtonContent}>
-                <CheckIcon color={Colors.white} size={14} strokeWidth={2.5} />
-                <Text style={styles.saveButtonText}>Save</Text>
-              </View>
-            </GlassButton>
-          </View>
-        )}
-
-        {/* Clarification options */}
         {message.clarification?.options && message.clarification.options.length > 0 && (
           <View style={styles.clarificationOptions}>
             {message.clarification.options.map((option) => (
@@ -348,7 +256,6 @@ export function ChatMessage({
         )}
       </View>
 
-      {/* User indicator */}
       {isUser && (
         <View style={styles.userIndicator}>
           <Text style={[styles.userIndicatorText, themedStyles.userIndicatorText]}>You</Text>
@@ -451,42 +358,6 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textTertiary,
   },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  customizeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    height: 38,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  customizeButtonText: {
-    ...Typography.bodySmall,
-    color: Colors.textPrimary,
-  },
-  saveButton: {
-    height: 38,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-  },
-  saveButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-  },
-  saveButtonText: {
-    ...Typography.bodySmall,
-    color: Colors.white,
-    fontWeight: '600',
-  },
   clarificationOptions: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -520,8 +391,5 @@ const styles = StyleSheet.create({
   },
   tldrText: {
     ...Typography.bodySmall,
-    lineHeight: 20,
   },
 });
-
-export default ChatMessage;

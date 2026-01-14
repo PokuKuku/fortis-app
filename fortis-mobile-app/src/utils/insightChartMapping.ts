@@ -41,9 +41,9 @@ const INSIGHT_CHART_MAPPING: Record<InsightType, InsightChartMapping> = {
     sparklineLabel: 'Weekly volume',
   },
   IMBALANCE_FLAG_V1: {
-    defaultTab: 'volume',
-    sparklineMetric: 'volume',
-    sparklineLabel: 'Working sets',
+    defaultTab: 'progress',
+    sparklineMetric: 'progress',
+    sparklineLabel: 'Share %',
   },
   FIRST_WORKOUT_RECAP_V1: {
     defaultTab: 'volume',

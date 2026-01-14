@@ -1,7 +1,51 @@
 import { useEffect, useRef } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
+
+const REST_TIMER_CHANNEL_ID = 'rest-timer';
+
+const ensureRestTimerChannel = async () => {
+  if (Platform.OS !== 'android') return;
+  await Notifications.setNotificationChannelAsync(REST_TIMER_CHANNEL_ID, {
+    name: 'Rest timer',
+    importance: Notifications.AndroidImportance.HIGH,
+    sound: 'default',
+    vibrationPattern: [0, 250, 250, 250],
+  });
+};
+
+const scheduleRestTimerNotification = async (endTimestamp: number): Promise<string | null> => {
+  const { status, granted } = await Notifications.getPermissionsAsync();
+  if (!granted && status !== 'granted') return null;
+
+  await ensureRestTimerChannel();
+
+  if (endTimestamp <= Date.now()) return null;
+
+  return Notifications.scheduleNotificationAsync({
+    content: {
+      title: 'Rest complete',
+      body: 'Rest complete.',
+      sound: 'default',
+    },
+    trigger: {
+      type: Notifications.SchedulableTriggerInputTypes.DATE,
+      date: new Date(endTimestamp),
+      channelId: REST_TIMER_CHANNEL_ID,
+    },
+  });
+};
+
+const cancelRestTimerNotification = async (notificationId: string | null) => {
+  if (!notificationId) return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(notificationId);
+  } catch {
+    // Ignore notification cleanup failures.
+  }
+};
 
 /**
  * Hook to manage rest timer countdown
@@ -12,6 +56,7 @@ export function useRestTimerTick() {
   const tickRestTimer = useWorkoutStore(s => s.tickRestTimer);
   const restTimer = useWorkoutStore(s => s.restTimer);
   const appState = useRef(AppState.currentState);
+  const notificationIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!restTimer.isActive) return;
@@ -29,7 +74,7 @@ export function useRestTimerTick() {
 
       // Success haptic when timer completes
       if (newRemaining === 0 && restTimer.remainingSeconds !== 0) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       }
 
       tickRestTimer();
@@ -37,6 +82,30 @@ export function useRestTimerTick() {
 
     return () => clearInterval(interval);
   }, [restTimer.isActive, restTimer.remainingSeconds, restTimer.endTimestamp, tickRestTimer]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const syncNotification = async () => {
+      if (!restTimer.isActive || !restTimer.endTimestamp) {
+        await cancelRestTimerNotification(notificationIdRef.current);
+        notificationIdRef.current = null;
+        return;
+      }
+
+      await cancelRestTimerNotification(notificationIdRef.current);
+      const nextId = await scheduleRestTimerNotification(restTimer.endTimestamp);
+      if (!isCancelled) {
+        notificationIdRef.current = nextId;
+      }
+    };
+
+    void syncNotification();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [restTimer.isActive, restTimer.endTimestamp]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {

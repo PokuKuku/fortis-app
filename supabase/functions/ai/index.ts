@@ -7,12 +7,11 @@
  * Features:
  * - Rate limiting via ai_rate_limits table
  * - Read-only context assembly (history + analytics)
- * - Claude/OpenAI provider integration
+ * - OpenAI provider integration
  * - Reasoning model support (o1/o3 series - no temperature param)
  */
 
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
 // ============================================
@@ -103,126 +102,37 @@ interface AIImage {
   mimeType: AIImageMimeType;
 }
 
-type WorkoutDraftReplyIntent = 'confirm' | 'cancel' | 'edit' | 'resolve' | 'unknown';
-
-interface WorkoutDraftIntentClassificationContext {
-  type: 'workout_draft_reply';
-  draftStatus: 'pending' | 'awaiting_resolution' | 'ready_to_save';
-  pendingQuery?: string;
-  pendingOptions?: string[];
-}
-
-
-type ResponseMode = 'answer';
-
 interface AIRequest {
   intent: AIIntent;
   message: string;
   context?: {
-    exerciseId?: string;
-    programId?: string;
-    templateId?: string;
     insightId?: string;
     periodWeeks?: number;
-    historyOnly?: boolean;
-    chatMode?: 'coach' | 'builder';
-    workoutDraft?: WorkoutDraftV1;
-    intentClassification?: WorkoutDraftIntentClassificationContext;
   };
   image?: AIImage;
 }
 
 interface IntentConfig {
-  type: 'write' | 'read';
   defaultContextWeeks: number;
   includeHistory: boolean;
-  includeNotes: boolean;
-  includeProgram: boolean;
-  includeExerciseDb: boolean;
   includeAnalytics: boolean;
-  exerciseLimit?: number;
 }
 
 const INTENT_CONFIG: Record<AIIntent, IntentConfig> = {
   FORTIS_ANALYST: {
-    type: 'read',
     defaultContextWeeks: 12,
     includeHistory: true,
-    includeNotes: false,
-    includeProgram: false,
-    includeExerciseDb: false,
     includeAnalytics: true,
   },
 };
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-type WorkoutProposalType = 'WORKOUT_PROPOSAL_V1';
-type WorkoutDraftType = 'WORKOUT_DRAFT_V1';
-
-type WorkoutProposalSet = {
-  kind?: string;
-  sets: number;
-  reps_min?: number;
-  reps_max?: number;
-  rir?: number;
-  rest_sec?: number;
-};
-
-type WorkoutProposalExercise = {
-  exercise_query: string;
-  target_muscles?: string[];
-  sets: WorkoutProposalSet[];
-  notes?: string;
-};
-
-type WorkoutProposalV1 = {
-  type: WorkoutProposalType;
-  title: string;
-  summary?: string;
-  goal_tags?: string[];
-  duration_minutes?: number;
-  days_per_week?: number;
-  exercises: WorkoutProposalExercise[];
-  progression_rule?: string;
-  safety_notes?: string;
-};
-
-
-type WorkoutDraftSet = {
-  sets: number;
-  reps: string;
-  weight?: number;
-  rpe?: number;
-  restSec?: number;
-};
-
-type WorkoutDraftExercise = {
-  query: string;
-  resolved_exercise_id: string | null;
-  sets: WorkoutDraftSet[];
-  exercise_notes?: string;
-  tempo?: string;
-  warmup?: boolean;
-};
-
-type WorkoutDraftV1 = {
-  type: WorkoutDraftType;
-  title: string;
-  notes?: string;
-  exercises: WorkoutDraftExercise[];
-  source_text?: string;
-};
-
 function isValidUuid(value: unknown): boolean {
   return typeof value === 'string' && UUID_REGEX.test(value);
 }
 
-function determineResponseMode(_request: AIRequest): ResponseMode {
-  return 'answer';
-}
-
-// Data context is always included to keep answers data-backed and reduce routing complexity.
+// Data context is always included to keep answers data-backed.
 
 // ============================================
 // Main Handler
@@ -270,19 +180,6 @@ Deno.serve(async (req: Request) => {
     const aiRequest = body as AIRequest;
     const config = INTENT_CONFIG[aiRequest.intent];
     const requestId = crypto.randomUUID();
-    const responseMode = determineResponseMode(aiRequest);
-
-    // FORTIS_ANALYST always bypasses low signal check
-    const bypassLowSignal = aiRequest.intent === 'FORTIS_ANALYST';
-    if (!aiRequest.image && !bypassLowSignal && isLowSignalMessage(aiRequest.message)) {
-      return jsonResponse({
-        type: 'clarification',
-        requestId,
-        clarification: {
-          question: 'What would you like help with? You can ask about your stats, a specific exercise, or general training advice.',
-        },
-      }, 200, origin);
-    }
 
     // Check rate limits
     const rateLimitResult = await checkRateLimit(supabase, user.id);
@@ -303,12 +200,12 @@ Deno.serve(async (req: Request) => {
 
     // Assemble context based on intent
     const contextStart = performance.now();
-    const context = await assembleContext(supabase, user.id, aiRequest, config, responseMode);
+    const context = await assembleContext(supabase, user.id, aiRequest, config);
     logTiming('assembleContext', contextStart);
 
     // Call AI provider
     const aiStart = performance.now();
-    const response = await callAIProvider(aiRequest, context, config, requestId, responseMode);
+    const response = await callAIProvider(aiRequest, context, requestId);
     logTiming('callAIProvider', aiStart);
 
     logTiming('total', requestStart);
@@ -334,9 +231,9 @@ Deno.serve(async (req: Request) => {
 /**
  * Sanitize user input to mitigate prompt injection attacks.
  *
- * Defense-in-depth: While Claude has built-in resistance to prompt injection,
+ * Defense-in-depth: While OpenAI models have built-in resistance to prompt injection,
  * we still sanitize user input to reduce attack surface. The primary defense
- * is the system prompt instructing Claude to treat user input as data.
+ * is the system prompt instructing the model to treat user input as data.
  */
 function sanitizeUserInput(input: string): string {
   let sanitized = input;
@@ -411,54 +308,12 @@ function validateRequest(body: unknown): string | null {
     }
 
     const ctx = context as Record<string, unknown>;
-    if (ctx.exerciseId && !isValidUuid(ctx.exerciseId)) {
-      return 'Invalid exerciseId format';
-    }
-    if (ctx.programId && !isValidUuid(ctx.programId)) {
-      return 'Invalid programId format';
-    }
-    if (ctx.templateId && !isValidUuid(ctx.templateId)) {
-      return 'Invalid templateId format';
-    }
     if (ctx.insightId && !isValidUuid(ctx.insightId)) {
       return 'Invalid insightId format';
     }
     if (ctx.periodWeeks !== undefined) {
       if (!Number.isInteger(ctx.periodWeeks) || ctx.periodWeeks < 1 || ctx.periodWeeks > 104) {
         return 'periodWeeks must be between 1 and 104';
-      }
-    }
-    if (ctx.historyOnly !== undefined && typeof ctx.historyOnly !== 'boolean') {
-      return 'historyOnly must be a boolean';
-    }
-    if (ctx.chatMode !== undefined && ctx.chatMode !== 'coach' && ctx.chatMode !== 'builder') {
-      return 'chatMode must be "coach" or "builder"';
-    }
-    if (ctx.workoutDraft !== undefined) {
-      if (!ctx.workoutDraft || typeof ctx.workoutDraft !== 'object') {
-        return 'workoutDraft must be an object';
-      }
-    }
-    if (ctx.intentClassification !== undefined) {
-      if (!ctx.intentClassification || typeof ctx.intentClassification !== 'object') {
-        return 'intentClassification must be an object';
-      }
-      const ic = ctx.intentClassification as Record<string, unknown>;
-      if (ic.type !== 'workout_draft_reply') {
-        return 'intentClassification type must be "workout_draft_reply"';
-      }
-      if (
-        ic.draftStatus !== 'pending' &&
-        ic.draftStatus !== 'awaiting_resolution' &&
-        ic.draftStatus !== 'ready_to_save'
-      ) {
-        return 'intentClassification draftStatus must be pending, awaiting_resolution, or ready_to_save';
-      }
-      if (ic.pendingOptions !== undefined && !Array.isArray(ic.pendingOptions)) {
-        return 'intentClassification pendingOptions must be an array';
-      }
-      if (ic.pendingQuery !== undefined && typeof ic.pendingQuery !== 'string') {
-        return 'intentClassification pendingQuery must be a string';
       }
     }
   }
@@ -504,36 +359,6 @@ function validateRequest(body: unknown): string | null {
   }
 
   return null;
-}
-
-const LOW_SIGNAL_TERMS = new Set([
-  'test',
-  'testing',
-  'hello',
-  'hi',
-  'hey',
-  'yo',
-  'sup',
-  'ok',
-  'okay',
-  'k',
-  'thanks',
-  'thx',
-  'cool',
-  'nice',
-  'lol',
-  'hmm',
-  'idk',
-  'help',
-]);
-
-function isLowSignalMessage(message: string): boolean {
-  const cleaned = message.toLowerCase().trim();
-  if (cleaned.length <= 4) return true;
-  const tokens = cleaned.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return true;
-  const meaningful = tokens.filter((token) => token.length > 2 && !LOW_SIGNAL_TERMS.has(token));
-  return meaningful.length === 0;
 }
 
 // ============================================
@@ -627,8 +452,7 @@ async function assembleContext(
   supabase: SupabaseClient,
   userId: string,
   request: AIRequest,
-  config: IntentConfig,
-  _responseMode: ResponseMode
+  config: IntentConfig
 ): Promise<AIContext> {
   const insightOnly = !!request.context?.insightId;
   const periodWeeks = request.context?.periodWeeks || config.defaultContextWeeks;
@@ -860,8 +684,6 @@ async function fetchAnalytics(
 // Model Provider Integration
 // ============================================
 
-type AIProvider = 'anthropic' | 'openai';
-
 /**
  * Check if an OpenAI model supports the temperature parameter.
  * Reasoning models (o1, o3 series) don't support temperature.
@@ -889,106 +711,20 @@ function modelSupportsChatCompletions(model: string): boolean {
   return true;
 }
 
-function resolveAIProvider(): AIProvider {
-  const configured = Deno.env.get('AI_PROVIDER');
-  if (configured === 'openai' || configured === 'anthropic') {
-    return configured;
-  }
-
-  if (Deno.env.get('ANTHROPIC_API_KEY')) {
-    return 'anthropic';
-  }
-
-  if (Deno.env.get('OPENAI_API_KEY')) {
-    return 'openai';
-  }
-
-  return 'anthropic';
-}
-
 async function callAIProvider(
   request: AIRequest,
   context: AIContext,
-  _config: IntentConfig,
-  requestId: string,
-  responseMode: ResponseMode
+  requestId: string
 ): Promise<unknown> {
-  const provider = resolveAIProvider();
   const systemPrompt = buildAnswerPrompt(context);
   const userMessage = buildUserMessage(request, context);
 
-  const responseText =
-    provider === 'openai'
-      ? await callOpenAIText(request, systemPrompt, userMessage, { maxTokens: AI_MAX_TOKENS, temperature: 0.2 })
-      : await callClaudeText(request, systemPrompt, userMessage, { maxTokens: AI_MAX_TOKENS });
-
-  return parseModelResponse(
-    responseText,
-    request.intent,
-    _config,
-    requestId,
-    responseMode
-  );
-}
-
-async function callClaudeText(
-  request: AIRequest,
-  systemPrompt: string,
-  userMessage: string,
-  options?: { maxTokens?: number }
-): Promise<string> {
-  // Security: Validate API key exists before using
-  const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
-  if (!apiKey) {
-    throw new Error('AI service configuration error');
-  }
-
-  const anthropic = new Anthropic({ apiKey });
-
-  // Build message content - text only or multi-modal with image
-  type ContentBlock =
-    | { type: 'text'; text: string }
-    | { type: 'image'; source: { type: 'base64'; media_type: string; data: string } };
-
-  const contentBlocks: ContentBlock[] = [];
-
-  // Add image first if present (Claude processes images better when they come first)
-  if (request.image) {
-    contentBlocks.push({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: request.image.mimeType,
-        data: request.image.base64,
-      },
-    });
-  }
-
-  // Add text message
-  contentBlocks.push({
-    type: 'text',
-    text: userMessage,
+  const responseText = await callOpenAIText(request, systemPrompt, userMessage, {
+    maxTokens: AI_MAX_TOKENS,
+    temperature: 0.2,
   });
 
-  try {
-    const response = await anthropic.messages.create({
-      model: Deno.env.get('ANTHROPIC_MODEL') || 'claude-3-5-haiku-20241022',
-      max_tokens: options?.maxTokens ?? 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: contentBlocks }],
-    });
-
-    // Parse Claude's response
-    const content = response.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Claude');
-    }
-
-    return content.text;
-  } catch (error) {
-    console.error('Claude API error:', error);
-    throw new Error('Failed to get AI response');
-  }
+  return parseModelResponse(responseText, requestId);
 }
 
 async function callOpenAIText(
@@ -1057,8 +793,7 @@ async function callOpenAIText(
         systemPrompt,
         userMessage,
         options,
-        model,
-        `OpenAI API error: ${errorText}`
+        model
       );
     }
 
@@ -1079,29 +814,17 @@ async function callOpenAIText(
         systemPrompt,
         userMessage,
         options,
-        model,
-        'OpenAI response missing output text'
+        model
       );
     }
 
     return String(outputText);
   }
 
-  try {
-    return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
-      maxTokens: options?.maxTokens,
-      temperature: options?.temperature,
-    }, model);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'OpenAI chat error';
-    console.error('OpenAI chat error:', error);
-    if (Deno.env.get('ANTHROPIC_API_KEY')) {
-      return await callClaudeText(request, systemPrompt, userMessage, {
-        maxTokens: options?.maxTokens,
-      });
-    }
-    throw new Error(errorMessage);
-  }
+  return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
+    maxTokens: options?.maxTokens,
+    temperature: options?.temperature,
+  }, model);
 }
 
 async function fallbackFromOpenAIResponses(
@@ -1109,8 +832,7 @@ async function fallbackFromOpenAIResponses(
   systemPrompt: string,
   userMessage: string,
   options: { maxTokens?: number; temperature?: number } | undefined,
-  primaryModel: string,
-  reason: string
+  primaryModel: string
 ): Promise<string> {
   const fallbackModel = Deno.env.get('OPENAI_FALLBACK_MODEL') || primaryModel;
 
@@ -1122,13 +844,7 @@ async function fallbackFromOpenAIResponses(
     }, fallbackModel);
   }
 
-  if (Deno.env.get('ANTHROPIC_API_KEY')) {
-    return await callClaudeText(request, systemPrompt, userMessage, {
-      maxTokens: options?.maxTokens,
-    });
-  }
-
-  throw new Error(reason);
+  throw new Error('OpenAI response fallback unavailable for this model');
 }
 
 async function callOpenAIChatCompletions(
@@ -1471,13 +1187,10 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
 
 function parseModelResponse(
   text: string,
-  _intent: AIIntent,
-  _config: IntentConfig,
-  requestId: string,
-  responseMode: ResponseMode = 'answer'
+  requestId: string
 ): unknown {
   try {
-    // Try to extract JSON from response (Claude sometimes wraps in markdown)
+    // Try to extract JSON from response (models sometimes wrap in markdown)
     let jsonStr = text;
     const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
     if (jsonMatch) {
@@ -1492,23 +1205,6 @@ function parseModelResponse(
 
     if (parsed.type === 'clarification') {
       return { ...parsed, requestId };
-    }
-
-    if (
-      parsed.type === 'workout_draft'
-      || parsed.type === 'WORKOUT_DRAFT_V1'
-      || parsed.type === 'WORKOUT_PROPOSAL_V1'
-      || parsed.type === 'mutation_plan'
-    ) {
-      return {
-        type: 'answer',
-        requestId,
-        answer: {
-          text:
-            "I can outline a workout template in chat, but I can't save it in the app right now. Tell me your goal or body part and how many days per week, and I'll draft an outline.",
-          citations: [],
-        },
-      };
     }
 
     if (parsed.type === 'answer') {
@@ -1527,44 +1223,39 @@ function parseModelResponse(
     console.log('[parseModelResponse] JSON parse failed, raw text:', text.substring(0, 500));
     console.log('[parseModelResponse] Parse error:', parseError);
 
-    // For answer mode, try to extract the text field from malformed JSON
-    if (responseMode === 'answer') {
-      // Try to extract the "text" field from partially-valid JSON
-      // This handles cases where JSON.parse fails due to encoding issues or special characters
-      const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
-      if (textMatch) {
-        // Unescape common JSON escape sequences
-        const extractedText = textMatch[1]
-          .replace(/\\n/g, '\n')
-          .replace(/\\r/g, '\r')
-          .replace(/\\t/g, '\t')
-          .replace(/\\"/g, '"')
-          .replace(/\\\\/g, '\\');
+    // Try to extract the "text" field from partially-valid JSON
+    // This handles cases where JSON.parse fails due to encoding issues or special characters
+    const textMatch = text.match(/"text"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+    if (textMatch) {
+      // Unescape common JSON escape sequences
+      const extractedText = textMatch[1]
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
 
-        console.log('[parseModelResponse] Extracted text from malformed JSON');
-        return {
-          type: 'answer',
-          requestId,
-          answer: {
-            text: ensureTldrLine(extractedText),
-            citations: [],
-          },
-        };
-      }
-
-      // Fall back to raw text only if extraction completely fails
-      console.log('[parseModelResponse] Could not extract text, returning raw');
+      console.log('[parseModelResponse] Extracted text from malformed JSON');
       return {
         type: 'answer',
         requestId,
         answer: {
-          text: ensureTldrLine(text),
+          text: ensureTldrLine(extractedText),
           citations: [],
         },
       };
     }
 
-    return buildModelError(requestId, 'Failed to parse AI response');
+    // Fall back to raw text only if extraction completely fails
+    console.log('[parseModelResponse] Could not extract text, returning raw');
+    return {
+      type: 'answer',
+      requestId,
+      answer: {
+        text: ensureTldrLine(text),
+        citations: [],
+      },
+    };
   }
 }
 

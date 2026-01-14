@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable } from 'react-native';
 import { ClockIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -7,7 +6,6 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { getModalWidth } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
-import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut, Easing } from 'react-native-reanimated';
 
 interface RestTimerCompleteModalProps {
@@ -32,13 +30,6 @@ export function RestTimerCompleteModal({
       backgroundColor: colors.accentOverlay,
     },
   };
-
-  // Trigger haptic feedback when modal appears
-  useEffect(() => {
-    if (visible) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
-  }, [visible]);
 
   if (!visible) return null;
 

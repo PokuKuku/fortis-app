@@ -9,6 +9,7 @@ import type { InsightChartSeries } from '@/src/types/insightCharts';
 type CachedChartEntry = {
   cachedAt: string;
   series: InsightChartSeries;
+  insightUpdatedAt?: string;
 };
 
 type CachedCharts = Record<string, CachedChartEntry>;
@@ -22,6 +23,11 @@ const isFresh = (cachedAt?: string): boolean => {
   if (!cachedAt) return false;
   const cachedTime = new Date(cachedAt).getTime();
   return Date.now() - cachedTime < CACHE_TTL_MS;
+};
+
+const isSameVersion = (entry: CachedChartEntry | undefined, insight?: TrainingInsight | null): boolean => {
+  if (!insight?.updatedAt) return true;
+  return entry?.insightUpdatedAt === insight.updatedAt;
 };
 
 export function useInsightChartSeries(insight?: TrainingInsight | null) {
@@ -58,7 +64,7 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
     if (fetched) {
       setSeries(fetched);
       const cached = await readCache();
-      cached[insight.id] = { cachedAt: nowIso(), series: fetched };
+      cached[insight.id] = { cachedAt: nowIso(), series: fetched, insightUpdatedAt: insight.updatedAt };
       await writeCache(cached);
     }
     setIsLoading(false);
@@ -80,7 +86,7 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
 
       const cached = await readCache();
       const entry = cached[insight.id];
-      if (entry?.series && isFresh(entry.cachedAt)) {
+      if (entry?.series && isFresh(entry.cachedAt) && isSameVersion(entry, insight)) {
         if (isMounted) {
           setSeries(entry.series);
           setIsLoading(false);
@@ -97,7 +103,7 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
       }
       const fetched = await fetchInsightChartSeries(insight);
       if (fetched) {
-        cached[insight.id] = { cachedAt: nowIso(), series: fetched };
+        cached[insight.id] = { cachedAt: nowIso(), series: fetched, insightUpdatedAt: insight.updatedAt };
         await writeCache(cached);
         if (isMounted) {
           setSeries(fetched);

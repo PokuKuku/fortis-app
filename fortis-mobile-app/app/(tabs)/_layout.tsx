@@ -91,8 +91,7 @@ export default function TabLayout() {
   }, [loadProgramProgress]);
 
   // AI Store
-  const { pendingActions, conversation } = useAIStore();
-  const hasPendingActions = pendingActions.length > 0;
+  const { conversation } = useAIStore();
   const hasActiveChat =
     pathname !== '/ai/chat' &&
     (conversation?.messages.length ?? 0) > 0;
@@ -580,11 +579,6 @@ export default function TabLayout() {
         pointerEvents={detailModalVisible ? 'none' : 'auto'}
       >
         <SparklesIcon color="#fff" size={30} strokeWidth={1.5} />
-        {hasPendingActions && (
-          <View style={styles.aiBadge}>
-            <Text style={styles.aiBadgeText}>!</Text>
-          </View>
-        )}
       </GlassButton>
     </Animated.View>
 
@@ -838,22 +832,6 @@ const styles = StyleSheet.create({
   },
   plusButton: {
     borderWidth: 2,
-  },
-  aiBadge: {
-    position: 'absolute',
-    top: 4,
-    right: 4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#f59e0b',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiBadgeText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
   },
   actionSheetOverlay: {
     position: 'absolute',

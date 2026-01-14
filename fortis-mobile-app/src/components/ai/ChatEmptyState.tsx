@@ -165,7 +165,7 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
         entering={FadeIn.duration(400).delay(500)}
         style={[styles.hint, themedStyles.hint]}
       >
-        Tap a suggestion or type your own question
+        Tap a quick action or type your own question
       </Animated.Text>
     </View>
   );
