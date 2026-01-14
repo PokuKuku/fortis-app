@@ -458,7 +458,7 @@ async function assembleContext(
   request: AIRequest,
   config: IntentConfig
 ): Promise<AIContext> {
-  const insightOnly = !!request.context?.insightId;
+  const hasInsightId = !!request.context?.insightId;
   const periodWeeks = request.context?.periodWeeks || config.defaultContextWeeks;
 
   // Always fetch user preferences (small, fast)
@@ -491,23 +491,25 @@ async function assembleContext(
     },
   };
 
-  // Parallel fetch based on config
-  const fetchPromises: Promise<void>[] = [];
-
   if (request.context?.insightId) {
-    fetchPromises.push(
-      withContextCache(
-        buildCacheKey('insight', userId, request.context.insightId),
-        () => fetchInsightContext(supabase, userId, request.context!.insightId!)
-      ).then((data) => {
-        if (data) {
-          context.insight = data;
-        }
-      })
+    const data = await withContextCache(
+      buildCacheKey('insight', userId, request.context.insightId),
+      () => fetchInsightContext(supabase, userId, request.context!.insightId!)
     );
+    if (data) {
+      context.insight = data;
+    } else {
+      console.warn('[AI] Insight context not found', {
+        userId,
+        insightId: request.context.insightId,
+      });
+    }
   }
 
-  if (config.includeHistory && !insightOnly) {
+  const includeFallbackData = !hasInsightId || !context.insight;
+  const fetchPromises: Promise<void>[] = [];
+
+  if (config.includeHistory && includeFallbackData) {
     fetchPromises.push(
       withContextCache(
         buildCacheKey('history', userId, periodWeeks),
@@ -518,7 +520,7 @@ async function assembleContext(
     );
   }
 
-  if (config.includeAnalytics && !insightOnly) {
+  if (config.includeAnalytics && includeFallbackData) {
     fetchPromises.push(
       withContextCache(
         buildCacheKey('analytics', userId),
@@ -728,7 +730,20 @@ async function callAIProvider(
     temperature: 0.2,
   });
 
-  return parseModelResponse(responseText, requestId, request.intent);
+  const parsed = parseModelResponse(responseText, requestId, request.intent);
+  if (shouldRetryInsightResponse(parsed, request.intent, context)) {
+    console.warn('[AI] Insight response too short or missing sections; retrying with strict format', {
+      requestId,
+    });
+    const strictPrompt = buildAnswerPrompt(context, request.intent, { strictInsight: true });
+    const retryText = await callOpenAIText(request, strictPrompt, userMessage, {
+      maxTokens: AI_MAX_TOKENS,
+      temperature: 0.2,
+    });
+    return parseModelResponse(retryText, requestId, request.intent);
+  }
+
+  return parsed;
 }
 
 async function callOpenAIText(
@@ -1109,7 +1124,11 @@ function extractOpenAIChatText(data: unknown): string {
   return typeof content === 'string' ? content : '';
 }
 
-function buildAnswerPrompt(context: AIContext, intent: AIIntent): string {
+function buildAnswerPrompt(
+  context: AIContext,
+  intent: AIIntent,
+  options: { strictInsight?: boolean } = {}
+): string {
   if (intent === 'GENERAL_CHAT') {
     const basePrompt = `You are Fortis AI, a conversational training assistant for a strength training workout app.
 
@@ -1137,12 +1156,26 @@ Respond with a JSON object:
 }`;
   }
 
+  const strictInsightGuidance = options.strictInsight
+    ? '\n- STRICT FORMAT REQUIRED (follow exactly):'
+      + '\nDiagnosis: <one sentence>'
+      + '\nEvidence:'
+      + '\n- <bullet 1 with numbers + a calculation>'
+      + '\n- <bullet 2 with numbers + a calculation>'
+      + '\nRecommendations:'
+      + '\n- <bullet 1>'
+      + '\n- <bullet 2>'
+      + '\n- Minimum 120 words total. Do not respond with a single sentence.'
+    : '';
+
   const insightGuidance = context.insight
     ? '\n- INSIGHT MODE: Use only the INSIGHT CONTEXT evidence values; do not invent metrics or data.'
       + '\n- Ignore any other sections even if present (TRAINING HISTORY, ANALYTICS, NOTES).'
       + '\n- Output must be: 1 short diagnosis sentence, then an "Evidence" section with 2-3 bullets, then 1-3 recommendations.'
+      + '\n- Put each section on its own paragraph and each bullet on its own line.'
       + '\n- Evidence bullets must include numbers and at least one simple calculation (e.g., delta or percent change).'
       + '\n- Ask at most one question only if critical context is missing.'
+      + strictInsightGuidance
     : '\n- Blend user data with general training guidance; do not restrict answers to data only.'
       + '\n- When mixing data with general guidance, label which parts are data-backed vs general.'
       + '\n- Provide an "Evidence" section with 2-4 data-backed bullets (include numbers + simple math).'
@@ -1167,7 +1200,7 @@ CORE PRINCIPLES:
 - Ask at most two short questions only when required to build a reasonable outline. Prioritize: goal/body part and days per week.
 - If details are missing, ask the questions first instead of guessing.
 - If you ask a follow-up question, keep it short and focused.
-- End every answer with a TLDR line: "TLDR: ..." (1 sentence, max 18 words, no emojis, no new facts or numbers, at most one action, no ellipses).
+- End every answer with a TLDR line: "TLDR: ..." (up to 3 short sentences, max 45 words, no emojis, no new facts or numbers, at most one action, no ellipses).
 - TLDR must be a compressed paraphrase (not a repeat of any full sentence above). It should summarize the key takeaway and/or next step in fewer words.
 - When you cite numbers, include units and show simple math to build credibility.
 - Prefer concrete references to the provided data (dates, counts, averages, deltas) and connect them to recommendations.
@@ -1323,7 +1356,8 @@ function parseModelResponse(
 function formatAnswerText(text: string, intent: AIIntent): string {
   const trimmed = text.trim();
   if (intent === 'FORTIS_ANALYST') {
-    return ensureTldrLine(trimmed);
+    const normalized = normalizeInsightSections(trimmed);
+    return ensureTldrLine(normalized);
   }
   return trimmed;
 }
@@ -1413,21 +1447,29 @@ function buildModelError(requestId: string, message: string) {
 
 const TLDR_PREFIX_REGEX = /^TLDR:\s*/i;
 const TLDR_LINE_REGEX = /^TLDR:\s*.+$/i;
-const TLDR_MAX_WORDS = 18;
+const TLDR_MAX_WORDS = 45;
+const TLDR_MAX_SENTENCES = 3;
 
 function ensureTldrLine(content: string): string {
   if (!content) return '';
   const existing = extractExistingTldr(content);
   const trimmed = stripExistingTldr(content);
   if (existing) {
-    const limited = trimToWordCount(existing, TLDR_MAX_WORDS);
-    return `${trimmed}\n\nTLDR: ${limited}`;
+    const normalized = normalizeTldr(existing);
+    if (!normalized) {
+      return trimmed;
+    }
+    return `${trimmed}\n\nTLDR: ${normalized}`;
   }
   const tldr = buildTldrFromText(trimmed);
   if (!tldr) {
     return trimmed;
   }
-  return `${trimmed}\n\nTLDR: ${tldr}`;
+  const normalized = normalizeTldr(tldr);
+  if (!normalized) {
+    return trimmed;
+  }
+  return `${trimmed}\n\nTLDR: ${normalized}`;
 }
 
 function extractExistingTldr(content: string): string | null {
@@ -1449,6 +1491,43 @@ function stripExistingTldr(content: string): string {
   return filtered.join('\n').trimEnd();
 }
 
+function normalizeInsightSections(content: string): string {
+  if (!content) return '';
+  return content
+    .replace(/\r\n/g, '\n')
+    .replace(/actionable next steps\s*:/gi, 'Recommendations:')
+    .replace(/recommendations\s*:/gi, 'Recommendations:')
+    .replace(/evidence\s*:/gi, 'Evidence:')
+    .replace(/diagnosis\s*:/gi, 'Diagnosis:')
+    .trim();
+}
+
+function stripSectionPrefix(text: string): string {
+  return text.replace(/^(diagnosis|evidence|recommendations|actionable next steps)\s*:\s*/i, '').trim();
+}
+
+function extractSectionText(content: string, startRegex: RegExp, endRegex: RegExp): string {
+  const startMatch = content.match(startRegex);
+  if (!startMatch || startMatch.index === undefined) {
+    return '';
+  }
+  const startIndex = startMatch.index + startMatch[0].length;
+  const remainder = content.slice(startIndex);
+  const endMatch = remainder.match(endRegex);
+  const endIndex = endMatch && endMatch.index !== undefined ? endMatch.index : remainder.length;
+  return remainder.slice(0, endIndex).trim();
+}
+
+function extractBulletLines(sectionText: string): string[] {
+  if (!sectionText) return [];
+  return sectionText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^[-*•]\s+/.test(line))
+    .map((line) => line.replace(/^[-*•]\s+/, '').trim())
+    .filter(Boolean);
+}
+
 function isSectionHeaderLine(line: string): boolean {
   if (!line) return true;
   if (line.endsWith(':')) return true;
@@ -1457,7 +1536,7 @@ function isSectionHeaderLine(line: string): boolean {
 }
 
 function buildTldrFromText(content: string): string | null {
-  const cleaned = content
+  const cleaned = normalizeInsightSections(content)
     .replace(/\[[^\]]*]\([^)]+\)/g, '')
     .replace(/[`#>*_]/g, '')
     .trim();
@@ -1479,34 +1558,103 @@ function buildTldrFromText(content: string): string | null {
   const proseLines = lines
     .filter((line) => !/^[-*•]\s+/.test(line))
     .filter((line) => !isSectionHeaderLine(line));
-  const firstProse = proseLines[0] ?? '';
-  const firstSentence = extractFirstSentence(firstProse || bulletLines[0] || cleaned);
 
-  let summary = compressSentence(firstSentence, 20, 120);
-  let action = '';
+  const diagnosisLine = stripSectionPrefix(proseLines[0] ?? '');
+  const evidenceSection = extractSectionText(cleaned, /(Evidence)/i, /(Recommendations|Actionable next steps)/i);
+  const recSection = extractSectionText(cleaned, /(Recommendations|Actionable next steps)/i, /$/i);
+  const evidenceBullets = extractBulletLines(evidenceSection);
+  const recommendationBullets = extractBulletLines(recSection);
 
-  if (bulletLines.length > 0) {
-    const firstAction = compressSentence(bulletLines[0], 14, 80);
-    action = firstAction;
+  const diagnosisSentence = compressSentence(
+    stripSectionPrefix(extractFirstSentence(diagnosisLine)),
+    16,
+    140
+  );
+  const evidenceSentence = compressSentence(
+    stripSectionPrefix(extractFirstSentence(evidenceBullets[0] ?? bulletLines[0] ?? '')),
+    14,
+    120
+  );
+  const actionSentence = compressSentence(
+    stripSectionPrefix(extractFirstSentence(recommendationBullets[0] ?? bulletLines[1] ?? '')),
+    14,
+    120
+  );
+
+  const candidates = [diagnosisSentence, evidenceSentence, actionSentence];
+  const tldr = clampSentences(candidates, TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+  if (tldr) {
+    return tldr;
   }
 
-  if (action && normalizeText(summary) !== normalizeText(action)) {
-    summary = `${summary}; ${action}`;
+  return clampSentences(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+}
+
+function normalizeTldr(text: string): string | null {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) {
+    return null;
+  }
+  return clampSentences(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+}
+
+function clampSentences(sentences: string[], maxSentences: number, maxWords: number): string | null {
+  const normalized = dedupeSentences(sentences)
+    .slice(0, maxSentences)
+    .map((sentence) => ensureSentenceEnding(sentence))
+    .filter(Boolean);
+  if (normalized.length === 0) {
+    return null;
   }
 
-  const normalizedSummary = normalizeText(summary);
-  const normalizedFirst = normalizeText(firstSentence);
-  if (normalizedSummary === normalizedFirst && action) {
-    summary = `${compressSentence(firstSentence, 12, 80)}; ${action}`;
+  const result: string[] = [];
+  let wordCount = 0;
+  for (const sentence of normalized) {
+    const sentenceWords = countWords(sentence);
+    if (wordCount + sentenceWords <= maxWords) {
+      result.push(sentence);
+      wordCount += sentenceWords;
+      continue;
+    }
+    if (wordCount === 0) {
+      const trimmed = trimToWordCount(sentence, maxWords);
+      if (trimmed) {
+        result.push(ensureSentenceEnding(trimmed));
+      }
+    }
+    break;
   }
 
-  if (normalizedSummary === normalizedFirst && !action) {
-    summary = compressSentence(firstSentence, 12, 80);
+  return result.join(' ').trim() || null;
+}
+
+function dedupeSentences(sentences: string[]): string[] {
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const sentence of sentences) {
+    const cleaned = sentence.trim();
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(cleaned);
   }
+  return deduped;
+}
 
-  summary = trimToWordCount(summary, TLDR_MAX_WORDS);
+function splitIntoSentences(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+  return matches ? matches.map((sentence) => sentence.trim()).filter(Boolean) : [];
+}
 
-  return summary || null;
+function ensureSentenceEnding(text: string): string {
+  if (!text) return '';
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+function countWords(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
 }
 
 function extractFirstSentence(text: string): string {
@@ -1545,4 +1693,35 @@ function trimToWordCount(text: string, maxWords: number): string {
 
 function normalizeText(text: string): string {
   return text.toLowerCase().replace(TLDR_PREFIX_REGEX, '').replace(/\s+/g, ' ').trim();
+}
+
+function getAnswerText(response: unknown): string | null {
+  if (!response || typeof response !== 'object') return null;
+  const record = response as {
+    type?: string;
+    answer?: { text?: unknown };
+  };
+  if (record.type !== 'answer') return null;
+  return typeof record.answer?.text === 'string' ? record.answer.text : null;
+}
+
+function shouldRetryInsightResponse(
+  response: unknown,
+  intent: AIIntent,
+  context: AIContext
+): boolean {
+  if (intent !== 'FORTIS_ANALYST' || !context.insight) return false;
+  const text = getAnswerText(response);
+  if (!text) return true;
+  const cleaned = stripExistingTldr(text).replace(/\s+/g, ' ').trim();
+  const wordCount = cleaned ? cleaned.split(' ').length : 0;
+  const hasEvidenceHeader = /evidence\s*:/i.test(cleaned);
+  const hasRecommendationsHeader = /(actionable next steps|recommendations)\s*:/i.test(cleaned);
+  const hasBullet = /(^|\n)\s*[-*•]\s+/.test(stripExistingTldr(text));
+
+  if (wordCount < 80) return true;
+  if (!hasEvidenceHeader || !hasRecommendationsHeader) return true;
+  if (!hasBullet) return true;
+
+  return false;
 }

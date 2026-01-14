@@ -257,7 +257,8 @@ export function ChatMessage({
 
 const TLDR_REGEX = /(^|\n)TLDR:\s*([^\n\r]+)\s*$/i;
 const TLDR_MIN_WORDS = 40;
-const TLDR_MAX_WORDS = 18;
+const TLDR_MAX_WORDS = 45;
+const TLDR_MAX_SENTENCES = 3;
 
 function splitTldrFromContent(content: string, allowFallback: boolean) {
   const match = content.match(TLDR_REGEX);
@@ -268,26 +269,50 @@ function splitTldrFromContent(content: string, allowFallback: boolean) {
     };
   }
 
+  const mainContent = content.slice(0, match.index).trimEnd();
+  const normalized = normalizeTldr(match[2].trim());
   return {
-    mainContent: content.slice(0, match.index).trimEnd(),
-    tldr: match[2].trim(),
+    mainContent,
+    tldr: normalized ?? (allowFallback ? buildFallbackTldr(mainContent) : null),
   };
 }
 
 function buildFallbackTldr(content: string) {
-  const cleaned = content.replace(/[`#>*_]/g, '').trim();
+  const cleaned = content
+    .replace(/\[[^\]]*]\([^)]+\)/g, '')
+    .replace(/[`#>*_]/g, '')
+    .trim();
   if (!cleaned) {
     return null;
   }
 
   const lines = cleaned.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const firstLine = lines[0] ?? cleaned;
-  const noBullet = firstLine.replace(/^[-*•]\s+/, '').trim();
-  if (!noBullet) {
-    return null;
+  const proseLines = lines
+    .filter((line) => !/^[-*•]\s+/.test(line))
+    .filter((line) => !isSectionHeaderLine(line));
+  const diagnosisLine = stripSectionPrefix(proseLines[0] ?? '');
+  const evidenceSection = extractSectionText(cleaned, /(Evidence)/i, /(Recommendations|Actionable next steps)/i);
+  const recSection = extractSectionText(cleaned, /(Recommendations|Actionable next steps)/i, /$/i);
+  const evidenceBullets = extractBulletLines(evidenceSection);
+  const recommendationBullets = extractBulletLines(recSection);
+
+  const candidates = [
+    extractFirstSentence(diagnosisLine),
+    extractFirstSentence(evidenceBullets[0] ?? ''),
+    extractFirstSentence(recommendationBullets[0] ?? ''),
+  ];
+
+  const tldr = clampSentences(candidates, TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+  if (tldr) {
+    return tldr;
   }
 
-  return trimToWordCount(noBullet, TLDR_MAX_WORDS);
+  const fallback = clampSentences(
+    splitIntoSentences(cleaned),
+    TLDR_MAX_SENTENCES,
+    TLDR_MAX_WORDS
+  );
+  return fallback ?? null;
 }
 
 function shouldDisplayTldr(content: string): boolean {
@@ -309,6 +334,113 @@ function trimToWordCount(text: string, maxWords: number): string {
     return text.trim().replace(/\.\.\.$/, '').replace(/…$/, '');
   }
   return words.slice(0, maxWords).join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
+}
+
+function normalizeTldr(text: string): string | null {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) {
+    return null;
+  }
+  return clampSentences(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+}
+
+function clampSentences(sentences: string[], maxSentences: number, maxWords: number): string | null {
+  const normalized = dedupeSentences(sentences)
+    .slice(0, maxSentences)
+    .map((sentence) => ensureSentenceEnding(sentence))
+    .filter(Boolean);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const result: string[] = [];
+  let wordCount = 0;
+  for (const sentence of normalized) {
+    const sentenceWords = countWords(sentence);
+    if (wordCount + sentenceWords <= maxWords) {
+      result.push(sentence);
+      wordCount += sentenceWords;
+      continue;
+    }
+    if (wordCount === 0) {
+      const trimmed = trimToWordCount(sentence, maxWords);
+      if (trimmed) {
+        result.push(ensureSentenceEnding(trimmed));
+      }
+    }
+    break;
+  }
+
+  return result.join(' ').trim() || null;
+}
+
+function dedupeSentences(sentences: string[]): string[] {
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const sentence of sentences) {
+    const cleaned = sentence.trim();
+    if (!cleaned) continue;
+    const key = cleaned.toLowerCase().replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(cleaned);
+  }
+  return deduped;
+}
+
+function splitIntoSentences(text: string): string[] {
+  if (!text) return [];
+  const matches = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g);
+  return matches ? matches.map((sentence) => sentence.trim()).filter(Boolean) : [];
+}
+
+function extractFirstSentence(text: string): string {
+  const match = text.match(/(.+?[.!?])(\s|$)/);
+  if (match) {
+    return match[1].trim();
+  }
+  return text.trim();
+}
+
+function ensureSentenceEnding(text: string): string {
+  if (!text) return '';
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+function countWords(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
+function isSectionHeaderLine(line: string): boolean {
+  if (!line) return true;
+  if (/^[A-Z\s]{6,}$/.test(line)) return true;
+  return /^(actionable next steps|evidence|recommendations|diagnosis|summary|analysis|notes)\s*:?\s*$/i.test(line);
+}
+
+function stripSectionPrefix(text: string): string {
+  return text.replace(/^(diagnosis|evidence|recommendations|actionable next steps)\s*:\s*/i, '').trim();
+}
+
+function extractSectionText(content: string, startRegex: RegExp, endRegex: RegExp): string {
+  const startMatch = content.match(startRegex);
+  if (!startMatch || startMatch.index === undefined) {
+    return '';
+  }
+  const startIndex = startMatch.index + startMatch[0].length;
+  const remainder = content.slice(startIndex);
+  const endMatch = remainder.match(endRegex);
+  const endIndex = endMatch && endMatch.index !== undefined ? endMatch.index : remainder.length;
+  return remainder.slice(0, endIndex).trim();
+}
+
+function extractBulletLines(sectionText: string): string[] {
+  if (!sectionText) return [];
+  return sectionText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => /^[-*•]\s+/.test(line))
+    .map((line) => line.replace(/^[-*•]\s+/, '').trim())
+    .filter(Boolean);
 }
 
 const styles = StyleSheet.create({
