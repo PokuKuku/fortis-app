@@ -7,6 +7,7 @@ import {
   Platform,
   FlatList,
   Pressable,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -18,6 +19,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWorkoutStore, hasTemplateModifications } from '@/src/store/workoutStore';
+import { useProgramsStore } from '@/src/store/programsStore';
 import { useRestTimerTick } from '@/src/hooks/useRestTimerTick';
 import { WorkoutHeader } from '@/src/components/workout/WorkoutHeader';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
@@ -96,6 +98,15 @@ export default function ActiveWorkoutScreen() {
   const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
   const updateCompletedWorkoutName = useWorkoutStore(s => s.updateCompletedWorkoutName);
   const updateActiveSessionName = useWorkoutStore(s => s.updateActiveSessionName);
+  const programs = useProgramsStore(s => s.programs);
+  const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
+
+  const templateForSession = useMemo(() => {
+    if (!activeSession?.programId) return null;
+    return programs.find((program) => program.id === activeSession.programId && program.isTemplate) || null;
+  }, [activeSession?.programId, programs]);
+
+  const canUpdateTemplate = !!templateForSession && hasTemplateModifications(activeSession);
 
   const handleDismiss = () => {
     if (isNavigating.current) return;
@@ -383,6 +394,39 @@ export default function ActiveWorkoutScreen() {
     }, 150);
   };
 
+  const handleUpdateTemplate = async () => {
+    if (!activeSession || !templateForSession) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const exercisesForTemplate = activeSession.exercises.map((exercise) => ({
+      exerciseId: exercise.exerciseId,
+      exerciseName: exercise.exerciseName,
+      sets: exercise.sets.length,
+      reps: '8-12',
+      restSeconds: 120,
+      notes: exercise.notes,
+      setDetails: exercise.sets.map((set) => ({
+        weight: set.weight,
+        reps: set.reps,
+      })),
+    }));
+
+    const updatedId = await updateWorkoutTemplate(
+      templateForSession.id,
+      templateForSession.name,
+      exercisesForTemplate
+    );
+
+    if (!updatedId) {
+      Alert.alert('Update failed', 'Unable to update this template right now.');
+      return;
+    }
+
+    await updateActiveSessionName(templateForSession.name);
+    await handleConfirmFinish();
+  };
+
   // Handle template save success
   const handleTemplateSaveSuccess = async (templateName?: string) => {
     setShowSaveTemplateModal(false);
@@ -613,11 +657,13 @@ export default function ActiveWorkoutScreen() {
             ? handleSaveAsTemplate
             : undefined
         }
+        onUpdateTemplate={canUpdateTemplate ? handleUpdateTemplate : undefined}
         saveTemplateLabel={
           activeSession?.programId
             ? 'Save as New Template'
             : undefined
         }
+        updateTemplateLabel={canUpdateTemplate ? 'Update Template' : undefined}
         session={activeSession}
         durationSecondsOverride={finishSnapshot?.durationSeconds}
         completedExercisesOverride={finishSnapshot?.completedExercises}

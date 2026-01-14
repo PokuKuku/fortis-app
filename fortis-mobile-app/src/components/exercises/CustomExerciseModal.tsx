@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
   DeviceEventEmitter,
+  Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -182,6 +183,8 @@ export function CustomExerciseModal({
       onClose();
       resetExerciseForm();
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save custom exercise.';
+      Alert.alert('Save failed', message);
       console.warn('Failed to save custom exercise', err);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
     }
@@ -243,11 +246,6 @@ export function CustomExerciseModal({
     },
     modalCancelText: { color: colors.textSecondary },
     modalSaveText: { color: colors.accent },
-    importButton: {
-      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-    },
-    importButtonText: { color: colors.textTertiary },
     invalidInput: {
       backgroundColor: isDark ? 'rgba(239,68,68,0.12)' : 'rgba(239,68,68,0.08)',
     },
@@ -480,14 +478,6 @@ export function CustomExerciseModal({
               onChangeText={setInstructions}
             />
 
-            <TouchableOpacity
-              style={[styles.importButton, themedStyles.importButton]}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.importButtonText, themedStyles.importButtonText]}>
-                Import Image (coming soon)
-              </Text>
-            </TouchableOpacity>
           </ScrollView>
 
           <View style={styles.modalActions}>
@@ -640,16 +630,6 @@ const styles = StyleSheet.create({
   },
   invalidChip: {
     borderColor: Colors.error,
-  },
-  importButton: {
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-  },
-  importButtonText: {
-    fontSize: 14,
-    fontWeight: '700',
   },
   modalActions: {
     flexDirection: 'row',

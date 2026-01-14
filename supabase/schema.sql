@@ -166,6 +166,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_normalized_name_custom
   ON exercises(created_by, normalized_name)
   WHERE is_custom = TRUE AND normalized_name IS NOT NULL;
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_created_by_slug_unique
+  ON exercises(created_by, slug);
+
 ALTER TABLE exercises ENABLE ROW LEVEL SECURITY;
 
 -- Public exercises or own custom exercises

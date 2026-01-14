@@ -1167,7 +1167,7 @@ CORE PRINCIPLES:
 - Ask at most two short questions only when required to build a reasonable outline. Prioritize: goal/body part and days per week.
 - If details are missing, ask the questions first instead of guessing.
 - If you ask a follow-up question, keep it short and focused.
-- End every answer with a TLDR line: "TLDR: ..." (1-2 sentences, max 200 characters, no emojis, no new facts or numbers, at most one action).
+- End every answer with a TLDR line: "TLDR: ..." (1 sentence, max 18 words, no emojis, no new facts or numbers, at most one action, no ellipses).
 - TLDR must be a compressed paraphrase (not a repeat of any full sentence above). It should summarize the key takeaway and/or next step in fewer words.
 - When you cite numbers, include units and show simple math to build credibility.
 - Prefer concrete references to the provided data (dates, counts, averages, deltas) and connect them to recommendations.
@@ -1413,9 +1413,16 @@ function buildModelError(requestId: string, message: string) {
 
 const TLDR_PREFIX_REGEX = /^TLDR:\s*/i;
 const TLDR_LINE_REGEX = /^TLDR:\s*.+$/i;
+const TLDR_MAX_WORDS = 18;
 
 function ensureTldrLine(content: string): string {
+  if (!content) return '';
+  const existing = extractExistingTldr(content);
   const trimmed = stripExistingTldr(content);
+  if (existing) {
+    const limited = trimToWordCount(existing, TLDR_MAX_WORDS);
+    return `${trimmed}\n\nTLDR: ${limited}`;
+  }
   const tldr = buildTldrFromText(trimmed);
   if (!tldr) {
     return trimmed;
@@ -1423,11 +1430,30 @@ function ensureTldrLine(content: string): string {
   return `${trimmed}\n\nTLDR: ${tldr}`;
 }
 
+function extractExistingTldr(content: string): string | null {
+  const lines = content.split(/\r?\n/);
+  for (let i = lines.length - 1; i >= 0; i -= 1) {
+    const line = lines[i]?.trim() ?? '';
+    if (TLDR_LINE_REGEX.test(line)) {
+      const cleaned = line.replace(TLDR_PREFIX_REGEX, '').trim();
+      return cleaned || null;
+    }
+  }
+  return null;
+}
+
 function stripExistingTldr(content: string): string {
   if (!content) return '';
   const lines = content.split(/\r?\n/);
   const filtered = lines.filter((line) => !TLDR_LINE_REGEX.test(line.trim()));
   return filtered.join('\n').trimEnd();
+}
+
+function isSectionHeaderLine(line: string): boolean {
+  if (!line) return true;
+  if (line.endsWith(':')) return true;
+  if (/^[A-Z\s]{6,}$/.test(line)) return true;
+  return /^(actionable next steps|evidence|recommendations|summary|analysis|notes)$/i.test(line);
 }
 
 function buildTldrFromText(content: string): string | null {
@@ -1450,7 +1476,9 @@ function buildTldrFromText(content: string): string | null {
     .map((line) => line.replace(/^[-*•]\s+/, '').trim())
     .filter(Boolean);
 
-  const proseLines = lines.filter((line) => !/^[-*•]\s+/.test(line));
+  const proseLines = lines
+    .filter((line) => !/^[-*•]\s+/.test(line))
+    .filter((line) => !isSectionHeaderLine(line));
   const firstProse = proseLines[0] ?? '';
   const firstSentence = extractFirstSentence(firstProse || bulletLines[0] || cleaned);
 
@@ -1459,8 +1487,7 @@ function buildTldrFromText(content: string): string | null {
 
   if (bulletLines.length > 0) {
     const firstAction = compressSentence(bulletLines[0], 14, 80);
-    const secondAction = bulletLines.length > 1 ? compressSentence(bulletLines[1], 12, 70) : '';
-    action = [firstAction, secondAction].filter(Boolean).join('; ');
+    action = firstAction;
   }
 
   if (action && normalizeText(summary) !== normalizeText(action)) {
@@ -1477,9 +1504,7 @@ function buildTldrFromText(content: string): string | null {
     summary = compressSentence(firstSentence, 12, 80);
   }
 
-  if (summary.length > 200) {
-    summary = summary.slice(0, 197).trimEnd() + '...';
-  }
+  summary = trimToWordCount(summary, TLDR_MAX_WORDS);
 
   return summary || null;
 }
@@ -1494,14 +1519,28 @@ function extractFirstSentence(text: string): string {
 
 function compressSentence(text: string, maxWords: number, maxChars: number): string {
   const words = text.split(/\s+/).filter(Boolean);
-  const trimmed = words.slice(0, maxWords).join(' ');
-  if (!trimmed) {
+  if (words.length === 0) {
     return '';
   }
+  const trimmedWords = words.slice(0, maxWords);
+  let trimmed = trimmedWords.join(' ');
   if (trimmed.length <= maxChars) {
     return trimmed;
   }
-  return trimmed.slice(0, maxChars).trimEnd();
+  while (trimmedWords.length > 1 && trimmed.length > maxChars) {
+    trimmedWords.pop();
+    trimmed = trimmedWords.join(' ');
+  }
+  return trimmed;
+}
+
+function trimToWordCount(text: string, maxWords: number): string {
+  if (!text) return '';
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return text.trim().replace(/\.\.\.$/, '').replace(/…$/, '');
+  }
+  return words.slice(0, maxWords).join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
 }
 
 function normalizeText(text: string): string {

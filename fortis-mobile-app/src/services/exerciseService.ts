@@ -639,14 +639,28 @@ export async function getCustomExercises(): Promise<Exercise[]> {
 }
 
 export async function saveCustomExercise(exercise: Exercise): Promise<void> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase not configured');
+  }
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Sign in required to save custom exercises');
+  }
+
+  const slug = normalizeCustomExerciseSlug(exercise);
   const normalizedName = normalizeExerciseKey(exercise.name);
   const exerciseWithMeta: Exercise = {
     ...exercise,
+    slug,
     primaryMuscles: normalizeMuscleArray(exercise.primaryMuscles ?? []),
     secondaryMuscles: normalizeMuscleArray(exercise.secondaryMuscles ?? []),
     normalizedName,
     isCustom: true,
   };
+
+  // Server-first: ensure the exercise is persisted remotely before saving locally.
+  await upsertCustomExerciseToSupabase(exerciseWithMeta);
   const customs = await getCustomExercises();
   const existingIndex = customs.findIndex(e => e.id === exercise.id);
 
@@ -656,16 +670,11 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
     customs.unshift(exerciseWithMeta);
   }
 
-  // Save to local storage first (offline-first)
+  // Save to local storage after a successful server upsert.
   await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(customs));
   customExerciseCache = customs;
   allExercisesCache = null;
   exerciseLookupCache = null;
-
-  // Sync to Supabase in background (fire-and-forget)
-  upsertCustomExerciseToSupabase(exerciseWithMeta).catch((err) => {
-    console.warn('Failed to sync custom exercise to Supabase:', err);
-  });
 }
 
 export async function deleteCustomExercise(id: string): Promise<void> {

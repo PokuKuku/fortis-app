@@ -39,10 +39,11 @@ export function ChatMessage({
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
+  const allowTldr = message.intent !== 'GENERAL_CHAT';
   const { mainContent, tldr } = !isUser
-    ? splitTldrFromContent(message.content)
+    ? splitTldrFromContent(message.content, allowTldr)
     : { mainContent: message.content, tldr: null };
-  const shouldShowTldr = !isUser && tldr && shouldDisplayTldr(mainContent);
+  const shouldShowTldr = allowTldr && !isUser && tldr && shouldDisplayTldr(mainContent);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -256,11 +257,15 @@ export function ChatMessage({
 
 const TLDR_REGEX = /(^|\n)TLDR:\s*([^\n\r]+)\s*$/i;
 const TLDR_MIN_WORDS = 40;
+const TLDR_MAX_WORDS = 18;
 
-function splitTldrFromContent(content: string) {
+function splitTldrFromContent(content: string, allowFallback: boolean) {
   const match = content.match(TLDR_REGEX);
   if (!match || match.index === undefined) {
-    return { mainContent: content, tldr: buildFallbackTldr(content) };
+    return {
+      mainContent: content,
+      tldr: allowFallback ? buildFallbackTldr(content) : null,
+    };
   }
 
   return {
@@ -282,11 +287,7 @@ function buildFallbackTldr(content: string) {
     return null;
   }
 
-  if (noBullet.length <= 200) {
-    return noBullet;
-  }
-
-  return `${noBullet.slice(0, 197).trimEnd()}...`;
+  return trimToWordCount(noBullet, TLDR_MAX_WORDS);
 }
 
 function shouldDisplayTldr(content: string): boolean {
@@ -299,6 +300,15 @@ function shouldDisplayTldr(content: string): boolean {
     .trim();
   if (!cleaned) return false;
   return cleaned.split(' ').length >= TLDR_MIN_WORDS;
+}
+
+function trimToWordCount(text: string, maxWords: number): string {
+  if (!text) return '';
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) {
+    return text.trim().replace(/\.\.\.$/, '').replace(/…$/, '');
+  }
+  return words.slice(0, maxWords).join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
 }
 
 const styles = StyleSheet.create({

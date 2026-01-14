@@ -10,6 +10,7 @@ import {
   ScrollView,
   TextInput,
   DeviceEventEmitter,
+  Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon } from 'react-native-heroicons/outline';
@@ -338,12 +339,14 @@ export default function TabLayout() {
       await saveCustomExercise(newExercise);
       DeviceEventEmitter.emit('customExerciseUpsert', newExercise);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      setShowAddExerciseModal(false);
+      resetExerciseForm();
     } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to save custom exercise.';
+      Alert.alert('Save failed', message);
       console.warn('Failed to save custom exercise', err);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => undefined);
     }
-
-    setShowAddExerciseModal(false);
-    resetExerciseForm();
   };
 
   // Listen for edit requests from the exercises screen to prefill the modal

@@ -18,7 +18,9 @@ interface WorkoutCompleteModalProps {
   onClose: () => void;
   onConfirm: () => void;
   onSaveAsTemplate?: () => void;
+  onUpdateTemplate?: () => void;
   saveTemplateLabel?: string;
+  updateTemplateLabel?: string;
   session: WorkoutSession | null;
   durationSecondsOverride?: number;
   completedExercisesOverride?: number;
@@ -31,7 +33,9 @@ export function WorkoutCompleteModal({
   onClose,
   onConfirm,
   onSaveAsTemplate,
+  onUpdateTemplate,
   saveTemplateLabel,
+  updateTemplateLabel,
   session,
   durationSecondsOverride,
   completedExercisesOverride,
@@ -83,6 +87,11 @@ export function WorkoutCompleteModal({
   const handleSaveAsTemplate = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     onSaveAsTemplate?.();
+  };
+
+  const handleUpdateTemplate = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    onUpdateTemplate?.();
   };
 
   const summary = getWorkoutSummary(session);
@@ -146,6 +155,20 @@ export function WorkoutCompleteModal({
                     >
                       <Text style={[styles.saveTemplateButtonText, themedStyles.saveTemplateButtonText]}>
                         {saveTemplateLabel || 'Save as Template'}
+                      </Text>
+                    </Pressable>
+                  )}
+                  {onUpdateTemplate && (
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.saveTemplateButton,
+                        themedStyles.saveTemplateButton,
+                        pressed && themedStyles.saveTemplateButtonPressed,
+                      ]}
+                      onPress={handleUpdateTemplate}
+                    >
+                      <Text style={[styles.saveTemplateButtonText, themedStyles.saveTemplateButtonText]}>
+                        {updateTemplateLabel || 'Update Template'}
                       </Text>
                     </Pressable>
                   )}
