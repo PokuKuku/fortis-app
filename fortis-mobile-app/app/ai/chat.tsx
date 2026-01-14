@@ -53,6 +53,49 @@ const LOADING_MESSAGES = [
   "Tip: Use AI chat to spot volume trends and muscle balance.",
 ];
 
+const ANALYST_KEYWORD_REGEXES = [
+  /\bworkout(s)?\b/i,
+  /\btraining\b/i,
+  /\bsession(s)?\b/i,
+  /\bexercise(s)?\b/i,
+  /\blift(s|ing)?\b/i,
+  /\bsets?\b/i,
+  /\breps?\b/i,
+  /\bvolume\b/i,
+  /\bintensity\b/i,
+  /\bfrequency\b/i,
+  /\bprogram\b/i,
+  /\bsplit\b/i,
+  /\bplan\b/i,
+  /\btrend(s)?\b/i,
+  /\bsummary\b/i,
+  /\banaly[sz]e\b/i,
+  /\banalysis\b/i,
+  /\binsight(s)?\b/i,
+  /\bpr(s)?\b/i,
+  /\bpersonal record(s)?\b/i,
+  /\bprogress\b/i,
+  /\bstall\b/i,
+  /\bplateau\b/i,
+  /\bfatigue\b/i,
+  /\brecovery\b/i,
+  /\bdeload\b/i,
+  /\brpe\b/i,
+  /\brir\b/i,
+  /\b1rm\b/i,
+  /\bmax(es)?\b/i,
+  /\bbench\b/i,
+  /\bsquat(s)?\b/i,
+  /\bdeadlift(s)?\b/i,
+  /\bpress(es)?\b/i,
+  /\brow(s)?\b/i,
+  /\bpull\b/i,
+  /\bpush\b/i,
+];
+
+const ANALYST_TIME_WINDOW_REGEX = /\b(last|past|previous|this|next)\s+(\d+\s+)?(day|week|month|year|session|workout)s?\b/i;
+
+
 // Animated sparkles for loading indicator
 function AnimatedLoadingSparkles() {
   const { colors } = useTheme();
@@ -102,9 +145,19 @@ function AnimatedLoadingSparkles() {
 
 // Intent inference helper - simplified to only support FORTIS_ANALYST
 const inferIntentFromMessage = (message: string): AIIntent => {
-  // All messages use FORTIS_ANALYST intent
-  // CREATE_PROGRAM and CREATE_TEMPLATE intents are temporarily disabled
-  return 'FORTIS_ANALYST';
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return 'GENERAL_CHAT';
+  }
+
+  const hasAnalystKeyword = ANALYST_KEYWORD_REGEXES.some((regex) => regex.test(normalized));
+  const hasTimeWindow = ANALYST_TIME_WINDOW_REGEX.test(normalized);
+
+  if (hasAnalystKeyword || hasTimeWindow) {
+    return 'FORTIS_ANALYST';
+  }
+
+  return 'GENERAL_CHAT';
 };
 
 export default function AIChatScreen() {

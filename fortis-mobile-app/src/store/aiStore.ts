@@ -69,7 +69,6 @@ interface AIState {
   rateLimitStatus: AIRateLimitStatus | null;
 
   sendMessage: (intent: AIIntent, message: string, context?: AIRequestContext) => Promise<AIResponse>;
-  appendLocalExchange: (intent: AIIntent, userText: string, assistantText: string) => void;
   retryLastMessage: () => Promise<AIResponse | null>;
   checkRateLimits: () => Promise<void>;
   loadConversation: () => Promise<void>;
@@ -189,46 +188,6 @@ export const useAIStore = create<AIState>()(
           },
         } as AIResponse;
       }
-    },
-
-    appendLocalExchange: (intent, userText, assistantText) => {
-      const { conversation, persistConversation } = get();
-
-      const userMessage: AIConversationMessage = {
-        id: generateId(),
-        role: 'user',
-        content: userText,
-        intent,
-        createdAt: new Date().toISOString(),
-      };
-
-      const assistantMessage: AIConversationMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: assistantText,
-        intent,
-        createdAt: new Date().toISOString(),
-      };
-
-      const updatedConversation: AIConversation = conversation
-        ? {
-            ...conversation,
-            messages: [...conversation.messages, userMessage, assistantMessage],
-          }
-        : {
-            id: generateId(),
-            messages: [userMessage, assistantMessage],
-            createdAt: new Date().toISOString(),
-          };
-
-      set({
-        conversation: updatedConversation,
-        isSendingMessage: false,
-        error: null,
-        lastFailedMessage: null,
-      });
-
-      persistConversation();
     },
 
     retryLastMessage: async () => {

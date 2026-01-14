@@ -25,6 +25,7 @@ interface AnimatedLogoProps {
 }
 
 const LOGO_TEXT = 'FORTIS';
+const LETTER_SPACING_RATIO = 3 / 18;
 
 export function AnimatedLogo({
   size = 'small',
@@ -45,9 +46,11 @@ export function AnimatedLogo({
   ).current;
 
   // Size configurations
-  const config = size === 'large'
-    ? { width: 280, height: 60, fontSize: 42, letterSpacing: 6, y: 48 }
-    : { width: 160, height: 32, fontSize: 20, letterSpacing: 6, y: 24 };
+  const baseConfig = size === 'large'
+    ? { width: 280, height: 60, fontSize: 42, y: 48 }
+    : { width: 160, height: 32, fontSize: 20, y: 24 };
+  const letterSpacing = Math.round(baseConfig.fontSize * LETTER_SPACING_RATIO * 10) / 10;
+  const config = { ...baseConfig, letterSpacing };
   const totalSpacing = config.letterSpacing * (LOGO_TEXT.length - 1);
   const letterOffsets = LOGO_TEXT.split('').map((_, index) => {
     if (index === 0) {

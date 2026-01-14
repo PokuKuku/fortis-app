@@ -8,7 +8,7 @@
 // Intent Types
 // ============================================
 
-export const ALL_INTENTS = ['FORTIS_ANALYST'] as const;
+export const ALL_INTENTS = ['FORTIS_ANALYST', 'GENERAL_CHAT'] as const;
 export type AIIntent = typeof ALL_INTENTS[number];
 
 // ============================================
