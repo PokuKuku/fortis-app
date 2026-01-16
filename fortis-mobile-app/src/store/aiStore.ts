@@ -75,6 +75,7 @@ interface AIState {
   persistConversation: () => Promise<void>;
   clearConversation: () => void;
   clearError: () => void;
+  resetStore: () => void;
 }
 
 export const useAIStore = create<AIState>()(
@@ -281,6 +282,19 @@ export const useAIStore = create<AIState>()(
 
     clearError: () => {
       set({ error: null });
+    },
+
+    resetStore: () => {
+      set({
+        conversation: null,
+        isSendingMessage: false,
+        error: null,
+        lastFailedMessage: null,
+        rateLimitStatus: null,
+      });
+      removeScopedItem(AI_CONVERSATION_KEY).catch((err) => {
+        console.error('Error clearing conversation:', err);
+      });
     },
   }))
 );

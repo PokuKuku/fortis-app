@@ -2,8 +2,18 @@ import { ONBOARDING_STATE_KEY } from '@/src/constants/storageKeys';
 import { getScopedItem, removeScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 
 export type OnboardingState = {
+  full_name?: string;
+  gender?: 'male' | 'female' | 'other';
+  birth_date?: string;
+  height_cm?: number;
+  weight_kg?: number;
   preferred_units?: 'imperial' | 'metric';
-  completed?: boolean;
+  lifting_experience?: 'none' | 'beginner' | 'intermediate' | 'advanced';
+  workouts_per_week?: number;
+  tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never';
+  fitness_goal?: 'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent';
+  biggest_challenge?: 'consistency' | 'plateaus' | 'starting_out' | 'time';
+  workout_consistency?: 'daily' | 'few_times_week' | 'once_or_less' | 'starting';
 };
 
 export async function getOnboardingState(): Promise<OnboardingState | null> {

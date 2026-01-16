@@ -21,6 +21,16 @@ CREATE TABLE profiles (
   email TEXT UNIQUE NOT NULL,
   full_name TEXT,
   avatar_url TEXT,
+  gender TEXT,
+  birth_date DATE,
+  height_cm INTEGER,
+  weight_kg NUMERIC,
+  lifting_experience TEXT,
+  workouts_per_week INTEGER,
+  tried_other_apps TEXT,
+  fitness_goal TEXT,
+  biggest_challenge TEXT,
+  workout_consistency TEXT,
 
   -- User preferences
   preferred_units TEXT DEFAULT 'imperial' CHECK (preferred_units IN ('imperial', 'metric')),

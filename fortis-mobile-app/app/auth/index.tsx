@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
@@ -57,14 +57,14 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
-import { getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
+import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboardingState';
 
 export default function AuthWelcomeScreen() {
   const router = useRouter();
-  const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding } = useAuth();
+  const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding, updateProfile } = useAuth();
   const { colors, isDark } = useTheme();
-  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
-  const [onboardingStateLoaded, setOnboardingStateLoaded] = useState(false);
+  const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
+  const [isFinalizing, setIsFinalizing] = useState(false);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -93,36 +93,74 @@ export default function AuthWelcomeScreen() {
 
   // Navigate when auth state changes
   useEffect(() => {
-    if (!isAuthenticated || !onboardingStateLoaded) return;
+    if (!isAuthenticated || isFinalizing) return;
+
+    const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
+    if (onboardingValue === 'complete') {
+      setIsFinalizing(true);
+      void (async () => {
+        const state = await getOnboardingState();
+        const updates: Parameters<typeof updateProfile>[0] = {
+          onboarding_completed: true,
+        };
+
+        if (state?.full_name?.trim()) {
+          updates.full_name = state.full_name.trim();
+        }
+        if (state?.gender) {
+          updates.gender = state.gender;
+        }
+        if (state?.birth_date) {
+          updates.birth_date = state.birth_date;
+        }
+        if (typeof state?.height_cm === 'number') {
+          updates.height_cm = state.height_cm;
+        }
+        if (typeof state?.weight_kg === 'number') {
+          updates.weight_kg = state.weight_kg;
+        }
+        if (state?.preferred_units) {
+          updates.preferred_units = state.preferred_units;
+        }
+        if (state?.lifting_experience) {
+          updates.lifting_experience = state.lifting_experience;
+        }
+        if (typeof state?.workouts_per_week === 'number') {
+          updates.workouts_per_week = state.workouts_per_week;
+        }
+        if (state?.tried_other_apps) {
+          updates.tried_other_apps = state.tried_other_apps;
+        }
+        if (state?.fitness_goal) {
+          updates.fitness_goal = state.fitness_goal;
+        }
+        if (state?.biggest_challenge) {
+          updates.biggest_challenge = state.biggest_challenge;
+        }
+        if (state?.workout_consistency) {
+          updates.workout_consistency = state.workout_consistency;
+        }
+
+        const { error } = await updateProfile(updates);
+        if (error) {
+          setIsFinalizing(false);
+          router.replace('/onboarding');
+          return;
+        }
+
+        await clearOnboardingState();
+        router.replace('/(tabs)');
+      })();
+      return;
+    }
 
     if (needsOnboarding) {
-      if (onboardingState?.completed) {
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/onboarding');
-      }
+      router.replace('/onboarding');
       return;
     }
 
     router.replace('/(tabs)');
-  }, [isAuthenticated, needsOnboarding, onboardingState?.completed, onboardingStateLoaded, router]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    const loadOnboardingState = async () => {
-      const state = await getOnboardingState();
-      if (!isActive) return;
-      setOnboardingState(state);
-      setOnboardingStateLoaded(true);
-    };
-
-    loadOnboardingState();
-
-    return () => {
-      isActive = false;
-    };
-  }, []);
+  }, [isAuthenticated, isFinalizing, needsOnboarding, onboarding, router, updateProfile]);
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {

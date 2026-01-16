@@ -14,7 +14,6 @@ import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
-import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboardingState';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { type AccentColorName } from '@/src/utils/accentColors';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -33,6 +32,16 @@ export interface Profile {
   email: string;
   full_name: string | null;
   avatar_url: string | null;
+  gender?: 'male' | 'female' | 'other' | null;
+  birth_date?: string | null;
+  height_cm?: number | null;
+  weight_kg?: number | null;
+  lifting_experience?: 'none' | 'beginner' | 'intermediate' | 'advanced' | null;
+  workouts_per_week?: number | null;
+  tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never' | null;
+  fitness_goal?: 'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent' | null;
+  biggest_challenge?: 'consistency' | 'plateaus' | 'starting_out' | 'time' | null;
+  workout_consistency?: 'daily' | 'few_times_week' | 'once_or_less' | 'starting' | null;
   preferred_units: 'imperial' | 'metric';
   onboarding_completed: boolean;
   // Theme preferences (synced to cloud)
@@ -543,7 +552,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // This prevents data leakage if another user signs in
     useWorkoutStore.getState().resetStore();
     useProgramsStore.getState().resetStore();
-    useAIStore.getState().resetStore();
+    const aiStore = useAIStore.getState();
+    if (typeof aiStore.resetStore === 'function') {
+      aiStore.resetStore();
+    } else {
+      aiStore.clearConversation?.();
+      useAIStore.setState({
+        conversation: null,
+        isSendingMessage: false,
+        error: null,
+        lastFailedMessage: null,
+        rateLimitStatus: null,
+      });
+    }
     useProgramProgressStore.getState().resetStore();
     useStartPresetStore.getState().resetStore();
 
@@ -585,49 +606,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { error: err as Error };
     }
   }, [user?.id, refreshProfile]);
-
-  useEffect(() => {
-    if (!isAuthenticated || !profile) return;
-
-    let isActive = true;
-
-    const syncPendingOnboarding = async () => {
-      const state = await getOnboardingState();
-      if (!isActive || !state?.completed) return;
-
-      const updates: Partial<Profile> = {};
-      if (!profile.onboarding_completed) {
-        updates.onboarding_completed = true;
-      }
-      if (state.preferred_units && profile.preferred_units !== state.preferred_units) {
-        updates.preferred_units = state.preferred_units;
-      }
-
-      if (Object.keys(updates).length > 0) {
-        const { error } = await updateProfile(updates);
-        if (error) {
-          console.warn('Failed to sync onboarding state:', error);
-          return;
-        }
-      }
-
-      await clearOnboardingState();
-    };
-
-    syncPendingOnboarding().catch((error) => {
-      console.warn('Failed to sync onboarding state:', error);
-    });
-
-    return () => {
-      isActive = false;
-    };
-  }, [
-    isAuthenticated,
-    profile,
-    profile?.onboarding_completed,
-    profile?.preferred_units,
-    updateProfile,
-  ]);
 
   // Upload avatar
   const uploadAvatar = useCallback(async (

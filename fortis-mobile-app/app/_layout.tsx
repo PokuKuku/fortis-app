@@ -80,17 +80,73 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             }}
           />
           <Stack.Screen
-            name="onboarding/units"
+            name="onboarding/gender"
             options={{
               animation: 'slide_from_right',
-              gestureEnabled: false,
+              gestureEnabled: true,
             }}
           />
           <Stack.Screen
-            name="onboarding/body-type"
+            name="onboarding/birthdate"
             options={{
               animation: 'slide_from_right',
-              gestureEnabled: false,
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/height"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/weight"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/experience"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/workouts-per-week"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/other-apps"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/goal"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/challenge"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/consistency"
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: true,
             }}
           />
           <Stack.Screen
