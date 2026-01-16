@@ -1,7 +1,7 @@
 /**
- * Onboarding Units Screen - Premium Weight Units Selection
+ * Onboarding Units Screen - Measurement Calibration
  *
- * Design Direction: "Private Fitness Club Membership"
+ * Design Direction: "Training Lab / Calibration"
  * Single question per view with CONTINUE button after selection.
  */
 
@@ -31,7 +31,10 @@ type UnitSystem = 'imperial' | 'metric';
 
 const CONTENT_PADDING_TOP = responsiveValue(48, 80, 96);
 const CONTENT_PADDING_BOTTOM = responsiveValue(Spacing.xl, Spacing['2xl'], Spacing['3xl']);
+const OVERLINE_SIZE = responsiveValue(11, 12, 13);
 const TITLE_SIZE = responsiveValue(20, 24, 26);
+const SUBTITLE_SIZE = responsiveValue(14, 15, 16);
+const HELPER_SIZE = responsiveValue(12, 13, 14);
 const BUTTON_HEIGHT = responsiveValue(48, 56, 60);
 const BUTTON_TEXT_SIZE = responsiveValue(14, 16, 18);
 const ICON_SIZE = responsiveValue(24, 32, 36);
@@ -39,7 +42,7 @@ const BOTTOM_GAP = responsiveValue(Spacing.xl, Spacing['3xl'], Spacing['4xl']);
 
 export default function OnboardingUnitsScreen() {
   const router = useRouter();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { updateProfile, isAuthenticated } = useAuth();
   const [selectedUnit, setSelectedUnit] = useState<UnitSystem | null>(null);
 
@@ -55,15 +58,16 @@ export default function OnboardingUnitsScreen() {
   // Theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
+    overline: { color: colors.textTertiary },
     title: { color: colors.textPrimary },
     subtitle: { color: colors.textSecondary },
+    helper: { color: colors.textTertiary },
     buttonText: { color: colors.white },
   };
 
   useEffect(() => {
     // Staggered entrance animation
     const animationSequence = Animated.stagger(150, [
-      // 1. Header fade + slide
       Animated.parallel([
         Animated.timing(headerOpacity, {
           toValue: 1,
@@ -76,7 +80,6 @@ export default function OnboardingUnitsScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 2. Cards fade + slide
       Animated.parallel([
         Animated.timing(cardsOpacity, {
           toValue: 1,
@@ -89,7 +92,6 @@ export default function OnboardingUnitsScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 3. Progress indicator
       Animated.timing(progressOpacity, {
         toValue: 1,
         duration: 400,
@@ -98,7 +100,7 @@ export default function OnboardingUnitsScreen() {
     ]);
 
     animationSequence.start();
-  }, []);
+  }, [cardsOpacity, cardsTranslate, headerOpacity, headerTranslate, progressOpacity]);
 
   // Animate button appearance when selection is made
   useEffect(() => {
@@ -117,7 +119,7 @@ export default function OnboardingUnitsScreen() {
         }),
       ]).start();
     }
-  }, [selectedUnit]);
+  }, [buttonOpacity, buttonTranslate, selectedUnit]);
 
   const handleUnitSelect = (unit: UnitSystem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -137,8 +139,7 @@ export default function OnboardingUnitsScreen() {
     router.push('/onboarding/body-type');
   };
 
-  // Icon colors based on theme
-  const iconColor = isDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.5)';
+  const iconColor = colors.textSecondary;
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -156,11 +157,12 @@ export default function OnboardingUnitsScreen() {
               },
             ]}
           >
+            <Text style={[styles.overline, themedStyles.overline]}>STEP 2 / 4</Text>
             <Text style={[styles.title, themedStyles.title]}>
-              SELECT YOUR UNITS
+              MEASUREMENT SYSTEM
             </Text>
             <Text style={[styles.subtitle, themedStyles.subtitle]}>
-              Choose your preferred weight measurement
+              Choose how you log weight and volume.
             </Text>
           </Animated.View>
 
@@ -176,8 +178,8 @@ export default function OnboardingUnitsScreen() {
             ]}
           >
             <SelectionCard
-              title="IMPERIAL"
-              subtitle="lbs"
+              title="POUNDS"
+              subtitle="lb"
               icon={<ScaleIcon size={ICON_SIZE} color={iconColor} strokeWidth={1.5} />}
               isSelected={selectedUnit === 'imperial'}
               onSelect={() => handleUnitSelect('imperial')}
@@ -185,7 +187,7 @@ export default function OnboardingUnitsScreen() {
             />
 
             <SelectionCard
-              title="METRIC"
+              title="KILOGRAMS"
               subtitle="kg"
               icon={<ScaleIcon size={ICON_SIZE} color={iconColor} strokeWidth={1.5} />}
               isSelected={selectedUnit === 'metric'}
@@ -217,6 +219,10 @@ export default function OnboardingUnitsScreen() {
               </GlassButton>
             </Animated.View>
 
+            <Text style={[styles.helperText, themedStyles.helper]}>
+              You can change this later in Settings.
+            </Text>
+
             {/* Progress Indicator */}
             <Animated.View style={{ opacity: progressOpacity }}>
               <OnboardingProgress currentStep={2} totalSteps={4} />
@@ -246,6 +252,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
+  overline: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: OVERLINE_SIZE,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+  },
   title: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: TITLE_SIZE,
@@ -256,8 +268,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...Typography.body,
+    fontSize: SUBTITLE_SIZE,
     textAlign: 'center',
-    opacity: 0.8,
+    opacity: 0.85,
   },
   cardsContainer: {
     flexDirection: 'row',
@@ -283,5 +296,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 3,
     textTransform: 'uppercase',
+  },
+  helperText: {
+    ...Typography.bodySmall,
+    fontSize: HELPER_SIZE,
+    textAlign: 'center',
   },
 });

@@ -1,8 +1,7 @@
 /**
- * Onboarding Welcome Screen - Premium Brand Introduction
+ * Onboarding Welcome Screen - Baseline Calibration
  *
- * Design Direction: "Private Fitness Club Membership"
- * The entry point to Fortis - confident, refined, powerful.
+ * Design Direction: "Training Lab / Calibration"
  */
 
 import { useRef, useEffect } from 'react';
@@ -22,31 +21,60 @@ import Svg, {
   Stop,
   Text as SvgText,
 } from 'react-native-svg';
+import {
+  ChartBarIcon,
+  FireIcon,
+  CalendarDaysIcon,
+} from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { GlassCard } from '@/components/GlassCard';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { responsiveValue } from '@/src/utils/responsive';
+import { responsiveValue, scale } from '@/src/utils/responsive';
 
-const LOGO_WIDTH = responsiveValue(200, 260, 300);
-const LOGO_HEIGHT = responsiveValue(54, 70, 80);
-const LOGO_FONT_SIZE = responsiveValue(32, 42, 48);
+const LOGO_WIDTH = responsiveValue(190, 230, 260);
+const LOGO_HEIGHT = responsiveValue(50, 62, 70);
+const LOGO_FONT_SIZE = responsiveValue(30, 38, 42);
 const LOGO_LETTER_SPACING_RATIO = 3 / 18;
 const LOGO_LETTER_SPACING = Math.round(LOGO_FONT_SIZE * LOGO_LETTER_SPACING_RATIO * 10) / 10;
-const DIVIDER_WIDTH = responsiveValue(44, 60, 72);
-const TAGLINE_SIZE = responsiveValue(12, 14, 16);
+const OVERLINE_SIZE = responsiveValue(11, 12, 13);
+const HEADLINE_SIZE = responsiveValue(22, 26, 30);
+const SUBTITLE_SIZE = responsiveValue(13, 15, 16);
+const FEATURE_ICON_SIZE = responsiveValue(18, 20, 22);
+const FEATURE_TITLE_SIZE = responsiveValue(13, 14, 15);
+const FEATURE_BODY_SIZE = responsiveValue(12, 13, 14);
 const BUTTON_HEIGHT = responsiveValue(48, 56, 60);
 const BUTTON_TEXT_SIZE = responsiveValue(14, 16, 18);
+const CONTENT_PADDING_TOP = responsiveValue(Spacing['2xl'], Spacing['3xl'], Spacing['4xl']);
+const CONTENT_PADDING_BOTTOM = responsiveValue(Spacing.lg, Spacing['2xl'], Spacing['3xl']);
+const FEATURE_GAP = responsiveValue(Spacing.md, Spacing.lg, Spacing.xl);
 const BOTTOM_GAP = responsiveValue(Spacing.xl, Spacing['3xl'], Spacing['4xl']);
-const BOTTOM_PADDING = responsiveValue(Spacing.lg, Spacing['2xl'], Spacing['3xl']);
-const HERO_PADDING_BOTTOM = responsiveValue(Spacing['2xl'], Spacing['4xl'], Spacing['5xl']);
 
+const FEATURES = [
+  {
+    icon: FireIcon,
+    title: 'Precision logging',
+    description: 'Track sets, load, rest, and RPE with every lift.',
+  },
+  {
+    icon: ChartBarIcon,
+    title: 'Progress map',
+    description: 'Volume, PRs, and trends in one clean view.',
+  },
+  {
+    icon: CalendarDaysIcon,
+    title: 'Program cadence',
+    description: 'Build repeatable sessions and a weekly rhythm.',
+  },
+];
 
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
 
   // Redirect to auth if not authenticated (onboarding requires auth first)
@@ -59,84 +87,85 @@ export default function OnboardingWelcomeScreen() {
   // Staggered animation values
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const logoScale = useRef(new Animated.Value(0.9)).current;
-  const taglineOpacity = useRef(new Animated.Value(0)).current;
-  const taglineTranslate = useRef(new Animated.Value(20)).current;
-  const dividerOpacity = useRef(new Animated.Value(0)).current;
-  const dividerScale = useRef(new Animated.Value(0)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslate = useRef(new Animated.Value(16)).current;
+  const featureOpacity = useRef(new Animated.Value(0)).current;
+  const featureTranslate = useRef(new Animated.Value(20)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
-  const buttonTranslate = useRef(new Animated.Value(30)).current;
+  const buttonTranslate = useRef(new Animated.Value(24)).current;
   const progressOpacity = useRef(new Animated.Value(0)).current;
 
   // Theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
-    tagline: { color: colors.textPrimary },
-    divider: {
-      backgroundColor: isDark
-        ? 'rgba(255, 255, 255, 0.15)'
-        : 'rgba(0, 0, 0, 0.1)',
+    overline: { color: colors.textTertiary },
+    headline: { color: colors.textPrimary },
+    subtitle: { color: colors.textSecondary },
+    metaPill: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorderLight,
+    },
+    metaText: { color: colors.accent },
+    featureTitle: { color: colors.textPrimary },
+    featureDescription: { color: colors.textSecondary },
+    featureIcon: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorderLight,
     },
     buttonText: { color: colors.white },
   };
 
   useEffect(() => {
-    // Staggered entrance animations for premium feel
-    const animationSequence = Animated.stagger(150, [
-      // 1. Logo fade + scale
+    const animationSequence = Animated.stagger(140, [
       Animated.parallel([
         Animated.timing(logoOpacity, {
           toValue: 1,
-          duration: 600,
+          duration: 500,
           useNativeDriver: true,
         }),
         Animated.spring(logoScale, {
           toValue: 1,
-          tension: 50,
-          friction: 8,
+          tension: 60,
+          friction: 9,
           useNativeDriver: true,
         }),
       ]),
-      // 2. Tagline fade + slide
       Animated.parallel([
-        Animated.timing(taglineOpacity, {
+        Animated.timing(headerOpacity, {
           toValue: 1,
-          duration: 500,
+          duration: 450,
           useNativeDriver: true,
         }),
-        Animated.timing(taglineTranslate, {
+        Animated.timing(headerTranslate, {
           toValue: 0,
-          duration: 500,
+          duration: 450,
           useNativeDriver: true,
         }),
       ]),
-      // 3. Divider expand
       Animated.parallel([
-        Animated.timing(dividerOpacity, {
+        Animated.timing(featureOpacity, {
           toValue: 1,
-          duration: 400,
+          duration: 450,
           useNativeDriver: true,
         }),
-        Animated.spring(dividerScale, {
-          toValue: 1,
-          tension: 50,
-          friction: 10,
+        Animated.timing(featureTranslate, {
+          toValue: 0,
+          duration: 450,
           useNativeDriver: true,
         }),
       ]),
-      // 4. Button fade + slide
       Animated.parallel([
         Animated.timing(buttonOpacity, {
           toValue: 1,
-          duration: 500,
+          duration: 450,
           useNativeDriver: true,
         }),
         Animated.timing(buttonTranslate, {
           toValue: 0,
-          duration: 500,
+          duration: 450,
           useNativeDriver: true,
         }),
       ]),
-      // 5. Progress indicator
       Animated.timing(progressOpacity, {
         toValue: 1,
         duration: 400,
@@ -145,14 +174,23 @@ export default function OnboardingWelcomeScreen() {
     ]);
 
     animationSequence.start();
-  }, []);
+  }, [
+    buttonOpacity,
+    buttonTranslate,
+    featureOpacity,
+    featureTranslate,
+    headerOpacity,
+    headerTranslate,
+    logoOpacity,
+    logoScale,
+    progressOpacity,
+  ]);
 
   const handleBeginSetup = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/onboarding/units');
   };
 
-  // Gradient colors for logo - use theme accent colors
   const gradientLight = colors.accentLight;
   const gradientMid = colors.accent;
   const gradientDark = colors.accentDark;
@@ -163,9 +201,7 @@ export default function OnboardingWelcomeScreen() {
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Hero Section */}
-          <View style={styles.heroSection}>
-            {/* Animated Logo */}
+          <View style={styles.topSection}>
             <Animated.View
               style={[
                 styles.logoContainer,
@@ -198,37 +234,62 @@ export default function OnboardingWelcomeScreen() {
               </Svg>
             </Animated.View>
 
-            {/* Tagline */}
             <Animated.View
               style={[
-                styles.taglineContainer,
+                styles.headerSection,
                 {
-                  opacity: taglineOpacity,
-                  transform: [{ translateY: taglineTranslate }],
+                  opacity: headerOpacity,
+                  transform: [{ translateY: headerTranslate }],
                 },
               ]}
             >
-              <Text style={[styles.tagline, themedStyles.tagline]}>
-                PRECISION STRENGTH TRAINING
+              <Text style={[styles.overline, themedStyles.overline]}>SETUP RUN</Text>
+              <Text style={[styles.headline, themedStyles.headline]}>
+                SET YOUR BASELINE
               </Text>
+              <Text style={[styles.subtitle, themedStyles.subtitle]}>
+                Four quick choices so your log and insights stay consistent.
+              </Text>
+              <View style={styles.metaRow}>
+                {['4 steps', 'Under a minute', 'Change anytime'].map((item) => (
+                  <View key={item} style={[styles.metaPill, themedStyles.metaPill]}>
+                    <Text style={[styles.metaText, themedStyles.metaText]}>{item}</Text>
+                  </View>
+                ))}
+              </View>
             </Animated.View>
-
-            {/* Decorative Divider */}
-            <Animated.View
-              style={[
-                styles.divider,
-                themedStyles.divider,
-                {
-                  opacity: dividerOpacity,
-                  transform: [{ scaleX: dividerScale }],
-                },
-              ]}
-            />
           </View>
 
-          {/* Bottom Section */}
+          <Animated.View
+            style={[
+              styles.featureList,
+              {
+                opacity: featureOpacity,
+                transform: [{ translateY: featureTranslate }],
+              },
+            ]}
+          >
+            {FEATURES.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <GlassCard key={feature.title} padding={Spacing.lg} style={styles.featureCard}>
+                  <View style={styles.featureHeader}>
+                    <View style={[styles.featureIcon, themedStyles.featureIcon]}>
+                      <Icon size={FEATURE_ICON_SIZE} color={colors.accent} strokeWidth={1.8} />
+                    </View>
+                    <Text style={[styles.featureTitle, themedStyles.featureTitle]}>
+                      {feature.title}
+                    </Text>
+                  </View>
+                  <Text style={[styles.featureDescription, themedStyles.featureDescription]}>
+                    {feature.description}
+                  </Text>
+                </GlassCard>
+              );
+            })}
+          </Animated.View>
+
           <View style={styles.bottomSection}>
-            {/* CTA Button */}
             <Animated.View
               style={[
                 styles.buttonContainer,
@@ -238,17 +299,11 @@ export default function OnboardingWelcomeScreen() {
                 },
               ]}
             >
-              <GlassButton
-                style={styles.beginButton}
-                onPress={handleBeginSetup}
-              >
-                <Text style={[styles.buttonText, themedStyles.buttonText]}>
-                  BEGIN SETUP
-                </Text>
+              <GlassButton style={styles.beginButton} onPress={handleBeginSetup}>
+                <Text style={[styles.buttonText, themedStyles.buttonText]}>START SETUP</Text>
               </GlassButton>
             </Animated.View>
 
-            {/* Progress Indicator */}
             <Animated.View style={{ opacity: progressOpacity }}>
               <OnboardingProgress currentStep={1} totalSteps={4} />
             </Animated.View>
@@ -269,39 +324,92 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: Spacing['2xl'],
+    paddingTop: CONTENT_PADDING_TOP,
+    paddingBottom: CONTENT_PADDING_BOTTOM,
     justifyContent: 'space-between',
   },
-  heroSection: {
-    flex: 1,
-    justifyContent: 'center',
+  topSection: {
+    gap: Spacing.lg,
     alignItems: 'center',
-    gap: Spacing['2xl'],
-    paddingBottom: HERO_PADDING_BOTTOM,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.lg,
   },
-  taglineContainer: {
+  headerSection: {
     alignItems: 'center',
+    gap: Spacing.md,
   },
-  tagline: {
+  overline: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: TAGLINE_SIZE,
-    fontWeight: '500',
-    letterSpacing: 4,
-    textAlign: 'center',
+    fontSize: OVERLINE_SIZE,
+    letterSpacing: 3,
     textTransform: 'uppercase',
   },
-  divider: {
-    width: DIVIDER_WIDTH,
-    height: 2,
-    borderRadius: 1,
-    marginTop: Spacing.lg,
+  headline: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: HEADLINE_SIZE,
+    fontWeight: '600',
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+    textAlign: 'center',
+  },
+  subtitle: {
+    ...Typography.body,
+    fontSize: SUBTITLE_SIZE,
+    textAlign: 'center',
+    maxWidth: scale(320),
+  },
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+  },
+  metaPill: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  metaText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 11,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  featureList: {
+    gap: FEATURE_GAP,
+  },
+  featureCard: {
+    width: '100%',
+  },
+  featureHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  featureIcon: {
+    width: scale(36),
+    height: scale(36),
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featureTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: FEATURE_TITLE_SIZE,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  featureDescription: {
+    ...Typography.bodySmall,
+    fontSize: FEATURE_BODY_SIZE,
+    lineHeight: FEATURE_BODY_SIZE * 1.45,
   },
   bottomSection: {
     gap: BOTTOM_GAP,
-    paddingBottom: BOTTOM_PADDING,
+    paddingTop: Spacing['2xl'],
   },
   buttonContainer: {
     width: '100%',

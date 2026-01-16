@@ -1,7 +1,7 @@
 /**
- * Onboarding Body Type Screen - Premium Body Type Selection
+ * Onboarding Body Type Screen - Body Map Calibration
  *
- * Design Direction: "Private Fitness Club Membership"
+ * Design Direction: "Training Lab / Calibration"
  * Single question per view with CONTINUE button after selection.
  */
 
@@ -31,7 +31,10 @@ type BodyType = 'male' | 'female';
 
 const CONTENT_PADDING_TOP = responsiveValue(48, 80, 96);
 const CONTENT_PADDING_BOTTOM = responsiveValue(Spacing.xl, Spacing['2xl'], Spacing['3xl']);
+const OVERLINE_SIZE = responsiveValue(11, 12, 13);
 const TITLE_SIZE = responsiveValue(20, 24, 26);
+const SUBTITLE_SIZE = responsiveValue(14, 15, 16);
+const HELPER_SIZE = responsiveValue(12, 13, 14);
 const BUTTON_HEIGHT = responsiveValue(48, 56, 60);
 const BUTTON_TEXT_SIZE = responsiveValue(14, 16, 18);
 const BODY_SCALE = responsiveValue(0.24, 0.3, 0.34);
@@ -39,7 +42,7 @@ const BOTTOM_GAP = responsiveValue(Spacing.xl, Spacing['3xl'], Spacing['4xl']);
 
 export default function OnboardingBodyTypeScreen() {
   const router = useRouter();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
   const [selectedBodyType, setSelectedBodyType] = useState<BodyType | null>(null);
 
@@ -55,15 +58,16 @@ export default function OnboardingBodyTypeScreen() {
   // Theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
+    overline: { color: colors.textTertiary },
     title: { color: colors.textPrimary },
     subtitle: { color: colors.textSecondary },
+    helper: { color: colors.textTertiary },
     buttonText: { color: colors.white },
   };
 
   useEffect(() => {
     // Staggered entrance animation
     const animationSequence = Animated.stagger(150, [
-      // 1. Header fade + slide
       Animated.parallel([
         Animated.timing(headerOpacity, {
           toValue: 1,
@@ -76,7 +80,6 @@ export default function OnboardingBodyTypeScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 2. Cards fade + slide
       Animated.parallel([
         Animated.timing(cardsOpacity, {
           toValue: 1,
@@ -89,7 +92,6 @@ export default function OnboardingBodyTypeScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 3. Progress indicator
       Animated.timing(progressOpacity, {
         toValue: 1,
         duration: 400,
@@ -98,7 +100,7 @@ export default function OnboardingBodyTypeScreen() {
     ]);
 
     animationSequence.start();
-  }, []);
+  }, [cardsOpacity, cardsTranslate, headerOpacity, headerTranslate, progressOpacity]);
 
   // Animate button appearance when selection is made
   useEffect(() => {
@@ -117,7 +119,7 @@ export default function OnboardingBodyTypeScreen() {
         }),
       ]).start();
     }
-  }, [selectedBodyType]);
+  }, [buttonOpacity, buttonTranslate, selectedBodyType]);
 
   const handleBodyTypeSelect = (bodyType: BodyType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -135,8 +137,7 @@ export default function OnboardingBodyTypeScreen() {
     router.push('/onboarding/complete');
   };
 
-  // Body silhouette border color based on theme
-  const bodyBorder = isDark ? '#555555' : '#aaaaaa';
+  const bodyBorder = colors.borderMedium;
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -154,11 +155,12 @@ export default function OnboardingBodyTypeScreen() {
               },
             ]}
           >
+            <Text style={[styles.overline, themedStyles.overline]}>STEP 3 / 4</Text>
             <Text style={[styles.title, themedStyles.title]}>
-              SELECT BODY TYPE
+              BODY MAP
             </Text>
             <Text style={[styles.subtitle, themedStyles.subtitle]}>
-              Used for muscle visualization
+              Used to highlight the muscles you train.
             </Text>
           </Animated.View>
 
@@ -229,6 +231,10 @@ export default function OnboardingBodyTypeScreen() {
               </GlassButton>
             </Animated.View>
 
+            <Text style={[styles.helperText, themedStyles.helper]}>
+              This only affects visual muscle highlights.
+            </Text>
+
             {/* Progress Indicator */}
             <Animated.View style={{ opacity: progressOpacity }}>
               <OnboardingProgress currentStep={3} totalSteps={4} />
@@ -258,6 +264,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
+  overline: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: OVERLINE_SIZE,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
+  },
   title: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: TITLE_SIZE,
@@ -268,8 +280,9 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     ...Typography.body,
+    fontSize: SUBTITLE_SIZE,
     textAlign: 'center',
-    opacity: 0.8,
+    opacity: 0.85,
   },
   cardsContainer: {
     flexDirection: 'row',
@@ -295,5 +308,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 3,
     textTransform: 'uppercase',
+  },
+  helperText: {
+    ...Typography.bodySmall,
+    fontSize: HELPER_SIZE,
+    textAlign: 'center',
   },
 });

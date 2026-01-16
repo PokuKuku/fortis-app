@@ -1,7 +1,7 @@
 /**
- * Onboarding Complete Screen - Premium Activation Moment
+ * Onboarding Complete Screen - Calibration Complete
  *
- * Design Direction: "Private Fitness Club Membership"
+ * Design Direction: "Training Lab / Calibration"
  * Dramatic reveal with ring expansion and staggered animations.
  */
 
@@ -23,24 +23,33 @@ import { GlassButton } from '@/components/GlassButton';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { responsiveValue } from '@/src/utils/responsive';
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const RING_SIZE = responsiveValue(120, 160, 180);
 const CHECK_SIZE = responsiveValue(64, 80, 96);
 const CHECK_ICON_SIZE = responsiveValue(36, 48, 56);
+const OVERLINE_SIZE = responsiveValue(11, 12, 13);
 const HEADLINE_SIZE = responsiveValue(22, 26, 28);
 const SUBTITLE_SIZE = responsiveValue(14, 16, 18);
+const QUICK_LABEL_SIZE = responsiveValue(11, 12, 13);
+const QUICK_TEXT_SIZE = responsiveValue(12, 13, 14);
 const BUTTON_HEIGHT = responsiveValue(48, 56, 60);
 const BUTTON_TEXT_SIZE = responsiveValue(16, 18, 20);
 const BOTTOM_GAP = responsiveValue(Spacing.xl, Spacing['3xl'], Spacing['4xl']);
+const CONTENT_PADDING_TOP = responsiveValue(Spacing['2xl'], Spacing['3xl'], Spacing['4xl']);
 const CONTENT_PADDING_BOTTOM = responsiveValue(Spacing.lg, Spacing['2xl'], Spacing['3xl']);
+
+const QUICK_START_ITEMS = [
+  'Create your first session',
+  'Log sets with rest and RPE',
+  'Track PRs and weekly volume',
+];
 
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const { completeOnboarding, isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -53,6 +62,8 @@ export default function OnboardingCompleteScreen() {
   const headlineTranslate = useRef(new Animated.Value(20)).current;
   const subtitleOpacity = useRef(new Animated.Value(0)).current;
   const subtitleTranslate = useRef(new Animated.Value(15)).current;
+  const quickOpacity = useRef(new Animated.Value(0)).current;
+  const quickTranslate = useRef(new Animated.Value(15)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
   const buttonTranslate = useRef(new Animated.Value(30)).current;
   const progressOpacity = useRef(new Animated.Value(0)).current;
@@ -60,18 +71,22 @@ export default function OnboardingCompleteScreen() {
   // Theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
+    overline: { color: colors.textTertiary },
     headline: { color: colors.textPrimary },
     subtitle: { color: colors.textSecondary },
+    quickStart: {
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
+    },
+    quickLabel: { color: colors.textTertiary },
+    quickText: { color: colors.textSecondary },
     buttonText: { color: colors.white },
   };
 
   useEffect(() => {
-    // Trigger success haptic on mount
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Staggered entrance animation sequence
     const animationSequence = Animated.stagger(180, [
-      // 1. Ring expansion
       Animated.parallel([
         Animated.spring(ringScale, {
           toValue: 1,
@@ -85,7 +100,6 @@ export default function OnboardingCompleteScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 2. Checkmark pop
       Animated.parallel([
         Animated.timing(checkOpacity, {
           toValue: 1,
@@ -99,7 +113,6 @@ export default function OnboardingCompleteScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 3. Headline reveal
       Animated.parallel([
         Animated.timing(headlineOpacity, {
           toValue: 1,
@@ -112,7 +125,6 @@ export default function OnboardingCompleteScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 4. Subtitle reveal
       Animated.parallel([
         Animated.timing(subtitleOpacity, {
           toValue: 1,
@@ -125,7 +137,18 @@ export default function OnboardingCompleteScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 5. Button reveal
+      Animated.parallel([
+        Animated.timing(quickOpacity, {
+          toValue: 1,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+        Animated.timing(quickTranslate, {
+          toValue: 0,
+          duration: 400,
+          useNativeDriver: true,
+        }),
+      ]),
       Animated.parallel([
         Animated.timing(buttonOpacity, {
           toValue: 1,
@@ -138,7 +161,6 @@ export default function OnboardingCompleteScreen() {
           useNativeDriver: true,
         }),
       ]),
-      // 6. Progress indicator
       Animated.timing(progressOpacity, {
         toValue: 1,
         duration: 400,
@@ -147,35 +169,46 @@ export default function OnboardingCompleteScreen() {
     ]);
 
     animationSequence.start();
-  }, []);
+  }, [
+    buttonOpacity,
+    buttonTranslate,
+    checkOpacity,
+    checkScale,
+    headlineOpacity,
+    headlineTranslate,
+    progressOpacity,
+    quickOpacity,
+    quickTranslate,
+    ringOpacity,
+    ringScale,
+    subtitleOpacity,
+    subtitleTranslate,
+  ]);
 
   const handleEnter = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
 
     if (isAuthenticated) {
-      // User is signed in - mark onboarding complete and go to app
       const { error } = await completeOnboarding();
       setIsLoading(false);
       if (!error) {
         router.replace('/(tabs)');
       }
     } else {
-      // User is signed out - go to auth (they'll complete onboarding after signup)
       setIsLoading(false);
       router.replace('/auth');
     }
   };
 
-  // Ring animation interpolation
-  const ringStrokeDashoffset = ringScale.interpolate({
-    inputRange: [0, 1],
-    outputRange: [440, 0], // Full circle circumference
-  });
-
-  // Gradient colors for ring - use theme accent colors
   const ringGradientStart = colors.accentLight;
   const ringGradientEnd = colors.accentDark;
+
+  const buttonLabel = isLoading
+    ? 'LOADING...'
+    : isAuthenticated
+      ? 'ENTER FORTIS'
+      : 'CREATE ACCOUNT';
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -183,11 +216,8 @@ export default function OnboardingCompleteScreen() {
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {/* Hero Section - Icon + Text */}
           <View style={styles.heroSection}>
-            {/* Success Icon with Ring */}
             <View style={styles.iconContainer}>
-              {/* Animated Ring */}
               <Animated.View
                 style={[
                   styles.ringContainer,
@@ -216,7 +246,6 @@ export default function OnboardingCompleteScreen() {
                 </Svg>
               </Animated.View>
 
-              {/* Checkmark Icon */}
               <Animated.View
                 style={[
                   styles.checkContainer,
@@ -232,8 +261,20 @@ export default function OnboardingCompleteScreen() {
               </Animated.View>
             </View>
 
-            {/* Text Content */}
             <View style={styles.textContainer}>
+              <Animated.Text
+                style={[
+                  styles.overline,
+                  themedStyles.overline,
+                  {
+                    opacity: headlineOpacity,
+                    transform: [{ translateY: headlineTranslate }],
+                  },
+                ]}
+              >
+                CALIBRATION COMPLETE
+              </Animated.Text>
+
               <Animated.Text
                 style={[
                   styles.headline,
@@ -244,7 +285,7 @@ export default function OnboardingCompleteScreen() {
                   },
                 ]}
               >
-                YOUR TRAINING BEGINS
+                SYSTEM READY
               </Animated.Text>
 
               <Animated.Text
@@ -257,14 +298,31 @@ export default function OnboardingCompleteScreen() {
                   },
                 ]}
               >
-                Welcome to Fortis
+                Your training log is tuned and ready to run.
               </Animated.Text>
             </View>
+
+            <Animated.View
+              style={[
+                styles.quickStart,
+                themedStyles.quickStart,
+                {
+                  opacity: quickOpacity,
+                  transform: [{ translateY: quickTranslate }],
+                },
+              ]}
+            >
+              <Text style={[styles.quickLabel, themedStyles.quickLabel]}>QUICK START</Text>
+              {QUICK_START_ITEMS.map((item) => (
+                <View key={item} style={styles.quickRow}>
+                  <View style={[styles.quickDot, { backgroundColor: colors.accent }]} />
+                  <Text style={[styles.quickText, themedStyles.quickText]}>{item}</Text>
+                </View>
+              ))}
+            </Animated.View>
           </View>
 
-          {/* Bottom Section */}
           <View style={styles.bottomSection}>
-            {/* Enter Button */}
             <Animated.View
               style={[
                 styles.buttonContainer,
@@ -280,12 +338,11 @@ export default function OnboardingCompleteScreen() {
                 disabled={isLoading}
               >
                 <Text style={[styles.buttonText, themedStyles.buttonText]}>
-                  {isLoading ? 'LOADING...' : isAuthenticated ? 'ENTER' : 'CREATE ACCOUNT'}
+                  {buttonLabel}
                 </Text>
               </GlassButton>
             </Animated.View>
 
-            {/* Progress Indicator */}
             <Animated.View style={{ opacity: progressOpacity }}>
               <OnboardingProgress currentStep={4} totalSteps={4} />
             </Animated.View>
@@ -306,14 +363,15 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: Spacing['2xl'],
-    justifyContent: 'space-between',
+    paddingTop: CONTENT_PADDING_TOP,
     paddingBottom: CONTENT_PADDING_BOTTOM,
+    justifyContent: 'space-between',
   },
   heroSection: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: Spacing['3xl'],
+    gap: Spacing['2xl'],
   },
   iconContainer: {
     width: RING_SIZE,
@@ -332,13 +390,18 @@ const styles = StyleSheet.create({
     width: CHECK_SIZE,
     height: CHECK_SIZE,
     borderRadius: CHECK_SIZE / 2,
-    // backgroundColor set dynamically via themedStyles using colors.accentOverlay
     alignItems: 'center',
     justifyContent: 'center',
   },
   textContainer: {
     alignItems: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  overline: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: OVERLINE_SIZE,
+    letterSpacing: 3,
+    textTransform: 'uppercase',
   },
   headline: {
     fontFamily: 'BankGothicBT-Medium',
@@ -349,12 +412,38 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   subtitle: {
-    fontFamily: 'BankGothicBT-Medium',
+    ...Typography.body,
     fontSize: SUBTITLE_SIZE,
-    fontWeight: '500',
-    letterSpacing: 2,
     textAlign: 'center',
-    opacity: 0.7,
+    maxWidth: 320,
+  },
+  quickStart: {
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  quickLabel: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: QUICK_LABEL_SIZE,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  quickRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  quickDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  quickText: {
+    ...Typography.bodySmall,
+    fontSize: QUICK_TEXT_SIZE,
+    flex: 1,
   },
   bottomSection: {
     gap: BOTTOM_GAP,
