@@ -30,7 +30,9 @@ export default function OnboardingGenderScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive || !state?.gender) return;
-      setSelected(state.gender);
+      if (state.gender === 'male' || state.gender === 'female') {
+        setSelected(state.gender);
+      }
     };
 
     loadState();

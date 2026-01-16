@@ -37,10 +37,10 @@ export default function OnboardingBirthdateScreen() {
   );
 
   useEffect(() => {
-    if (dayIndex > days.length - 1) {
-      setDayIndex(days.length - 1);
+    if (dayIndex > daysInMonth - 1) {
+      setDayIndex(daysInMonth - 1);
     }
-  }, [dayIndex, days.length]);
+  }, [dayIndex, daysInMonth]);
 
   useEffect(() => {
     let isActive = true;
@@ -99,6 +99,7 @@ export default function OnboardingBirthdateScreen() {
         </View>
         <View style={styles.pickerColumn}>
           <OnboardingWheelPicker
+            key={`day-${daysInMonth}`}
             items={days}
             selectedIndex={dayIndex}
             onChange={setDayIndex}
