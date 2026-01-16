@@ -7,6 +7,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { scale } from '@/src/utils/responsive';
+import { getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
 
 const { width, height } = Dimensions.get('window');
 const PARTICLE_TRAVEL_Y = scale(120);
@@ -82,6 +83,8 @@ export default function SplashScreen() {
   const { colors } = useTheme();
   const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
   const [splashComplete, setSplashComplete] = useState(false);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
+  const [onboardingStateLoaded, setOnboardingStateLoaded] = useState(false);
 
   // Generate 15 particles
   const particles = useMemo(
@@ -98,21 +101,51 @@ export default function SplashScreen() {
   );
 
   // Handle navigation when both splash is complete and auth is loaded
-  // Flow: Auth → Onboarding (if needed) → Main App
+  // Flow: Splash → Onboarding → Auth → Main App
   useEffect(() => {
-    if (splashComplete) {
-      if (!isAuthenticated) {
-        // Not signed in - go to auth first
-        router.replace('/auth');
-      } else if (needsOnboarding) {
-        // Signed in but hasn't completed onboarding
+    if (!splashComplete || isLoading || !onboardingStateLoaded) return;
+
+    if (isAuthenticated) {
+      if (needsOnboarding && !onboardingState?.completed) {
         router.replace('/onboarding');
       } else {
-        // Signed in and onboarding complete - go to main app
         router.replace('/(tabs)');
       }
+      return;
     }
-  }, [splashComplete, isAuthenticated, needsOnboarding, router]);
+
+    if (onboardingState?.completed) {
+      router.replace('/auth');
+      return;
+    }
+
+    router.replace('/onboarding');
+  }, [
+    splashComplete,
+    isLoading,
+    onboardingStateLoaded,
+    onboardingState?.completed,
+    isAuthenticated,
+    needsOnboarding,
+    router,
+  ]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadOnboardingState = async () => {
+      const state = await getOnboardingState();
+      if (!isActive) return;
+      setOnboardingState(state);
+      setOnboardingStateLoaded(true);
+    };
+
+    loadOnboardingState();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {

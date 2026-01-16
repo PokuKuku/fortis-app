@@ -30,7 +30,6 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import { GlassCard } from '@/components/GlassCard';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
-import { useAuth } from '@/src/contexts/AuthContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -75,14 +74,6 @@ const FEATURES = [
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { isAuthenticated, isLoading } = useAuth();
-
-  // Redirect to auth if not authenticated (onboarding requires auth first)
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace('/auth');
-    }
-  }, [isLoading, isAuthenticated, router]);
 
   // Staggered animation values
   const logoOpacity = useRef(new Animated.Value(0)).current;

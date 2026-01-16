@@ -57,11 +57,14 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
 
 export default function AuthWelcomeScreen() {
   const router = useRouter();
   const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding } = useAuth();
   const { colors, isDark } = useTheme();
+  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
+  const [onboardingStateLoaded, setOnboardingStateLoaded] = useState(false);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -90,14 +93,36 @@ export default function AuthWelcomeScreen() {
 
   // Navigate when auth state changes
   useEffect(() => {
-    if (isAuthenticated) {
-      if (needsOnboarding) {
-        router.replace('/onboarding');
-      } else {
+    if (!isAuthenticated || !onboardingStateLoaded) return;
+
+    if (needsOnboarding) {
+      if (onboardingState?.completed) {
         router.replace('/(tabs)');
+      } else {
+        router.replace('/onboarding');
       }
+      return;
     }
-  }, [isAuthenticated, needsOnboarding, router]);
+
+    router.replace('/(tabs)');
+  }, [isAuthenticated, needsOnboarding, onboardingState?.completed, onboardingStateLoaded, router]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadOnboardingState = async () => {
+      const state = await getOnboardingState();
+      if (!isActive) return;
+      setOnboardingState(state);
+      setOnboardingStateLoaded(true);
+    };
+
+    loadOnboardingState();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {

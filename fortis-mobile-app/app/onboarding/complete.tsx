@@ -26,6 +26,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { responsiveValue } from '@/src/utils/responsive';
+import { updateOnboardingState } from '@/src/utils/onboardingState';
 
 const RING_SIZE = responsiveValue(120, 160, 180);
 const CHECK_SIZE = responsiveValue(64, 80, 96);
@@ -188,6 +189,8 @@ export default function OnboardingCompleteScreen() {
   const handleEnter = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsLoading(true);
+
+    await updateOnboardingState({ completed: true });
 
     if (isAuthenticated) {
       const { error } = await completeOnboarding();

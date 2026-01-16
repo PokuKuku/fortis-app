@@ -14,6 +14,7 @@ import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
+import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboardingState';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { type AccentColorName } from '@/src/utils/accentColors';
 import * as AppleAuthentication from 'expo-apple-authentication';
@@ -584,6 +585,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return { error: err as Error };
     }
   }, [user?.id, refreshProfile]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !profile) return;
+
+    let isActive = true;
+
+    const syncPendingOnboarding = async () => {
+      const state = await getOnboardingState();
+      if (!isActive || !state?.completed) return;
+
+      const updates: Partial<Profile> = {};
+      if (!profile.onboarding_completed) {
+        updates.onboarding_completed = true;
+      }
+      if (state.preferred_units && profile.preferred_units !== state.preferred_units) {
+        updates.preferred_units = state.preferred_units;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        const { error } = await updateProfile(updates);
+        if (error) {
+          console.warn('Failed to sync onboarding state:', error);
+          return;
+        }
+      }
+
+      await clearOnboardingState();
+    };
+
+    syncPendingOnboarding().catch((error) => {
+      console.warn('Failed to sync onboarding state:', error);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    isAuthenticated,
+    profile,
+    profile?.onboarding_completed,
+    profile?.preferred_units,
+    updateProfile,
+  ]);
 
   // Upload avatar
   const uploadAvatar = useCallback(async (

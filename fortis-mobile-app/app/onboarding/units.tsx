@@ -22,6 +22,7 @@ import { GlassButton } from '@/components/GlassButton';
 import { SelectionCard } from '@/src/components/onboarding/SelectionCard';
 import { OnboardingProgress } from '@/src/components/onboarding/OnboardingProgress';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -102,6 +103,22 @@ export default function OnboardingUnitsScreen() {
     animationSequence.start();
   }, [cardsOpacity, cardsTranslate, headerOpacity, headerTranslate, progressOpacity]);
 
+  useEffect(() => {
+    let isActive = true;
+
+    const loadOnboardingState = async () => {
+      const state = await getOnboardingState();
+      if (!isActive || !state?.preferred_units) return;
+      setSelectedUnit(state.preferred_units);
+    };
+
+    loadOnboardingState();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
   // Animate button appearance when selection is made
   useEffect(() => {
     if (selectedUnit) {
@@ -130,6 +147,8 @@ export default function OnboardingUnitsScreen() {
     if (!selectedUnit) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    await updateOnboardingState({ preferred_units: selectedUnit });
 
     // Save to profile if authenticated
     if (isAuthenticated) {
