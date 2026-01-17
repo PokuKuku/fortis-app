@@ -13,7 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon } from 'react-native-heroicons/outline';
+import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon, ChartBarIcon } from 'react-native-heroicons/outline';
 import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
 import { GlassButton } from '../../components/GlassButton';
 import { useAIStore } from '../../src/store/aiStore';
@@ -73,7 +73,17 @@ export default function TabLayout() {
   const loadStartPreset = useStartPresetStore(s => s.loadPreset);
   const setStartPreset = useStartPresetStore(s => s.setPreset);
   // Tab bar stays at fixed position
-  const tabBarBottom = 12;
+  const tabBarBottom = 14;
+  const TAB_BAR_HEIGHT = 64;
+  const TAB_BAR_RADIUS = 32;
+  const TAB_BAR_PADDING_X = 20;
+  const TAB_BAR_ITEM_MAX_WIDTH = 76;
+  const TAB_BAR_LABEL_SIZE = 8;
+  const TAB_ICON_SIZE = 19;
+  const CENTER_BUTTON_SIZE = 52;
+  const CENTER_BUTTON_ICON_SIZE = 20;
+  const FAB_BUTTON_SIZE = 68;
+  const FAB_ICON_SIZE = 34;
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -424,15 +434,15 @@ export default function TabLayout() {
             borderTopWidth: 1,
             borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
             borderWidth: 1,
-            paddingHorizontal: 16,
+            paddingHorizontal: TAB_BAR_PADDING_X,
             paddingVertical: 0,
-            height: 56,
+            height: TAB_BAR_HEIGHT,
             position: 'absolute',
             width: '90%',
             maxWidth: 420,
             marginHorizontal: '5%',
             bottom: tabBarBottom,
-            borderRadius: 28,
+            borderRadius: TAB_BAR_RADIUS,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 8 },
             shadowOpacity: isDark ? 0.4 : 0.15,
@@ -440,14 +450,15 @@ export default function TabLayout() {
             elevation: 10,
           },
           tabBarLabelStyle: {
-            fontSize: 8,
+            fontSize: TAB_BAR_LABEL_SIZE,
             fontWeight: '600',
             marginTop: 0,
           },
           tabBarItemStyle: {
             flex: 1,
             gap: 2,
-            maxWidth: 70,
+            maxWidth: TAB_BAR_ITEM_MAX_WIDTH,
+            paddingTop: 2,
           },
         }}
     >
@@ -457,7 +468,7 @@ export default function TabLayout() {
           title: 'History',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
-              <CalendarDaysIcon color={color} size={18} strokeWidth={2} />
+              <CalendarDaysIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -468,7 +479,7 @@ export default function TabLayout() {
           title: 'Insights',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
-              <SparklesIcon color={color} size={18} strokeWidth={2} />
+              <ChartBarIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -491,7 +502,7 @@ export default function TabLayout() {
             <View style={styles.centerButtonContainer}>
               <GlassButton
                 circular
-                size={46}
+                size={CENTER_BUTTON_SIZE}
                 style={[
                   styles.centerButton,
                   { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
@@ -502,12 +513,12 @@ export default function TabLayout() {
                 onLongPress={handleStartLongPress}
                 disabled={isWorkoutActive}
               >
-                <DumbbellIcon color="#fff" size={18} fill="#fff" />
+                <DumbbellIcon color="#fff" size={CENTER_BUTTON_ICON_SIZE} fill="#fff" />
               </GlassButton>
             </View>
           ),
           tabBarLabelStyle: {
-            fontSize: 8,
+            fontSize: TAB_BAR_LABEL_SIZE,
             fontWeight: '700',
             marginTop: 2,
           },
@@ -519,7 +530,7 @@ export default function TabLayout() {
           title: 'Programs',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
-              <Squares2X2Icon color={color} size={18} strokeWidth={2} />
+              <Squares2X2Icon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -530,7 +541,7 @@ export default function TabLayout() {
           title: 'Profile',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
-              <UserIcon color={color} size={18} strokeWidth={2} />
+              <UserIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -556,7 +567,7 @@ export default function TabLayout() {
         styles.plusButtonContainer,
         {
           // FAB aligned with mini bar height (88px from bottom)
-          bottom: tabBarBottom + 56 + 20,
+          bottom: tabBarBottom + TAB_BAR_HEIGHT + 20,
           opacity: fabOpacity,
           transform: [
             {
@@ -572,7 +583,7 @@ export default function TabLayout() {
     >
       <GlassButton
         circular
-        size={60}
+        size={FAB_BUTTON_SIZE}
         style={[
           styles.plusButton,
           { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
@@ -581,7 +592,7 @@ export default function TabLayout() {
         onPress={handleFabPress}
         pointerEvents={detailModalVisible ? 'none' : 'auto'}
       >
-        <SparklesIcon color="#fff" size={30} strokeWidth={1.5} />
+        <SparklesIcon color="#fff" size={FAB_ICON_SIZE} strokeWidth={1.5} />
       </GlassButton>
     </Animated.View>
 
@@ -808,8 +819,8 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabIconContainer: {
-    padding: 4,
-    borderRadius: 8,
+    padding: 6,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -817,7 +828,7 @@ const styles = StyleSheet.create({
     // backgroundColor is now dynamic via themedStyles
   },
   centerButtonContainer: {
-    marginTop: -16,
+    marginTop: -18,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -829,7 +840,7 @@ const styles = StyleSheet.create({
   },
   plusButtonContainer: {
     position: 'absolute',
-    bottom: 24 + 56 + 8,
+    bottom: 24 + 64 + 8,
     right: '5%',
     zIndex: 1000,
   },

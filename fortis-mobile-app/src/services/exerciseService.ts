@@ -1,6 +1,5 @@
 import { DeviceEventEmitter } from 'react-native';
 import { Exercise, ExerciseWithSource, ExerciseSource } from '@/src/types/exercise';
-import { EXERCISE_CONFIG } from '@/src/constants/exerciseConfig';
 import {
   CUSTOM_EXERCISES_KEY,
   EXERCISE_CACHE_KEY,
@@ -12,7 +11,6 @@ import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { analytics } from '@/src/services/analyticsService';
-import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
@@ -29,6 +27,7 @@ const CUSTOM_EXERCISE_PREFIX = 'custom-';
 const SUPABASE_EXERCISE_PAGE_SIZE = 1000;
 const SUPABASE_EXERCISE_MAX_PAGES = 20;
 const MIN_EXPECTED_EXERCISE_COUNT = 1200;
+const EXERCISE_CACHE_DURATION_MS = 30 * 24 * 60 * 60 * 1000;
 
 // --- Helpers ---
 
@@ -155,11 +154,6 @@ function mergeExercises(primary: Exercise[], fallback: Exercise[]): Exercise[] {
   });
 
   return Array.from(byId.values());
-}
-
-function isValidUUID(value: string): boolean {
-  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-  return uuidRegex.test(value);
 }
 
 function normalizeCategoryForDb(category?: string | null): string {
@@ -358,7 +352,7 @@ async function isCacheValid(): Promise<boolean> {
     if (!timestamp) return false;
 
     const cacheAge = Date.now() - parseInt(timestamp, 10);
-    return cacheAge < EXERCISE_CONFIG.cacheDurationMs;
+    return cacheAge < EXERCISE_CACHE_DURATION_MS;
   } catch {
     return false;
   }
@@ -552,12 +546,6 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
   return exerciseWithSource;
 }
 
-export async function searchExercises(query: string): Promise<ExerciseWithSource[]> {
-  const exercises = await getAllExercises();
-  const index = buildExerciseSearchIndex(exercises);
-  return searchExercisesInIndex(query, index);
-}
-
 export async function getExerciseVariants(canonicalId: string): Promise<Exercise[]> {
   if (!canonicalId || !isSupabaseConfigured()) return [];
 
@@ -574,26 +562,6 @@ export async function getExerciseVariants(canonicalId: string): Promise<Exercise
   }
 
   return data.map(transformSupabaseExerciseToExercise);
-}
-
-export async function filterExercises(filters: {
-  muscles?: string[];
-  categories?: string[];
-  equipment?: string[];
-}): Promise<ExerciseWithSource[]> {
-  const exercises = await getAllExercises();
-  return exercises.filter(e => {
-    if (filters.muscles?.length && !filters.muscles.some(m => e.primaryMuscles.includes(m))) {
-      return false;
-    }
-    if (filters.categories?.length && !filters.categories.includes(e.category)) {
-      return false;
-    }
-    if (filters.equipment?.length && !filters.equipment.includes(e.equipment)) {
-      return false;
-    }
-    return true;
-  });
 }
 
 // --- Base Exercise Loading (Supabase-backed with caching) ---
@@ -792,49 +760,7 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
   exerciseLookupCache = null;
 }
 
-export async function deleteCustomExercise(id: string): Promise<void> {
-  const customs = await getCustomExercises();
-  const exerciseToDelete = customs.find(e => e.id === id);
-  const filtered = customs.filter(e => e.id !== id);
-
-  // Delete from local storage first (offline-first)
-  await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(filtered));
-  customExerciseCache = filtered;
-  allExercisesCache = null;
-  exerciseLookupCache = null;
-
-  // Delete from Supabase in background (fire-and-forget)
-  if (exerciseToDelete && isSupabaseConfigured()) {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      // Delete by ID or by slug (in case IDs don't match between local and remote)
-      const slug = exerciseToDelete.slug ||
-        exerciseToDelete.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-
-      supabase
-        .from('exercises')
-        .delete()
-        .eq('created_by', user.id)
-        .eq('is_custom', true)
-        .or(`id.eq.${id},slug.eq.${slug}`)
-        .then(({ error }) => {
-          if (error) {
-            console.warn('Failed to delete custom exercise from Supabase:', error);
-          }
-        });
-    });
-  }
-}
-
 // --- Cache Management ---
-
-export function invalidateCache(): void {
-  baseExerciseCache = null;
-  baseExerciseFullCache = null;
-  customExerciseCache = null;
-  allExercisesCache = null;
-  exerciseLookupCache = null;
-}
 
 export function invalidateCustomCache(): void {
   customExerciseCache = null;
