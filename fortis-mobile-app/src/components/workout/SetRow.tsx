@@ -149,7 +149,24 @@ export function SetRow({
   const removeSet = useWorkoutStore(s => useEditor ? s.removeEditorSet : s.removeSet);
   const openNumberPad = useWorkoutStore(s => useEditor ? s.openEditorNumberPad : s.openNumberPad);
   const closeNumberPad = useWorkoutStore(s => useEditor ? s.closeEditorNumberPad : s.closeNumberPad);
-  const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+  const activeInputType = useWorkoutStore((s) => {
+    const active = s.activeNumberPad;
+    if (!active) return null;
+    if (active.exerciseLocalId !== exerciseLocalId || active.setLocalId !== setLocalId) return null;
+    return active.inputType;
+  });
+  const activePendingValue = useWorkoutStore((s) => {
+    const active = s.activeNumberPad;
+    if (!active) return null;
+    if (active.exerciseLocalId !== exerciseLocalId || active.setLocalId !== setLocalId) return null;
+    return active.pendingValue;
+  });
+  const activeHasError = useWorkoutStore((s) => {
+    const active = s.activeNumberPad;
+    if (!active) return false;
+    if (active.exerciseLocalId !== exerciseLocalId || active.setLocalId !== setLocalId) return false;
+    return active.hasError;
+  });
   const validationErrorsBySet = useWorkoutStore(s => s.validationErrorsBySet);
   const validationErrorsTrigger = useWorkoutStore(s => s.validationErrorsTrigger);
   const setValidationErrorsBySet = useWorkoutStore(s => s.setValidationErrorsBySet);
@@ -157,12 +174,8 @@ export function SetRow({
   const unregisterWorkoutOverlay = useWorkoutStore(s => s.unregisterWorkoutOverlay);
 
   // Check if this input is currently active
-  const isWeightActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
-    activeNumberPad?.setLocalId === setLocalId &&
-    activeNumberPad?.inputType === 'weight';
-  const isRepsActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
-    activeNumberPad?.setLocalId === setLocalId &&
-    activeNumberPad?.inputType === 'reps';
+  const isWeightActive = activeInputType === 'weight';
+  const isRepsActive = activeInputType === 'reps';
 
   const [showTypeSelector, setShowTypeSelector] = useState(false);
   const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | undefined>();
@@ -199,7 +212,7 @@ export function SetRow({
 
   // Trigger shake when hasError becomes true
   useEffect(() => {
-    if (activeNumberPad?.hasError) {
+    if (activeHasError) {
       if (isWeightActive) {
         triggerShake('weight');
       }
@@ -207,7 +220,7 @@ export function SetRow({
         triggerShake('reps');
       }
     }
-  }, [activeNumberPad?.hasError]);
+  }, [activeHasError, isWeightActive, isRepsActive]);
 
   useEffect(() => {
     if (showTypeSelector && !isTypeSelectorOpenRef.current) {
@@ -320,6 +333,7 @@ export function SetRow({
       let pendingWeight: number | null = null;
       let pendingReps: number | null = null;
 
+      const activeNumberPad = useWorkoutStore.getState().activeNumberPad;
       if (
         activeNumberPad
         && activeNumberPad.exerciseLocalId === exerciseLocalId
@@ -366,6 +380,7 @@ export function SetRow({
       });
     });
 
+    const activeNumberPad = useWorkoutStore.getState().activeNumberPad;
     if (
       activeNumberPad
       && activeNumberPad.exerciseLocalId === exerciseLocalId
@@ -400,6 +415,7 @@ export function SetRow({
 
   const handleComplete = () => {
     // Check if number pad is open for this set (to grab pending value)
+    const activeNumberPad = useWorkoutStore.getState().activeNumberPad;
     const isThisSetActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
       activeNumberPad?.setLocalId === setLocalId;
     const pendingField = isThisSetActive ? activeNumberPad?.inputType : null;
@@ -665,13 +681,13 @@ export function SetRow({
             style={[
               getInputStyle('weight'),
               isWeightActive && [styles.inputActive, themedStyles.inputActive],
-              isWeightActive && activeNumberPad?.hasError && styles.inputError
+              isWeightActive && activeHasError && styles.inputError
             ]}
           >
             <Text style={[
               styles.inputText,
               themedStyles.inputText,
-              (isWeightActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.weight != null) && themedStyles.placeholderText,
+              (isWeightActive && !activePendingValue && allowAutoFill && previousSet?.weight != null) && themedStyles.placeholderText,
               (!isWeightActive && set.weight === null && allowAutoFill) && themedStyles.placeholderText
             ]}
             numberOfLines={1}
@@ -679,7 +695,7 @@ export function SetRow({
             minimumFontScale={0.6}
             >
               {isWeightActive
-                ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.weight?.toString() : '') || '')
+                ? (activePendingValue || (allowAutoFill ? previousSet?.weight?.toString() : '') || '')
                 : (set.weight !== null ? set.weight.toString() : (allowAutoFill ? previousSet?.weight?.toString() || '' : ''))}
             </Text>
           </Pressable>
@@ -698,13 +714,13 @@ export function SetRow({
               style={[
                 getInputStyle('reps'),
                 isRepsActive && [styles.inputActive, themedStyles.inputActive],
-                isRepsActive && activeNumberPad?.hasError && styles.inputError
+                isRepsActive && activeHasError && styles.inputError
               ]}
               >
                 <Text style={[
                   styles.inputText,
                   themedStyles.inputText,
-                  (isRepsActive && !activeNumberPad?.pendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
+                  (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
                   (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
                 ]}
                 numberOfLines={1}
@@ -712,7 +728,7 @@ export function SetRow({
                 minimumFontScale={0.6}
                 >
                   {isRepsActive
-                    ? (activeNumberPad?.pendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
+                    ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
                     : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
                 </Text>
           </Pressable>

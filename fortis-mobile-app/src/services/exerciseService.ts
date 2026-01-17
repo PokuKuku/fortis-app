@@ -21,10 +21,14 @@ let customExerciseCache: Exercise[] | null = null;
 let allExercisesCache: ExerciseWithSource[] | null = null;
 let allExercisesPromise: Promise<ExerciseWithSource[]> | null = null;
 let exerciseLookupCache: Map<string, ExerciseWithSource> | null = null;
+let snapshotExerciseCache: Exercise[] | null = null;
 
 const EXERCISE_LIBRARY_UPDATED_EVENT = 'exerciseLibraryUpdated';
 const WIDE_GRIP_LAT_PULLDOWN_ID = 'c56d8350-56c1-4bc4-99e1-4de71e680c21';
 const CUSTOM_EXERCISE_PREFIX = 'custom-';
+const SUPABASE_EXERCISE_PAGE_SIZE = 1000;
+const SUPABASE_EXERCISE_MAX_PAGES = 20;
+const MIN_EXPECTED_EXERCISE_COUNT = 1200;
 
 // --- Helpers ---
 
@@ -61,6 +65,26 @@ type SupabaseExerciseRow = {
   normalized_name?: string | null;
 };
 
+type SnapshotExerciseRow = {
+  id: string;
+  slug?: string | null;
+  name: string;
+  equipment?: string | null;
+  category?: string | null;
+  primary_muscles?: string[] | null;
+  secondary_muscles?: string[] | null;
+  instructions?: string[] | null;
+  images?: string[] | null;
+  aliases?: string[] | null;
+  canonical_id?: string | null;
+  canonical_key?: string | null;
+  based_on_exercise_id?: string | null;
+  is_curated?: boolean | null;
+  is_hidden?: boolean | null;
+  is_custom?: boolean | null;
+  normalized_name?: string | null;
+};
+
 function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise {
   return {
     id: row.id,
@@ -81,6 +105,56 @@ function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise
     isCustom: row.is_custom ?? false,
     normalizedName: row.normalized_name ?? undefined,
   };
+}
+
+function transformSnapshotExerciseToExercise(row: SnapshotExerciseRow): Exercise {
+  return transformSupabaseExerciseToExercise({
+    id: row.id,
+    slug: row.slug ?? null,
+    name: row.name,
+    equipment: row.equipment ?? null,
+    category: row.category ?? null,
+    primary_muscles: row.primary_muscles ?? [],
+    secondary_muscles: row.secondary_muscles ?? [],
+    instructions: row.instructions ?? [],
+    images: row.images ?? [],
+    aliases: row.aliases ?? [],
+    canonical_id: row.canonical_id ?? null,
+    canonical_key: row.canonical_key ?? null,
+    based_on_exercise_id: row.based_on_exercise_id ?? null,
+    is_curated: row.is_curated ?? false,
+    is_hidden: row.is_hidden ?? false,
+    is_custom: row.is_custom ?? false,
+    normalized_name: row.normalized_name ?? null,
+  });
+}
+
+function loadSnapshotExercises(): Exercise[] {
+  if (snapshotExerciseCache) return snapshotExerciseCache;
+
+  try {
+    const raw = require('@/src/data/exerciseLibrarySnapshot.json') as SnapshotExerciseRow[];
+    snapshotExerciseCache = raw.map(transformSnapshotExerciseToExercise);
+  } catch (error) {
+    console.warn('Failed to load exercise snapshot:', error);
+    snapshotExerciseCache = [];
+  }
+
+  return snapshotExerciseCache;
+}
+
+function mergeExercises(primary: Exercise[], fallback: Exercise[]): Exercise[] {
+  if (fallback.length === 0) return primary;
+
+  const byId = new Map<string, Exercise>();
+  fallback.forEach((exercise) => {
+    byId.set(exercise.id, exercise);
+  });
+  primary.forEach((exercise) => {
+    byId.set(exercise.id, exercise);
+  });
+
+  return Array.from(byId.values());
 }
 
 function isValidUUID(value: string): boolean {
@@ -341,6 +415,42 @@ async function fetchLibraryVersion(): Promise<string | null> {
   return data?.version ? String(data.version) : null;
 }
 
+async function fetchAllBaseExercisesFromSupabase(): Promise<Exercise[]> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase is not configured for exercise loading');
+  }
+
+  const exercises: Exercise[] = [];
+
+  for (let page = 0; page < SUPABASE_EXERCISE_MAX_PAGES; page += 1) {
+    const from = page * SUPABASE_EXERCISE_PAGE_SIZE;
+    const to = from + SUPABASE_EXERCISE_PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from('exercises')
+      .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
+      .eq('is_custom', false)
+      .eq('is_hidden', false)
+      .order('name', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    exercises.push(...data.map(transformSupabaseExerciseToExercise));
+
+    if (data.length < SUPABASE_EXERCISE_PAGE_SIZE) {
+      break;
+    }
+  }
+
+  return exercises;
+}
+
 // --- Core Functions ---
 
 export async function getAllExercises(options?: { includeVariants?: boolean }): Promise<ExerciseWithSource[]> {
@@ -512,8 +622,17 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
           (exercise) => exercise.isCurated === false || !!exercise.canonicalId
         );
         if (hasNonCuratedOrVariant) {
-          baseExerciseCache = cached;
-          return cached;
+          const snapshotExercises = cached.length < MIN_EXPECTED_EXERCISE_COUNT
+            ? loadSnapshotExercises()
+            : [];
+          const merged = snapshotExercises.length > 0
+            ? mergeExercises(cached, snapshotExercises)
+            : cached;
+          baseExerciseCache = merged;
+          if (merged !== cached) {
+            await saveCachedExercises(merged);
+          }
+          return merged;
         }
       }
     }
@@ -521,38 +640,27 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
 
   // 3. Fetch from Supabase
   try {
-    if (!isSupabaseConfigured()) {
-      throw new Error('Supabase is not configured for exercise loading');
-    }
-
-    const baseQuery = supabase
-      .from('exercises')
-      .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
-      .eq('is_custom', false)
-      .eq('is_hidden', false);
-
-    const filteredQuery = baseQuery;
-
-    const [version, { data, error }] = await Promise.all([
+    const [version, transformed] = await Promise.all([
       fetchLibraryVersion(),
-      filteredQuery.order('name', { ascending: true }),
+      fetchAllBaseExercisesFromSupabase(),
     ]);
 
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    const transformed = (data || []).map(transformSupabaseExerciseToExercise);
+    const snapshotExercises = transformed.length < MIN_EXPECTED_EXERCISE_COUNT
+      ? loadSnapshotExercises()
+      : [];
+    const merged = snapshotExercises.length > 0
+      ? mergeExercises(transformed, snapshotExercises)
+      : transformed;
 
     if (includeVariants) {
-      baseExerciseFullCache = transformed;
+      baseExerciseFullCache = merged;
     } else {
-      baseExerciseCache = transformed;
-      await saveCachedExercises(transformed);
+      baseExerciseCache = merged;
+      await saveCachedExercises(merged);
       await saveCachedLibraryVersion(version);
     }
 
-    return transformed;
+    return merged;
   } catch (error) {
     // Track API error
     analytics.trackApiError({
@@ -567,6 +675,13 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
       console.warn('Using stale cache due to API error:', error);
       baseExerciseCache = staleCache;
       return staleCache;
+    }
+
+    const snapshotExercises = loadSnapshotExercises();
+    if (snapshotExercises.length > 0) {
+      console.warn('Using bundled exercise snapshot due to API error:', error);
+      baseExerciseCache = snapshotExercises;
+      return snapshotExercises;
     }
 
     // 5. No cache available - throw error
