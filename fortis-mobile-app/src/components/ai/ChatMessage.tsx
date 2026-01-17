@@ -316,7 +316,7 @@ function buildFallbackTldr(content: string) {
 
   const tldr = clampSentences(candidates, TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
   if (tldr) {
-    return tldr;
+    return cleanTldrEnding(tldr);
   }
 
   const fallback = clampSentences(
@@ -324,7 +324,7 @@ function buildFallbackTldr(content: string) {
     TLDR_MAX_SENTENCES,
     TLDR_MAX_WORDS
   );
-  return fallback ?? null;
+  return fallback ? cleanTldrEnding(fallback) : null;
 }
 
 function shouldDisplayTldr(content: string): boolean {
@@ -386,7 +386,8 @@ function normalizeTldr(text: string): string | null {
   if (!cleaned) {
     return null;
   }
-  return clampSentences(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+  const clamped = clampSentences(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+  return clamped ? cleanTldrEnding(clamped) : null;
 }
 
 function clampSentences(sentences: string[], maxSentences: number, maxWords: number): string | null {
@@ -470,6 +471,22 @@ const TRAILING_STOP_WORDS = new Set([
   'with',
   'without',
 ]);
+
+function cleanTldrEnding(text: string): string {
+  if (!text) return '';
+  let trimmed = text.trim();
+  const hadPunctuation = /[.!?]$/.test(trimmed);
+  trimmed = trimmed.replace(/[.!?]+$/, '').trim();
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  while (words.length > 0 && TRAILING_STOP_WORDS.has(words[words.length - 1].toLowerCase())) {
+    words.pop();
+  }
+  const rebuilt = words.join(' ').trim();
+  if (!rebuilt) {
+    return hadPunctuation ? text.trim() : ensureSentenceEnding(text.trim());
+  }
+  return ensureSentenceEnding(rebuilt);
+}
 
 const DIAGNOSIS_SUBJECT_REGEX = /^(?:the|this)\s+(.+?)\s+(?:is|has|shows|appears)\b/i;
 const STALL_KEYWORDS = /\b(stall|plateau|stagnant|flat|no progress)\b/i;

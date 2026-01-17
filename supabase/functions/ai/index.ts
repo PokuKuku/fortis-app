@@ -1861,15 +1861,13 @@ function shouldRetryInsightResponse(
   if (!text) return true;
   const withoutTldr = stripExistingTldr(text);
   const formatted = formatInsightLayout(normalizeInsightSections(withoutTldr));
-  const cleaned = formatted.replace(/\s+/g, ' ').trim();
-  const wordCount = cleaned ? cleaned.split(' ').length : 0;
   const hasEvidenceHeader = /evidence\s*:/i.test(formatted);
   const hasRecommendationsHeader = /(actionable next steps|recommendations)\s*:/i.test(formatted);
   const hasBullet = /(^|\n)\s*[-*•]\s+/.test(formatted);
+  const hasInlineBullets = /:\s*[-*•]\s+/.test(formatted) || /\s-\s+\w+/.test(formatted);
 
-  if (wordCount < 80) return true;
   if (!hasEvidenceHeader || !hasRecommendationsHeader) return true;
-  if (!hasBullet) return true;
+  if (!hasBullet && !hasInlineBullets) return true;
 
   return false;
 }
