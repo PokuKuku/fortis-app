@@ -30,18 +30,18 @@ const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
 const HEADER_PADDING_BOTTOM = scale(Spacing.md);
 const TITLE_PADDING_BOTTOM = scale(Spacing.md);
-const SECTION_TITLE_SIZE = moderateScale(24);
+const SECTION_TITLE_SIZE = moderateScale(26);
 const SECTION_GAP = scale(Spacing.lg);
 const CARD_PADDING = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
 const INSIGHT_GAP = scale(Spacing.md);
 const EVIDENCE_GAP = scale(Spacing.xs);
-const EVIDENCE_TEXT_SIZE = moderateScale(13);
-const EVIDENCE_META_SIZE = moderateScale(11);
-const SUMMARY_TEXT_SIZE = moderateScale(14);
-const SUMMARY_LINE_HEIGHT = moderateScale(20);
+const EVIDENCE_TEXT_SIZE = moderateScale(14);
+const EVIDENCE_META_SIZE = moderateScale(12);
+const SUMMARY_TEXT_SIZE = moderateScale(15);
+const SUMMARY_LINE_HEIGHT = moderateScale(22);
 const ACTION_BUTTON_HEIGHT = scale(32);
-const ACTION_TEXT_SIZE = moderateScale(12);
+const ACTION_TEXT_SIZE = moderateScale(13);
 const LIST_PADDING_BOTTOM = scale(120);
 const EMPTY_PADDING_Y = scale(Spacing['3xl']);
 
@@ -99,6 +99,11 @@ const resolveUnitLabel = (unit?: string): string | null => {
   if (normalized === 'sets') return 'Sets';
   return unit;
 };
+
+const getReadableTextColors = (isDark: boolean) => ({
+  secondary: isDark ? 'rgba(255,255,255,0.82)' : 'rgba(0,0,0,0.72)',
+  tertiary: isDark ? 'rgba(255,255,255,0.68)' : 'rgba(0,0,0,0.58)',
+});
 
 const hasWeekToDateEvidence = (insight: TrainingInsight): boolean => {
   return insight.evidence.some((item) => item.period === 'week_to_date');
@@ -252,6 +257,7 @@ function InsightCard({
   onShare: (insight: TrainingInsight) => void;
 }) {
   const { colors, isDark } = useTheme();
+  const readableText = getReadableTextColors(isDark);
   const { series } = useInsightChartSeries(insight);
   const seriesMap = useMemo(() => {
     if (!series) return null;
@@ -334,7 +340,7 @@ function InsightCard({
     <View style={[styles.cardBase, styles.insightCard, cardTheme]}>
       <View style={styles.insightHeader}>
         <View style={styles.insightHeaderRow}>
-          <Text style={[styles.insightRange, { color: colors.textTertiary }]}>
+          <Text style={[styles.insightRange, { color: readableText.tertiary }]}>
             {rangeLabel}
           </Text>
           <TouchableOpacity
@@ -342,7 +348,7 @@ function InsightCard({
             hitSlop={8}
             style={styles.dismissButton}
           >
-            <Text style={[styles.dismissButtonText, { color: colors.textTertiary }]}>Dismiss</Text>
+            <Text style={[styles.dismissButtonText, { color: readableText.tertiary }]}>Dismiss</Text>
           </TouchableOpacity>
         </View>
         {isWeeklyVerdict && (
@@ -354,7 +360,7 @@ function InsightCard({
       </View>
 
       <View style={[styles.summaryPanel, summaryTheme]}>
-        <Text style={[styles.insightSummary, { color: colors.textSecondary }]}>
+        <Text style={[styles.insightSummary, { color: readableText.secondary }]}>
           {insight.summary}
         </Text>
       </View>
@@ -362,7 +368,7 @@ function InsightCard({
       {sparkline && (
         <View style={[styles.sparklineShell, sparklineTheme]}>
           <View style={styles.sparklineHeaderRow}>
-            <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
+            <Text style={[styles.sparklineLabel, { color: readableText.tertiary }]}>
               {sparklineLabel}
             </Text>
             {latestValue && (
@@ -371,7 +377,7 @@ function InsightCard({
                   {latestValue}
                 </Text>
                 {latestMeta && (
-                  <Text style={[styles.sparklineValueMeta, { color: colors.textTertiary }]}>
+                  <Text style={[styles.sparklineValueMeta, { color: readableText.tertiary }]}>
                     {latestMeta}
                   </Text>
                 )}
@@ -409,7 +415,7 @@ function InsightCard({
                       <Text
                         style={[
                           styles.sparklineTabText,
-                          { color: isActive ? colors.accent : colors.textSecondary },
+                          { color: isActive ? colors.accent : readableText.secondary },
                         ]}
                       >
                         {tabLabel}
@@ -443,7 +449,7 @@ function InsightCard({
                       <Text
                         style={[
                           styles.sparklineTabText,
-                          { color: isActive ? colors.accent : colors.textSecondary },
+                          { color: isActive ? colors.accent : readableText.secondary },
                         ]}
                       >
                         {tabLabel}
@@ -476,11 +482,11 @@ function InsightCard({
             ? Colors.success
             : delta?.trend === 'down'
             ? Colors.error
-            : colors.textTertiary;
+            : readableText.tertiary;
 
           return (
             <View key={item.key} style={styles.evidenceRow}>
-              <Text style={[styles.evidenceLabel, { color: colors.textSecondary }]}>
+              <Text style={[styles.evidenceLabel, { color: readableText.secondary }]}>
                 {item.label}
               </Text>
               <View style={styles.evidenceValue}>
@@ -529,7 +535,7 @@ function InsightCard({
           onPress={() => onOpenChart(insight)}
           activeOpacity={0.8}
         >
-          <Text style={[styles.viewChartText, { color: colors.textSecondary }]}>View chart</Text>
+          <Text style={[styles.viewChartText, { color: readableText.secondary }]}>View chart</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -552,6 +558,7 @@ function WatchlistRow({
   onShare: (insight: TrainingInsight) => void;
 }) {
   const { colors, isDark } = useTheme();
+  const readableText = getReadableTextColors(isDark);
   const { series } = useInsightChartSeries(insight);
   const sparkline = useMemo(() => resolveSparkline(insight, series), [insight, series]);
   const sparklineLabel = useMemo(() => getInsightChartMapping(insight.type).sparklineLabel, [insight.type]);
@@ -592,7 +599,7 @@ function WatchlistRow({
       </View>
       {sparkline && (
         <View style={[styles.watchlistSparklineCard, sparklineTheme]}>
-          <Text style={[styles.sparklineLabel, { color: colors.textTertiary }]}>
+          <Text style={[styles.sparklineLabel, { color: readableText.tertiary }]}>
             {sparklineLabel}
           </Text>
           <InsightSparkline
@@ -604,11 +611,11 @@ function WatchlistRow({
         </View>
       )}
       <View style={styles.watchlistInfo}>
-        <Text style={[styles.watchlistReason, { color: colors.textSecondary }]}>
+        <Text style={[styles.watchlistReason, { color: readableText.secondary }]}>
           {e1rmDescriptor} ({exposuresText}); {volumeDescriptor}
         </Text>
         {suggestionText && (
-          <Text style={[styles.watchlistSuggestion, { color: colors.textSecondary }]}>
+          <Text style={[styles.watchlistSuggestion, { color: readableText.secondary }]}>
             Suggested: {suggestionText}
           </Text>
         )}
@@ -617,7 +624,7 @@ function WatchlistRow({
             const e1rmDeltaText = formatEvidenceDelta(e1rmItem)?.text;
             return (
               <View style={styles.watchlistEvidenceRow}>
-                <Text style={[styles.watchlistEvidenceLabel, { color: colors.textTertiary }]}>
+                <Text style={[styles.watchlistEvidenceLabel, { color: readableText.tertiary }]}>
                   {e1rmItem.label}
                 </Text>
                 <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
@@ -631,7 +638,7 @@ function WatchlistRow({
             const volumeDeltaText = formatEvidenceDelta(volumeItem)?.text;
             return (
               <View style={styles.watchlistEvidenceRow}>
-                <Text style={[styles.watchlistEvidenceLabel, { color: colors.textTertiary }]}>
+                <Text style={[styles.watchlistEvidenceLabel, { color: readableText.tertiary }]}>
                   {volumeItem.label}
                 </Text>
                 <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
@@ -671,7 +678,7 @@ function WatchlistRow({
             onPress={() => onOpenChart(insight)}
             activeOpacity={0.8}
           >
-            <Text style={[styles.viewChartText, { color: colors.textSecondary }]}>View chart</Text>
+            <Text style={[styles.viewChartText, { color: readableText.secondary }]}>View chart</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.watchlistDismissRow}>
@@ -680,7 +687,7 @@ function WatchlistRow({
             style={styles.watchlistDismissButton}
             activeOpacity={0.8}
           >
-            <Text style={[styles.watchlistDismiss, { color: colors.textTertiary }]}>
+            <Text style={[styles.watchlistDismiss, { color: readableText.tertiary }]}>
               Dismiss
             </Text>
           </TouchableOpacity>
@@ -693,6 +700,7 @@ function WatchlistRow({
 export default function InsightsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const readableText = getReadableTextColors(isDark);
   const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights();
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
@@ -928,7 +936,7 @@ export default function InsightsScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={refresh}
-              tintColor={colors.textSecondary}
+              tintColor={readableText.secondary}
             />
           }
           showsVerticalScrollIndicator={false}
@@ -945,13 +953,13 @@ export default function InsightsScreen() {
                   { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)' },
                 ]}
               >
-                <MagnifyingGlassIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+                <MagnifyingGlassIcon color={readableText.secondary} size={18} strokeWidth={2} />
               </View>
               <View style={styles.libraryText}>
                 <Text style={[styles.libraryTitle, { color: colors.textPrimary }]}>
                   Exercise Library
                 </Text>
-                <Text style={[styles.librarySubtitle, { color: colors.textSecondary }]}>
+                <Text style={[styles.librarySubtitle, { color: readableText.secondary }]}>
                   Search and browse exercises
                 </Text>
               </View>
@@ -960,14 +968,14 @@ export default function InsightsScreen() {
 
           {isLoading && !hasInsights ? (
             <View style={styles.loadingState}>
-              <ActivityIndicator size="small" color={colors.textSecondary} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              <ActivityIndicator size="small" color={readableText.secondary} />
+              <Text style={[styles.loadingText, { color: readableText.secondary }]}>
                 Loading insights...
               </Text>
             </View>
           ) : !hasInsights ? (
             <View style={styles.emptyState}>
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              <Text style={[styles.emptyText, { color: readableText.secondary }]}>
                 No insights yet. Log a completed workout to generate your weekly insight.
               </Text>
               <GlassButton style={styles.refreshButton} onPress={refresh}>
@@ -1003,7 +1011,7 @@ export default function InsightsScreen() {
                       <Text style={[styles.watchlistTitle, { color: colors.textPrimary }]}>
                         Watchlist
                       </Text>
-                      <Text style={[styles.watchlistSubtitle, { color: colors.textTertiary }]}>
+                      <Text style={[styles.watchlistSubtitle, { color: readableText.tertiary }]}>
                         Lifts to keep an eye on
                       </Text>
                     </View>
@@ -1012,14 +1020,14 @@ export default function InsightsScreen() {
                       style={[styles.snoozeButton, { borderColor: colors.border }]}
                       activeOpacity={0.8}
                     >
-                      <Text style={[styles.snoozeButtonText, { color: colors.textSecondary }]}>
+                      <Text style={[styles.snoozeButtonText, { color: readableText.secondary }]}>
                         Snooze 14d
                       </Text>
                     </TouchableOpacity>
                   </View>
 
                   {watchlistItems.length === 0 ? (
-                    <Text style={[styles.watchlistEmpty, { color: colors.textSecondary }]}>
+                    <Text style={[styles.watchlistEmpty, { color: readableText.secondary }]}>
                       {eligibleCount > 0
                         ? 'All clear this week. Your top lifts are steady.'
                         : 'Not enough data yet. Repeat a lift 3 times to unlock stall alerts.'}
@@ -1138,11 +1146,13 @@ const styles = StyleSheet.create({
   },
   libraryTitle: {
     ...Typography.body,
-    fontSize: moderateScale(15),
+    fontSize: moderateScale(16),
+    lineHeight: moderateScale(20),
   },
   librarySubtitle: {
     ...Typography.caption,
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(13),
+    lineHeight: moderateScale(18),
   },
   insightsList: {
     gap: INSIGHT_GAP,
@@ -1158,16 +1168,18 @@ const styles = StyleSheet.create({
   },
   watchlistTitle: {
     ...Typography.h3,
-    fontSize: moderateScale(16),
+    fontSize: moderateScale(17),
+    lineHeight: moderateScale(22),
   },
   watchlistSubtitle: {
     ...Typography.caption,
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
+    lineHeight: moderateScale(16),
     marginTop: scale(Spacing.xs),
   },
   watchlistEmpty: {
-    fontSize: moderateScale(13),
-    lineHeight: moderateScale(18),
+    fontSize: moderateScale(14),
+    lineHeight: moderateScale(20),
   },
   snoozeButton: {
     borderWidth: 1,
@@ -1176,7 +1188,7 @@ const styles = StyleSheet.create({
     paddingVertical: scale(Spacing.xs),
   },
   snoozeButtonText: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
     fontWeight: '600',
   },
   watchlistList: {
@@ -1195,19 +1207,20 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.xs),
   },
   watchlistName: {
-    fontSize: moderateScale(14),
+    fontSize: moderateScale(15),
+    lineHeight: moderateScale(20),
   },
   watchlistStatus: {
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(13),
     fontWeight: '600',
   },
   watchlistReason: {
-    fontSize: moderateScale(12),
-    lineHeight: moderateScale(16),
+    fontSize: moderateScale(13),
+    lineHeight: moderateScale(19),
   },
   watchlistSuggestion: {
-    fontSize: moderateScale(12),
-    lineHeight: moderateScale(16),
+    fontSize: moderateScale(13),
+    lineHeight: moderateScale(19),
   },
   watchlistEvidence: {
     gap: scale(2),
@@ -1219,11 +1232,12 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.xs),
   },
   watchlistEvidenceLabel: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
+    lineHeight: moderateScale(16),
     flex: 1,
   },
   watchlistEvidenceValue: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
     fontWeight: '600',
   },
   watchlistSparklineCard: {
@@ -1251,7 +1265,7 @@ const styles = StyleSheet.create({
     paddingVertical: scale(2),
   },
   watchlistDismiss: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
     fontWeight: '600',
   },
   insightCard: {
@@ -1268,22 +1282,24 @@ const styles = StyleSheet.create({
   },
   insightRange: {
     ...Typography.caption,
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
+    lineHeight: moderateScale(16),
   },
   dismissButton: {
     paddingHorizontal: scale(Spacing.xs),
     paddingVertical: scale(2),
   },
   dismissButtonText: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
     fontWeight: '600',
   },
   insightTitle: {
     ...Typography.h3,
-    fontSize: moderateScale(16),
+    fontSize: moderateScale(17),
+    lineHeight: moderateScale(22),
   },
   weeklyInsightLabel: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
     fontWeight: '600',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
@@ -1314,7 +1330,7 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.sm),
   },
   sparklineLabel: {
-    fontSize: moderateScale(10),
+    fontSize: moderateScale(11),
     fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
@@ -1327,11 +1343,11 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   sparklineValueText: {
-    fontSize: moderateScale(12),
+    fontSize: moderateScale(13),
     fontWeight: '700',
   },
   sparklineValueMeta: {
-    fontSize: moderateScale(10),
+    fontSize: moderateScale(11),
     marginTop: scale(2),
   },
   sparklineTabs: {
@@ -1352,7 +1368,7 @@ const styles = StyleSheet.create({
     opacity: 0.4,
   },
   sparklineTabText: {
-    fontSize: moderateScale(10),
+    fontSize: moderateScale(11),
     fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.6,
     textTransform: 'uppercase',
@@ -1373,6 +1389,7 @@ const styles = StyleSheet.create({
   },
   evidenceLabel: {
     fontSize: EVIDENCE_TEXT_SIZE,
+    lineHeight: moderateScale(20),
     flex: 1,
   },
   evidenceValue: {
@@ -1382,9 +1399,11 @@ const styles = StyleSheet.create({
   },
   evidenceValueText: {
     fontSize: EVIDENCE_TEXT_SIZE,
+    lineHeight: moderateScale(20),
   },
   evidenceDelta: {
     fontSize: EVIDENCE_META_SIZE,
+    lineHeight: moderateScale(16),
   },
   whyButton: {
     alignSelf: 'flex-start',
@@ -1439,7 +1458,7 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.sm),
   },
   loadingText: {
-    fontSize: moderateScale(13),
+    fontSize: moderateScale(14),
   },
   emptyState: {
     paddingVertical: EMPTY_PADDING_Y,
@@ -1448,7 +1467,8 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     textAlign: 'center',
-    fontSize: moderateScale(13),
+    fontSize: moderateScale(14),
+    lineHeight: moderateScale(20),
     maxWidth: scale(260),
   },
   refreshButton: {

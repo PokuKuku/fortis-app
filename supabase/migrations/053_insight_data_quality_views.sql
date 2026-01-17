@@ -146,7 +146,7 @@ completed_sessions AS (
     ws.started_at,
     p.preferred_units,
     p.timezone,
-    COALESCE(lb.weight_kg, p.weight_kg) AS bodyweight_kg
+    lb.weight_kg AS bodyweight_kg
   FROM workout_sessions ws
   JOIN profiles p ON p.id = ws.user_id
   LEFT JOIN latest_bodyweight lb ON lb.user_id = ws.user_id

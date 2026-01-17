@@ -118,6 +118,10 @@ const MODAL_TITLE_SIZE = moderateScale(20);
 const MODAL_MESSAGE_SIZE = moderateScale(14);
 const MODAL_MESSAGE_LINE_HEIGHT = moderateScale(20);
 const MODAL_BUTTON_GAP = scale(12);
+
+const getReadableSubtextColors = (isDark: boolean) => ({
+  meta: isDark ? 'rgba(255,255,255,0.78)' : 'rgba(0,0,0,0.62)',
+});
 const MODAL_BUTTON_RADIUS = scale(8);
 const MODAL_BUTTON_PADDING = scale(12);
 const MODAL_BUTTON_TEXT_SIZE = moderateScale(15);
@@ -783,6 +787,7 @@ function ProgramDropCard({
   enableDropZone: boolean;
 }) {
   const { colors, isDark } = useTheme();
+  const readableSubtext = getReadableSubtextColors(isDark);
   const AnimatedTouchable = Reanimated.createAnimatedComponent(TouchableOpacity);
   const { ref, onLayout, isHovered } = useDropZone({
     id: `program-${item.id}`,
@@ -850,7 +855,7 @@ function ProgramDropCard({
           <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
         </TouchableOpacity>
       </View>
-      <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
+      <Text style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
         {item.workouts} workouts · {item.lastPerformed}
       </Text>
     </AnimatedTouchable>
@@ -868,6 +873,7 @@ const buildDropIn = (index: number) =>
 export default function ProgramsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const readableSubtext = getReadableSubtextColors(isDark);
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
   const [highlightedWorkoutId, setHighlightedWorkoutId] = useState<string | null>(null);
   const modalStyles = useModalStyles();
@@ -1311,7 +1317,7 @@ export default function ProgramsScreen() {
                   <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
-              <Text style={[styles.cardMetaText, { color: colors.textTertiary }]}>
+              <Text style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
                 {item.exercises} exercises · {item.lastPerformed}
               </Text>
             </TouchableOpacity>
@@ -1328,6 +1334,7 @@ export default function ProgramsScreen() {
       isDark,
       workoutCardThemeStyle,
       highlightedWorkoutId,
+      readableSubtext,
     ]
   );
 

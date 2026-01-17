@@ -546,6 +546,23 @@ function buildCompactTldr(
   return diagnosis || recommendation || evidence || null;
 }
 
+function compressSentence(text: string, maxWords: number, maxChars: number): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return '';
+  }
+  const trimmedWords = words.slice(0, maxWords);
+  let trimmed = trimmedWords.join(' ');
+  if (trimmed.length <= maxChars) {
+    return trimmed;
+  }
+  while (trimmedWords.length > 1 && trimmed.length > maxChars) {
+    trimmedWords.pop();
+    trimmed = trimmedWords.join(' ');
+  }
+  return trimmed;
+}
+
 function ensureSentenceEnding(text: string): string {
   if (!text) return '';
   return /[.!?]$/.test(text) ? text : `${text}.`;
