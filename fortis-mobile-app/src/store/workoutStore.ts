@@ -124,6 +124,7 @@ interface WorkoutState {
   // UI state
   isLoading: boolean;
   showRestTimerComplete: boolean;
+  workoutOverlayCount: number;
 
   // Number pad state
   activeNumberPad: {
@@ -203,6 +204,8 @@ interface WorkoutState {
   tickRestTimer: () => void;
   updateRestTimerSettings: (settings: Partial<RestTimerSettings>) => void;
   dismissRestTimerComplete: () => void;
+  registerWorkoutOverlay: () => void;
+  unregisterWorkoutOverlay: () => void;
 
   // Actions - Persistence
   loadActiveSession: () => Promise<void>;
@@ -305,6 +308,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
     isLoading: false,
     showRestTimerComplete: false,
+    workoutOverlayCount: 0,
     activeNumberPad: null,
     validationErrorsBySet: {},
     validationErrorsTrigger: 0,
@@ -1318,6 +1322,14 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     dismissRestTimerComplete: () => {
       set({ showRestTimerComplete: false });
+    },
+
+    registerWorkoutOverlay: () => {
+      set((state) => ({ workoutOverlayCount: state.workoutOverlayCount + 1 }));
+    },
+
+    unregisterWorkoutOverlay: () => {
+      set((state) => ({ workoutOverlayCount: Math.max(0, state.workoutOverlayCount - 1) }));
     },
 
     // ========================================

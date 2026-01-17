@@ -96,6 +96,7 @@ export default function ActiveWorkoutScreen() {
   const setNumberPadError = useWorkoutStore(s => s.setNumberPadError);
   const showRestTimerComplete = useWorkoutStore(s => s.showRestTimerComplete);
   const dismissRestTimerComplete = useWorkoutStore(s => s.dismissRestTimerComplete);
+  const workoutOverlayCount = useWorkoutStore(s => s.workoutOverlayCount);
   const updateCompletedWorkoutName = useWorkoutStore(s => s.updateCompletedWorkoutName);
   const updateActiveSessionName = useWorkoutStore(s => s.updateActiveSessionName);
   const programs = useProgramsStore(s => s.programs);
@@ -156,7 +157,8 @@ export default function ActiveWorkoutScreen() {
     || showFinishModal
     || showReplaceConfirmModal
     || showSaveTemplateModal
-    || activeNumberPad !== null;
+    || activeNumberPad !== null
+    || workoutOverlayCount > 0;
 
   useEffect(() => {
     if (showRestTimerComplete && showAddExerciseModal) {

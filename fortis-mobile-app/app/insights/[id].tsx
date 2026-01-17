@@ -325,7 +325,6 @@ export default function InsightDetailScreen() {
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton} activeOpacity={0.8}>
             <ChevronLeftIcon color={colors.textPrimary} size={20} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>Insight</Text>
           <View style={styles.headerSpacer} />
         </View>
 
@@ -586,10 +585,6 @@ const styles = StyleSheet.create({
     borderRadius: scale(18),
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  headerTitle: {
-    ...Typography.h3,
-    fontSize: moderateScale(16),
   },
   headerSpacer: {
     width: scale(36),

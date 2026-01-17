@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -80,6 +80,8 @@ export function ExerciseCard({
   const stickyNotes = useWorkoutStore(s => s.stickyNotes);
   const setStickyNote = useWorkoutStore(s => s.setStickyNote);
   const weightUnits = useWorkoutStore(s => s.weightUnits);
+  const registerWorkoutOverlay = useWorkoutStore(s => s.registerWorkoutOverlay);
+  const unregisterWorkoutOverlay = useWorkoutStore(s => s.unregisterWorkoutOverlay);
 
   const [showKebab, setShowKebab] = useState(false);
   const [showStickyNoteInput, setShowStickyNoteInput] = useState(false);
@@ -89,6 +91,7 @@ export function ExerciseCard({
   const kebabRef = useRef<View>(null);
   const stickyNoteInputRef = useRef<TextInput>(null);
   const notesInputRef = useRef<TextInput>(null);
+  const isKebabOpenRef = useRef(false);
 
   const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
   const stickyNote = exercise ? stickyNotes[exercise.exerciseId] : undefined;
@@ -105,6 +108,23 @@ export function ExerciseCard({
     exercise?.exerciseId,
     performanceContext
   );
+
+  useEffect(() => {
+    if (showKebab && !isKebabOpenRef.current) {
+      registerWorkoutOverlay();
+      isKebabOpenRef.current = true;
+    } else if (!showKebab && isKebabOpenRef.current) {
+      unregisterWorkoutOverlay();
+      isKebabOpenRef.current = false;
+    }
+
+    return () => {
+      if (isKebabOpenRef.current) {
+        unregisterWorkoutOverlay();
+        isKebabOpenRef.current = false;
+      }
+    };
+  }, [showKebab, registerWorkoutOverlay, unregisterWorkoutOverlay]);
 
   if (!exercise) return null;
 

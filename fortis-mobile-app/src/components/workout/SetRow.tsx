@@ -153,6 +153,8 @@ export function SetRow({
   const validationErrorsBySet = useWorkoutStore(s => s.validationErrorsBySet);
   const validationErrorsTrigger = useWorkoutStore(s => s.validationErrorsTrigger);
   const setValidationErrorsBySet = useWorkoutStore(s => s.setValidationErrorsBySet);
+  const registerWorkoutOverlay = useWorkoutStore(s => s.registerWorkoutOverlay);
+  const unregisterWorkoutOverlay = useWorkoutStore(s => s.unregisterWorkoutOverlay);
 
   // Check if this input is currently active
   const isWeightActive = activeNumberPad?.exerciseLocalId === exerciseLocalId &&
@@ -171,6 +173,7 @@ export function SetRow({
   const badgeRef = useRef<View>(null);
   const swipeableRef = useRef<Swipeable>(null);
   const longPressHandledRef = useRef<'weight' | 'reps' | 'check' | null>(null);
+  const isTypeSelectorOpenRef = useRef(false);
 
   // Shake animation
   const weightShake = useSharedValue(0);
@@ -205,6 +208,23 @@ export function SetRow({
       }
     }
   }, [activeNumberPad?.hasError]);
+
+  useEffect(() => {
+    if (showTypeSelector && !isTypeSelectorOpenRef.current) {
+      registerWorkoutOverlay();
+      isTypeSelectorOpenRef.current = true;
+    } else if (!showTypeSelector && isTypeSelectorOpenRef.current) {
+      unregisterWorkoutOverlay();
+      isTypeSelectorOpenRef.current = false;
+    }
+
+    return () => {
+      if (isTypeSelectorOpenRef.current) {
+        unregisterWorkoutOverlay();
+        isTypeSelectorOpenRef.current = false;
+      }
+    };
+  }, [showTypeSelector, registerWorkoutOverlay, unregisterWorkoutOverlay]);
 
   useEffect(() => {
     if (!validationErrorsTrigger) return;
