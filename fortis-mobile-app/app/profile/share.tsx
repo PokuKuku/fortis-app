@@ -149,6 +149,7 @@ export default function ProfileShareScreen() {
 
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const { sessions: historySessions } = useWorkoutHistorySource({
     enabled: shareType === 'monthly' && Boolean(profile?.id),
   });
@@ -178,8 +179,11 @@ export default function ProfileShareScreen() {
   } = useWeeklyMuscles();
   const personalRecords = useTopPersonalRecords(5);
 
+  const units = profile?.preferred_units || 'imperial';
   const monthlyStats = useMonthlyStats(
     historySessions,
+    units,
+    weightUnits,
     shareType === 'monthly' ? profile?.id : undefined
   );
 
@@ -190,7 +194,6 @@ export default function ProfileShareScreen() {
     isLoading: true,
   });
 
-  const units = profile?.preferred_units || 'imperial';
   const unitLabel = units === 'metric' ? 'kg' : 'lbs';
   const firstName = useMemo(() => {
     const name = profile?.full_name?.trim();

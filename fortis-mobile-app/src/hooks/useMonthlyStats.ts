@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
-import type { WorkoutSession } from '@/src/types/workout';
+import type { WorkoutSession, WeightUnit } from '@/src/types/workout';
+import { getSessionVolume } from '@/src/utils/workoutVolume';
 
 export type MonthlyStats = {
   totalVolume: number;
@@ -9,7 +10,11 @@ export type MonthlyStats = {
   isLoading: boolean;
 };
 
-const getStatsFromSessions = (sessions: WorkoutSession[]) => {
+const getStatsFromSessions = (
+  sessions: WorkoutSession[],
+  preferredUnits: 'imperial' | 'metric',
+  weightUnits: Record<string, WeightUnit>
+) => {
   let totalVolume = 0;
   let totalWorkouts = 0;
   let totalTimeSeconds = 0;
@@ -19,7 +24,7 @@ const getStatsFromSessions = (sessions: WorkoutSession[]) => {
     if (summary.totalSets === 0) return;
 
     totalWorkouts += 1;
-    totalVolume += summary.totalVolume;
+    totalVolume += getSessionVolume(session, preferredUnits, weightUnits);
 
     const durationSeconds = session.durationSeconds
       ?? (session.completedAt
@@ -33,6 +38,8 @@ const getStatsFromSessions = (sessions: WorkoutSession[]) => {
 
 export function useMonthlyStats(
   completedSessions: WorkoutSession[],
+  preferredUnits: 'imperial' | 'metric' = 'imperial',
+  weightUnits: Record<string, WeightUnit> = {},
   _userId?: string
 ): MonthlyStats {
   const [stats, setStats] = useState<MonthlyStats>({
@@ -44,8 +51,8 @@ export function useMonthlyStats(
 
   const localMonthlyStats = useMemo(() => {
     if (completedSessions.length === 0) return null;
-    return getStatsFromSessions(completedSessions);
-  }, [completedSessions]);
+    return getStatsFromSessions(completedSessions, preferredUnits, weightUnits);
+  }, [completedSessions, preferredUnits, weightUnits]);
 
   useEffect(() => {
     setStats({

@@ -53,7 +53,7 @@ const resolveYAxisLabel = (tab: StatsTabType, volumeUnit: string) => {
 
 export function HubStatsSection({ stats }: HubStatsSectionProps) {
   const { colors, isDark } = useTheme();
-  const { profile } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const preferredUnits = profile?.preferred_units ?? 'imperial';
   const volumeUnit = preferredUnits === 'metric' ? 'kg' : 'lbs';
   const [selectedTab, setSelectedTab] = useState<StatsTabType>('Volume');
@@ -72,11 +72,27 @@ export function HubStatsSection({ stats }: HubStatsSectionProps) {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
     },
+    unitToggle: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    unitOptionActive: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.18)' : 'rgba(0, 0, 0, 0.12)',
+    },
+    unitText: { color: colors.textSecondary },
+    unitTextActive: { color: colors.textPrimary },
   };
 
   const handleTabPress = (tab: StatsTabType) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedTab(tab);
+  };
+
+  const handleUnitsPress = (nextUnits: 'imperial' | 'metric') => {
+    if (!profile) return;
+    if (preferredUnits === nextUnits) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void updateProfile({ preferred_units: nextUnits });
   };
 
   const history =
@@ -89,6 +105,7 @@ export function HubStatsSection({ stats }: HubStatsSectionProps) {
   const chartVariant = resolveChartVariant(selectedTab);
   const yAxisLabel = resolveYAxisLabel(selectedTab, volumeUnit);
   const formatVolumeValue = (value: number) => `${formatCompactNumber(value)} ${volumeUnit}`;
+  const unitsDisabled = !profile;
 
   return (
     <View style={styles.container}>
@@ -112,6 +129,44 @@ export function HubStatsSection({ stats }: HubStatsSectionProps) {
             </Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      <View style={styles.unitsRow}>
+        <Text style={[styles.unitsLabel, { color: colors.textSecondary }]}>Units</Text>
+        <View
+          style={[
+            styles.unitsToggle,
+            themedStyles.unitToggle,
+            unitsDisabled && styles.unitsToggleDisabled,
+          ]}
+        >
+          {(['imperial', 'metric'] as const).map((unit) => {
+            const isActive = preferredUnits === unit;
+            const label = unit === 'imperial' ? 'lbs' : 'kg';
+            return (
+              <TouchableOpacity
+                key={unit}
+                style={[
+                  styles.unitsOption,
+                  isActive && [styles.unitsOptionActive, themedStyles.unitOptionActive],
+                ]}
+                onPress={() => handleUnitsPress(unit)}
+                activeOpacity={0.7}
+                disabled={unitsDisabled}
+              >
+                <Text
+                  style={[
+                    styles.unitsOptionText,
+                    themedStyles.unitText,
+                    isActive && themedStyles.unitTextActive,
+                  ]}
+                >
+                  {label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {/* Chart Area */}
@@ -180,5 +235,38 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
+  },
+  unitsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  unitsLabel: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  unitsToggle: {
+    flexDirection: 'row',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    padding: 2,
+    gap: 2,
+  },
+  unitsToggleDisabled: {
+    opacity: 0.6,
+  },
+  unitsOption: {
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  unitsOptionActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  unitsOptionText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
   },
 });

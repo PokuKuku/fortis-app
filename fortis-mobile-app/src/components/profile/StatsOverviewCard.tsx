@@ -9,6 +9,7 @@ import { useMonthlyStats } from '@/src/hooks/useMonthlyStats';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
@@ -67,9 +68,10 @@ export function StatsOverviewCard() {
   const router = useRouter();
   const { profile } = useAuth();
   const { colors, isDark } = useTheme();
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const { sessions: historySessions } = useWorkoutHistorySource({ enabled: Boolean(profile?.id) });
-  const monthlyStats = useMonthlyStats(historySessions, profile?.id);
   const units = profile?.preferred_units || 'imperial';
+  const monthlyStats = useMonthlyStats(historySessions, units, weightUnits, profile?.id);
 
   // Theme-aware card styles
   const cardStyle = {
