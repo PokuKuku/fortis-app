@@ -121,17 +121,24 @@ function formatVolume(volume: number): string {
   return volume.toLocaleString();
 }
 
-// Get volume by date for heatmap
-function getVolumeByDate(sessions: WorkoutSession[]): Record<string, number> {
-  const volumeMap: Record<string, number> = {};
+// Get volume and activity by date for heatmap
+function getDailyStats(sessions: WorkoutSession[]): {
+  volumeByDate: Record<string, number>;
+  activityByDate: Record<string, boolean>;
+} {
+  const volumeByDate: Record<string, number> = {};
+  const activityByDate: Record<string, boolean> = {};
 
   sessions.forEach(session => {
-    const dateKey = format(session.startedAt, 'yyyy-MM-dd');
     const summary = getWorkoutSummary(session);
-    volumeMap[dateKey] = (volumeMap[dateKey] || 0) + summary.totalVolume;
+    if (summary.totalSets === 0) return;
+
+    const dateKey = format(session.startedAt, 'yyyy-MM-dd');
+    volumeByDate[dateKey] = (volumeByDate[dateKey] || 0) + summary.totalVolume;
+    activityByDate[dateKey] = true;
   });
 
-  return volumeMap;
+  return { volumeByDate, activityByDate };
 }
 
 function hasCompletedSets(session: WorkoutSession): boolean {
@@ -141,8 +148,9 @@ function hasCompletedSets(session: WorkoutSession): boolean {
 }
 
 // Get intensity level based on volume ratio
-function getIntensityLevel(volume: number, maxVolume: number): 1 | 2 | 3 | 4 | null {
-  if (volume === 0 || maxVolume === 0) return null;
+function getIntensityLevel(volume: number, maxVolume: number, hasActivity: boolean): 1 | 2 | 3 | 4 | null {
+  if (!hasActivity) return null;
+  if (volume === 0 || maxVolume === 0) return 1;
   const ratio = volume / maxVolume;
   if (ratio <= 0.25) return 1;
   if (ratio <= 0.5) return 2;
@@ -468,19 +476,19 @@ export default function HistoryScreen() {
     return [...historySessions].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
   }, [historySessions]);
 
-  const volumeByDate = useMemo(() => getVolumeByDate(allSessions), [allSessions]);
+  const { volumeByDate, activityByDate } = useMemo(() => getDailyStats(allSessions), [allSessions]);
   const maxVolume = useMemo(() => Math.max(...Object.values(volumeByDate), 1), [volumeByDate]);
 
   const markedDates = useMemo(() => {
     const marks: Record<string, { intensity: 1 | 2 | 3 | 4 }> = {};
     Object.entries(volumeByDate).forEach(([dateKey, volume]) => {
-      const intensity = getIntensityLevel(volume, maxVolume);
+      const intensity = getIntensityLevel(volume, maxVolume, activityByDate[dateKey] ?? false);
       if (intensity) {
         marks[dateKey] = { intensity };
       }
     });
     return marks;
-  }, [volumeByDate, maxVolume]);
+  }, [volumeByDate, maxVolume, activityByDate]);
 
   const filteredWorkouts = useMemo(() => {
     return allSessions.filter(session => isSameDay(session.startedAt, selectedDate));

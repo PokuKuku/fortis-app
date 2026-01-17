@@ -87,7 +87,8 @@ export default function ActiveWorkoutScreen() {
   const finishWorkout = useWorkoutStore(s => s.finishWorkout);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
-  const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
+  const isNumberPadVisible = useWorkoutStore(s => s.activeNumberPad !== null);
+  const numberPadInputType = useWorkoutStore(s => s.activeNumberPad?.inputType ?? 'weight');
   const weightUnits = useWorkoutStore(s => s.weightUnits);
   const updateSet = useWorkoutStore(s => s.updateSet);
   const closeNumberPad = useWorkoutStore(s => s.closeNumberPad);
@@ -157,7 +158,7 @@ export default function ActiveWorkoutScreen() {
     || showFinishModal
     || showReplaceConfirmModal
     || showSaveTemplateModal
-    || activeNumberPad !== null
+    || isNumberPadVisible
     || workoutOverlayCount > 0;
 
   useEffect(() => {
@@ -451,6 +452,7 @@ export default function ActiveWorkoutScreen() {
 
   // Handle number pad confirm - implements perpetuating keyboard flow with autofill
   const handleNumberPadConfirm = (value: number | null) => {
+    const activeNumberPad = useWorkoutStore.getState().activeNumberPad;
     if (!activeNumberPad) return;
 
     const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
@@ -586,7 +588,7 @@ export default function ActiveWorkoutScreen() {
           keyExtractor={(item) => item.localId}
           contentContainerStyle={[
             styles.listContent,
-            activeNumberPad && { paddingBottom: NUMBER_PAD_PADDING }
+            isNumberPadVisible && { paddingBottom: NUMBER_PAD_PADDING }
           ]}
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={renderFooter}
@@ -681,10 +683,10 @@ export default function ActiveWorkoutScreen() {
 
       {/* Number Pad */}
       <NumberPadModal
-        visible={activeNumberPad !== null}
+        visible={isNumberPadVisible}
         onClose={closeNumberPad}
         onConfirm={handleNumberPadConfirm}
-        inputType={activeNumberPad?.inputType ?? 'weight'}
+        inputType={numberPadInputType}
       />
 
       {/* Rest Timer Complete Modal */}
