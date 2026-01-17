@@ -424,6 +424,7 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     ...Typography.caption,
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
     marginBottom: Spacing.md,
     marginLeft: Spacing.xs,

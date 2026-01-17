@@ -104,14 +104,14 @@ export default function SplashScreen() {
 
     if (isAuthenticated) {
       if (needsOnboarding) {
-        router.replace('/onboarding');
+        router.replace('/onboarding/welcome');
       } else {
         router.replace('/(tabs)');
       }
       return;
     }
 
-    router.replace('/onboarding');
+    router.replace('/onboarding/welcome');
   }, [
     splashComplete,
     isLoading,

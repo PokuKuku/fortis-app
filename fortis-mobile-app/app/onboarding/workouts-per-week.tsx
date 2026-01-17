@@ -10,12 +10,12 @@ import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardin
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
-const WORKOUT_OPTIONS = Array.from({ length: 7 }, (_, index) => index + 1);
+const WORKOUT_OPTIONS = Array.from({ length: 8 }, (_, index) => index);
 
 export default function OnboardingWorkoutsPerWeekScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const [selectedIndex, setSelectedIndex] = useState(2);
+  const [selectedIndex, setSelectedIndex] = useState(3);
   const selectedValue = WORKOUT_OPTIONS[selectedIndex];
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function OnboardingWorkoutsPerWeekScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive || typeof state?.workouts_per_week !== 'number') return;
-      const nextValue = Math.min(Math.max(state.workouts_per_week, 1), WORKOUT_OPTIONS.length);
+      const nextValue = Math.min(Math.max(state.workouts_per_week, 0), WORKOUT_OPTIONS.length - 1);
       const nextIndex = Math.max(WORKOUT_OPTIONS.indexOf(nextValue), 0);
       setSelectedIndex(nextIndex);
     };

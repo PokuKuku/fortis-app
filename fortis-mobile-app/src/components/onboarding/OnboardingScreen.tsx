@@ -19,10 +19,18 @@ interface OnboardingScreenProps {
   totalSteps: number;
   title: string;
   subtitle?: string;
+  titleAlign?: 'left' | 'center';
+  subtitleAlign?: 'left' | 'center';
+  titleFontSize?: number;
+  titleNumberOfLines?: number;
+  titleAdjustsFontSizeToFit?: boolean;
+  titleMinimumFontScale?: number;
+  headerAccessory?: React.ReactNode;
   sectionLabel?: string;
   onBack?: () => void;
   scrollEnabled?: boolean;
   useScrollView?: boolean;
+  showProgress?: boolean;
   children: React.ReactNode;
   footer?: React.ReactNode;
 }
@@ -32,10 +40,18 @@ export function OnboardingScreen({
   totalSteps,
   title,
   subtitle,
+  titleAlign = 'left',
+  subtitleAlign = 'left',
+  titleFontSize,
+  titleNumberOfLines,
+  titleAdjustsFontSizeToFit,
+  titleMinimumFontScale,
+  headerAccessory,
   sectionLabel,
   onBack,
   scrollEnabled = true,
   useScrollView = true,
+  showProgress = true,
   children,
   footer,
 }: OnboardingScreenProps) {
@@ -43,8 +59,8 @@ export function OnboardingScreen({
 
   const themedStyles = {
     container: { backgroundColor: colors.background },
-    title: { color: colors.textPrimary },
-    subtitle: { color: colors.textSecondary },
+    title: { color: colors.textPrimary, textAlign: titleAlign },
+    subtitle: { color: colors.textSecondary, textAlign: subtitleAlign },
     sectionLabel: { color: colors.textTertiary },
     backButton: {
       backgroundColor: colors.glassBackground,
@@ -66,7 +82,14 @@ export function OnboardingScreen({
           >
             <ChevronLeftIcon size={18} color={colors.textPrimary} strokeWidth={2} />
           </Pressable>
-          <OnboardingProgressBar step={step} totalSteps={totalSteps} />
+          {showProgress ? (
+            <View style={styles.progressWrapper}>
+              <OnboardingProgressBar step={step} totalSteps={totalSteps} />
+            </View>
+          ) : (
+            <View style={styles.progressSpacer} />
+          )}
+          <View style={styles.headerSpacer} />
         </View>
 
         {useScrollView ? (
@@ -78,12 +101,26 @@ export function OnboardingScreen({
           >
             <View style={styles.contentBlock}>
               <View style={styles.topSection}>
+                {headerAccessory ? (
+                  <View style={styles.headerAccessory}>{headerAccessory}</View>
+                ) : null}
                 {sectionLabel && (
                   <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>
                     {sectionLabel}
                   </Text>
                 )}
-                <Text style={[styles.title, themedStyles.title]}>{title}</Text>
+              <Text
+                style={[
+                  styles.title,
+                  themedStyles.title,
+                  titleFontSize ? { fontSize: titleFontSize } : null,
+                ]}
+                numberOfLines={titleNumberOfLines}
+                adjustsFontSizeToFit={titleAdjustsFontSizeToFit}
+                minimumFontScale={titleMinimumFontScale}
+              >
+                {title}
+              </Text>
                 {subtitle && (
                   <Text style={[styles.subtitle, themedStyles.subtitle]}>{subtitle}</Text>
                 )}
@@ -96,14 +133,28 @@ export function OnboardingScreen({
           </ScrollView>
         ) : (
           <View style={styles.staticContent}>
-            <View style={styles.contentBlock}>
-              <View style={styles.topSection}>
-                {sectionLabel && (
-                  <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>
-                    {sectionLabel}
-                  </Text>
-                )}
-                <Text style={[styles.title, themedStyles.title]}>{title}</Text>
+          <View style={styles.contentBlock}>
+            <View style={styles.topSection}>
+              {headerAccessory ? (
+                <View style={styles.headerAccessory}>{headerAccessory}</View>
+              ) : null}
+              {sectionLabel && (
+                <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>
+                  {sectionLabel}
+                </Text>
+              )}
+              <Text
+                style={[
+                  styles.title,
+                  themedStyles.title,
+                  titleFontSize ? { fontSize: titleFontSize } : null,
+                ]}
+                numberOfLines={titleNumberOfLines}
+                adjustsFontSizeToFit={titleAdjustsFontSizeToFit}
+                minimumFontScale={titleMinimumFontScale}
+              >
+                {title}
+              </Text>
                 {subtitle && (
                   <Text style={[styles.subtitle, themedStyles.subtitle]}>{subtitle}</Text>
                 )}
@@ -134,6 +185,19 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.lg,
   },
+  progressWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  progressSpacer: {
+    flex: 1,
+  },
+  headerSpacer: {
+    width: 36,
+    height: 36,
+  },
   backButton: {
     width: 36,
     height: 36,
@@ -160,6 +224,9 @@ const styles = StyleSheet.create({
   },
   topSection: {
     gap: Spacing.sm,
+  },
+  headerAccessory: {
+    alignItems: 'center',
   },
   sectionLabel: {
     fontFamily: 'BankGothicBT-Medium',

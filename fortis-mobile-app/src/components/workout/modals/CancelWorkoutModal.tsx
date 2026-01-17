@@ -79,7 +79,7 @@ export function CancelWorkoutModal({ visible, onClose, onConfirm }: CancelWorkou
                       style={[styles.keepButtonText, themedStyles.keepButtonText]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
-                      minimumFontScale={0.85}
+                      minimumFontScale={0.75}
                     >
                       Keep Workout
                     </Text>
@@ -97,7 +97,7 @@ export function CancelWorkoutModal({ visible, onClose, onConfirm }: CancelWorkou
                       style={[styles.cancelButtonText, themedStyles.cancelButtonText]}
                       numberOfLines={1}
                       adjustsFontSizeToFit
-                      minimumFontScale={0.85}
+                      minimumFontScale={0.75}
                     >
                       Cancel Workout
                     </Text>
@@ -176,7 +176,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   keepButtonText: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
     color: Colors.textPrimary,
   },
@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButtonText: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
     color: Colors.error,
   },

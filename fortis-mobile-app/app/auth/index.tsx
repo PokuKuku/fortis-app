@@ -144,7 +144,7 @@ export default function AuthWelcomeScreen() {
         const { error } = await updateProfile(updates);
         if (error) {
           setIsFinalizing(false);
-          router.replace('/onboarding');
+          router.replace('/onboarding/welcome');
           return;
         }
 
@@ -155,7 +155,7 @@ export default function AuthWelcomeScreen() {
     }
 
     if (needsOnboarding) {
-      router.replace('/onboarding');
+      router.replace('/onboarding/welcome');
       return;
     }
 

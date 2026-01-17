@@ -175,7 +175,14 @@ export function PersonalRecordsCard() {
                 </TouchableOpacity>
               </View>
               <View style={styles.modalTitleWrapper}>
-                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Personal Records</Text>
+                <Text
+                  style={[styles.modalTitle, { color: colors.textPrimary }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  Personal Records
+                </Text>
               </View>
               <View style={[styles.headerSide, styles.headerSideRight]}>
                 <TouchableOpacity
