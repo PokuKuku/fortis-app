@@ -8,12 +8,16 @@ import {
   ProgramExercise as HubProgramExercise,
 } from '@/src/types/program';
 import { useProgramsStore } from '@/src/store/programsStore';
+import { getWorkoutSummary } from '@/src/store/workoutStore';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { getExerciseById, isCustomExercise } from '@/src/services/exerciseService';
 import {
   ProgramWorkout as StoreProgramWorkout,
   ProgramExercise as StoreProgramExercise,
   Program as StoreProgram,
 } from '@/src/types/workout';
+import type { WorkoutSession, WeightUnit } from '@/src/types/workout';
 
 /**
  * Hook to load all programs with refresh capability
@@ -24,6 +28,10 @@ export function usePrograms() {
   const [error, setError] = useState<Error | null>(null);
   const storePrograms = useProgramsStore((state) => state.programs);
   const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
+  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const { profile } = useAuth();
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
 
   useEffect(() => {
     fetchPrograms();
@@ -34,11 +42,18 @@ export function usePrograms() {
     const loadPrograms = async () => {
       try {
         setLoading(true);
-        const programDetails = await Promise.all(
-          storePrograms
-            .filter((program) => !program.isTemplate)
-            .map((program) => convertStoreProgramToDetail(program))
-        );
+          const programDetails = await Promise.all(
+            storePrograms
+              .filter((program) => !program.isTemplate)
+              .map((program) =>
+                convertStoreProgramToDetail(
+                  program,
+                  completedSessions,
+                  preferredUnits,
+                  weightUnits
+                )
+              )
+          );
         if (isMounted) {
           setPrograms(programDetails);
           setError(null);
@@ -59,7 +74,7 @@ export function usePrograms() {
     return () => {
       isMounted = false;
     };
-  }, [storePrograms]);
+  }, [storePrograms, completedSessions, preferredUnits, weightUnits]);
 
   const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
@@ -76,6 +91,10 @@ export function useProgram(id: string | undefined) {
   const [error, setError] = useState<Error | null>(null);
   const storePrograms = useProgramsStore((state) => state.programs);
   const fetchPrograms = useProgramsStore((state) => state.fetchPrograms);
+  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const { profile } = useAuth();
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
 
   // Track current program for deletion optimization (avoids stale closure)
   const programRef = useRef<ProgramDetail | null>(null);
@@ -160,7 +179,12 @@ export function useProgram(id: string | undefined) {
           }
 
           // Full conversion for initial load or additions
-          const converted = await convertStoreProgramToDetail(foundProgram);
+          const converted = await convertStoreProgramToDetail(
+            foundProgram,
+            completedSessions,
+            preferredUnits,
+            weightUnits
+          );
           if (isMounted) {
             setProgram(converted);
             setError(null);
@@ -188,7 +212,7 @@ export function useProgram(id: string | undefined) {
     return () => {
       isMounted = false;
     };
-  }, [id, storePrograms]);
+  }, [id, storePrograms, completedSessions, preferredUnits, weightUnits]);
 
   const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
@@ -300,20 +324,17 @@ async function convertStoreWorkoutToHub(
  * Convert a store Program to hub ProgramDetail format
  */
 async function convertStoreProgramToDetail(
-  program: StoreProgram
+  program: StoreProgram,
+  completedSessions: WorkoutSession[],
+  preferredUnits: 'imperial' | 'metric',
+  weightUnits: Record<string, WeightUnit>
 ): Promise<ProgramDetail> {
   // Convert all workouts with metadata lookup
   const workouts = await Promise.all(
     program.workouts.map((w) => convertStoreWorkoutToHub(w))
   );
 
-  // Create empty stats (user programs don't have pre-computed stats)
-  const emptyStats: HubStats = {
-    timesCompleted: 0,
-    volumeHistory: [],
-    repsHistory: [],
-    durationHistory: [],
-  };
+  const stats = buildProgramStats(program.id, completedSessions, preferredUnits, weightUnits);
 
   return {
     id: program.id,
@@ -325,7 +346,7 @@ async function convertStoreProgramToDetail(
     createdBy: program.createdBy,
     isPublic: program.isPublic,
     workouts,
-    stats: emptyStats,
+    stats,
     lastPerformed: program.lastPerformedAt ?? undefined,
   };
 }
@@ -375,6 +396,114 @@ async function convertProgramWorkoutToDetail(
     lastPerformed: lastPerformedAt ?? undefined,
   };
 }
+
+const LBS_TO_KG = 1 / 2.20462;
+const KG_TO_LBS = 2.20462;
+
+const resolveWeightUnit = (
+  unit: WeightUnit | null | undefined,
+  fallbackUnit: WeightUnit | undefined,
+  preferredUnits: 'imperial' | 'metric'
+): WeightUnit => {
+  if (unit) return unit;
+  if (fallbackUnit) return fallbackUnit;
+  return preferredUnits === 'metric' ? 'kg' : 'lbs';
+};
+
+const normalizeWeight = (
+  weight: number,
+  unit: WeightUnit,
+  preferredUnits: 'imperial' | 'metric'
+): number => {
+  if (preferredUnits === 'metric') {
+    return unit === 'lbs' ? weight * LBS_TO_KG : weight;
+  }
+  return unit === 'kg' ? weight * KG_TO_LBS : weight;
+};
+
+const getSessionVolume = (
+  session: WorkoutSession,
+  preferredUnits: 'imperial' | 'metric',
+  weightUnits: Record<string, WeightUnit>
+): number => {
+  let total = 0;
+
+  session.exercises.forEach((exercise) => {
+    const fallbackUnit = weightUnits[exercise.exerciseId];
+    exercise.sets.forEach((set) => {
+      if (!set.isCompleted) return;
+      if (set.weight == null || set.reps == null) return;
+      if (set.weight <= 0 || set.reps <= 0) return;
+
+      const resolvedUnit = resolveWeightUnit(set.weightUnit, fallbackUnit, preferredUnits);
+      const normalizedWeight = normalizeWeight(set.weight, resolvedUnit, preferredUnits);
+      total += normalizedWeight * set.reps;
+    });
+  });
+
+  return total;
+};
+
+const buildProgramStats = (
+  programId: string,
+  completedSessions: WorkoutSession[],
+  preferredUnits: 'imperial' | 'metric',
+  weightUnits: Record<string, WeightUnit>
+): HubStats => {
+  const sessions = completedSessions.filter(
+    (session) => session.programId === programId && session.completedAt
+  );
+
+  if (sessions.length === 0) {
+    return {
+      timesCompleted: 0,
+      volumeHistory: [],
+      repsHistory: [],
+      durationHistory: [],
+    };
+  }
+
+  const sortedSessions = [...sessions].sort((a, b) => {
+    const aTime = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+    const bTime = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+    return aTime - bTime;
+  });
+
+  const historyLimit = 8;
+  const recentSessions = sortedSessions.slice(-historyLimit);
+
+  const volumeHistory = recentSessions.map((session) => {
+    const totalVolume = getSessionVolume(session, preferredUnits, weightUnits);
+    return {
+      date: session.completedAt ? new Date(session.completedAt).toISOString() : new Date().toISOString(),
+      value: Math.round(totalVolume),
+    };
+  });
+
+  const repsHistory = recentSessions.map((session) => {
+    const summary = getWorkoutSummary(session);
+    return {
+      date: session.completedAt ? new Date(session.completedAt).toISOString() : new Date().toISOString(),
+      value: summary.totalReps,
+    };
+  });
+
+  const durationHistory = recentSessions.map((session) => {
+    const summary = getWorkoutSummary(session);
+    const durationSeconds = session.durationSeconds ?? summary.durationSeconds;
+    return {
+      date: session.completedAt ? new Date(session.completedAt).toISOString() : new Date().toISOString(),
+      value: Math.max(0, Math.round(durationSeconds)),
+    };
+  });
+
+  return {
+    timesCompleted: sessions.length,
+    volumeHistory,
+    repsHistory,
+    durationHistory,
+  };
+};
 
 /**
  * Hook to load a single workout by ID with refresh capability

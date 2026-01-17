@@ -5,7 +5,9 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { StatsTabType, HubStats } from '@/src/types/program';
 import { StatsPlaceholder } from '@/src/components/shared/StatsPlaceholder';
+import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useAuth } from '@/src/contexts/AuthContext';
 
 interface HubStatsSectionProps {
   stats: HubStats;
@@ -13,8 +15,47 @@ interface HubStatsSectionProps {
 
 const TABS: StatsTabType[] = ['Volume', 'Reps', 'Duration'];
 
+const formatCompactNumber = (value: number): string => {
+  const absValue = Math.abs(value);
+  if (absValue >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}m`.replace('.0', '');
+  if (absValue >= 1000) return `${(value / 1000).toFixed(1)}k`.replace('.0', '');
+  return Math.round(value).toString();
+};
+
+const formatDuration = (seconds: number): string => {
+  const minutes = Math.round(seconds / 60);
+  return `${minutes}m`;
+};
+
+const resolveChartVariant = (tab: StatsTabType) => {
+  switch (tab) {
+    case 'Reps':
+      return 'bars' as const;
+    case 'Duration':
+      return 'line' as const;
+    case 'Volume':
+    default:
+      return 'area' as const;
+  }
+};
+
+const resolveYAxisLabel = (tab: StatsTabType, volumeUnit: string) => {
+  switch (tab) {
+    case 'Reps':
+      return 'Total reps';
+    case 'Duration':
+      return 'Minutes';
+    case 'Volume':
+    default:
+      return `Total volume (${volumeUnit})`;
+  }
+};
+
 export function HubStatsSection({ stats }: HubStatsSectionProps) {
   const { colors, isDark } = useTheme();
+  const { profile } = useAuth();
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
+  const volumeUnit = preferredUnits === 'metric' ? 'kg' : 'lbs';
   const [selectedTab, setSelectedTab] = useState<StatsTabType>('Volume');
 
   // Theme-aware styles
@@ -27,6 +68,10 @@ export function HubStatsSection({ stats }: HubStatsSectionProps) {
     },
     tabText: { color: colors.textSecondary },
     tabTextActive: { color: colors.textPrimary },
+    card: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
   };
 
   const handleTabPress = (tab: StatsTabType) => {
@@ -34,7 +79,16 @@ export function HubStatsSection({ stats }: HubStatsSectionProps) {
     setSelectedTab(tab);
   };
 
-  const hasData = stats.timesCompleted > 0;
+  const history =
+    selectedTab === 'Volume'
+      ? stats.volumeHistory
+      : selectedTab === 'Reps'
+      ? stats.repsHistory
+      : stats.durationHistory;
+  const hasData = stats.timesCompleted > 0 && history.length > 0;
+  const chartVariant = resolveChartVariant(selectedTab);
+  const yAxisLabel = resolveYAxisLabel(selectedTab, volumeUnit);
+  const formatVolumeValue = (value: number) => `${formatCompactNumber(value)} ${volumeUnit}`;
 
   return (
     <View style={styles.container}>
@@ -63,8 +117,25 @@ export function HubStatsSection({ stats }: HubStatsSectionProps) {
       {/* Chart Area */}
       <View style={styles.chartContainer}>
         {hasData ? (
-          // Future: Real chart component
-          <StatsPlaceholder selectedTab={selectedTab} />
+          <View style={[styles.chartCard, themedStyles.card]}>
+            <InsightLineChart
+              points={history}
+              height={160}
+              variant={chartVariant}
+              fill={colors.accentOverlay}
+              fillOpacity={0.3}
+              formatYValue={
+                selectedTab === 'Duration'
+                  ? formatDuration
+                  : selectedTab === 'Volume'
+                    ? formatVolumeValue
+                    : formatCompactNumber
+              }
+              xLabel="Date"
+              yLabel={yAxisLabel}
+              emptyLabel="Add another workout to see progress trends"
+            />
+          </View>
         ) : (
           <StatsPlaceholder selectedTab={selectedTab} />
         )}
@@ -103,5 +174,11 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     // Container for chart/placeholder
+  },
+  chartCard: {
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
 });

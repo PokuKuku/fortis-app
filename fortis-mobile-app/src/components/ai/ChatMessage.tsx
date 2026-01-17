@@ -257,8 +257,9 @@ export function ChatMessage({
 
 const TLDR_REGEX = /(^|\n)TLDR:\s*([^\n\r]+)\s*$/i;
 const TLDR_MIN_WORDS = 40;
-const TLDR_MAX_WORDS = 45;
-const TLDR_MAX_SENTENCES = 3;
+const TLDR_MIN_ACCEPTABLE_WORDS = 6;
+const TLDR_MAX_WORDS = 24;
+const TLDR_MAX_SENTENCES = 2;
 
 function splitTldrFromContent(content: string, allowFallback: boolean) {
   const match = content.match(TLDR_REGEX);
@@ -270,7 +271,10 @@ function splitTldrFromContent(content: string, allowFallback: boolean) {
   }
 
   const mainContent = content.slice(0, match.index).trimEnd();
-  const normalized = normalizeTldr(match[2].trim());
+  let normalized = normalizeTldr(match[2].trim());
+  if (normalized && isTldrLowQuality(normalized, mainContent)) {
+    normalized = null;
+  }
   return {
     mainContent,
     tldr: normalized ?? (allowFallback ? buildFallbackTldr(mainContent) : null),
@@ -296,11 +300,19 @@ function buildFallbackTldr(content: string) {
   const evidenceBullets = extractBulletLines(evidenceSection);
   const recommendationBullets = extractBulletLines(recSection);
 
-  const candidates = [
-    extractFirstSentence(diagnosisLine),
-    extractFirstSentence(evidenceBullets[0] ?? ''),
-    extractFirstSentence(recommendationBullets[0] ?? ''),
-  ];
+  const diagnosisSentence = extractFirstSentence(diagnosisLine);
+  const recommendationSentence = extractFirstSentence(recommendationBullets[0] ?? '');
+  const evidenceSentence = extractFirstSentence(evidenceBullets[0] ?? '');
+
+  const compact = buildCompactTldr(diagnosisSentence, recommendationSentence, evidenceSentence);
+  if (compact) {
+    return compact;
+  }
+
+  const candidates = [diagnosisSentence, recommendationSentence].filter(Boolean);
+  if (candidates.length < 2 && evidenceSentence) {
+    candidates.push(evidenceSentence);
+  }
 
   const tldr = clampSentences(candidates, TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
   if (tldr) {
@@ -327,13 +339,46 @@ function shouldDisplayTldr(content: string): boolean {
   return cleaned.split(' ').length >= TLDR_MIN_WORDS;
 }
 
+function isTldrLowQuality(tldr: string, content: string): boolean {
+  const wordCount = countWords(tldr);
+  if (wordCount < TLDR_MIN_ACCEPTABLE_WORDS) {
+    return true;
+  }
+  return looksTruncatedEnding(tldr, content);
+}
+
+function looksTruncatedEnding(tldr: string, content: string): boolean {
+  const trimmed = tldr.trim();
+  if (!trimmed) return true;
+  if (/[–—-]$/.test(trimmed)) return true;
+
+  const lastWord = trimmed
+    .replace(/[^\w]+$/g, '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .pop();
+
+  if (!lastWord || lastWord.length < 4) return false;
+  const escaped = escapeRegExp(lastWord);
+  const prefixRegex = new RegExp(`\\b${escaped}\\w+`, 'i');
+  return prefixRegex.test(content);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function trimToWordCount(text: string, maxWords: number): string {
   if (!text) return '';
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) {
     return text.trim().replace(/\.\.\.$/, '').replace(/…$/, '');
   }
-  return words.slice(0, maxWords).join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
+  const trimmedWords = words.slice(0, maxWords);
+  while (trimmedWords.length > 0 && TRAILING_STOP_WORDS.has(trimmedWords[trimmedWords.length - 1].toLowerCase())) {
+    trimmedWords.pop();
+  }
+  return trimmedWords.join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
 }
 
 function normalizeTldr(text: string): string | null {
@@ -402,6 +447,105 @@ function extractFirstSentence(text: string): string {
   return text.trim();
 }
 
+const TRAILING_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'as',
+  'at',
+  'but',
+  'by',
+  'due',
+  'for',
+  'from',
+  'if',
+  'in',
+  'into',
+  'of',
+  'on',
+  'or',
+  'so',
+  'the',
+  'to',
+  'with',
+  'without',
+]);
+
+const DIAGNOSIS_SUBJECT_REGEX = /^(?:the|this)\s+(.+?)\s+(?:is|has|shows|appears)\b/i;
+const STALL_KEYWORDS = /\b(stall|plateau|stagnant|flat|no progress)\b/i;
+
+function extractDiagnosisSubject(sentence: string): string | null {
+  if (!sentence) return null;
+  const match = sentence.match(DIAGNOSIS_SUBJECT_REGEX);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  const splitMatch = sentence.split(/\s+(?:is|has|shows|appears)\b/i);
+  if (splitMatch.length > 1) {
+    return splitMatch[0].replace(/^(the|this)\s+/i, '').trim();
+  }
+  return null;
+}
+
+function compactDiagnosis(sentence: string): string | null {
+  const cleaned = sentence.trim();
+  if (!cleaned) return null;
+  const subject = extractDiagnosisSubject(cleaned);
+  if (STALL_KEYWORDS.test(cleaned)) {
+    if (subject && subject.split(/\s+/).length <= 7) {
+      return `${subject} stall risk`;
+    }
+    return 'Stall risk';
+  }
+  return compressSentence(cleaned, 10, 90);
+}
+
+function compactRecommendation(sentence: string): string | null {
+  let cleaned = sentence.trim();
+  if (!cleaned) return null;
+
+  cleaned = cleaned
+    .replace(/^shift your\s+/i, 'Shift ')
+    .replace(/^shift\s+to\s+/i, 'Shift to ')
+    .replace(/^increase\s+/i, 'Increase ')
+    .replace(/^decrease\s+/i, 'Decrease ')
+    .replace(/^consider\s+/i, 'Consider ')
+    .replace(/^try\s+/i, 'Try ')
+    .replace(/^add\s+/i, 'Add ')
+    .replace(/^reduce\s+/i, 'Reduce ')
+    .replace(/\bfor the next\s+/i, 'for ')
+    .replace(/\bnext\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const tokens = cleaned.split(' ');
+  const toIndices = tokens
+    .map((token, index) => (token.toLowerCase() === 'to' ? index : -1))
+    .filter((index) => index >= 0);
+  if (toIndices.length >= 2) {
+    cleaned = tokens.slice(0, toIndices[1]).join(' ').trim();
+  }
+
+  return compressSentence(cleaned, 14, 120);
+}
+
+function buildCompactTldr(
+  diagnosisSentence: string,
+  recommendationSentence: string,
+  evidenceSentence: string
+): string | null {
+  const diagnosis = compactDiagnosis(diagnosisSentence);
+  const recommendation = compactRecommendation(recommendationSentence);
+  const evidence = compactDiagnosis(evidenceSentence);
+
+  if (diagnosis && recommendation) {
+    const combined = `${diagnosis.replace(/\.$/, '')}; ${recommendation}`;
+    return ensureSentenceEnding(combined);
+  }
+
+  return diagnosis || recommendation || evidence || null;
+}
+
 function ensureSentenceEnding(text: string): string {
   if (!text) return '';
   return /[.!?]$/.test(text) ? text : `${text}.`;
@@ -435,7 +579,8 @@ function extractSectionText(content: string, startRegex: RegExp, endRegex: RegEx
 
 function extractBulletLines(sectionText: string): string[] {
   if (!sectionText) return [];
-  return sectionText
+  const normalized = sectionText.replace(/\s-\s+/g, '\n- ');
+  return normalized
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => /^[-*•]\s+/.test(line))

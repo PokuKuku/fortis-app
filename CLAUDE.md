@@ -222,7 +222,6 @@ await AsyncStorage.setItem(key, JSON.stringify({ ...synced, is_synced: true }));
 - **workoutHistoryService.ts**: Past workout queries, volume calculations
 - **aiService.ts**: AI chat integration with Supabase edge function
 - **stickyNotesService.ts**: Notes attached to exercises/workouts
-- **exerciseDbClient.ts**: External exercise database API client
 - **analyticsService.ts**: PostHog/Mixpanel event tracking abstraction
 - **insightsService.ts**: Analytics data queries for insights page
 - **insightChartsService.ts**: Chart data generation for insights visualizations

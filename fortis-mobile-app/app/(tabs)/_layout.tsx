@@ -20,6 +20,7 @@ import { useAIStore } from '../../src/store/aiStore';
 import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -73,17 +74,18 @@ export default function TabLayout() {
   const loadStartPreset = useStartPresetStore(s => s.loadPreset);
   const setStartPreset = useStartPresetStore(s => s.setPreset);
   // Tab bar stays at fixed position
-  const tabBarBottom = 14;
-  const TAB_BAR_HEIGHT = 64;
-  const TAB_BAR_RADIUS = 32;
-  const TAB_BAR_PADDING_X = 20;
-  const TAB_BAR_ITEM_MAX_WIDTH = 76;
-  const TAB_BAR_LABEL_SIZE = 8;
-  const TAB_ICON_SIZE = 19;
-  const CENTER_BUTTON_SIZE = 52;
-  const CENTER_BUTTON_ICON_SIZE = 20;
-  const FAB_BUTTON_SIZE = 68;
-  const FAB_ICON_SIZE = 34;
+  const tabBarBottom = scale(14);
+  const TAB_BAR_HEIGHT = scale(64);
+  const TAB_BAR_RADIUS = Math.round(TAB_BAR_HEIGHT / 2);
+  const TAB_BAR_PADDING_X = scale(20);
+  const TAB_BAR_ITEM_MAX_WIDTH = scale(76);
+  const TAB_BAR_LABEL_SIZE = moderateScale(8);
+  const TAB_ICON_SIZE = scale(22);
+  const CENTER_BUTTON_SIZE = scale(52);
+  const CENTER_BUTTON_ICON_SIZE = scale(20);
+  const FAB_BUTTON_SIZE = scale(68);
+  const FAB_ICON_SIZE = scale(34);
+  const TAB_BAR_MAX_WIDTH = scale(420);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -439,7 +441,7 @@ export default function TabLayout() {
             height: TAB_BAR_HEIGHT,
             position: 'absolute',
             width: '90%',
-            maxWidth: 420,
+            maxWidth: TAB_BAR_MAX_WIDTH,
             marginHorizontal: '5%',
             bottom: tabBarBottom,
             borderRadius: TAB_BAR_RADIUS,
@@ -458,7 +460,7 @@ export default function TabLayout() {
             flex: 1,
             gap: 2,
             maxWidth: TAB_BAR_ITEM_MAX_WIDTH,
-            paddingTop: 2,
+            paddingTop: moderateScale(6),
           },
         }}
     >
@@ -520,7 +522,7 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontSize: TAB_BAR_LABEL_SIZE,
             fontWeight: '700',
-            marginTop: 2,
+            marginTop: moderateScale(2),
           },
         }}
       />
@@ -567,7 +569,7 @@ export default function TabLayout() {
         styles.plusButtonContainer,
         {
           // FAB aligned with mini bar height (88px from bottom)
-          bottom: tabBarBottom + TAB_BAR_HEIGHT + 20,
+          bottom: tabBarBottom + TAB_BAR_HEIGHT + scale(20),
           opacity: fabOpacity,
           transform: [
             {
@@ -819,8 +821,8 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabIconContainer: {
-    padding: 6,
-    borderRadius: 10,
+    padding: scale(6),
+    borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -828,7 +830,7 @@ const styles = StyleSheet.create({
     // backgroundColor is now dynamic via themedStyles
   },
   centerButtonContainer: {
-    marginTop: -18,
+    marginTop: -scale(18),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -840,7 +842,7 @@ const styles = StyleSheet.create({
   },
   plusButtonContainer: {
     position: 'absolute',
-    bottom: 24 + 64 + 8,
+    bottom: scale(24 + 64 + 8),
     right: '5%',
     zIndex: 1000,
   },

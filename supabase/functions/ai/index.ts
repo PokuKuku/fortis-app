@@ -1200,7 +1200,7 @@ CORE PRINCIPLES:
 - Ask at most two short questions only when required to build a reasonable outline. Prioritize: goal/body part and days per week.
 - If details are missing, ask the questions first instead of guessing.
 - If you ask a follow-up question, keep it short and focused.
-- End every answer with a TLDR line: "TLDR: ..." (up to 3 short sentences, max 45 words, no emojis, no new facts or numbers, at most one action, no ellipses).
+- End every answer with a TLDR line: "TLDR: ..." (1-2 short sentences, max 24 words, no emojis, no new facts or numbers, at most one action, no ellipses).
 - TLDR must be a compressed paraphrase (not a repeat of any full sentence above). It should summarize the key takeaway and/or next step in fewer words.
 - When you cite numbers, include units and show simple math to build credibility.
 - Prefer concrete references to the provided data (dates, counts, averages, deltas) and connect them to recommendations.
@@ -1357,7 +1357,8 @@ function formatAnswerText(text: string, intent: AIIntent): string {
   const trimmed = text.trim();
   if (intent === 'FORTIS_ANALYST') {
     const normalized = normalizeInsightSections(trimmed);
-    return ensureTldrLine(normalized);
+    const formatted = formatInsightLayout(normalized);
+    return ensureTldrLine(formatted);
   }
   return trimmed;
 }
@@ -1447,29 +1448,25 @@ function buildModelError(requestId: string, message: string) {
 
 const TLDR_PREFIX_REGEX = /^TLDR:\s*/i;
 const TLDR_LINE_REGEX = /^TLDR:\s*.+$/i;
-const TLDR_MAX_WORDS = 45;
-const TLDR_MAX_SENTENCES = 3;
+const TLDR_MAX_WORDS = 24;
+const TLDR_MAX_SENTENCES = 2;
 
 function ensureTldrLine(content: string): string {
   if (!content) return '';
-  const existing = extractExistingTldr(content);
   const trimmed = stripExistingTldr(content);
-  if (existing) {
-    const normalized = normalizeTldr(existing);
-    if (!normalized) {
-      return trimmed;
-    }
-    return `${trimmed}\n\nTLDR: ${normalized}`;
+  const rebuilt = buildTldrFromText(trimmed);
+  const normalizedRebuilt = rebuilt ? normalizeTldr(rebuilt) : null;
+  if (normalizedRebuilt) {
+    return `${trimmed}\n\nTLDR: ${normalizedRebuilt}`;
   }
-  const tldr = buildTldrFromText(trimmed);
-  if (!tldr) {
-    return trimmed;
+
+  const existing = extractExistingTldr(content);
+  const normalizedExisting = existing ? normalizeTldr(existing) : null;
+  if (normalizedExisting) {
+    return `${trimmed}\n\nTLDR: ${normalizedExisting}`;
   }
-  const normalized = normalizeTldr(tldr);
-  if (!normalized) {
-    return trimmed;
-  }
-  return `${trimmed}\n\nTLDR: ${normalized}`;
+
+  return trimmed;
 }
 
 function extractExistingTldr(content: string): string | null {
@@ -1502,6 +1499,28 @@ function normalizeInsightSections(content: string): string {
     .trim();
 }
 
+function formatInsightLayout(content: string): string {
+  if (!content) return '';
+  let formatted = content.replace(/\r\n/g, '\n');
+
+  formatted = formatted.replace(
+    /\s*(Diagnosis|Evidence|Recommendations)\s*:/gi,
+    (match, header, offset, full) => {
+      const before = full.slice(0, offset);
+      const needsBreak = offset > 0 && !before.endsWith('\n\n');
+      return `${needsBreak ? '\n\n' : ''}${header}:`;
+    }
+  );
+
+  formatted = formatted
+    .replace(/:\s*-\s+/g, ':\n- ')
+    .replace(/\s-\s+/g, '\n- ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return formatted;
+}
+
 function stripSectionPrefix(text: string): string {
   return text.replace(/^(diagnosis|evidence|recommendations|actionable next steps)\s*:\s*/i, '').trim();
 }
@@ -1520,7 +1539,8 @@ function extractSectionText(content: string, startRegex: RegExp, endRegex: RegEx
 
 function extractBulletLines(sectionText: string): string[] {
   if (!sectionText) return [];
-  return sectionText
+  const normalized = sectionText.replace(/\s-\s+/g, '\n- ');
+  return normalized
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => /^[-*•]\s+/.test(line))
@@ -1536,7 +1556,7 @@ function isSectionHeaderLine(line: string): boolean {
 }
 
 function buildTldrFromText(content: string): string | null {
-  const cleaned = normalizeInsightSections(content)
+  const cleaned = formatInsightLayout(normalizeInsightSections(content))
     .replace(/\[[^\]]*]\([^)]+\)/g, '')
     .replace(/[`#>*_]/g, '')
     .trim();
@@ -1565,23 +1585,23 @@ function buildTldrFromText(content: string): string | null {
   const evidenceBullets = extractBulletLines(evidenceSection);
   const recommendationBullets = extractBulletLines(recSection);
 
-  const diagnosisSentence = compressSentence(
-    stripSectionPrefix(extractFirstSentence(diagnosisLine)),
-    16,
-    140
-  );
-  const evidenceSentence = compressSentence(
-    stripSectionPrefix(extractFirstSentence(evidenceBullets[0] ?? bulletLines[0] ?? '')),
-    14,
-    120
-  );
-  const actionSentence = compressSentence(
-    stripSectionPrefix(extractFirstSentence(recommendationBullets[0] ?? bulletLines[1] ?? '')),
-    14,
-    120
-  );
+  const diagnosisRaw = stripSectionPrefix(extractFirstSentence(diagnosisLine));
+  const recommendationRaw = stripSectionPrefix(extractFirstSentence(recommendationBullets[0] ?? ''));
+  const evidenceRaw = stripSectionPrefix(extractFirstSentence(evidenceBullets[0] ?? bulletLines[0] ?? ''));
 
-  const candidates = [diagnosisSentence, evidenceSentence, actionSentence];
+  const compact = buildCompactTldr(diagnosisRaw, recommendationRaw, evidenceRaw);
+  if (compact) {
+    return compact;
+  }
+
+  const diagnosisSentence = compressSentence(diagnosisRaw, 14, 120);
+  const recommendationSentence = compressSentence(recommendationRaw, 12, 120);
+  const evidenceSentence = compressSentence(evidenceRaw, 12, 120);
+
+  const candidates = [diagnosisSentence, recommendationSentence].filter(Boolean);
+  if (candidates.length < 2 && evidenceSentence) {
+    candidates.push(evidenceSentence);
+  }
   const tldr = clampSentences(candidates, TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
   if (tldr) {
     return tldr;
@@ -1665,6 +1685,81 @@ function extractFirstSentence(text: string): string {
   return text.trim();
 }
 
+const DIAGNOSIS_SUBJECT_REGEX = /^(?:the|this)\s+(.+?)\s+(?:is|has|shows|appears)\b/i;
+const STALL_KEYWORDS = /\b(stall|plateau|stagnant|flat|no progress)\b/i;
+
+function extractDiagnosisSubject(sentence: string): string | null {
+  if (!sentence) return null;
+  const match = sentence.match(DIAGNOSIS_SUBJECT_REGEX);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  const splitMatch = sentence.split(/\s+(?:is|has|shows|appears)\b/i);
+  if (splitMatch.length > 1) {
+    return splitMatch[0].replace(/^(the|this)\s+/i, '').trim();
+  }
+  return null;
+}
+
+function compactDiagnosis(sentence: string): string | null {
+  const cleaned = sentence.trim();
+  if (!cleaned) return null;
+  const subject = extractDiagnosisSubject(cleaned);
+  if (STALL_KEYWORDS.test(cleaned)) {
+    if (subject && subject.split(/\s+/).length <= 7) {
+      return `${subject} stall risk`;
+    }
+    return 'Stall risk';
+  }
+  return compressSentence(cleaned, 10, 90);
+}
+
+function compactRecommendation(sentence: string): string | null {
+  let cleaned = sentence.trim();
+  if (!cleaned) return null;
+
+  cleaned = cleaned
+    .replace(/^shift your\s+/i, 'Shift ')
+    .replace(/^shift\s+to\s+/i, 'Shift to ')
+    .replace(/^increase\s+/i, 'Increase ')
+    .replace(/^decrease\s+/i, 'Decrease ')
+    .replace(/^consider\s+/i, 'Consider ')
+    .replace(/^try\s+/i, 'Try ')
+    .replace(/^add\s+/i, 'Add ')
+    .replace(/^reduce\s+/i, 'Reduce ')
+    .replace(/\bfor the next\s+/i, 'for ')
+    .replace(/\bnext\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const tokens = cleaned.split(' ');
+  const toIndices = tokens
+    .map((token, index) => (token.toLowerCase() === 'to' ? index : -1))
+    .filter((index) => index >= 0);
+  if (toIndices.length >= 2) {
+    cleaned = tokens.slice(0, toIndices[1]).join(' ').trim();
+  }
+
+  return compressSentence(cleaned, 14, 120);
+}
+
+function buildCompactTldr(
+  diagnosisSentence: string,
+  recommendationSentence: string,
+  evidenceSentence: string
+): string | null {
+  const diagnosis = compactDiagnosis(diagnosisSentence);
+  const recommendation = compactRecommendation(recommendationSentence);
+  const evidence = compactDiagnosis(evidenceSentence);
+
+  if (diagnosis && recommendation) {
+    const combined = `${diagnosis.replace(/\.$/, '')}; ${recommendation}`;
+    return ensureSentenceEnding(combined);
+  }
+
+  return diagnosis || recommendation || evidence || null;
+}
+
 function compressSentence(text: string, maxWords: number, maxChars: number): string {
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length === 0) {
@@ -1682,13 +1777,41 @@ function compressSentence(text: string, maxWords: number, maxChars: number): str
   return trimmed;
 }
 
+const TRAILING_STOP_WORDS = new Set([
+  'a',
+  'an',
+  'and',
+  'as',
+  'at',
+  'but',
+  'by',
+  'due',
+  'for',
+  'from',
+  'if',
+  'in',
+  'into',
+  'of',
+  'on',
+  'or',
+  'so',
+  'the',
+  'to',
+  'with',
+  'without',
+]);
+
 function trimToWordCount(text: string, maxWords: number): string {
   if (!text) return '';
   const words = text.split(/\s+/).filter(Boolean);
   if (words.length <= maxWords) {
     return text.trim().replace(/\.\.\.$/, '').replace(/…$/, '');
   }
-  return words.slice(0, maxWords).join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
+  const trimmedWords = words.slice(0, maxWords);
+  while (trimmedWords.length > 0 && TRAILING_STOP_WORDS.has(trimmedWords[trimmedWords.length - 1].toLowerCase())) {
+    trimmedWords.pop();
+  }
+  return trimmedWords.join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
 }
 
 function normalizeText(text: string): string {

@@ -25,6 +25,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { WorkoutStackPreview } from '@/src/components/program/WorkoutStackPreview';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { seedProgramProgress } from '@/src/utils/seedProgramProgress';
 
 // Difficulty badge colors - beginner uses accent from theme
 const getDifficultyColors = (accentOverlay: string, accent: string): Record<string, { bg: string; text: string }> => ({
@@ -165,6 +166,7 @@ export default function ProgramDetailScreen() {
   const { colors, isDark } = useTheme();
   const { program, loading } = useProgram(id);
   const isNavigating = useRef(false);
+  const seededProgramRef = useRef<string | null>(null);
   const storePrograms = useProgramsStore(s => s.programs);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
@@ -395,6 +397,15 @@ export default function ProgramDetailScreen() {
   useEffect(() => {
     loadProgress();
   }, [loadProgress]);
+
+  useEffect(() => {
+    if (!program || !id) return;
+    if (seededProgramRef.current === id) return;
+    seededProgramRef.current = id;
+    seedProgramProgress(program).catch((error) => {
+      console.warn('Failed to seed program progress:', error);
+    });
+  }, [id, program]);
 
   // Theme-aware meta tag styles
   const metaTagStyle = {

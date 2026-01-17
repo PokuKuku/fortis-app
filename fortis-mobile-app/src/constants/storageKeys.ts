@@ -25,6 +25,7 @@ export const EXERCISE_WEIGHT_UNITS_KEY = 'exercise_weight_units_v1';
 export const BODY_TYPE_KEY = 'body_type_v1';
 export const START_BUTTON_PRESET_KEY = 'start_button_preset_v1';
 export const ONBOARDING_STATE_KEY = 'onboarding_state_v1';
+export const PROGRAM_PROGRESS_SEED_KEY = 'program_progress_seed_v1';
 
 // AI assistant
 export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
@@ -58,6 +59,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   BODY_TYPE_KEY,
   START_BUTTON_PRESET_KEY,
   ONBOARDING_STATE_KEY,
+  PROGRAM_PROGRESS_SEED_KEY,
   AI_CONVERSATION_KEY,
   PROFILE_STATS_CACHE_KEY,
   TRAINING_INSIGHTS_CACHE_KEY,
