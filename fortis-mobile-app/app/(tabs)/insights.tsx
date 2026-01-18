@@ -17,6 +17,7 @@ import { useAIStore } from '@/src/store/aiStore';
 import { EvidenceItem, TrainingInsight, InsightType } from '@/src/types/insights';
 import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
+import { isDateOnly, parseDateInput } from '@/src/utils/dateParsing';
 import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightSparkline } from '@/src/components/insights/InsightSparkline';
 import { Colors } from '@/constants/Colors';
@@ -81,12 +82,12 @@ const formatChartValue = (value: number, unit?: string): string => {
 };
 
 const formatChartDate = (date: string): string | null => {
-  const normalized = date.includes('T') ? date : `${date}T00:00:00`;
-  const parsed = new Date(normalized);
-  if (Number.isNaN(parsed.getTime())) {
+  const parsed = parseDateInput(date);
+  if (!parsed) {
     return null;
   }
-  return format(parsed, 'MMM d');
+  const displayDate = isDateOnly(date) ? addDays(parsed, 6) : parsed;
+  return format(displayDate, 'MMM d');
 };
 
 const resolveUnitLabel = (unit?: string): string | null => {

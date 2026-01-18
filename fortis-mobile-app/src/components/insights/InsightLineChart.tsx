@@ -6,6 +6,7 @@ import type { InsightChartPoint } from '@/src/types/insightCharts';
 import { Typography } from '@/constants/Typography';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
+import { parseDateInput } from '@/src/utils/dateParsing';
 
 type HighlightRange = { start: string; end: string };
 
@@ -113,15 +114,21 @@ const resolveHighlightRange = (
   highlightRange?: HighlightRange
 ): { startIndex: number; endIndex: number } | null => {
   if (!highlightRange || points.length < 2) return null;
-  const startTime = new Date(highlightRange.start).getTime();
-  const endTime = new Date(highlightRange.end).getTime();
-  if (Number.isNaN(startTime) || Number.isNaN(endTime)) return null;
+  const startDate = parseDateInput(highlightRange.start);
+  const endDate = parseDateInput(highlightRange.end);
+  if (!startDate || !endDate) return null;
+  const startTime = startDate.getTime();
+  const endTime = endDate.getTime();
 
-  let startIndex = points.findIndex((point) => new Date(point.date).getTime() >= startTime);
+  let startIndex = points.findIndex((point) => {
+    const pointDate = parseDateInput(point.date);
+    return pointDate ? pointDate.getTime() >= startTime : false;
+  });
   if (startIndex === -1) startIndex = 0;
   let endIndex = -1;
   for (let i = points.length - 1; i >= 0; i -= 1) {
-    if (new Date(points[i].date).getTime() <= endTime) {
+    const pointDate = parseDateInput(points[i].date);
+    if (pointDate && pointDate.getTime() <= endTime) {
       endIndex = i;
       break;
     }

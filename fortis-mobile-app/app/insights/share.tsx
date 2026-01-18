@@ -26,6 +26,7 @@ import type { TrainingInsight } from '@/src/types/insights';
 import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
+import { isDateOnly, parseDateInput } from '@/src/utils/dateParsing';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
@@ -55,11 +56,12 @@ const SECTION_GAP = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
 
 const formatDateLabel = (value: string): string => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDateInput(value);
+  if (!date) {
     return value;
   }
-  return format(date, 'MMM d');
+  const displayDate = isDateOnly(value) ? addDays(date, 6) : date;
+  return format(displayDate, 'MMM d');
 };
 
 const formatWeekRange = (anchorDate: string): string => {

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
-import { format } from 'date-fns';
+import { addDays, format } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
@@ -17,6 +17,7 @@ import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
 import type { EvidenceItem, TrainingInsight, InsightFeedbackRating } from '@/src/types/insights';
 import type { InsightChartTab } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
+import { isDateOnly, parseDateInput } from '@/src/utils/dateParsing';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -122,11 +123,12 @@ const formatChartValue = (value: number, unit?: string): string => {
 };
 
 const formatDateLabel = (value: string): string => {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseDateInput(value);
+  if (!date) {
     return value;
   }
-  return format(date, 'MMM d');
+  const displayDate = isDateOnly(value) ? addDays(date, 6) : date;
+  return format(displayDate, 'MMM d');
 };
 
 const resolveEvidence = (insight: TrainingInsight) => {
