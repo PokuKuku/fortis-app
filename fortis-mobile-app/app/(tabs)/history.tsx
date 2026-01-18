@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { AppState, View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable, Alert } from 'react-native';
+import { AppState, View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -19,7 +19,7 @@ import Animated, {
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { getWorkoutSummary, useWorkoutStore } from '../../src/store/workoutStore';
-import { getPendingSyncSessions, processPendingQueue, deleteWorkoutSession } from '../../src/services/workoutHistoryService';
+import { getPendingSyncSessions, processPendingQueue } from '../../src/services/workoutHistoryService';
 import { useWorkoutHistorySource } from '../../src/hooks/useWorkoutHistorySource';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -457,7 +457,6 @@ export default function HistoryScreen() {
   const markSessionsSyncing = useWorkoutStore((state) => state.markSessionsSyncing);
   const clearSessionsSyncing = useWorkoutStore((state) => state.clearSessionsSyncing);
   const markSessionsSynced = useWorkoutStore((state) => state.markSessionsSynced);
-  const deleteCompletedSession = useWorkoutStore((state) => state.deleteCompletedSession);
   const [pendingSessions, setPendingSessions] = useState<WorkoutSession[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isPendingLoading, setIsPendingLoading] = useState(false);
@@ -628,18 +627,6 @@ export default function HistoryScreen() {
     }
   }, [clearSessionsSyncing, loadData, markSessionsSyncing, markSessionsSynced]);
 
-  const handleDeleteSession = useCallback(async (session: WorkoutSession) => {
-    const result = await deleteWorkoutSession(session);
-    if (!result.success && session.isSynced) {
-      Alert.alert('Delete failed', result.error || 'Unable to delete this workout right now.');
-      return;
-    }
-
-    await deleteCompletedSession(session.localId);
-    setSelectedSession(null);
-    await loadData();
-  }, [deleteCompletedSession, loadData]);
-
   const selectedDateKey = format(selectedDate, 'yyyy-MM-dd');
   const displayedMonthKey = format(displayedMonth, 'yyyy-MM-dd');
 
@@ -792,7 +779,6 @@ export default function HistoryScreen() {
       <WorkoutHistoryDetailModal
         visible={selectedSession !== null}
         onClose={() => setSelectedSession(null)}
-        onDelete={handleDeleteSession}
         onRetry={handleRetryPendingSync}
         session={selectedSession}
       />

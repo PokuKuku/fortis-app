@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { ClockIcon, ScaleIcon, TrophyIcon } from 'react-native-heroicons/outline';
@@ -21,7 +21,6 @@ function isUUID(value: string): boolean {
 interface WorkoutHistoryDetailModalProps {
   visible: boolean;
   onClose: () => void;
-  onDelete?: (session: WorkoutSession) => void;
   onRetry?: () => void;
   session: WorkoutSession | null;
 }
@@ -81,7 +80,6 @@ function formatSetDetails(set: WorkoutSet): string {
 export function WorkoutHistoryDetailModal({
   visible,
   onClose,
-  onDelete,
   onRetry,
   session,
 }: WorkoutHistoryDetailModalProps) {
@@ -172,22 +170,6 @@ export function WorkoutHistoryDetailModal({
     : `${formatVolume(summary.totalVolume)} ${formatWeightUnit()}`;
   const canRetry = !session.isSynced && typeof onRetry === 'function';
 
-  const handleDeletePress = () => {
-    if (!session || !onDelete) return;
-    Alert.alert(
-      'Delete workout?',
-      'This will remove this workout from your history. This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => onDelete(session),
-        },
-      ]
-    );
-  };
-
   const handleRetryPress = () => {
     if (!canRetry) return;
     onRetry?.();
@@ -249,7 +231,7 @@ export function WorkoutHistoryDetailModal({
         })}
       </ScrollView>
 
-      {(onDelete || canRetry) && (
+      {canRetry && (
         <View style={[modalStyles.actions, styles.actions]}>
           {canRetry && (
             <Pressable
@@ -260,17 +242,6 @@ export function WorkoutHistoryDetailModal({
               ]}
             >
               <Text style={modalStyles.successButtonText}>Retry sync</Text>
-            </Pressable>
-          )}
-          {onDelete && (
-            <Pressable
-              onPress={handleDeletePress}
-              style={({ pressed }) => [
-                modalStyles.errorButton,
-                pressed && modalStyles.buttonPressed,
-              ]}
-            >
-              <Text style={modalStyles.errorButtonText}>Delete workout</Text>
             </Pressable>
           )}
         </View>
