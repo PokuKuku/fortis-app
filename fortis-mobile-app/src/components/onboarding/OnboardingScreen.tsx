@@ -19,6 +19,8 @@ interface OnboardingScreenProps {
   totalSteps: number;
   title: string;
   subtitle?: string;
+  titlePlacement?: 'top' | 'bottom';
+  titleTopOffset?: number;
   titleAlign?: 'left' | 'center';
   subtitleAlign?: 'left' | 'center';
   titleFontSize?: number;
@@ -40,6 +42,8 @@ export function OnboardingScreen({
   totalSteps,
   title,
   subtitle,
+  titlePlacement = 'top',
+  titleTopOffset = 0,
   titleAlign = 'left',
   subtitleAlign = 'left',
   titleFontSize,
@@ -67,6 +71,37 @@ export function OnboardingScreen({
       borderColor: colors.glassBorder,
     },
   };
+
+  const titleBlock = (
+    <View style={[styles.titleBlock, titleTopOffset ? { marginTop: titleTopOffset } : null]}>
+      <Text
+        style={[
+          styles.title,
+          themedStyles.title,
+          titleFontSize ? { fontSize: titleFontSize } : null,
+        ]}
+        numberOfLines={titleNumberOfLines}
+        adjustsFontSizeToFit={titleAdjustsFontSizeToFit}
+        minimumFontScale={titleMinimumFontScale}
+      >
+        {title}
+      </Text>
+      {subtitle && (
+        <Text style={[styles.subtitle, themedStyles.subtitle]}>{subtitle}</Text>
+      )}
+    </View>
+  );
+
+  const footerBlock = footer || titlePlacement === 'bottom'
+    ? (
+        <View style={styles.footer}>
+          <View style={styles.footerStack}>
+            {titlePlacement === 'bottom' ? titleBlock : null}
+            {footer}
+          </View>
+        </View>
+      )
+    : null;
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -109,27 +144,13 @@ export function OnboardingScreen({
                     {sectionLabel}
                   </Text>
                 )}
-              <Text
-                style={[
-                  styles.title,
-                  themedStyles.title,
-                  titleFontSize ? { fontSize: titleFontSize } : null,
-                ]}
-                numberOfLines={titleNumberOfLines}
-                adjustsFontSizeToFit={titleAdjustsFontSizeToFit}
-                minimumFontScale={titleMinimumFontScale}
-              >
-                {title}
-              </Text>
-                {subtitle && (
-                  <Text style={[styles.subtitle, themedStyles.subtitle]}>{subtitle}</Text>
-                )}
+                {titlePlacement === 'top' ? titleBlock : null}
               </View>
 
               <View style={styles.bodySection}>{children}</View>
             </View>
 
-            {footer ? <View style={styles.footer}>{footer}</View> : null}
+            {footerBlock}
           </ScrollView>
         ) : (
           <View style={styles.staticContent}>
@@ -143,27 +164,13 @@ export function OnboardingScreen({
                   {sectionLabel}
                 </Text>
               )}
-              <Text
-                style={[
-                  styles.title,
-                  themedStyles.title,
-                  titleFontSize ? { fontSize: titleFontSize } : null,
-                ]}
-                numberOfLines={titleNumberOfLines}
-                adjustsFontSizeToFit={titleAdjustsFontSizeToFit}
-                minimumFontScale={titleMinimumFontScale}
-              >
-                {title}
-              </Text>
-                {subtitle && (
-                  <Text style={[styles.subtitle, themedStyles.subtitle]}>{subtitle}</Text>
-                )}
+              {titlePlacement === 'top' ? titleBlock : null}
               </View>
 
               <View style={styles.bodySection}>{children}</View>
             </View>
 
-            {footer ? <View style={styles.footer}>{footer}</View> : null}
+            {footerBlock}
           </View>
         )}
       </SafeAreaView>
@@ -225,6 +232,9 @@ const styles = StyleSheet.create({
   topSection: {
     gap: Spacing.sm,
   },
+  titleBlock: {
+    gap: Spacing.xs,
+  },
   headerAccessory: {
     alignItems: 'center',
   },
@@ -248,5 +258,8 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingTop: Spacing.lg,
+  },
+  footerStack: {
+    gap: Spacing.lg,
   },
 });

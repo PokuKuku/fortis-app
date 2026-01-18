@@ -2,7 +2,6 @@ import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
@@ -21,21 +20,17 @@ export default function OnboardingWelcomeScreen() {
     <OnboardingScreen
       step={0}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Your workout data, made intelligent."
+      title={'Your workout data\nmade useful'}
       subtitle={undefined}
       useScrollView={false}
       showProgress={false}
       titleAlign="center"
       subtitleAlign="center"
-      titleFontSize={22}
+      titleFontSize={28}
       titleNumberOfLines={2}
       titleAdjustsFontSizeToFit
       titleMinimumFontScale={0.8}
-      headerAccessory={
-        <View style={styles.logoRow}>
-          <AnimatedLogo size="large" centered animate={false} />
-        </View>
-      }
+      titleTopOffset={Spacing.lg}
       footer={
         <GlassButton style={styles.button} onPress={handleStart}>
           <Text style={[styles.buttonText, { color: colors.white }]}>Get started</Text>
@@ -47,11 +42,6 @@ export default function OnboardingWelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  logoRow: {
-    alignItems: 'center',
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
-  },
   button: {
     height: 54,
     borderRadius: BorderRadius.xl,
