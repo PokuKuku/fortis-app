@@ -621,7 +621,12 @@ function WatchlistRow({
         )}
         <View style={styles.watchlistEvidence}>
           {e1rmItem && (() => {
-            const e1rmDeltaText = formatEvidenceDelta(e1rmItem)?.text;
+            const e1rmDelta = formatEvidenceDelta(e1rmItem);
+            const e1rmDeltaColor = e1rmDelta?.trend === 'up'
+              ? Colors.success
+              : e1rmDelta?.trend === 'down'
+              ? Colors.error
+              : readableText.secondary;
             return (
               <View style={styles.watchlistEvidenceRow}>
                 <Text style={[styles.watchlistEvidenceLabel, { color: readableText.tertiary }]}>
@@ -629,13 +634,20 @@ function WatchlistRow({
                 </Text>
                 <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
                   {formatEvidenceValue(e1rmItem)}
-                  {e1rmDeltaText ? ` (${e1rmDeltaText})` : ''}
+                  {e1rmDelta?.text && (
+                    <Text style={{ color: e1rmDeltaColor }}>{` (${e1rmDelta.text})`}</Text>
+                  )}
                 </Text>
               </View>
             );
           })()}
           {volumeItem && (() => {
-            const volumeDeltaText = formatEvidenceDelta(volumeItem)?.text;
+            const volumeDelta = formatEvidenceDelta(volumeItem);
+            const volumeDeltaColor = volumeDelta?.trend === 'up'
+              ? Colors.success
+              : volumeDelta?.trend === 'down'
+              ? Colors.error
+              : readableText.secondary;
             return (
               <View style={styles.watchlistEvidenceRow}>
                 <Text style={[styles.watchlistEvidenceLabel, { color: readableText.tertiary }]}>
@@ -643,7 +655,9 @@ function WatchlistRow({
                 </Text>
                 <Text style={[styles.watchlistEvidenceValue, { color: colors.textPrimary }]}>
                   {formatEvidenceValue(volumeItem)}
-                  {volumeDeltaText ? ` (${volumeDeltaText})` : ''}
+                  {volumeDelta?.text && (
+                    <Text style={{ color: volumeDeltaColor }}>{` (${volumeDelta.text})`}</Text>
+                  )}
                 </Text>
               </View>
             );

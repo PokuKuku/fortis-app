@@ -49,6 +49,9 @@ export const formatEvidenceDelta = (
   if (baseDelta === null || Number.isNaN(baseDelta)) {
     return null;
   }
+  if (Math.abs(baseDelta) < 0.0001) {
+    return null;
+  }
 
   const trend: 'up' | 'down' | 'flat' =
     baseDelta > 0 ? 'up' : baseDelta < 0 ? 'down' : 'flat';

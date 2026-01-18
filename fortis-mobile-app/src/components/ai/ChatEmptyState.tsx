@@ -4,7 +4,7 @@
  * Premium onboarding experience for AI chat with:
  * - Animated sparkles icon
  * - Engaging headline and subtitle
- * - 2x2 quick actions grid with staggered animations
+ * - Responsive quick actions grid with staggered animations
  */
 
 import React from 'react';
@@ -27,14 +27,16 @@ import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { AIIntent } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { getContentWidth, moderateScale, scale } from '@/src/utils/responsive';
+import { getContentWidth, moderateScale, responsiveValue, scale } from '@/src/utils/responsive';
 
-// Calculate grid dimensions for perfect 2-column layout
+// Calculate grid dimensions for consistent layout across screen sizes
 const GRID_HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const GRID_GAP = scale(Spacing.md);
-const GRID_WIDTH = getContentWidth(GRID_HORIZONTAL_PADDING, scale(400));
-const CARD_WIDTH = (GRID_WIDTH - GRID_GAP) / 2; // Exact width for each card
-const CARD_HEIGHT = scale(140);
+const GRID_COLUMNS = responsiveValue(1, 2, 2);
+const GRID_MAX_WIDTH = GRID_COLUMNS === 1 ? undefined : scale(420);
+const GRID_WIDTH = getContentWidth(GRID_HORIZONTAL_PADDING, GRID_MAX_WIDTH);
+const CARD_WIDTH = GRID_COLUMNS === 1 ? GRID_WIDTH : (GRID_WIDTH - GRID_GAP) / 2;
+const CARD_HEIGHT = GRID_COLUMNS === 1 ? scale(120) : scale(140);
 const CARD_ICON_SIZE = scale(36);
 const CARD_ICON_RADIUS = scale(10);
 const CARD_ICON_GLYPH_SIZE = scale(IconSizes.md);
@@ -67,9 +69,9 @@ const QUICK_ACTIONS: QuickAction[] = [
   {
     intent: 'FORTIS_ANALYST',
     icon: TrophyIcon,
-    label: 'My PRs',
-    description: 'Personal records',
-    prompt: 'Show me my recent personal records and strongest lifts',
+    label: 'Consistency Streak',
+    description: 'Habit momentum',
+    prompt: "How consistent have I been recently and what's my current streak?",
   },
   {
     intent: 'FORTIS_ANALYST',
@@ -201,8 +203,10 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     width: GRID_WIDTH,
+    alignSelf: 'center',
+    columnGap: GRID_GAP,
     rowGap: GRID_GAP,
   },
   gridItem: {

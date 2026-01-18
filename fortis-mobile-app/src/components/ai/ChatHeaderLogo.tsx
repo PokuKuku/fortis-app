@@ -28,10 +28,8 @@ interface ChatHeaderLogoProps {
 export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const { colors } = useTheme();
   const shineAnim = useRef(new Animated.Value(0)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const sparkleAnim = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
-  const pulseLoopRef = useRef<Animated.CompositeAnimation | null>(null);
   const sparkleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const logoWidth = 90;
@@ -57,25 +55,6 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
       );
       loopRef.current.start();
 
-      // Start subtle pulse
-      pulseLoopRef.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.02,
-            duration: 600,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 600,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
-          }),
-        ])
-      );
-      pulseLoopRef.current.start();
-
       // Start sparkle icon fade animation
       sparkleLoopRef.current = Animated.loop(
         Animated.sequence([
@@ -97,19 +76,16 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
     } else {
       // Stop animations
       loopRef.current?.stop();
-      pulseLoopRef.current?.stop();
       sparkleLoopRef.current?.stop();
       shineAnim.setValue(0);
-      pulseAnim.setValue(1);
       sparkleAnim.setValue(1);
     }
 
     return () => {
       loopRef.current?.stop();
-      pulseLoopRef.current?.stop();
       sparkleLoopRef.current?.stop();
     };
-  }, [isLoading, shineAnim, pulseAnim, sparkleAnim]);
+  }, [isLoading, shineAnim, sparkleAnim]);
 
   const sparkleOutlineOpacity = sparkleAnim.interpolate({
     inputRange: [0, 1],
@@ -129,46 +105,44 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
       </View>
 
       {/* FORTIS animated logo */}
-      <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-        <Svg height={logoHeight} width={logoWidth} viewBox={`0 0 ${logoWidth} ${logoHeight}`}>
-          <Defs>
-            {isLoading ? (
-              <AnimatedSvgLinearGradient
-                id="chatLogoGradient"
-                x1={shineX}
-                y1="0"
-                x2={Animated.add(shineX, logoWidth)}
-                y2="0"
-                gradientUnits="userSpaceOnUse"
-              >
-                <Stop offset="0%" stopColor={colors.accent} />
-                <Stop offset="40%" stopColor={colors.accent} />
-                <Stop offset="50%" stopColor="#ffffff" />
-                <Stop offset="60%" stopColor={colors.accent} />
-                <Stop offset="100%" stopColor={colors.accent} />
-              </AnimatedSvgLinearGradient>
-            ) : (
-              <SvgLinearGradient id="chatLogoGradient" x1="0" y1="0" x2="1" y2="0">
-                <Stop offset="0%" stopColor={colors.accent} />
-                <Stop offset="100%" stopColor={colors.accentLight} />
-              </SvgLinearGradient>
-            )}
-          </Defs>
-          <G>
-            <SvgText
-              fill="url(#chatLogoGradient)"
-              fontSize={18}
-              fontWeight="900"
-              letterSpacing={3}
-              x={0}
-              y={18}
-              fontFamily="BankGothicBT-Medium"
+      <Svg height={logoHeight} width={logoWidth} viewBox={`0 0 ${logoWidth} ${logoHeight}`}>
+        <Defs>
+          {isLoading ? (
+            <AnimatedSvgLinearGradient
+              id="chatLogoGradient"
+              x1={shineX}
+              y1="0"
+              x2={Animated.add(shineX, logoWidth)}
+              y2="0"
+              gradientUnits="userSpaceOnUse"
             >
-              FORTIS
-            </SvgText>
-          </G>
-        </Svg>
-      </Animated.View>
+              <Stop offset="0%" stopColor={colors.accent} />
+              <Stop offset="40%" stopColor={colors.accent} />
+              <Stop offset="50%" stopColor="#ffffff" />
+              <Stop offset="60%" stopColor={colors.accent} />
+              <Stop offset="100%" stopColor={colors.accent} />
+            </AnimatedSvgLinearGradient>
+          ) : (
+            <SvgLinearGradient id="chatLogoGradient" x1="0" y1="0" x2="1" y2="0">
+              <Stop offset="0%" stopColor={colors.accent} />
+              <Stop offset="100%" stopColor={colors.accentLight} />
+            </SvgLinearGradient>
+          )}
+        </Defs>
+        <G>
+          <SvgText
+            fill="url(#chatLogoGradient)"
+            fontSize={18}
+            fontWeight="900"
+            letterSpacing={3}
+            x={0}
+            y={18}
+            fontFamily="BankGothicBT-Medium"
+          >
+            FORTIS
+          </SvgText>
+        </G>
+      </Svg>
     </View>
   );
 }
