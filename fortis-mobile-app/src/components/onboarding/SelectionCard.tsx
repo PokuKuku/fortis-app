@@ -56,7 +56,7 @@ export function SelectionCard({
       tension: 300,
       friction: 20,
     }).start();
-  }, [isSelected]);
+  }, [isSelected, checkAnim]);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -77,7 +77,7 @@ export function SelectionCard({
   };
 
   const handlePress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.selectionAsync();
     onSelect();
   };
 
@@ -210,13 +210,10 @@ export function SelectionCard({
               transform: [{ scale: checkScale }],
               top: checkOffset,
               right: checkOffset,
-            }
+            },
           ]}
         >
-          <CheckCircleIcon
-            size={checkIconSize}
-            color={colors.accent}
-          />
+          <CheckCircleIcon size={checkIconSize} color={colors.accent} />
         </Animated.View>
       </Pressable>
     </Animated.View>

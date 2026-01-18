@@ -45,7 +45,7 @@ export default function OnboardingNameScreen() {
     <OnboardingScreen
       step={1}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="What should we call you?"
+      title="What should Fortis call you?"
       subtitle="Your name will appear on your profile and training recaps."
       footer={
         <GlassButton

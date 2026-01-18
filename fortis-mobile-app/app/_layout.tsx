@@ -22,6 +22,13 @@ const PAGE_TRANSITION = {
   animationDuration: 220,
 };
 
+const ONBOARDING_TRANSITION = {
+  animation: 'slide_from_right' as const,
+  animationDuration: 340,
+  gestureEnabled: true,
+  gestureDirection: 'horizontal' as const,
+};
+
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -76,89 +83,79 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
           <Stack.Screen
             name="onboarding/welcome"
             options={{
-              ...PAGE_TRANSITION,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/index"
             options={{
-              ...PAGE_TRANSITION,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/gender"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/birthdate"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/height"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/weight"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/experience"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/workouts-per-week"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/other-apps"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/goal"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/challenge"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/consistency"
             options={{
-              animation: 'slide_from_right',
-              gestureEnabled: true,
+              ...ONBOARDING_TRANSITION,
             }}
           />
           <Stack.Screen
             name="onboarding/complete"
             options={{
-              animation: 'slide_from_right',
+              ...ONBOARDING_TRANSITION,
               gestureEnabled: false,
             }}
           />
