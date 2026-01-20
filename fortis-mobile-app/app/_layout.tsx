@@ -123,12 +123,6 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             }}
           />
           <Stack.Screen
-            name="onboarding/workouts-per-week"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
             name="onboarding/other-apps"
             options={{
               ...ONBOARDING_TRANSITION,

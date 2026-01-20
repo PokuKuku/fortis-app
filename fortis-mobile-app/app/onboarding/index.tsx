@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
@@ -34,7 +33,6 @@ export default function OnboardingNameScreen() {
     const trimmed = name.trim();
     if (!trimmed) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await updateOnboardingState({ full_name: trimmed });
     router.push('/onboarding/gender');
   };
@@ -46,12 +44,14 @@ export default function OnboardingNameScreen() {
       step={1}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What should we call you?"
-      subtitle="Your name will appear on your profile and training recaps."
+      subtitle={undefined}
+      onBack={() => router.back()}
       footer={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}
           disabled={isDisabled}
+          hapticFeedback="impactMedium"
         >
           <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
         </GlassButton>
@@ -83,7 +83,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   input: {
-    fontSize: 18,
+    fontSize: 20,
     fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.5,
   },
@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
+import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
@@ -19,6 +20,8 @@ interface OnboardingScreenProps {
   totalSteps: number;
   title: string;
   subtitle?: string;
+  bodyAlign?: 'top' | 'center';
+  contentGap?: number;
   titlePlacement?: 'top' | 'bottom';
   titleTopOffset?: number;
   titleAlign?: 'left' | 'center';
@@ -42,6 +45,8 @@ export function OnboardingScreen({
   totalSteps,
   title,
   subtitle,
+  bodyAlign = 'top',
+  contentGap = Spacing['2xl'],
   titlePlacement = 'top',
   titleTopOffset = 0,
   titleAlign = 'left',
@@ -92,6 +97,14 @@ export function OnboardingScreen({
     </View>
   );
 
+  const bodyStyle = bodyAlign === 'center'
+    ? [styles.bodySection, styles.bodySectionCentered]
+    : styles.bodySection;
+
+  const contentBlockStyle = bodyAlign === 'center'
+    ? [styles.contentBlock, styles.contentBlockFill, { gap: contentGap }]
+    : [styles.contentBlock, { gap: contentGap }];
+
   const footerBlock = footer || titlePlacement === 'bottom'
     ? (
         <View style={styles.footer}>
@@ -111,7 +124,11 @@ export function OnboardingScreen({
         <View style={styles.headerRow}>
           <Pressable
             style={[styles.backButton, themedStyles.backButton, !onBack && styles.backButtonHidden]}
-            onPress={onBack}
+            onPress={() => {
+              if (!onBack) return;
+              Haptics.selectionAsync();
+              onBack();
+            }}
             disabled={!onBack}
             hitSlop={8}
           >
@@ -134,7 +151,7 @@ export function OnboardingScreen({
             scrollEnabled={scrollEnabled}
             keyboardShouldPersistTaps="handled"
           >
-            <View style={styles.contentBlock}>
+            <View style={contentBlockStyle}>
               <View style={styles.topSection}>
                 {headerAccessory ? (
                   <View style={styles.headerAccessory}>{headerAccessory}</View>
@@ -147,14 +164,14 @@ export function OnboardingScreen({
                 {titlePlacement === 'top' ? titleBlock : null}
               </View>
 
-              <View style={styles.bodySection}>{children}</View>
+              <View style={bodyStyle}>{children}</View>
             </View>
 
             {footerBlock}
           </ScrollView>
         ) : (
           <View style={styles.staticContent}>
-          <View style={styles.contentBlock}>
+          <View style={contentBlockStyle}>
             <View style={styles.topSection}>
               {headerAccessory ? (
                 <View style={styles.headerAccessory}>{headerAccessory}</View>
@@ -167,7 +184,7 @@ export function OnboardingScreen({
               {titlePlacement === 'top' ? titleBlock : null}
               </View>
 
-              <View style={styles.bodySection}>{children}</View>
+              <View style={bodyStyle}>{children}</View>
             </View>
 
             {footerBlock}
@@ -227,7 +244,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   contentBlock: {
-    gap: Spacing['2xl'],
+  },
+  contentBlockFill: {
+    flex: 1,
   },
   topSection: {
     gap: Spacing.sm,
@@ -240,21 +259,25 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 12,
+    fontSize: 13,
     letterSpacing: 3,
     textTransform: 'uppercase',
   },
   title: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '600',
     letterSpacing: 0.5,
   },
   subtitle: {
-    ...Typography.body,
+    ...Typography.bodyLarge,
   },
   bodySection: {
     gap: Spacing.md,
+  },
+  bodySectionCentered: {
+    flex: 1,
+    justifyContent: 'center',
   },
   footer: {
     paddingTop: Spacing.lg,

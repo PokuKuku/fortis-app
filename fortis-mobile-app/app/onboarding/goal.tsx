@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
@@ -22,15 +21,25 @@ const OPTIONS: Array<{ value: FitnessGoal; title: string }> = [
 export default function OnboardingGoalScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const [selected, setSelected] = useState<FitnessGoal | null>(null);
+  const [selected, setSelected] = useState<FitnessGoal[]>([]);
+  const [primary, setPrimary] = useState<FitnessGoal | null>(null);
+  const isDisabled = selected.length === 0;
 
   useEffect(() => {
     let isActive = true;
 
     const loadState = async () => {
       const state = await getOnboardingState();
-      if (!isActive || !state?.fitness_goal) return;
-      setSelected(state.fitness_goal);
+      if (!isActive) return;
+      const storedGoals = (state?.fitness_goals?.filter(Boolean) ?? []) as FitnessGoal[];
+      const storedPrimary = (state?.fitness_goal ?? null) as FitnessGoal | null;
+      const nextGoals = storedGoals.length > 0
+        ? storedGoals
+        : storedPrimary
+          ? [storedPrimary]
+          : [];
+      setSelected(nextGoals);
+      setPrimary(storedPrimary ?? (nextGoals.length > 0 ? nextGoals[nextGoals.length - 1] : null));
     };
 
     loadState();
@@ -41,13 +50,31 @@ export default function OnboardingGoalScreen() {
   }, []);
 
   const handleSelect = (value: FitnessGoal) => {
-    setSelected(value);
-    void updateOnboardingState({ fitness_goal: value });
+    setSelected((prev) => {
+      const wasSelected = prev.includes(value);
+      const nextSelected = wasSelected
+        ? prev.filter((goal) => goal !== value)
+        : [...prev, value];
+
+      setPrimary((prevPrimary) => {
+        const nextPrimary = wasSelected
+          ? (prevPrimary === value ? (nextSelected[nextSelected.length - 1] ?? null) : prevPrimary)
+          : value;
+
+        void updateOnboardingState({
+          fitness_goals: nextSelected,
+          fitness_goal: nextPrimary ?? undefined,
+        });
+
+        return nextPrimary;
+      });
+
+      return nextSelected;
+    });
   };
 
   const handleContinue = () => {
-    if (!selected) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (selected.length === 0) return;
     router.push('/onboarding/challenge');
   };
 
@@ -55,11 +82,16 @@ export default function OnboardingGoalScreen() {
     <OnboardingScreen
       step={9}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="What is your primary goal?"
-      subtitle="Pick the one that matters most right now."
+      title="What are your main fitness goals?"
+      subtitle="Select all that apply."
       onBack={() => router.back()}
       footer={
-        <GlassButton style={styles.button} onPress={handleContinue} disabled={!selected}>
+        <GlassButton
+          style={styles.button}
+          onPress={handleContinue}
+          disabled={isDisabled}
+          hapticFeedback="impactMedium"
+        >
           <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
         </GlassButton>
       }
@@ -69,7 +101,7 @@ export default function OnboardingGoalScreen() {
           <OnboardingOptionCard
             key={option.value}
             title={option.title}
-            selected={selected === option.value}
+            selected={selected.includes(option.value)}
             onSelect={() => handleSelect(option.value)}
           />
         ))}
@@ -88,7 +120,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

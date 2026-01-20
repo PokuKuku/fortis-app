@@ -1,1 +1,1 @@
-export const TOTAL_ONBOARDING_STEPS = 11;
+export const TOTAL_ONBOARDING_STEPS = 10;

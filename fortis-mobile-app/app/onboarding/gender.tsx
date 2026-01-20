@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
@@ -55,7 +54,6 @@ export default function OnboardingGenderScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/onboarding/birthdate');
   };
 
@@ -71,6 +69,7 @@ export default function OnboardingGenderScreen() {
           style={styles.button}
           onPress={handleContinue}
           disabled={!selected}
+          hapticFeedback="impactMedium"
         >
           <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
         </GlassButton>
@@ -100,7 +99,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

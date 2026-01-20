@@ -69,11 +69,12 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 18,
     letterSpacing: 0.5,
   },
   description: {
     ...Typography.bodySmall,
+    fontSize: 15,
   },
   radio: {
     width: 18,

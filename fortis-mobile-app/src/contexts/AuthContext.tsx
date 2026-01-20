@@ -41,7 +41,7 @@ export interface Profile {
   tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never' | null;
   fitness_goal?: 'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent' | null;
   biggest_challenge?: 'consistency' | 'plateaus' | 'starting_out' | 'time' | null;
-  workout_consistency?: 'daily' | 'few_times_week' | 'once_or_less' | 'starting' | null;
+  workout_consistency?: 'none' | 'daily' | 'few_times_week' | 'once_or_less' | 'starting' | null;
   preferred_units: 'imperial' | 'metric';
   onboarding_completed: boolean;
   // Theme preferences (synced to cloud)

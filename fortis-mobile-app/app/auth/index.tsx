@@ -131,11 +131,15 @@ export default function AuthWelcomeScreen() {
         if (state?.tried_other_apps) {
           updates.tried_other_apps = state.tried_other_apps;
         }
-        if (state?.fitness_goal) {
-          updates.fitness_goal = state.fitness_goal;
+        const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[state.fitness_goals.length - 1];
+        if (resolvedGoal) {
+          updates.fitness_goal = resolvedGoal;
         }
-        if (state?.biggest_challenge) {
-          updates.biggest_challenge = state.biggest_challenge;
+        const resolvedChallenge =
+          state?.biggest_challenge ??
+          state?.biggest_challenges?.[state.biggest_challenges.length - 1];
+        if (resolvedChallenge) {
+          updates.biggest_challenge = resolvedChallenge;
         }
         if (state?.workout_consistency) {
           updates.workout_consistency = state.workout_consistency;

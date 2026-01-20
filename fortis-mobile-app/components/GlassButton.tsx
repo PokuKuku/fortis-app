@@ -9,7 +9,15 @@
 import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
+
+type GlassButtonHapticFeedback =
+  | 'none'
+  | 'selection'
+  | 'impactLight'
+  | 'impactMedium'
+  | 'impactHeavy';
 
 interface GlassButtonProps {
   children: ReactNode;
@@ -20,6 +28,7 @@ interface GlassButtonProps {
   circular?: boolean;
   size?: number;
   disabled?: boolean;
+  hapticFeedback?: GlassButtonHapticFeedback;
 }
 
 export function GlassButton({
@@ -31,6 +40,7 @@ export function GlassButton({
   circular = false,
   size,
   disabled = false,
+  hapticFeedback = 'none',
 }: GlassButtonProps) {
   const { colors } = useTheme();
 
@@ -44,6 +54,39 @@ export function GlassButton({
 
   // Dynamic shadow color based on accent
   const accentShadow = { shadowColor: colors.accentShadow };
+
+  const fireHaptic = () => {
+    if (disabled || hapticFeedback === 'none') return;
+
+    switch (hapticFeedback) {
+      case 'selection':
+        Haptics.selectionAsync();
+        break;
+      case 'impactLight':
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        break;
+      case 'impactMedium':
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        break;
+      case 'impactHeavy':
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handlePress = () => {
+    if (!onPress || disabled) return;
+    fireHaptic();
+    onPress();
+  };
+
+  const handleLongPress = () => {
+    if (!onLongPress || disabled) return;
+    fireHaptic();
+    onLongPress();
+  };
 
   return (
     <View style={[styles.container, accentShadow, buttonStyle, style, disabled && styles.disabled]}>
@@ -68,8 +111,8 @@ export function GlassButton({
       {/* Content */}
       <TouchableOpacity
         style={styles.touchable}
-        onPress={onPress}
-        onLongPress={onLongPress}
+        onPress={handlePress}
+        onLongPress={handleLongPress}
         activeOpacity={0.8}
         disabled={disabled}
       >

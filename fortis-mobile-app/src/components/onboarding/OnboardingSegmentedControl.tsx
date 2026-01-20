@@ -52,7 +52,7 @@ export function OnboardingSegmentedControl({
                 color: isSelected ? colors.textPrimary : colors.textSecondary,
                 fontFamily: 'BankGothicBT-Medium',
                 letterSpacing: 1,
-                fontSize: 13,
+                fontSize: 14,
               }}
             >
               {option.label}

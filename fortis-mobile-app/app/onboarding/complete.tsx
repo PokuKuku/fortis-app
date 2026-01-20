@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { CheckIcon } from 'react-native-heroicons/solid';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -72,8 +71,6 @@ export default function OnboardingCompleteScreen() {
   }, [checkOpacity, checkScale, phase]);
 
   const handleContinue = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     if (!isAuthenticated) {
       router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
       return;
@@ -107,17 +104,18 @@ export default function OnboardingCompleteScreen() {
       if (state?.lifting_experience) {
         updates.lifting_experience = state.lifting_experience;
       }
-      if (typeof state?.workouts_per_week === 'number') {
-        updates.workouts_per_week = state.workouts_per_week;
-      }
       if (state?.tried_other_apps) {
         updates.tried_other_apps = state.tried_other_apps;
       }
-      if (state?.fitness_goal) {
-        updates.fitness_goal = state.fitness_goal;
+      const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[state.fitness_goals.length - 1];
+      if (resolvedGoal) {
+        updates.fitness_goal = resolvedGoal;
       }
-      if (state?.biggest_challenge) {
-        updates.biggest_challenge = state.biggest_challenge;
+      const resolvedChallenge =
+        state?.biggest_challenge ??
+        state?.biggest_challenges?.[state.biggest_challenges.length - 1];
+      if (resolvedChallenge) {
+        updates.biggest_challenge = resolvedChallenge;
       }
       if (state?.workout_consistency) {
         updates.workout_consistency = state.workout_consistency;
@@ -158,6 +156,7 @@ export default function OnboardingCompleteScreen() {
             style={styles.enterButton}
             onPress={handleContinue}
             disabled={isSaving}
+            hapticFeedback="impactMedium"
           >
             <Text style={[styles.buttonText, { color: colors.white }]}>
               {isSaving ? 'Saving...' : isAuthenticated ? 'Enter Fortis' : 'Create account'}
@@ -231,7 +230,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

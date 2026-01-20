@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
@@ -47,7 +46,6 @@ export default function OnboardingOtherAppsScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push('/onboarding/goal');
   };
 
@@ -56,10 +54,15 @@ export default function OnboardingOtherAppsScreen() {
       step={8}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Have you tried other workout tracking apps?"
-      subtitle="This helps us understand what to improve for you."
+      subtitle={undefined}
       onBack={() => router.back()}
       footer={
-        <GlassButton style={styles.button} onPress={handleContinue} disabled={!selected}>
+        <GlassButton
+          style={styles.button}
+          onPress={handleContinue}
+          disabled={!selected}
+          hapticFeedback="impactMedium"
+        >
           <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
         </GlassButton>
       }
@@ -88,7 +91,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

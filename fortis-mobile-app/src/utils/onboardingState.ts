@@ -5,6 +5,7 @@ import { getScopedItem, removeScopedItem, setScopedItem } from '@/src/utils/scop
 export type OnboardingState = {
   full_name?: string;
   gender?: 'male' | 'female' | 'other';
+  age_group?: 'under_18' | '18_24' | '25_34' | '35_44' | '45_54' | '55_plus';
   birth_date?: string;
   height_cm?: number;
   weight_kg?: number;
@@ -13,8 +14,12 @@ export type OnboardingState = {
   workouts_per_week?: number;
   tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never';
   fitness_goal?: 'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent';
+  fitness_goals?: Array<
+    'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent'
+  >;
   biggest_challenge?: 'consistency' | 'plateaus' | 'starting_out' | 'time';
-  workout_consistency?: 'daily' | 'few_times_week' | 'once_or_less' | 'starting';
+  biggest_challenges?: Array<'consistency' | 'plateaus' | 'starting_out' | 'time'>;
+  workout_consistency?: 'none' | 'daily' | 'few_times_week' | 'once_or_less' | 'starting';
 };
 
 let inMemoryState: OnboardingState | null = null;

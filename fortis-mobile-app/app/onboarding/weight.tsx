@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Text, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingSegmentedControl } from '@/src/components/onboarding/OnboardingSegmentedControl';
-import { OnboardingWheelPicker } from '@/src/components/onboarding/OnboardingWheelPicker';
+import { OnboardingRulerPicker } from '@/src/components/onboarding/OnboardingRulerPicker';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
@@ -13,20 +12,23 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 
 type UnitSystem = 'imperial' | 'metric';
 
-const LB_VALUES = Array.from({ length: 321 }, (_, index) => index + 80);
-const KG_VALUES = Array.from({ length: 141 }, (_, index) => index + 40);
-
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const roundTo = (value: number, decimals: number) => {
+  const factor = Math.pow(10, decimals);
+  return Math.round(value * factor) / factor;
+};
+
+const LB_MIN = 80;
+const LB_MAX = 400;
+const KG_MIN = 40;
+const KG_MAX = 180;
+const DIAL_STEP = 0.1;
 
 export default function OnboardingWeightScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [unit, setUnit] = useState<UnitSystem>('imperial');
-  const [lbIndex, setLbIndex] = useState(100);
-  const [kgIndex, setKgIndex] = useState(60);
-
-  const lbLabels = useMemo(() => LB_VALUES.map((value) => `${value} lbs`), []);
-  const kgLabels = useMemo(() => KG_VALUES.map((value) => `${value} kg`), []);
+  const [weightKg, setWeightKg] = useState(70);
 
   useEffect(() => {
     let isActive = true;
@@ -40,13 +42,7 @@ export default function OnboardingWeightScreen() {
       }
 
       if (typeof state?.weight_kg === 'number') {
-        const kgValue = Math.round(state.weight_kg);
-        const kgIdx = clamp(KG_VALUES.indexOf(kgValue), 0, KG_VALUES.length - 1);
-        setKgIndex(kgIdx >= 0 ? kgIdx : 0);
-
-        const lbsValue = Math.round(state.weight_kg * 2.20462);
-        const lbIdx = clamp(LB_VALUES.indexOf(lbsValue), 0, LB_VALUES.length - 1);
-        setLbIndex(lbIdx >= 0 ? lbIdx : 0);
+        setWeightKg(clamp(state.weight_kg, KG_MIN, KG_MAX));
       }
     };
 
@@ -61,31 +57,31 @@ export default function OnboardingWeightScreen() {
     const castUnit = nextUnit as UnitSystem;
     if (castUnit === unit) return;
 
-    if (castUnit === 'metric') {
-      const lbsValue = LB_VALUES[lbIndex];
-      const kgValue = Math.round(lbsValue / 2.20462);
-      const kgIdx = clamp(KG_VALUES.indexOf(kgValue), 0, KG_VALUES.length - 1);
-      setKgIndex(kgIdx >= 0 ? kgIdx : 0);
-    } else {
-      const kgValue = KG_VALUES[kgIndex];
-      const lbsValue = Math.round(kgValue * 2.20462);
-      const lbIdx = clamp(LB_VALUES.indexOf(lbsValue), 0, LB_VALUES.length - 1);
-      setLbIndex(lbIdx >= 0 ? lbIdx : 0);
-    }
-
     setUnit(castUnit);
     void updateOnboardingState({ preferred_units: castUnit });
   };
 
   const handleContinue = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const normalizedKg = clamp(roundTo(weightKg, 1), KG_MIN, KG_MAX);
 
-    const weightKg = unit === 'metric'
-      ? KG_VALUES[kgIndex]
-      : Math.round((LB_VALUES[lbIndex] / 2.20462) * 10) / 10;
-
-    await updateOnboardingState({ weight_kg: weightKg, preferred_units: unit });
+    await updateOnboardingState({ weight_kg: normalizedKg, preferred_units: unit });
     router.push('/onboarding/experience');
+  };
+
+  const weightKgStateForDisplay = clamp(roundTo(weightKg, 1), KG_MIN, KG_MAX);
+  const weightLbsForDisplay = clamp(roundTo(weightKgStateForDisplay * 2.20462, 1), LB_MIN, LB_MAX);
+  const displayText = unit === 'metric'
+    ? `${roundTo(weightKgStateForDisplay, 1).toFixed(1)} kg`
+    : `${roundTo(weightLbsForDisplay, 1).toFixed(1)} lbs`;
+
+  const handleRulerChange = (nextValue: number) => {
+    if (unit === 'metric') {
+      setWeightKg(clamp(roundTo(nextValue, 1), KG_MIN, KG_MAX));
+      return;
+    }
+
+    const nextKg = roundTo(nextValue / 2.20462, 1);
+    setWeightKg(clamp(nextKg, KG_MIN, KG_MAX));
   };
 
   return (
@@ -97,7 +93,7 @@ export default function OnboardingWeightScreen() {
       onBack={() => router.back()}
       useScrollView={false}
       footer={
-        <GlassButton style={styles.button} onPress={handleContinue}>
+        <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
         </GlassButton>
       }
@@ -111,23 +107,39 @@ export default function OnboardingWeightScreen() {
         onChange={handleUnitChange}
       />
 
-      <OnboardingWheelPicker
-        items={unit === 'imperial' ? lbLabels : kgLabels}
-        selectedIndex={unit === 'imperial' ? lbIndex : kgIndex}
-        onChange={unit === 'imperial' ? setLbIndex : setKgIndex}
-      />
+      <View style={styles.dialBlock}>
+        <Text style={[styles.valueText, { color: colors.textPrimary }]}>{displayText}</Text>
+        <OnboardingRulerPicker
+          min={unit === 'metric' ? KG_MIN : LB_MIN}
+          max={unit === 'metric' ? KG_MAX : LB_MAX}
+          step={DIAL_STEP}
+          value={unit === 'metric' ? weightKgStateForDisplay : weightLbsForDisplay}
+          onValueChange={handleRulerChange}
+          onValueCommit={handleRulerChange}
+          unitLabel={unit === 'metric' ? ' kg' : ' lbs'}
+        />
+      </View>
     </OnboardingScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  dialBlock: {
+    gap: 12,
+  },
+  valueText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 38,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
   button: {
     height: 54,
     borderRadius: BorderRadius.xl,
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

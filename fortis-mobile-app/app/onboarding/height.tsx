@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingSegmentedControl } from '@/src/components/onboarding/OnboardingSegmentedControl';
@@ -85,8 +84,6 @@ export default function OnboardingHeightScreen() {
   };
 
   const handleContinue = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
     const heightCm = unit === 'metric'
       ? CM_VALUES[cmIndex]
       : Math.round((FEET_VALUES[feetIndex] * 12 + INCH_VALUES[inchIndex]) * 2.54);
@@ -104,53 +101,58 @@ export default function OnboardingHeightScreen() {
       onBack={() => router.back()}
       useScrollView={false}
       footer={
-        <GlassButton style={styles.button} onPress={handleContinue}>
+        <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
         </GlassButton>
       }
     >
-      <OnboardingSegmentedControl
-        options={[
-          { label: 'Feet & Inches', value: 'imperial' },
-          { label: 'Centimeters', value: 'metric' },
-        ]}
-        value={unit}
-        onChange={handleUnitChange}
-      />
+      <View style={styles.centerStack}>
+        <OnboardingSegmentedControl
+          options={[
+            { label: 'Feet & Inches', value: 'imperial' },
+            { label: 'Centimeters', value: 'metric' },
+          ]}
+          value={unit}
+          onChange={handleUnitChange}
+        />
 
-      <View style={styles.pickerRow}>
-        {unit === 'imperial' ? (
-          <>
-            <View style={styles.pickerColumn}>
+        <View style={styles.pickerRow}>
+          {unit === 'imperial' ? (
+            <>
+              <View style={styles.pickerColumn}>
+                <OnboardingWheelPicker
+                  items={feetLabels}
+                  selectedIndex={feetIndex}
+                  onChange={setFeetIndex}
+                />
+              </View>
+              <View style={styles.pickerColumn}>
+                <OnboardingWheelPicker
+                  items={inchLabels}
+                  selectedIndex={inchIndex}
+                  onChange={setInchIndex}
+                />
+              </View>
+            </>
+          ) : (
+            <View style={styles.pickerColumnFull}>
               <OnboardingWheelPicker
-                items={feetLabels}
-                selectedIndex={feetIndex}
-                onChange={setFeetIndex}
+                items={cmLabels}
+                selectedIndex={cmIndex}
+                onChange={setCmIndex}
               />
             </View>
-            <View style={styles.pickerColumn}>
-              <OnboardingWheelPicker
-                items={inchLabels}
-                selectedIndex={inchIndex}
-                onChange={setInchIndex}
-              />
-            </View>
-          </>
-        ) : (
-          <View style={styles.pickerColumnFull}>
-            <OnboardingWheelPicker
-              items={cmLabels}
-              selectedIndex={cmIndex}
-              onChange={setCmIndex}
-            />
-          </View>
-        )}
+          )}
+        </View>
       </View>
     </OnboardingScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  centerStack: {
+    gap: Spacing.lg,
+  },
   pickerRow: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -167,7 +169,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

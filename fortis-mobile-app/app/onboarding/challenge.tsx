@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
@@ -22,15 +21,27 @@ const OPTIONS: Array<{ value: Challenge; title: string }> = [
 export default function OnboardingChallengeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const [selected, setSelected] = useState<Challenge | null>(null);
+  const [selected, setSelected] = useState<Challenge[]>([]);
+  const [primary, setPrimary] = useState<Challenge | null>(null);
+  const isDisabled = selected.length === 0;
 
   useEffect(() => {
     let isActive = true;
 
     const loadState = async () => {
       const state = await getOnboardingState();
-      if (!isActive || !state?.biggest_challenge) return;
-      setSelected(state.biggest_challenge);
+      if (!isActive) return;
+      const storedChallenges = (state?.biggest_challenges?.filter(Boolean) ?? []) as Challenge[];
+      const storedPrimary = (state?.biggest_challenge ?? null) as Challenge | null;
+      const nextChallenges = storedChallenges.length > 0
+        ? storedChallenges
+        : storedPrimary
+          ? [storedPrimary]
+          : [];
+      setSelected(nextChallenges);
+      setPrimary(
+        storedPrimary ?? (nextChallenges.length > 0 ? nextChallenges[nextChallenges.length - 1] : null)
+      );
     };
 
     loadState();
@@ -41,25 +52,48 @@ export default function OnboardingChallengeScreen() {
   }, []);
 
   const handleSelect = (value: Challenge) => {
-    setSelected(value);
-    void updateOnboardingState({ biggest_challenge: value });
+    setSelected((prev) => {
+      const wasSelected = prev.includes(value);
+      const nextSelected = wasSelected
+        ? prev.filter((challenge) => challenge !== value)
+        : [...prev, value];
+
+      setPrimary((prevPrimary) => {
+        const nextPrimary = wasSelected
+          ? (prevPrimary === value ? (nextSelected[nextSelected.length - 1] ?? null) : prevPrimary)
+          : value;
+
+        void updateOnboardingState({
+          biggest_challenges: nextSelected,
+          biggest_challenge: nextPrimary ?? undefined,
+        });
+
+        return nextPrimary;
+      });
+
+      return nextSelected;
+    });
   };
 
   const handleContinue = () => {
-    if (!selected) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('/onboarding/consistency');
+    if (selected.length === 0) return;
+    router.push('/onboarding/complete');
   };
 
   return (
     <OnboardingScreen
       step={10}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="What is your biggest challenge?"
-      subtitle="We'll keep this in mind when shaping insights."
+      title="What are your biggest challenges toward your goals?"
+      subtitle="Select all that apply."
       onBack={() => router.back()}
       footer={
-        <GlassButton style={styles.button} onPress={handleContinue} disabled={!selected}>
+        <GlassButton
+          style={styles.button}
+          onPress={handleContinue}
+          disabled={isDisabled}
+          hapticFeedback="impactMedium"
+        >
           <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
         </GlassButton>
       }
@@ -69,7 +103,7 @@ export default function OnboardingChallengeScreen() {
           <OnboardingOptionCard
             key={option.value}
             title={option.title}
-            selected={selected === option.value}
+            selected={selected.includes(option.value)}
             onSelect={() => handleSelect(option.value)}
           />
         ))}
@@ -88,7 +122,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 16,
+    fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
   },

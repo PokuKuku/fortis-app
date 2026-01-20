@@ -45,7 +45,14 @@ export function GlassCard({ children, onPress, width = '100%', style, padding = 
       <View style={styles.stateOverlay} pointerEvents="none" />
 
       {/* Content */}
-      <TouchableOpacity style={styles.cardInner} onPress={onPress} disabled={!onPress}>
+      <TouchableOpacity
+        style={styles.cardInner}
+        onPress={onPress}
+        disabled={!onPress}
+        activeOpacity={0.85}
+        delayPressIn={0}
+        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      >
         <View style={styles.cardContent}>
           {children}
         </View>
@@ -73,8 +80,10 @@ const styles = StyleSheet.create({
   cardInner: {
     position: 'relative',
     zIndex: 10,
+    width: '100%',
   },
   cardContent: {
     gap: 8,
+    width: '100%',
   },
 });
