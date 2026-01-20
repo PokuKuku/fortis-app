@@ -354,7 +354,7 @@ function InsightCard({
         </View>
         {isWeeklyVerdict && (
           <Text style={[styles.weeklyInsightLabel, { color: colors.accent }]}>
-            Weekly insight
+            Weekly update
           </Text>
         )}
         <Text style={[styles.insightTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
@@ -404,6 +404,7 @@ function InsightCard({
                       disabled={!hasData}
                       style={[
                         styles.sparklineTab,
+                        styles.sparklineTabScrollable,
                         pillTheme,
                         isActive && {
                           backgroundColor: colors.accentOverlay,
@@ -1367,17 +1368,27 @@ const styles = StyleSheet.create({
   },
   sparklineTabs: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: scale(Spacing.xs),
+    alignItems: 'center',
+    gap: scale(Spacing.sm),
   },
   sparklineTabsScrollable: {
-    flexWrap: 'nowrap',
+    gap: scale(Spacing.xs),
   },
   sparklineTab: {
     borderWidth: 1,
     borderRadius: scale(12),
     paddingHorizontal: scale(Spacing.sm),
     paddingVertical: scale(Spacing.xs),
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sparklineTabScrollable: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: 'auto',
   },
   sparklineTabDisabled: {
     opacity: 0.4,

@@ -194,7 +194,7 @@ const getShareTemplate = (insight: TrainingInsight): ShareTemplate => {
 const getShareBadge = (insight: TrainingInsight): string => {
   switch (insight.type) {
     case 'WEEKLY_VERDICT_V1':
-      return 'Weekly insight';
+      return 'Weekly update';
     case 'FATIGUE_RISK_V1':
       return 'Recovery';
     case 'IMBALANCE_FLAG_V1':
