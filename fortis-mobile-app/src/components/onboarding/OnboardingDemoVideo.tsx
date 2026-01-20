@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
 import type { ComponentType } from 'react';
 
@@ -9,14 +9,26 @@ interface OnboardingDemoVideoProps {
 
 export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVideoProps) {
   const [width, setWidth] = useState(0);
-  const expoAv = useMemo(() => {
+  const [player, setPlayer] = useState<any>(null);
+
+  const expoVideo = useMemo(() => {
     try {
-      // `expo-av` requires native module `ExponentAV` which may not exist until the dev client is rebuilt.
-      // We require it lazily to avoid crashing the route module on import.
+      // Avoid importing `expo-video` unless the native module is present, otherwise it throws:
+      // "Cannot find native module 'ExpoVideo'".
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      return require('expo-av') as {
-        Video: ComponentType<any>;
-        ResizeMode: { CONTAIN: string };
+      const modulesCore = require('expo-modules-core') as {
+        requireOptionalNativeModule?: (name: string) => unknown;
+      };
+
+      const nativeModule = modulesCore.requireOptionalNativeModule?.('ExpoVideo');
+      if (!nativeModule) return null;
+
+      // `expo-video` requires a native module which may not exist until the dev client is rebuilt.
+      // Require it lazily to avoid crashing the route module on import.
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      return require('expo-video') as {
+        VideoView: ComponentType<any>;
+        createVideoPlayer: (source: number | { assetId: number }) => any;
       };
     } catch {
       return null;
@@ -28,21 +40,39 @@ export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVide
     if (nextWidth !== width) setWidth(nextWidth);
   };
 
-  if (!expoAv) {
+  useEffect(() => {
+    if (!expoVideo) return;
+    let isActive = true;
+    const nextPlayer = expoVideo.createVideoPlayer(sourceModule);
+    nextPlayer.loop = true;
+    nextPlayer.muted = true;
+    nextPlayer.play();
+    if (isActive) setPlayer(nextPlayer);
+
+    return () => {
+      isActive = false;
+      try {
+        nextPlayer.pause?.();
+        nextPlayer.release?.();
+      } catch {
+        // no-op
+      }
+    };
+  }, [expoVideo, sourceModule]);
+
+  if (!expoVideo || !player) {
     return <View style={[styles.container, { height }]} onLayout={onLayout} />;
   }
 
-  const { Video, ResizeMode } = expoAv;
+  const { VideoView } = expoVideo;
 
   return (
     <View style={[styles.container, { height }]} onLayout={onLayout}>
       {width > 0 ? (
-        <Video
-          source={sourceModule}
-          shouldPlay
-          isLooping
-          isMuted
-          resizeMode={ResizeMode.CONTAIN}
+        <VideoView
+          player={player}
+          nativeControls={false}
+          contentFit="contain"
           style={{ width, height }}
         />
       ) : null}

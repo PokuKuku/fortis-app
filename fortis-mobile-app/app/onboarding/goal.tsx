@@ -75,7 +75,7 @@ export default function OnboardingGoalScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) return;
-    router.push('/onboarding/challenge');
+    router.push('/onboarding/insights');
   };
 
   return (

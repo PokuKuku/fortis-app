@@ -135,6 +135,12 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="onboarding/insights"
+            options={{
+              ...ONBOARDING_TRANSITION,
+            }}
+          />
+          <Stack.Screen
             name="onboarding/challenge"
             options={{
               ...ONBOARDING_TRANSITION,

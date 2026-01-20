@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -19,6 +19,10 @@ export default function OnboardingWelcomeScreen() {
     router.push('/onboarding');
   };
 
+  const handleSignIn = () => {
+    router.push('/auth');
+  };
+
   return (
     <OnboardingScreen
       step={0}
@@ -37,9 +41,20 @@ export default function OnboardingWelcomeScreen() {
       bodyAlign="center"
       contentGap={Spacing.lg}
       footer={
-        <GlassButton style={styles.button} onPress={handleStart} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Get started</Text>
-        </GlassButton>
+        <View style={styles.footer}>
+          <GlassButton style={styles.button} onPress={handleStart} hapticFeedback="impactMedium">
+            <Text style={[styles.buttonText, { color: colors.white }]}>Get started</Text>
+          </GlassButton>
+
+          <View style={styles.signInRow}>
+            <Text style={[styles.signInText, { color: colors.textSecondary }]}>
+              Already have an account?
+            </Text>
+            <Pressable onPress={handleSignIn} hitSlop={8}>
+              <Text style={[styles.signInLink, { color: colors.textPrimary }]}>Sign in</Text>
+            </Pressable>
+          </View>
+        </View>
       }
     >
       <View style={styles.videoWrap}>
@@ -52,6 +67,22 @@ export default function OnboardingWelcomeScreen() {
 const styles = StyleSheet.create({
   videoWrap: {
     width: '100%',
+  },
+  footer: {
+    gap: Spacing.md,
+  },
+  signInRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  signInText: {
+    fontSize: 15,
+  },
+  signInLink: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   button: {
     height: 54,
