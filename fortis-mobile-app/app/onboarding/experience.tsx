@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useNavigation, useRouter } from 'expo-router';
+import { StackActions } from '@react-navigation/native';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
@@ -36,6 +37,7 @@ const OPTIONS: Array<{ value: ExperienceLevel; title: string; description: strin
 
 export default function OnboardingExperienceScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { colors } = useTheme();
   const [selected, setSelected] = useState<ExperienceLevel | null>(null);
 
@@ -65,13 +67,27 @@ export default function OnboardingExperienceScreen() {
     router.push('/onboarding/consistency');
   };
 
+  const handleBack = () => {
+    try {
+      const state = (navigation as { getState?: () => { routes?: unknown[] } }).getState?.();
+      if (state?.routes && state.routes.length >= 3) {
+        (navigation as { dispatch?: (action: unknown) => void }).dispatch?.(StackActions.pop(2));
+        return;
+      }
+    } catch {
+      // Fall back below.
+    }
+
+    router.replace('/onboarding/weight');
+  };
+
   return (
     <OnboardingScreen
-      step={6}
+      step={7}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your experience level with lifting?"
       subtitle="This helps us shape your training insights."
-      onBack={() => router.back()}
+      onBack={handleBack}
       footer={
         <GlassButton
           style={styles.button}

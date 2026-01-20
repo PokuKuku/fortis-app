@@ -46,12 +46,12 @@ export default function OnboardingOtherAppsScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
-    router.push('/onboarding/goal');
+    router.push('/onboarding/clarity');
   };
 
   return (
     <OnboardingScreen
-      step={8}
+      step={9}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Have you tried other workout tracking apps?"
       subtitle={undefined}

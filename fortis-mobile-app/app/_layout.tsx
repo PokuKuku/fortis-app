@@ -117,6 +117,12 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="onboarding/fitness-background"
+            options={{
+              ...ONBOARDING_TRANSITION,
+            }}
+          />
+          <Stack.Screen
             name="onboarding/experience"
             options={{
               ...ONBOARDING_TRANSITION,
@@ -124,6 +130,12 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
           />
           <Stack.Screen
             name="onboarding/other-apps"
+            options={{
+              ...ONBOARDING_TRANSITION,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/clarity"
             options={{
               ...ONBOARDING_TRANSITION,
             }}

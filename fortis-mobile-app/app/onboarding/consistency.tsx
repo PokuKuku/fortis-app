@@ -51,7 +51,7 @@ export default function OnboardingConsistencyScreen() {
 
   return (
     <OnboardingScreen
-      step={7}
+      step={8}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="How would you describe your workout consistency?"
       subtitle={undefined}
