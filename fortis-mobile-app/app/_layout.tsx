@@ -93,6 +93,13 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             }}
           />
           <Stack.Screen
+            name="onboarding/greeting"
+            options={{
+              ...ONBOARDING_TRANSITION,
+              gestureEnabled: false,
+            }}
+          />
+          <Stack.Screen
             name="onboarding/gender"
             options={{
               ...ONBOARDING_TRANSITION,
@@ -148,6 +155,18 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
           />
           <Stack.Screen
             name="onboarding/insights"
+            options={{
+              ...ONBOARDING_TRANSITION,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/thank-you"
+            options={{
+              ...ONBOARDING_TRANSITION,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/rate"
             options={{
               ...ONBOARDING_TRANSITION,
             }}

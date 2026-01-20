@@ -1,6 +1,7 @@
-import type { ComponentType } from 'react';
+import { useCallback, useRef, type ComponentType } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
@@ -41,6 +42,7 @@ export default function OnboardingClarityScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const lottieRef = useRef<{ play?: () => void; reset?: () => void } | null>(null);
   const animationSize = Math.min(
     460,
     Math.max(
@@ -51,6 +53,19 @@ export default function OnboardingClarityScreen() {
   const canRenderLottie = Boolean(LottieView) && isLottieViewManagerAvailable();
   const animationLooksTruncated = isLikelyTruncatedAnimation(CLARITY_ANIMATION);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!canRenderLottie || !LottieView || animationLooksTruncated) return;
+
+      const timeout = setTimeout(() => {
+        lottieRef.current?.reset?.();
+        lottieRef.current?.play?.();
+      }, 0);
+
+      return () => clearTimeout(timeout);
+    }, [animationLooksTruncated, canRenderLottie])
+  );
+
   const handleContinue = () => {
     router.push('/onboarding/goal');
   };
@@ -59,7 +74,7 @@ export default function OnboardingClarityScreen() {
     <OnboardingScreen
       step={10}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Fortis takes the mystery out of gym progression"
+      title="Fortis helps you understand your progress faster"
       subtitle="Understand what’s working and keep progressing!"
       onBack={() => router.back()}
       useScrollView={false}
@@ -79,8 +94,9 @@ export default function OnboardingClarityScreen() {
         {canRenderLottie && LottieView && !animationLooksTruncated ? (
           <LottieView
             source={CLARITY_ANIMATION}
-            autoPlay
+            autoPlay={false}
             loop
+            ref={lottieRef as unknown as never}
             style={{ width: animationSize, height: animationSize }}
           />
         ) : (

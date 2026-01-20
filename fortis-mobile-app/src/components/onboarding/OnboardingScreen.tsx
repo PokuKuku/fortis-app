@@ -20,6 +20,7 @@ interface OnboardingScreenProps {
   totalSteps: number;
   title: string;
   subtitle?: string;
+  hideTitle?: boolean;
   bodyAlign?: 'top' | 'center';
   contentGap?: number;
   titlePlacement?: 'top' | 'bottom';
@@ -45,6 +46,7 @@ export function OnboardingScreen({
   totalSteps,
   title,
   subtitle,
+  hideTitle = false,
   bodyAlign = 'top',
   contentGap = Spacing['2xl'],
   titlePlacement = 'top',
@@ -77,7 +79,7 @@ export function OnboardingScreen({
     },
   };
 
-  const titleBlock = (
+  const titleBlock = hideTitle ? null : (
     <View style={[styles.titleBlock, titleTopOffset ? { marginTop: titleTopOffset } : null]}>
       <Text
         style={[
@@ -105,7 +107,7 @@ export function OnboardingScreen({
     ? [styles.contentBlock, styles.contentBlockFill, { gap: contentGap }]
     : [styles.contentBlock, { gap: contentGap }];
 
-  const footerBlock = footer || titlePlacement === 'bottom'
+  const footerBlock = footer || (titlePlacement === 'bottom' && !hideTitle)
     ? (
         <View style={styles.footer}>
           <View style={styles.footerStack}>

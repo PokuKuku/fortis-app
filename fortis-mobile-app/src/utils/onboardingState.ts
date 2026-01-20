@@ -5,7 +5,6 @@ import { getScopedItem, removeScopedItem, setScopedItem } from '@/src/utils/scop
 export type OnboardingState = {
   full_name?: string;
   gender?: 'male' | 'female' | 'other';
-  age_group?: 'under_18' | '18_24' | '25_34' | '35_44' | '45_54' | '55_plus';
   birth_date?: string;
   height_cm?: number;
   weight_kg?: number;

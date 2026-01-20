@@ -34,7 +34,7 @@ export default function OnboardingNameScreen() {
     if (!trimmed) return;
 
     await updateOnboardingState({ full_name: trimmed });
-    router.push('/onboarding/gender');
+    router.push('/onboarding/greeting');
   };
 
   const isDisabled = name.trim().length === 0;

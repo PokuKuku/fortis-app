@@ -77,12 +77,12 @@ export default function OnboardingChallengeScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) return;
-    router.push('/onboarding/complete');
+    router.push('/onboarding/insights');
   };
 
   return (
     <OnboardingScreen
-      step={13}
+      step={12}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What are your biggest challenges toward your goals?"
       subtitle="Select all that apply."

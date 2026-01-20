@@ -142,15 +142,15 @@ export default function OnboardingInsightsScreen() {
   }, [colors.accent, colors.textPrimary]);
 
   const handleContinue = () => {
-    router.push('/onboarding/challenge');
+    router.push('/onboarding/thank-you');
   };
 
   return (
     <OnboardingScreen
-      step={12}
+      step={13}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Stay ahead of plateaus"
-      subtitle="Fortis helps you detect plateaus and fatigue early so you can push toward your goals."
+      title="Break through your goals"
+      subtitle="Fortis gives you insights that move you forward"
       onBack={() => router.back()}
       useScrollView={false}
       bodyAlign="center"
@@ -180,7 +180,7 @@ export default function OnboardingInsightsScreen() {
             <LottieView
               source={animationSource}
               autoPlay
-              loop
+              loop={false}
               style={{ width: animationSize, height: animationSize }}
             />
           ) : (
