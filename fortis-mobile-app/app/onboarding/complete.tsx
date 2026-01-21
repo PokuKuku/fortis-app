@@ -2,16 +2,18 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CheckIcon } from 'react-native-heroicons/solid';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
-import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboardingState';
+import { clearOnboardingState, getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
 import { Typography } from '@/constants/Typography';
 
-const LOADING_DURATION_MS = 7200;
+const LOADING_DURATION_MS = 10000;
 const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
 const UPDATE_TIMEOUT_MS = 5000;
 const LOADING_FAILSAFE_MS = 9000;
@@ -32,17 +34,70 @@ const LOADING_STEPS: LoadingStep[] = [
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
 
+type SummaryItem = {
+  label: string;
+  value: string;
+};
+
+const FITNESS_GOAL_LABELS: Record<string, string> = {
+  build_muscle: 'Build muscle',
+  general_health: 'General health and fitness',
+  lose_fat: 'Lose fat',
+  improve_strength: 'Improve strength',
+  stay_consistent: 'Stay consistent',
+};
+
+const EXPERIENCE_LABELS: Record<string, string> = {
+  none: 'Currently not lifting',
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+};
+
+const CONSISTENCY_LABELS: Record<string, string> = {
+  none: 'Currently not working out',
+  once_or_less: '1–3 times a week',
+  few_times_week: '4–6 times a week',
+  daily: 'Daily',
+  starting: 'Just starting out',
+};
+
+const CHALLENGE_LABELS: Record<string, string> = {
+  consistency: 'Consistency',
+  plateaus: 'Plateaus',
+  starting_out: 'Starting out',
+  time: 'Time',
+};
+
+const UNIT_LABELS: Record<string, string> = {
+  imperial: 'Imperial (lb, in)',
+  metric: 'Metric (kg, cm)',
+};
+
+const OTHER_APP_LABELS: Record<string, string> = {
+  consistent: 'Tried others consistently',
+  occasionally: 'Tried others occasionally',
+  stopped: 'Tried others, but stopped',
+  never: 'Never tried others',
+};
+
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { updateProfile, isAuthenticated } = useAuth();
   const didContinueRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const summaryAnim = useRef(new Animated.Value(0)).current;
+  const stepsAnim = useRef(new Animated.Value(1)).current;
   const lastProgressRef = useRef(-1);
+  const lastHapticStepRef = useRef(0);
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [progressPct, setProgressPct] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
+  const [showSteps, setShowSteps] = useState(true);
+  const [showSummary, setShowSummary] = useState(false);
 
   const activeStepIndex = useMemo(() => {
     const index = LOADING_STEPS.findIndex((step) => progressPct < step.completeAt);
@@ -52,6 +107,64 @@ export default function OnboardingCompleteScreen() {
   const statusLine = useMemo(() => {
     return LOADING_STEPS[Math.min(activeStepIndex, LOADING_STEPS.length - 1)]?.label ?? 'Finalizing setup…';
   }, [activeStepIndex]);
+
+  const summaryName = useMemo(() => {
+    const name = onboardingState?.full_name?.trim();
+    if (!name) return null;
+    if (name.endsWith('s') || name.endsWith('S')) {
+      return `${name}' training profile`;
+    }
+    return `${name}'s training profile`;
+  }, [onboardingState?.full_name]);
+
+  const summaryItems = useMemo<SummaryItem[]>(() => {
+    if (!onboardingState) return [];
+    const goalFromList = onboardingState.fitness_goals?.length
+      ? onboardingState.fitness_goals[onboardingState.fitness_goals.length - 1]
+      : undefined;
+    const resolvedGoal = onboardingState.fitness_goal ?? goalFromList;
+    const challengeFromList = onboardingState.biggest_challenges?.length
+      ? onboardingState.biggest_challenges[onboardingState.biggest_challenges.length - 1]
+      : undefined;
+    const resolvedChallenge = onboardingState.biggest_challenge ?? challengeFromList;
+    const items: SummaryItem[] = [];
+
+    if (resolvedGoal) {
+      items.push({ label: 'Goal', value: FITNESS_GOAL_LABELS[resolvedGoal] ?? resolvedGoal });
+    }
+    if (onboardingState.lifting_experience) {
+      items.push({
+        label: 'Experience',
+        value: EXPERIENCE_LABELS[onboardingState.lifting_experience] ?? onboardingState.lifting_experience,
+      });
+    }
+    if (onboardingState.workout_consistency) {
+      items.push({
+        label: 'Consistency',
+        value: CONSISTENCY_LABELS[onboardingState.workout_consistency] ?? onboardingState.workout_consistency,
+      });
+    }
+    if (resolvedChallenge) {
+      items.push({
+        label: 'Challenge',
+        value: CHALLENGE_LABELS[resolvedChallenge] ?? resolvedChallenge,
+      });
+    }
+    if (onboardingState.preferred_units) {
+      items.push({
+        label: 'Units',
+        value: UNIT_LABELS[onboardingState.preferred_units] ?? onboardingState.preferred_units,
+      });
+    }
+    if (onboardingState.tried_other_apps) {
+      items.push({
+        label: 'Other apps',
+        value: OTHER_APP_LABELS[onboardingState.tried_other_apps] ?? onboardingState.tried_other_apps,
+      });
+    }
+
+    return items.slice(0, 4);
+  }, [onboardingState]);
 
   useEffect(() => {
     let isActive = true;
@@ -84,6 +197,56 @@ export default function OnboardingCompleteScreen() {
 
   useEffect(() => {
     if (phase !== 'loading') return;
+    const completedCount = LOADING_STEPS.filter((step) => progressPct >= step.completeAt).length;
+    if (completedCount <= lastHapticStepRef.current) return;
+    lastHapticStepRef.current = completedCount;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [phase, progressPct]);
+
+  useEffect(() => {
+    if (phase === 'loading') {
+      setShowSteps(true);
+      setShowSummary(false);
+      stepsAnim.setValue(1);
+      summaryAnim.setValue(0);
+      return;
+    }
+
+    Animated.timing(stepsAnim, {
+      toValue: 0,
+      duration: 320,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setShowSteps(false);
+        setShowSummary(true);
+        Animated.timing(summaryAnim, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }).start();
+      }
+    });
+  }, [phase, stepsAnim, summaryAnim]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadState = async () => {
+      const state = await getOnboardingState();
+      if (!isActive) return;
+      setOnboardingState(state);
+    };
+
+    loadState();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'loading') return;
 
     const failsafe = setTimeout(() => {
       progressAnim.stopAnimation();
@@ -99,13 +262,21 @@ export default function OnboardingCompleteScreen() {
     if (didContinueRef.current) return;
     didContinueRef.current = true;
 
+    setIsSaving(true);
+    if (phase === 'ready') {
+      await new Promise<void>((resolve) => {
+        Animated.timing(summaryAnim, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }).start(() => resolve());
+      });
+    }
+
     if (!isAuthenticated) {
-      setIsSaving(true);
       router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
       return;
     }
-
-    setIsSaving(true);
     try {
       const state = await getOnboardingState();
       const updates: Parameters<typeof updateProfile>[0] = {
@@ -166,7 +337,7 @@ export default function OnboardingCompleteScreen() {
       setIsSaving(false);
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, router, updateProfile]);
+  }, [isAuthenticated, phase, router, summaryAnim, updateProfile]);
 
   useEffect(() => {
     if (phase !== 'ready') return;
@@ -259,7 +430,7 @@ export default function OnboardingCompleteScreen() {
             hapticFeedback="impactMedium"
           >
             <Text style={[styles.continueButtonText, { color: colors.white }]}>
-              {isSaving ? 'Starting…' : 'Continue'}
+              {isSaving ? 'Starting…' : 'Start tracking'}
             </Text>
           </GlassButton>
         ) : undefined
@@ -271,7 +442,7 @@ export default function OnboardingCompleteScreen() {
             {phase === 'loading' ? `${progressPct}%` : '100%'}
           </Text>
           <Text style={[styles.titleText, { color: colors.textPrimary }]}>
-            We’re setting everything up for you
+            {phase === 'loading' ? 'We’re setting everything up for you' : 'You’re ready to go'}
           </Text>
           <Text style={[styles.statusText, { color: colors.textSecondary }]}>
             {phase === 'loading'
@@ -280,13 +451,98 @@ export default function OnboardingCompleteScreen() {
                 ? 'Starting…'
                 : isAuthenticated
                   ? 'Finishing up…'
-                  : 'Ready when you are.'}
+                  : 'Fortis is customized for you.'}
           </Text>
         </View>
 
-        <View style={styles.stepsBlock}>
-          {LOADING_STEPS.map(renderLoadingRow)}
-        </View>
+        {showSummary ? (
+          <Animated.View
+            style={{
+              opacity: summaryAnim,
+            }}
+          >
+            <LinearGradient
+              colors={[colors.surfaceElevated, colors.glassBackground, colors.surfaceElevated]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={[styles.summaryCard, { borderColor: colors.glassBorder }]}
+            >
+              <View
+                style={[
+                  styles.summaryGlow,
+                  { backgroundColor: colors.accent, opacity: isDark ? 0.18 : 0.12 },
+                ]}
+              />
+              <View style={styles.summaryHeader}>
+                <Text style={[styles.summaryBrand, { color: colors.accent }]}>FORTIS</Text>
+                <View
+                  style={[
+                    styles.summaryBadge,
+                    { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
+                  ]}
+                >
+                  <Text style={[styles.summaryBadgeText, { color: colors.accent }]}>
+                    Setup recap
+                  </Text>
+                </View>
+              </View>
+              <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>
+                {summaryName ?? 'Your training profile'}
+              </Text>
+            <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
+              You can edit this any time.
+            </Text>
+              {summaryItems.length > 0 ? (
+                <View style={styles.summaryGrid}>
+                  {summaryItems.map((item) => (
+                    <View
+                      key={item.label}
+                      style={[
+                        styles.summaryTile,
+                        { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
+                      ]}
+                    >
+                      <Text style={[styles.summaryLabel, { color: colors.textTertiary }]}>
+                        {item.label}
+                      </Text>
+                      <Text
+                        style={[styles.summaryValue, { color: colors.textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        {item.value}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <View style={styles.summaryLoading}>
+                  <ActivityIndicator size="small" color={colors.accent} />
+                  <Text style={[styles.summaryLoadingText, { color: colors.textSecondary }]}>
+                    Gathering your setup…
+                  </Text>
+                </View>
+              )}
+              <View style={styles.summaryFooter}>
+                <Text style={[styles.summaryHandle, { color: colors.textTertiary }]}>
+                  fortis.app
+                </Text>
+              </View>
+            </LinearGradient>
+          </Animated.View>
+        ) : null}
+
+        {showSteps ? (
+          <Animated.View
+            style={[
+              styles.stepsBlock,
+              {
+                opacity: stepsAnim,
+              },
+            ]}
+          >
+            {LOADING_STEPS.map(renderLoadingRow)}
+          </Animated.View>
+        ) : null}
 
         {phase === 'ready' && isAuthenticated ? (
           <View style={styles.savingRow}>
@@ -329,6 +585,93 @@ const styles = StyleSheet.create({
   stepsBlock: {
     width: '100%',
     gap: Spacing.sm,
+  },
+  summaryCard: {
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    padding: Spacing.lg,
+    gap: Spacing.sm,
+    overflow: 'hidden',
+  },
+  summaryGlow: {
+    position: 'absolute',
+    top: -36,
+    right: -20,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  summaryBrand: {
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 2,
+    fontSize: 12,
+  },
+  summaryBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  summaryBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  summaryTitle: {
+    ...Typography.h3,
+    fontSize: 18,
+  },
+  summarySubtitle: {
+    ...Typography.bodySmall,
+  },
+  summaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  summaryTile: {
+    flexBasis: '48%',
+    flexGrow: 1,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  summaryLabel: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 10,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  summaryValue: {
+    ...Typography.bodyLarge,
+    fontSize: 14,
+  },
+  summaryLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  summaryLoadingText: {
+    ...Typography.bodySmall,
+  },
+  summaryFooter: {
+    marginTop: Spacing.xs,
+  },
+  summaryHandle: {
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
   },
   loadingRow: {
     flexDirection: 'row',
