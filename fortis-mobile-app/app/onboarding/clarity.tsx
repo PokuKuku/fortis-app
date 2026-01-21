@@ -1,5 +1,5 @@
 import { useCallback, useRef, type ComponentType } from 'react';
-import { View, Text, StyleSheet, useWindowDimensions, UIManager } from 'react-native';
+import { View, Text, StyleSheet, useWindowDimensions, UIManager, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { GlassButton } from '@/components/GlassButton';
@@ -8,7 +8,8 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
-const CLARITY_ANIMATION = require('../../assets/lottie/data_analysis_lottie.json');
+const CLARITY_ANIMATION = require('../../assets/lottie/graphs.json');
+const FORTIS_LABEL_DELAY_MS = 1650;
 
 const isLikelyTruncatedAnimation = (source: unknown): boolean => {
   if (!source || typeof source !== 'object') return false;
@@ -43,6 +44,8 @@ export default function OnboardingClarityScreen() {
   const { colors } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const lottieRef = useRef<{ play?: () => void; reset?: () => void } | null>(null);
+  const fortisOpacity = useRef(new Animated.Value(0)).current;
+  const fortisTranslateY = useRef(new Animated.Value(6)).current;
   const animationSize = Math.min(
     460,
     Math.max(
@@ -57,13 +60,35 @@ export default function OnboardingClarityScreen() {
     useCallback(() => {
       if (!canRenderLottie || !LottieView || animationLooksTruncated) return;
 
+      fortisOpacity.setValue(0);
+      fortisTranslateY.setValue(6);
+
       const timeout = setTimeout(() => {
         lottieRef.current?.reset?.();
         lottieRef.current?.play?.();
       }, 0);
 
-      return () => clearTimeout(timeout);
-    }, [animationLooksTruncated, canRenderLottie])
+      const labelTimeout = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(fortisOpacity, {
+            toValue: 1,
+            duration: 260,
+            useNativeDriver: true,
+          }),
+          Animated.spring(fortisTranslateY, {
+            toValue: 0,
+            tension: 160,
+            friction: 14,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }, FORTIS_LABEL_DELAY_MS);
+
+      return () => {
+        clearTimeout(timeout);
+        clearTimeout(labelTimeout);
+      };
+    }, [animationLooksTruncated, canRenderLottie, fortisOpacity, fortisTranslateY])
   );
 
   const handleContinue = () => {
@@ -92,13 +117,28 @@ export default function OnboardingClarityScreen() {
     >
       <View style={styles.animationWrap}>
         {canRenderLottie && LottieView && !animationLooksTruncated ? (
-          <LottieView
-            source={CLARITY_ANIMATION}
-            autoPlay={false}
-            loop
-            ref={lottieRef as unknown as never}
-            style={{ width: animationSize, height: animationSize }}
-          />
+          <View style={[styles.graphWrap, { width: animationSize, height: animationSize }]}>
+            <LottieView
+              source={CLARITY_ANIMATION}
+              autoPlay={false}
+              loop={false}
+              ref={lottieRef as unknown as never}
+              style={styles.graphAnimation}
+            />
+            <Text style={[styles.onYourOwnLabel, { color: colors.info }]}>on your own</Text>
+            <Animated.Text
+              style={[
+                styles.fortisLabel,
+                {
+                  color: colors.tabActive,
+                  opacity: fortisOpacity,
+                  transform: [{ translateY: fortisTranslateY }],
+                },
+              ]}
+            >
+              Fortis
+            </Animated.Text>
+          </View>
         ) : (
           <View style={[styles.fallbackCard, { borderColor: colors.glassBorder, backgroundColor: colors.glassBackground }]}>
             <Text style={[styles.fallbackText, { color: colors.textTertiary }]}>
@@ -120,6 +160,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -Spacing.lg,
+  },
+  graphWrap: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  graphAnimation: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  onYourOwnLabel: {
+    position: 'absolute',
+    top: '6%',
+    alignSelf: 'center',
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  fortisLabel: {
+    position: 'absolute',
+    top: '26%',
+    right: '10%',
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    letterSpacing: 1,
   },
   fallbackCard: {
     width: '100%',
