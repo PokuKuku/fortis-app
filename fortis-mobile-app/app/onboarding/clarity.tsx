@@ -46,8 +46,6 @@ export default function OnboardingClarityScreen() {
   const lottieRef = useRef<{ play?: () => void; reset?: () => void } | null>(null);
   const fortisOpacity = useRef(new Animated.Value(0)).current;
   const fortisTranslateY = useRef(new Animated.Value(6)).current;
-  const fortisDotOpacity = useRef(new Animated.Value(0)).current;
-  const fortisDotScale = useRef(new Animated.Value(0.6)).current;
   const animationSize = Math.min(
     460,
     Math.max(
@@ -64,8 +62,6 @@ export default function OnboardingClarityScreen() {
 
       fortisOpacity.setValue(0);
       fortisTranslateY.setValue(6);
-      fortisDotOpacity.setValue(0);
-      fortisDotScale.setValue(0.6);
 
       const timeout = setTimeout(() => {
         lottieRef.current?.reset?.();
@@ -79,20 +75,9 @@ export default function OnboardingClarityScreen() {
             duration: 260,
             useNativeDriver: true,
           }),
-          Animated.timing(fortisDotOpacity, {
-            toValue: 1,
-            duration: 220,
-            useNativeDriver: true,
-          }),
           Animated.spring(fortisTranslateY, {
             toValue: 0,
             tension: 160,
-            friction: 14,
-            useNativeDriver: true,
-          }),
-          Animated.spring(fortisDotScale, {
-            toValue: 1,
-            tension: 220,
             friction: 14,
             useNativeDriver: true,
           }),
@@ -106,8 +91,6 @@ export default function OnboardingClarityScreen() {
     }, [
       animationLooksTruncated,
       canRenderLottie,
-      fortisDotOpacity,
-      fortisDotScale,
       fortisOpacity,
       fortisTranslateY,
     ])
@@ -119,7 +102,7 @@ export default function OnboardingClarityScreen() {
 
   return (
     <OnboardingScreen
-      step={10}
+      step={9}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Fortis helps you understand your progress faster"
       subtitle="Understand what’s working and keep progressing!"
@@ -147,29 +130,33 @@ export default function OnboardingClarityScreen() {
               ref={lottieRef as unknown as never}
               style={styles.graphAnimation}
             />
-            <Text style={[styles.onYourOwnLabel, { color: colors.info }]}>on your own</Text>
-            <Animated.View
+            <Animated.Text
               style={[
-                styles.fortisDot,
+                styles.onYourOwnLabel,
                 {
-                  backgroundColor: colors.tabActive,
-                  borderColor: colors.background,
-                  opacity: fortisDotOpacity,
-                  transform: [{ scale: fortisDotScale }],
+                  color: colors.textPrimary,
+                  opacity: fortisOpacity,
+                  transform: [
+                    { translateX: 130 },
+                    { translateY: 160 },
+                    { translateY: fortisTranslateY },
+                  ],
                 },
               ]}
-            />
+            >
+              other apps
+            </Animated.Text>
             <Animated.Text
               style={[
                 styles.fortisLabel,
                 {
                   color: colors.tabActive,
                   opacity: fortisOpacity,
-                  transform: [{ translateY: fortisTranslateY }],
+                  transform: [{ translateY: fortisTranslateY }, { translateX: 20 }],
                 },
               ]}
             >
-              Fortis
+              with Fortis
             </Animated.Text>
           </View>
         ) : (
@@ -212,20 +199,11 @@ const styles = StyleSheet.create({
   },
   fortisLabel: {
     position: 'absolute',
-    top: '1%',
-    right: '10%',
+    bottom: '78%',
+    right: '8%',
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 12,
     letterSpacing: 1,
-  },
-  fortisDot: {
-    position: 'absolute',
-    top: '5%',
-    right: '9%',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 2,
   },
   fallbackCard: {
     width: '100%',

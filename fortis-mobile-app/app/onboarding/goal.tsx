@@ -80,7 +80,7 @@ export default function OnboardingGoalScreen() {
 
   return (
     <OnboardingScreen
-      step={11}
+      step={10}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What are your main fitness goals?"
       subtitle="Select all that apply."

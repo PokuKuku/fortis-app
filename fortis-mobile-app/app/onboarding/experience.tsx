@@ -78,12 +78,12 @@ export default function OnboardingExperienceScreen() {
       // Fall back below.
     }
 
-    router.replace('/onboarding/weight');
+    router.replace('/onboarding/height');
   };
 
   return (
     <OnboardingScreen
-      step={7}
+      step={6}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your experience level with lifting?"
       subtitle="This helps us shape your training insights."

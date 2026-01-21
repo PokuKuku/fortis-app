@@ -54,7 +54,7 @@ export default function OnboardingRateScreen() {
 
   return (
     <OnboardingScreen
-      step={15}
+      step={14}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Give us a rating"
       subtitle="If Fortis is helping you, a 5-star rating helps us grow."
@@ -191,4 +191,3 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
-
