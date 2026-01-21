@@ -72,7 +72,7 @@ export default function OnboardingFitnessBackgroundScreen() {
       }
       autoContinueTimeoutRef.current = setTimeout(() => {
         handleContinue();
-      }, 2000);
+      }, 500);
     },
     [handleContinue]
   );

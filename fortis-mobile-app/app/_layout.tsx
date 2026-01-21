@@ -63,15 +63,15 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
           <Stack.Screen
             name="auth/index"
             options={{
-              ...PAGE_TRANSITION,
+              ...ONBOARDING_TRANSITION,
+              animationTypeForReplace: 'push',
             }}
           />
           <Stack.Screen
             name="auth/email"
             options={{
-              ...PAGE_TRANSITION,
-              gestureEnabled: true,
-              gestureDirection: 'horizontal',
+              ...ONBOARDING_TRANSITION,
+              animationTypeForReplace: 'push',
             }}
           />
           <Stack.Screen

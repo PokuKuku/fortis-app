@@ -1,9 +1,8 @@
-import type { ComponentClass } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, ActivityIndicator, UIManager, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
 import { CheckIcon } from 'react-native-heroicons/solid';
+import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
@@ -12,35 +11,12 @@ import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboardingState';
 import { Typography } from '@/constants/Typography';
 
-const PROGRESS_LOADING_ANIMATION = require('../../assets/lottie/progress_loading_lottie.json');
-
-const LOADING_DURATION_MS = 5200;
-const SAVING_TRANSITION_DELAY_MS = 900;
+const LOADING_DURATION_MS = 7200;
+const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
 const UPDATE_TIMEOUT_MS = 5000;
-const FAILSAFE_CONTINUE_MS = 14000;
 const LOADING_FAILSAFE_MS = 9000;
 
-type Phase = 'loading' | 'saving';
-
-const isLottieViewManagerAvailable = (): boolean => {
-  const getConfig = (UIManager as { getViewManagerConfig?: (name: string) => unknown }).getViewManagerConfig;
-  if (typeof getConfig !== 'function') return false;
-  return Boolean(getConfig('LottieAnimationView'));
-};
-
-const LottieView = (() => {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    return require('lottie-react-native').default as ComponentClass<{
-      source: unknown;
-      autoPlay?: boolean;
-      loop?: boolean;
-      style?: unknown;
-    }>;
-  } catch {
-    return null;
-  }
-})();
+type Phase = 'loading' | 'ready';
 
 type LoadingStep = {
   label: string;
@@ -54,13 +30,12 @@ const LOADING_STEPS: LoadingStep[] = [
   { label: 'Finalizing setup…', completeAt: 100 },
 ];
 
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { updateProfile, isAuthenticated } = useAuth();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const canRenderLottie = Boolean(LottieView) && isLottieViewManagerAvailable();
-  const lottieRef = useRef<{ play?: () => void; reset?: () => void } | null>(null);
   const didContinueRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const lastProgressRef = useRef(-1);
@@ -68,10 +43,6 @@ export default function OnboardingCompleteScreen() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [progressPct, setProgressPct] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
-
-  const animationSize = useMemo(() => {
-    return Math.min(240, Math.max(160, Math.round(Math.min(windowWidth * 0.6, windowHeight * 0.22))));
-  }, [windowHeight, windowWidth]);
 
   const activeStepIndex = useMemo(() => {
     const index = LOADING_STEPS.findIndex((step) => progressPct < step.completeAt);
@@ -81,37 +52,6 @@ export default function OnboardingCompleteScreen() {
   const statusLine = useMemo(() => {
     return LOADING_STEPS[Math.min(activeStepIndex, LOADING_STEPS.length - 1)]?.label ?? 'Finalizing setup…';
   }, [activeStepIndex]);
-
-  const progressFillWidth = useMemo(() => {
-    return progressAnim.interpolate({
-      inputRange: [0, 100],
-      outputRange: ['0%', '100%'],
-    });
-  }, [progressAnim]);
-
-  useFocusEffect(
-    useCallback(() => {
-      if (!canRenderLottie || !LottieView) return;
-
-      const timeout = setTimeout(() => {
-        lottieRef.current?.reset?.();
-        lottieRef.current?.play?.();
-      }, 0);
-
-      return () => clearTimeout(timeout);
-    }, [canRenderLottie])
-  );
-
-  useEffect(() => {
-    if (!canRenderLottie || !LottieView) return;
-
-    const timeout = setTimeout(() => {
-      lottieRef.current?.reset?.();
-      lottieRef.current?.play?.();
-    }, 0);
-
-    return () => clearTimeout(timeout);
-  }, [canRenderLottie]);
 
   useEffect(() => {
     let isActive = true;
@@ -132,7 +72,7 @@ export default function OnboardingCompleteScreen() {
     }).start(({ finished }) => {
       if (!isActive) return;
       if (!finished) return;
-      setPhase('saving');
+      setPhase('ready');
     });
 
     return () => {
@@ -149,7 +89,7 @@ export default function OnboardingCompleteScreen() {
       progressAnim.stopAnimation();
       progressAnim.setValue(100);
       setProgressPct(100);
-      setPhase('saving');
+      setPhase('ready');
     }, LOADING_FAILSAFE_MS);
 
     return () => clearTimeout(failsafe);
@@ -160,6 +100,7 @@ export default function OnboardingCompleteScreen() {
     didContinueRef.current = true;
 
     if (!isAuthenticated) {
+      setIsSaving(true);
       router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
       return;
     }
@@ -228,25 +169,27 @@ export default function OnboardingCompleteScreen() {
   }, [isAuthenticated, router, updateProfile]);
 
   useEffect(() => {
-    if (phase !== 'saving') return;
+    if (phase !== 'ready') return;
+    if (!isAuthenticated) return;
 
     const continueTimer = setTimeout(() => {
       void handleContinue();
-    }, SAVING_TRANSITION_DELAY_MS);
-
-    const failsafe = setTimeout(() => {
-      void handleContinue();
-    }, FAILSAFE_CONTINUE_MS);
+    }, AUTHENTICATED_AUTO_CONTINUE_DELAY_MS);
 
     return () => {
       clearTimeout(continueTimer);
-      clearTimeout(failsafe);
     };
-  }, [handleContinue, phase]);
+  }, [handleContinue, isAuthenticated, phase]);
 
   const renderLoadingRow = (step: LoadingStep, index: number) => {
-    const completed = progressPct >= step.completeAt;
+    const currentPct = phase === 'loading' ? progressPct : 100;
+    const stepStart = index === 0 ? 0 : LOADING_STEPS[index - 1]?.completeAt ?? 0;
+    const stepEnd = step.completeAt;
+    const denom = Math.max(1, stepEnd - stepStart);
+    const stepProgress = clamp01((currentPct - stepStart) / denom);
+    const completed = stepProgress >= 1;
     const active = !completed && index === activeStepIndex;
+    const stepFillPct = `${Math.round(stepProgress * 100)}%`;
 
     return (
       <View key={step.label} style={styles.loadingRow}>
@@ -270,9 +213,28 @@ export default function OnboardingCompleteScreen() {
             />
           )}
         </View>
-        <Text style={[styles.loadingLabel, { color: completed ? colors.textPrimary : colors.textSecondary }]}>
-          {step.label}
-        </Text>
+        <View style={styles.loadingBody}>
+          <Text style={[styles.loadingLabel, { color: completed ? colors.textPrimary : colors.textSecondary }]}>
+            {step.label}
+          </Text>
+          <View
+            style={[
+              styles.stepTrack,
+              { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
+            ]}
+          >
+            <View
+              style={[
+                styles.stepFill,
+                {
+                  width: stepFillPct,
+                  backgroundColor: colors.accent,
+                  opacity: completed ? 1 : 0.9,
+                },
+              ]}
+            />
+          </View>
+        </View>
       </View>
     );
   };
@@ -288,6 +250,20 @@ export default function OnboardingCompleteScreen() {
       useScrollView={false}
       bodyAlign="center"
       contentGap={Spacing.lg}
+      footer={
+        phase === 'ready' && !isAuthenticated ? (
+          <GlassButton
+            style={styles.continueButton}
+            onPress={() => void handleContinue()}
+            disabled={isSaving}
+            hapticFeedback="impactMedium"
+          >
+            <Text style={[styles.continueButtonText, { color: colors.white }]}>
+              {isSaving ? 'Starting…' : 'Continue'}
+            </Text>
+          </GlassButton>
+        ) : undefined
+      }
     >
       <View style={styles.page}>
         <View style={styles.headerBlock}>
@@ -298,57 +274,25 @@ export default function OnboardingCompleteScreen() {
             We’re setting everything up for you
           </Text>
           <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-            {phase === 'loading' ? statusLine : isSaving ? 'Saving your setup…' : 'Finishing up…'}
+            {phase === 'loading'
+              ? statusLine
+              : isSaving
+                ? 'Starting…'
+                : isAuthenticated
+                  ? 'Finishing up…'
+                  : 'Ready when you are.'}
           </Text>
-          <View style={[styles.progressTrack, { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder }]}>
-            <Animated.View style={[styles.progressFill, { backgroundColor: colors.accent, width: progressFillWidth }]} />
-          </View>
-        </View>
-
-        <View style={styles.animationWrap}>
-          {canRenderLottie && LottieView ? (
-            <LottieView
-              source={PROGRESS_LOADING_ANIMATION}
-              autoPlay={false}
-              loop={phase === 'loading'}
-              ref={lottieRef as unknown as never}
-              style={{ width: animationSize, height: animationSize }}
-            />
-          ) : (
-            <View
-              style={[
-                styles.fallbackCard,
-                { borderColor: colors.glassBorder, backgroundColor: colors.glassBackground },
-              ]}
-            >
-              <Text style={[styles.fallbackText, { color: colors.textTertiary }]}>
-                Animation unavailable in this build.
-              </Text>
-            </View>
-          )}
         </View>
 
         <View style={styles.stepsBlock}>
           {LOADING_STEPS.map(renderLoadingRow)}
         </View>
 
-        <View style={styles.trustBlock}>
-          <Text style={[styles.trustTitle, { color: colors.textPrimary }]}>
-            Trusted by lifters
-          </Text>
-          <View style={[styles.trustCard, { borderColor: colors.glassBorder, backgroundColor: colors.glassBackground }]}>
-            <Text style={[styles.trustHandle, { color: colors.textPrimary }]}>@fortisuser</Text>
-            <Text style={[styles.trustBody, { color: colors.textSecondary }]}>
-              “It’s the first app that makes my training data feel actionable.”
-            </Text>
-          </View>
-        </View>
-
-        {phase === 'saving' ? (
+        {phase === 'ready' && isAuthenticated ? (
           <View style={styles.savingRow}>
             <ActivityIndicator size="small" color={colors.accent} />
             <Text style={[styles.savingText, { color: colors.textSecondary }]}>
-              {isAuthenticated ? 'Opening Fortis…' : 'Starting signup…'}
+              Opening Fortis…
             </Text>
           </View>
         ) : null}
@@ -361,7 +305,8 @@ const styles = StyleSheet.create({
   page: {
     flex: 1,
     width: '100%',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+    gap: Spacing['2xl'],
     paddingBottom: Spacing.xl,
   },
   headerBlock: {
@@ -381,46 +326,18 @@ const styles = StyleSheet.create({
   statusText: {
     ...Typography.bodyLarge,
   },
-  progressTrack: {
-    width: '100%',
-    height: 10,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    overflow: 'hidden',
-    marginTop: Spacing.sm,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: BorderRadius.full,
-  },
-  animationWrap: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.lg,
-  },
-  fallbackCard: {
-    width: '100%',
-    maxWidth: 320,
-    borderWidth: 1,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fallbackText: {
-    fontSize: 13,
-    textAlign: 'center',
-  },
   stepsBlock: {
     width: '100%',
     gap: Spacing.sm,
-    marginTop: Spacing.lg,
   },
   loadingRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  loadingBody: {
+    flex: 1,
+    gap: Spacing.xs,
   },
   loadingIndicator: {
     width: 22,
@@ -439,29 +356,16 @@ const styles = StyleSheet.create({
     ...Typography.bodyLarge,
     flexShrink: 1,
   },
-  trustBlock: {
+  stepTrack: {
     width: '100%',
-    gap: Spacing.sm,
-    marginTop: Spacing['2xl'],
-  },
-  trustTitle: {
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: 14,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  trustCard: {
-    width: '100%',
+    height: 8,
+    borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    gap: Spacing.xs,
+    overflow: 'hidden',
   },
-  trustHandle: {
-    fontWeight: '700',
-  },
-  trustBody: {
-    ...Typography.bodyLarge,
+  stepFill: {
+    height: '100%',
+    borderRadius: BorderRadius.full,
   },
   savingRow: {
     flexDirection: 'row',
@@ -473,5 +377,15 @@ const styles = StyleSheet.create({
   savingText: {
     ...Typography.bodyLarge,
     textAlign: 'center',
+  },
+  continueButton: {
+    height: 54,
+    borderRadius: BorderRadius.xl,
+  },
+  continueButtonText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 17,
+    letterSpacing: 2,
+    textTransform: 'uppercase',
   },
 });
