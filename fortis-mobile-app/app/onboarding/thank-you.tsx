@@ -180,19 +180,19 @@ export default function OnboardingThankYouScreen() {
 
         <View style={styles.textBlock}>
           <Text style={[styles.titleText, { color: colors.textPrimary }]}>
-            Thanks for trusting us.
+            Thank you for trusting us.
           </Text>
           <Text style={[styles.subtitleText, { color: colors.textSecondary }]}>
             Now let’s tailor Fortis to you.
           </Text>
         </View>
 
-        <View style={[styles.infoCard, { borderColor: colors.glassBorder, backgroundColor: colors.glassBackground }]}>
+        <View style={[styles.infoCard, { borderColor: colors.glassBorder, backgroundColor: colors.surfaceElevated }]}>
           <View style={styles.infoHeader}>
             <LockClosedIcon size={18} color={colors.textPrimary} strokeWidth={2} />
             <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>Privacy-first</Text>
           </View>
-          <Text style={[styles.infoBody, { color: colors.textSecondary }]}>
+          <Text style={[styles.infoBody, { color: colors.textPrimary }]}>
             Your preferences and workout data stay under your control.
           </Text>
         </View>
@@ -253,8 +253,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   infoBody: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
   },
   fallbackCard: {
     width: '100%',

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Animated, ActivityIndicator, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CheckIcon } from 'react-native-heroicons/solid';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,10 +13,10 @@ import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { clearOnboardingState, getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
 import { Typography } from '@/constants/Typography';
 
-const LOADING_DURATION_MS = 10000;
+const LOADING_DURATION_MS = 13000;
 const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
 const UPDATE_TIMEOUT_MS = 5000;
-const LOADING_FAILSAFE_MS = 9000;
+const LOADING_FAILSAFE_MS = LOADING_DURATION_MS + 1000;
 
 type Phase = 'loading' | 'ready';
 
@@ -181,6 +181,7 @@ export default function OnboardingCompleteScreen() {
     Animated.timing(progressAnim, {
       toValue: 100,
       duration: LOADING_DURATION_MS,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: false,
     }).start(({ finished }) => {
       if (!isActive) return;
@@ -222,7 +223,7 @@ export default function OnboardingCompleteScreen() {
         setShowSummary(true);
         Animated.timing(summaryAnim, {
           toValue: 1,
-          duration: 900,
+          duration: 1900,
           useNativeDriver: true,
         }).start();
       }
@@ -451,7 +452,7 @@ export default function OnboardingCompleteScreen() {
                 ? 'Starting…'
                 : isAuthenticated
                   ? 'Finishing up…'
-                  : 'Fortis is customized for you.'}
+                  : 'Fortis AI is customized for you.'}
           </Text>
         </View>
 
@@ -489,11 +490,8 @@ export default function OnboardingCompleteScreen() {
               <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>
                 {summaryName ?? 'Your training profile'}
               </Text>
-            <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
-              You can edit this any time.
-            </Text>
-              {summaryItems.length > 0 ? (
-                <View style={styles.summaryGrid}>
+            {summaryItems.length > 0 ? (
+              <View style={styles.summaryGrid}>
                   {summaryItems.map((item) => (
                     <View
                       key={item.label}
@@ -502,9 +500,9 @@ export default function OnboardingCompleteScreen() {
                         { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
                       ]}
                     >
-                      <Text style={[styles.summaryLabel, { color: colors.textTertiary }]}>
-                        {item.label}
-                      </Text>
+                    <Text style={[styles.summaryLabel, { color: colors.textPrimary }]}>
+                      {item.label}
+                    </Text>
                       <Text
                         style={[styles.summaryValue, { color: colors.textPrimary }]}
                         numberOfLines={2}
@@ -522,14 +520,17 @@ export default function OnboardingCompleteScreen() {
                   </Text>
                 </View>
               )}
-              <View style={styles.summaryFooter}>
-                <Text style={[styles.summaryHandle, { color: colors.textTertiary }]}>
-                  fortis.app
-                </Text>
-              </View>
-            </LinearGradient>
-          </Animated.View>
-        ) : null}
+            <View style={styles.summaryFooter}>
+              <Text style={[styles.summaryHandle, { color: colors.textTertiary }]}>
+                fortis.app
+              </Text>
+            </View>
+          </LinearGradient>
+          <Text style={[styles.summaryNote, { color: colors.textPrimary }]}>
+            You can edit your information at any time.
+          </Text>
+        </Animated.View>
+      ) : null}
 
         {showSteps ? (
           <Animated.View
@@ -628,10 +629,16 @@ const styles = StyleSheet.create({
   },
   summaryTitle: {
     ...Typography.h3,
-    fontSize: 18,
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 20,
   },
   summarySubtitle: {
     ...Typography.bodySmall,
+  },
+  summaryNote: {
+    ...Typography.bodySmall,
+    marginTop: Spacing.sm,
+    textAlign: 'center',
   },
   summaryGrid: {
     flexDirection: 'row',
@@ -648,13 +655,13 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 10,
-    letterSpacing: 0.6,
+    fontSize: 11,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
   },
   summaryValue: {
     ...Typography.bodyLarge,
-    fontSize: 14,
+    fontSize: 15,
   },
   summaryLoading: {
     flexDirection: 'row',
