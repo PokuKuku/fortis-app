@@ -58,7 +58,8 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             ...PAGE_TRANSITION,
           }}
         >
-          <Stack.Screen name="index" />
+          <Stack.Screen name="index" options={{ animation: 'none' }} />
+          <Stack.Screen name="boot" options={{ animation: 'none' }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="auth/index"

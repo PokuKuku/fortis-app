@@ -1,14 +1,12 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
-import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { useEffect, useRef, useMemo } from 'react';
+import { View, StyleSheet, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ExpoSplashScreen from 'expo-splash-screen';
-import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { scale } from '@/src/utils/responsive';
 
-const { width, height } = Dimensions.get('window');
 const PARTICLE_TRAVEL_Y = scale(120);
 
 // Floating Particle
@@ -80,8 +78,7 @@ function FloatingParticle({
 export default function SplashScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
-  const [splashComplete, setSplashComplete] = useState(false);
+  const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Generate 15 particles
   const particles = useMemo(
@@ -97,45 +94,25 @@ export default function SplashScreen() {
     []
   );
 
-  // Handle navigation when both splash is complete and auth is loaded
-  // Flow: Splash → Onboarding → Auth → Main App
   useEffect(() => {
-    if (!splashComplete || isLoading) return;
-
-    if (isAuthenticated) {
-      if (needsOnboarding) {
-        router.replace('/onboarding/welcome');
-      } else {
-        router.replace('/(tabs)');
-      }
-      return;
-    }
-
-    router.replace('/onboarding/welcome');
-  }, [
-    splashComplete,
-    isLoading,
-    isAuthenticated,
-    needsOnboarding,
-    router,
-  ]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSplashComplete(true);
-    }, 1500);
+    splashTimeoutRef.current = setTimeout(() => {
+      router.replace('/boot');
+    }, 1300);
 
     return () => {
-      clearTimeout(timer);
+      if (splashTimeoutRef.current) {
+        clearTimeout(splashTimeoutRef.current);
+        splashTimeoutRef.current = null;
+      }
     };
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     ExpoSplashScreen.hideAsync().catch(() => undefined);
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Stainless Steel Background */}
       <StainlessSteelPattern />
 
@@ -155,7 +132,7 @@ export default function SplashScreen() {
 
       {/* FORTIS Text */}
       <View style={styles.logoContainer}>
-        <AnimatedLogo size="large" centered shineDurationMs={1500} />
+        <AnimatedLogo size="large" centered shineDurationMs={1300} />
       </View>
     </View>
   );
@@ -164,7 +141,6 @@ export default function SplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0a0a0a',
     alignItems: 'center',
     justifyContent: 'center',
   },
