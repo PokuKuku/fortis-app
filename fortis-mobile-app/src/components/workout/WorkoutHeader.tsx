@@ -1,18 +1,17 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { ClockIcon, XMarkIcon, CalendarDaysIcon } from 'react-native-heroicons/outline';
+import { ClockIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { scale, moderateScale, responsiveValue } from '@/src/utils/responsive';
-import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
+import { formatElapsedTime } from '@/src/hooks/useElapsedTime';
 import { formatRestTime } from '@/src/hooks/useRestTimerTick';
-import { useWorkoutStore, getRestTimerColor, getRestTimerBackgroundColor } from '@/src/store/workoutStore';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { MuscleHeatmap } from './MuscleHeatmap';
 import type { MuscleKey } from '@/src/utils/muscleTaxonomy';
 import * as Haptics from 'expo-haptics';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
-const CONTAINER_GAP = scale(Spacing.lg);
 const BUTTON_PADDING = scale(Spacing.sm);
 const BUTTON_RADIUS = scale(BorderRadius.lg);
 const ICON_SIZE = scale(20);
@@ -35,26 +34,46 @@ const WORKOUT_NAME_LETTER_SPACING = moderateScale(1);
 const TIMER_LETTER_SPACING = moderateScale(0.5);
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 
-interface WorkoutHeaderProps {
+const COMPACT_ELAPSED_FONT_SIZE = moderateScale(FontSizes.sm);
+const COMPACT_ELAPSED_MIN_WIDTH = scale(38);
+const COMPACT_SEPARATOR_FONT_SIZE = moderateScale(FontSizes.sm);
+const COMPACT_REST_TIMER_PADDING_X = scale(Spacing.sm);
+const COMPACT_REST_TIMER_PADDING_Y = scale(Spacing.xs);
+const COMPACT_REST_TIMER_FONT_SIZE = moderateScale(FontSizes.sm);
+
+interface WorkoutHeaderTopBarProps {
   onCancelPress: () => void;
   onTimerSettingsPress: () => void;
   onRestTimerPress: () => void;
-  muscleLevels?: Record<MuscleKey, number>;
+  showCompactTimers: boolean;
+  elapsed: number;
+  displaySeconds: number;
+  restTimerColor: string;
+  restTimerBgColor: string;
 }
 
-export function WorkoutHeader({
+interface WorkoutHeaderDetailsProps {
+  onRestTimerPress: () => void;
+  muscleLevels?: Record<MuscleKey, number>;
+  elapsed: number;
+  displaySeconds: number;
+  restTimerColor: string;
+  restTimerBgColor: string;
+  workoutName?: string | null;
+}
+
+export function WorkoutHeaderTopBar({
   onCancelPress,
   onTimerSettingsPress,
   onRestTimerPress,
-  muscleLevels,
-}: WorkoutHeaderProps) {
+  showCompactTimers,
+  elapsed,
+  displaySeconds,
+  restTimerColor,
+  restTimerBgColor,
+}: WorkoutHeaderTopBarProps) {
   const { colors, isDark } = useTheme();
-  const elapsed = useElapsedTime();
-  const activeSession = useWorkoutStore(s => s.activeSession);
-  const restTimer = useWorkoutStore(s => s.restTimer);
-  const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
 
-  // Dynamic theme-aware styles
   const themedStyles = {
     clockButton: {
       backgroundColor: isDark ? 'rgba(163, 163, 163, 0.2)' : 'rgba(0, 0, 0, 0.06)',
@@ -64,42 +83,66 @@ export function WorkoutHeader({
     },
     elapsedTime: { color: colors.textPrimary },
     separator: { color: colors.textTertiary },
-    dateText: { color: colors.textSecondary },
-    workoutName: { color: colors.textPrimary },
   };
-
-  const today = new Date().toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-
-  // Display configured duration when idle, countdown when active
-  const displaySeconds = restTimer.isActive
-    ? restTimer.remainingSeconds
-    : restTimerSettings.normalSeconds;
-
-  const restTimerColor = restTimer.isActive
-    ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
-    : colors.textSecondary;
-
-  const restTimerBgColor = restTimer.isActive
-    ? getRestTimerBackgroundColor(restTimer.remainingSeconds, restTimer.totalSeconds)
-    : 'rgba(156, 163, 175, 0.2)';
 
   const handleRestTimerPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onRestTimerPress();
   };
 
-  // Get workout name
-  const workoutName = activeSession?.name || null;
+  const renderTimers = (compact: boolean) => (
+    <View style={[styles.timersRow, compact && styles.timersRowCompact]}>
+      <Text
+        style={[
+          styles.elapsedTime,
+          themedStyles.elapsedTime,
+          compact && styles.elapsedTimeCompact,
+          !compact && elapsed >= 3600 && styles.elapsedTimeSmall,
+        ]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.8}
+        allowFontScaling={false}
+      >
+        {formatElapsedTime(elapsed)}
+      </Text>
+      <Text
+        style={[
+          styles.separator,
+          themedStyles.separator,
+          compact && styles.separatorCompact,
+        ]}
+      >
+        |
+      </Text>
+      <Pressable
+        onPress={handleRestTimerPress}
+        style={[
+          styles.restTimerButton,
+          { backgroundColor: restTimerBgColor },
+          compact && styles.restTimerButtonCompact,
+        ]}
+      >
+        <Text
+          style={[
+            styles.restTimerText,
+            { color: restTimerColor },
+            compact && styles.restTimerTextCompact,
+          ]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          allowFontScaling={false}
+        >
+          {formatRestTime(displaySeconds)}
+        </Text>
+      </Pressable>
+    </View>
+  );
 
   return (
-    <View style={styles.container}>
-      {/* Top Row: Clock Button and Cancel Button */}
+    <View style={styles.topContainer}>
       <View style={styles.topRow}>
-        {/* Timer Settings Button - Top Left */}
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -108,13 +151,16 @@ export function WorkoutHeader({
           style={({ pressed }) => [
             styles.clockButton,
             themedStyles.clockButton,
-            pressed && styles.pressed
+            pressed && styles.pressed,
           ]}
         >
           <ClockIcon size={ICON_SIZE} color={colors.textSecondary} strokeWidth={2} />
         </Pressable>
 
-        {/* Cancel Button - Top Right */}
+        <View style={styles.topCenter}>
+          {showCompactTimers && renderTimers(true)}
+        </View>
+
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -123,19 +169,45 @@ export function WorkoutHeader({
           style={({ pressed }) => [
             styles.cancelButton,
             themedStyles.cancelButton,
-            pressed && styles.pressed
+            pressed && styles.pressed,
           ]}
         >
           <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
         </Pressable>
       </View>
+    </View>
+  );
+}
 
-      {/* Content Row: Left (title/timers) and Right (program name) */}
+export function WorkoutHeaderDetails({
+  onRestTimerPress,
+  muscleLevels,
+  elapsed,
+  displaySeconds,
+  restTimerColor,
+  restTimerBgColor,
+  workoutName,
+}: WorkoutHeaderDetailsProps) {
+  const { colors } = useTheme();
+  const fallbackWorkoutName = useWorkoutStore(s => s.activeSession?.name ?? null);
+  const workoutTitle = workoutName ?? fallbackWorkoutName;
+
+  const themedStyles = {
+    elapsedTime: { color: colors.textPrimary },
+    separator: { color: colors.textTertiary },
+    workoutName: { color: colors.textPrimary },
+  };
+
+  const handleRestTimerPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onRestTimerPress();
+  };
+
+  return (
+    <View style={styles.detailsContainer}>
       <View style={styles.contentRow}>
-        {/* Left Column */}
         <View style={styles.leftColumn}>
-          {/* Workout Title */}
-          {workoutName && (
+          {workoutTitle && (
             <Text
               style={[styles.workoutName, themedStyles.workoutName]}
               numberOfLines={1}
@@ -143,13 +215,11 @@ export function WorkoutHeader({
               minimumFontScale={0.8}
               allowFontScaling={false}
             >
-              {workoutName}
+              {workoutTitle}
             </Text>
           )}
 
-          {/* Timers Row */}
           <View style={styles.timersRow}>
-            {/* Elapsed Time */}
             <Text
               style={[
                 styles.elapsedTime,
@@ -163,16 +233,12 @@ export function WorkoutHeader({
             >
               {formatElapsedTime(elapsed)}
             </Text>
-
-            {/* Separator */}
             <Text style={[styles.separator, themedStyles.separator]}>|</Text>
-
-            {/* Rest Timer Button */}
             <Pressable
               onPress={handleRestTimerPress}
               style={[
                 styles.restTimerButton,
-                { backgroundColor: restTimerBgColor }
+                { backgroundColor: restTimerBgColor },
               ]}
             >
               <Text
@@ -186,10 +252,8 @@ export function WorkoutHeader({
               </Text>
             </Pressable>
           </View>
-
         </View>
 
-        {/* Right Column - Heatmap and Program Name */}
         <View style={styles.rightColumn}>
           <MuscleHeatmap
             muscleLevels={muscleLevels}
@@ -203,17 +267,21 @@ export function WorkoutHeader({
 }
 
 const styles = StyleSheet.create({
-  container: {
+  topContainer: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: 0,
-    paddingBottom: scale(Spacing.md),
+    paddingBottom: scale(Spacing.sm),
     backgroundColor: 'transparent',
-    gap: CONTAINER_GAP,
   },
   topRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  topCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: scale(Spacing.sm),
   },
   clockButton: {
     backgroundColor: 'rgba(163, 163, 163, 0.2)',
@@ -229,6 +297,9 @@ const styles = StyleSheet.create({
     opacity: 0.7,
     transform: [{ scale: 0.98 }],
   },
+  detailsContainer: {
+    paddingBottom: scale(Spacing.md),
+  },
   contentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -242,6 +313,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  timersRowCompact: {
+    gap: scale(Spacing.xs),
+  },
   elapsedTime: {
     fontSize: ELAPSED_FONT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
@@ -253,16 +327,27 @@ const styles = StyleSheet.create({
   elapsedTimeSmall: {
     fontSize: ELAPSED_SMALL_FONT_SIZE,
   },
+  elapsedTimeCompact: {
+    fontSize: COMPACT_ELAPSED_FONT_SIZE,
+    minWidth: COMPACT_ELAPSED_MIN_WIDTH,
+  },
   separator: {
     color: Colors.textTertiary,
     marginLeft: SEPARATOR_MARGIN_LEFT,
     paddingHorizontal: SEPARATOR_PADDING_X,
     fontSize: SEPARATOR_FONT_SIZE,
   },
+  separatorCompact: {
+    fontSize: COMPACT_SEPARATOR_FONT_SIZE,
+  },
   restTimerButton: {
     paddingHorizontal: REST_TIMER_PADDING_X,
     paddingVertical: REST_TIMER_PADDING_Y,
     borderRadius: BUTTON_RADIUS,
+  },
+  restTimerButtonCompact: {
+    paddingHorizontal: COMPACT_REST_TIMER_PADDING_X,
+    paddingVertical: COMPACT_REST_TIMER_PADDING_Y,
   },
   restTimerText: {
     fontSize: REST_TIMER_FONT_SIZE,
@@ -270,6 +355,10 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: TIMER_LETTER_SPACING,
     textAlign: 'center',
+    minWidth: REST_TIMER_MIN_WIDTH,
+  },
+  restTimerTextCompact: {
+    fontSize: COMPACT_REST_TIMER_FONT_SIZE,
     minWidth: REST_TIMER_MIN_WIDTH,
   },
   rightColumn: {

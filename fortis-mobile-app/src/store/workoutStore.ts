@@ -120,6 +120,7 @@ interface WorkoutState {
   pausedElapsedSeconds: number;
   restTimer: RestTimerState;
   restTimerSettings: RestTimerSettings;
+  restTimerNextStartSeconds: number | null;
 
   // UI state
   isLoading: boolean;
@@ -201,6 +202,7 @@ interface WorkoutState {
   resumeRestTimer: () => void;
   skipRestTimer: () => void;
   adjustRestTimer: (adjustment: number) => void;
+  adjustRestTimerNextStart: (adjustment: number) => void;
   tickRestTimer: () => void;
   updateRestTimerSettings: (settings: Partial<RestTimerSettings>) => void;
   dismissRestTimerComplete: () => void;
@@ -306,6 +308,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       endTimestamp: null,
     },
     restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
+    restTimerNextStartSeconds: null,
     isLoading: false,
     showRestTimerComplete: false,
     workoutOverlayCount: 0,
@@ -365,6 +368,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           setType: 'normal',
           endTimestamp: null,
         },
+        restTimerNextStartSeconds: null,
       });
 
       get().persistSession();
@@ -476,6 +480,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             setType: 'normal',
             endTimestamp: null,
           },
+          restTimerNextStartSeconds: null,
         });
 
         get().persistSession();
@@ -588,6 +593,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             setType: 'normal',
             endTimestamp: null,
           },
+          restTimerNextStartSeconds: null,
         });
 
         get().persistSession();
@@ -647,6 +653,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           setType: 'normal',
           endTimestamp: null,
         },
+        restTimerNextStartSeconds: null,
       });
 
       // Persist completed sessions to AsyncStorage
@@ -748,6 +755,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           setType: 'normal',
           endTimestamp: null,
         },
+        restTimerNextStartSeconds: null,
       });
       get().clearPersistedSession();
     },
@@ -1198,7 +1206,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     // ========================================
 
     startRestTimer: (setType) => {
-      const { restTimerSettings } = get();
+      const { restTimerNextStartSeconds, restTimerSettings } = get();
 
       let duration: number;
       switch (setType) {
@@ -1210,6 +1218,10 @@ export const useWorkoutStore = create<WorkoutState>()(
           break;
         default:
           duration = restTimerSettings.normalSeconds;
+      }
+
+      if (restTimerNextStartSeconds !== null) {
+        duration = restTimerNextStartSeconds;
       }
 
       if (duration === 0) return;
@@ -1224,6 +1236,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           setType,
           endTimestamp,
         },
+        restTimerNextStartSeconds: null,
       });
     },
 
@@ -1280,6 +1293,13 @@ export const useWorkoutStore = create<WorkoutState>()(
           },
         };
       });
+    },
+
+    adjustRestTimerNextStart: (adjustment) => {
+      const { restTimerNextStartSeconds, restTimerSettings } = get();
+      const baseSeconds = restTimerNextStartSeconds ?? restTimerSettings.normalSeconds;
+      const nextSeconds = Math.max(0, baseSeconds + adjustment);
+      set({ restTimerNextStartSeconds: nextSeconds });
     },
 
     tickRestTimer: () => {
@@ -1343,25 +1363,26 @@ export const useWorkoutStore = create<WorkoutState>()(
         isLoading: true,
         ...(hasActiveSession
           ? {}
-          : {
-            activeSession: null,
-            isWorkoutActive: false,
-            workoutStartTime: null,
-            isWorkoutTimerPaused: false,
-            pausedElapsedSeconds: 0,
-            backdatedDate: null,
-            restTimer: {
-              isActive: false,
-              remainingSeconds: 0,
-              totalSeconds: 0,
-              setType: 'normal',
-              endTimestamp: null,
-            },
-            showRestTimerComplete: false,
-            activeNumberPad: null,
-            showRpeSelector: false,
-            showRpeHelp: false,
-          }),
+	          : {
+	            activeSession: null,
+	            isWorkoutActive: false,
+	            workoutStartTime: null,
+	            isWorkoutTimerPaused: false,
+	            pausedElapsedSeconds: 0,
+	            backdatedDate: null,
+	            restTimer: {
+	              isActive: false,
+	              remainingSeconds: 0,
+	              totalSeconds: 0,
+	              setType: 'normal',
+	              endTimestamp: null,
+	            },
+	            restTimerNextStartSeconds: null,
+	            showRestTimerComplete: false,
+	            activeNumberPad: null,
+	            showRpeSelector: false,
+	            showRpeHelp: false,
+	          }),
       });
 
       try {
@@ -2493,6 +2514,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           endTimestamp: null,
         },
         restTimerSettings: DEFAULT_REST_TIMER_SETTINGS,
+        restTimerNextStartSeconds: null,
         isLoading: false,
         showRestTimerComplete: false,
         activeNumberPad: null,

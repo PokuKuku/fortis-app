@@ -18,10 +18,16 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { useWorkoutStore, hasTemplateModifications } from '@/src/store/workoutStore';
+import {
+  useWorkoutStore,
+  hasTemplateModifications,
+  getRestTimerColor,
+  getRestTimerBackgroundColor,
+} from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { useRestTimerTick } from '@/src/hooks/useRestTimerTick';
-import { WorkoutHeader } from '@/src/components/workout/WorkoutHeader';
+import { useElapsedTime } from '@/src/hooks/useElapsedTime';
+import { WorkoutHeaderDetails, WorkoutHeaderTopBar } from '@/src/components/workout/WorkoutHeader';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
 import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
@@ -59,6 +65,7 @@ const DRAG_HANDLE_WIDTH = scale(36);
 const DRAG_HANDLE_HEIGHT = scale(4);
 const DRAG_HANDLE_RADIUS = scale(2);
 const NUMBER_PAD_PADDING = scale(380);
+const HEADER_COLLAPSE_THRESHOLD = scale(48);
 
 export default function ActiveWorkoutScreen() {
   const router = useRouter();
@@ -73,6 +80,7 @@ export default function ActiveWorkoutScreen() {
     dragHandle: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.15)',
     },
+    headerDivider: { backgroundColor: colors.borderLight },
     emptyLine: {
       backgroundColor: isDark ? 'rgba(163, 163, 163, 0.3)' : 'rgba(0, 0, 0, 0.15)',
     },
@@ -85,7 +93,9 @@ export default function ActiveWorkoutScreen() {
   };
   const cancelWorkout = useWorkoutStore(s => s.cancelWorkout);
   const finishWorkout = useWorkoutStore(s => s.finishWorkout);
+  const restTimer = useWorkoutStore(s => s.restTimer);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
+  const restTimerNextStartSeconds = useWorkoutStore(s => s.restTimerNextStartSeconds);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
   const isNumberPadVisible = useWorkoutStore(s => s.activeNumberPad !== null);
   const numberPadInputType = useWorkoutStore(s => s.activeNumberPad?.inputType ?? 'weight');
@@ -102,6 +112,7 @@ export default function ActiveWorkoutScreen() {
   const updateActiveSessionName = useWorkoutStore(s => s.updateActiveSessionName);
   const programs = useProgramsStore(s => s.programs);
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
+  const elapsed = useElapsedTime();
 
   const templateForSession = useMemo(() => {
     if (!activeSession?.programId) return null;
@@ -109,6 +120,17 @@ export default function ActiveWorkoutScreen() {
   }, [activeSession?.programId, programs]);
 
   const canUpdateTemplate = !!templateForSession && hasTemplateModifications(activeSession);
+  const [showHeaderDetails, setShowHeaderDetails] = useState(true);
+  const headerDetailsVisibleRef = useRef(true);
+  const idleSeconds = restTimerNextStartSeconds ?? restTimerSettings.normalSeconds;
+  const hasRestCountdown = restTimer.remainingSeconds > 0;
+  const displaySeconds = hasRestCountdown ? restTimer.remainingSeconds : idleSeconds;
+  const restTimerColor = hasRestCountdown
+    ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
+    : colors.textSecondary;
+  const restTimerBgColor = hasRestCountdown
+    ? getRestTimerBackgroundColor(restTimer.remainingSeconds, restTimer.totalSeconds)
+    : 'rgba(156, 163, 175, 0.2)';
 
   const handleDismiss = () => {
     if (isNavigating.current) return;
@@ -116,6 +138,15 @@ export default function ActiveWorkoutScreen() {
     router.back();
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
+
+  const handleListScroll = useCallback((event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const shouldShowDetails = offsetY < HEADER_COLLAPSE_THRESHOLD;
+    if (headerDetailsVisibleRef.current !== shouldShowDetails) {
+      headerDetailsVisibleRef.current = shouldShowDetails;
+      setShowHeaderDetails(shouldShowDetails);
+    }
+  }, []);
 
   const panGesture = Gesture.Pan()
     .activeOffsetY(10)
@@ -554,6 +585,8 @@ export default function ActiveWorkoutScreen() {
     </View>
   );
 
+  const handleRestTimerPress = () => setShowRestTimerControls(true);
+
   return (
     <SafeAreaView edges={['top']} style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
@@ -571,12 +604,18 @@ export default function ActiveWorkoutScreen() {
             </View>
 
             {/* Header */}
-            <WorkoutHeader
+            <WorkoutHeaderTopBar
               onCancelPress={handleCancelPress}
               onTimerSettingsPress={() => setShowTimerSettingsModal(true)}
-              onRestTimerPress={() => setShowRestTimerControls(true)}
-            muscleLevels={muscleLevels}
-          />
+              onRestTimerPress={handleRestTimerPress}
+              showCompactTimers={!showHeaderDetails}
+              elapsed={elapsed}
+              displaySeconds={displaySeconds}
+              restTimerColor={restTimerColor}
+              restTimerBgColor={restTimerBgColor}
+            />
+
+            <View style={[styles.headerDivider, themedStyles.headerDivider]} />
           </View>
         </GestureDetector>
 
@@ -590,9 +629,22 @@ export default function ActiveWorkoutScreen() {
             styles.listContent,
             isNumberPadVisible && { paddingBottom: NUMBER_PAD_PADDING }
           ]}
+          ListHeaderComponent={
+            <WorkoutHeaderDetails
+              onRestTimerPress={handleRestTimerPress}
+              muscleLevels={muscleLevels}
+              elapsed={elapsed}
+              displaySeconds={displaySeconds}
+              restTimerColor={restTimerColor}
+              restTimerBgColor={restTimerBgColor}
+              workoutName={activeSession?.name ?? null}
+            />
+          }
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={renderFooter}
           showsVerticalScrollIndicator={false}
+          onScroll={handleListScroll}
+          scrollEventThrottle={16}
         />
       </KeyboardAvoidingView>
 
@@ -716,6 +768,10 @@ const styles = StyleSheet.create({
     height: DRAG_HANDLE_HEIGHT,
     borderRadius: DRAG_HANDLE_RADIUS,
     backgroundColor: Colors.borderMedium,
+  },
+  headerDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: HORIZONTAL_PADDING,
   },
   listContent: {
     flexGrow: 1,

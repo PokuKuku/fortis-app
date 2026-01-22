@@ -941,10 +941,6 @@ export default function InsightsScreen() {
           <AnimatedLogo />
         </View>
 
-        <View style={styles.titleContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Insights</Text>
-        </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -957,6 +953,10 @@ export default function InsightsScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.titleContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Insights</Text>
+          </View>
+
           <TouchableOpacity
             style={[styles.cardBase, styles.libraryCard, cardTheme]}
             onPress={handleOpenLibrary}
@@ -1117,7 +1117,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   titleContainer: {
-    paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: TITLE_PADDING_BOTTOM,
   },
   sectionTitle: {

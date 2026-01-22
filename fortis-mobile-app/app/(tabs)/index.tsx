@@ -1385,16 +1385,16 @@ export default function ProgramsScreen() {
           <AnimatedLogo />
         </View>
 
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Programs</Text>
-        </View>
-
         <NestableScrollContainer
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Title */}
+          <View style={styles.titleContainer}>
+            <Text style={[styles.title, { color: colors.textPrimary }]}>Programs</Text>
+          </View>
+
           {/* Quick Start Section */}
           <View style={styles.quickStartSection}>
             <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout} disabled={isWorkoutActive}>
@@ -1642,7 +1642,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   titleContainer: {
-    paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: TITLE_PADDING_BOTTOM,
   },
   title: {

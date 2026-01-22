@@ -97,32 +97,32 @@ export default function ProfileScreen() {
           )}
         </View>
 
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Profile</Text>
-          {isAuthenticated && (
-            <View
-              style={[
-                styles.streakBadge,
-                {
-                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-                  borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
-                },
-              ]}
-            >
-              <FireIcon color="#ef4444" size={STREAK_ICON_SIZE} strokeWidth={2} />
-              <Text style={[styles.streakText, { color: colors.textPrimary }]}>
-                {weeklyStreak} week streak
-              </Text>
-            </View>
-          )}
-        </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Title */}
+          <View style={styles.titleContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Profile</Text>
+            {isAuthenticated && (
+              <View
+                style={[
+                  styles.streakBadge,
+                  {
+                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+                  },
+                ]}
+              >
+                <FireIcon color="#ef4444" size={STREAK_ICON_SIZE} strokeWidth={2} />
+                <Text style={[styles.streakText, { color: colors.textPrimary }]}>
+                  {weeklyStreak} week streak
+                </Text>
+              </View>
+            )}
+          </View>
+
           {isAuthenticated ? (
             <>
               {/* Profile Header with Avatar, Name, and Weekly Activity */}
@@ -186,7 +186,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleContainer: {
-    paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: TITLE_PADDING_BOTTOM,
     flexDirection: 'row',
     alignItems: 'center',

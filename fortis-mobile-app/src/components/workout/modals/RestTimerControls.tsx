@@ -37,12 +37,13 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
   const { colors, isDark } = useTheme();
   const restTimer = useWorkoutStore(s => s.restTimer);
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
+  const restTimerNextStartSeconds = useWorkoutStore(s => s.restTimerNextStartSeconds);
   const pauseRestTimer = useWorkoutStore(s => s.pauseRestTimer);
   const resumeRestTimer = useWorkoutStore(s => s.resumeRestTimer);
   const skipRestTimer = useWorkoutStore(s => s.skipRestTimer);
   const startRestTimer = useWorkoutStore(s => s.startRestTimer);
   const adjustRestTimer = useWorkoutStore(s => s.adjustRestTimer);
-  const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
+  const adjustRestTimerNextStart = useWorkoutStore(s => s.adjustRestTimerNextStart);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -104,30 +105,26 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
 
   const handleAdd10s = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (restTimer.isActive) {
+    if (restTimer.remainingSeconds > 0) {
       adjustRestTimer(10);
     } else {
-      // When idle, adjust the default settings
-      updateRestTimerSettings({ normalSeconds: restTimerSettings.normalSeconds + 10 });
+      adjustRestTimerNextStart(10);
     }
   };
 
   const handleSubtract10s = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (restTimer.isActive) {
+    if (restTimer.remainingSeconds > 0) {
       adjustRestTimer(-10);
     } else {
-      // When idle, adjust the default settings (min 10 seconds)
-      updateRestTimerSettings({ normalSeconds: Math.max(10, restTimerSettings.normalSeconds - 10) });
+      adjustRestTimerNextStart(-10);
     }
   };
 
-  // Display configured duration when idle (sync with header)
-  const displaySeconds = restTimer.isActive
-    ? restTimer.remainingSeconds
-    : restTimerSettings.normalSeconds;
+  const idleSeconds = restTimerNextStartSeconds ?? restTimerSettings.normalSeconds;
+  const displaySeconds = restTimer.remainingSeconds > 0 ? restTimer.remainingSeconds : idleSeconds;
 
-  const timerColor = restTimer.isActive
+  const timerColor = restTimer.remainingSeconds > 0
     ? getRestTimerColor(restTimer.remainingSeconds, restTimer.totalSeconds)
     : colors.textSecondary;
   const timeString = formatRestTime(displaySeconds);

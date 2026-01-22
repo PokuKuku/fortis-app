@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { getScopedItem, setScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
+import { setScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
 import {
   AIIntent,
   AIError,
@@ -218,16 +218,11 @@ export const useAIStore = create<AIState>()(
       if (isSendingMessage) {
         return;
       }
-      if (conversation && conversation.messages.length > 0) {
+      if (conversation) {
         return;
       }
       try {
-        const stored = await getScopedItem(AI_CONVERSATION_KEY);
-        if (stored) {
-          const conversation = JSON.parse(stored) as AIConversation;
-          set({ conversation });
-          return;
-        }
+        await removeScopedItem(AI_CONVERSATION_KEY);
         const newConversation: AIConversation = {
           id: generateId(),
           messages: [],

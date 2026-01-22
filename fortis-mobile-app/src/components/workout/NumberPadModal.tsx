@@ -11,6 +11,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { RPESelectorOverlay } from './RPESelectorOverlay';
 import { RPEHelpModal } from './RPEHelpModal';
 import { RpeValue } from '@/src/types/workout';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
   SlideInDown,
@@ -24,19 +25,28 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 
 // Scaled sizing to keep proportions consistent across devices
-const BUTTON_SIZE = scale(52);
-const CONTROLS_WIDTH = scale(88);
-const PAD_GAP = scale(4);
-const PAD_HORIZONTAL = scale(10);
-const PAD_TOP = scale(6);
-const PAD_BOTTOM = scale(24);
-const DRAG_HANDLE_WIDTH = scale(32);
-const DRAG_HANDLE_HEIGHT = Math.max(2, scale(3));
-const PAD_RADIUS = scale(18);
-const BUTTON_RADIUS = scale(BorderRadius.md);
-const NUMBER_TEXT_SIZE = scale(26);
-const CONTROL_TEXT_SIZE = scale(15);
-const NEXT_TEXT_SIZE = scale(17);
+const PAD_SCALE = 0.82;
+const NUMBER_COLUMNS = 3;
+const BUTTON_SIZE = Math.round(scale(52) * PAD_SCALE);
+const CONTROLS_WIDTH = Math.round(scale(90) * PAD_SCALE);
+const PAD_GAP = Math.round(scale(4) * PAD_SCALE);
+const PAD_HORIZONTAL = Math.round(scale(10) * PAD_SCALE);
+const PAD_TOP = Math.round(scale(6) * PAD_SCALE);
+const PAD_BOTTOM = Math.round(scale(24) * PAD_SCALE);
+const EXTRA_BOTTOM_PADDING = 0;
+const DRAG_HANDLE_WIDTH = Math.round(scale(32) * PAD_SCALE);
+const DRAG_HANDLE_HEIGHT = Math.max(2, Math.round(scale(3) * PAD_SCALE));
+const PAD_RADIUS = Math.round(scale(18) * PAD_SCALE);
+const BUTTON_RADIUS = Math.round(scale(BorderRadius.md) * PAD_SCALE);
+const NUMBER_TEXT_SIZE = Math.round(scale(26) * PAD_SCALE);
+const CONTROL_TEXT_SIZE = Math.round(scale(15) * PAD_SCALE);
+const NEXT_TEXT_SIZE = Math.round(scale(17) * PAD_SCALE);
+const BACKSPACE_ICON_SIZE = Math.round(scale(24) * PAD_SCALE);
+const CLOSE_ICON_SIZE = Math.round(scale(22) * PAD_SCALE);
+const FILL_ICON_SIZE = Math.round(scale(20) * PAD_SCALE);
+const NUMBER_GRID_WIDTH = Math.round((BUTTON_SIZE * NUMBER_COLUMNS) + (PAD_GAP * (NUMBER_COLUMNS - 1)));
+const PAD_CONTAINER_WIDTH = Math.round(NUMBER_GRID_WIDTH + PAD_GAP + CONTROLS_WIDTH);
+const PAD_WIDTH = Math.round(PAD_CONTAINER_WIDTH + (PAD_HORIZONTAL * 2));
 
 interface NumberPadModalProps {
   visible: boolean;
@@ -56,6 +66,7 @@ export function NumberPadModal({
   useEditor = false,
 }: NumberPadModalProps) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -246,14 +257,10 @@ export function NumberPadModal({
 
   if (!visible) return null;
 
+  const padBottomPadding = PAD_BOTTOM + EXTRA_BOTTOM_PADDING + Math.round(insets.bottom);
+
   return (
     <View style={styles.absoluteContainer} pointerEvents="box-none">
-      <Pressable
-        style={StyleSheet.absoluteFillObject}
-        onPress={handleKeyboardToggle}
-        accessibilityRole="button"
-        accessibilityLabel="Close number pad"
-      />
       {/* Keyboard */}
       <GestureDetector gesture={panGesture}>
         <Animated.View
@@ -261,7 +268,13 @@ export function NumberPadModal({
           exiting={SlideOutDown.duration(350).easing(Easing.in(Easing.cubic))}
           style={[styles.container, containerAnimatedStyle]}
         >
-          <View style={[styles.padWrapper, themedStyles.padWrapper]}>
+          <View
+            style={[
+              styles.padWrapper,
+              themedStyles.padWrapper,
+              { paddingBottom: padBottomPadding },
+            ]}
+          >
             <StainlessSteelPattern />
 
           {/* Drag Handle */}
@@ -305,7 +318,7 @@ export function NumberPadModal({
                     pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <BackspaceIcon size={24} color={colors.textPrimary} strokeWidth={2} />
+                  <BackspaceIcon size={BACKSPACE_ICON_SIZE} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               </View>
             </View>
@@ -321,7 +334,7 @@ export function NumberPadModal({
                   pressed && themedStyles.buttonPressed,
                 ]}
               >
-                <XMarkIcon size={22} color={colors.textSecondary} strokeWidth={2} />
+                <XMarkIcon size={CLOSE_ICON_SIZE} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
 
               {/* Context-aware button: Weight unit toggle or RPE */}
@@ -361,7 +374,7 @@ export function NumberPadModal({
                     pressed && themedStyles.buttonPressed,
                   ]}
                 >
-                  <ChevronDoubleDownIcon size={20} color={colors.textPrimary} strokeWidth={2} />
+                  <ChevronDoubleDownIcon size={FILL_ICON_SIZE} color={colors.textPrimary} strokeWidth={2} />
                 </Pressable>
               )}
 
@@ -432,8 +445,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
     paddingTop: PAD_TOP,
-    paddingBottom: PAD_BOTTOM,
+    paddingBottom: 0,
     paddingHorizontal: PAD_HORIZONTAL,
+    width: '100%',
   },
   dragHandleContainer: {
     alignItems: 'center',
@@ -448,10 +462,11 @@ const styles = StyleSheet.create({
   padContainer: {
     flexDirection: 'row',
     gap: PAD_GAP,
+    width: '100%',
   },
   numberGrid: {
-    flex: 1,
     gap: PAD_GAP,
+    flex: 1,
   },
   row: {
     flexDirection: 'row',

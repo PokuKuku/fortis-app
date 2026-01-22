@@ -675,14 +675,15 @@ export default function HistoryScreen() {
           <AnimatedLogo />
         </View>
 
-        <View style={styles.titleContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
-        </View>
-
         {isLoading && !hasRemoteSessions && !hasPendingSessions ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={colors.accent} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading history...</Text>
+            <View style={styles.titleContainer}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
+            </View>
+            <View style={styles.loadingContent}>
+              <ActivityIndicator size="small" color={colors.accent} />
+              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading history...</Text>
+            </View>
           </View>
         ) : (
           <FlatList
@@ -691,6 +692,9 @@ export default function HistoryScreen() {
             renderItem={({ item }) => <WorkoutHistoryCard session={item} onPress={() => handleCardPress(item)} />}
             ListHeaderComponent={
               <>
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
+                </View>
                 <View style={[styles.calendarCard, themedStyles.calendarCard]}>
                   <Calendar
                     key={displayedMonthKey}
@@ -801,7 +805,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   titleContainer: {
-    paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: TITLE_PADDING_BOTTOM,
     flexDirection: 'row',
     alignItems: 'center',
@@ -814,6 +817,10 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: HORIZONTAL_PADDING,
+  },
+  loadingContent: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: LOADING_GAP,

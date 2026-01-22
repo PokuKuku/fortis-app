@@ -51,4 +51,26 @@ describe('rest timer store', () => {
     expect(restTimer.endTimestamp).toBeNull();
     expect(showRestTimerComplete).toBe(true);
   });
+
+  it('adjusts next start duration without updating settings', () => {
+    const { adjustRestTimerNextStart } = useWorkoutStore.getState();
+    adjustRestTimerNextStart(10);
+
+    const { restTimerNextStartSeconds, restTimerSettings } = useWorkoutStore.getState();
+    expect(restTimerNextStartSeconds).toBe(130);
+    expect(restTimerSettings.normalSeconds).toBe(120);
+  });
+
+  it('uses next-start override once and then clears it', () => {
+    nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
+    const { adjustRestTimerNextStart, startRestTimer } = useWorkoutStore.getState();
+    adjustRestTimerNextStart(-20);
+    startRestTimer('normal');
+
+    const { restTimer, restTimerNextStartSeconds } = useWorkoutStore.getState();
+    expect(restTimer.totalSeconds).toBe(100);
+    expect(restTimer.remainingSeconds).toBe(100);
+    expect(restTimer.endTimestamp).toBe(101000);
+    expect(restTimerNextStartSeconds).toBeNull();
+  });
 });
