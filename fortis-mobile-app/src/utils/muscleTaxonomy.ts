@@ -351,7 +351,6 @@ type SetUnitOptions = {
 
 export function computeSetUnits(set: WorkoutSet, options: SetUnitOptions = {}): number {
   if (!set.isCompleted) return 0;
-  if (set.setType === 'warmup') return 0;
 
   const reps = set.reps ?? null;
   const weight = set.weight ?? null;

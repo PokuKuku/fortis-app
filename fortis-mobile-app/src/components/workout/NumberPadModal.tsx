@@ -1,11 +1,11 @@
 import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
-import { BackspaceIcon, ChevronDoubleDownIcon, MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
+import { BackspaceIcon, ChevronDoubleDownIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
-import { responsiveValue } from '@/src/utils/responsive';
+import { BorderRadius } from '@/constants/Sizes';
+import { scale } from '@/src/utils/responsive';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { RPESelectorOverlay } from './RPESelectorOverlay';
@@ -23,8 +23,20 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
-// Responsive sizing for controls column
-const CONTROLS_WIDTH = responsiveValue(90, 100, 110);
+// Scaled sizing to keep proportions consistent across devices
+const BUTTON_SIZE = scale(52);
+const CONTROLS_WIDTH = scale(88);
+const PAD_GAP = scale(4);
+const PAD_HORIZONTAL = scale(10);
+const PAD_TOP = scale(6);
+const PAD_BOTTOM = scale(24);
+const DRAG_HANDLE_WIDTH = scale(32);
+const DRAG_HANDLE_HEIGHT = Math.max(2, scale(3));
+const PAD_RADIUS = scale(18);
+const BUTTON_RADIUS = scale(BorderRadius.md);
+const NUMBER_TEXT_SIZE = scale(26);
+const CONTROL_TEXT_SIZE = scale(15);
+const NEXT_TEXT_SIZE = scale(17);
 
 interface NumberPadModalProps {
   visible: boolean;
@@ -66,9 +78,6 @@ export function NumberPadModal({
     },
     rpeButtonText: { color: colors.textPrimary },
     unitButtonText: { color: colors.textPrimary },
-    incrementButton: {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-    },
     // Accent-based gradient and shadow for next button
     nextButtonGradient: colors.accentGradient as unknown as string[],
     nextButtonShadow: { shadowColor: colors.accentShadow },
@@ -149,21 +158,6 @@ export function NumberPadModal({
   const handleClear = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setDisplayValue('');
-  };
-
-  const handleIncrement = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const current = displayValue === '' ? 0 : parseFloat(displayValue);
-    const increment = inputType === 'weight' ? 5 : 1;
-    setDisplayValue((current + increment).toString());
-  };
-
-  const handleDecrement = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const current = displayValue === '' ? 0 : parseFloat(displayValue);
-    const decrement = inputType === 'weight' ? 5 : 1;
-    const newValue = Math.max(0, current - decrement);
-    setDisplayValue(newValue === 0 ? '' : newValue.toString());
   };
 
   const handleNext = () => {
@@ -254,6 +248,12 @@ export function NumberPadModal({
 
   return (
     <View style={styles.absoluteContainer} pointerEvents="box-none">
+      <Pressable
+        style={StyleSheet.absoluteFillObject}
+        onPress={handleKeyboardToggle}
+        accessibilityRole="button"
+        accessibilityLabel="Close number pad"
+      />
       {/* Keyboard */}
       <GestureDetector gesture={panGesture}>
         <Animated.View
@@ -351,30 +351,6 @@ export function NumberPadModal({
                 <View style={[styles.controlButton, themedStyles.controlButton]} />
               )}
 
-              {/* Increment/Decrement buttons */}
-              <View style={styles.incrementRow}>
-                <Pressable
-                  onPress={handleDecrement}
-                  style={({ pressed }) => [
-                    styles.incrementButton,
-                    themedStyles.incrementButton,
-                    pressed && themedStyles.buttonPressed,
-                  ]}
-                >
-                  <MinusIcon size={20} color={colors.textPrimary} strokeWidth={2} />
-                </Pressable>
-                <Pressable
-                  onPress={handleIncrement}
-                  style={({ pressed }) => [
-                    styles.incrementButton,
-                    themedStyles.incrementButton,
-                    pressed && themedStyles.buttonPressed,
-                  ]}
-                >
-                  <PlusIcon size={20} color={colors.textPrimary} strokeWidth={2} />
-                </Pressable>
-              </View>
-
               {/* Fill Down button - only in active workout mode */}
               {!useEditor && (
                 <Pressable
@@ -448,44 +424,44 @@ const styles = StyleSheet.create({
   },
   padWrapper: {
     backgroundColor: Colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: PAD_RADIUS,
+    borderTopRightRadius: PAD_RADIUS,
     borderTopWidth: 1,
     borderLeftWidth: 1,
     borderRightWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     overflow: 'hidden',
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing['3xl'],
-    paddingHorizontal: Spacing.md,
+    paddingTop: PAD_TOP,
+    paddingBottom: PAD_BOTTOM,
+    paddingHorizontal: PAD_HORIZONTAL,
   },
   dragHandleContainer: {
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: PAD_TOP,
   },
   dragHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
+    width: DRAG_HANDLE_WIDTH,
+    height: DRAG_HANDLE_HEIGHT,
+    borderRadius: DRAG_HANDLE_HEIGHT / 2,
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   padContainer: {
     flexDirection: 'row',
-    gap: Spacing.xs,
+    gap: PAD_GAP,
   },
   numberGrid: {
     flex: 1,
-    gap: Spacing.xs,
+    gap: PAD_GAP,
   },
   row: {
     flexDirection: 'row',
-    gap: Spacing.xs,
+    gap: PAD_GAP,
   },
   numberButton: {
     flex: 1,
-    height: 56,
+    height: BUTTON_SIZE,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.md,
+    borderRadius: BUTTON_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -494,47 +470,35 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   numberText: {
-    fontSize: 28,
+    fontSize: NUMBER_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   controlsColumn: {
     width: CONTROLS_WIDTH,
-    gap: Spacing.xs,
+    gap: PAD_GAP,
   },
   controlButton: {
-    height: 56,
+    height: BUTTON_SIZE,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.md,
+    borderRadius: BUTTON_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
   },
   rpeButtonText: {
-    fontSize: FontSizes.base,
+    fontSize: CONTROL_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
   },
   unitButtonText: {
-    fontSize: FontSizes.base,
+    fontSize: CONTROL_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
   },
-  incrementRow: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-    height: 56,
-  },
-  incrementButton: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   nextButton: {
-    height: 56,
-    borderRadius: BorderRadius.md,
+    height: BUTTON_SIZE,
+    borderRadius: BUTTON_RADIUS,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -548,7 +512,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   nextText: {
-    fontSize: 18,
+    fontSize: NEXT_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: '#fff',
     textTransform: 'uppercase',

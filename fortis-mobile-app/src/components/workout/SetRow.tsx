@@ -813,6 +813,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingRight: COLUMN_PADDING_RIGHT,
     paddingLeft: COLUMN_PADDING_RIGHT,
+    borderRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   deleteAction: {
     justifyContent: 'center',
@@ -829,13 +832,8 @@ const styles = StyleSheet.create({
   },
   containerCompleted: {
     // backgroundColor and borderColor are now dynamic via themedStyles
-    borderRadius: BorderRadius['2xl'],
-    borderWidth: 1,
-    marginHorizontal: 0,
   },
   containerSetType: {
-    borderRadius: BorderRadius['2xl'],
-    borderWidth: 1,
   },
   setBadge: {
     width: SET_BADGE_SIZE,
