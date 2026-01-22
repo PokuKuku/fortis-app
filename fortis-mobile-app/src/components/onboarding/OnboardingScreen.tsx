@@ -13,6 +13,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { Spacing } from '@/constants/Sizes';
+import { moderateScale, responsiveValue, scale } from '@/src/utils/responsive';
 import { OnboardingProgressBar } from '@/src/components/onboarding/OnboardingProgressBar';
 
 interface OnboardingScreenProps {
@@ -67,6 +68,13 @@ export function OnboardingScreen({
   footer,
 }: OnboardingScreenProps) {
   const { colors } = useTheme();
+  const maxWidth = responsiveValue(360, 420, 480);
+  const horizontalPadding = scale(Spacing['2xl']);
+  const resolvedGap = scale(contentGap);
+  const resolvedTitleOffset = titleTopOffset ? scale(titleTopOffset) : 0;
+  const resolvedTitleFontSize = typeof titleFontSize === 'number'
+    ? moderateScale(titleFontSize)
+    : undefined;
 
   const themedStyles = {
     container: { backgroundColor: colors.background },
@@ -77,15 +85,21 @@ export function OnboardingScreen({
       backgroundColor: colors.glassBackground,
       borderColor: colors.glassBorder,
     },
+    safeArea: {
+      width: '100%',
+      maxWidth,
+      alignSelf: 'center',
+      paddingHorizontal: horizontalPadding,
+    },
   };
 
   const titleBlock = hideTitle ? null : (
-    <View style={[styles.titleBlock, titleTopOffset ? { marginTop: titleTopOffset } : null]}>
+    <View style={[styles.titleBlock, resolvedTitleOffset ? { marginTop: resolvedTitleOffset } : null]}>
       <Text
         style={[
           styles.title,
           themedStyles.title,
-          titleFontSize ? { fontSize: titleFontSize } : null,
+          resolvedTitleFontSize !== undefined ? { fontSize: resolvedTitleFontSize } : null,
         ]}
         numberOfLines={titleNumberOfLines}
         adjustsFontSizeToFit={titleAdjustsFontSizeToFit}
@@ -104,8 +118,8 @@ export function OnboardingScreen({
     : styles.bodySection;
 
   const contentBlockStyle = bodyAlign === 'center'
-    ? [styles.contentBlock, styles.contentBlockFill, { gap: contentGap }]
-    : [styles.contentBlock, { gap: contentGap }];
+    ? [styles.contentBlock, styles.contentBlockFill, { gap: resolvedGap }]
+    : [styles.contentBlock, { gap: resolvedGap }];
 
   const footerBlock = footer || (titlePlacement === 'bottom' && !hideTitle)
     ? (
@@ -122,7 +136,7 @@ export function OnboardingScreen({
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
-      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+      <SafeAreaView style={[styles.safeArea, themedStyles.safeArea]} edges={['top', 'bottom']}>
         <View style={styles.headerRow}>
           <Pressable
             style={[styles.backButton, themedStyles.backButton, !onBack && styles.backButtonHidden]}

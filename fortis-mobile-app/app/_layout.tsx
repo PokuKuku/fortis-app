@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
@@ -166,12 +166,6 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
             }}
           />
           <Stack.Screen
-            name="onboarding/rate"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
             name="onboarding/challenge"
             options={{
               ...ONBOARDING_TRANSITION,
@@ -313,6 +307,8 @@ export default function RootLayout() {
   const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
   const loadActiveSession = useWorkoutStore((s) => s.loadActiveSession);
   const loadRestTimerSettings = useWorkoutStore((s) => s.loadRestTimerSettings);
+  const segments = useSegments();
+  const isOnboarding = segments[0] === 'onboarding';
 
   const [fontsLoaded] = useFonts({
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
@@ -350,7 +346,9 @@ export default function RootLayout() {
   }
 
   const appContent = (
-    <ThemeProvider>
+    <ThemeProvider
+      forceTheme={isOnboarding ? { resolvedTheme: 'light', accentColor: 'green' } : undefined}
+    >
       <ThemedAppContent mixpanelEnabled={mixpanelEnabled} />
     </ThemeProvider>
   );

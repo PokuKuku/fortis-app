@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Pressable } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { moderateScale, scale } from '@/src/utils/responsive';
 
 interface SegmentOption {
   label: string;
@@ -51,8 +52,8 @@ export function OnboardingSegmentedControl({
               style={{
                 color: isSelected ? colors.textPrimary : colors.textSecondary,
                 fontFamily: 'BankGothicBT-Medium',
-                letterSpacing: 1,
-                fontSize: 14,
+                letterSpacing: moderateScale(1),
+                fontSize: moderateScale(14),
               }}
             >
               {option.label}
@@ -75,7 +76,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: scale(Spacing.sm),
     borderWidth: 1,
     borderColor: 'transparent',
   },

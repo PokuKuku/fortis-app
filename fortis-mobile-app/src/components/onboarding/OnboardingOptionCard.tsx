@@ -5,6 +5,7 @@ import { GlassCard } from '@/components/GlassCard';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { moderateScale, scale } from '@/src/utils/responsive';
 
 interface OnboardingOptionCardProps {
   title: string;
@@ -20,6 +21,7 @@ export function OnboardingOptionCard({
   onSelect,
 }: OnboardingOptionCardProps) {
   const { colors } = useTheme();
+  const cardPadding = scale(Spacing.lg);
 
   const handlePress = () => {
     Haptics.selectionAsync();
@@ -37,7 +39,7 @@ export function OnboardingOptionCard({
   };
 
   return (
-    <GlassCard onPress={handlePress} padding={Spacing.lg} style={[styles.card, cardStyle]}>
+    <GlassCard onPress={handlePress} padding={cardPadding} style={[styles.card, cardStyle]}>
       <View style={styles.row}>
         <View style={styles.textStack}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
@@ -61,25 +63,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: Spacing.lg,
+    gap: scale(Spacing.lg),
   },
   textStack: {
     flex: 1,
-    gap: Spacing.xs,
+    gap: scale(Spacing.xs),
   },
   title: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 18,
-    letterSpacing: 0.5,
+    fontSize: moderateScale(18),
+    letterSpacing: moderateScale(0.5),
   },
   description: {
     ...Typography.bodySmall,
-    fontSize: 15,
+    fontSize: moderateScale(15),
   },
   radio: {
-    width: 18,
-    height: 18,
+    width: scale(18),
+    height: scale(18),
     borderRadius: BorderRadius.full,
-    borderWidth: 2,
+    borderWidth: Math.max(1, scale(2)),
   },
 });

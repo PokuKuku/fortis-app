@@ -132,7 +132,7 @@ export default function OnboardingThankYouScreen() {
   }, [colors.textPrimary]);
 
   const handleContinue = () => {
-    router.push('/onboarding/rate');
+    router.push('/onboarding/complete');
   };
 
   return (

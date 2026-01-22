@@ -13,6 +13,8 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path } from 'react-native-svg';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { ChevronLeftIcon } from 'react-native-heroicons/outline';
+import { useNavigation } from '@react-navigation/native';
 
 // Apple Logo Component
 function AppleLogo({ size = 20, color = '#FFFFFF' }: { size?: number; color?: string }) {
@@ -61,15 +63,22 @@ import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboarding
 
 export default function AuthWelcomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding, updateProfile } = useAuth();
   const { colors, isDark } = useTheme();
   const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
+  const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
+  const showBack = Boolean(onboardingValue);
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   // Dynamic theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
     tagline: { color: colors.textSecondary },
+    backButton: {
+      backgroundColor: colors.glassBackground,
+      borderColor: colors.glassBorder,
+    },
     glassCard: {
       borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
       backgroundColor: isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.6)',
@@ -95,7 +104,6 @@ export default function AuthWelcomeScreen() {
   useEffect(() => {
     if (!isAuthenticated || isFinalizing) return;
 
-    const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
     if (onboardingValue === 'complete') {
       setIsFinalizing(true);
       void (async () => {
@@ -164,7 +172,7 @@ export default function AuthWelcomeScreen() {
     }
 
     router.replace('/(tabs)');
-  }, [isAuthenticated, isFinalizing, needsOnboarding, onboarding, router, updateProfile]);
+  }, [isAuthenticated, isFinalizing, needsOnboarding, onboardingValue, router, updateProfile]);
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -213,12 +221,37 @@ export default function AuthWelcomeScreen() {
     router.push('/auth/email');
   };
 
+  const handleBack = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if ((navigation as { canGoBack?: () => boolean }).canGoBack?.()) {
+      (navigation as { goBack?: () => void }).goBack?.();
+      return;
+    }
+    if (onboardingValue) {
+      router.replace(`/onboarding/${onboardingValue}`);
+      return;
+    }
+    router.back();
+  };
+
   return (
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-        <View style={styles.content}>
+        {showBack ? (
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={handleBack}
+              style={[styles.backButton, themedStyles.backButton]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <ChevronLeftIcon color={colors.textPrimary} size={20} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
+        <View style={[styles.content, showBack && styles.contentWithHeader]}>
           {/* Logo */}
           <View style={styles.logoContainer}>
             <AnimatedLogo size="large" centered animate={false} />
@@ -337,6 +370,19 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
   },
+  header: {
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
+  },
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   content: {
     flex: 1,
     paddingHorizontal: Spacing['2xl'],
@@ -344,6 +390,9 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     paddingBottom: Spacing['2xl'],
     gap: Spacing['4xl'],
+  },
+  contentWithHeader: {
+    paddingTop: Spacing.lg,
   },
   logoContainer: {
     alignItems: 'center',

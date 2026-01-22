@@ -317,6 +317,10 @@ export function useTheme() {
 
 interface ThemeProviderProps {
   children: React.ReactNode;
+  forceTheme?: {
+    resolvedTheme?: ResolvedTheme;
+    accentColor?: AccentColorName;
+  };
 }
 
 /**
@@ -329,7 +333,7 @@ function resolveAccentColor(value: string | null): AccentColorName | null {
 /**
  * Theme provider component
  */
-export function ThemeProvider({ children }: ThemeProviderProps) {
+export function ThemeProvider({ children, forceTheme }: ThemeProviderProps) {
   const systemColorScheme = useColorScheme();
   const [mode, setModeState] = useState<ThemeMode>('system');
   const [accentColor, setAccentColorState] = useState<AccentColorName>('green');
@@ -337,18 +341,23 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   // Resolve the actual theme based on mode and system preference
   const resolvedTheme: ResolvedTheme = useMemo(() => {
+    if (forceTheme?.resolvedTheme) {
+      return forceTheme.resolvedTheme;
+    }
     if (mode === 'system') {
       return systemColorScheme === 'light' ? 'light' : 'dark';
     }
     return mode;
-  }, [mode, systemColorScheme]);
+  }, [forceTheme?.resolvedTheme, mode, systemColorScheme]);
 
+  const effectiveAccentColor = forceTheme?.accentColor ?? accentColor;
   const isDark = resolvedTheme === 'dark';
+  const effectiveMode = (forceTheme?.resolvedTheme ?? mode) as ThemeMode;
 
   // Compute colors with accent color applied
   const colors = useMemo(
-    () => getThemeColors(isDark, accentColor),
-    [isDark, accentColor]
+    () => getThemeColors(isDark, effectiveAccentColor),
+    [isDark, effectiveAccentColor]
   );
 
   // Load persisted theme preferences on mount
@@ -410,16 +419,25 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
 
   const value: ThemeContextValue = useMemo(
     () => ({
-      mode,
+      mode: effectiveMode,
       resolvedTheme,
       colors,
       isDark,
       isLoading,
       setMode,
-      accentColor,
+      accentColor: effectiveAccentColor,
       setAccentColor,
     }),
-    [mode, resolvedTheme, colors, isDark, isLoading, setMode, accentColor, setAccentColor]
+    [
+      effectiveMode,
+      resolvedTheme,
+      colors,
+      isDark,
+      isLoading,
+      setMode,
+      effectiveAccentColor,
+      setAccentColor,
+    ]
   );
 
   return (

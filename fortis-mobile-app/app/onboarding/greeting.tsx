@@ -131,6 +131,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   comma: {
-    marginLeft: -6,
+    marginLeft: -10,
   },
 });

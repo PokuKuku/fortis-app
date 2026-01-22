@@ -20,7 +20,7 @@ export default function OnboardingWelcomeScreen() {
   };
 
   const handleSignIn = () => {
-    router.push('/auth');
+    router.push({ pathname: '/auth', params: { onboarding: 'welcome' } });
   };
 
   return (

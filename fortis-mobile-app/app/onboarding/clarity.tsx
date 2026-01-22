@@ -1,4 +1,4 @@
-import { useCallback, useRef, type ComponentType } from 'react';
+import { useCallback, useRef, useState, type ComponentType } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, UIManager, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -55,11 +55,18 @@ export default function OnboardingClarityScreen() {
   );
   const canRenderLottie = Boolean(LottieView) && isLottieViewManagerAvailable();
   const animationLooksTruncated = isLikelyTruncatedAnimation(CLARITY_ANIMATION);
+  const [showContinue, setShowContinue] = useState(
+    !canRenderLottie || animationLooksTruncated
+  );
 
   useFocusEffect(
     useCallback(() => {
-      if (!canRenderLottie || !LottieView || animationLooksTruncated) return;
+      if (!canRenderLottie || !LottieView || animationLooksTruncated) {
+        setShowContinue(true);
+        return;
+      }
 
+      setShowContinue(false);
       fortisOpacity.setValue(0);
       fortisTranslateY.setValue(6);
 
@@ -111,13 +118,15 @@ export default function OnboardingClarityScreen() {
       bodyAlign="center"
       contentGap={Spacing.lg}
       footer={
-        <GlassButton
-          style={styles.button}
-          onPress={handleContinue}
-          hapticFeedback="impactMedium"
-        >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
-        </GlassButton>
+        <View style={styles.footerSlot} pointerEvents={showContinue ? 'auto' : 'none'}>
+          <GlassButton
+            style={[styles.button, !showContinue && styles.buttonHidden]}
+            onPress={handleContinue}
+            hapticFeedback="impactMedium"
+          >
+            <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          </GlassButton>
+        </View>
       }
     >
       <View style={styles.animationWrap}>
@@ -127,6 +136,7 @@ export default function OnboardingClarityScreen() {
               source={CLARITY_ANIMATION}
               autoPlay={false}
               loop={false}
+              onAnimationFinish={() => setShowContinue(true)}
               ref={lottieRef as unknown as never}
               style={styles.graphAnimation}
             />
@@ -224,9 +234,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
+  footerSlot: {
+    width: '100%',
+    alignItems: 'stretch',
+  },
   button: {
     height: 54,
     borderRadius: BorderRadius.xl,
+  },
+  buttonHidden: {
+    opacity: 0,
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',

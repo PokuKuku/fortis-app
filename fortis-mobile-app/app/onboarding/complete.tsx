@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { CheckIcon } from 'react-native-heroicons/solid';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import { useFocusEffect } from '@react-navigation/native';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -91,6 +92,7 @@ export default function OnboardingCompleteScreen() {
   const stepsAnim = useRef(new Animated.Value(1)).current;
   const lastProgressRef = useRef(-1);
   const lastHapticStepRef = useRef(0);
+  const returnedFromAuthRef = useRef(false);
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [progressPct, setProgressPct] = useState(0);
@@ -196,6 +198,21 @@ export default function OnboardingCompleteScreen() {
     };
   }, [progressAnim]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!isAuthenticated) {
+        didContinueRef.current = false;
+        setIsSaving(false);
+        if (returnedFromAuthRef.current && phase === 'ready') {
+          setShowSummary(true);
+          setShowSteps(false);
+          stepsAnim.setValue(0);
+          summaryAnim.setValue(1);
+        }
+      }
+    }, [isAuthenticated, phase, stepsAnim, summaryAnim])
+  );
+
   useEffect(() => {
     if (phase !== 'loading') return;
     const completedCount = LOADING_STEPS.filter((step) => progressPct >= step.completeAt).length;
@@ -263,6 +280,12 @@ export default function OnboardingCompleteScreen() {
     if (didContinueRef.current) return;
     didContinueRef.current = true;
 
+    if (!isAuthenticated) {
+      returnedFromAuthRef.current = true;
+      router.push({ pathname: '/auth', params: { onboarding: 'complete' } });
+      return;
+    }
+
     setIsSaving(true);
     if (phase === 'ready') {
       await new Promise<void>((resolve) => {
@@ -272,11 +295,6 @@ export default function OnboardingCompleteScreen() {
           useNativeDriver: true,
         }).start(() => resolve());
       });
-    }
-
-    if (!isAuthenticated) {
-      router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
-      return;
     }
     try {
       const state = await getOnboardingState();
@@ -431,7 +449,7 @@ export default function OnboardingCompleteScreen() {
             hapticFeedback="impactMedium"
           >
             <Text style={[styles.continueButtonText, { color: colors.white }]}>
-              {isSaving ? 'Starting…' : 'Start tracking'}
+              {isSaving ? 'Starting…' : "I'm ready!"}
             </Text>
           </GlassButton>
         ) : undefined
