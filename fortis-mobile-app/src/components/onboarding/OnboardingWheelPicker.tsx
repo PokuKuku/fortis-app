@@ -31,6 +31,9 @@ export function OnboardingWheelPicker({
   const { colors } = useTheme();
   const listRef = useRef<FlatList<string>>(null);
   const scrollY = useRef(new Animated.Value(selectedIndex * ITEM_HEIGHT)).current;
+  const lastHapticIndex = useRef<number | null>(selectedIndex);
+  const lastHapticAt = useRef(0);
+  const isInteracting = useRef(false);
   const containerHeight = height ?? ITEM_HEIGHT * VISIBLE_ITEMS;
   const paddingVertical = (containerHeight - ITEM_HEIGHT) / 2;
 
@@ -40,14 +43,31 @@ export function OnboardingWheelPicker({
       animated: false,
     });
     scrollY.setValue(selectedIndex * ITEM_HEIGHT);
+    lastHapticIndex.current = selectedIndex;
   }, [selectedIndex, scrollY]);
 
   const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const nextIndex = Math.round(event.nativeEvent.contentOffset.y / ITEM_HEIGHT);
     if (nextIndex !== selectedIndex) {
-      Haptics.selectionAsync();
       onChange(nextIndex);
     }
+    isInteracting.current = false;
+  };
+
+  const maybeHaptic = (nextIndex: number) => {
+    if (lastHapticIndex.current === nextIndex) return;
+    const now = Date.now();
+    if (now - lastHapticAt.current < 30) return;
+    lastHapticAt.current = now;
+    lastHapticIndex.current = nextIndex;
+    Haptics.selectionAsync();
+  };
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (!isInteracting.current) return;
+    const rawIndex = Math.round(event.nativeEvent.contentOffset.y / ITEM_HEIGHT);
+    const clampedIndex = Math.min(Math.max(rawIndex, 0), items.length - 1);
+    maybeHaptic(clampedIndex);
   };
 
   const renderItem = ({ item, index }: { item: string; index: number }) => {
@@ -99,9 +119,18 @@ export function OnboardingWheelPicker({
         snapToInterval={ITEM_HEIGHT}
         decelerationRate="fast"
         onMomentumScrollEnd={handleMomentumEnd}
+        onMomentumScrollBegin={() => {
+          isInteracting.current = true;
+        }}
+        onScrollBeginDrag={() => {
+          isInteracting.current = true;
+        }}
+        onScrollEndDrag={() => {
+          isInteracting.current = false;
+        }}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false }
+          { useNativeDriver: false, listener: handleScroll }
         )}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingVertical }}

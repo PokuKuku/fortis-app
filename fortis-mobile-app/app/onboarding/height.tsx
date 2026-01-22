@@ -116,7 +116,7 @@ export default function OnboardingHeightScreen() {
     const normalizedKg = clamp(roundTo(weightKg, 1), KG_MIN, KG_MAX);
 
     await updateOnboardingState({ height_cm: heightCm, weight_kg: normalizedKg, preferred_units: unit });
-    router.push('/onboarding/fitness-background');
+    router.push('/onboarding/source');
   };
 
   const handleWeightChange = (nextIndex: number) => {

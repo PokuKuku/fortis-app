@@ -79,7 +79,7 @@ export default function OnboardingFitnessBackgroundScreen() {
 
   return (
     <OnboardingScreen
-      step={5}
+      step={6}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Awesome!"
       subtitle="Now a few quick questions on your fitness background"

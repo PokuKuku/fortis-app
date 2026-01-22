@@ -53,6 +53,14 @@ export default function OnboardingClarityScreen() {
       Math.round(Math.min(windowWidth * 0.98, windowHeight * 0.46))
     )
   );
+  const otherAppsLabelPosition = {
+    top: Math.round(animationSize * 0.52),
+    right: Math.round(animationSize * 0.08),
+  };
+  const fortisLabelPosition = {
+    top: Math.round(animationSize * 0.22),
+    right: Math.round(animationSize * 0.12),
+  };
   const canRenderLottie = Boolean(LottieView) && isLottieViewManagerAvailable();
   const animationLooksTruncated = isLikelyTruncatedAnimation(CLARITY_ANIMATION);
   const [showContinue, setShowContinue] = useState(
@@ -109,7 +117,7 @@ export default function OnboardingClarityScreen() {
 
   return (
     <OnboardingScreen
-      step={9}
+      step={10}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Fortis helps you understand your progress faster"
       subtitle="Understand what’s working and keep progressing!"
@@ -147,10 +155,9 @@ export default function OnboardingClarityScreen() {
                   color: colors.textPrimary,
                   opacity: fortisOpacity,
                   transform: [
-                    { translateX: 130 },
-                    { translateY: 160 },
                     { translateY: fortisTranslateY },
                   ],
+                  ...otherAppsLabelPosition,
                 },
               ]}
             >
@@ -162,7 +169,8 @@ export default function OnboardingClarityScreen() {
                 {
                   color: colors.tabActive,
                   opacity: fortisOpacity,
-                  transform: [{ translateY: fortisTranslateY }, { translateX: 20 }],
+                  transform: [{ translateY: fortisTranslateY }],
+                  ...fortisLabelPosition,
                 },
               ]}
             >
@@ -201,16 +209,12 @@ const styles = StyleSheet.create({
   },
   onYourOwnLabel: {
     position: 'absolute',
-    top: '6%',
-    alignSelf: 'center',
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 12,
     letterSpacing: 1,
   },
   fortisLabel: {
     position: 'absolute',
-    bottom: '78%',
-    right: '8%',
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 12,
     letterSpacing: 1,

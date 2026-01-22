@@ -1,7 +1,8 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, useState } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as ExpoSplashScreen from 'expo-splash-screen';
+import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
@@ -78,7 +79,10 @@ function FloatingParticle({
 export default function SplashScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { isLoading, isAuthenticated, needsOnboarding } = useAuth();
   const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasNavigatedRef = useRef(false);
+  const [minDelayPassed, setMinDelayPassed] = useState(false);
 
   // Generate 15 particles
   const particles = useMemo(
@@ -96,7 +100,7 @@ export default function SplashScreen() {
 
   useEffect(() => {
     splashTimeoutRef.current = setTimeout(() => {
-      router.replace('/boot');
+      setMinDelayPassed(true);
     }, 1300);
 
     return () => {
@@ -105,7 +109,27 @@ export default function SplashScreen() {
         splashTimeoutRef.current = null;
       }
     };
-  }, [router]);
+  }, []);
+
+  useEffect(() => {
+    if (!minDelayPassed || isLoading || hasNavigatedRef.current) {
+      return;
+    }
+
+    hasNavigatedRef.current = true;
+
+    if (isAuthenticated && needsOnboarding) {
+      router.replace('/onboarding/welcome');
+      return;
+    }
+
+    if (isAuthenticated) {
+      router.replace('/(tabs)');
+      return;
+    }
+
+    router.replace('/onboarding/welcome');
+  }, [minDelayPassed, isLoading, isAuthenticated, needsOnboarding, router]);
 
   useEffect(() => {
     ExpoSplashScreen.hideAsync().catch(() => undefined);

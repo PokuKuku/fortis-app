@@ -12,6 +12,17 @@ export type OnboardingState = {
   lifting_experience?: 'none' | 'beginner' | 'intermediate' | 'advanced';
   workouts_per_week?: number;
   tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never';
+  heard_about?:
+    | 'tiktok'
+    | 'app_store'
+    | 'instagram'
+    | 'youtube'
+    | 'friend_family'
+    | 'google'
+    | 'x'
+    | 'tv'
+    | 'facebook'
+    | 'other';
   fitness_goal?: 'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent';
   fitness_goals?: Array<
     'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent'

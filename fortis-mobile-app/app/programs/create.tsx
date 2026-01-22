@@ -36,9 +36,10 @@ import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { runOnJS } from 'react-native-reanimated';
-import { responsiveValue } from '@/src/utils/responsive';
+import { responsiveValue, scale } from '@/src/utils/responsive';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
+const HEADER_COLLAPSE_THRESHOLD = scale(48);
 
 // Editor workout type for local state
 interface EditorWorkout {
@@ -101,6 +102,9 @@ export default function CreateProgramScreen() {
     primaryActionText: { color: colors.white },
     dayBadge: { backgroundColor: colors.accentOverlay },
     dayBadgeText: { color: colors.accent },
+    compactStatLabel: { color: colors.textTertiary },
+    compactStatValue: { color: colors.accent },
+    compactStatDivider: { backgroundColor: colors.borderLight },
   };
   const {
     mode,
@@ -141,6 +145,8 @@ export default function CreateProgramScreen() {
   const [showCancelEditModal, setShowCancelEditModal] = useState(false);
   const [headerLeftWidth, setHeaderLeftWidth] = useState(0);
   const [titleTextWidth, setTitleTextWidth] = useState(0);
+  const [showHeaderDetails, setShowHeaderDetails] = useState(true);
+  const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
   const hasInitializedEdit = useRef(false);
   const initialSnapshotRef = useRef<{
@@ -223,6 +229,16 @@ export default function CreateProgramScreen() {
   const hasMuscles = exercisesWithMuscles.length > 0;
   // Check if we can save
   const canSave = programName.trim().length > 0 && workouts.length > 0 && !isSaving;
+  const showCompactStats = !showHeaderDetails && workoutCount > 0;
+
+  const handleListScroll = useCallback((event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const shouldShowDetails = offsetY < HEADER_COLLAPSE_THRESHOLD;
+    if (headerDetailsVisibleRef.current !== shouldShowDetails) {
+      headerDetailsVisibleRef.current = shouldShowDetails;
+      setShowHeaderDetails(shouldShowDetails);
+    }
+  }, []);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!isEditing || !hasInitializedEdit.current || !initialSnapshotRef.current) return false;
@@ -527,6 +543,21 @@ export default function CreateProgramScreen() {
             <View style={styles.headerContainer}>
               <View style={styles.headerTopRow}>
                 <View style={styles.headerTopSpacer} />
+                <View style={styles.headerTopCenter}>
+                  {showCompactStats && (
+                    <View style={styles.compactStatsRow}>
+                      <View style={styles.compactStat}>
+                        <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Workouts</Text>
+                        <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{workoutCount}</Text>
+                      </View>
+                      <View style={[styles.compactStatDivider, themedStyles.compactStatDivider]} />
+                      <View style={styles.compactStat}>
+                        <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Exercises</Text>
+                        <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{totalExercises}</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
                 <Pressable
                   onPress={handleClose}
                   style={({ pressed }) => [
@@ -571,7 +602,7 @@ export default function CreateProgramScreen() {
                     </Text>
                   </View>
                   {workoutCount > 0 && (
-                    <View style={styles.statsRow}>
+                    showHeaderDetails && <View style={styles.statsRow}>
                       <View style={styles.statItem}>
                         <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
                         <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
@@ -652,6 +683,8 @@ export default function CreateProgramScreen() {
           )}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
+          onScroll={handleListScroll}
+          scrollEventThrottle={16}
         />
 
         <Modal
@@ -856,6 +889,36 @@ const styles = StyleSheet.create({
   },
   headerTopSpacer: {
     width: 36,
+  },
+  headerTopCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+  },
+  compactStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  compactStat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactStatLabel: {
+    fontSize: FontSizes.xs,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  compactStatValue: {
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicBT-Medium',
+    lineHeight: FontSizes.base + 2,
+  },
+  compactStatDivider: {
+    width: 1,
+    height: FontSizes.base + 4,
   },
   headerContentRow: {
     flexDirection: 'row',

@@ -42,12 +42,18 @@ Notifications.setNotificationHandler({
 /**
  * Themed content wrapper - uses theme context for StatusBar and Stack styling
  */
-function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
+function ThemedAppContent({
+  mixpanelEnabled,
+  disableThemeSync = false,
+}: {
+  mixpanelEnabled: boolean;
+  disableThemeSync?: boolean;
+}) {
   const { colors, isDark } = useTheme();
 
   return (
     <AuthProvider>
-      <ThemeAuthSync />
+      {!disableThemeSync && <ThemeAuthSync />}
       <DragDropProvider>
         {mixpanelEnabled && <MixpanelAuthSync />}
         <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -59,7 +65,6 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
           }}
         >
           <Stack.Screen name="index" options={{ animation: 'none' }} />
-          <Stack.Screen name="boot" options={{ animation: 'none' }} />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="auth/index"
@@ -120,6 +125,12 @@ function ThemedAppContent({ mixpanelEnabled }: { mixpanelEnabled: boolean }) {
           />
           <Stack.Screen
             name="onboarding/weight"
+            options={{
+              ...ONBOARDING_TRANSITION,
+            }}
+          />
+          <Stack.Screen
+            name="onboarding/source"
             options={{
               ...ONBOARDING_TRANSITION,
             }}
@@ -310,6 +321,9 @@ export default function RootLayout() {
   const loadRestTimerSettings = useWorkoutStore((s) => s.loadRestTimerSettings);
   const segments = useSegments();
   const isOnboarding = segments[0] === 'onboarding';
+  const isAuth = segments[0] === 'auth';
+  const isSplash = segments.length === 0;
+  const shouldForceTheme = isOnboarding || isAuth || isSplash;
 
   const [fontsLoaded] = useFonts({
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
@@ -348,9 +362,16 @@ export default function RootLayout() {
 
   const appContent = (
     <ThemeProvider
-      forceTheme={isOnboarding ? { resolvedTheme: 'light', accentColor: 'green' } : undefined}
+      forceTheme={
+        shouldForceTheme
+          ? { resolvedTheme: 'light', accentColor: 'green' }
+          : undefined
+      }
     >
-      <ThemedAppContent mixpanelEnabled={mixpanelEnabled} />
+      <ThemedAppContent
+        mixpanelEnabled={mixpanelEnabled}
+        disableThemeSync={shouldForceTheme}
+      />
     </ThemeProvider>
   );
 

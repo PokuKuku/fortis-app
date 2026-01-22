@@ -83,7 +83,7 @@ export default function OnboardingExperienceScreen() {
 
   return (
     <OnboardingScreen
-      step={6}
+      step={7}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your experience level with lifting?"
       subtitle="This helps us shape your training insights."

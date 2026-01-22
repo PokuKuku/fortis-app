@@ -7,6 +7,7 @@ import { Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getOnboardingState } from '@/src/utils/onboardingState';
 import { InlineAnimatedLogo } from '@/components/InlineAnimatedLogo';
+import { scale } from '@/src/utils/responsive';
 
 const ADVANCE_DELAY_MS = 2400;
 
@@ -15,6 +16,9 @@ export default function OnboardingGreetingScreen() {
   const { colors } = useTheme();
   const [fullName, setFullName] = useState<string | null>(null);
   const floatOffset = useState(() => new Animated.Value(0))[0];
+  const textSize = scale(28);
+  const commaOffset = -Math.round(textSize * 0.35);
+  const logoNudge = -Math.round(textSize * 0.18);
 
   useEffect(() => {
     let isActive = true;
@@ -91,14 +95,24 @@ export default function OnboardingGreetingScreen() {
         ]}
       >
         <View style={styles.line}>
-          <Text style={[styles.text, { color: colors.textPrimary }]}>Welcome to</Text>
-          <View style={styles.logoInline}>
-            <InlineAnimatedLogo fontSize={28} introDurationMs={450} shineDurationMs={1400} />
+          <Text style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}>Welcome to</Text>
+          <View style={[styles.logoInline, { marginTop: logoNudge }]}>
+            <InlineAnimatedLogo fontSize={textSize} introDurationMs={450} shineDurationMs={1400} />
           </View>
-          <Text style={[styles.text, styles.comma, { color: colors.textPrimary }]}>,</Text>
+          <Text
+            style={[
+              styles.text,
+              styles.comma,
+              { color: colors.textPrimary, fontSize: textSize, marginLeft: commaOffset },
+            ]}
+          >
+            ,
+          </Text>
         </View>
         {trailingText ? (
-          <Text style={[styles.text, { color: colors.textPrimary }]}>{trailingText}</Text>
+          <Text style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}>
+            {trailingText}
+          </Text>
         ) : null}
       </Animated.View>
     </OnboardingScreen>
@@ -125,12 +139,11 @@ const styles = StyleSheet.create({
   },
   text: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 28,
     fontWeight: '600',
     letterSpacing: 0.5,
     textAlign: 'center',
   },
   comma: {
-    marginLeft: -10,
+    marginLeft: 0,
   },
 });

@@ -51,7 +51,7 @@ export default function OnboardingOtherAppsScreen() {
 
   return (
     <OnboardingScreen
-      step={8}
+      step={9}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Have you tried other workout tracking apps?"
       subtitle={undefined}

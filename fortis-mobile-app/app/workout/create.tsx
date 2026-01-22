@@ -31,12 +31,13 @@ import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import type { Exercise } from '@/src/types/exercise';
-import { responsiveValue } from '@/src/utils/responsive';
+import { responsiveValue, scale } from '@/src/utils/responsive';
 import { format } from 'date-fns';
 import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
+const HEADER_COLLAPSE_THRESHOLD = scale(48);
 
 export default function CreateWorkoutScreen() {
   const router = useRouter();
@@ -84,6 +85,9 @@ export default function CreateWorkoutScreen() {
     },
     addExercisesText: { color: colors.accent },
     primaryActionText: { color: colors.white },
+    compactStatLabel: { color: colors.textTertiary },
+    compactStatValue: { color: colors.accent },
+    compactStatDivider: { backgroundColor: colors.borderLight },
   };
 
   // Editor store actions
@@ -113,6 +117,8 @@ export default function CreateWorkoutScreen() {
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [headerLeftWidth, setHeaderLeftWidth] = useState(0);
   const [titleTextWidth, setTitleTextWidth] = useState(0);
+  const [showHeaderDetails, setShowHeaderDetails] = useState(true);
+  const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
 
   // Get exercise IDs and fetch muscle data for heatmap
@@ -190,6 +196,16 @@ export default function CreateWorkoutScreen() {
     (editorSession?.exercises?.length ?? 0) > 0 &&
     (mode !== 'log' || hasLoggedSets) &&
     !isSaving;
+  const showCompactStats = !showHeaderDetails && mode !== 'log' && exerciseCount > 0;
+
+  const handleListScroll = useCallback((event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const shouldShowDetails = offsetY < HEADER_COLLAPSE_THRESHOLD;
+    if (headerDetailsVisibleRef.current !== shouldShowDetails) {
+      headerDetailsVisibleRef.current = shouldShowDetails;
+      setShowHeaderDetails(shouldShowDetails);
+    }
+  }, []);
 
   // Handle close
   const handleClose = () => {
@@ -360,6 +376,21 @@ export default function CreateWorkoutScreen() {
                 >
                   <ClockIcon size={20} color={colors.textSecondary} strokeWidth={2} />
                 </Pressable>
+                <View style={styles.headerTopCenter}>
+                  {showCompactStats && (
+                    <View style={styles.compactStatsRow}>
+                      <View style={styles.compactStat}>
+                        <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Exercises</Text>
+                        <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{exerciseCount}</Text>
+                      </View>
+                      <View style={[styles.compactStatDivider, themedStyles.compactStatDivider]} />
+                      <View style={styles.compactStat}>
+                        <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Sets</Text>
+                        <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{totalSets}</Text>
+                      </View>
+                    </View>
+                  )}
+                </View>
                 <Pressable
                   onPress={handleClose}
                   style={({ pressed }) => [
@@ -403,7 +434,7 @@ export default function CreateWorkoutScreen() {
                       {titleMeasureText}
                     </Text>
                   </View>
-                  {mode !== 'log' && exerciseCount > 0 && (
+                  {showHeaderDetails && mode !== 'log' && exerciseCount > 0 && (
                     <View style={styles.statsRow}>
                       <View style={styles.statItem}>
                         <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
@@ -496,6 +527,8 @@ export default function CreateWorkoutScreen() {
           )}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
+          onScroll={handleListScroll}
+          scrollEventThrottle={16}
         />
       </SafeAreaView>
 
@@ -571,6 +604,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  headerTopCenter: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+  },
+  compactStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  compactStat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  compactStatLabel: {
+    fontSize: FontSizes.xs,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  compactStatValue: {
+    fontSize: FontSizes.base,
+    fontFamily: 'BankGothicBT-Medium',
+    lineHeight: FontSizes.base + 2,
+  },
+  compactStatDivider: {
+    width: 1,
+    height: FontSizes.base + 4,
   },
   iconButton: {
     padding: Spacing.sm,
