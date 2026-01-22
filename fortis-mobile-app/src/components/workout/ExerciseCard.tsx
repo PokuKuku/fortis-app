@@ -380,11 +380,6 @@ const styles = StyleSheet.create({
     borderColor: Colors.borderLight,
     overflow: 'visible', // Allow popover to overflow
     marginBottom: Spacing.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 5,
   },
   content: {
     padding: CONTENT_PADDING,

@@ -80,6 +80,7 @@ export default function CreateWorkoutScreen() {
     emptyStateText: { color: colors.textSecondary },
     emptyStateSubtext: { color: colors.textSecondary },
     statValue: { color: colors.accent },
+    headerDivider: { backgroundColor: colors.borderLight },
     addExercisesButton: {
       borderColor: colors.accentBorder,
     },
@@ -87,7 +88,6 @@ export default function CreateWorkoutScreen() {
     primaryActionText: { color: colors.white },
     compactStatLabel: { color: colors.textTertiary },
     compactStatValue: { color: colors.accent },
-    compactStatDivider: { backgroundColor: colors.borderLight },
   };
 
   // Editor store actions
@@ -199,13 +199,16 @@ export default function CreateWorkoutScreen() {
   const showCompactStats = !showHeaderDetails && mode !== 'log' && exerciseCount > 0;
 
   const handleListScroll = useCallback((event: any) => {
+    if (mode === 'log') {
+      return;
+    }
     const offsetY = event.nativeEvent.contentOffset.y;
     const shouldShowDetails = offsetY < HEADER_COLLAPSE_THRESHOLD;
     if (headerDetailsVisibleRef.current !== shouldShowDetails) {
       headerDetailsVisibleRef.current = shouldShowDetails;
       setShowHeaderDetails(shouldShowDetails);
     }
-  }, []);
+  }, [mode]);
 
   // Handle close
   const handleClose = () => {
@@ -378,12 +381,11 @@ export default function CreateWorkoutScreen() {
                 </Pressable>
                 <View style={styles.headerTopCenter}>
                   {showCompactStats && (
-                    <View style={styles.compactStatsRow}>
+                    <View style={[styles.compactStatsRow, styles.compactStatsRowOffset]}>
                       <View style={styles.compactStat}>
                         <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Exercises</Text>
                         <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{exerciseCount}</Text>
                       </View>
-                      <View style={[styles.compactStatDivider, themedStyles.compactStatDivider]} />
                       <View style={styles.compactStat}>
                         <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Sets</Text>
                         <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{totalSets}</Text>
@@ -402,62 +404,67 @@ export default function CreateWorkoutScreen() {
                   <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
                 </Pressable>
               </View>
-              <View style={styles.headerContentRow}>
-                <View
-                  style={styles.headerLeftColumn}
-                  onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
-                >
-                  <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
-                    <TextInput
-                      style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
-                      placeholder="Workout Name"
-                      placeholderTextColor={colors.textSecondary}
-                      value={editorSession?.name || ''}
-                      onChangeText={setEditorWorkoutName}
-                      autoCorrect={false}
-                      autoCapitalize="words"
-                      autoComplete="off"
-                      editable={true}
-                      maxLength={50}
-                      returnKeyType="done"
-                      onFocus={() => setIsNameFocused(true)}
-                      onBlur={() => setIsNameFocused(false)}
-                    />
-                    <View style={styles.editIconSlot}>
-                      {!isNameFocused && (
-                        <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
-                      )}
+              {showHeaderDetails && (
+                <>
+                  <View style={[styles.headerDivider, themedStyles.headerDivider]} />
+                  <View style={styles.headerContentRow}>
+                  <View
+                    style={styles.headerLeftColumn}
+                    onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
+                  >
+                    <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
+                      <TextInput
+                        style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
+                        placeholder="Workout Name"
+                        placeholderTextColor={colors.textSecondary}
+                        value={editorSession?.name || ''}
+                        onChangeText={setEditorWorkoutName}
+                        autoCorrect={false}
+                        autoCapitalize="words"
+                        autoComplete="off"
+                        editable={true}
+                        maxLength={50}
+                        returnKeyType="done"
+                        onFocus={() => setIsNameFocused(true)}
+                        onBlur={() => setIsNameFocused(false)}
+                      />
+                      <View style={styles.editIconSlot}>
+                        {!isNameFocused && (
+                          <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
+                        )}
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.titleMeasureContainer} pointerEvents="none">
-                    <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
-                      {titleMeasureText}
-                    </Text>
-                  </View>
-                  {showHeaderDetails && mode !== 'log' && exerciseCount > 0 && (
-                    <View style={styles.statsRow}>
-                      <View style={styles.statItem}>
-                        <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
-                        <Text style={[styles.statValue, themedStyles.statValue]}>{exerciseCount}</Text>
+                    <View style={styles.titleMeasureContainer} pointerEvents="none">
+                      <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
+                        {titleMeasureText}
+                      </Text>
+                    </View>
+                    {mode !== 'log' && exerciseCount > 0 && (
+                      <View style={styles.statsRow}>
+                        <View style={styles.statItem}>
+                          <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
+                          <Text style={[styles.statValue, themedStyles.statValue]}>{exerciseCount}</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                          <Text style={[styles.statLabel, themedStyles.statLabel]}>Sets</Text>
+                          <Text style={[styles.statValue, themedStyles.statValue]}>{totalSets}</Text>
+                        </View>
                       </View>
-                      <View style={styles.statItem}>
-                        <Text style={[styles.statLabel, themedStyles.statLabel]}>Sets</Text>
-                        <Text style={[styles.statValue, themedStyles.statValue]}>{totalSets}</Text>
-                      </View>
+                    )}
+                  </View>
+                  {mode !== 'log' && hasMuscles && (
+                    <View style={styles.headerHeatmap}>
+                      <MuscleHeatmap
+                        muscleLevels={heatmapLevels ?? undefined}
+                        exercises={!heatmapLevels && mode !== 'log' ? exercisesWithMuscles : undefined}
+                        scale={HEATMAP_SCALE}
+                        compact
+                      />
                     </View>
                   )}
-                </View>
-                {mode !== 'log' && hasMuscles && (
-                  <View style={styles.headerHeatmap}>
-                    <MuscleHeatmap
-                      muscleLevels={heatmapLevels ?? undefined}
-                      exercises={!heatmapLevels && mode !== 'log' ? exercisesWithMuscles : undefined}
-                      scale={HEATMAP_SCALE}
-                      compact
-                    />
                   </View>
-                )}
-              </View>
+                </>
+              )}
             </View>
           </View>
         </GestureDetector>
@@ -616,6 +623,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
+  compactStatsRowOffset: {
+    marginTop: scale(6),
+  },
   compactStat: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -630,10 +640,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontFamily: 'BankGothicBT-Medium',
     lineHeight: FontSizes.base + 2,
-  },
-  compactStatDivider: {
-    width: 1,
-    height: FontSizes.base + 4,
   },
   iconButton: {
     padding: Spacing.sm,
@@ -650,6 +656,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginTop: -10,
+  },
+  headerDivider: {
+    height: StyleSheet.hairlineWidth,
   },
   headerLeftColumn: {
     flex: 1,

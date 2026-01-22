@@ -85,7 +85,7 @@ const OTHER_APP_LABELS: Record<string, string> = {
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { updateProfile, isAuthenticated } = useAuth();
+  const { updateProfile, isAuthenticated, profile } = useAuth();
   const didContinueRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const summaryAnim = useRef(new Animated.Value(0)).current;
@@ -298,45 +298,48 @@ export default function OnboardingCompleteScreen() {
     }
     try {
       const state = await getOnboardingState();
+      const shouldSetString = (value: string | null | undefined) => !value || value.trim().length === 0;
+      const shouldSetNumber = (value: number | null | undefined) => typeof value !== 'number' || Number.isNaN(value);
+
       const updates: Parameters<typeof updateProfile>[0] = {
         onboarding_completed: true,
       };
 
-      if (state?.full_name?.trim()) {
+      if (state?.full_name?.trim() && shouldSetString(profile?.full_name)) {
         updates.full_name = state.full_name.trim();
       }
-      if (state?.gender) {
+      if (state?.gender && !profile?.gender) {
         updates.gender = state.gender;
       }
-      if (state?.birth_date) {
+      if (state?.birth_date && !profile?.birth_date) {
         updates.birth_date = state.birth_date;
       }
-      if (typeof state?.height_cm === 'number') {
+      if (typeof state?.height_cm === 'number' && shouldSetNumber(profile?.height_cm)) {
         updates.height_cm = state.height_cm;
       }
-      if (typeof state?.weight_kg === 'number') {
+      if (typeof state?.weight_kg === 'number' && shouldSetNumber(profile?.weight_kg)) {
         updates.weight_kg = state.weight_kg;
       }
-      if (state?.preferred_units) {
+      if (state?.preferred_units && !profile?.preferred_units) {
         updates.preferred_units = state.preferred_units;
       }
-      if (state?.lifting_experience) {
+      if (state?.lifting_experience && !profile?.lifting_experience) {
         updates.lifting_experience = state.lifting_experience;
       }
-      if (state?.tried_other_apps) {
+      if (state?.tried_other_apps && !profile?.tried_other_apps) {
         updates.tried_other_apps = state.tried_other_apps;
       }
       const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[state.fitness_goals.length - 1];
-      if (resolvedGoal) {
+      if (resolvedGoal && !profile?.fitness_goal) {
         updates.fitness_goal = resolvedGoal;
       }
       const resolvedChallenge =
         state?.biggest_challenge ??
         state?.biggest_challenges?.[state.biggest_challenges.length - 1];
-      if (resolvedChallenge) {
+      if (resolvedChallenge && !profile?.biggest_challenge) {
         updates.biggest_challenge = resolvedChallenge;
       }
-      if (state?.workout_consistency) {
+      if (state?.workout_consistency && !profile?.workout_consistency) {
         updates.workout_consistency = state.workout_consistency;
       }
 
@@ -356,7 +359,7 @@ export default function OnboardingCompleteScreen() {
       setIsSaving(false);
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, phase, router, summaryAnim, updateProfile]);
+  }, [isAuthenticated, phase, profile, router, summaryAnim, updateProfile]);
 
   useEffect(() => {
     if (phase !== 'ready') return;

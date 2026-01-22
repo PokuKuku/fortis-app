@@ -817,11 +817,11 @@ const styles = StyleSheet.create({
   },
   shareTitle: {
     ...Typography.h3,
-    fontSize: moderateScale(20),
+    fontSize: moderateScale(22),
   },
   shareSubtitle: {
-    fontSize: moderateScale(13),
-    lineHeight: moderateScale(18),
+    fontSize: moderateScale(14),
+    lineHeight: moderateScale(20),
   },
   shareFooter: {
     marginTop: 'auto',
@@ -908,7 +908,7 @@ const styles = StyleSheet.create({
     paddingVertical: scale(Spacing.sm),
   },
   emptyHint: {
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(12),
   },
   signatureTile: {
     flexBasis: '46%',
@@ -942,7 +942,7 @@ const styles = StyleSheet.create({
     marginRight: scale(Spacing.sm),
   },
   prRankText: {
-    fontSize: moderateScale(10),
+    fontSize: moderateScale(11),
     fontWeight: '700',
   },
   prInfo: {
@@ -951,11 +951,11 @@ const styles = StyleSheet.create({
   },
   prName: {
     ...Typography.caption,
-    fontSize: moderateScale(11),
+    fontSize: moderateScale(14),
     marginBottom: scale(Spacing.xs),
   },
   prMeta: {
-    fontSize: moderateScale(10),
+    fontSize: moderateScale(13),
   },
   actionsSection: {
     alignItems: 'center',

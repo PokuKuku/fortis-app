@@ -14,7 +14,7 @@ import { useWorkout } from '@/src/hooks/usePrograms';
 import { HubHeader, HubExerciseRow } from '@/src/components/hub';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
-import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 
@@ -22,6 +22,7 @@ export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const modalStyles = useModalStyles();
   const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
 

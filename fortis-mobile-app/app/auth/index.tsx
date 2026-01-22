@@ -64,7 +64,15 @@ import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboarding
 export default function AuthWelcomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding, updateProfile } = useAuth();
+  const {
+    signInWithGoogle,
+    signInWithApple,
+    isAuthenticated,
+    needsOnboarding,
+    updateProfile,
+    profile,
+    isLoading,
+  } = useAuth();
   const { colors, isDark } = useTheme();
   const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
   const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
@@ -102,54 +110,59 @@ export default function AuthWelcomeScreen() {
 
   // Navigate when auth state changes
   useEffect(() => {
-    if (!isAuthenticated || isFinalizing) return;
+    if (!isAuthenticated || isFinalizing || isLoading) return;
 
     if (onboardingValue === 'complete') {
       setIsFinalizing(true);
       void (async () => {
         const state = await getOnboardingState();
+        const shouldSetString = (value: string | null | undefined) => !value || value.trim().length === 0;
+        const shouldSetNumber = (value: number | null | undefined) => typeof value !== 'number' || Number.isNaN(value);
+
         const updates: Parameters<typeof updateProfile>[0] = {
           onboarding_completed: true,
         };
 
-        if (state?.full_name?.trim()) {
+        if (state?.full_name?.trim() && shouldSetString(profile?.full_name)) {
           updates.full_name = state.full_name.trim();
         }
-        if (state?.gender) {
+        if (state?.gender && !profile?.gender) {
           updates.gender = state.gender;
         }
-        if (state?.birth_date) {
+        if (state?.birth_date && !profile?.birth_date) {
           updates.birth_date = state.birth_date;
         }
-        if (typeof state?.height_cm === 'number') {
+        if (typeof state?.height_cm === 'number' && shouldSetNumber(profile?.height_cm)) {
           updates.height_cm = state.height_cm;
         }
-        if (typeof state?.weight_kg === 'number') {
+        if (typeof state?.weight_kg === 'number' && shouldSetNumber(profile?.weight_kg)) {
           updates.weight_kg = state.weight_kg;
         }
-        if (state?.preferred_units) {
+        if (state?.preferred_units && !profile?.preferred_units) {
           updates.preferred_units = state.preferred_units;
         }
-        if (state?.lifting_experience) {
+        if (state?.lifting_experience && !profile?.lifting_experience) {
           updates.lifting_experience = state.lifting_experience;
         }
         if (typeof state?.workouts_per_week === 'number') {
-          updates.workouts_per_week = state.workouts_per_week;
+          if (shouldSetNumber(profile?.workouts_per_week)) {
+            updates.workouts_per_week = state.workouts_per_week;
+          }
         }
-        if (state?.tried_other_apps) {
+        if (state?.tried_other_apps && !profile?.tried_other_apps) {
           updates.tried_other_apps = state.tried_other_apps;
         }
         const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[state.fitness_goals.length - 1];
-        if (resolvedGoal) {
+        if (resolvedGoal && !profile?.fitness_goal) {
           updates.fitness_goal = resolvedGoal;
         }
         const resolvedChallenge =
           state?.biggest_challenge ??
           state?.biggest_challenges?.[state.biggest_challenges.length - 1];
-        if (resolvedChallenge) {
+        if (resolvedChallenge && !profile?.biggest_challenge) {
           updates.biggest_challenge = resolvedChallenge;
         }
-        if (state?.workout_consistency) {
+        if (state?.workout_consistency && !profile?.workout_consistency) {
           updates.workout_consistency = state.workout_consistency;
         }
 
@@ -172,7 +185,16 @@ export default function AuthWelcomeScreen() {
     }
 
     router.replace('/(tabs)');
-  }, [isAuthenticated, isFinalizing, needsOnboarding, onboardingValue, router, updateProfile]);
+  }, [
+    isAuthenticated,
+    isFinalizing,
+    isLoading,
+    needsOnboarding,
+    onboardingValue,
+    profile,
+    router,
+    updateProfile,
+  ]);
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {

@@ -54,6 +54,7 @@ export interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
+  isAuthResolved: boolean;
   isHydrating: boolean;
   isAuthenticated: boolean;
   needsOnboarding: boolean;
@@ -94,6 +95,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [isHydrating, setIsHydrating] = useState(false);
   const hydrateRunRef = useRef(0);
 
@@ -225,6 +227,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       setIsLoading(false);
+      setIsAuthResolved(true);
       return;
     }
 
@@ -232,6 +235,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
       setSession(initialSession);
       setUser(initialSession?.user ?? null);
+      setIsAuthResolved(true);
 
       if (initialSession?.user) {
         await migrateGuestStorageToUser(initialSession.user.id);
@@ -243,6 +247,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setIsLoading(false);
+    }).catch(() => {
+      setIsLoading(false);
+      setIsAuthResolved(true);
     });
 
     // Listen for auth changes
@@ -703,6 +710,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     session,
     profile,
     isLoading,
+    isAuthResolved,
     isHydrating,
     isAuthenticated,
     needsOnboarding,

@@ -18,6 +18,7 @@ export type OnboardingState = {
     | 'instagram'
     | 'youtube'
     | 'friend_family'
+    | 'reddit'
     | 'google'
     | 'x'
     | 'tv'

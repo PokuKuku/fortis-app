@@ -19,7 +19,7 @@ import { useProgram } from '@/src/hooks/usePrograms';
 import { HubHeader, HubExerciseRow, HubStatsSection } from '@/src/components/hub';
 import { ProgramWorkout } from '@/src/types/program';
 import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
-import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
@@ -164,6 +164,7 @@ export default function ProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const modalStyles = useModalStyles();
   const { program, loading } = useProgram(id);
   const isNavigating = useRef(false);
   const seededProgramRef = useRef<string | null>(null);

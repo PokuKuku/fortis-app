@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { View, Text, StyleSheet, Image, type ImageSourcePropType } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { UserGroupIcon } from 'react-native-heroicons/solid';
 import { GlassButton } from '@/components/GlassButton';
 import { GlassCard } from '@/components/GlassCard';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
@@ -17,37 +18,43 @@ type ReferralSource =
   | 'instagram'
   | 'youtube'
   | 'friend_family'
+  | 'reddit'
   | 'google'
   | 'x'
-  | 'tv'
   | 'facebook'
   | 'other';
 
 const ICONS: Record<
-ReferralSource,
+Exclude<ReferralSource, 'friend_family'>,
 ImageSourcePropType
 > = {
   tiktok: require('../../assets/icons/social/tiktok.png'),
   app_store: require('../../assets/icons/social/apple.png'),
   instagram: require('../../assets/icons/social/instagram.png'),
   youtube: require('../../assets/icons/social/youtube.png'),
-  friend_family: require('../../assets/icons/social/messenger.png'),
+  reddit: require('../../assets/icons/social/reddit.png'),
   google: require('../../assets/icons/social/google.png'),
   x: require('../../assets/icons/social/x.png'),
-  tv: require('../../assets/icons/social/twitch.png'),
   facebook: require('../../assets/icons/social/facebook.png'),
-  other: require('../../assets/icons/social/figma.png'),
+  other: require('../../assets/icons/social/other.png'),
 };
 
-const OPTIONS: Array<{ value: ReferralSource; label: string; icon: ImageSourcePropType }> = [
+type OptionIcon = ComponentType<{ color?: string; size?: number }>;
+
+const OPTIONS: Array<{
+  value: ReferralSource;
+  label: string;
+  icon?: ImageSourcePropType;
+  IconComponent?: OptionIcon;
+}> = [
   { value: 'tiktok', label: 'TikTok', icon: ICONS.tiktok },
   { value: 'app_store', label: 'App Store', icon: ICONS.app_store },
   { value: 'instagram', label: 'Instagram', icon: ICONS.instagram },
   { value: 'youtube', label: 'YouTube', icon: ICONS.youtube },
-  { value: 'friend_family', label: 'Friend or family', icon: ICONS.friend_family },
+  { value: 'reddit', label: 'Reddit', icon: ICONS.reddit },
+  { value: 'friend_family', label: 'Friend or family', IconComponent: UserGroupIcon },
   { value: 'google', label: 'Google', icon: ICONS.google },
   { value: 'x', label: 'X', icon: ICONS.x },
-  { value: 'tv', label: 'TV', icon: ICONS.tv },
   { value: 'facebook', label: 'Facebook', icon: ICONS.facebook },
   { value: 'other', label: 'Other', icon: ICONS.other },
 ];
@@ -55,17 +62,19 @@ const OPTIONS: Array<{ value: ReferralSource; label: string; icon: ImageSourcePr
 function SourceOptionCard({
   label,
   icon,
+  IconComponent,
   selected,
   onSelect,
 }: {
   label: string;
-  icon: ImageSourcePropType;
+  icon?: ImageSourcePropType;
+  IconComponent?: OptionIcon;
   selected: boolean;
   onSelect: () => void;
 }) {
   const { colors, isDark } = useTheme();
-  const iconSize = scale(18);
-  const iconWrapSize = scale(38);
+  const iconWrapSize = scale(34);
+  const iconSize = scale(22);
   const cardPadding = scale(Spacing.md);
 
   const cardStyle = {
@@ -74,8 +83,8 @@ function SourceOptionCard({
   };
 
   const iconWrapStyle = {
-    backgroundColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.04)',
-    borderColor: selected ? colors.accentBorder : colors.glassBorder,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
   };
 
   const radioStyle = {
@@ -92,7 +101,15 @@ function SourceOptionCard({
     <GlassCard onPress={handlePress} padding={cardPadding} style={[styles.optionCard, cardStyle]}>
       <View style={styles.optionRow}>
         <View style={[styles.iconWrap, iconWrapStyle, { width: iconWrapSize, height: iconWrapSize }]}>
-          <Image source={icon} style={{ width: iconSize, height: iconSize }} resizeMode="contain" />
+          {IconComponent ? (
+            <IconComponent color={selected ? colors.accent : colors.textSecondary} size={iconSize} />
+          ) : icon ? (
+            <Image
+              source={icon}
+              style={{ width: iconSize, height: iconSize, borderRadius: Math.round(iconSize * 0.2) }}
+              resizeMode="contain"
+            />
+          ) : null}
         </View>
         <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>{label}</Text>
         <View style={[styles.radio, radioStyle]} />
@@ -157,6 +174,7 @@ export default function OnboardingSourceScreen() {
             key={option.value}
             label={option.label}
             icon={option.icon}
+            IconComponent={option.IconComponent}
             selected={selected === option.value}
             onSelect={() => handleSelect(option.value)}
           />
@@ -182,7 +200,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
+    borderWidth: 0,
   },
   optionLabel: {
     flex: 1,

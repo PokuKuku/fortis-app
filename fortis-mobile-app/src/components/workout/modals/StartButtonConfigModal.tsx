@@ -6,7 +6,7 @@ import {
   CalendarDaysIcon,
   XMarkIcon,
 } from 'react-native-heroicons/outline';
-import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { getModalWidth, responsiveValue } from '@/src/utils/responsive';
@@ -40,6 +40,7 @@ export function StartButtonConfigModal({
   currentLabel,
 }: StartButtonConfigModalProps) {
   const { colors, isDark } = useTheme();
+  const modalStyles = useModalStyles();
 
   // Dynamic theme-aware styles
   const themedStyles = {

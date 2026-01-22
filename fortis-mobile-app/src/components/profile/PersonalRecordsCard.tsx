@@ -179,23 +179,12 @@ export function PersonalRecordsCard() {
                   style={[styles.modalTitle, { color: colors.textPrimary }]}
                   numberOfLines={1}
                   adjustsFontSizeToFit
-                  minimumFontScale={0.7}
+                  minimumFontScale={0.85}
                 >
                   Personal Records
                 </Text>
               </View>
-              <View style={[styles.headerSide, styles.headerSideRight]}>
-                <TouchableOpacity
-                  onPress={handleShare}
-                  style={[
-                    styles.shareButton,
-                    { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
-                  ]}
-                  activeOpacity={0.8}
-                >
-                  <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
-                </TouchableOpacity>
-              </View>
+              <View style={[styles.headerSide, styles.headerSideRight]} />
             </View>
 
             <ScrollView
@@ -231,6 +220,19 @@ export function PersonalRecordsCard() {
                     ))}
                   </View>
                 )}
+              </View>
+              <View style={styles.shareButtonRow}>
+                <TouchableOpacity
+                  onPress={handleShare}
+                  style={[
+                    styles.shareButton,
+                    styles.shareButtonLarge,
+                    { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+                  ]}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.shareButtonText, styles.shareButtonTextLarge, { color: colors.accent }]}>Share</Text>
+                </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
@@ -278,7 +280,7 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   headerSide: {
-    width: 72,
+    width: 48,
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
@@ -287,15 +289,16 @@ const styles = StyleSheet.create({
   },
   modalTitleWrapper: {
     flex: 1,
+    minWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: 0,
   },
   modalTitle: {
     fontSize: 20,
     fontFamily: 'BankGothicBT-Medium',
     textTransform: 'uppercase',
-    letterSpacing: 1,
+    letterSpacing: 0.6,
     marginTop: 2,
     textAlign: 'center',
   },
@@ -314,6 +317,18 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  shareButtonRow: {
+    alignItems: 'center',
+    paddingTop: Spacing.xl,
+  },
+  shareButtonLarge: {
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+  },
+  shareButtonTextLarge: {
+    fontSize: 12,
+    letterSpacing: 0.6,
   },
   modalScroll: {
     flex: 1,

@@ -31,7 +31,7 @@ import * as Haptics from 'expo-haptics';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { ProgramLimitModal } from '@/src/components/workout/modals/ProgramLimitModal';
 import { MAX_WORKOUTS_PER_PROGRAM } from '@/src/constants/programs';
-import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
@@ -52,6 +52,7 @@ interface EditorWorkout {
 export default function CreateProgramScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const modalStyles = useModalStyles();
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -105,6 +106,7 @@ export default function CreateProgramScreen() {
     compactStatLabel: { color: colors.textTertiary },
     compactStatValue: { color: colors.accent },
     compactStatDivider: { backgroundColor: colors.borderLight },
+    headerDivider: { backgroundColor: colors.borderLight },
   };
   const {
     mode,
@@ -545,7 +547,7 @@ export default function CreateProgramScreen() {
                 <View style={styles.headerTopSpacer} />
                 <View style={styles.headerTopCenter}>
                   {showCompactStats && (
-                    <View style={styles.compactStatsRow}>
+                    <View style={[styles.compactStatsRow, styles.compactStatsRowOffset]}>
                       <View style={styles.compactStat}>
                         <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Workouts</Text>
                         <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{workoutCount}</Text>
@@ -569,57 +571,62 @@ export default function CreateProgramScreen() {
                   <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
                 </Pressable>
               </View>
-              <View style={styles.headerContentRow}>
-                <View
-                  style={styles.headerLeftColumn}
-                  onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
-                >
-                  <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
-                    <TextInput
-                      style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
-                      placeholder="Program Name"
-                      placeholderTextColor={colors.textSecondary}
-                      value={programName}
-                      onChangeText={setProgramName}
-                      autoCorrect={false}
-                      autoCapitalize="words"
-                      autoComplete="off"
-                      editable={true}
-                      maxLength={50}
-                      returnKeyType="done"
-                      onFocus={() => setIsNameFocused(true)}
-                      onBlur={() => setIsNameFocused(false)}
-                    />
-                    <View style={styles.editIconSlot}>
-                      {!isNameFocused && (
-                        <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
-                      )}
+              {showHeaderDetails && (
+                <>
+                  <View style={[styles.headerDivider, themedStyles.headerDivider]} />
+                  <View style={styles.headerContentRow}>
+                  <View
+                    style={styles.headerLeftColumn}
+                    onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
+                  >
+                    <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
+                      <TextInput
+                        style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
+                        placeholder="Program Name"
+                        placeholderTextColor={colors.textSecondary}
+                        value={programName}
+                        onChangeText={setProgramName}
+                        autoCorrect={false}
+                        autoCapitalize="words"
+                        autoComplete="off"
+                        editable={true}
+                        maxLength={50}
+                        returnKeyType="done"
+                        onFocus={() => setIsNameFocused(true)}
+                        onBlur={() => setIsNameFocused(false)}
+                      />
+                      <View style={styles.editIconSlot}>
+                        {!isNameFocused && (
+                          <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
+                        )}
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.titleMeasureContainer} pointerEvents="none">
-                    <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
-                      {titleMeasureText}
-                    </Text>
-                  </View>
-                  {workoutCount > 0 && (
-                    showHeaderDetails && <View style={styles.statsRow}>
-                      <View style={styles.statItem}>
-                        <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
-                        <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
+                    <View style={styles.titleMeasureContainer} pointerEvents="none">
+                      <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
+                        {titleMeasureText}
+                      </Text>
+                    </View>
+                    {workoutCount > 0 && (
+                      <View style={styles.statsRow}>
+                        <View style={styles.statItem}>
+                          <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
+                          <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
+                        </View>
+                        <View style={styles.statItem}>
+                          <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
+                          <Text style={[styles.statValue, themedStyles.statValue]}>{totalExercises}</Text>
+                        </View>
                       </View>
-                      <View style={styles.statItem}>
-                        <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
-                        <Text style={[styles.statValue, themedStyles.statValue]}>{totalExercises}</Text>
-                      </View>
+                    )}
+                  </View>
+                  {hasMuscles && workoutCount > 0 && (
+                    <View style={styles.headerHeatmap}>
+                      <MuscleHeatmap exercises={exercisesWithMuscles} scale={HEATMAP_SCALE} compact />
                     </View>
                   )}
-                </View>
-                {hasMuscles && workoutCount > 0 && (
-                  <View style={styles.headerHeatmap}>
-                    <MuscleHeatmap exercises={exercisesWithMuscles} scale={HEATMAP_SCALE} compact />
                   </View>
-                )}
-              </View>
+                </>
+              )}
             </View>
           </View>
         </GestureDetector>
@@ -901,6 +908,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
+  compactStatsRowOffset: {
+    marginTop: scale(6),
+  },
   compactStat: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -925,6 +935,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginTop: -10,
+  },
+  headerDivider: {
+    height: StyleSheet.hairlineWidth,
   },
   headerLeftColumn: {
     flex: 1,

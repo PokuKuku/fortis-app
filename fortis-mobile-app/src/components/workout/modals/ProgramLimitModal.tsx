@@ -7,7 +7,7 @@
 import React from 'react';
 import { Text, Pressable } from 'react-native';
 import { ExclamationTriangleIcon } from 'react-native-heroicons/outline';
-import { BaseModal, modalStyles } from '@/src/components/ui/BaseModal';
+import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { MAX_WORKOUTS_PER_PROGRAM } from '@/src/constants/programs';
 
 interface ProgramLimitModalProps {
@@ -21,6 +21,7 @@ export function ProgramLimitModal({
   programName,
   onClose,
 }: ProgramLimitModalProps) {
+  const modalStyles = useModalStyles();
   return (
     <BaseModal
       visible={visible}
