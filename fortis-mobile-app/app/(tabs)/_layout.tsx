@@ -11,9 +11,7 @@ import {
   TextInput,
   DeviceEventEmitter,
   Alert,
-  useWindowDimensions,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon, ChartBarIcon } from 'react-native-heroicons/outline';
 import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
@@ -43,8 +41,6 @@ export default function TabLayout() {
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
-  const { width: windowWidth } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
 
   // Theme-aware dynamic styles for accent color
   const themedStyles = {
@@ -78,31 +74,18 @@ export default function TabLayout() {
   const loadStartPreset = useStartPresetStore(s => s.loadPreset);
   const setStartPreset = useStartPresetStore(s => s.setPreset);
   // Tab bar stays at fixed position
-  const tabBarHeight = Math.round(scale(64));
-  const tabBarRadius = Math.round(tabBarHeight / 2);
-  const availableWidth = Math.max(0, windowWidth - insets.left - insets.right);
-  const tabBarMaxWidth = Math.round(scale(420));
-  const tabBarHorizontalInset = Math.max(scale(28), Math.round(availableWidth * 0.08));
-  const tabBarWidth = Math.max(
-    0,
-    Math.min(tabBarMaxWidth, availableWidth - (tabBarHorizontalInset * 2))
-  );
-  const tabBarSideMargin = Math.round(Math.max(tabBarHorizontalInset, (availableWidth - tabBarWidth) / 2));
-  const tabBarBottom = Math.max(scale(10), insets.bottom + scale(6));
-  const tabBarPaddingX = Math.round(Math.min(scale(20), tabBarWidth * 0.08));
-  const tabBarItemMaxWidth = Math.min(scale(76), Math.floor(tabBarWidth / 5));
-  const tabBarLabelSize = Math.round(Math.min(moderateScale(8), tabBarHeight * 0.15));
-  const tabIconSize = Math.round(Math.min(scale(22), tabBarHeight * 0.42));
-  const tabIconPadding = Math.round(Math.min(scale(6), tabBarHeight * 0.12));
-  const tabIconRadius = Math.round(Math.max(scale(8), tabIconPadding * 1.6));
-  const tabItemPaddingTop = Math.round(Math.min(moderateScale(6), tabBarHeight * 0.12));
-  const centerButtonSize = Math.round(tabBarHeight * 0.82);
-  const centerButtonIconSize = Math.round(centerButtonSize * 0.38);
-  const centerButtonOffset = -Math.round(centerButtonSize * 0.35);
-  const fabButtonSize = Math.round(tabBarHeight * 1.06);
-  const fabIconSize = Math.round(fabButtonSize * 0.5);
-  const tabIconContainerStyle = { padding: tabIconPadding, borderRadius: tabIconRadius };
-  const centerButtonContainerStyle = { marginTop: centerButtonOffset };
+  const tabBarBottom = scale(14);
+  const TAB_BAR_HEIGHT = scale(64);
+  const TAB_BAR_RADIUS = Math.round(TAB_BAR_HEIGHT / 2);
+  const TAB_BAR_PADDING_X = scale(20);
+  const TAB_BAR_ITEM_MAX_WIDTH = scale(76);
+  const TAB_BAR_LABEL_SIZE = moderateScale(8);
+  const TAB_ICON_SIZE = scale(22);
+  const CENTER_BUTTON_SIZE = scale(52);
+  const CENTER_BUTTON_ICON_SIZE = scale(20);
+  const FAB_BUTTON_SIZE = scale(68);
+  const FAB_ICON_SIZE = scale(34);
+  const TAB_BAR_MAX_WIDTH = scale(420);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -453,14 +436,15 @@ export default function TabLayout() {
             borderTopWidth: 1,
             borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
             borderWidth: 1,
-            paddingHorizontal: tabBarPaddingX,
+            paddingHorizontal: TAB_BAR_PADDING_X,
             paddingVertical: 0,
-            height: tabBarHeight,
+            height: TAB_BAR_HEIGHT,
             position: 'absolute',
-            left: insets.left + tabBarSideMargin,
-            right: insets.right + tabBarSideMargin,
+            width: '90%',
+            maxWidth: TAB_BAR_MAX_WIDTH,
+            marginHorizontal: '5%',
             bottom: tabBarBottom,
-            borderRadius: tabBarRadius,
+            borderRadius: TAB_BAR_RADIUS,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: 8 },
             shadowOpacity: isDark ? 0.4 : 0.15,
@@ -468,15 +452,15 @@ export default function TabLayout() {
             elevation: 10,
           },
           tabBarLabelStyle: {
-            fontSize: tabBarLabelSize,
+            fontSize: TAB_BAR_LABEL_SIZE,
             fontWeight: '600',
             marginTop: 0,
           },
           tabBarItemStyle: {
             flex: 1,
             gap: 2,
-            maxWidth: tabBarItemMaxWidth,
-            paddingTop: tabItemPaddingTop,
+            maxWidth: TAB_BAR_ITEM_MAX_WIDTH,
+            paddingTop: moderateScale(6),
           },
         }}
     >
@@ -485,8 +469,8 @@ export default function TabLayout() {
         options={{
           title: 'History',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, tabIconContainerStyle, focused && themedStyles.tabIconContainerActive]}>
-              <CalendarDaysIcon color={color} size={tabIconSize} strokeWidth={2} />
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+              <CalendarDaysIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -496,8 +480,8 @@ export default function TabLayout() {
         options={{
           title: 'Insights',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, tabIconContainerStyle, focused && themedStyles.tabIconContainerActive]}>
-              <ChartBarIcon color={color} size={tabIconSize} strokeWidth={2} />
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+              <ChartBarIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -517,10 +501,10 @@ export default function TabLayout() {
         options={{
           title: 'Start',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.centerButtonContainer, centerButtonContainerStyle]}>
+            <View style={styles.centerButtonContainer}>
               <GlassButton
                 circular
-                size={centerButtonSize}
+                size={CENTER_BUTTON_SIZE}
                 style={[
                   styles.centerButton,
                   { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
@@ -531,12 +515,12 @@ export default function TabLayout() {
                 onLongPress={handleStartLongPress}
                 disabled={isWorkoutActive}
               >
-                <DumbbellIcon color="#fff" size={centerButtonIconSize} fill="#fff" />
+                <DumbbellIcon color="#fff" size={CENTER_BUTTON_ICON_SIZE} fill="#fff" />
               </GlassButton>
             </View>
           ),
           tabBarLabelStyle: {
-            fontSize: tabBarLabelSize,
+            fontSize: TAB_BAR_LABEL_SIZE,
             fontWeight: '700',
             marginTop: moderateScale(2),
           },
@@ -547,8 +531,8 @@ export default function TabLayout() {
         options={{
           title: 'Programs',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, tabIconContainerStyle, focused && themedStyles.tabIconContainerActive]}>
-              <Squares2X2Icon color={color} size={tabIconSize} strokeWidth={2} />
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+              <Squares2X2Icon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -558,8 +542,8 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, tabIconContainerStyle, focused && themedStyles.tabIconContainerActive]}>
-              <UserIcon color={color} size={tabIconSize} strokeWidth={2} />
+            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+              <UserIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
         }}
@@ -585,7 +569,7 @@ export default function TabLayout() {
         styles.plusButtonContainer,
         {
           // FAB aligned with mini bar height (88px from bottom)
-          bottom: tabBarBottom + tabBarHeight + scale(20),
+          bottom: tabBarBottom + TAB_BAR_HEIGHT + scale(20),
           opacity: fabOpacity,
           transform: [
             {
@@ -599,19 +583,19 @@ export default function TabLayout() {
       ]}
       pointerEvents="auto"
     >
-      <GlassButton
-        circular
-        size={fabButtonSize}
-        style={[
-          styles.plusButton,
-          { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
-        ]}
-        gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
-        onPress={handleFabPress}
-        pointerEvents={detailModalVisible ? 'none' : 'auto'}
-      >
-        <SparklesIcon color="#fff" size={fabIconSize} strokeWidth={1.5} />
-      </GlassButton>
+        <GlassButton
+          circular
+          size={FAB_BUTTON_SIZE}
+          style={[
+            styles.plusButton,
+            { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
+          ]}
+          gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
+          onPress={handleFabPress}
+          pointerEvents={detailModalVisible ? 'none' : 'auto'}
+        >
+          <SparklesIcon color="#fff" size={FAB_ICON_SIZE} strokeWidth={1.5} />
+        </GlassButton>
     </Animated.View>
 
     {/* Add Custom Exercise Modal */}
@@ -837,6 +821,8 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   tabIconContainer: {
+    padding: scale(6),
+    borderRadius: scale(10),
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -844,6 +830,7 @@ const styles = StyleSheet.create({
     // backgroundColor is now dynamic via themedStyles
   },
   centerButtonContainer: {
+    marginTop: -scale(18),
     alignItems: 'center',
     justifyContent: 'center',
   },
