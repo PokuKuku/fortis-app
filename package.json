@@ -5,6 +5,7 @@
   "dependencies": {
     "expo": "^54.0.30",
     "expo-router": "~6.0.21",
+    "expo-superwall": "^1.0.1",
     "lottie-react-native": "^7.2.0",
     "mixpanel-browser": "^2.73.0",
     "react": "19.1.0",

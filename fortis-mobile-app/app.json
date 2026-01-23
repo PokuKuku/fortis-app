@@ -39,7 +39,8 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-video"
+      "expo-video",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true
@@ -52,5 +53,25 @@
         "projectId": "your-project-id-here"
       }
     }
+  }
+}
+
+
+{
+  "expo": {
+    "plugins": [
+      ...
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 21
+          },
+          "ios": {
+              "deploymentTarget": "15.1" // or higher
+          }
+        }
+      ]
+    ]
   }
 }
