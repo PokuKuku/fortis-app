@@ -583,19 +583,19 @@ export default function TabLayout() {
       ]}
       pointerEvents="auto"
     >
-        <GlassButton
-          circular
-          size={FAB_BUTTON_SIZE}
-          style={[
-            styles.plusButton,
-            { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
-          ]}
-          gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
-          onPress={handleFabPress}
-          pointerEvents={detailModalVisible ? 'none' : 'auto'}
-        >
-          <SparklesIcon color="#fff" size={FAB_ICON_SIZE} strokeWidth={1.5} />
-        </GlassButton>
+      <GlassButton
+        circular
+        size={FAB_BUTTON_SIZE}
+        style={[
+          styles.plusButton,
+          { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
+        ]}
+        gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
+        onPress={handleFabPress}
+        pointerEvents={detailModalVisible ? 'none' : 'auto'}
+      >
+        <SparklesIcon color="#fff" size={FAB_ICON_SIZE} strokeWidth={1.5} />
+      </GlassButton>
     </Animated.View>
 
     {/* Add Custom Exercise Modal */}

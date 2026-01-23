@@ -16,6 +16,7 @@ import { MixpanelScreenTracker } from '@/src/components/analytics/MixpanelScreen
 import { RetentionTracker } from '@/src/components/analytics/RetentionTracker';
 import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics';
 import { initMixpanel, isMixpanelConfigured } from '@/src/lib/mixpanel';
+import { SuperwallProvider } from 'expo-superwall';
 
 const PAGE_TRANSITION = {
   animation: 'fade_from_bottom' as const,
@@ -377,7 +378,9 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      {appContent}
+      <SuperwallProvider apiKeys={{ ios: 'pk_xnIb2AL4geeYhrACppkqM' }}>
+        {appContent}
+      </SuperwallProvider>
     </GestureHandlerRootView>
   );
 }

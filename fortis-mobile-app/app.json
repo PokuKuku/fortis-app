@@ -40,7 +40,17 @@
       "expo-router",
       "expo-secure-store",
       "expo-video",
-      "expo-build-properties"
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 21
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -56,22 +66,3 @@
   }
 }
 
-
-{
-  "expo": {
-    "plugins": [
-      ...
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "minSdkVersion": 21
-          },
-          "ios": {
-              "deploymentTarget": "15.1" // or higher
-          }
-        }
-      ]
-    ]
-  }
-}
