@@ -111,7 +111,6 @@ const KEBAB_OPTION_GAP = scale(12);
 const KEBAB_OPTION_TEXT_SIZE = moderateScale(14);
 const POPOVER_MARGIN = scale(12);
 const KEBAB_POPOVER_WIDTH = scale(200);
-const SECTION_POPOVER_WIDTH = scale(180);
 const MODAL_PADDING = scale(24);
 const MODAL_RADIUS = scale(16);
 const MODAL_TITLE_SIZE = moderateScale(20);
@@ -257,206 +256,6 @@ function KebabPopover({
         >
           <TrashIcon color={colors.error} size={SMALL_ICON_SIZE} strokeWidth={2} />
           <Text style={[styles.kebabOptionText, { color: colors.error }]}>Delete</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </>
-  );
-}
-
-// Programs Section Kebab Popover Component
-function ProgramsKebabPopover({
-  visible,
-  onClose,
-  onAddProgram,
-  position,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onAddProgram: () => void;
-  position: { top: number; left: number };
-}) {
-  const { colors, isDark } = useTheme();
-  const popoverScale = useRef(new Animated.Value(0)).current;
-  const popoverOpacity = useRef(new Animated.Value(0)).current;
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
-
-  const popoverThemeStyle = {
-    backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
-  };
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(popoverScale, {
-          toValue: 1,
-          tension: 100,
-          friction: 10,
-          useNativeDriver: true,
-        }),
-        Animated.timing(popoverOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(popoverScale, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(popoverOpacity, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        if (pendingAction) {
-          pendingAction();
-          setPendingAction(null);
-        }
-      });
-    }
-  }, [visible, pendingAction]);
-
-  if (!visible && popoverOpacity._value === 0) {
-    return null;
-  }
-
-  const handleAction = (action: () => void) => {
-    setPendingAction(() => action);
-    onClose();
-  };
-
-  return (
-    <>
-      <TouchableOpacity
-        style={styles.kebabOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-        pointerEvents={visible ? 'auto' : 'none'}
-      />
-      <Animated.View
-        style={[
-          styles.kebabPopover,
-          popoverThemeStyle,
-          {
-            top: position.top,
-            left: position.left,
-            opacity: popoverOpacity,
-            transform: [{ scale: popoverScale }],
-          },
-        ]}
-        pointerEvents={visible ? 'auto' : 'none'}
-      >
-        <TouchableOpacity
-          style={styles.kebabOption}
-          onPress={() => handleAction(onAddProgram)}
-        >
-          <PlusIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, { color: colors.accent }]}>Add Program</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </>
-  );
-}
-
-// Workouts Section Kebab Popover Component
-function WorkoutsKebabPopover({
-  visible,
-  onClose,
-  onAddWorkout,
-  position,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onAddWorkout: () => void;
-  position: { top: number; left: number };
-}) {
-  const { colors, isDark } = useTheme();
-  const popoverScale = useRef(new Animated.Value(0)).current;
-  const popoverOpacity = useRef(new Animated.Value(0)).current;
-  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
-
-  const popoverThemeStyle = {
-    backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-    borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
-  };
-
-  useEffect(() => {
-    if (visible) {
-      Animated.parallel([
-        Animated.spring(popoverScale, {
-          toValue: 1,
-          tension: 100,
-          friction: 10,
-          useNativeDriver: true,
-        }),
-        Animated.timing(popoverOpacity, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(popoverScale, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(popoverOpacity, {
-          toValue: 0,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        if (pendingAction) {
-          pendingAction();
-          setPendingAction(null);
-        }
-      });
-    }
-  }, [visible, pendingAction]);
-
-  if (!visible && popoverOpacity._value === 0) {
-    return null;
-  }
-
-  const handleAction = (action: () => void) => {
-    setPendingAction(() => action);
-    onClose();
-  };
-
-  return (
-    <>
-      <TouchableOpacity
-        style={styles.kebabOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-        pointerEvents={visible ? 'auto' : 'none'}
-      />
-      <Animated.View
-        style={[
-          styles.kebabPopover,
-          popoverThemeStyle,
-          {
-            top: position.top,
-            left: position.left,
-            opacity: popoverOpacity,
-            transform: [{ scale: popoverScale }],
-          },
-        ]}
-        pointerEvents={visible ? 'auto' : 'none'}
-      >
-        <TouchableOpacity
-          style={styles.kebabOption}
-          onPress={() => handleAction(onAddWorkout)}
-        >
-          <PlusIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2} />
-          <Text style={[styles.kebabOptionText, { color: colors.accent }]}>Add Workout</Text>
         </TouchableOpacity>
       </Animated.View>
     </>
@@ -993,12 +792,6 @@ export default function ProgramsScreen() {
     templateId: string;
   } | null>(null);
 
-  // Workouts section kebab menu state
-  const [showWorkoutsKebab, setShowWorkoutsKebab] = useState(false);
-  const [workoutsKebabPosition, setWorkoutsKebabPosition] = useState({ top: 0, left: 0 });
-  const [showProgramsKebab, setShowProgramsKebab] = useState(false);
-  const [programsKebabPosition, setProgramsKebabPosition] = useState({ top: 0, left: 0 });
-
   // Handle start blank workout
   const handleStartBlankWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -1203,66 +996,13 @@ export default function ProgramsScreen() {
     setDeleteConfirmation({ visible: false, type: null, id: null, name: '' });
   };
 
-  // Handle workouts section kebab press
-  const handleWorkoutsKebabPress = (event: any) => {
-    event.preventDefault?.();
-    event.stopPropagation?.();
-
-    event.target.measure(
-      (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
-        const screenWidth = Dimensions.get('window').width;
-        const popoverWidth = SECTION_POPOVER_WIDTH;
-        const margin = POPOVER_MARGIN;
-        const left = Math.min(
-          Math.max(margin, pageX - popoverWidth + width),
-          screenWidth - popoverWidth - margin
-        );
-        setWorkoutsKebabPosition({
-          top: pageY + height + 2,
-          left,
-        });
-        setShowWorkoutsKebab(true);
-      }
-    );
-  };
-
-  // Handle programs section kebab press
-  const handleProgramsKebabPress = (event: any) => {
-    event.preventDefault?.();
-    event.stopPropagation?.();
-
-    event.target.measure(
-      (_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
-        const screenWidth = Dimensions.get('window').width;
-        const popoverWidth = SECTION_POPOVER_WIDTH;
-        const margin = POPOVER_MARGIN;
-        const left = Math.min(
-          Math.max(margin, pageX - popoverWidth + width),
-          screenWidth - popoverWidth - margin
-        );
-        setProgramsKebabPosition({
-          top: pageY + height + 2,
-          left,
-        });
-        setShowProgramsKebab(true);
-      }
-    );
-  };
-
   const handleAddProgramPress = () => {
-    setShowProgramsKebab(false);
-    setTimeout(() => {
-      router.push('/programs/create');
-    }, 100);
+    router.push('/programs/create');
   };
 
   // Handle add workout from kebab menu
   const handleAddWorkoutPress = () => {
-    setShowWorkoutsKebab(false);
-    // Small delay to let kebab close animation start
-    setTimeout(() => {
-      router.push('/workout/create');
-    }, 100);
+    router.push('/workout/create');
   };
 
   // Theme-aware card style for workout cards
@@ -1433,11 +1173,11 @@ export default function ProgramsScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Programs</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleProgramsKebabPress}
+                onPress={handleAddProgramPress}
                 style={styles.sectionKebabButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <EllipsisHorizontalIcon color={colors.textTertiary} size={KEBAB_ICON_SIZE} strokeWidth={2} />
+                <PlusIcon color={colors.accent} size={KEBAB_ICON_SIZE} strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -1480,11 +1220,11 @@ export default function ProgramsScreen() {
                 <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                onPress={handleWorkoutsKebabPress}
+                onPress={handleAddWorkoutPress}
                 style={styles.sectionKebabButton}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <EllipsisHorizontalIcon color={colors.textTertiary} size={KEBAB_ICON_SIZE} strokeWidth={2} />
+                <PlusIcon color={colors.accent} size={KEBAB_ICON_SIZE} strokeWidth={2} />
               </TouchableOpacity>
             </View>
 
@@ -1518,20 +1258,6 @@ export default function ProgramsScreen() {
           onDuplicate={handleDuplicate}
           onDelete={handleDelete}
           position={openKebab.position}
-        />
-
-        {/* Workouts Section Kebab Popover */}
-        <WorkoutsKebabPopover
-          visible={showWorkoutsKebab}
-          onClose={() => setShowWorkoutsKebab(false)}
-          onAddWorkout={handleAddWorkoutPress}
-          position={workoutsKebabPosition}
-        />
-        <ProgramsKebabPopover
-          visible={showProgramsKebab}
-          onClose={() => setShowProgramsKebab(false)}
-          onAddProgram={handleAddProgramPress}
-          position={programsKebabPosition}
         />
 
         <BaseModal
