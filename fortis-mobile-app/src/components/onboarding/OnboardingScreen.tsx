@@ -40,6 +40,7 @@ interface OnboardingScreenProps {
   showProgress?: boolean;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  floatingFooter?: React.ReactNode;
 }
 
 export function OnboardingScreen({
@@ -66,6 +67,7 @@ export function OnboardingScreen({
   showProgress = true,
   children,
   footer,
+  floatingFooter,
 }: OnboardingScreenProps) {
   const { colors } = useTheme();
   const maxWidth = responsiveValue(360, 420, 480);
@@ -206,6 +208,14 @@ export function OnboardingScreen({
             {footerBlock}
           </View>
         )}
+        {floatingFooter ? (
+          <View
+            pointerEvents="box-none"
+            style={[styles.floatingFooter, { paddingHorizontal: horizontalPadding }]}
+          >
+            {floatingFooter}
+          </View>
+        ) : null}
       </SafeAreaView>
     </View>
   );
@@ -300,5 +310,11 @@ const styles = StyleSheet.create({
   },
   footerStack: {
     gap: Spacing.lg,
+  },
+  floatingFooter: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: Spacing.lg + 50,
   },
 });

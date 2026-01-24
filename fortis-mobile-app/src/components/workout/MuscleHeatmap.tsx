@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import Body, { Slug } from 'react-native-body-highlighter';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import { Spacing } from '@/constants/Sizes';
 import {
   type MuscleKey,
@@ -121,7 +120,6 @@ export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale 
             colors={heatmapColors}
             border={isDark ? '#333333' : '#cccccc'}
           />
-          {!compact && <Text style={[styles.viewLabel, { color: colors.textSecondary }]}>Front</Text>}
         </View>
         <View style={styles.bodyWrapper}>
           <Body
@@ -132,7 +130,6 @@ export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale 
             colors={heatmapColors}
             border={isDark ? '#333333' : '#cccccc'}
           />
-          {!compact && <Text style={[styles.viewLabel, { color: colors.textSecondary }]}>Back</Text>}
         </View>
       </View>
     </View>
@@ -155,13 +152,5 @@ const styles = StyleSheet.create({
   },
   bodyWrapper: {
     alignItems: 'center',
-  },
-  viewLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: Spacing.sm,
   },
 });

@@ -5,6 +5,7 @@ import { CheckIcon } from 'react-native-heroicons/solid';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from '@react-navigation/native';
+import { usePlacement } from 'expo-superwall';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -86,6 +87,11 @@ export default function OnboardingCompleteScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { updateProfile, isAuthenticated, profile } = useAuth();
+  const { registerPlacement } = usePlacement({
+    onError: (error) => {
+      console.error('Superwall placement error:', error);
+    },
+  });
   const didContinueRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
   const summaryAnim = useRef(new Animated.Value(0)).current;
@@ -361,6 +367,15 @@ export default function OnboardingCompleteScreen() {
     }
   }, [isAuthenticated, phase, profile, router, summaryAnim, updateProfile]);
 
+  const handleReadyPress = useCallback(async () => {
+    await registerPlacement({
+      placement: 'fortis_first',
+      feature: () => {
+        void handleContinue();
+      },
+    });
+  }, [handleContinue, registerPlacement]);
+
   useEffect(() => {
     if (phase !== 'ready') return;
     if (!isAuthenticated) return;
@@ -447,7 +462,7 @@ export default function OnboardingCompleteScreen() {
         phase === 'ready' && !isAuthenticated ? (
           <GlassButton
             style={styles.continueButton}
-            onPress={() => void handleContinue()}
+            onPress={() => void handleReadyPress()}
             disabled={isSaving}
             hapticFeedback="impactMedium"
           >
@@ -595,14 +610,17 @@ const styles = StyleSheet.create({
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 38,
     letterSpacing: 0.4,
+    alignSelf: 'center',
   },
   titleText: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 22,
     letterSpacing: 0.2,
+    textAlign: 'center',
   },
   statusText: {
     ...Typography.bodyLarge,
+    textAlign: 'center',
   },
   stepsBlock: {
     width: '100%',

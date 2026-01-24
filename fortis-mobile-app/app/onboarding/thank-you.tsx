@@ -207,12 +207,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.md,
+    marginTop: -Spacing['2xl'],
   },
   animationWrap: {
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ translateY: Spacing['2xl'] }],
   },
   textBlock: {
     width: '100%',

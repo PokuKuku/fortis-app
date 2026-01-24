@@ -6,7 +6,7 @@ import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
-import { BorderRadius } from '@/constants/Sizes';
+import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
 type TriedApps = 'consistent' | 'occasionally' | 'stopped' | 'never';
@@ -56,18 +56,19 @@ export default function OnboardingOtherAppsScreen() {
       title="Have you tried other workout tracking apps?"
       subtitle={undefined}
       onBack={() => router.back()}
-      footer={
-        <GlassButton
-          style={styles.button}
-          onPress={handleContinue}
-          disabled={!selected}
-          hapticFeedback="impactMedium"
-        >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
-        </GlassButton>
+      floatingFooter={
+        selected ? (
+          <GlassButton
+            style={styles.floatingButton}
+            onPress={handleContinue}
+            hapticFeedback="impactMedium"
+          >
+            <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          </GlassButton>
+        ) : null
       }
     >
-      <View style={styles.options}>
+      <View style={[styles.options, selected && styles.optionsWithFooter]}>
         {OPTIONS.map((option) => (
           <OnboardingOptionCard
             key={option.value}
@@ -85,9 +86,13 @@ const styles = StyleSheet.create({
   options: {
     gap: 12,
   },
-  button: {
+  optionsWithFooter: {
+    paddingBottom: Spacing['6xl'],
+  },
+  floatingButton: {
     height: 54,
     borderRadius: BorderRadius.xl,
+    width: '100%',
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',

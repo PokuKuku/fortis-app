@@ -157,18 +157,19 @@ export default function OnboardingSourceScreen() {
       subtitle={undefined}
       onBack={() => router.back()}
       contentGap={Spacing.lg}
-      footer={
-        <GlassButton
-          style={styles.button}
-          onPress={handleContinue}
-          disabled={!selected}
-          hapticFeedback="impactMedium"
-        >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
-        </GlassButton>
+      floatingFooter={
+        selected ? (
+          <GlassButton
+            style={styles.floatingButton}
+            onPress={handleContinue}
+            hapticFeedback="impactMedium"
+          >
+            <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          </GlassButton>
+        ) : null
       }
     >
-      <View style={styles.options}>
+      <View style={[styles.options, selected && styles.optionsWithFooter]}>
         {OPTIONS.map((option) => (
           <SourceOptionCard
             key={option.value}
@@ -187,6 +188,9 @@ export default function OnboardingSourceScreen() {
 const styles = StyleSheet.create({
   options: {
     gap: Spacing.sm,
+  },
+  optionsWithFooter: {
+    paddingBottom: Spacing['6xl'],
   },
   optionCard: {
     width: '100%',
@@ -214,9 +218,10 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     borderWidth: Math.max(1, scale(2)),
   },
-  button: {
+  floatingButton: {
     height: 54,
     borderRadius: BorderRadius.xl,
+    width: '100%',
   },
   buttonText: {
     fontFamily: 'BankGothicBT-Medium',

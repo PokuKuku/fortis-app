@@ -150,7 +150,7 @@ export default function OnboardingInsightsScreen() {
       step={13}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Break through your goals"
-      subtitle="Fortis gives you insights that move you forward"
+      subtitle="Fortis finds insights that move you forward"
       onBack={() => router.back()}
       useScrollView={false}
       bodyAlign="center"
