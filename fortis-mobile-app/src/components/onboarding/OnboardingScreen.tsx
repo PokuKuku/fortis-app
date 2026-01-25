@@ -29,6 +29,7 @@ interface OnboardingScreenProps {
   titleAlign?: 'left' | 'center';
   subtitleAlign?: 'left' | 'center';
   titleFontSize?: number;
+  subtitleFontSize?: number;
   titleNumberOfLines?: number;
   titleAdjustsFontSizeToFit?: boolean;
   titleMinimumFontScale?: number;
@@ -56,6 +57,7 @@ export function OnboardingScreen({
   titleAlign = 'left',
   subtitleAlign = 'left',
   titleFontSize,
+  subtitleFontSize,
   titleNumberOfLines,
   titleAdjustsFontSizeToFit,
   titleMinimumFontScale,
@@ -76,6 +78,9 @@ export function OnboardingScreen({
   const resolvedTitleOffset = titleTopOffset ? scale(titleTopOffset) : 0;
   const resolvedTitleFontSize = typeof titleFontSize === 'number'
     ? moderateScale(titleFontSize)
+    : undefined;
+  const resolvedSubtitleFontSize = typeof subtitleFontSize === 'number'
+    ? moderateScale(subtitleFontSize)
     : undefined;
 
   const themedStyles = {
@@ -110,7 +115,15 @@ export function OnboardingScreen({
         {title}
       </Text>
       {subtitle && (
-        <Text style={[styles.subtitle, themedStyles.subtitle]}>{subtitle}</Text>
+        <Text
+          style={[
+            styles.subtitle,
+            themedStyles.subtitle,
+            resolvedSubtitleFontSize !== undefined ? { fontSize: resolvedSubtitleFontSize } : null,
+          ]}
+        >
+          {subtitle}
+        </Text>
       )}
     </View>
   );

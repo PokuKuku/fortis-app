@@ -7,6 +7,7 @@ import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { moderateScale } from '@/src/utils/responsive';
 
 const CLARITY_ANIMATION = require('../../assets/lottie/graphs.json');
 const FORTIS_LABEL_DELAY_MS = 1650;
@@ -121,6 +122,8 @@ export default function OnboardingClarityScreen() {
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Fortis helps you understand your progress faster"
       subtitle="Understand what’s working and keep progressing!"
+      titleFontSize={30}
+      subtitleFontSize={20}
       onBack={() => router.back()}
       useScrollView={false}
       bodyAlign="center"
@@ -210,13 +213,13 @@ const styles = StyleSheet.create({
   onYourOwnLabel: {
     position: 'absolute',
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 12,
+    fontSize: moderateScale(14),
     letterSpacing: 1,
   },
   fortisLabel: {
     position: 'absolute',
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 12,
+    fontSize: moderateScale(14),
     letterSpacing: 1,
   },
   fallbackCard: {
