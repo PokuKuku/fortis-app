@@ -21,6 +21,7 @@ const KG_MIN = 40;
 const KG_MAX = 180;
 const LB_VALUES = Array.from({ length: LB_MAX - LB_MIN + 1 }, (_, index) => index + LB_MIN);
 const KG_VALUES = Array.from({ length: KG_MAX - KG_MIN + 1 }, (_, index) => index + KG_MIN);
+const KG_PER_LB = 1 / 2.20462;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 const roundTo = (value: number, decimals: number) => {
@@ -29,17 +30,21 @@ const roundTo = (value: number, decimals: number) => {
 };
 const lbIndexFromKg = (valueKg: number) => clamp(Math.round(valueKg * 2.20462) - LB_MIN, 0, LB_VALUES.length - 1);
 const kgIndexFromKg = (valueKg: number) => clamp(Math.round(valueKg) - KG_MIN, 0, KG_VALUES.length - 1);
+const DEFAULT_HEIGHT_CM = 175;
+const DEFAULT_WEIGHT_KG = roundTo(165 * KG_PER_LB, 1);
+const DEFAULT_FEET = 5;
+const DEFAULT_INCHES = 9;
 
 export default function OnboardingHeightScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [unit, setUnit] = useState<UnitSystem>('imperial');
-  const [feetIndex, setFeetIndex] = useState(2);
-  const [inchIndex, setInchIndex] = useState(0);
-  const [cmIndex, setCmIndex] = useState(30);
-  const [weightKg, setWeightKg] = useState(70);
-  const [lbIndex, setLbIndex] = useState(() => lbIndexFromKg(70));
-  const [kgIndex, setKgIndex] = useState(() => kgIndexFromKg(70));
+  const [feetIndex, setFeetIndex] = useState(() => Math.max(FEET_VALUES.indexOf(DEFAULT_FEET), 0));
+  const [inchIndex, setInchIndex] = useState(DEFAULT_INCHES);
+  const [cmIndex, setCmIndex] = useState(() => clamp(CM_VALUES.indexOf(DEFAULT_HEIGHT_CM), 0, CM_VALUES.length - 1));
+  const [weightKg, setWeightKg] = useState(DEFAULT_WEIGHT_KG);
+  const [lbIndex, setLbIndex] = useState(() => lbIndexFromKg(DEFAULT_WEIGHT_KG));
+  const [kgIndex, setKgIndex] = useState(() => kgIndexFromKg(DEFAULT_WEIGHT_KG));
 
   const feetLabels = useMemo(() => FEET_VALUES.map((value) => `${value} ft`), []);
   const inchLabels = useMemo(() => INCH_VALUES.map((value) => `${value} in`), []);

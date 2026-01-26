@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
@@ -10,6 +10,9 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 
 const YEAR_MIN = 1930;
+const DEFAULT_YEAR = 2003;
+const DEFAULT_MONTH_INDEX = 7;
+const DEFAULT_DAY = 27;
 
 const MONTH_LABELS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -29,9 +32,10 @@ export default function OnboardingBirthdateScreen() {
     return Array.from({ length: count }, (_, idx) => currentYear - idx);
   }, [currentYear]);
 
-  const [monthIndex, setMonthIndex] = useState(0);
-  const [dayIndex, setDayIndex] = useState(0);
-  const [yearIndex, setYearIndex] = useState(0);
+  const fallbackYearIndex = Math.max(0, Math.min(currentYear - DEFAULT_YEAR, currentYear - YEAR_MIN));
+  const [monthIndex, setMonthIndex] = useState(DEFAULT_MONTH_INDEX);
+  const [dayIndex, setDayIndex] = useState(Math.max(0, DEFAULT_DAY - 1));
+  const [yearIndex, setYearIndex] = useState(fallbackYearIndex);
 
   const selectedYear = years[yearIndex] ?? currentYear;
   const maxDays = daysInMonth(selectedYear, monthIndex);
@@ -84,6 +88,27 @@ export default function OnboardingBirthdateScreen() {
   }, [currentYear, dayIndex, monthIndex, yearIndex, years]);
 
   const handleContinue = async () => {
+    const year = years[yearIndex] ?? currentYear;
+    const day = (dayIndex ?? 0) + 1;
+    const selectedDate = new Date(year, monthIndex, day);
+    const today = new Date();
+    let age = today.getFullYear() - selectedDate.getFullYear();
+    const hasHadBirthdayThisYear =
+      today.getMonth() > selectedDate.getMonth()
+      || (today.getMonth() === selectedDate.getMonth() && today.getDate() >= selectedDate.getDate());
+    if (!hasHadBirthdayThisYear) {
+      age -= 1;
+    }
+
+    if (age < 13) {
+      Alert.alert(
+        'Age requirement',
+        'You must be at least 13 years old to use Fortis.',
+        [{ text: 'OK', onPress: () => router.replace('/onboarding/welcome') }]
+      );
+      return;
+    }
+
     router.push('/onboarding/height');
   };
 
@@ -136,8 +161,9 @@ export default function OnboardingBirthdateScreen() {
 const styles = StyleSheet.create({
   pickerRow: {
     flexDirection: 'row',
+    alignSelf: 'center',
     gap: Spacing.md,
-    marginTop: Spacing.sm,
+    marginTop: 120,
   },
   pickerColumn: {
     flex: 1,

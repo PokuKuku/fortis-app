@@ -65,7 +65,17 @@ export default function ProfileScreen() {
     });
 
     let streak = 0;
-    let cursor = startOfWeek(startOfDay(new Date()), { weekStartsOn: 1 });
+    const currentWeekStart = startOfWeek(startOfDay(new Date()), { weekStartsOn: 1 });
+    const lastWeekStart = subWeeks(currentWeekStart, 1);
+    let cursor: Date | null = null;
+
+    if (weekStarts.has(format(currentWeekStart, 'yyyy-MM-dd'))) {
+      cursor = currentWeekStart;
+    } else if (weekStarts.has(format(lastWeekStart, 'yyyy-MM-dd'))) {
+      cursor = lastWeekStart;
+    }
+
+    if (!cursor) return 0;
     while (weekStarts.has(format(cursor, 'yyyy-MM-dd'))) {
       streak += 1;
       cursor = subWeeks(cursor, 1);

@@ -15,8 +15,7 @@ import * as Haptics from 'expo-haptics';
 import {
   ChevronLeftIcon,
   ArrowRightOnRectangleIcon,
-  ScaleIcon,
-  UserIcon,
+  AdjustmentsHorizontalIcon,
   ArrowDownTrayIcon,
   ChevronRightIcon,
   SunIcon,
@@ -30,7 +29,6 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme, type ThemeMode, ACCENT_COLOR_LABELS } from '@/src/contexts/ThemeContext';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
-import { useWorkoutStore } from '@/src/store/workoutStore';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
@@ -78,18 +76,13 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
 export default function SettingsScreen() {
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
-  const { profile, updateProfile, signOut } = useAuth();
-  const bodyType = useWorkoutStore((s) => s.bodyType);
-  const setBodyType = useWorkoutStore((s) => s.setBodyType);
+  const { profile, signOut } = useAuth();
   const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: Boolean(profile?.id),
   });
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
-
-  const unitLabel = profile?.preferred_units === 'metric' ? 'Kilograms (kg)' : 'Pounds (lbs)';
-  const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
 
   // Theme mode labels
   const themeModeLabel: Record<ThemeMode, string> = {
@@ -103,17 +96,6 @@ export default function SettingsScreen() {
     // Cycle: system → light → dark → system
     const nextMode: ThemeMode = mode === 'system' ? 'light' : mode === 'light' ? 'dark' : 'system';
     await setMode(nextMode);
-  };
-
-  const handleToggleUnits = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newUnits = profile?.preferred_units === 'metric' ? 'imperial' : 'metric';
-    await updateProfile({ preferred_units: newUnits });
-  };
-
-  const handleToggleBodyType = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setBodyType(bodyType === 'male' ? 'female' : 'male');
   };
 
   const handleExportData = async () => {
@@ -260,7 +242,6 @@ export default function SettingsScreen() {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowAccentPicker(true);
                 }}
-                showChevron
                 colors={colors}
                 isDark={isDark}
               />
@@ -273,21 +254,13 @@ export default function SettingsScreen() {
 
             <View style={[styles.settingsCard, cardStyle]}>
               <SettingsRow
-                icon={<ScaleIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
-                label="Weight Units"
-                value={unitLabel}
-                onPress={handleToggleUnits}
-                colors={colors}
-                isDark={isDark}
-              />
-
-              <View style={[styles.settingsDivider, dividerStyle]} />
-
-              <SettingsRow
-                icon={<UserIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
-                label="Body Type"
-                value={bodyTypeLabel}
-                onPress={handleToggleBodyType}
+                icon={<AdjustmentsHorizontalIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Training Preferences"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/settings/preferences');
+                }}
+                showChevron
                 colors={colors}
                 isDark={isDark}
               />
@@ -315,7 +288,6 @@ export default function SettingsScreen() {
                 label="Export to CSV"
                 value={`${historySessions.length} workout${historySessions.length !== 1 ? 's' : ''}`}
                 onPress={handleExportData}
-                showChevron
                 isLoading={isExporting || historyLoading}
                 colors={colors}
                 isDark={isDark}
@@ -332,7 +304,6 @@ export default function SettingsScreen() {
                 icon={<ChatBubbleLeftEllipsisIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Send Feedback"
                 onPress={handleSendFeedback}
-                showChevron
                 colors={colors}
                 isDark={isDark}
               />
@@ -343,7 +314,6 @@ export default function SettingsScreen() {
                 icon={<BugAntIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Report a Bug"
                 onPress={handleSendFeedback}
-                showChevron
                 colors={colors}
                 isDark={isDark}
               />

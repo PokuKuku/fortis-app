@@ -2,6 +2,9 @@
 -- Add training experience to AI preferences
 -- =====================================================
 
+DROP TABLE IF EXISTS user_goals CASCADE;
+DROP FUNCTION IF EXISTS get_user_preferences_for_ai(UUID);
+
 CREATE OR REPLACE FUNCTION get_user_preferences_for_ai(p_user_id UUID)
 RETURNS TABLE (
   preferred_units TEXT,
@@ -27,28 +30,16 @@ BEGIN
     p.preferred_units,
     p.timezone,
     p.lifting_experience,
-    COALESCE(
-      (
-        SELECT jsonb_agg(goal_row)
-        FROM (
-          SELECT jsonb_build_object(
-            'id', ug.id,
-            'goal_name', ug.goal_name,
-            'goal_type', ug.goal_type,
-            'description', ug.description,
-            'target_metrics', ug.target_metrics,
-            'target_date', ug.target_date,
-            'priority', ug.priority,
-            'is_active', ug.is_active,
-            'created_at', ug.created_at
-          ) AS goal_row
-          FROM user_goals ug
-          WHERE ug.user_id = p_user_id
-          ORDER BY ug.is_active DESC, ug.priority ASC, ug.created_at DESC
-        ) ordered_goals
-      ),
-      '[]'::jsonb
-    ) AS goals,
+    CASE
+      WHEN p.fitness_goal IS NULL OR length(trim(p.fitness_goal)) = 0 THEN '[]'::jsonb
+      ELSE jsonb_build_array(
+        jsonb_build_object(
+          'goal_type', p.fitness_goal,
+          'goal_name', p.fitness_goal,
+          'source', 'profile'
+        )
+      )
+    END AS goals,
     latest_weight.weight,
     latest_weight.unit,
     latest_weight.recorded_at

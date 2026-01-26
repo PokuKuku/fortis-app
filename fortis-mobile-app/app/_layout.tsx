@@ -287,6 +287,15 @@ function ThemedAppContent({
             }}
           />
           <Stack.Screen
+            name="settings/preferences"
+            options={{
+              animation: 'slide_from_right',
+              animationDuration: 220,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
             name="profile/share"
             options={{
               animation: 'slide_from_right',

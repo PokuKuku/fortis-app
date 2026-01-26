@@ -10,11 +10,12 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius } from '@/constants/Sizes';
 
-type GenderOption = 'male' | 'female';
+type GenderOption = 'male' | 'female' | 'other';
 
 const OPTIONS: Array<{ value: GenderOption; label: string }> = [
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
+  { value: 'other', label: 'Other' },
 ];
 
 export default function OnboardingGenderScreen() {
@@ -29,8 +30,13 @@ export default function OnboardingGenderScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive || !state?.gender) return;
-      if (state.gender === 'male' || state.gender === 'female') {
+      if (state.gender === 'male' || state.gender === 'female' || state.gender === 'other') {
         setSelected(state.gender);
+        if (state.gender === 'female') {
+          void setBodyType('female');
+        } else {
+          void setBodyType('male');
+        }
       }
     };
 
@@ -46,8 +52,7 @@ export default function OnboardingGenderScreen() {
     void updateOnboardingState({ gender: value });
     if (value === 'female') {
       void setBodyType('female');
-    }
-    if (value === 'male') {
+    } else {
       void setBodyType('male');
     }
   };
