@@ -227,7 +227,7 @@ export default function InsightDetailScreen() {
     );
   }
 
-  const isFirstRecap = insight.type === 'FIRST_WORKOUT_RECAP_V1';
+  const isWorkoutRecap = insight.type === 'WORKOUT_RECAP_V1';
   const isShareableInsight = true;
   const activeSeries = series?.[selectedTab] ?? [];
   const mapping = getInsightChartMapping(insight.type);
@@ -241,7 +241,7 @@ export default function InsightDetailScreen() {
   const latestPoint = activeSeries.length > 0 ? activeSeries[activeSeries.length - 1] : null;
   const latestValue = latestPoint ? formatChartValue(latestPoint.value, unit) : null;
   const latestMeta = latestPoint ? formatDateLabel(latestPoint.date) : null;
-  const unitLabel = isFirstRecap
+  const unitLabel = isWorkoutRecap
     ? series?.breakdownUnit ?? unit
     : unit === 'ratio'
     ? 'x'

@@ -42,10 +42,13 @@ type WeeklySummaryRow = {
 };
 
 type WorkoutSetRow = {
+  session_id?: string | null;
   weight: number | null;
   reps: number | null;
   weight_unit: string | null;
   is_warmup: boolean | null;
+  exercise_id?: string | null;
+  exercise_name_snapshot?: string | null;
 };
 
 type WorkoutSessionWithSetsRow = {
@@ -76,7 +79,7 @@ const INSIGHT_TYPE = 'WEEKLY_VERDICT_V1';
 const STALL_RISK_TYPE = 'LIFT_STALL_RISK_V1';
 const FATIGUE_RISK_TYPE = 'FATIGUE_RISK_V1';
 const IMBALANCE_FLAG_TYPE = 'IMBALANCE_FLAG_V1';
-const FIRST_WORKOUT_RECAP_TYPE = 'FIRST_WORKOUT_RECAP_V1';
+const WORKOUT_RECAP_TYPE = 'WORKOUT_RECAP_V1';
 const CONSISTENCY_STREAK_TYPE = 'CONSISTENCY_STREAK_V1';
 const WEEKLY_VOLUME_PR_TYPE = 'WEEKLY_VOLUME_PR_V1';
 const POSITIVE_INSIGHT_TYPES = [CONSISTENCY_STREAK_TYPE, WEEKLY_VOLUME_PR_TYPE];
@@ -623,6 +626,36 @@ const normalizeWeight = (
   return weightUnit === 'kg' ? weight * 2.20462 : weight;
 };
 
+const normalizeBodyweight = (
+  weight: number,
+  unit: string | null | undefined,
+  preferredUnits: 'imperial' | 'metric'
+): number | null => {
+  if (!weight || weight <= 0) return null;
+  const normalizedUnit = (unit ?? '').toLowerCase();
+  if (normalizedUnit === 'kg') {
+    return preferredUnits === 'metric' ? weight : weight * 2.20462;
+  }
+  if (normalizedUnit === 'lb' || normalizedUnit === 'lbs') {
+    return preferredUnits === 'imperial' ? weight : weight / 2.20462;
+  }
+  return null;
+};
+
+const BODYWEIGHT_EQUIPMENT = new Set(['body only', 'bodyweight', 'body weight', 'assisted', 'suspension']);
+const BODYWEIGHT_NAME_PATTERN =
+  /(^|[^a-z])(pull[- ]?up|chin[- ]?up|push[- ]?up|dip|plank|sit[- ]?up|crunch|inverted row)($|[^a-z])/i;
+
+const isBodyweightExercise = (equipment?: string | null, name?: string | null): boolean => {
+  const normalizedEquipment = (equipment ?? '').toLowerCase();
+  if (BODYWEIGHT_EQUIPMENT.has(normalizedEquipment)) {
+    return true;
+  }
+  const normalizedName = (name ?? '').toLowerCase();
+  if (!normalizedName) return false;
+  return BODYWEIGHT_NAME_PATTERN.test(normalizedName);
+};
+
 const buildStallRecommendation = ({
   e1rmDeltaPct,
   volumeDeltaPct,
@@ -1048,163 +1081,207 @@ const buildFatigueRiskInsight = async ({
   };
 };
 
-const buildFirstWorkoutRecapInsight = async ({
+const buildWorkoutRecapInsights = async ({
   adminClient,
   userId,
   preferredUnits,
+  limit = 20,
 }: {
   adminClient: SupabaseClient;
   userId: string;
   preferredUnits: 'imperial' | 'metric';
-}): Promise<Record<string, unknown> | null> => {
-  const { data: sessions, count, error } = await adminClient
+  limit?: number;
+}): Promise<{ insights: Record<string, unknown>[]; activeSubjectKey: string | null }> => {
+  const { data: sessions, error } = await adminClient
     .from('workout_sessions')
-    .select('id, started_at, completed_at, duration_seconds', { count: 'exact' })
+    .select('id, started_at, completed_at, duration_seconds')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
-    .order('started_at', { ascending: true })
-    .limit(1);
+    .order('started_at', { ascending: false })
+    .limit(limit);
 
   if (error) {
-    console.warn('[Insights] Failed to fetch first session:', error.message);
-    return null;
+    console.warn('[Insights] Failed to fetch workout sessions for recap:', error.message);
+    return { insights: [], activeSubjectKey: null };
   }
 
-  const completedCount = count ?? 0;
-  if (completedCount !== 1) {
-    return null;
+  if (!sessions || sessions.length === 0) {
+    return { insights: [], activeSubjectKey: null };
   }
 
-  const session = sessions?.[0];
-  if (!session?.id) {
-    return null;
+  const sessionIds = sessions.map((session) => session.id).filter(Boolean);
+  if (sessionIds.length === 0) {
+    return { insights: [], activeSubjectKey: null };
   }
 
   const { data: sets, error: setsError } = await adminClient
     .from('workout_sets')
-    .select('exercise_id, reps, weight, weight_unit, is_warmup')
-    .eq('session_id', session.id);
+    .select('session_id, exercise_id, exercise_name_snapshot, reps, weight, weight_unit, is_warmup')
+    .in('session_id', sessionIds);
 
   if (setsError) {
-    console.warn('[Insights] Failed to fetch session sets:', setsError.message);
-    return null;
+    console.warn('[Insights] Failed to fetch session sets for recap:', setsError.message);
+    return { insights: [], activeSubjectKey: null };
   }
 
-  let workingSets = 0;
-  let totalVolume = 0;
-  const exercises = new Set<string>();
-  let topSet: { exerciseId: string; weight: number; reps: number; e1rm: number } | null = null;
-
-  (sets ?? []).forEach((row: { exercise_id: string; reps: number | null; weight: number | null; weight_unit: string | null; is_warmup: boolean | null }) => {
-    if (!row?.exercise_id) return;
-    if (row.is_warmup) return;
-    if (!row.reps || !row.weight || row.reps <= 0 || row.weight <= 0) return;
-    workingSets += 1;
-    exercises.add(row.exercise_id);
-    const weightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
-    totalVolume += weightNorm * row.reps;
-    const repsClamped = Math.min(row.reps, 12);
-    const e1rm = weightNorm * (1 + repsClamped / 30.0);
-    if (!topSet || e1rm > topSet.e1rm) {
-      topSet = {
-        exerciseId: row.exercise_id,
-        weight: weightNorm,
-        reps: row.reps,
-        e1rm,
-      };
+  const setsBySession = new Map<string, WorkoutSetRow[]>();
+  const exerciseIds = new Set<string>();
+  (sets ?? []).forEach((row: WorkoutSetRow) => {
+    if (!row?.session_id) return;
+    const list = setsBySession.get(row.session_id) ?? [];
+    list.push(row);
+    setsBySession.set(row.session_id, list);
+    if (row.exercise_id) {
+      exerciseIds.add(row.exercise_id);
     }
   });
 
-  if (workingSets === 0) {
-    return null;
-  }
-
-  const exerciseIds = Array.from(exercises);
-  const { data: exerciseRows } = await adminClient
-    .from('exercises')
-    .select('id, name')
-    .in('id', exerciseIds);
+  const { data: exerciseRows } = exerciseIds.size
+    ? await adminClient
+        .from('exercises')
+        .select('id, name, equipment')
+        .in('id', Array.from(exerciseIds))
+    : { data: [] as Array<{ id: string; name: string; equipment?: string | null }> };
   const exerciseNameById = new Map<string, string>();
+  const exerciseEquipmentById = new Map<string, string>();
   (exerciseRows ?? []).forEach((row: { id: string; name: string }) => {
     if (row?.id) {
       exerciseNameById.set(row.id, row.name);
+      if ((row as { equipment?: string | null }).equipment) {
+        exerciseEquipmentById.set(row.id, (row as { equipment?: string | null }).equipment ?? '');
+      }
     }
   });
 
-  const durationSeconds = session.duration_seconds ?? null;
-  const durationMinutes = durationSeconds ? Math.round(durationSeconds / 60) : null;
+  const { data: bodyweightRows } = await adminClient
+    .from('user_body_metrics')
+    .select('weight, unit')
+    .eq('user_id', userId)
+    .order('recorded_at', { ascending: false })
+    .limit(1);
+  const bodyweightRow = bodyweightRows?.[0];
+  const bodyweightPreferred = bodyweightRow
+    ? normalizeBodyweight(bodyweightRow.weight, bodyweightRow.unit, preferredUnits)
+    : null;
+
   const volumeUnit = preferredUnits === 'metric' ? 'kg' : 'lbs';
+  const latestSession = sessions[0];
+  const activeSubjectKey = latestSession?.id ? `session:${latestSession.id}` : null;
+  const insights: Record<string, unknown>[] = [];
 
-  const evidence: EvidenceItem[] = [
-    {
-      key: 'working_sets',
-      label: 'Working sets',
-      value: workingSets,
-      unit: 'sets',
-      source: 'workout_sets',
-      period: 'session',
-    },
-    {
-      key: 'total_volume',
-      label: 'Total volume',
-      value: Math.round(totalVolume),
-      unit: volumeUnit,
-      source: 'workout_sets',
-      period: 'session',
-    },
-    {
-      key: 'exercises',
-      label: 'Exercises trained',
-      value: exerciseIds.length,
-      unit: 'exercises',
-      source: 'workout_sets',
-      period: 'session',
-    },
-  ];
+  sessions.forEach((session) => {
+    if (!session?.id) return;
+    const sessionSets = setsBySession.get(session.id) ?? [];
+    let loggedSets = 0;
+    let totalVolume = 0;
+    const exercises = new Set<string>();
+    let topSet: { exerciseId: string; weight: number; reps: number; e1rm: number } | null = null;
 
-  if (durationMinutes && durationMinutes > 0) {
-    evidence.push({
-      key: 'duration',
-      label: 'Duration',
-      value: durationMinutes,
-      unit: 'min',
-      source: 'workout_sessions',
-      period: 'session',
+    sessionSets.forEach((row) => {
+      if (!row?.exercise_id) return;
+      if (!row.reps || row.reps <= 0) return;
+      loggedSets += 1;
+      exercises.add(row.exercise_id);
+
+      let weightNorm: number | null = null;
+      if (row.weight && row.weight > 0) {
+        weightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
+      } else {
+        const equipment = exerciseEquipmentById.get(row.exercise_id);
+        const fallbackName = exerciseNameById.get(row.exercise_id) ?? row.exercise_name_snapshot ?? '';
+        if (isBodyweightExercise(equipment, fallbackName)) {
+          weightNorm = bodyweightPreferred ?? 1;
+        }
+      }
+
+      if (weightNorm !== null) {
+        totalVolume += weightNorm * row.reps;
+        const repsClamped = Math.min(row.reps, 12);
+        const e1rm = weightNorm * (1 + repsClamped / 30.0);
+        if (!topSet || e1rm > topSet.e1rm) {
+          topSet = {
+            exerciseId: row.exercise_id,
+            weight: weightNorm,
+            reps: row.reps,
+            e1rm,
+          };
+        }
+      }
     });
-  }
 
-  if (topSet) {
-    const exerciseName = exerciseNameById.get(topSet.exerciseId) ?? 'Top lift';
-    evidence.push({
-      key: 'top_set',
-      label: `Top set (${exerciseName} × ${topSet.reps} reps)`,
-      value: Math.round(topSet.weight),
-      unit: volumeUnit,
-      source: 'workout_sets',
-      period: 'session',
-    });
-  }
+    if (loggedSets === 0) {
+      return;
+    }
 
-  return {
-    user_id: userId,
-    type: FIRST_WORKOUT_RECAP_TYPE,
-    window: WINDOW,
-    anchor_date: toIsoDate(new Date(session.started_at)),
-    subject_key: `session:${session.id}`,
-    severity: 'low',
-    status: 'active',
-    title: 'First workout recap',
-    summary: 'Nice work—this sets your baseline. Repeat this session and I’ll start tracking trends.',
-    evidence,
-    recommendation: [
+    const durationSeconds = session.duration_seconds ?? null;
+    const durationMinutes = durationSeconds ? Math.round(durationSeconds / 60) : null;
+    const evidence: EvidenceItem[] = [
       {
-        type: 'INCREASE_FREQUENCY',
-        payload: { text: 'Repeat this workout (or 1–2 lifts) next time to start trend tracking.' },
-        rationaleKey: 'CONSISTENCY_LOW',
+        key: 'working_sets',
+        label: 'Sets logged',
+        value: loggedSets,
+        unit: 'sets',
+        source: 'workout_sets',
+        period: 'session',
       },
-    ],
-    schema_version: SCHEMA_VERSION,
-  };
+      {
+        key: 'total_volume',
+        label: 'Total volume',
+        value: Math.round(totalVolume),
+        unit: volumeUnit,
+        source: 'workout_sets',
+        period: 'session',
+      },
+      {
+        key: 'exercises',
+        label: 'Exercises trained',
+        value: exercises.size,
+        unit: 'exercises',
+        source: 'workout_sets',
+        period: 'session',
+      },
+    ];
+
+    if (durationMinutes && durationMinutes > 0) {
+      evidence.push({
+        key: 'duration',
+        label: 'Duration',
+        value: durationMinutes,
+        unit: 'min',
+        source: 'workout_sessions',
+        period: 'session',
+      });
+    }
+
+    if (topSet) {
+      const exerciseName = exerciseNameById.get(topSet.exerciseId) ?? 'Top lift';
+      evidence.push({
+        key: 'top_set',
+        label: `Top set (${exerciseName} × ${topSet.reps} reps)`,
+        value: Math.round(topSet.weight),
+        unit: volumeUnit,
+        source: 'workout_sets',
+        period: 'session',
+      });
+    }
+
+    insights.push({
+      user_id: userId,
+      type: WORKOUT_RECAP_TYPE,
+      window: WINDOW,
+      anchor_date: toIsoDate(new Date(session.started_at)),
+      subject_key: `session:${session.id}`,
+      severity: 'low',
+      status: session.id === latestSession.id ? 'active' : 'dismissed',
+      title: 'Workout recap',
+      summary: 'Here’s a quick recap of this session.',
+      evidence,
+      recommendation: [],
+      schema_version: SCHEMA_VERSION,
+    });
+  });
+
+  return { insights, activeSubjectKey };
 };
 
 const buildConsistencyStreakInsight = ({
@@ -1920,13 +1997,27 @@ Deno.serve(async (req) => {
   }
 
   if (shouldRunPositive) {
-    const recapInsight = await buildFirstWorkoutRecapInsight({
+    const { insights: recapInsights, activeSubjectKey } = await buildWorkoutRecapInsights({
       adminClient,
       userId: user.id,
       preferredUnits,
     });
-    if (recapInsight) {
-      insightsToUpsert.push(recapInsight);
+
+    if (activeSubjectKey) {
+      const { error: recapDismissError } = await adminClient
+        .from('training_insights')
+        .update({ status: 'dismissed' })
+        .eq('user_id', user.id)
+        .eq('type', WORKOUT_RECAP_TYPE)
+        .neq('subject_key', activeSubjectKey)
+        .eq('status', 'active');
+      if (recapDismissError) {
+        console.warn('[Insights] Failed to dismiss older workout recaps:', recapDismissError.message);
+      }
+    }
+
+    if (recapInsights.length > 0) {
+      insightsToUpsert.push(...recapInsights);
     }
 
     const thisWeekWorkouts = clampNumber(weeklyVolume.thisWeek?.workouts_count);

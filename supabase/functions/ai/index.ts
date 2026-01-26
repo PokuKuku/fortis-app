@@ -108,6 +108,10 @@ interface AIRequest {
     insightId?: string;
     periodWeeks?: number;
   };
+  history?: Array<{
+    role: 'user' | 'assistant';
+    content: string;
+  }>;
   image?: AIImage;
 }
 
@@ -278,13 +282,16 @@ function sanitizeUserInput(input: string): string {
 
 const VALID_IMAGE_MIME_TYPES: AIImageMimeType[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_HISTORY_MESSAGES = 20;
+const MAX_HISTORY_MESSAGE_CHARS = 2000;
+const MAX_HISTORY_TOTAL_CHARS = 12000;
 
 function validateRequest(body: unknown): string | null {
   if (!body || typeof body !== 'object') {
     return 'Request body must be a JSON object';
   }
 
-  const { intent, message, image, context } = body as Record<string, unknown>;
+  const { intent, message, image, context, history } = body as Record<string, unknown>;
 
   if (!intent || typeof intent !== 'string') {
     return 'Missing or invalid intent';
@@ -304,6 +311,37 @@ function validateRequest(body: unknown): string | null {
 
   if (message.length > 2000) {
     return 'Message must be less than 2000 characters';
+  }
+
+  if (history !== undefined) {
+    if (!Array.isArray(history)) {
+      return 'History must be an array';
+    }
+    if (history.length > MAX_HISTORY_MESSAGES) {
+      return `History must be at most ${MAX_HISTORY_MESSAGES} messages`;
+    }
+    let totalChars = 0;
+    for (const entry of history) {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return 'History entries must be objects';
+      }
+      const record = entry as Record<string, unknown>;
+      const role = record.role;
+      const content = record.content;
+      if (role !== 'user' && role !== 'assistant') {
+        return 'History role must be user or assistant';
+      }
+      if (typeof content !== 'string') {
+        return 'History content must be a string';
+      }
+      if (content.length < 1 || content.length > MAX_HISTORY_MESSAGE_CHARS) {
+        return `History content must be between 1 and ${MAX_HISTORY_MESSAGE_CHARS} characters`;
+      }
+      totalChars += content.length;
+      if (totalChars > MAX_HISTORY_TOTAL_CHARS) {
+        return 'History exceeds maximum size';
+      }
+    }
   }
 
   if (context !== undefined) {
@@ -428,6 +466,7 @@ interface AIContext {
     preferredUnits: string;
     timezone: string;
     goals: unknown[];
+    trainingExperience: string | null;
     latestBodyWeight: {
       weight: number;
       unit: string;
@@ -487,6 +526,7 @@ async function assembleContext(
       preferredUnits: prefs.preferred_units || 'imperial',
       timezone: prefs.timezone || 'UTC',
       goals: Array.isArray(prefs.goals) ? prefs.goals : [],
+      trainingExperience: typeof prefs.lifting_experience === 'string' ? prefs.lifting_experience : null,
       latestBodyWeight: latestWeight,
     },
   };
@@ -782,6 +822,7 @@ async function callOpenAIText(
   const model = resolveModelForRequest(request);
   const useResponses =
     Deno.env.get('OPENAI_USE_RESPONSES') === 'true' || model.includes('gpt-5');
+  const historyMessages = normalizeHistoryMessages(request.history, request.message);
 
   // Only include temperature for models that support it (not o1/o3 reasoning models)
   const supportsTemp = modelSupportsTemperature(model);
@@ -793,6 +834,13 @@ async function callOpenAIText(
         content: [{ type: 'input_text', text: systemPrompt }],
       },
     ];
+
+    for (const message of historyMessages) {
+      input.push({
+        role: message.role,
+        content: [{ type: 'input_text', text: message.content }],
+      });
+    }
 
     if (request.image) {
       input.push({
@@ -913,9 +961,14 @@ async function callOpenAIChatCompletions(
   }
 
   const supportsTemp = modelSupportsTemperature(model);
+  const historyMessages = normalizeHistoryMessages(request.history, request.message);
   const messages: Array<Record<string, unknown>> = [
     { role: 'system', content: systemPrompt },
   ];
+
+  for (const message of historyMessages) {
+    messages.push({ role: message.role, content: message.content });
+  }
 
   if (request.image) {
     messages.push({
@@ -1163,7 +1216,8 @@ CORE PRINCIPLES:
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
-- Timezone: ${context.user.timezone}`;
+- Timezone: ${context.user.timezone}
+- Training experience: ${context.user.trainingExperience ?? 'unknown'}`;
 
     return `${basePrompt}
 
@@ -1238,7 +1292,8 @@ TEMPLATE OUTLINE FORMAT (when asked to create a template):
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
-- Timezone: ${context.user.timezone}${insightGuidance}`;
+- Timezone: ${context.user.timezone}
+- Training experience: ${context.user.trainingExperience ?? 'unknown'}${insightGuidance}`;
 
   return `${basePrompt}
 
@@ -1290,6 +1345,46 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
   }
 
   return message;
+}
+
+function normalizeHistoryMessages(
+  history: AIRequest['history'] | undefined,
+  currentMessage: string
+): Array<{ role: 'user' | 'assistant'; content: string }> {
+  if (!history || history.length === 0) {
+    return [];
+  }
+
+  const sanitizedCurrent = sanitizeUserInput(currentMessage).trim();
+  const trimmedHistory = history.slice(-MAX_HISTORY_MESSAGES);
+  const sanitized: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+  let totalChars = 0;
+
+  for (const entry of trimmedHistory) {
+    if (!entry) continue;
+    if (entry.role !== 'user' && entry.role !== 'assistant') continue;
+    let content = typeof entry.content === 'string' ? entry.content.trim() : '';
+    if (!content) continue;
+    if (content.length > MAX_HISTORY_MESSAGE_CHARS) {
+      content = content.slice(0, MAX_HISTORY_MESSAGE_CHARS);
+    }
+    content = sanitizeUserInput(content);
+    if (!content) continue;
+    if (totalChars + content.length > MAX_HISTORY_TOTAL_CHARS) {
+      break;
+    }
+    totalChars += content.length;
+    sanitized.push({ role: entry.role, content });
+  }
+
+  if (sanitized.length > 0) {
+    const last = sanitized[sanitized.length - 1];
+    if (last.role === 'user' && last.content.trim() === sanitizedCurrent) {
+      sanitized.pop();
+    }
+  }
+
+  return sanitized;
 }
 
 function parseModelResponse(

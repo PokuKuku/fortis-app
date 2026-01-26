@@ -57,6 +57,7 @@ const isShareableInsight = (): boolean => true;
 
 const POSITIVE_INSIGHT_TYPES: InsightType[] = ['CONSISTENCY_STREAK_V1', 'WEEKLY_VOLUME_PR_V1'];
 const RISK_INSIGHT_TYPES: InsightType[] = ['FATIGUE_RISK_V1', 'IMBALANCE_FLAG_V1'];
+const isWorkoutRecapType = (type: InsightType): boolean => type === 'WORKOUT_RECAP_V1';
 const CHART_TABS: ChartTab[] = ['progress', 'volume', 'frequency'];
 
 const formatWeekRange = (anchorDate: string): string => {
@@ -183,7 +184,7 @@ const resolveSparkline = (
   if (!series) {
     return null;
   }
-  if (insight.type === 'FIRST_WORKOUT_RECAP_V1') {
+  if (isWorkoutRecapType(insight.type)) {
     return null;
   }
 
@@ -746,10 +747,10 @@ export default function InsightsScreen() {
     [insights]
   );
 
-  const firstWorkoutRecap = useMemo(
-    () => insights.find((insight) => insight.type === 'FIRST_WORKOUT_RECAP_V1'),
-    [insights]
-  );
+  const workoutRecap = useMemo(() => {
+    const recaps = insights.filter((insight) => isWorkoutRecapType(insight.type));
+    return recaps.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0];
+  }, [insights]);
 
   const stallRisks = useMemo(
     () => insights.filter((insight) => insight.type === 'LIFT_STALL_RISK_V1'),
@@ -831,9 +832,9 @@ export default function InsightsScreen() {
     watchlistItems.length === 0 &&
     Boolean(watchlistSummary)
   ) && (watchlistItems.length > 0 || Boolean(watchlistSummary));
-  const baseCount = (weeklyVerdict ? 1 : 0) + (firstWorkoutRecap ? 1 : 0);
+  const baseCount = (weeklyVerdict ? 1 : 0) + (workoutRecap ? 1 : 0);
   const availableSlots = Math.max(0, 3 - baseCount - (watchlistVisible ? 1 : 0));
-  const riskCandidates = firstWorkoutRecap
+  const riskCandidates = workoutRecap
     ? riskInsights.filter((insight) => insight.severity === 'high')
     : riskInsights;
   const visibleRisks = riskCandidates.slice(0, availableSlots);
@@ -927,7 +928,7 @@ export default function InsightsScreen() {
 
   const hasInsights =
     Boolean(weeklyVerdict) ||
-    Boolean(firstWorkoutRecap) ||
+    Boolean(workoutRecap) ||
     watchlistVisible ||
     visibleRisks.length > 0 ||
     visiblePositives.length > 0;
@@ -1010,9 +1011,9 @@ export default function InsightsScreen() {
                 />
               )}
 
-              {firstWorkoutRecap && (
+              {workoutRecap && (
                 <InsightCard
-                  insight={firstWorkoutRecap}
+                  insight={workoutRecap}
                   onWhyPress={handleInsightWhyPress}
                   onDismiss={handleDismissInsight}
                   onOpenChart={handleOpenChart}

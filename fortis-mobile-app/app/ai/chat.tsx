@@ -35,7 +35,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAIStore } from '@/src/store/aiStore';
 import { useAnalytics } from '@/src/services/analyticsService';
-import { AIIntent } from '@/src/types/ai';
+import { AIIntent, AIConversationMessage } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
@@ -143,7 +143,7 @@ function AnimatedLoadingSparkles() {
   );
 }
 
-// Intent inference helper - simplified to only support FORTIS_ANALYST
+// Intent inference helper - defaults to GENERAL_CHAT unless analyst cues are present
 const inferIntentFromMessage = (message: string): AIIntent => {
   const normalized = message.trim().toLowerCase();
   if (!normalized) {
@@ -158,6 +158,16 @@ const inferIntentFromMessage = (message: string): AIIntent => {
   }
 
   return 'GENERAL_CHAT';
+};
+
+const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const intent = messages[i]?.intent;
+    if (intent) {
+      return intent;
+    }
+  }
+  return null;
 };
 
 export default function AIChatScreen() {
@@ -285,7 +295,10 @@ export default function AIChatScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const message = inputText.trim();
-    const intent = inferIntentFromMessage(message);
+    const inferredIntent = inferIntentFromMessage(message);
+    const lastIntent = getLastIntent(messages);
+    const intent =
+      inferredIntent === 'GENERAL_CHAT' && lastIntent ? lastIntent : inferredIntent;
 
     setInputText('');
     await sendMessage(intent, message);

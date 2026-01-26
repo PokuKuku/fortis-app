@@ -9,6 +9,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   AIIntent,
   AIRequest,
+  AIChatMessage,
   AIRequestContext,
   AIResponse,
   AIRateLimitStatus,
@@ -29,7 +30,8 @@ async function getAuthenticatedUserId(): Promise<string | null> {
 export async function sendAIMessage(
   intent: AIIntent,
   message: string,
-  context?: AIRequestContext
+  context?: AIRequestContext,
+  history?: AIChatMessage[]
 ): Promise<AIResponse> {
   if (!isSupabaseConfigured()) {
     return {
@@ -60,6 +62,7 @@ export async function sendAIMessage(
     intent,
     message,
     context,
+    history,
   };
 
   try {

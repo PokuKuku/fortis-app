@@ -48,6 +48,54 @@ const parseNumber = (value: number | null | undefined): number => {
   return Number(value);
 };
 
+const isWorkoutRecapType = (type: TrainingInsight['type']): boolean =>
+  type === 'WORKOUT_RECAP_V1';
+
+const BODYWEIGHT_EQUIPMENT = new Set(['body only', 'bodyweight', 'body weight', 'assisted', 'suspension']);
+const BODYWEIGHT_NAME_PATTERN =
+  /(^|[^a-z])(pull[- ]?up|chin[- ]?up|push[- ]?up|dip|plank|sit[- ]?up|crunch|inverted row)($|[^a-z])/i;
+
+const isBodyweightExercise = (equipment?: string | null, name?: string | null): boolean => {
+  const normalizedEquipment = (equipment ?? '').toLowerCase();
+  if (BODYWEIGHT_EQUIPMENT.has(normalizedEquipment)) {
+    return true;
+  }
+  const normalizedName = (name ?? '').toLowerCase();
+  if (!normalizedName) return false;
+  return BODYWEIGHT_NAME_PATTERN.test(normalizedName);
+};
+
+const normalizeWeight = (
+  weight: number,
+  weightUnit: string | null | undefined,
+  preferredUnits: 'imperial' | 'metric'
+): number => {
+  if (preferredUnits === 'metric') {
+    return weightUnit === 'lbs' ? weight / 2.20462 : weight;
+  }
+  return weightUnit === 'kg' ? weight * 2.20462 : weight;
+};
+
+const normalizeBodyweight = (
+  weight: number,
+  unit: string | null | undefined,
+  preferredUnits: 'imperial' | 'metric'
+): number | null => {
+  if (!weight || weight <= 0) return null;
+  const normalizedUnit = (unit ?? '').toLowerCase();
+  if (normalizedUnit === 'kg') {
+    return preferredUnits === 'metric' ? weight : weight * 2.20462;
+  }
+  if (normalizedUnit === 'lb' || normalizedUnit === 'lbs') {
+    return preferredUnits === 'imperial' ? weight : weight / 2.20462;
+  }
+  return null;
+};
+
+const resolvePreferredUnits = (volumeUnit?: string): 'imperial' | 'metric' => {
+  return volumeUnit === 'kg' ? 'metric' : 'imperial';
+};
+
 const normalizeWeekSeries = <T extends { week_start: string }>(
   rows: T[],
   value: (row: T) => number
@@ -280,15 +328,26 @@ export async function fetchInsightChartSeries(
     return series;
   }
 
-  if (insight.type === 'FIRST_WORKOUT_RECAP_V1') {
+  if (isWorkoutRecapType(insight.type)) {
     const subject = parseSubjectKey(insight.subjectKey);
     if (subject.type !== 'session') {
       return series;
     }
     const volumeUnit = getVolumeUnitFallback(insight);
+    const preferredUnits = resolvePreferredUnits(volumeUnit);
+    const { data: bodyweightRows } = await supabase
+      .from('user_body_metrics')
+      .select('weight, unit')
+      .eq('user_id', user.id)
+      .order('recorded_at', { ascending: false })
+      .limit(1);
+    const bodyweightRow = bodyweightRows?.[0];
+    const bodyweightPreferred = bodyweightRow
+      ? normalizeBodyweight(bodyweightRow.weight, bodyweightRow.unit, preferredUnits)
+      : null;
     const { data, error } = await supabase
       .from('workout_sets')
-      .select('exercise_id, reps, weight, weight_unit, is_warmup, exercises(name)')
+      .select('exercise_id, reps, weight, weight_unit, is_warmup, exercise_name_snapshot, exercises(name, equipment)')
       .eq('session_id', subject.sessionId);
 
     if (error || !data) {
@@ -302,22 +361,25 @@ export async function fetchInsightChartSeries(
       weight: number | null;
       weight_unit: string | null;
       is_warmup: boolean | null;
-      exercises?: { name?: string } | null;
+      exercise_name_snapshot?: string | null;
+      exercises?: { name?: string; equipment?: string | null } | null;
     }>)
       .forEach((row) => {
         if (!row?.exercise_id) return;
-        if (row.is_warmup) return;
-        if (!row.reps || !row.weight || row.reps <= 0 || row.weight <= 0) return;
-        const weightNorm =
-          volumeUnit === 'kg'
-            ? row.weight_unit === 'lbs'
-              ? row.weight / 2.20462
-              : row.weight
-            : row.weight_unit === 'kg'
-            ? row.weight * 2.20462
-            : row.weight;
+        if (!row.reps || row.reps <= 0) return;
+        let weightNorm: number | null = null;
+        if (row.weight && row.weight > 0) {
+          weightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
+        } else {
+          const equipment = row.exercises?.equipment ?? null;
+          const fallbackName = row.exercises?.name ?? row.exercise_name_snapshot ?? '';
+          if (isBodyweightExercise(equipment, fallbackName)) {
+            weightNorm = bodyweightPreferred ?? 1;
+          }
+        }
+        if (weightNorm === null) return;
         const volume = weightNorm * row.reps;
-        const name = row.exercises?.name ?? 'Exercise';
+        const name = row.exercises?.name ?? row.exercise_name_snapshot ?? 'Exercise';
         const existing = byExercise.get(row.exercise_id) ?? { name, volume: 0 };
         existing.volume += volume;
         byExercise.set(row.exercise_id, existing);

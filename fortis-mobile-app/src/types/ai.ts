@@ -20,10 +20,16 @@ export interface AIRequestContext {
   periodWeeks?: number;
 }
 
+export interface AIChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export interface AIRequest {
   intent: AIIntent;
   message: string;
   context?: AIRequestContext;
+  history?: AIChatMessage[];
 }
 
 export interface AIResponse {

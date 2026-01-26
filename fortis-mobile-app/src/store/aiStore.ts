@@ -12,6 +12,7 @@ import {
   AIResponse,
   AIConversation,
   AIConversationMessage,
+  AIChatMessage,
   AIRequestContext,
   AIRateLimitStatus,
   AIRateLimitWindow,
@@ -47,12 +48,26 @@ const formatRetryAfter = (seconds?: number): string | null => {
   return parts.join(' ');
 };
 
+const MAX_HISTORY_MESSAGES = 20;
+
 const makeRateLimitMessage = (error?: AIError): string => {
   const windowLabel = error?.limitWindow ? RATE_LIMIT_LABELS[error.limitWindow] : null;
   const retryAfter = formatRetryAfter(error?.retryAfterSeconds);
   const windowText = windowLabel ? `${windowLabel} ` : '';
   const retryText = retryAfter ? ` Try again in ${retryAfter}.` : ' Try again later.';
   return `Looks like you've hit your ${windowText}AI limit.${retryText}`;
+};
+
+const buildConversationHistory = (
+  messages: AIConversationMessage[],
+  intent: AIIntent
+): AIChatMessage[] => {
+  const filtered = messages
+    .filter((message) => message.role === 'user' || message.role === 'assistant')
+    .filter((message) => !message.intent || message.intent === intent)
+    .filter((message) => message.content.trim().length > 0);
+  const trimmed = filtered.slice(0, -1).slice(-MAX_HISTORY_MESSAGES);
+  return trimmed.map((message) => ({ role: message.role, content: message.content }));
 };
 
 interface LastFailedMessage {
@@ -125,7 +140,8 @@ export const useAIStore = create<AIState>()(
       };
 
       try {
-        const response = await aiService.sendAIMessage(intent, message, context);
+        const history = buildConversationHistory(updatedConversation.messages, intent);
+        const response = await aiService.sendAIMessage(intent, message, context, history);
         const isRateLimited = response.type === 'error' && response.error?.code === 'RATE_LIMITED';
 
         const assistantContent =

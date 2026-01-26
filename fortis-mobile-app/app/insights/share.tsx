@@ -54,6 +54,8 @@ type ShareChartConfig =
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
+const isWorkoutRecapType = (type: TrainingInsight['type']): boolean =>
+  type === 'WORKOUT_RECAP_V1';
 
 const formatDateLabel = (value: string): string => {
   const date = parseDateInput(value);
@@ -103,7 +105,7 @@ const resolveShareChart = (
   insight: TrainingInsight,
   series: InsightChartSeries
 ): ShareChartConfig => {
-  if (insight.type === 'FIRST_WORKOUT_RECAP_V1') {
+  if (isWorkoutRecapType(insight.type)) {
     return {
       kind: 'bar',
       data: series.breakdown ?? [],
@@ -182,7 +184,7 @@ const getShareTemplate = (insight: TrainingInsight): ShareTemplate => {
       return 'timeline';
     case 'LIFT_STALL_RISK_V1':
       return 'split';
-    case 'FIRST_WORKOUT_RECAP_V1':
+    case 'WORKOUT_RECAP_V1':
       return 'grid';
     case 'CONSISTENCY_STREAK_V1':
     case 'WEEKLY_VOLUME_PR_V1':
@@ -201,8 +203,8 @@ const getShareBadge = (insight: TrainingInsight): string => {
       return 'Balance';
     case 'LIFT_STALL_RISK_V1':
       return 'Stall watch';
-    case 'FIRST_WORKOUT_RECAP_V1':
-      return 'First workout';
+    case 'WORKOUT_RECAP_V1':
+      return 'Workout recap';
     case 'CONSISTENCY_STREAK_V1':
       return 'Streak';
     case 'WEEKLY_VOLUME_PR_V1':
