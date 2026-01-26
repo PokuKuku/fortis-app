@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, Easing, StyleSheet } from 'react-native';
+import { View, Animated, Easing, StyleSheet, useWindowDimensions } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -27,14 +27,18 @@ interface ChatHeaderLogoProps {
 
 export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const shineAnim = useRef(new Animated.Value(0)).current;
   const sparkleAnim = useRef(new Animated.Value(1)).current;
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const sparkleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  const logoWidth = 90;
-  const logoHeight = 24;
-  const iconSize = 22;
+  const logoWidth = Math.round(90 * fontScale);
+  const logoHeight = Math.round(24 * fontScale);
+  const iconSize = Math.round(22 * fontScale);
+  const logoFontSize = Math.round(18 * fontScale);
+  const logoBaseline = Math.round(18 * fontScale);
+  const logoLetterSpacing = Math.round(3 * fontScale * 10) / 10;
 
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
@@ -95,7 +99,7 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   return (
     <View style={styles.container}>
       {/* Sparkles icon - animated when loading */}
-      <View style={styles.sparkleWrapper}>
+      <View style={[styles.sparkleWrapper, { width: iconSize, height: iconSize }]}>
         <Animated.View style={[styles.sparkleAbsolute, { opacity: sparkleAnim }]}>
           <SparklesSolid color={colors.accent} size={iconSize} />
         </Animated.View>
@@ -132,11 +136,11 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
         <G>
           <SvgText
             fill="url(#chatLogoGradient)"
-            fontSize={18}
+            fontSize={logoFontSize}
             fontWeight="900"
-            letterSpacing={3}
+            letterSpacing={logoLetterSpacing}
             x={0}
-            y={18}
+            y={logoBaseline}
             fontFamily="BankGothicBT-Medium"
           >
             FORTIS

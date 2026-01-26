@@ -164,7 +164,7 @@ export default function OnboardingClarityScreen() {
                 },
               ]}
             >
-              other apps
+              without Fortis
             </Animated.Text>
             <Animated.Text
               style={[

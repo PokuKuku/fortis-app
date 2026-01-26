@@ -4,8 +4,8 @@
  * FORTIS logo with animated metallic shine effect.
  * Uses SVG LinearGradient animation to create a continuous sweeping shine.
  */
-import { useEffect, useRef } from 'react';
-import { View, Animated, Easing, ViewStyle } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Animated, Easing, ViewStyle, InteractionManager, useWindowDimensions } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -35,12 +35,14 @@ export function AnimatedLogo({
   shineDurationMs,
 }: AnimatedLogoProps) {
   const { colors } = useTheme();
+  const { fontScale } = useWindowDimensions();
   const shouldAnimate = animate;
   const introDuration = Math.max(0, introDurationMs ?? 800);
   const shineDuration = Math.max(0, shineDurationMs ?? 3500);
   const shineAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const [paintTick, setPaintTick] = useState(0);
   const gradientId = useRef(
     `textGradient-${size}-${Math.random().toString(36).slice(2, 9)}`
   ).current;
@@ -49,8 +51,14 @@ export function AnimatedLogo({
   const baseConfig = size === 'large'
     ? { width: 280, height: 60, fontSize: 42, y: 48 }
     : { width: 160, height: 32, fontSize: 20, y: 24 };
-  const letterSpacing = Math.round(baseConfig.fontSize * LETTER_SPACING_RATIO * 10) / 10;
-  const config = { ...baseConfig, letterSpacing };
+  const scaledConfig = {
+    width: Math.round(baseConfig.width * fontScale),
+    height: Math.round(baseConfig.height * fontScale),
+    fontSize: Math.round(baseConfig.fontSize * fontScale),
+    y: Math.round(baseConfig.y * fontScale),
+  };
+  const letterSpacing = Math.round(scaledConfig.fontSize * LETTER_SPACING_RATIO * 10) / 10;
+  const config = { ...scaledConfig, letterSpacing };
   const totalSpacing = config.letterSpacing * (LOGO_TEXT.length - 1);
   const letterOffsets = LOGO_TEXT.split('').map((_, index) => {
     if (index === 0) {
@@ -106,6 +114,19 @@ export function AnimatedLogo({
     };
   }, [fadeAnim, scaleAnim, shineAnim, introDuration, shineDuration, shouldAnimate]);
 
+  useEffect(() => {
+    let isActive = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (!isActive) return;
+      setPaintTick((current) => current + 1);
+    });
+
+    return () => {
+      isActive = false;
+      task.cancel();
+    };
+  }, []);
+
   const containerStyle: ViewStyle = centered
     ? { alignItems: 'center', justifyContent: 'center' }
     : { alignItems: 'flex-start', justifyContent: 'flex-start' };
@@ -160,6 +181,7 @@ export function AnimatedLogo({
             )}
           </Defs>
           <SvgText
+            key={`logo-text-${paintTick}`}
             fill={`url(#${gradientId})`}
             fontSize={config.fontSize}
             fontWeight="900"

@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, Animated as RNAnimated } from 'react-native';
 import { CheckIcon, TrashIcon } from 'react-native-heroicons/outline';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { responsiveValue, moderateScale, scale } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { getAccentGradient, getAccentRgba } from '@/src/utils/accentColors';
+import { getAccentRgba } from '@/src/utils/accentColors';
 import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
@@ -85,9 +84,7 @@ export function SetRow({
     ? getAccentRgba('green', isDark ? 0.3 : 0.25)
     : colors.accentBorder;
   const completedShadow = completedSetTint === 'success' ? Colors.success : colors.accent;
-  const completedGradient = (completedSetTint === 'success'
-    ? getAccentGradient('green', isDark)
-    : colors.accentGradient) as unknown as string[];
+  const completedCheckColor = completedSetTint === 'success' ? Colors.success : colors.accent;
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -125,14 +122,14 @@ export function SetRow({
       backgroundColor: colors.accentOverlay,
     },
     checkboxCompleted: {
+      backgroundColor: completedOverlayMedium,
+      borderColor: completedBorder,
       shadowColor: completedShadow,
     },
     containerCompleted: {
       backgroundColor: completedOverlay,
       borderColor: completedBorder,
     },
-    // Gradient for checkbox
-    checkboxGradient: completedGradient,
   };
 
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
@@ -759,25 +756,11 @@ export function SetRow({
             style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
           >
             {set.isCompleted ? (
-              <>
-                <LinearGradient
-                  colors={themedStyles.checkboxGradient}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                <LinearGradient
-                  colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.1)', 'rgba(0,0,0,0.05)', 'rgba(0,0,0,0.15)']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={StyleSheet.absoluteFillObject}
-                />
-                <CheckIcon
-                  size={18}
-                  color={Colors.white}
-                  strokeWidth={3}
-                />
-              </>
+              <CheckIcon
+                size={16}
+                color={completedCheckColor}
+                strokeWidth={2.5}
+              />
             ) : (
               <CheckIcon
                 size={16}
@@ -941,12 +924,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   checkboxCompleted: {
-    borderWidth: 0,
     // shadowColor is now dynamic via themedStyles
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowOpacity: 0.35,
+    shadowRadius: 5,
+    elevation: 3,
   },
   repsContainer: {
     position: 'relative',

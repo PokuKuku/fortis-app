@@ -1142,10 +1142,6 @@ export default function ProgramsScreen() {
                 <PlayIcon color="#fff" size={START_ICON_SIZE} strokeWidth={2} />
                 <Text
                   style={styles.startButtonText}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.8}
-                  allowFontScaling={false}
                 >
                   Start a Blank Workout
                 </Text>
@@ -1425,14 +1421,17 @@ const styles = StyleSheet.create({
     padding: SECTION_Kebab_PADDING,
   },
   startButton: {
-    height: START_BUTTON_HEIGHT,
+    minHeight: START_BUTTON_HEIGHT,
     borderRadius: START_BUTTON_RADIUS,
+    paddingVertical: scale(Spacing.xs),
+    paddingHorizontal: scale(Spacing.md),
   },
   startButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: START_BUTTON_GAP,
+    alignSelf: 'stretch',
   },
   startButtonText: {
     color: '#fff',

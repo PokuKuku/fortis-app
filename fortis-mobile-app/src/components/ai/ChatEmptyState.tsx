@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import Animated, {
   FadeInUp,
   FadeIn,
@@ -27,13 +27,13 @@ import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { AIIntent } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { getContentWidth, moderateScale, responsiveValue, scale } from '@/src/utils/responsive';
+import { getContentWidth, moderateScale, scale } from '@/src/utils/responsive';
 
 // Calculate grid dimensions for consistent layout across screen sizes
 const GRID_HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const GRID_GAP = scale(Spacing.md);
-const GRID_COLUMNS = responsiveValue(1, 2, 2);
-const GRID_MAX_WIDTH = GRID_COLUMNS === 1 ? undefined : scale(420);
+const GRID_COLUMNS = 2;
+const GRID_MAX_WIDTH = scale(420);
 const GRID_WIDTH = getContentWidth(GRID_HORIZONTAL_PADDING, GRID_MAX_WIDTH);
 const CARD_WIDTH = GRID_COLUMNS === 1 ? GRID_WIDTH : (GRID_WIDTH - GRID_GAP) / 2;
 const CARD_HEIGHT = GRID_COLUMNS === 1 ? scale(120) : scale(140);
@@ -96,6 +96,11 @@ interface ChatEmptyStateProps {
 
 export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
   const { colors, isDark } = useTheme();
+  const { fontScale } = useWindowDimensions();
+  const titleLineHeight = Math.round(TITLE_LINE_HEIGHT * fontScale);
+  const bodyLineHeight = Math.round(BODY_LINE_HEIGHT * fontScale);
+  const labelLineHeight = Math.round(LABEL_LINE_HEIGHT * fontScale);
+  const captionLineHeight = Math.round(CAPTION_LINE_HEIGHT * fontScale);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -125,8 +130,10 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
         entering={FadeIn.duration(400)}
         style={styles.header}
       >
-        <Text style={[styles.title, themedStyles.title]}>Your Training Insights</Text>
-        <Text style={[styles.subtitle, themedStyles.subtitle]}>
+        <Text style={[styles.title, themedStyles.title, { lineHeight: titleLineHeight }]}>
+          Your Training Insights
+        </Text>
+        <Text style={[styles.subtitle, themedStyles.subtitle, { lineHeight: bodyLineHeight }]}>
           Ask about your progress, PRs, programming ideas, and training questions
         </Text>
       </Animated.View>
@@ -155,8 +162,12 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
                 </View>
                 <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
               </View>
-              <Text style={[styles.cardLabel, themedStyles.cardLabel]}>{action.label}</Text>
-              <Text style={[styles.cardDescription, themedStyles.cardDescription]}>{action.description}</Text>
+              <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
+                {action.label}
+              </Text>
+              <Text style={[styles.cardDescription, themedStyles.cardDescription, { lineHeight: captionLineHeight }]}>
+                {action.description}
+              </Text>
             </TouchableOpacity>
           </Animated.View>
         ))}
@@ -165,7 +176,7 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
       {/* Hint text */}
       <Animated.Text
         entering={FadeIn.duration(400).delay(500)}
-        style={[styles.hint, themedStyles.hint]}
+        style={[styles.hint, themedStyles.hint, { lineHeight: captionLineHeight }]}
       >
         Tap a quick action or type your own question
       </Animated.Text>
@@ -206,11 +217,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     width: GRID_WIDTH,
     alignSelf: 'center',
+    alignItems: 'stretch',
     columnGap: GRID_GAP,
     rowGap: GRID_GAP,
   },
   gridItem: {
     width: CARD_WIDTH,
+    alignSelf: 'stretch',
   },
   card: {
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
@@ -218,7 +231,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.12)',
     padding: scale(Spacing.lg),
-    height: CARD_HEIGHT,
+    minHeight: CARD_HEIGHT,
+    flex: 1,
   },
   cardHeader: {
     flexDirection: 'row',

@@ -1,26 +1,96 @@
-import { View, Text, StyleSheet, Pressable, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, useWindowDimensions, Modal, Platform } from 'react-native';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { XMarkIcon } from 'react-native-heroicons/outline';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingDemoVideo } from '@/src/components/onboarding/OnboardingDemoVideo';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { AuthProviderButtons } from '@/src/components/auth/AuthProviderButtons';
+import { useAuth } from '@/src/contexts/AuthContext';
 
 const DEMO_VIDEO = require('../../assets/videos/FortisDemo3.mp4');
 
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding, isLoading } = useAuth();
   const { height: windowHeight } = useWindowDimensions();
   const videoHeight = Math.min(420, Math.max(320, Math.round(windowHeight * 0.4)));
+  const [showSignInSheet, setShowSignInSheet] = useState(false);
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
+  const [isLoadingApple, setIsLoadingApple] = useState(false);
+  const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
+  const [signInError, setSignInError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    AppleAuthentication.isAvailableAsync()
+      .then(setIsAppleAvailable)
+      .catch(() => setIsAppleAvailable(false));
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || isLoading) return;
+    if (needsOnboarding) return;
+    router.replace('/(tabs)');
+  }, [isAuthenticated, isLoading, needsOnboarding, router]);
 
   const handleStart = () => {
     router.push('/onboarding');
   };
 
   const handleSignIn = () => {
-    router.push({ pathname: '/auth', params: { onboarding: 'welcome' } });
+    setShowSignInSheet(true);
+  };
+
+  const handleCloseSheet = () => {
+    setShowSignInSheet(false);
+    setSignInError(null);
+  };
+
+  const handleEmailPress = () => {
+    handleCloseSheet();
+    router.push('/auth/email');
+  };
+
+  const handleGoogleSignIn = async () => {
+    setSignInError(null);
+    setIsLoadingGoogle(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const { error } = await signInWithGoogle();
+      if (error) {
+        setSignInError(error.message);
+      } else {
+        setShowSignInSheet(false);
+      }
+    } finally {
+      setIsLoadingGoogle(false);
+    }
+  };
+
+  const handleAppleSignIn = async () => {
+    setSignInError(null);
+    setIsLoadingApple(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const { error } = await signInWithApple();
+      if (error) {
+        setSignInError(error.message);
+      } else {
+        setShowSignInSheet(false);
+      }
+    } finally {
+      setIsLoadingApple(false);
+    }
   };
 
   return (
@@ -60,6 +130,43 @@ export default function OnboardingWelcomeScreen() {
       <View style={styles.videoWrap}>
         <OnboardingDemoVideo sourceModule={DEMO_VIDEO} height={videoHeight} />
       </View>
+
+      <Modal
+        transparent
+        visible={showSignInSheet}
+        animationType="slide"
+        onRequestClose={handleCloseSheet}
+      >
+        <View style={styles.sheetRoot}>
+          <Pressable style={styles.sheetOverlay} onPress={handleCloseSheet} />
+          <View style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.glassBorder,
+            },
+          ]}>
+            <View style={[styles.sheetHandle, { backgroundColor: colors.textTertiary }]} />
+            <View style={styles.sheetHeader}>
+              <Text style={[styles.sheetTitle, { color: colors.textPrimary }]}>Sign In</Text>
+              <Pressable style={[styles.sheetClose, { backgroundColor: colors.glassBackground }]} onPress={handleCloseSheet}>
+                <XMarkIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+              </Pressable>
+            </View>
+            <AuthProviderButtons
+              onGoogle={handleGoogleSignIn}
+              onApple={handleAppleSignIn}
+              onEmail={handleEmailPress}
+              isLoadingGoogle={isLoadingGoogle}
+              isLoadingApple={isLoadingApple}
+              isAppleAvailable={isAppleAvailable}
+            />
+            {signInError ? (
+              <Text style={[styles.sheetError, { color: colors.error }]}>{signInError}</Text>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
     </OnboardingScreen>
   );
 }
@@ -93,5 +200,50 @@ const styles = StyleSheet.create({
     fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
+  },
+  sheetRoot: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  sheetOverlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  sheet: {
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing['2xl'],
+    gap: Spacing.lg,
+  },
+  sheetHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    opacity: 0.35,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  sheetClose: {
+    position: 'absolute',
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sheetError: {
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

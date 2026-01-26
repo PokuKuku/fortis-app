@@ -25,7 +25,8 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 
 // Scaled sizing to keep proportions consistent across devices
-const PAD_SCALE = 0.82;
+const PAD_SCALE = 0.9;
+const TEXT_SCALE = 1.08;
 const NUMBER_COLUMNS = 3;
 const BUTTON_SIZE = Math.round(scale(52) * PAD_SCALE);
 const CONTROLS_WIDTH = Math.round(scale(90) * PAD_SCALE);
@@ -38,9 +39,9 @@ const DRAG_HANDLE_WIDTH = Math.round(scale(32) * PAD_SCALE);
 const DRAG_HANDLE_HEIGHT = Math.max(2, Math.round(scale(3) * PAD_SCALE));
 const PAD_RADIUS = Math.round(scale(18) * PAD_SCALE);
 const BUTTON_RADIUS = Math.round(scale(BorderRadius.md) * PAD_SCALE);
-const NUMBER_TEXT_SIZE = Math.round(scale(26) * PAD_SCALE);
-const CONTROL_TEXT_SIZE = Math.round(scale(15) * PAD_SCALE);
-const NEXT_TEXT_SIZE = Math.round(scale(17) * PAD_SCALE);
+const NUMBER_TEXT_SIZE = Math.round(scale(26) * PAD_SCALE * TEXT_SCALE);
+const CONTROL_TEXT_SIZE = Math.round(scale(15) * PAD_SCALE * TEXT_SCALE);
+const NEXT_TEXT_SIZE = Math.round(scale(17) * PAD_SCALE * TEXT_SCALE);
 const BACKSPACE_ICON_SIZE = Math.round(scale(24) * PAD_SCALE);
 const CLOSE_ICON_SIZE = Math.round(scale(22) * PAD_SCALE);
 const FILL_ICON_SIZE = Math.round(scale(20) * PAD_SCALE);

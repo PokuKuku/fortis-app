@@ -14,6 +14,25 @@ import {
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 
+const OVERLAY_SCALE = 1.15;
+const CONTAINER_PADDING_X = Math.round(Spacing.lg * OVERLAY_SCALE);
+const CONTAINER_PADDING_TOP = Math.round(Spacing.md * OVERLAY_SCALE);
+const CONTAINER_PADDING_BOTTOM = Math.round(Spacing.lg * OVERLAY_SCALE);
+const HEADER_MARGIN_BOTTOM = Math.round(Spacing.md * OVERLAY_SCALE);
+const DESCRIPTION_MARGIN_BOTTOM = Math.round(Spacing.lg * OVERLAY_SCALE);
+const VALUES_GAP = Math.round(Spacing.xs * OVERLAY_SCALE);
+const HEADER_BUTTON_PADDING_X = Math.round(Spacing.lg * OVERLAY_SCALE);
+const HEADER_BUTTON_PADDING_Y = Math.round(Spacing.sm * OVERLAY_SCALE);
+const HEADER_BUTTON_SIZE = Math.round(36 * OVERLAY_SCALE);
+const VALUE_BUTTON_HEIGHT = Math.round(44 * OVERLAY_SCALE);
+const DESCRIPTION_MIN_HEIGHT = Math.round(44 * OVERLAY_SCALE);
+const DESCRIPTION_LINE_HEIGHT = Math.round(20 * OVERLAY_SCALE);
+const HEADER_ICON_SIZE = Math.round(20 * OVERLAY_SCALE);
+const HEADER_TEXT_SIZE = Math.round(FontSizes.base * OVERLAY_SCALE);
+const DESCRIPTION_TEXT_SIZE = Math.round(FontSizes.sm * OVERLAY_SCALE);
+const VALUE_TEXT_SIZE = Math.round(FontSizes.sm * OVERLAY_SCALE);
+const BUTTON_RADIUS = Math.round(BorderRadius.md * OVERLAY_SCALE);
+
 interface RPESelectorOverlayProps {
   visible: boolean;
   currentRpe: RpeValue;
@@ -103,7 +122,7 @@ export function RPESelectorOverlay({
             pressed && styles.buttonPressed,
           ]}
         >
-          <XMarkIcon size={20} color={colors.textSecondary} strokeWidth={2} />
+          <XMarkIcon size={HEADER_ICON_SIZE} color={colors.textSecondary} strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -155,32 +174,32 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.92)',
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingHorizontal: CONTAINER_PADDING_X,
+    paddingTop: CONTAINER_PADDING_TOP,
+    paddingBottom: CONTAINER_PADDING_BOTTOM,
     zIndex: 10,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: HEADER_MARGIN_BOTTOM,
   },
   whatsRpeButton: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    paddingHorizontal: HEADER_BUTTON_PADDING_X,
+    paddingVertical: HEADER_BUTTON_PADDING_Y,
+    borderRadius: BUTTON_RADIUS,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   whatsRpeText: {
-    fontSize: FontSizes.base,
+    fontSize: HEADER_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textSecondary,
   },
   closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.md,
+    width: HEADER_BUTTON_SIZE,
+    height: HEADER_BUTTON_SIZE,
+    borderRadius: BUTTON_RADIUS,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -190,25 +209,25 @@ const styles = StyleSheet.create({
   },
   descriptionContainer: {
     alignItems: 'center',
-    marginBottom: Spacing.lg,
-    minHeight: 44,
+    marginBottom: DESCRIPTION_MARGIN_BOTTOM,
+    minHeight: DESCRIPTION_MIN_HEIGHT,
     justifyContent: 'center',
   },
   descriptionText: {
-    fontSize: FontSizes.sm,
+    fontSize: DESCRIPTION_TEXT_SIZE,
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: DESCRIPTION_LINE_HEIGHT,
   },
   valuesRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: Spacing.xs,
+    gap: VALUES_GAP,
   },
   valueButton: {
     flex: 1,
-    height: 44,
-    borderRadius: BorderRadius.md,
+    height: VALUE_BUTTON_HEIGHT,
+    borderRadius: BUTTON_RADIUS,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     justifyContent: 'center',
     alignItems: 'center',
@@ -220,7 +239,7 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   valueText: {
-    fontSize: FontSizes.sm,
+    fontSize: VALUE_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
   },
   valueTextSelected: {
