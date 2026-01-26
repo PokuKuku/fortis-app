@@ -1471,7 +1471,6 @@ function buildModelError(requestId: string, message: string) {
 
 const TLDR_PREFIX_REGEX = /^TLDR:\s*/i;
 const TLDR_LINE_REGEX = /^TLDR:\s*.+$/i;
-const TLDR_MAX_WORDS = 24;
 const TLDR_MAX_SENTENCES = 2;
 
 function ensureTldrLine(content: string): string {
@@ -1629,37 +1628,7 @@ function normalizeTldr(text: string): string | null {
   if (!cleaned) {
     return null;
   }
-  return clampSentences(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
-}
-
-function clampSentences(sentences: string[], maxSentences: number, maxWords: number): string | null {
-  const normalized = dedupeSentences(sentences)
-    .slice(0, maxSentences)
-    .map((sentence) => ensureSentenceEnding(sentence))
-    .filter(Boolean);
-  if (normalized.length === 0) {
-    return null;
-  }
-
-  const result: string[] = [];
-  let wordCount = 0;
-  for (const sentence of normalized) {
-    const sentenceWords = countWords(sentence);
-    if (wordCount + sentenceWords <= maxWords) {
-      result.push(sentence);
-      wordCount += sentenceWords;
-      continue;
-    }
-    if (wordCount === 0) {
-      const trimmed = trimToWordCount(sentence, maxWords);
-      if (trimmed) {
-        result.push(ensureSentenceEnding(trimmed));
-      }
-    }
-    break;
-  }
-
-  return result.join(' ').trim() || null;
+  return clampSentencesByCount(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES);
 }
 
 function clampSentencesByCount(sentences: string[], maxSentences: number): string | null {
@@ -1695,53 +1664,12 @@ function ensureSentenceEnding(text: string): string {
   return /[.!?]$/.test(text) ? text : `${text}.`;
 }
 
-function countWords(text: string): number {
-  return text.split(/\s+/).filter(Boolean).length;
-}
-
 function extractFirstSentence(text: string): string {
   const match = text.match(/(.+?[.!?])(\s|$)/);
   if (match) {
     return match[1].trim();
   }
   return text.trim();
-}
-
-const TRAILING_STOP_WORDS = new Set([
-  'a',
-  'an',
-  'and',
-  'as',
-  'at',
-  'but',
-  'by',
-  'due',
-  'for',
-  'from',
-  'if',
-  'in',
-  'into',
-  'of',
-  'on',
-  'or',
-  'so',
-  'the',
-  'to',
-  'with',
-  'without',
-]);
-
-function trimToWordCount(text: string, maxWords: number): string {
-  if (!text) return '';
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) {
-    return text.trim().replace(/\.\.\.$/, '').replace(/…$/, '');
-  }
-  const trimmedWords = words.slice(0, maxWords);
-  while (trimmedWords.length > 0 && TRAILING_STOP_WORDS.has(trimmedWords[trimmedWords.length - 1].toLowerCase())) {
-    trimmedWords.pop();
-  }
-  return trimmedWords.join(' ').trim().replace(/\.\.\.$/, '').replace(/…$/, '');
 }
 
 function normalizeText(text: string): string {

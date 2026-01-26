@@ -11,6 +11,7 @@ type WeeklyVolumeRow = {
   workouts_count: number | null;
   total_volume: number | null;
   total_time_seconds: number | null;
+  avg_rpe?: number | null;
 };
 
 type ExposureRow = {
@@ -201,6 +202,12 @@ const clampNumber = (value: number | null | undefined): number => {
   return Number(value);
 };
 
+const clampRpe = (value: number | null | undefined): number | null => {
+  if (value === null || value === undefined || Number.isNaN(value)) return null;
+  const numeric = Number(value);
+  return numeric > 0 ? numeric : null;
+};
+
 const clamp = (value: number, min: number, max: number): number => {
   return Math.min(Math.max(value, min), max);
 };
@@ -321,12 +328,25 @@ const fetchWeeklyVolume = async (
   weekStart: Date,
   lastWeekStart: Date
 ): Promise<{ thisWeek: WeeklyVolumeRow | null; lastWeek: WeeklyVolumeRow | null }> => {
-  const { data } = await supabase
+  const selection = 'week_start, workouts_count, total_volume, total_time_seconds, avg_rpe';
+  let { data, error } = await supabase
     .from('weekly_workout_volume')
-    .select('week_start, workouts_count, total_volume, total_time_seconds')
+    .select(selection)
     .eq('user_id', userId)
     .gte('week_start', toIsoDate(lastWeekStart))
     .lte('week_start', toIsoDate(weekStart));
+
+  if (error?.message?.includes('avg_rpe')) {
+    ({ data } = await supabase
+      .from('weekly_workout_volume')
+      .select('week_start, workouts_count, total_volume, total_time_seconds')
+      .eq('user_id', userId)
+      .gte('week_start', toIsoDate(lastWeekStart))
+      .lte('week_start', toIsoDate(weekStart)));
+  } else if (error) {
+    console.warn('[Insights] Failed to fetch weekly volume:', error.message);
+    return { thisWeek: null, lastWeek: null };
+  }
 
   const map = new Map<string, WeeklyVolumeRow>();
   (data ?? []).forEach((row: WeeklyVolumeRow) => {
@@ -840,6 +860,8 @@ const buildFatigueRiskInsight = async ({
   lastWeekVolume,
   thisWeekWorkouts,
   lastWeekWorkouts,
+  thisWeekRpe,
+  lastWeekRpe,
 }: {
   adminClient: SupabaseClient;
   userId: string;
@@ -851,6 +873,8 @@ const buildFatigueRiskInsight = async ({
   lastWeekVolume: number;
   thisWeekWorkouts: number;
   lastWeekWorkouts: number;
+  thisWeekRpe?: number | null;
+  lastWeekRpe?: number | null;
 }): Promise<Record<string, unknown> | null> => {
   const baseThreshold = FATIGUE_THRESHOLDS[conservatismLevel] ?? FATIGUE_THRESHOLDS.standard;
   const threshold =
@@ -874,6 +898,11 @@ const buildFatigueRiskInsight = async ({
   }
 
   const volumeDeltaPct = ((thisWeekVolume - lastWeekVolume) / lastWeekVolume) * 100;
+  const normalizedThisRpe = clampRpe(thisWeekRpe);
+  const normalizedLastRpe = clampRpe(lastWeekRpe);
+  const hasRpe = normalizedThisRpe !== null && normalizedLastRpe !== null;
+  const rpeDelta = hasRpe ? normalizedThisRpe - normalizedLastRpe : null;
+  const rpeDeltaRounded = rpeDelta !== null ? Number(rpeDelta.toFixed(1)) : null;
 
   const lookbackStart = addDays(weekStart, -42);
   const { data: exposures } = await adminClient
@@ -957,6 +986,10 @@ const buildFatigueRiskInsight = async ({
   }
 
   const severity = e1rmDeltaPct <= threshold.e1rmDropForFatigue * 2 ? 'high' : 'medium';
+  const rpeSpike = rpeDeltaRounded !== null && rpeDeltaRounded >= 0.5;
+  const summary = rpeSpike
+    ? 'Weekly volume jumped while top-lift e1RM dipped, and average RPE climbed. A short deload could help recovery.'
+    : 'Weekly volume jumped while top-lift e1RM dipped. A short deload could help recovery.';
 
   return {
     user_id: userId,
@@ -967,7 +1000,7 @@ const buildFatigueRiskInsight = async ({
     severity,
     status: 'active',
     title: 'Fatigue risk: volume spiked',
-    summary: 'Weekly volume jumped while top-lift e1RM dipped. A short deload could help recovery.',
+    summary,
     evidence: [
       {
         key: 'volume_load',
@@ -995,6 +1028,20 @@ const buildFatigueRiskInsight = async ({
         source: 'weekly_workout_volume',
         period: 'this_week',
       },
+      ...(hasRpe
+        ? [
+            {
+              key: 'avg_rpe',
+              label: 'Avg RPE (WoW)',
+              value: Number(normalizedThisRpe.toFixed(1)),
+              unit: 'rpe',
+              compareValue: Number(normalizedLastRpe.toFixed(1)),
+              deltaValue: rpeDeltaRounded ?? undefined,
+              source: 'weekly_workout_volume',
+              period: 'this_week',
+            } satisfies EvidenceItem,
+          ]
+        : []),
     ],
     recommendation: [buildFatigueRecommendation()],
     schema_version: SCHEMA_VERSION,
@@ -1299,14 +1346,25 @@ const buildStallRiskInsights = async ({
   weekStart,
   preferredUnits,
   conservatismLevel,
+  thisWeekRpe,
+  lastWeekRpe,
 }: {
   adminClient: SupabaseClient;
   userId: string;
   weekStart: Date;
   preferredUnits: 'imperial' | 'metric';
   conservatismLevel: 'chill' | 'standard' | 'aggressive';
+  thisWeekRpe?: number | null;
+  lastWeekRpe?: number | null;
 }): Promise<Record<string, unknown>[]> => {
   const lookbackStart = addDays(weekStart, -42);
+  const normalizedThisRpe = clampRpe(thisWeekRpe);
+  const normalizedLastRpe = clampRpe(lastWeekRpe);
+  const rpeDelta =
+    normalizedThisRpe !== null && normalizedLastRpe !== null
+      ? Number((normalizedThisRpe - normalizedLastRpe).toFixed(1))
+      : null;
+  const rpeSpike = rpeDelta !== null && rpeDelta >= 0.5;
 
   const { data: exposures, error: exposureError } = await adminClient
     .from('exercise_exposures')
@@ -1490,6 +1548,7 @@ const buildStallRiskInsights = async ({
     const severity =
       e1rmDeltaPct < 0 && volumeDeltaPct > 0 ? 'high' : 'medium';
     const recommendation = buildStallRecommendation({ e1rmDeltaPct, volumeDeltaPct });
+    const rpeNote = rpeSpike ? ' Average RPE was higher this week, which can mask progress.' : '';
 
     const evidence: EvidenceItem[] = [
       {
@@ -1532,7 +1591,7 @@ const buildStallRiskInsights = async ({
       severity,
       status: 'active',
       title: `Stall risk: ${exerciseName}`,
-      summary: `Recent ${exerciseName} progress has flattened. A small adjustment could help restart momentum.`,
+      summary: `Recent ${exerciseName} progress has flattened. A small adjustment could help restart momentum.${rpeNote}`,
       evidence,
       recommendation: [recommendation],
       schema_version: SCHEMA_VERSION,
@@ -1583,6 +1642,20 @@ const buildStallRiskInsights = async ({
         source: 'training_insights',
         period: 'this_week',
       },
+      ...(rpeDelta !== null
+        ? [
+            {
+              key: 'avg_rpe',
+              label: 'Avg RPE (WoW)',
+              value: Number((normalizedThisRpe ?? 0).toFixed(1)),
+              unit: 'rpe',
+              compareValue: Number((normalizedLastRpe ?? 0).toFixed(1)),
+              deltaValue: rpeDelta,
+              source: 'weekly_workout_volume',
+              period: 'this_week',
+            } satisfies EvidenceItem,
+          ]
+        : []),
     ],
     recommendation: [],
     schema_version: SCHEMA_VERSION,
@@ -1682,7 +1755,8 @@ Deno.serve(async (req) => {
     (!snoozedUntilImbalance || snoozedUntilImbalance < toIsoDate(weekStart)) &&
     !feedbackSignals.suppressed.has(IMBALANCE_FLAG_TYPE);
 
-  const shouldFetchWeeklyVolume = shouldRunWeeklyFinal || shouldRunFatigueFinal || shouldRunPositive;
+  const shouldFetchWeeklyVolume =
+    shouldRunWeeklyFinal || shouldRunFatigueFinal || shouldRunPositive || shouldRunStallFinal;
 
   if (feedbackSignals.suppressed.size > 0) {
     const suppressedTypes = Array.from(feedbackSignals.suppressed);
@@ -1790,12 +1864,16 @@ Deno.serve(async (req) => {
   }
 
   if (shouldRunStallFinal) {
+    const thisWeekRpe = clampRpe(weeklyVolume.thisWeek?.avg_rpe);
+    const lastWeekRpe = clampRpe(weeklyVolume.lastWeek?.avg_rpe);
     const stallInsights = await buildStallRiskInsights({
       adminClient,
       userId: user.id,
       weekStart,
       preferredUnits,
       conservatismLevel,
+      thisWeekRpe,
+      lastWeekRpe,
     });
     insightsToUpsert.push(...stallInsights);
   }
@@ -1805,6 +1883,8 @@ Deno.serve(async (req) => {
     const lastWeekWorkouts = clampNumber(weeklyVolume.lastWeek?.workouts_count);
     const thisWeekVolume = clampNumber(weeklyVolume.thisWeek?.total_volume);
     const lastWeekVolume = clampNumber(weeklyVolume.lastWeek?.total_volume);
+    const thisWeekRpe = clampRpe(weeklyVolume.thisWeek?.avg_rpe);
+    const lastWeekRpe = clampRpe(weeklyVolume.lastWeek?.avg_rpe);
 
     const fatigueInsight = await buildFatigueRiskInsight({
       adminClient,
@@ -1817,6 +1897,8 @@ Deno.serve(async (req) => {
       lastWeekVolume,
       thisWeekWorkouts,
       lastWeekWorkouts,
+      thisWeekRpe,
+      lastWeekRpe,
     });
 
     if (fatigueInsight) {
