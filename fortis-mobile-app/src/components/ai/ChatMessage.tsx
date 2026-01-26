@@ -304,25 +304,19 @@ function buildFallbackTldr(content: string) {
   const recommendationSentence = extractFirstSentence(recommendationBullets[0] ?? '');
   const evidenceSentence = extractFirstSentence(evidenceBullets[0] ?? '');
 
-  const compact = buildCompactTldr(diagnosisSentence, recommendationSentence, evidenceSentence);
-  if (compact) {
-    return compact;
-  }
-
   const candidates = [diagnosisSentence, recommendationSentence].filter(Boolean);
   if (candidates.length < 2 && evidenceSentence) {
     candidates.push(evidenceSentence);
   }
 
-  const tldr = clampSentences(candidates, TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+  const tldr = clampSentencesByCount(candidates, TLDR_MAX_SENTENCES);
   if (tldr) {
     return cleanTldrEnding(tldr);
   }
 
-  const fallback = clampSentences(
+  const fallback = clampSentencesByCount(
     splitIntoSentences(cleaned),
-    TLDR_MAX_SENTENCES,
-    TLDR_MAX_WORDS
+    TLDR_MAX_SENTENCES
   );
   return fallback ? cleanTldrEnding(fallback) : null;
 }
@@ -418,6 +412,14 @@ function clampSentences(sentences: string[], maxSentences: number, maxWords: num
   }
 
   return result.join(' ').trim() || null;
+}
+
+function clampSentencesByCount(sentences: string[], maxSentences: number): string | null {
+  const normalized = dedupeSentences(sentences)
+    .slice(0, maxSentences)
+    .map((sentence) => ensureSentenceEnding(sentence))
+    .filter(Boolean);
+  return normalized.length > 0 ? normalized.join(' ').trim() : null;
 }
 
 function dedupeSentences(sentences: string[]): string[] {

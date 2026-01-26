@@ -1608,29 +1608,20 @@ function buildTldrFromText(content: string): string | null {
   const evidenceBullets = extractBulletLines(evidenceSection);
   const recommendationBullets = extractBulletLines(recSection);
 
-  const diagnosisRaw = stripSectionPrefix(extractFirstSentence(diagnosisLine));
-  const recommendationRaw = stripSectionPrefix(extractFirstSentence(recommendationBullets[0] ?? ''));
-  const evidenceRaw = stripSectionPrefix(extractFirstSentence(evidenceBullets[0] ?? bulletLines[0] ?? ''));
-
-  const compact = buildCompactTldr(diagnosisRaw, recommendationRaw, evidenceRaw);
-  if (compact) {
-    return compact;
-  }
-
-  const diagnosisSentence = compressSentence(diagnosisRaw, 14, 120);
-  const recommendationSentence = compressSentence(recommendationRaw, 12, 120);
-  const evidenceSentence = compressSentence(evidenceRaw, 12, 120);
+  const diagnosisSentence = stripSectionPrefix(extractFirstSentence(diagnosisLine));
+  const recommendationSentence = stripSectionPrefix(extractFirstSentence(recommendationBullets[0] ?? ''));
+  const evidenceSentence = stripSectionPrefix(extractFirstSentence(evidenceBullets[0] ?? bulletLines[0] ?? ''));
 
   const candidates = [diagnosisSentence, recommendationSentence].filter(Boolean);
   if (candidates.length < 2 && evidenceSentence) {
     candidates.push(evidenceSentence);
   }
-  const tldr = clampSentences(candidates, TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+  const tldr = clampSentencesByCount(candidates, TLDR_MAX_SENTENCES);
   if (tldr) {
     return tldr;
   }
 
-  return clampSentences(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES, TLDR_MAX_WORDS);
+  return clampSentencesByCount(splitIntoSentences(cleaned), TLDR_MAX_SENTENCES);
 }
 
 function normalizeTldr(text: string): string | null {
@@ -1671,6 +1662,14 @@ function clampSentences(sentences: string[], maxSentences: number, maxWords: num
   return result.join(' ').trim() || null;
 }
 
+function clampSentencesByCount(sentences: string[], maxSentences: number): string | null {
+  const normalized = dedupeSentences(sentences)
+    .slice(0, maxSentences)
+    .map((sentence) => ensureSentenceEnding(sentence))
+    .filter(Boolean);
+  return normalized.length > 0 ? normalized.join(' ').trim() : null;
+}
+
 function dedupeSentences(sentences: string[]): string[] {
   const deduped: string[] = [];
   const seen = new Set<string>();
@@ -1706,98 +1705,6 @@ function extractFirstSentence(text: string): string {
     return match[1].trim();
   }
   return text.trim();
-}
-
-const DIAGNOSIS_SUBJECT_REGEX = /^(?:the|this)\s+(.+?)\s+(?:is|has|shows|appears)\b/i;
-const STALL_KEYWORDS = /\b(stall|plateau|stagnant|flat|no progress)\b/i;
-
-function extractDiagnosisSubject(sentence: string): string | null {
-  if (!sentence) return null;
-  const match = sentence.match(DIAGNOSIS_SUBJECT_REGEX);
-  if (match && match[1]) {
-    return match[1].trim();
-  }
-  const splitMatch = sentence.split(/\s+(?:is|has|shows|appears)\b/i);
-  if (splitMatch.length > 1) {
-    return splitMatch[0].replace(/^(the|this)\s+/i, '').trim();
-  }
-  return null;
-}
-
-function compactDiagnosis(sentence: string): string | null {
-  const cleaned = sentence.trim();
-  if (!cleaned) return null;
-  const subject = extractDiagnosisSubject(cleaned);
-  if (STALL_KEYWORDS.test(cleaned)) {
-    if (subject && subject.split(/\s+/).length <= 7) {
-      return `${subject} stall risk`;
-    }
-    return 'Stall risk';
-  }
-  return compressSentence(cleaned, 10, 90);
-}
-
-function compactRecommendation(sentence: string): string | null {
-  let cleaned = sentence.trim();
-  if (!cleaned) return null;
-
-  cleaned = cleaned
-    .replace(/^shift your\s+/i, 'Shift ')
-    .replace(/^shift\s+to\s+/i, 'Shift to ')
-    .replace(/^increase\s+/i, 'Increase ')
-    .replace(/^decrease\s+/i, 'Decrease ')
-    .replace(/^consider\s+/i, 'Consider ')
-    .replace(/^try\s+/i, 'Try ')
-    .replace(/^add\s+/i, 'Add ')
-    .replace(/^reduce\s+/i, 'Reduce ')
-    .replace(/\bfor the next\s+/i, 'for ')
-    .replace(/\bnext\s+/i, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-  const tokens = cleaned.split(' ');
-  const toIndices = tokens
-    .map((token, index) => (token.toLowerCase() === 'to' ? index : -1))
-    .filter((index) => index >= 0);
-  if (toIndices.length >= 2) {
-    cleaned = tokens.slice(0, toIndices[1]).join(' ').trim();
-  }
-
-  return compressSentence(cleaned, 14, 120);
-}
-
-function buildCompactTldr(
-  diagnosisSentence: string,
-  recommendationSentence: string,
-  evidenceSentence: string
-): string | null {
-  const diagnosis = compactDiagnosis(diagnosisSentence);
-  const recommendation = compactRecommendation(recommendationSentence);
-  const evidence = compactDiagnosis(evidenceSentence);
-
-  if (diagnosis && recommendation) {
-    const combined = `${diagnosis.replace(/\.$/, '')}; ${recommendation}`;
-    return ensureSentenceEnding(combined);
-  }
-
-  return diagnosis || recommendation || evidence || null;
-}
-
-function compressSentence(text: string, maxWords: number, maxChars: number): string {
-  const words = text.split(/\s+/).filter(Boolean);
-  if (words.length === 0) {
-    return '';
-  }
-  const trimmedWords = words.slice(0, maxWords);
-  let trimmed = trimmedWords.join(' ');
-  if (trimmed.length <= maxChars) {
-    return trimmed;
-  }
-  while (trimmedWords.length > 1 && trimmed.length > maxChars) {
-    trimmedWords.pop();
-    trimmed = trimmedWords.join(' ');
-  }
-  return trimmed;
 }
 
 const TRAILING_STOP_WORDS = new Set([

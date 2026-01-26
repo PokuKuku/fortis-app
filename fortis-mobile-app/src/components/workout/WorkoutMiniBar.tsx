@@ -8,6 +8,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useElapsedTime, formatElapsedTime } from '@/src/hooks/useElapsedTime';
+import { scale } from '@/src/utils/responsive';
 import Animated, { FadeOut, useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { CancelWorkoutModal } from '@/src/components/workout/modals/CancelWorkoutModal';
@@ -77,8 +78,8 @@ export function WorkoutMiniBar() {
   const homeLeftPosition = screenWidth * 0.05; // 5% from left on home
   const centeredLeftPosition = (screenWidth - barWidth) / 2; // Centered on other pages
 
-  // Bottom offsets: match FAB positioning (88px from bottom on tab pages)
-  const bottomWithTabBar = 56 + 12 + 20; // 88px - matches FAB exactly
+  // Bottom offsets: match FAB positioning on tab pages
+  const bottomWithTabBar = scale(14) + scale(64) + scale(20);
   const bottomWithoutTabBar = Math.max(24, insets.bottom + 12); // safe area + gap
 
   // Use shared values for position and opacity
