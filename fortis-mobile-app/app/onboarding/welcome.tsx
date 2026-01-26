@@ -18,10 +18,18 @@ const DEMO_VIDEO = require('../../assets/videos/FortisDemo3.mp4');
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { signInWithGoogle, signInWithApple, isAuthenticated, needsOnboarding, isLoading } = useAuth();
+  const {
+    signInWithGoogle,
+    signInWithApple,
+    isAuthenticated,
+    needsOnboarding,
+    isLoading,
+    profile,
+  } = useAuth();
   const { height: windowHeight } = useWindowDimensions();
   const videoHeight = Math.min(420, Math.max(320, Math.round(windowHeight * 0.4)));
   const [showSignInSheet, setShowSignInSheet] = useState(false);
+  const [pendingOnboardingAfterSignIn, setPendingOnboardingAfterSignIn] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
@@ -39,9 +47,24 @@ export default function OnboardingWelcomeScreen() {
 
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
-    if (needsOnboarding) return;
+    if (pendingOnboardingAfterSignIn && !profile) return;
+    if (needsOnboarding) {
+      if (!pendingOnboardingAfterSignIn) return;
+      setPendingOnboardingAfterSignIn(false);
+      setShowSignInSheet(false);
+      router.push('/onboarding');
+      return;
+    }
+    setPendingOnboardingAfterSignIn(false);
+    setShowSignInSheet(false);
     router.replace('/(tabs)');
-  }, [isAuthenticated, isLoading, needsOnboarding, router]);
+  }, [
+    isAuthenticated,
+    isLoading,
+    needsOnboarding,
+    pendingOnboardingAfterSignIn,
+    router,
+  ]);
 
   const handleStart = () => {
     router.push('/onboarding');
@@ -53,24 +76,27 @@ export default function OnboardingWelcomeScreen() {
 
   const handleCloseSheet = () => {
     setShowSignInSheet(false);
+    setPendingOnboardingAfterSignIn(false);
     setSignInError(null);
   };
 
   const handleEmailPress = () => {
     handleCloseSheet();
-    router.push('/auth/email');
+    router.push({ pathname: '/auth/email', params: { source: 'onboarding' } });
   };
 
   const handleGoogleSignIn = async () => {
     setSignInError(null);
     setIsLoadingGoogle(true);
+    setPendingOnboardingAfterSignIn(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { error } = await signInWithGoogle();
       if (error) {
         setSignInError(error.message);
+        setPendingOnboardingAfterSignIn(false);
       } else {
-        setShowSignInSheet(false);
+        setSignInError(null);
       }
     } finally {
       setIsLoadingGoogle(false);
@@ -80,13 +106,15 @@ export default function OnboardingWelcomeScreen() {
   const handleAppleSignIn = async () => {
     setSignInError(null);
     setIsLoadingApple(true);
+    setPendingOnboardingAfterSignIn(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { error } = await signInWithApple();
       if (error) {
         setSignInError(error.message);
+        setPendingOnboardingAfterSignIn(false);
       } else {
-        setShowSignInSheet(false);
+        setSignInError(null);
       }
     } finally {
       setIsLoadingApple(false);

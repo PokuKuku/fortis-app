@@ -12,7 +12,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
 import { EnvelopeIcon, LockClosedIcon, UserIcon } from 'react-native-heroicons/outline';
@@ -44,6 +44,7 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 
 export default function EmailAuthScreen() {
   const router = useRouter();
+  const { source } = useLocalSearchParams<{ source?: string }>();
   const { signInWithEmail, signUpWithEmail } = useAuth();
   const { colors, isDark } = useTheme();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -105,6 +106,15 @@ export default function EmailAuthScreen() {
     setIsLoading(false);
 
     if (authError) {
+      const isOnboardingSource = source === 'onboarding';
+      const isInvalidCredentials = authError.message.toLowerCase().includes('invalid login credentials');
+      if (!isSignUp && isOnboardingSource && isInvalidCredentials) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setIsLoading(false);
+        setError(null);
+        router.replace('/onboarding');
+        return;
+      }
       setError(authError.message);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
