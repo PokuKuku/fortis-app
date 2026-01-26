@@ -201,7 +201,7 @@ function ThemedAppContent({
             name="workout/active"
             options={{
               animation: 'slide_from_bottom',
-              animationDuration: 500,
+              animationDuration: 300,
               gestureEnabled: false,
             }}
           />

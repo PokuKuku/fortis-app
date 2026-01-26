@@ -82,7 +82,7 @@ export default function TabLayout() {
   const TAB_BAR_LABEL_SIZE = moderateScale(8);
   const TAB_ICON_SIZE = scale(22);
   const CENTER_BUTTON_SIZE = scale(52);
-  const CENTER_BUTTON_ICON_SIZE = scale(20);
+  const CENTER_BUTTON_ICON_SIZE = scale(26);
   const FAB_BUTTON_SIZE = scale(68);
   const FAB_ICON_SIZE = scale(34);
   const TAB_BAR_MAX_WIDTH = scale(420);
@@ -194,7 +194,7 @@ export default function TabLayout() {
     return () => sub.remove();
   }, []);
 
-  const handleFabPress = () => {
+  const handleAiPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/ai/chat');
   };
@@ -491,15 +491,15 @@ export default function TabLayout() {
         listeners={{
           tabPress: (e) => {
             e.preventDefault?.();
-            void handleStartPress();
+            handleAiPress();
           },
           tabLongPress: (e) => {
             e.preventDefault?.();
-            handleStartLongPress();
+            handleAiPress();
           },
         }}
         options={{
-          title: 'Start',
+          title: 'AI',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={styles.centerButtonContainer}>
               <GlassButton
@@ -508,14 +508,12 @@ export default function TabLayout() {
                 style={[
                   styles.centerButton,
                   { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
-                  isWorkoutActive && styles.centerButtonDisabled,
                 ]}
-                gradientColors={startButtonColors}
-                onPress={() => void handleStartPress()}
-                onLongPress={handleStartLongPress}
-                disabled={isWorkoutActive}
+                gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
+                onPress={handleAiPress}
+                onLongPress={handleAiPress}
               >
-                <DumbbellIcon color="#fff" size={CENTER_BUTTON_ICON_SIZE} fill="#fff" />
+                <SparklesIcon color="#fff" size={CENTER_BUTTON_ICON_SIZE} strokeWidth={1.5} />
               </GlassButton>
             </View>
           ),
@@ -589,12 +587,15 @@ export default function TabLayout() {
         style={[
           styles.plusButton,
           { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
+          isWorkoutActive && styles.centerButtonDisabled,
         ]}
-        gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
-        onPress={handleFabPress}
+        gradientColors={startButtonColors}
+        onPress={() => void handleStartPress()}
+        onLongPress={handleStartLongPress}
+        disabled={isWorkoutActive}
         pointerEvents={detailModalVisible ? 'none' : 'auto'}
       >
-        <SparklesIcon color="#fff" size={FAB_ICON_SIZE} strokeWidth={1.5} />
+        <DumbbellIcon color="#fff" size={FAB_ICON_SIZE} fill="#fff" />
       </GlassButton>
     </Animated.View>
 
@@ -830,7 +831,7 @@ const styles = StyleSheet.create({
     // backgroundColor is now dynamic via themedStyles
   },
   centerButtonContainer: {
-    marginTop: -scale(18),
+    marginTop: -scale(28),
     alignItems: 'center',
     justifyContent: 'center',
   },
