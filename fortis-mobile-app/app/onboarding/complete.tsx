@@ -19,6 +19,7 @@ const LOADING_DURATION_MS = 13000;
 const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
 const UPDATE_TIMEOUT_MS = 5000;
 const LOADING_FAILSAFE_MS = LOADING_DURATION_MS + 1000;
+const TYPEWRITER_INTERVAL_MS = 36;
 
 type Phase = 'loading' | 'ready';
 
@@ -106,6 +107,11 @@ export default function OnboardingCompleteScreen() {
   const [onboardingState, setOnboardingState] = useState<OnboardingState | null>(null);
   const [showSteps, setShowSteps] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
+  const [typedStatusLine, setTypedStatusLine] = useState('');
+  const [typedReadyTitle, setTypedReadyTitle] = useState('');
+  const [typedReadySubtitle, setTypedReadySubtitle] = useState('');
+  const typewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyTypeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeStepIndex = useMemo(() => {
     const index = LOADING_STEPS.findIndex((step) => progressPct < step.completeAt);
@@ -115,6 +121,97 @@ export default function OnboardingCompleteScreen() {
   const statusLine = useMemo(() => {
     return LOADING_STEPS[Math.min(activeStepIndex, LOADING_STEPS.length - 1)]?.label ?? 'Finalizing setup…';
   }, [activeStepIndex]);
+
+  const readyTitleLine = 'You’re ready to go';
+  const readySubtitleLine = isSaving
+    ? 'Starting…'
+    : isAuthenticated
+      ? 'Finishing up…'
+      : 'Fortis AI is customized for you.';
+
+  useEffect(() => {
+    if (typewriterTimeoutRef.current) {
+      clearTimeout(typewriterTimeoutRef.current);
+      typewriterTimeoutRef.current = null;
+    }
+
+    if (phase !== 'loading') {
+      setTypedStatusLine(statusLine);
+      return;
+    }
+
+    let isCancelled = false;
+    setTypedStatusLine('');
+    let index = 0;
+
+    const typeNext = () => {
+      if (isCancelled) return;
+      index += 1;
+      setTypedStatusLine(statusLine.slice(0, index));
+      if (index < statusLine.length) {
+        typewriterTimeoutRef.current = setTimeout(typeNext, TYPEWRITER_INTERVAL_MS);
+      }
+    };
+
+    typewriterTimeoutRef.current = setTimeout(typeNext, TYPEWRITER_INTERVAL_MS);
+
+    return () => {
+      isCancelled = true;
+      if (typewriterTimeoutRef.current) {
+        clearTimeout(typewriterTimeoutRef.current);
+        typewriterTimeoutRef.current = null;
+      }
+    };
+  }, [phase, statusLine]);
+
+  useEffect(() => {
+    if (readyTypeTimeoutRef.current) {
+      clearTimeout(readyTypeTimeoutRef.current);
+      readyTypeTimeoutRef.current = null;
+    }
+
+    if (phase !== 'ready') {
+      setTypedReadyTitle(readyTitleLine);
+      setTypedReadySubtitle(readySubtitleLine);
+      return;
+    }
+
+    let isCancelled = false;
+    let titleIndex = 0;
+    let subtitleIndex = 0;
+    setTypedReadyTitle('');
+    setTypedReadySubtitle('');
+
+    const typeSubtitle = () => {
+      if (isCancelled) return;
+      subtitleIndex += 1;
+      setTypedReadySubtitle(readySubtitleLine.slice(0, subtitleIndex));
+      if (subtitleIndex < readySubtitleLine.length) {
+        readyTypeTimeoutRef.current = setTimeout(typeSubtitle, TYPEWRITER_INTERVAL_MS);
+      }
+    };
+
+    const typeTitle = () => {
+      if (isCancelled) return;
+      titleIndex += 1;
+      setTypedReadyTitle(readyTitleLine.slice(0, titleIndex));
+      if (titleIndex < readyTitleLine.length) {
+        readyTypeTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
+        return;
+      }
+      readyTypeTimeoutRef.current = setTimeout(typeSubtitle, TYPEWRITER_INTERVAL_MS);
+    };
+
+    readyTypeTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
+
+    return () => {
+      isCancelled = true;
+      if (readyTypeTimeoutRef.current) {
+        clearTimeout(readyTypeTimeoutRef.current);
+        readyTypeTimeoutRef.current = null;
+      }
+    };
+  }, [phase, readySubtitleLine, readyTitleLine]);
 
   const summaryName = useMemo(() => {
     const name = onboardingState?.full_name?.trim();
@@ -479,16 +576,16 @@ export default function OnboardingCompleteScreen() {
             {phase === 'loading' ? `${progressPct}%` : '100%'}
           </Text>
           <Text style={[styles.titleText, { color: colors.textPrimary }]}>
-            {phase === 'loading' ? 'We’re setting everything up for you' : 'You’re ready to go'}
+            {phase === 'loading' ? 'We’re setting everything up for you' : typedReadyTitle}
           </Text>
           <Text style={[styles.statusText, { color: colors.textSecondary }]}>
             {phase === 'loading'
-              ? statusLine
+              ? typedStatusLine
               : isSaving
-                ? 'Starting…'
+                ? typedReadySubtitle
                 : isAuthenticated
-                  ? 'Finishing up…'
-                  : 'Fortis AI is customized for you.'}
+                  ? typedReadySubtitle
+                  : typedReadySubtitle}
           </Text>
         </View>
 
