@@ -18,6 +18,8 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import {
   useWorkoutStore,
   hasTemplateModifications,
@@ -579,9 +581,11 @@ export default function ActiveWorkoutScreen() {
         <Text style={[styles.addButtonText, themedStyles.addButtonText]}>+ Add Exercise</Text>
       </Pressable>
 
-      <GlassButton style={[styles.finishButton, themedStyles.finishButtonShadow]} onPress={handleFinishWorkout}>
-        <Text style={styles.finishButtonText}>Finish Workout</Text>
-      </GlassButton>
+      <TourAnchor id={TOUR_ANCHOR_IDS.finishWorkoutButton}>
+        <GlassButton style={[styles.finishButton, themedStyles.finishButtonShadow]} onPress={handleFinishWorkout}>
+          <Text style={styles.finishButtonText}>Finish Workout</Text>
+        </GlassButton>
+      </TourAnchor>
     </View>
   );
 

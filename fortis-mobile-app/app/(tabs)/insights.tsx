@@ -13,13 +13,18 @@ import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
+import { useEntitlementStatus } from '@/src/hooks/useEntitlementStatus';
+import { useGetStartedStatus } from '@/src/hooks/useGetStartedStatus';
 import { useAIStore } from '@/src/store/aiStore';
+import { StartedInsightCard } from '@/src/components/insights/StartedInsightCard';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { EvidenceItem, TrainingInsight, InsightType } from '@/src/types/insights';
 import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { isDateOnly, parseDateInput } from '@/src/utils/dateParsing';
 import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightSparkline } from '@/src/components/insights/InsightSparkline';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -721,6 +726,8 @@ export default function InsightsScreen() {
   const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights();
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
+  const { isLoaded: entitlementLoaded, isEntitled } = useEntitlementStatus();
+  const { hasCompletedGetStarted } = useGetStartedStatus();
   const {
     trackInsightsViewed,
     trackVerdictWhyTapped,
@@ -926,7 +933,10 @@ export default function InsightsScreen() {
     router.push('/exercises');
   };
 
+  const showStartedCard = entitlementLoaded && isEntitled && !hasCompletedGetStarted;
+
   const hasInsights =
+    showStartedCard ||
     Boolean(weeklyVerdict) ||
     Boolean(workoutRecap) ||
     watchlistVisible ||
@@ -954,9 +964,11 @@ export default function InsightsScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.titleContainer}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Insights</Text>
-          </View>
+          <TourAnchor id={TOUR_ANCHOR_IDS.insightsHeader}>
+            <View style={styles.titleContainer}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Insights</Text>
+            </View>
+          </TourAnchor>
 
           <TouchableOpacity
             style={[styles.cardBase, styles.libraryCard, cardTheme]}
@@ -1001,6 +1013,12 @@ export default function InsightsScreen() {
             </View>
           ) : (
             <View style={styles.insightsList}>
+              {showStartedCard && (
+                <TourAnchor id={TOUR_ANCHOR_IDS.startedCard}>
+                  <StartedInsightCard />
+                </TourAnchor>
+              )}
+
               {weeklyVerdict && (
                 <InsightCard
                   insight={weeklyVerdict}
@@ -1012,13 +1030,15 @@ export default function InsightsScreen() {
               )}
 
               {workoutRecap && (
-                <InsightCard
-                  insight={workoutRecap}
-                  onWhyPress={handleInsightWhyPress}
-                  onDismiss={handleDismissInsight}
-                  onOpenChart={handleOpenChart}
-                  onShare={handleShareInsight}
-                />
+                <TourAnchor id={TOUR_ANCHOR_IDS.workoutRecapCard}>
+                  <InsightCard
+                    insight={workoutRecap}
+                    onWhyPress={handleInsightWhyPress}
+                    onDismiss={handleDismissInsight}
+                    onOpenChart={handleOpenChart}
+                    onShare={handleShareInsight}
+                  />
+                </TourAnchor>
               )}
 
               {watchlistVisible && (

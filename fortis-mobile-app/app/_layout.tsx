@@ -9,6 +9,7 @@ import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
+import { InAppTourProvider } from '@/src/contexts/InAppTourContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
@@ -17,6 +18,7 @@ import { RetentionTracker } from '@/src/components/analytics/RetentionTracker';
 import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics';
 import { initMixpanel, isMixpanelConfigured } from '@/src/lib/mixpanel';
 import { SuperwallProvider } from 'expo-superwall';
+import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 
 const PAGE_TRANSITION = {
   animation: 'fade_from_bottom' as const,
@@ -54,150 +56,152 @@ function ThemedAppContent({
 
   return (
     <AuthProvider>
+      <SuperwallAuthSync />
       {!disableThemeSync && <ThemeAuthSync />}
-      <DragDropProvider>
-        {mixpanelEnabled && <MixpanelAuthSync />}
-        <StatusBar style={isDark ? 'light' : 'dark'} />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: colors.background },
-            ...PAGE_TRANSITION,
-          }}
-        >
-          <Stack.Screen name="index" options={{ animation: 'none' }} />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="auth/index"
-            options={{
-              ...ONBOARDING_TRANSITION,
-              animationTypeForReplace: 'push',
-            }}
-          />
-          <Stack.Screen
-            name="auth/email"
-            options={{
-              ...ONBOARDING_TRANSITION,
-              animationTypeForReplace: 'push',
-            }}
-          />
-          <Stack.Screen
-            name="auth/callback"
-            options={{
+      <InAppTourProvider>
+        <DragDropProvider>
+          {mixpanelEnabled && <MixpanelAuthSync />}
+          <StatusBar style={isDark ? 'light' : 'dark'} />
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: colors.background },
               ...PAGE_TRANSITION,
             }}
-          />
-          <Stack.Screen
-            name="onboarding/welcome"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/index"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/greeting"
-            options={{
-              ...ONBOARDING_TRANSITION,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/gender"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/birthdate"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/height"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/weight"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/source"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/fitness-background"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/experience"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/other-apps"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/clarity"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/goal"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/insights"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/thank-you"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/challenge"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/consistency"
-            options={{
-              ...ONBOARDING_TRANSITION,
-            }}
-          />
-          <Stack.Screen
-            name="onboarding/complete"
-            options={{
-              ...ONBOARDING_TRANSITION,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
+          >
+            <Stack.Screen name="index" options={{ animation: 'none' }} />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="auth/index"
+              options={{
+                ...ONBOARDING_TRANSITION,
+                animationTypeForReplace: 'push',
+              }}
+            />
+            <Stack.Screen
+              name="auth/email"
+              options={{
+                ...ONBOARDING_TRANSITION,
+                animationTypeForReplace: 'push',
+              }}
+            />
+            <Stack.Screen
+              name="auth/callback"
+              options={{
+                ...PAGE_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/welcome"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/index"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/greeting"
+              options={{
+                ...ONBOARDING_TRANSITION,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/gender"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/birthdate"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/height"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/weight"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/source"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/fitness-background"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/experience"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/other-apps"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/clarity"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/goal"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/insights"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/thank-you"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/challenge"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/consistency"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/complete"
+              options={{
+                ...ONBOARDING_TRANSITION,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
             name="workout/active"
             options={{
               animation: 'slide_from_bottom',
@@ -312,12 +316,13 @@ function ThemedAppContent({
               gestureDirection: 'horizontal',
             }}
           />
-        </Stack>
-        <RouteChangeHaptics />
-        {mixpanelEnabled && <MixpanelScreenTracker />}
-        {mixpanelEnabled && <RetentionTracker />}
-        <WorkoutMiniBar />
-      </DragDropProvider>
+          </Stack>
+          <RouteChangeHaptics />
+          {mixpanelEnabled && <MixpanelScreenTracker />}
+          {mixpanelEnabled && <RetentionTracker />}
+          <WorkoutMiniBar />
+        </DragDropProvider>
+      </InAppTourProvider>
     </AuthProvider>
   );
 }

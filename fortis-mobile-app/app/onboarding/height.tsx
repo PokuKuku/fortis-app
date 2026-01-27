@@ -143,7 +143,7 @@ export default function OnboardingHeightScreen() {
       step={4}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Height & weight"
-      subtitle="This will be used to calibrate your custom plan."
+      subtitle="You can update your metrics later."
       onBack={() => router.back()}
       useScrollView={false}
       footer={
@@ -210,6 +210,7 @@ export default function OnboardingHeightScreen() {
 const styles = StyleSheet.create({
   centerStack: {
     gap: Spacing.lg,
+    marginTop: 20,
   },
   metricGrid: {
     flexDirection: 'row',

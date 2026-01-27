@@ -1828,11 +1828,17 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   loadLocalPrograms: async () => {
     try {
       const stored = await getScopedItem(LOCAL_TEMPLATES_KEY);
-      const localPrograms = stored
-        ? (JSON.parse(stored) as Program[])
-        : [...getDefaultPrograms(), ...getDefaultTemplates()];
+      const defaults = [...getDefaultPrograms(), ...getDefaultTemplates()];
+      let localPrograms = stored ? (JSON.parse(stored) as Program[]) : defaults;
 
-      if (!stored && localPrograms.length > 0) {
+      if (stored) {
+        const existingIds = new Set(localPrograms.map((program) => program.id));
+        const missingDefaults = defaults.filter((program) => !existingIds.has(program.id));
+        if (missingDefaults.length > 0) {
+          localPrograms = [...localPrograms, ...missingDefaults];
+          await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
+        }
+      } else if (localPrograms.length > 0) {
         await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
       }
 

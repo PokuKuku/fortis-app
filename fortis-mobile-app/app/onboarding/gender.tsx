@@ -67,7 +67,7 @@ export default function OnboardingGenderScreen() {
       step={2}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Choose your gender"
-      subtitle="This helps us pick the correct heat map for your profile."
+      subtitle=""
       onBack={() => router.back()}
       footer={
         <GlassButton
@@ -97,6 +97,7 @@ export default function OnboardingGenderScreen() {
 const styles = StyleSheet.create({
   options: {
     gap: 12,
+    marginTop: 20,
   },
   button: {
     height: 54,

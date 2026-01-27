@@ -20,6 +20,8 @@ import { useAIStore } from '../../src/store/aiStore';
 import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -581,22 +583,24 @@ export default function TabLayout() {
       ]}
       pointerEvents="auto"
     >
-      <GlassButton
-        circular
-        size={FAB_BUTTON_SIZE}
-        style={[
-          styles.plusButton,
-          { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
-          isWorkoutActive && styles.centerButtonDisabled,
-        ]}
-        gradientColors={startButtonColors}
-        onPress={() => void handleStartPress()}
-        onLongPress={handleStartLongPress}
-        disabled={isWorkoutActive}
-        pointerEvents={detailModalVisible ? 'none' : 'auto'}
-      >
-        <DumbbellIcon color="#fff" size={FAB_ICON_SIZE} fill="#fff" />
-      </GlassButton>
+      <TourAnchor id={TOUR_ANCHOR_IDS.quickStartFab}>
+        <GlassButton
+          circular
+          size={FAB_BUTTON_SIZE}
+          style={[
+            styles.plusButton,
+            { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
+            isWorkoutActive && styles.centerButtonDisabled,
+          ]}
+          gradientColors={startButtonColors}
+          onPress={() => void handleStartPress()}
+          onLongPress={handleStartLongPress}
+          disabled={isWorkoutActive}
+          pointerEvents={detailModalVisible ? 'none' : 'auto'}
+        >
+          <DumbbellIcon color="#fff" size={FAB_ICON_SIZE} fill="#fff" />
+        </GlassButton>
+      </TourAnchor>
     </Animated.View>
 
     {/* Add Custom Exercise Modal */}

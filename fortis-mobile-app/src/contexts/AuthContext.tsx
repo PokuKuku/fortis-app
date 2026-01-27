@@ -44,6 +44,9 @@ export interface Profile {
   workout_consistency?: 'none' | 'daily' | 'few_times_week' | 'once_or_less' | 'starting' | null;
   preferred_units: 'imperial' | 'metric';
   onboarding_completed: boolean;
+  has_seen_in_app_tour?: boolean | null;
+  in_app_tour_completed_at?: string | null;
+  in_app_tour_version?: number | null;
   // Theme preferences (synced to cloud)
   theme_mode: 'system' | 'light' | 'dark';
   accent_color: AccentColorName | 'lime' | 'rose' | 'blue';
