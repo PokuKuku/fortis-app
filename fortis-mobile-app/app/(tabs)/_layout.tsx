@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { usePlacement } from 'expo-superwall';
 import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon, ChartBarIcon } from 'react-native-heroicons/outline';
 import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
 import { GlassButton } from '../../components/GlassButton';
@@ -38,11 +39,29 @@ import { useExercises } from '@/src/hooks/useExercises';
 import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 import { saveCustomExercise } from '@/src/services/exerciseService';
 
+// Guard against duplicate presentation attempts across remounts in dev.
+let hasTriggeredFortisFirst = false;
+
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, profile } = useAuth();
+  const { registerPlacement, state: paywallState } = usePlacement({
+    onPresent: (info) => {
+      console.log('[Superwall] Presented paywall:', info.name);
+    },
+    onDismiss: (info, result) => {
+      console.log('[Superwall] Dismissed paywall:', info.name, result.type);
+    },
+    onSkip: (reason) => {
+      console.log('[Superwall] Skipped paywall:', reason.type);
+    },
+    onError: (error) => {
+      console.error('Superwall placement error:', error);
+    },
+  });
+  const paywallShownRef = useRef(false);
 
   // Theme-aware dynamic styles for accent color
   const themedStyles = {
@@ -94,6 +113,42 @@ export default function TabLayout() {
       router.replace('/auth');
     }
   }, [isLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated) {
+      return;
+    }
+    if (!profile) {
+      return;
+    }
+    if (profile?.onboarding_completed === false) {
+      return;
+    }
+    if (paywallState.status === 'presented') {
+      return;
+    }
+    if (paywallShownRef.current) {
+      return;
+    }
+    if (hasTriggeredFortisFirst) {
+      return;
+    }
+
+    paywallShownRef.current = true;
+    hasTriggeredFortisFirst = true;
+    console.log('[Superwall] Registering placement fortis_first. State:', paywallState.status);
+    void registerPlacement({
+      placement: 'fortis_first',
+      feature: () => {},
+    });
+  }, [
+    isAuthenticated,
+    isLoading,
+    paywallState.status,
+    profile,
+    profile?.onboarding_completed,
+    registerPlacement,
+  ]);
 
   useEffect(() => {
     if (!isLoading) {
