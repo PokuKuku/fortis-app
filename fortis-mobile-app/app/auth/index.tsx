@@ -232,7 +232,9 @@ export default function AuthWelcomeScreen() {
           {/* Logo */}
           <View style={styles.logoContainer}>
             <AnimatedLogo size="large" centered animate={false} />
-            <Text style={[styles.tagline, themedStyles.tagline]}>Track your strength journey</Text>
+            <Text style={[styles.tagline, themedStyles.tagline]}>
+              Start tracking your strength journey
+            </Text>
           </View>
 
           {/* Glass Card Container */}
@@ -247,7 +249,9 @@ export default function AuthWelcomeScreen() {
             />
 
             <View style={styles.glassCardContent}>
-              <Text style={[styles.glassCardTitle, themedStyles.glassCardTitle]}>Create an account or sign in</Text>
+              <Text style={[styles.glassCardTitle, themedStyles.glassCardTitle]}>
+                Sign in to save your preferences
+              </Text>
 
               <AuthProviderButtons
                 onGoogle={handleGoogleSignIn}

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { usePlacement } from 'expo-superwall';
+import { usePlacement, useSuperwall, useSuperwallEvents } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing } from '@/constants/Sizes';
@@ -9,12 +9,42 @@ import { Typography } from '@/constants/Typography';
 
 let gateInFlight = false;
 let gateUserId: string | null = null;
+let paywallIsPresenting = false;
 
 export default function PaywallGateScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { user, profile, isAuthResolved, isAuthenticated, needsOnboarding } = useAuth();
   const hasNavigatedRef = useRef(false);
+  const { isConfigured, isLoading, configurationError } = useSuperwall((state) => ({
+    isConfigured: state.isConfigured,
+    isLoading: state.isLoading,
+    configurationError: state.configurationError,
+  }));
+
+  useSuperwallEvents({
+    willPresentPaywall: () => {
+      paywallIsPresenting = true;
+    },
+    onPaywallPresent: () => {
+      paywallIsPresenting = true;
+    },
+    willDismissPaywall: () => {
+      paywallIsPresenting = false;
+    },
+    didDismissPaywall: () => {
+      paywallIsPresenting = false;
+    },
+    onPaywallDismiss: () => {
+      paywallIsPresenting = false;
+    },
+    onPaywallSkip: () => {
+      paywallIsPresenting = false;
+    },
+    onPaywallError: () => {
+      paywallIsPresenting = false;
+    },
+  });
 
   const finishGate = () => {
     gateInFlight = false;
@@ -25,7 +55,7 @@ export default function PaywallGateScreen() {
     router.replace('/(tabs)');
   };
 
-  const { registerPlacement } = usePlacement({
+  const { registerPlacement, state: placementState } = usePlacement({
     onPresent: (info) => {
       console.log('[Superwall] Presented paywall from gate:', info.name);
     },
@@ -53,6 +83,24 @@ export default function PaywallGateScreen() {
 
   useEffect(() => {
     if (!isAuthResolved) {
+      return;
+    }
+
+    if (isLoading) {
+      return;
+    }
+
+    if (configurationError) {
+      console.error('[Superwall] Configuration error in gate:', configurationError);
+      finishGate();
+      return;
+    }
+
+    if (!isConfigured) {
+      return;
+    }
+
+    if (paywallIsPresenting || placementState.status === 'presented') {
       return;
     }
 
@@ -84,6 +132,10 @@ export default function PaywallGateScreen() {
     needsOnboarding,
     profile,
     profile?.onboarding_completed,
+    configurationError,
+    isConfigured,
+    isLoading,
+    placementState.status,
     registerPlacement,
     router,
   ]);

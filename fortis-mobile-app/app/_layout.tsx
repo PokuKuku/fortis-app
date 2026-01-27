@@ -403,8 +403,6 @@ export default function RootLayout() {
     ? {
         // The Superwall app transaction check can block purchases in dev builds.
         shouldBypassAppTransactionCheck: true,
-        // StoreKit 2 can be flaky in the simulator; prefer StoreKit 1 for local testing.
-        storeKitVersion: 'STOREKIT1' as const,
         // Emit detailed SDK logs to help diagnose purchase issues locally.
         logging: {
           level: 'debug' as const,
