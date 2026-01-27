@@ -1,9 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { usePlacement, useSuperwall, useSuperwallEvents } from 'expo-superwall';
+import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useEntitlementStatus } from '@/src/hooks/useEntitlementStatus';
 import { Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 
@@ -16,6 +18,9 @@ export default function PaywallGateScreen() {
   const { colors } = useTheme();
   const { user, profile, isAuthResolved, isAuthenticated, needsOnboarding } = useAuth();
   const hasNavigatedRef = useRef(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const { isLoaded: isEntitlementLoaded, isEntitled, refresh: refreshEntitlements } =
+    useEntitlementStatus();
   const { isConfigured, isLoading, configurationError } = useSuperwall((state) => ({
     isConfigured: state.isConfigured,
     isLoading: state.isLoading,
@@ -61,15 +66,19 @@ export default function PaywallGateScreen() {
     },
     onDismiss: (info, result) => {
       console.log('[Superwall] Dismissed paywall from gate:', info.name, result.type);
-      finishGate();
+      gateInFlight = false;
+      setIsLocked(true);
+      void refreshEntitlements();
     },
     onSkip: (reason) => {
       console.log('[Superwall] Skipped paywall from gate:', reason.type);
-      finishGate();
+      gateInFlight = false;
+      setIsLocked(true);
     },
     onError: (error) => {
       console.error('[Superwall] Gate placement error:', error);
-      finishGate();
+      gateInFlight = false;
+      setIsLocked(true);
     },
   });
 
@@ -78,6 +87,7 @@ export default function PaywallGateScreen() {
       gateUserId = user?.id ?? null;
       gateInFlight = false;
       hasNavigatedRef.current = false;
+      setIsLocked(false);
     }
   }, [user?.id]);
 
@@ -104,6 +114,11 @@ export default function PaywallGateScreen() {
       return;
     }
 
+    if (isEntitlementLoaded && isEntitled) {
+      finishGate();
+      return;
+    }
+
     if (!isAuthenticated) {
       router.replace('/auth');
       return;
@@ -114,7 +129,7 @@ export default function PaywallGateScreen() {
       return;
     }
 
-    if (!profile || gateInFlight) {
+    if (!profile || gateInFlight || isLocked || !isEntitlementLoaded) {
       return;
     }
 
@@ -135,15 +150,53 @@ export default function PaywallGateScreen() {
     configurationError,
     isConfigured,
     isLoading,
+    isEntitlementLoaded,
+    isEntitled,
+    isLocked,
     placementState.status,
     registerPlacement,
     router,
+    refreshEntitlements,
   ]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ActivityIndicator size="small" color={colors.accent} />
-      <Text style={[styles.text, { color: colors.textSecondary }]}>Checking access...</Text>
+      {isLocked ? (
+        <>
+          <Text style={[styles.title, { color: colors.textPrimary }]}>
+            Subscription required
+          </Text>
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
+            Please subscribe to continue.
+          </Text>
+          <GlassButton
+            style={styles.button}
+            onPress={() => {
+              if (paywallIsPresenting || gateInFlight) {
+                return;
+              }
+              setIsLocked(false);
+              gateInFlight = true;
+              console.log('[Superwall] Re-opening paywall from gate.');
+              void registerPlacement({
+                placement: 'fortis_first',
+                feature: () => {
+                  finishGate();
+                },
+              });
+            }}
+          >
+            Subscribe
+          </GlassButton>
+        </>
+      ) : (
+        <>
+          <ActivityIndicator size="small" color={colors.accent} />
+          <Text style={[styles.text, { color: colors.textSecondary }]}>
+            Checking access...
+          </Text>
+        </>
+      )}
     </View>
   );
 }
@@ -159,5 +212,13 @@ const styles = StyleSheet.create({
   text: {
     ...Typography.bodySmall,
     textAlign: 'center',
+  },
+  title: {
+    ...Typography.titleSmall,
+    textAlign: 'center',
+  },
+  button: {
+    marginTop: Spacing.md,
+    minWidth: 180,
   },
 });

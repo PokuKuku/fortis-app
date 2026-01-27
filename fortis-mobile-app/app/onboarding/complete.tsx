@@ -102,6 +102,7 @@ export default function OnboardingCompleteScreen() {
   const [showSteps, setShowSteps] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [typedStatusLine, setTypedStatusLine] = useState('');
+  const [typedLoadingTitle, setTypedLoadingTitle] = useState('');
   const [typedReadyTitle, setTypedReadyTitle] = useState('');
   const [typedReadySubtitle, setTypedReadySubtitle] = useState('');
   const typewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -116,6 +117,7 @@ export default function OnboardingCompleteScreen() {
     return LOADING_STEPS[Math.min(activeStepIndex, LOADING_STEPS.length - 1)]?.label ?? 'Finalizing setup…';
   }, [activeStepIndex]);
 
+  const loadingTitleLine = 'We’re setting everything up for you';
   const readyTitleLine = 'You’re ready to go';
   const readySubtitleLine = isSaving
     ? 'Starting…'
@@ -131,23 +133,37 @@ export default function OnboardingCompleteScreen() {
 
     if (phase !== 'loading') {
       setTypedStatusLine(statusLine);
+      setTypedLoadingTitle(loadingTitleLine);
       return;
     }
 
     let isCancelled = false;
     setTypedStatusLine('');
-    let index = 0;
+    setTypedLoadingTitle('');
+    let statusIndex = 0;
+    let titleIndex = 0;
 
-    const typeNext = () => {
+    const typeStatus = () => {
       if (isCancelled) return;
-      index += 1;
-      setTypedStatusLine(statusLine.slice(0, index));
-      if (index < statusLine.length) {
-        typewriterTimeoutRef.current = setTimeout(typeNext, TYPEWRITER_INTERVAL_MS);
+      statusIndex += 1;
+      setTypedStatusLine(statusLine.slice(0, statusIndex));
+      if (statusIndex < statusLine.length) {
+        typewriterTimeoutRef.current = setTimeout(typeStatus, TYPEWRITER_INTERVAL_MS);
       }
     };
 
-    typewriterTimeoutRef.current = setTimeout(typeNext, TYPEWRITER_INTERVAL_MS);
+    const typeTitle = () => {
+      if (isCancelled) return;
+      titleIndex += 1;
+      setTypedLoadingTitle(loadingTitleLine.slice(0, titleIndex));
+      if (titleIndex < loadingTitleLine.length) {
+        typewriterTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
+      } else {
+        typewriterTimeoutRef.current = setTimeout(typeStatus, TYPEWRITER_INTERVAL_MS);
+      }
+    };
+
+    typewriterTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
 
     return () => {
       isCancelled = true;
@@ -561,7 +577,7 @@ export default function OnboardingCompleteScreen() {
             {phase === 'loading' ? `${progressPct}%` : '100%'}
           </Text>
           <Text style={[styles.titleText, { color: colors.textPrimary }]}>
-            {phase === 'loading' ? 'We’re setting everything up for you' : typedReadyTitle}
+            {phase === 'loading' ? typedLoadingTitle : typedReadyTitle}
           </Text>
           <Text style={[styles.statusText, { color: colors.textSecondary }]}>
             {phase === 'loading'

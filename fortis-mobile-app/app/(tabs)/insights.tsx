@@ -92,8 +92,12 @@ const formatChartDate = (date: string): string | null => {
   if (!parsed) {
     return null;
   }
-  const displayDate = isDateOnly(date) ? addDays(parsed, 6) : parsed;
-  return format(displayDate, 'MMM d');
+  if (isDateOnly(date)) {
+    const start = parsed;
+    const end = addDays(parsed, 6);
+    return `${format(start, 'MMM d')}–${format(end, 'MMM d')}`;
+  }
+  return format(parsed, 'MMM d');
 };
 
 const resolveUnitLabel = (unit?: string): string | null => {
@@ -1376,15 +1380,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: scale(Spacing.sm),
     paddingVertical: scale(Spacing.xs),
-    alignItems: 'flex-end',
+    alignItems: 'center',
   },
   sparklineValueText: {
     fontSize: moderateScale(13),
     fontWeight: '700',
+    textAlign: 'center',
   },
   sparklineValueMeta: {
     fontSize: moderateScale(11),
     marginTop: scale(2),
+    textAlign: 'center',
   },
   sparklineTabs: {
     flexDirection: 'row',
