@@ -94,6 +94,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const FORCE_DEV_SIGN_OUT_ON_LAUNCH = __DEV__;
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -236,14 +237,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Get initial session
     supabase.auth.getSession().then(async ({ data: { session: initialSession } }) => {
-      setSession(initialSession);
-      setUser(initialSession?.user ?? null);
+      let sessionToUse = initialSession;
+
+      // In dev builds we want a clean start so onboarding/auth flows always run.
+      if (FORCE_DEV_SIGN_OUT_ON_LAUNCH && initialSession?.user) {
+        console.log('[Auth] Dev: clearing persisted session on launch.');
+
+        try {
+          await clearUserScopedStorage(initialSession.user.id);
+        } catch (error) {
+          console.warn('[Auth] Dev: failed to clear user-scoped storage:', error);
+        }
+
+        useWorkoutStore.getState().resetStore();
+        useProgramsStore.getState().resetStore();
+        useAIStore.getState().resetStore?.();
+        useProgramProgressStore.getState().resetStore();
+        useStartPresetStore.getState().resetStore();
+        invalidateCustomCache();
+
+        try {
+          await supabase.auth.signOut({ scope: 'global' });
+        } catch (error) {
+          console.warn('[Auth] Dev: failed to sign out persisted session:', error);
+        }
+
+        sessionToUse = null;
+      }
+
+      setSession(sessionToUse);
+      setUser(sessionToUse?.user ?? null);
       setIsAuthResolved(true);
 
-      if (initialSession?.user) {
-        await migrateGuestStorageToUser(initialSession.user.id);
+      if (sessionToUse?.user) {
+        await migrateGuestStorageToUser(sessionToUse.user.id);
         await hydrateUserData();
-        const profileData = await fetchProfile(initialSession.user.id);
+        const profileData = await fetchProfile(sessionToUse.user.id);
         setProfile(profileData);
       } else {
         setProfile(null);
@@ -323,7 +352,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [fetchProfile, hydrateUserData, syncPendingWorkouts]);
+  }, [FORCE_DEV_SIGN_OUT_ON_LAUNCH, fetchProfile, hydrateUserData, syncPendingWorkouts]);
 
   useEffect(() => {
     const handleAppStateChange = (nextState: string) => {

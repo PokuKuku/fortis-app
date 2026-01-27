@@ -454,7 +454,7 @@ export default function OnboardingCompleteScreen() {
       }
     } finally {
       setIsSaving(false);
-      router.replace('/(tabs)');
+      router.replace('/paywall-gate');
     }
   }, [isAuthenticated, phase, profile, router, summaryAnim, updateProfile]);
 

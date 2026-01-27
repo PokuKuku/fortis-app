@@ -124,7 +124,7 @@ export default function SplashScreen() {
     }
 
     if (isAuthenticated) {
-      router.replace('/(tabs)');
+      router.replace('/paywall-gate');
       return;
     }
 

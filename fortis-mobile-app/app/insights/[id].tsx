@@ -370,7 +370,7 @@ export default function InsightDetailScreen() {
           </View>
 
           <View style={styles.chartSection}>
-            {!isFirstRecap && (
+            {!isWorkoutRecap && (
               <SegmentedControl
                 options={tabOptions}
                 value={selectedTab}
@@ -381,9 +381,9 @@ export default function InsightDetailScreen() {
 
             <View style={styles.chartHeader}>
               <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>
-                {isFirstRecap ? 'Workout volume by exercise' : chartTitle}
+                {isWorkoutRecap ? 'Workout volume by exercise' : chartTitle}
               </Text>
-              {!isFirstRecap && latestValue && (
+              {!isWorkoutRecap && latestValue && (
                 <View
                   style={[
                     styles.chartValuePill,
@@ -412,7 +412,7 @@ export default function InsightDetailScreen() {
                   Loading chart...
                 </Text>
               </View>
-            ) : isFirstRecap ? (
+            ) : isWorkoutRecap ? (
               <InsightBarChart
                 data={series?.breakdown ?? []}
                 unit={series?.breakdownUnit ?? unitLabel}

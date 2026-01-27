@@ -57,7 +57,7 @@ export default function OnboardingWelcomeScreen() {
     }
     setPendingOnboardingAfterSignIn(false);
     setShowSignInSheet(false);
-    router.replace('/(tabs)');
+    router.replace('/paywall-gate');
   }, [
     isAuthenticated,
     isLoading,

@@ -129,7 +129,7 @@ export default function AuthWelcomeScreen() {
         }
 
         await clearOnboardingState();
-        router.replace('/(tabs)');
+        router.replace('/paywall-gate');
       })();
       return;
     }
@@ -139,7 +139,7 @@ export default function AuthWelcomeScreen() {
       return;
     }
 
-    router.replace('/(tabs)');
+    router.replace('/paywall-gate');
   }, [
     isAuthenticated,
     isFinalizing,

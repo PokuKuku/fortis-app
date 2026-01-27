@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent } from '@testing-library/react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -35,9 +36,16 @@ describe('NumberPadModal', () => {
   });
 
   const renderWithTheme = (ui: React.ReactElement) => render(
-    <ThemeProvider>
-      {ui}
-    </ThemeProvider>
+    <SafeAreaProvider
+      initialMetrics={{
+        frame: { x: 0, y: 0, width: 390, height: 844 },
+        insets: { top: 0, right: 0, bottom: 0, left: 0 },
+      }}
+    >
+      <ThemeProvider>
+        {ui}
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 
   it('replaces a prefilled value on the first keypress in an active session', () => {

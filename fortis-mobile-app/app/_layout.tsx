@@ -19,6 +19,7 @@ import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics'
 import { initMixpanel, isMixpanelConfigured } from '@/src/lib/mixpanel';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
+import { SuperwallDebugEvents } from '@/src/components/superwall/SuperwallDebugEvents';
 
 const PAGE_TRANSITION = {
   animation: 'fade_from_bottom' as const,
@@ -57,6 +58,7 @@ function ThemedAppContent({
   return (
     <AuthProvider>
       <SuperwallAuthSync />
+      <SuperwallDebugEvents />
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
         <DragDropProvider>
@@ -71,6 +73,13 @@ function ThemedAppContent({
           >
             <Stack.Screen name="index" options={{ animation: 'none' }} />
             <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="paywall-gate"
+              options={{
+                ...PAGE_TRANSITION,
+                gestureEnabled: false,
+              }}
+            />
             <Stack.Screen
               name="auth/index"
               options={{
@@ -390,9 +399,31 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 
+  const superwallOptions = __DEV__
+    ? {
+        // The Superwall app transaction check can block purchases in dev builds.
+        shouldBypassAppTransactionCheck: true,
+        // StoreKit 2 can be flaky in the simulator; prefer StoreKit 1 for local testing.
+        storeKitVersion: 'STOREKIT1' as const,
+        // Emit detailed SDK logs to help diagnose purchase issues locally.
+        logging: {
+          level: 'debug' as const,
+          scopes: ['all' as const],
+        },
+        // Observe purchases that might complete outside of Superwall's paywall UI.
+        shouldObservePurchases: true,
+      }
+    : undefined;
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SuperwallProvider apiKeys={{ ios: 'pk_xnIb2AL4geeYhrACppkqM' }}>
+      <SuperwallProvider
+        apiKeys={{ ios: 'pk_xnIb2AL4geeYhrACppkqM' }}
+        options={superwallOptions}
+        onConfigurationError={(error) => {
+          console.error('[Superwall] Configuration error:', error);
+        }}
+      >
         {appContent}
       </SuperwallProvider>
     </GestureHandlerRootView>

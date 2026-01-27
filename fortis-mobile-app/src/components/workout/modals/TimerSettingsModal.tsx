@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type MutableRefObject } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView, InteractionManager } from 'react-native';
 import { XMarkIcon, ChevronDownIcon } from 'react-native-heroicons/outline';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -62,8 +62,11 @@ export function TimerSettingsModal({
     pickerUnit: { color: colors.textTertiary },
     pickerUnitSelected: { color: colors.textSecondary },
     selectionSlot: {
-      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.4)' : 'rgba(0, 0, 0, 0.06)',
-      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    selectionSlotInner: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
     },
     selectionLabel: { color: colors.textTertiary },
     typeSelectorPopover: {
@@ -71,7 +74,7 @@ export function TimerSettingsModal({
       borderColor: isDark ? Colors.borderLight : 'rgba(0, 0, 0, 0.08)',
     },
     typeSelectorText: { color: colors.textPrimary },
-    fadeGradient: isDark ? ['#1a1a1a', 'transparent'] : [colors.background, 'transparent'],
+    fadeGradient: isDark ? ['transparent', 'transparent'] : [colors.background, 'transparent'],
     // Accent-based colors for normal type
     normalTypeColor: colors.accent,
     selectionValue: { color: colors.accent },
@@ -117,6 +120,10 @@ export function TimerSettingsModal({
   const minReadyRef = useRef(false);
   const secReadyRef = useRef(false);
   const [pickerReady, setPickerReady] = useState(false);
+  const isInteractingRef = useRef(false);
+  const lastMinuteHapticIndexRef = useRef<number | null>(null);
+  const lastSecondHapticIndexRef = useRef<number | null>(null);
+  const lastHapticAtRef = useRef(0);
 
   const scrollToSelection = (minutes: number, seconds: number) => {
     minScrollRef.current?.scrollTo({ y: minutes * ITEM_HEIGHT, animated: false });
@@ -128,6 +135,8 @@ export function TimerSettingsModal({
     const { m, s } = getParts(durations[activeType]);
     setSelectedMinutes(m);
     setSelectedSeconds(s);
+    lastMinuteHapticIndexRef.current = m;
+    lastSecondHapticIndexRef.current = Math.round(s / 5);
 
     if (!visible || !pickerReady) return;
     const task = InteractionManager.runAfterInteractions(() => {
@@ -200,6 +209,23 @@ export function TimerSettingsModal({
     onClose();
   };
 
+  const maybeHaptic = (nextIndex: number, ref: MutableRefObject<number | null>) => {
+    if (ref.current === nextIndex) return;
+    const now = Date.now();
+    if (now - lastHapticAtRef.current < 35) return;
+    lastHapticAtRef.current = now;
+    ref.current = nextIndex;
+    Haptics.selectionAsync();
+  };
+
+  const handleMinutesScroll = (event: any) => {
+    if (!isInteractingRef.current) return;
+    const y = event.nativeEvent.contentOffset.y;
+    const index = Math.round(y / ITEM_HEIGHT);
+    const clampedIndex = Math.max(0, Math.min(MINUTES.length - 1, index));
+    maybeHaptic(clampedIndex, lastMinuteHapticIndexRef);
+  };
+
   const handleMinutesScrollEnd = (event: any) => {
     const y = event.nativeEvent.contentOffset.y;
     const index = Math.round(y / ITEM_HEIGHT);
@@ -210,6 +236,16 @@ export function TimerSettingsModal({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setSelectedMinutes(newValue);
     }
+    isInteractingRef.current = false;
+    lastMinuteHapticIndexRef.current = clampedIndex;
+  };
+
+  const handleSecondsScroll = (event: any) => {
+    if (!isInteractingRef.current) return;
+    const y = event.nativeEvent.contentOffset.y;
+    const index = Math.round(y / ITEM_HEIGHT);
+    const clampedIndex = Math.max(0, Math.min(SECONDS.length - 1, index));
+    maybeHaptic(clampedIndex, lastSecondHapticIndexRef);
   };
 
   const handleSecondsScrollEnd = (event: any) => {
@@ -222,13 +258,15 @@ export function TimerSettingsModal({
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       setSelectedSeconds(newValue);
     }
+    isInteractingRef.current = false;
+    lastSecondHapticIndexRef.current = clampedIndex;
   };
 
   const getTypeLabel = () => {
     switch (activeType) {
-      case 'warmup': return 'WARM UP';
-      case 'dropset': return 'DROP SET';
-      default: return 'NORMAL';
+      case 'warmup': return 'WARM';
+      case 'dropset': return 'DROP';
+      default: return 'NORM';
     }
   };
 
@@ -270,7 +308,6 @@ export function TimerSettingsModal({
                   onPress={() => setShowTypeSelector(true)}
                   style={[styles.typeButton, { borderColor: getTypeColor() }]}
                 >
-                  <View style={[styles.typeDot, { backgroundColor: getTypeColor() }]} />
                   <Text style={[styles.typeButtonText, { color: getTypeColor() }]}>
                     {getTypeLabel()}
                   </Text>
@@ -300,7 +337,7 @@ export function TimerSettingsModal({
             <View style={styles.pickerContainer}>
               {/* Selection Slot - Recessed industrial look */}
               <View style={[styles.selectionSlot, themedStyles.selectionSlot]}>
-                <View style={styles.selectionSlotInner} />
+                <View style={[styles.selectionSlotInner, themedStyles.selectionSlotInner]} />
               </View>
 
               {/* Fade overlays */}
@@ -326,6 +363,10 @@ export function TimerSettingsModal({
                     decelerationRate="fast"
                     scrollEventThrottle={16}
                     bounces={false}
+                    onScrollBeginDrag={() => { isInteractingRef.current = true; }}
+                    onMomentumScrollBegin={() => { isInteractingRef.current = true; }}
+                    onScrollEndDrag={() => { isInteractingRef.current = false; }}
+                    onScroll={handleMinutesScroll}
                     onScrollEndDrag={handleMinutesScrollEnd}
                     onMomentumScrollEnd={handleMinutesScrollEnd}
                     style={styles.picker}
@@ -370,6 +411,10 @@ export function TimerSettingsModal({
                     decelerationRate="fast"
                     scrollEventThrottle={16}
                     bounces={false}
+                    onScrollBeginDrag={() => { isInteractingRef.current = true; }}
+                    onMomentumScrollBegin={() => { isInteractingRef.current = true; }}
+                    onScrollEndDrag={() => { isInteractingRef.current = false; }}
+                    onScroll={handleSecondsScroll}
                     onScrollEndDrag={handleSecondsScrollEnd}
                     onMomentumScrollEnd={handleSecondsScrollEnd}
                     style={styles.picker}
@@ -466,7 +511,7 @@ export function TimerSettingsModal({
                           }
                         ]} />
                         <Text style={[styles.typeSelectorText, themedStyles.typeSelectorText]}>
-                          {type === 'warmup' ? 'WARM UP' : type === 'dropset' ? 'DROP SET' : 'NORMAL'}
+                          {type === 'warmup' ? 'Warm up set' : type === 'dropset' ? 'Drop set' : 'Normal set'}
                         </Text>
                       </Pressable>
                     </View>
@@ -551,11 +596,6 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: 'transparent',
     borderWidth: 1,
-  },
-  typeDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 2.5,
   },
   typeButtonText: {
     fontSize: 9,
