@@ -362,6 +362,17 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       clearTimeout(timeoutId);
 
       if (error) {
+        const message = String(error.message || '');
+        const isAbort =
+          error.name === 'AbortError' ||
+          message.includes('AbortError') ||
+          message.toLowerCase().includes('aborted');
+        if (isAbort) {
+          console.warn('Programs fetch timed out');
+          set({ isLoading: false, hasFetchedPrograms: true });
+          return;
+        }
+
         console.error('Error fetching programs:', error);
         set({ error: error.message, isLoading: false, hasFetchedPrograms: true });
         return;

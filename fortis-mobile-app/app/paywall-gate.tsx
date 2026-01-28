@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { usePlacement, useSuperwall, useSuperwallEvents } from 'expo-superwall';
-import { GlassButton } from '@/components/GlassButton';
+import { usePlacement, useSuperwall, useSuperwallEvents, useUser } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useEntitlementStatus } from '@/src/hooks/useEntitlementStatus';
@@ -16,16 +15,43 @@ let paywallIsPresenting = false;
 export default function PaywallGateScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { user, profile, isAuthResolved, isAuthenticated, needsOnboarding } = useAuth();
+  const { user, profile, isAuthResolved, isAuthenticated, needsOnboarding, signOut } = useAuth();
   const hasNavigatedRef = useRef(false);
-  const [isLocked, setIsLocked] = useState(false);
-  const { isLoaded: isEntitlementLoaded, isEntitled, refresh: refreshEntitlements } =
-    useEntitlementStatus();
+  const isSigningOutRef = useRef(false);
+  const configTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [entitlementCheck, setEntitlementCheck] = useState<
+    'idle' | 'checking' | 'active' | 'inactive'
+  >('idle');
+  const { isEntitled } = useEntitlementStatus();
+  const { user: superwallUser, getEntitlements, setSubscriptionStatus } = useUser();
   const { isConfigured, isLoading, configurationError } = useSuperwall((state) => ({
     isConfigured: state.isConfigured,
     isLoading: state.isLoading,
     configurationError: state.configurationError,
   }));
+
+  const signOutToAuth = useCallback(
+    async (reason: string) => {
+      gateInFlight = false;
+      paywallIsPresenting = false;
+
+      if (isSigningOutRef.current) {
+        return;
+      }
+      isSigningOutRef.current = true;
+
+      console.warn('[PaywallGate] Blocking access and signing out:', reason);
+
+      try {
+        await signOut();
+      } finally {
+        // Ensure we land on auth even if signOut throws.
+        router.replace('/auth');
+        isSigningOutRef.current = false;
+      }
+    },
+    [router, signOut],
+  );
 
   useSuperwallEvents({
     willPresentPaywall: () => {
@@ -67,18 +93,23 @@ export default function PaywallGateScreen() {
     onDismiss: (info, result) => {
       console.log('[Superwall] Dismissed paywall from gate:', info.name, result.type);
       gateInFlight = false;
-      setIsLocked(true);
-      void refreshEntitlements();
+
+      if (result.type === 'purchased' || result.type === 'restored') {
+        finishGate();
+        return;
+      }
+
+      void signOutToAuth(`paywall dismissed (${result.type})`);
     },
     onSkip: (reason) => {
       console.log('[Superwall] Skipped paywall from gate:', reason.type);
       gateInFlight = false;
-      setIsLocked(true);
+      void signOutToAuth(`paywall skipped (${reason.type})`);
     },
     onError: (error) => {
       console.error('[Superwall] Gate placement error:', error);
       gateInFlight = false;
-      setIsLocked(true);
+      void signOutToAuth('paywall error');
     },
   });
 
@@ -87,12 +118,111 @@ export default function PaywallGateScreen() {
       gateUserId = user?.id ?? null;
       gateInFlight = false;
       hasNavigatedRef.current = false;
-      setIsLocked(false);
+      setEntitlementCheck('idle');
     }
   }, [user?.id]);
 
   useEffect(() => {
+    if (!isAuthResolved || !isAuthenticated) {
+      if (configTimeoutRef.current) {
+        clearTimeout(configTimeoutRef.current);
+        configTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (isConfigured || isLoading || configurationError) {
+      if (configTimeoutRef.current) {
+        clearTimeout(configTimeoutRef.current);
+        configTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    if (!configTimeoutRef.current) {
+      configTimeoutRef.current = setTimeout(() => {
+        if (!isConfigured && !isLoading && !configurationError) {
+          void signOutToAuth('superwall not configured');
+        }
+      }, 2000);
+    }
+
+    return () => {
+      if (configTimeoutRef.current) {
+        clearTimeout(configTimeoutRef.current);
+        configTimeoutRef.current = null;
+      }
+    };
+  }, [
+    configurationError,
+    isAuthResolved,
+    isAuthenticated,
+    isConfigured,
+    isLoading,
+    signOutToAuth,
+  ]);
+
+  useEffect(() => {
+    if (!isAuthResolved || !isAuthenticated || !isConfigured) {
+      return;
+    }
+
+    if (!superwallUser?.appUserId || superwallUser.appUserId !== user?.id) {
+      return;
+    }
+
+    if (isEntitled) {
+      if (entitlementCheck !== 'active') {
+        setEntitlementCheck('active');
+      }
+      return;
+    }
+
+    if (entitlementCheck !== 'idle') {
+      return;
+    }
+
+    let cancelled = false;
+    setEntitlementCheck('checking');
+
+    getEntitlements()
+      .then((info) => {
+        if (cancelled) {
+          return;
+        }
+        const hasActive = Array.isArray(info?.active) && info.active.length > 0;
+        if (hasActive) {
+          setSubscriptionStatus({ status: 'ACTIVE', entitlements: info.active }).catch(() => undefined);
+        }
+        setEntitlementCheck(hasActive ? 'active' : 'inactive');
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEntitlementCheck('inactive');
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    entitlementCheck,
+    getEntitlements,
+    isAuthResolved,
+    isAuthenticated,
+    isConfigured,
+    isEntitled,
+    setSubscriptionStatus,
+    superwallUser?.appUserId,
+    user?.id,
+  ]);
+
+  useEffect(() => {
     if (!isAuthResolved) {
+      return;
+    }
+
+    if (isSigningOutRef.current) {
       return;
     }
 
@@ -102,7 +232,7 @@ export default function PaywallGateScreen() {
 
     if (configurationError) {
       console.error('[Superwall] Configuration error in gate:', configurationError);
-      finishGate();
+      void signOutToAuth('superwall configuration error');
       return;
     }
 
@@ -110,11 +240,15 @@ export default function PaywallGateScreen() {
       return;
     }
 
+    if (!superwallUser?.appUserId || superwallUser.appUserId !== user?.id) {
+      return;
+    }
+
     if (paywallIsPresenting || placementState.status === 'presented') {
       return;
     }
 
-    if (isEntitlementLoaded && isEntitled) {
+    if (isEntitled || entitlementCheck === 'active') {
       finishGate();
       return;
     }
@@ -129,7 +263,7 @@ export default function PaywallGateScreen() {
       return;
     }
 
-    if (!profile || gateInFlight || isLocked || !isEntitlementLoaded) {
+    if (gateInFlight || entitlementCheck === 'checking') {
       return;
     }
 
@@ -137,9 +271,6 @@ export default function PaywallGateScreen() {
     console.log('[Superwall] Registering placement fortis_first from gate.');
     void registerPlacement({
       placement: 'fortis_first',
-      feature: () => {
-        finishGate();
-      },
     });
   }, [
     isAuthResolved,
@@ -150,53 +281,22 @@ export default function PaywallGateScreen() {
     configurationError,
     isConfigured,
     isLoading,
-    isEntitlementLoaded,
     isEntitled,
-    isLocked,
+    entitlementCheck,
     placementState.status,
     registerPlacement,
     router,
-    refreshEntitlements,
+    signOutToAuth,
+    superwallUser?.appUserId,
+    user?.id,
   ]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {isLocked ? (
-        <>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>
-            Subscription required
-          </Text>
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            Please subscribe to continue.
-          </Text>
-          <GlassButton
-            style={styles.button}
-            onPress={() => {
-              if (paywallIsPresenting || gateInFlight) {
-                return;
-              }
-              setIsLocked(false);
-              gateInFlight = true;
-              console.log('[Superwall] Re-opening paywall from gate.');
-              void registerPlacement({
-                placement: 'fortis_first',
-                feature: () => {
-                  finishGate();
-                },
-              });
-            }}
-          >
-            Subscribe
-          </GlassButton>
-        </>
-      ) : (
-        <>
-          <ActivityIndicator size="small" color={colors.accent} />
-          <Text style={[styles.text, { color: colors.textSecondary }]}>
-            Checking access...
-          </Text>
-        </>
-      )}
+      <ActivityIndicator size="small" color={colors.accent} />
+      <Text style={[styles.text, { color: colors.textSecondary }]}>
+        Checking access...
+      </Text>
     </View>
   );
 }
@@ -212,13 +312,5 @@ const styles = StyleSheet.create({
   text: {
     ...Typography.bodySmall,
     textAlign: 'center',
-  },
-  title: {
-    ...Typography.titleSmall,
-    textAlign: 'center',
-  },
-  button: {
-    marginTop: Spacing.md,
-    minWidth: 180,
   },
 });

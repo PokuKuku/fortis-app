@@ -19,6 +19,7 @@ const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
 const UPDATE_TIMEOUT_MS = 5000;
 const LOADING_FAILSAFE_MS = LOADING_DURATION_MS + 1000;
 const TYPEWRITER_INTERVAL_MS = 36;
+const LOADING_TITLE_TYPEWRITER_MS = 50;
 
 type Phase = 'loading' | 'ready';
 
@@ -106,7 +107,9 @@ export default function OnboardingCompleteScreen() {
   const [typedReadyTitle, setTypedReadyTitle] = useState('');
   const [typedReadySubtitle, setTypedReadySubtitle] = useState('');
   const typewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusTypewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readyTypeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didTypeLoadingTitleRef = useRef(false);
 
   const activeStepIndex = useMemo(() => {
     const index = LOADING_STEPS.findIndex((step) => progressPct < step.completeAt);
@@ -126,44 +129,72 @@ export default function OnboardingCompleteScreen() {
       : 'Fortis AI is customized for you.';
 
   useEffect(() => {
+    if (statusTypewriterTimeoutRef.current) {
+      clearTimeout(statusTypewriterTimeoutRef.current);
+      statusTypewriterTimeoutRef.current = null;
+    }
+
+    if (phase !== 'loading') {
+      setTypedStatusLine(statusLine);
+      return;
+    }
+
+    let isCancelled = false;
+    setTypedStatusLine('');
+    let index = 0;
+
+    const typeStatus = () => {
+      if (isCancelled) return;
+      index += 1;
+      setTypedStatusLine(statusLine.slice(0, index));
+      if (index < statusLine.length) {
+        statusTypewriterTimeoutRef.current = setTimeout(typeStatus, TYPEWRITER_INTERVAL_MS);
+      }
+    };
+
+    statusTypewriterTimeoutRef.current = setTimeout(typeStatus, TYPEWRITER_INTERVAL_MS);
+
+    return () => {
+      isCancelled = true;
+      if (statusTypewriterTimeoutRef.current) {
+        clearTimeout(statusTypewriterTimeoutRef.current);
+        statusTypewriterTimeoutRef.current = null;
+      }
+    };
+  }, [phase, statusLine]);
+
+  useEffect(() => {
     if (typewriterTimeoutRef.current) {
       clearTimeout(typewriterTimeoutRef.current);
       typewriterTimeoutRef.current = null;
     }
 
     if (phase !== 'loading') {
-      setTypedStatusLine(statusLine);
+      setTypedLoadingTitle(loadingTitleLine);
+      return;
+    }
+
+    if (didTypeLoadingTitleRef.current) {
       setTypedLoadingTitle(loadingTitleLine);
       return;
     }
 
     let isCancelled = false;
-    setTypedStatusLine('');
     setTypedLoadingTitle('');
-    let statusIndex = 0;
     let titleIndex = 0;
-
-    const typeStatus = () => {
-      if (isCancelled) return;
-      statusIndex += 1;
-      setTypedStatusLine(statusLine.slice(0, statusIndex));
-      if (statusIndex < statusLine.length) {
-        typewriterTimeoutRef.current = setTimeout(typeStatus, TYPEWRITER_INTERVAL_MS);
-      }
-    };
 
     const typeTitle = () => {
       if (isCancelled) return;
       titleIndex += 1;
       setTypedLoadingTitle(loadingTitleLine.slice(0, titleIndex));
       if (titleIndex < loadingTitleLine.length) {
-        typewriterTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
+        typewriterTimeoutRef.current = setTimeout(typeTitle, LOADING_TITLE_TYPEWRITER_MS);
       } else {
-        typewriterTimeoutRef.current = setTimeout(typeStatus, TYPEWRITER_INTERVAL_MS);
+        didTypeLoadingTitleRef.current = true;
       }
     };
 
-    typewriterTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
+    typewriterTimeoutRef.current = setTimeout(typeTitle, LOADING_TITLE_TYPEWRITER_MS);
 
     return () => {
       isCancelled = true;
@@ -172,7 +203,7 @@ export default function OnboardingCompleteScreen() {
         typewriterTimeoutRef.current = null;
       }
     };
-  }, [phase, statusLine]);
+  }, [phase, loadingTitleLine]);
 
   useEffect(() => {
     if (readyTypeTimeoutRef.current) {
