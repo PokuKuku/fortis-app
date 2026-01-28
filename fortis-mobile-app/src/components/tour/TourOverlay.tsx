@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Dimensions, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Dimensions, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { GlassButton } from '@/components/GlassButton';
@@ -24,12 +24,17 @@ type TourOverlayProps = {
   stepLabel?: string;
   primaryAction?: Action | null;
   onSkip?: (() => void) | null;
+  showArrow?: boolean;
 };
 
 const SCREEN = Dimensions.get('window');
 const TOOLTIP_MAX_WIDTH = scale(340);
 const TOOLTIP_SIDE_MARGIN = scale(18);
 const TOOLTIP_GAP = scale(12);
+const ARROW_GAP = scale(8);
+const ARROW_HEIGHT = scale(28);
+const ARROW_WIDTH = scale(18);
+const ARROW_LINE_HEIGHT = scale(16);
 const HOLE_PADDING = scale(10);
 const HIGHLIGHT_RADIUS = scale(16);
 const HIGHLIGHT_BORDER = scale(2);
@@ -44,10 +49,12 @@ export function TourOverlay({
   stepLabel,
   primaryAction,
   onSkip,
+  showArrow = false,
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [tooltipHeight, setTooltipHeight] = useState<number | null>(null);
+  const arrowAnim = useRef(new Animated.Value(0)).current;
 
   const tooltipWidth = Math.min(TOOLTIP_MAX_WIDTH, SCREEN.width - TOOLTIP_SIDE_MARGIN * 2);
 
@@ -95,9 +102,35 @@ export function TourOverlay({
     skipText: { color: colors.textSecondary },
     highlightBorder: { borderColor: colors.accent },
     primaryText: { color: colors.white },
+    arrow: { borderTopColor: colors.accent },
+    arrowLine: { backgroundColor: colors.accent },
   };
 
-  if (!visible) return null;
+  useEffect(() => {
+    if (!visible || !showArrow) {
+      arrowAnim.stopAnimation();
+      arrowAnim.setValue(0);
+      return;
+    }
+
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(arrowAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(arrowAnim, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [arrowAnim, showArrow, visible]);
 
   const blockOutside = mode !== 'non_blocking';
   const allowHolePassthrough = mode === 'spotlight';
@@ -160,11 +193,35 @@ export function TourOverlay({
     );
   };
 
+  const renderArrow = () => {
+    if (!showArrow || !paddedRect) return null;
+    const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
+    const centerX = paddedRect.x + paddedRect.width / 2;
+    const left = clamp(centerX - ARROW_WIDTH / 2, TOOLTIP_SIDE_MARGIN, SCREEN.width - TOOLTIP_SIDE_MARGIN - ARROW_WIDTH);
+    const topCandidate = paddedRect.y - ARROW_GAP - ARROW_HEIGHT;
+    const top = clamp(topCandidate, safeTop, SCREEN.height - insets.bottom - ARROW_HEIGHT);
+
+    const translateY = arrowAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, scale(6)],
+    });
+
+    return (
+      <Animated.View style={[styles.arrow, { left, top, transform: [{ translateY }] }]} pointerEvents="none">
+        <View style={[styles.arrowLine, themedStyles.arrowLine]} />
+        <View style={[styles.arrowHead, themedStyles.arrow]} />
+      </Animated.View>
+    );
+  };
+
+  if (!visible) return null;
+
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {renderBlockingOverlay()}
         {renderHighlight()}
+        {renderArrow()}
 
         <View
           style={[
@@ -251,5 +308,27 @@ const styles = StyleSheet.create({
   primaryText: {
     fontSize: moderateScale(14),
     fontWeight: FontWeights.bold,
+  },
+  arrow: {
+    position: 'absolute',
+    width: ARROW_WIDTH,
+    height: ARROW_HEIGHT,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  arrowLine: {
+    width: scale(2),
+    height: ARROW_LINE_HEIGHT,
+    borderRadius: scale(1),
+  },
+  arrowHead: {
+    marginTop: scale(2),
+    width: 0,
+    height: 0,
+    borderLeftWidth: ARROW_WIDTH / 2,
+    borderRightWidth: ARROW_WIDTH / 2,
+    borderTopWidth: ARROW_WIDTH * 0.6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
   },
 });

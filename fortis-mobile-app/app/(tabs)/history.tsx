@@ -29,8 +29,6 @@ import { Spacing, BorderRadius } from '../../constants/Sizes';
 import { scale, moderateScale } from '../../src/utils/responsive';
 import { Typography } from '../../constants/Typography';
 import { WorkoutHistoryDetailModal } from '../../src/components/workout/modals/WorkoutHistoryDetailModal';
-import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -679,11 +677,9 @@ export default function HistoryScreen() {
 
         {isLoading && !hasRemoteSessions && !hasPendingSessions ? (
           <View style={styles.loadingContainer}>
-            <TourAnchor id={TOUR_ANCHOR_IDS.historyHeader}>
-              <View style={styles.titleContainer}>
-                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
-              </View>
-            </TourAnchor>
+            <View style={styles.titleContainer}>
+              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
+            </View>
             <View style={styles.loadingContent}>
               <ActivityIndicator size="small" color={colors.accent} />
               <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading history...</Text>
@@ -696,11 +692,9 @@ export default function HistoryScreen() {
             renderItem={({ item }) => <WorkoutHistoryCard session={item} onPress={() => handleCardPress(item)} />}
             ListHeaderComponent={
               <>
-                <TourAnchor id={TOUR_ANCHOR_IDS.historyHeader}>
-                  <View style={styles.titleContainer}>
-                    <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
-                  </View>
-                </TourAnchor>
+                <View style={styles.titleContainer}>
+                  <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
+                </View>
                 <View style={[styles.calendarCard, themedStyles.calendarCard]}>
                   <Calendar
                     key={displayedMonthKey}

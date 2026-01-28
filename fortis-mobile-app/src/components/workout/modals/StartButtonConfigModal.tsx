@@ -7,6 +7,8 @@ import {
   XMarkIcon,
 } from 'react-native-heroicons/outline';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { GET_STARTED_TEMPLATE_ID, TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { getModalWidth, responsiveValue } from '@/src/utils/responsive';
@@ -25,6 +27,8 @@ interface StartButtonConfigModalProps {
   onConfirm: () => void;
   onClose: () => void;
   currentLabel?: string;
+  forceTemplateId?: string | null;
+  disableClose?: boolean;
 }
 
 export function StartButtonConfigModal({
@@ -38,6 +42,8 @@ export function StartButtonConfigModal({
   onConfirm,
   onClose,
   currentLabel,
+  forceTemplateId,
+  disableClose = false,
 }: StartButtonConfigModalProps) {
   const { colors, isDark } = useTheme();
   const modalStyles = useModalStyles();
@@ -75,15 +81,18 @@ export function StartButtonConfigModal({
     subtitle?: string;
     selected?: boolean;
     icon?: React.ReactNode;
+    disabled?: boolean;
     onPress: () => void;
   }) => (
     <Pressable
       onPress={props.onPress}
+      disabled={props.disabled}
       style={({ pressed }) => [
         styles.option,
         themedStyles.option,
         props.selected && themedStyles.optionSelected,
-        pressed && styles.optionPressed,
+        props.disabled && styles.optionDisabled,
+        pressed && !props.disabled && styles.optionPressed,
       ]}
     >
       <View style={styles.optionContent}>
@@ -100,15 +109,23 @@ export function StartButtonConfigModal({
   );
 
   const presetLabel = currentLabel || (currentPreset ? 'Selected' : 'Not set');
+  const isForceMode = Boolean(forceTemplateId);
   const hasChanges = JSON.stringify(currentPreset) !== JSON.stringify(draftPreset);
+  const hasForcedSelection =
+    isForceMode &&
+    draftPreset?.type === 'template' &&
+    draftPreset.templateId === forceTemplateId;
+  const canConfirm = hasChanges || hasForcedSelection;
 
   return (
     <BaseModal
       visible={visible}
-      onClose={onClose}
+      onClose={disableClose ? () => undefined : onClose}
       title="Start Button"
       icon={<PlayIcon size={24} color={themedStyles.iconColor} strokeWidth={2} />}
       width={getModalWidth(responsiveValue(300, 320, 320))}
+      showCloseButton={!disableClose}
+      closeOnBackdropPress={!disableClose}
     >
       <Text style={modalStyles.message}>
         {currentPreset
@@ -119,7 +136,7 @@ export function StartButtonConfigModal({
         Press and hold the Start button to reconfigure.
       </Text>
 
-      {currentPreset && (
+      {currentPreset && !isForceMode && (
         <Pressable
           onPress={() => onChange(null)}
           style={({ pressed }) => [
@@ -144,6 +161,7 @@ export function StartButtonConfigModal({
           subtitle: 'Start a fresh workout log',
           selected: draftPreset?.type === 'blank',
           icon: <PlayIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
+          disabled: isForceMode,
           onPress: () => onChange({ type: 'blank' }),
         })}
 
@@ -153,25 +171,34 @@ export function StartButtonConfigModal({
         ) : templates.length === 0 ? (
           <Text style={[styles.emptyText, themedStyles.emptyText]}>No saved workouts yet.</Text>
         ) : (
-          templates.map((template) => (
-            <View key={`template-${template.id}`}>
-              {renderOption({
-                label: template.name,
-                subtitle: 'Saved workout template',
-                selected:
-                  draftPreset?.type === 'template' &&
-                  (draftPreset.templateId === template.id ||
-                    template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
-                icon: <Squares2X2Icon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
-                onPress: () =>
-                  onChange({
-                    type: 'template',
-                    templateId: template.id,
-                    templateWorkoutId: template.workouts[0]?.id,
-                  }),
-              })}
-            </View>
-          ))
+          templates.map((template) => {
+            const option = renderOption({
+              label: template.name,
+              subtitle: 'Saved workout template',
+              selected:
+                draftPreset?.type === 'template' &&
+                (draftPreset.templateId === template.id ||
+                  template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
+              icon: <Squares2X2Icon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
+              disabled: isForceMode && template.id !== forceTemplateId,
+              onPress: () =>
+                onChange({
+                  type: 'template',
+                  templateId: template.id,
+                  templateWorkoutId: template.workouts[0]?.id,
+                }),
+            });
+
+            if (template.id === GET_STARTED_TEMPLATE_ID) {
+              return (
+                <TourAnchor id={TOUR_ANCHOR_IDS.startConfigGetStarted} key={`template-${template.id}`}>
+                  {option}
+                </TourAnchor>
+              );
+            }
+
+            return <View key={`template-${template.id}`}>{option}</View>;
+          })
         )}
 
         <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Programs</Text>
@@ -187,6 +214,7 @@ export function StartButtonConfigModal({
                 subtitle: 'Continue to the next workout',
                 selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
                 icon: <CalendarDaysIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
+                disabled: isForceMode,
                 onPress: () => onChange({ type: 'program', programId: program.id }),
               })}
             </View>
@@ -196,15 +224,15 @@ export function StartButtonConfigModal({
 
       <Pressable
         onPress={onConfirm}
-        disabled={!hasChanges}
+        disabled={!canConfirm}
         style={({ pressed }) => [
           styles.confirmButton,
-          hasChanges && themedStyles.confirmButton,
-          !hasChanges && themedStyles.confirmButtonDisabled,
-          pressed && hasChanges && modalStyles.buttonPressed,
+          canConfirm && themedStyles.confirmButton,
+          !canConfirm && themedStyles.confirmButtonDisabled,
+          pressed && canConfirm && modalStyles.buttonPressed,
         ]}
       >
-        <Text style={[styles.confirmButtonText, hasChanges ? { color: colors.accent } : themedStyles.confirmButtonTextDisabled]}>
+        <Text style={[styles.confirmButtonText, canConfirm ? { color: colors.accent } : themedStyles.confirmButtonTextDisabled]}>
           Confirm
         </Text>
       </Pressable>
@@ -245,6 +273,9 @@ const styles = StyleSheet.create({
   },
   optionPressed: {
     opacity: 0.8,
+  },
+  optionDisabled: {
+    opacity: 0.45,
   },
   optionContent: {
     flexDirection: 'row',

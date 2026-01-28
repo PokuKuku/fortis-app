@@ -11,6 +11,7 @@ const EXERCISE_IDS = {
   sideLateralRaise: 'a3a93383-4a13-4f37-8fc9-4ec4730fadd9',
   alternateHammerCurl: '3dbc1d69-cfd9-4291-b589-9991144ad564',
   cableOverheadTricepsExtension: '8cccde6a-6d23-4b91-b5be-9988e85c4493',
+  pushUp: 'd6200aac-6593-412e-a394-b9e8810ece66',
   // Lower workout exercises
   dumbbellGobletSquat: '2e16763e-3ac9-47d8-aee4-8b9dea0da4ab',
   barbellRomanianDeadlift: '20cb5cbb-91a9-4439-a753-0eb8eea32064',
@@ -39,25 +40,10 @@ const GET_STARTED_TEMPLATE_SEED: TemplateSeed = {
   name: 'Get Started',
   exercises: [
     {
-      exerciseId: EXERCISE_IDS.dumbbellGobletSquat,
-      exerciseName: 'Dumbbell Goblet Squat',
-      sets: 2,
-      reps: '8-12',
-      restSeconds: 90,
-    },
-    {
-      exerciseId: EXERCISE_IDS.barbellBenchPress,
-      exerciseName: 'Barbell Bench Press',
-      sets: 2,
-      reps: '8-12',
-      restSeconds: 90,
-    },
-    {
-      exerciseId: EXERCISE_IDS.wideGripLatPulldown,
-      exerciseName: 'Wide-Grip Lat Pulldown',
-      sets: 2,
-      reps: '8-12',
-      restSeconds: 90,
+      exerciseId: EXERCISE_IDS.pushUp,
+      exerciseName: 'Push-up',
+      sets: 1,
+      reps: '3',
     },
   ],
 };

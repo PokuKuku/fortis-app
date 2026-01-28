@@ -13,21 +13,18 @@ import { useAuth, type Profile } from '@/src/contexts/AuthContext';
 import { useEntitlementStatus } from '@/src/hooks/useEntitlementStatus';
 import { useGetStartedStatus } from '@/src/hooks/useGetStartedStatus';
 import { clearInAppTourState, loadInAppTourState, saveInAppTourState, type PersistedInAppTourState } from '@/src/services/inAppTourService';
-import { refreshTrainingInsights } from '@/src/services/insightsService';
 import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { TourOverlay, type AnchorRect, type TourOverlayMode } from '@/src/components/tour/TourOverlay';
 
 type TourStepId =
-  | 'insights_intro'
-  | 'insights_started'
-  | 'quick_start'
-  | 'finish_workout'
-  | 'workout_recap'
-  | 'history';
+  | 'programs_intro'
+  | 'start_config'
+  | 'launch_workout'
+  | 'finish_workout';
 
-type TourRoute = '/insights' | '/history' | '/workout/active';
+type TourRoute = '/(tabs)/index' | '/workout/active';
 
 type TourStep = {
   id: TourStepId;
@@ -36,30 +33,32 @@ type TourStep = {
   body: string;
   mode: TourOverlayMode;
   primaryActionLabel?: string | null;
+  showArrow?: boolean;
 };
 
 const TOUR_STEPS: TourStep[] = [
   {
-    id: 'insights_intro',
-    route: '/insights',
-    anchorId: TOUR_ANCHOR_IDS.insightsHeader,
-    body: 'Insights show what is changing in your training.',
-    mode: 'blocking',
-    primaryActionLabel: 'Next',
-  },
-  {
-    id: 'insights_started',
-    route: '/insights',
-    anchorId: TOUR_ANCHOR_IDS.startedCard,
-    body: 'Tap any card for details. Ask Fortis explains the why.',
-    mode: 'blocking',
-    primaryActionLabel: 'Next',
-  },
-  {
-    id: 'quick_start',
-    route: '/insights',
+    id: 'programs_intro',
+    route: '/(tabs)/index',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'Quick Start begins logging fast. Tap it to start Get Started. Press and hold to reset it.',
+    body: 'This button starts your default workout. Set Get Started now, and press & hold anytime to change it later.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'start_config',
+    route: '/(tabs)/index',
+    anchorId: TOUR_ANCHOR_IDS.startConfigGetStarted,
+    body: 'Tap Get Started and confirm to lock in your default.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+  },
+  {
+    id: 'launch_workout',
+    route: '/(tabs)/index',
+    anchorId: TOUR_ANCHOR_IDS.quickStartFab,
+    body: 'Now press the dumbbell Start button to launch your workout.',
     mode: 'spotlight',
     primaryActionLabel: null,
   },
@@ -67,25 +66,9 @@ const TOUR_STEPS: TourStep[] = [
     id: 'finish_workout',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.finishWorkoutButton,
-    body: 'Log a few sets, then tap Finish. You will get a Workout Recap.',
+    body: 'Do 3 pushups, then tap Finish.',
     mode: 'non_blocking',
     primaryActionLabel: null,
-  },
-  {
-    id: 'workout_recap',
-    route: '/insights',
-    anchorId: TOUR_ANCHOR_IDS.workoutRecapCard,
-    body: 'Here is your Workout Recap. You will see one after every workout.',
-    mode: 'blocking',
-    primaryActionLabel: 'Next',
-  },
-  {
-    id: 'history',
-    route: '/history',
-    anchorId: TOUR_ANCHOR_IDS.historyHeader,
-    body: 'All workouts live in History. Tap any session to review it.',
-    mode: 'blocking',
-    primaryActionLabel: 'Done',
   },
 ];
 
@@ -97,6 +80,9 @@ const getStepIndexById = (stepId: string): number => {
 type InAppTourContextValue = {
   registerAnchorRect: (id: string, rect: AnchorRect) => void;
   unregisterAnchor: (id: string) => void;
+  isTourActive: boolean;
+  activeStepId: TourStepId | null;
+  advanceStep: () => void;
 };
 
 const InAppTourContext = createContext<InAppTourContextValue | null>(null);
@@ -136,23 +122,34 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     return getStepIndexById(tourState?.stepId ?? TOUR_STEPS[0].id);
   }, [isTourActive, tourState?.stepId]);
 
-  const rawStep = currentStepIndex >= 0 ? TOUR_STEPS[currentStepIndex] : null;
-
-  const step = useMemo(() => {
-    if (!rawStep) return null;
-    if (rawStep.id !== 'workout_recap') return rawStep;
-    const hasRecapAnchor = Boolean(anchorRects[TOUR_ANCHOR_IDS.workoutRecapCard]);
-    return {
-      ...rawStep,
-      anchorId: hasRecapAnchor ? TOUR_ANCHOR_IDS.workoutRecapCard : TOUR_ANCHOR_IDS.insightsHeader,
-    };
-  }, [anchorRects, rawStep]);
+  const step = currentStepIndex >= 0 ? TOUR_STEPS[currentStepIndex] : null;
 
   const stepLabel = step && currentStepIndex >= 0
     ? `${currentStepIndex + 1} of ${TOUR_STEPS.length}`
     : undefined;
 
   const currentAnchorRect = step ? anchorRects[step.anchorId] ?? null : null;
+  const normalizedPathname = useMemo(
+    () => (pathname ? pathname.replace('/(tabs)', '') : ''),
+    [pathname]
+  );
+
+  const isOnStepRoute = useCallback(
+    (route: TourRoute) => {
+      const normalizedRoute = route.replace('/(tabs)', '');
+      if (normalizedPathname === normalizedRoute) {
+        return true;
+      }
+      if (route === '/(tabs)/index') {
+        return segments[0] === '(tabs)' && segments[1] === 'index';
+      }
+      if (route === '/workout/active') {
+        return segments[0] === 'workout' && segments[1] === 'active';
+      }
+      return false;
+    },
+    [normalizedPathname, segments]
+  );
 
   const registerAnchorRect = useCallback((id: string, rect: AnchorRect) => {
     setAnchorRects((prev) => {
@@ -278,10 +275,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     if (autoNavStepRef.current === step.id) return;
     autoNavStepRef.current = step.id;
 
-    if (pathname !== step.route) {
+    if (!isOnStepRoute(step.route)) {
       router.replace(step.route);
     }
-  }, [isTourActive, pathname, router, step]);
+  }, [isOnStepRoute, isTourActive, router, step]);
 
   // Reset per-step navigation when returning from background.
   useEffect(() => {
@@ -389,7 +386,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   const isInOnboardingOrAuth = segments[0] === 'onboarding' || segments[0] === 'auth';
-  const hasSeenServer = Boolean(profile?.has_seen_in_app_tour);
+  const hasSeenServer = Boolean(
+    profile?.has_seen_in_app_tour &&
+    (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
+  );
   const hasSeenLocal = tourState?.status === 'completed' || tourState?.status === 'skipped';
   const isEligibleForStart =
     tourLoaded &&
@@ -408,19 +408,18 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     void startTour();
   }, [isEligibleForStart, startTour]);
 
-  // Advance when Quick Start launches a workout.
+  // Advance when the Start FAB launches a workout.
   useEffect(() => {
-    if (!isTourActive || step?.id !== 'quick_start') return;
-    if (pathname === '/workout/active') {
+    if (!isTourActive || step?.id !== 'launch_workout') return;
+    if (isOnStepRoute('/workout/active')) {
       void advanceStep();
     }
-  }, [advanceStep, isTourActive, pathname, step?.id]);
+  }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
 
   const lastWorkoutActiveRef = useRef<boolean>(Boolean(workoutActiveSession));
   const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
-  const pendingAdvanceToRecapRef = useRef(false);
 
-  // Detect workout completion while on the "finish workout" step.
+  // Detect workout completion while on the "finish workout" step and complete the tour.
   useEffect(() => {
     const wasActive = lastWorkoutActiveRef.current;
     const isActiveNow = Boolean(workoutActiveSession);
@@ -434,62 +433,28 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
     const finishedAWorkout = wasActive && !isActiveNow && nextCompletedCount > prevCompletedCount;
     if (finishedAWorkout) {
-      pendingAdvanceToRecapRef.current = true;
+      void finishTour('completed');
+      router.replace('/(tabs)/insights');
     }
-  }, [isTourActive, step?.id, workoutActiveSession, workoutCompletedSessions.length]);
-
-  // Only advance to recap after we have left the workout screen (avoid replacing the modal route mid-dismiss).
-  useEffect(() => {
-    if (!pendingAdvanceToRecapRef.current) return;
-    if (!isTourActive) return;
-    if (step?.id !== 'finish_workout') return;
-    if (pathname === '/workout/active') return;
-
-    pendingAdvanceToRecapRef.current = false;
-    void advanceStep();
-  }, [advanceStep, isTourActive, pathname, step?.id]);
-
-  // Refresh insights when Get Started is completed (so Recap/Weekly cards appear quickly).
-  const refreshedAfterGetStartedRef = useRef(false);
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (hasCompletedGetStarted && !refreshedAfterGetStartedRef.current) {
-      refreshedAfterGetStartedRef.current = true;
-      void refreshTrainingInsights();
-    }
-  }, [hasCompletedGetStarted, isAuthenticated]);
-
-  // Refresh insights when we land on the recap step (best effort; handles cases where recap is not yet generated).
-  const refreshedOnRecapStepRef = useRef(false);
-  useEffect(() => {
-    if (!isTourActive || step?.id !== 'workout_recap') {
-      refreshedOnRecapStepRef.current = false;
-      return;
-    }
-    if (refreshedOnRecapStepRef.current) return;
-    refreshedOnRecapStepRef.current = true;
-    void refreshTrainingInsights();
-  }, [isTourActive, step?.id]);
+  }, [finishTour, isTourActive, router, step?.id, workoutActiveSession, workoutCompletedSessions.length]);
 
   const contextValue = useMemo<InAppTourContextValue>(() => ({
     registerAnchorRect,
     unregisterAnchor,
-  }), [registerAnchorRect, unregisterAnchor]);
+    isTourActive,
+    activeStepId: step?.id ?? null,
+    advanceStep: () => void advanceStep(),
+  }), [advanceStep, isTourActive, registerAnchorRect, step?.id, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {
     if (!isTourActive || !step || !step.primaryActionLabel) return null;
-    const isLast = step.id === 'history';
     return {
       label: step.primaryActionLabel,
       onPress: () => {
-        if (isLast) {
-          void finishTour('completed');
-          return;
-        }
         void advanceStep();
       },
     };
-  }, [advanceStep, finishTour, isTourActive, step]);
+  }, [advanceStep, isTourActive, step]);
 
   return (
     <InAppTourContext.Provider value={contextValue}>
@@ -502,6 +467,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         stepLabel={stepLabel}
         primaryAction={primaryAction}
         onSkip={isTourActive ? () => void finishTour('skipped') : null}
+        showArrow={Boolean(step?.showArrow)}
       />
     </InAppTourContext.Provider>
   );

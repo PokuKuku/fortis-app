@@ -21,9 +21,10 @@ import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { GET_STARTED_TEMPLATE_ID, TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
@@ -43,6 +44,7 @@ export default function TabLayout() {
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
 
   // Theme-aware dynamic styles for accent color
   const themedStyles = {
@@ -104,6 +106,13 @@ export default function TabLayout() {
   useEffect(() => {
     loadProgramProgress();
   }, [loadProgramProgress]);
+
+  useEffect(() => {
+    if (!isTourActive) return;
+    if (activeStepId !== 'programs_intro') return;
+    if (!startConfigVisible) return;
+    advanceStep();
+  }, [activeStepId, advanceStep, isTourActive, startConfigVisible]);
 
   // AI Store
   const { conversation } = useAIStore();
@@ -188,6 +197,8 @@ export default function TabLayout() {
     ? (colors.contrastGradient as unknown as string[])
     : undefined;
 
+  const isTourStartConfigStep = isTourActive && activeStepId === 'start_config';
+
   // Track exercise detail modal visibility to disable FAB interactions
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('exerciseDetailVisible', (visible: boolean) => {
@@ -213,6 +224,10 @@ export default function TabLayout() {
 
   const handleStartPress = async () => {
     if (isWorkoutActive) return;
+    if (isTourActive && activeStepId === 'programs_intro') {
+      await openStartConfig();
+      return;
+    }
     if (!startPreset) {
       await openStartConfig();
       return;
@@ -285,6 +300,7 @@ export default function TabLayout() {
 
   const handleStartLongPress = () => {
     if (isWorkoutActive) return;
+    if (isTourActive) return;
     openStartConfig();
   };
 
@@ -293,8 +309,19 @@ export default function TabLayout() {
   };
 
   const handleConfirmStartPreset = async () => {
+    if (isTourStartConfigStep) {
+      const hasForcedSelection =
+        draftStartPreset?.type === 'template' &&
+        draftStartPreset.templateId === GET_STARTED_TEMPLATE_ID;
+      if (!hasForcedSelection) {
+        return;
+      }
+    }
     await setStartPreset(draftStartPreset ?? null);
     setStartConfigVisible(false);
+    if (isTourStartConfigStep) {
+      advanceStep();
+    }
   };
 
   const resetExerciseForm = () => {
@@ -561,6 +588,8 @@ export default function TabLayout() {
       onChange={handleChangeStartPreset}
       onConfirm={handleConfirmStartPreset}
       onClose={() => setStartConfigVisible(false)}
+      forceTemplateId={isTourStartConfigStep ? GET_STARTED_TEMPLATE_ID : null}
+      disableClose={isTourStartConfigStep}
     />
 
     {/* Plus Button */}
