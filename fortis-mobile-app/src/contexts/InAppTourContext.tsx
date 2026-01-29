@@ -10,7 +10,6 @@ import {
   type TourAnchorId,
 } from '@/src/constants/inAppTour';
 import { useAuth, type Profile } from '@/src/contexts/AuthContext';
-import { useEntitlementStatus } from '@/src/hooks/useEntitlementStatus';
 import { useGetStartedStatus } from '@/src/hooks/useGetStartedStatus';
 import { clearInAppTourState, loadInAppTourState, saveInAppTourState, type PersistedInAppTourState } from '@/src/services/inAppTourService';
 import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
@@ -100,7 +99,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const segments = useSegments();
   const { isAuthenticated, profile, updateProfile } = useAuth();
-  const { isLoaded: isEntitlementLoaded, isEntitled } = useEntitlementStatus();
   const { hasCompletedGetStarted } = useGetStartedStatus();
 
   const startPreset = useStartPresetStore((s) => s.preset);
@@ -138,6 +136,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     (route: TourRoute) => {
       const normalizedRoute = route.replace('/(tabs)', '');
       if (normalizedPathname === normalizedRoute) {
+        return true;
+      }
+      if (normalizedRoute === '/index' && normalizedPathname === '/') {
         return true;
       }
       if (route === '/(tabs)/index') {
@@ -355,7 +356,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   // Auto-set Quick Start to Get Started once (only when the user hasn't configured it yet).
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (!isEntitlementLoaded || !isEntitled) return;
     if (hasCompletedGetStarted) return;
     if (!startPresetLoaded) return;
     if (startPreset !== null) return;
@@ -378,8 +378,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     hasAutoSetGetStarted,
     hasCompletedGetStarted,
     isAuthenticated,
-    isEntitled,
-    isEntitlementLoaded,
     setStartPreset,
     startPreset,
     startPresetLoaded,
@@ -396,8 +394,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     !isInOnboardingOrAuth &&
     isAuthenticated &&
     profile?.onboarding_completed === true &&
-    isEntitlementLoaded &&
-    isEntitled &&
     !hasSeenServer &&
     !hasSeenLocal &&
     !isTourActive;

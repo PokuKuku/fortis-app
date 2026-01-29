@@ -501,6 +501,7 @@ export default function OnboardingCompleteScreen() {
       }
     } finally {
       setIsSaving(false);
+      console.log('[Routing] onboarding/complete -> /paywall-gate');
       router.replace('/paywall-gate');
     }
   }, [isAuthenticated, phase, profile, router, summaryAnim, updateProfile]);

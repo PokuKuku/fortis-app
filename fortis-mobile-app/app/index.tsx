@@ -124,6 +124,7 @@ export default function SplashScreen() {
     }
 
     if (isAuthenticated) {
+      console.log('[Routing] index -> /paywall-gate (authenticated)');
       router.replace('/paywall-gate');
       return;
     }

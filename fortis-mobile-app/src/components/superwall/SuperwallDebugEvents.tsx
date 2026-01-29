@@ -20,6 +20,14 @@ export function SuperwallDebugEvents() {
               console.log('[Superwall] Paywall dismissed:', info.name, result.type, result.productId);
             },
             onPaywallError: (error: string) => {
+              const normalized = error?.toLowerCase?.() ?? '';
+              if (
+                normalized.includes('only present one paywall') ||
+                normalized.includes('paywall already presented')
+              ) {
+                console.log('[Superwall] Paywall already presented');
+                return;
+              }
               console.error('[Superwall] Paywall error:', error);
             },
             onPurchase: (params: { productId?: string; platform?: string }) => {
@@ -43,4 +51,3 @@ export function SuperwallDebugEvents() {
 
   return null;
 }
-

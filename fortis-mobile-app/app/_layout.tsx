@@ -5,6 +5,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
@@ -379,6 +380,23 @@ export default function RootLayout() {
 
     void initMixpanel();
   }, [mixpanelEnabled]);
+
+  useEffect(() => {
+    const logInitialUrl = async () => {
+      const initialUrl = await Linking.getInitialURL();
+      console.log('[Routing] initial URL:', initialUrl ?? 'null');
+    };
+
+    void logInitialUrl();
+
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      console.log('[Routing] incoming URL:', url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   if (!fontsLoaded) {
     return null;

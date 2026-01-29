@@ -129,6 +129,7 @@ export default function AuthWelcomeScreen() {
         }
 
         await clearOnboardingState();
+        console.log('[Routing] auth/index -> /paywall-gate (onboarding complete)');
         router.replace('/paywall-gate');
       })();
       return;
@@ -139,6 +140,7 @@ export default function AuthWelcomeScreen() {
       return;
     }
 
+    console.log('[Routing] auth/index -> /paywall-gate (authenticated)');
     router.replace('/paywall-gate');
   }, [
     isAuthenticated,
