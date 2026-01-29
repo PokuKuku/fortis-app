@@ -18,56 +18,61 @@ import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { TourOverlay, type AnchorRect, type TourOverlayMode } from '@/src/components/tour/TourOverlay';
 
 type TourStepId =
+  | 'welcome'
   | 'programs_intro'
-  | 'start_config'
   | 'launch_workout'
   | 'finish_workout';
 
-type TourRoute = '/(tabs)/index' | '/workout/active';
+type TourRoute = '/(tabs)' | '/workout/active';
 
 type TourStep = {
   id: TourStepId;
   route: TourRoute;
-  anchorId: TourAnchorId;
+  anchorId?: TourAnchorId;
   body: string;
   mode: TourOverlayMode;
   primaryActionLabel?: string | null;
   showArrow?: boolean;
+  centerTooltip?: boolean;
+  showHighlight?: boolean;
 };
 
 const TOUR_STEPS: TourStep[] = [
   {
+    id: 'welcome',
+    route: '/(tabs)',
+    body: 'Welcome to Fortis! Congrats on committing to your fitness journey! Now let’s show you around.',
+    mode: 'blocking',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
+  },
+  {
     id: 'programs_intro',
-    route: '/(tabs)/index',
+    route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'This button starts your default workout. Set Get Started now, and press & hold anytime to change it later.',
+    body: 'This button starts your default workout. Set the Get Started workout as default by tapping the dumbbell, and press & hold anytime to change it later.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
   },
   {
-    id: 'start_config',
-    route: '/(tabs)/index',
-    anchorId: TOUR_ANCHOR_IDS.startConfigGetStarted,
-    body: 'Tap Get Started and confirm to lock in your default.',
-    mode: 'spotlight',
-    primaryActionLabel: null,
-  },
-  {
     id: 'launch_workout',
-    route: '/(tabs)/index',
+    route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'Now press the dumbbell Start button to launch your workout.',
+    body: 'Now tap the dumbbell to start your first workout.',
     mode: 'spotlight',
     primaryActionLabel: null,
   },
   {
     id: 'finish_workout',
     route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.finishWorkoutButton,
-    body: 'Do 3 pushups, then tap Finish.',
-    mode: 'non_blocking',
+    anchorId: TOUR_ANCHOR_IDS.finishWorkoutCheckbox,
+    body: 'Press the checkbox for push ups, then tap Finish.',
+    mode: 'spotlight',
     primaryActionLabel: null,
+    showArrow: true,
   },
 ];
 
@@ -100,6 +105,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const segments = useSegments();
   const { isAuthenticated, profile, updateProfile } = useAuth();
   const { hasCompletedGetStarted } = useGetStartedStatus();
+  const forceTourThisSession = useRef(false);
+  const AUTO_SET_GET_STARTED_PRESET = false;
 
   const startPreset = useStartPresetStore((s) => s.preset);
   const startPresetLoaded = useStartPresetStore((s) => s.isLoaded);
@@ -107,6 +114,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const setStartPreset = useStartPresetStore((s) => s.setPreset);
 
   const workoutActiveSession = useWorkoutStore((s) => s.activeSession);
+  const updateWorkoutSet = useWorkoutStore((s) => s.updateSet);
   const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
 
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
@@ -126,7 +134,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     ? `${currentStepIndex + 1} of ${TOUR_STEPS.length}`
     : undefined;
 
-  const currentAnchorRect = step ? anchorRects[step.anchorId] ?? null : null;
+  const currentAnchorRect = step?.anchorId ? anchorRects[step.anchorId] ?? null : null;
   const normalizedPathname = useMemo(
     () => (pathname ? pathname.replace('/(tabs)', '') : ''),
     [pathname]
@@ -141,8 +149,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       if (normalizedRoute === '/index' && normalizedPathname === '/') {
         return true;
       }
-      if (route === '/(tabs)/index') {
-        return segments[0] === '(tabs)' && segments[1] === 'index';
+      if (route === '/(tabs)') {
+        return segments[0] === '(tabs)';
       }
       if (route === '/workout/active') {
         return segments[0] === 'workout' && segments[1] === 'active';
@@ -355,6 +363,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   // Auto-set Quick Start to Get Started once (only when the user hasn't configured it yet).
   useEffect(() => {
+    if (!AUTO_SET_GET_STARTED_PRESET) return;
     if (!isAuthenticated) return;
     if (hasCompletedGetStarted) return;
     if (!startPresetLoaded) return;
@@ -389,18 +398,23 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
   );
   const hasSeenLocal = tourState?.status === 'completed' || tourState?.status === 'skipped';
+  const FORCE_IN_APP_TOUR = true;
   const isEligibleForStart =
     tourLoaded &&
     !isInOnboardingOrAuth &&
     isAuthenticated &&
     profile?.onboarding_completed === true &&
-    !hasSeenServer &&
-    !hasSeenLocal &&
-    !isTourActive;
+    !isTourActive &&
+    (FORCE_IN_APP_TOUR
+      ? !forceTourThisSession.current
+      : !hasSeenServer && !hasSeenLocal);
 
   // Auto-start tour when eligible.
   useEffect(() => {
     if (!isEligibleForStart) return;
+    if (FORCE_IN_APP_TOUR) {
+      forceTourThisSession.current = true;
+    }
     void startTour();
   }, [isEligibleForStart, startTour]);
 
@@ -411,6 +425,30 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       void advanceStep();
     }
   }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
+
+  const finishPrefillRef = useRef(false);
+
+  useEffect(() => {
+    if (!isTourActive || step?.id !== 'finish_workout') return;
+    if (!isOnStepRoute('/workout/active')) return;
+    if (!workoutActiveSession) return;
+    if (finishPrefillRef.current) return;
+
+    const pushupExercise = workoutActiveSession.exercises.find((exercise) => {
+      const name = exercise.exerciseName?.toLowerCase?.() ?? '';
+      return name.includes('push up') || name.includes('pushup');
+    });
+
+    const targetSet = pushupExercise?.sets?.[0];
+    if (!pushupExercise || !targetSet) return;
+
+    finishPrefillRef.current = true;
+
+    updateWorkoutSet(pushupExercise.localId, targetSet.localId, {
+      weight: 0,
+      reps: 3,
+    });
+  }, [isOnStepRoute, isTourActive, step?.id, updateWorkoutSet, workoutActiveSession]);
 
   const lastWorkoutActiveRef = useRef<boolean>(Boolean(workoutActiveSession));
   const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
@@ -464,6 +502,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         primaryAction={primaryAction}
         onSkip={isTourActive ? () => void finishTour('skipped') : null}
         showArrow={Boolean(step?.showArrow)}
+        centerTooltip={Boolean(step?.centerTooltip)}
+        showHighlight={step?.showHighlight ?? true}
       />
     </InAppTourContext.Provider>
   );

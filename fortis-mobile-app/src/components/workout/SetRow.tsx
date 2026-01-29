@@ -12,6 +12,9 @@ import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetTypeSelector } from './SetTypeSelector';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -169,6 +172,19 @@ export function SetRow({
   const setValidationErrorsBySet = useWorkoutStore(s => s.setValidationErrorsBySet);
   const registerWorkoutOverlay = useWorkoutStore(s => s.registerWorkoutOverlay);
   const unregisterWorkoutOverlay = useWorkoutStore(s => s.unregisterWorkoutOverlay);
+  const { isTourActive, activeStepId } = useInAppTour();
+
+  const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
+  const isPushupExercise = Boolean(
+    exercise?.exerciseName?.toLowerCase?.includes('push up')
+    || exercise?.exerciseName?.toLowerCase?.includes('pushup')
+  );
+  const shouldAnchorCheckbox =
+    !useEditor
+    && isTourActive
+    && activeStepId === 'finish_workout'
+    && isPushupExercise
+    && setIndex === 0;
 
   // Check if this input is currently active
   const isWeightActive = activeInputType === 'weight';
@@ -745,30 +761,59 @@ export function SetRow({
 
         {/* Completion checkbox */}
         {shouldShowCheckboxes && (
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityLabel={`${setNumberLabel} completed`}
-            accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
-            accessibilityState={{ checked: set.isCompleted }}
-            onPress={handleCheckboxPress}
-            onLongPress={handleCheckboxLongPress}
-            delayLongPress={350}
-            style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
-          >
-            {set.isCompleted ? (
-              <CheckIcon
-                size={16}
-                color={completedCheckColor}
-                strokeWidth={2.5}
-              />
-            ) : (
-              <CheckIcon
-                size={16}
-                color={colors.textTertiary}
-                strokeWidth={2}
-              />
-            )}
-          </Pressable>
+          shouldAnchorCheckbox ? (
+            <TourAnchor id={TOUR_ANCHOR_IDS.finishWorkoutCheckbox}>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityLabel={`${setNumberLabel} completed`}
+                accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
+                accessibilityState={{ checked: set.isCompleted }}
+                onPress={handleCheckboxPress}
+                onLongPress={handleCheckboxLongPress}
+                delayLongPress={350}
+                style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
+              >
+                {set.isCompleted ? (
+                  <CheckIcon
+                    size={16}
+                    color={completedCheckColor}
+                    strokeWidth={2.5}
+                  />
+                ) : (
+                  <CheckIcon
+                    size={16}
+                    color={colors.textTertiary}
+                    strokeWidth={2}
+                  />
+                )}
+              </Pressable>
+            </TourAnchor>
+          ) : (
+            <Pressable
+              accessibilityRole="checkbox"
+              accessibilityLabel={`${setNumberLabel} completed`}
+              accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
+              accessibilityState={{ checked: set.isCompleted }}
+              onPress={handleCheckboxPress}
+              onLongPress={handleCheckboxLongPress}
+              delayLongPress={350}
+              style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
+            >
+              {set.isCompleted ? (
+                <CheckIcon
+                  size={16}
+                  color={completedCheckColor}
+                  strokeWidth={2.5}
+                />
+              ) : (
+                <CheckIcon
+                  size={16}
+                  color={colors.textTertiary}
+                  strokeWidth={2}
+                />
+              )}
+            </Pressable>
+          )
         )}
 
         {/* Set Type Popover */}

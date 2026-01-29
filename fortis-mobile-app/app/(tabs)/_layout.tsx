@@ -197,8 +197,6 @@ export default function TabLayout() {
     ? (colors.contrastGradient as unknown as string[])
     : undefined;
 
-  const isTourStartConfigStep = isTourActive && activeStepId === 'start_config';
-
   // Track exercise detail modal visibility to disable FAB interactions
   useEffect(() => {
     const sub = DeviceEventEmitter.addListener('exerciseDetailVisible', (visible: boolean) => {
@@ -309,17 +307,14 @@ export default function TabLayout() {
   };
 
   const handleConfirmStartPreset = async () => {
-    if (isTourStartConfigStep) {
-      const hasForcedSelection =
-        draftStartPreset?.type === 'template' &&
-        draftStartPreset.templateId === GET_STARTED_TEMPLATE_ID;
-      if (!hasForcedSelection) {
-        return;
-      }
-    }
+    const isGetStartedPreset =
+      draftStartPreset?.type === 'template' &&
+      (draftStartPreset.templateId === GET_STARTED_TEMPLATE_ID ||
+        draftStartPreset.templateWorkoutId === GET_STARTED_WORKOUT_ID);
+
     await setStartPreset(draftStartPreset ?? null);
     setStartConfigVisible(false);
-    if (isTourStartConfigStep) {
+    if (isTourActive && isGetStartedPreset) {
       advanceStep();
     }
   };
@@ -588,8 +583,8 @@ export default function TabLayout() {
       onChange={handleChangeStartPreset}
       onConfirm={handleConfirmStartPreset}
       onClose={() => setStartConfigVisible(false)}
-      forceTemplateId={isTourStartConfigStep ? GET_STARTED_TEMPLATE_ID : null}
-      disableClose={isTourStartConfigStep}
+      forceTemplateId={null}
+      disableClose={false}
     />
 
     {/* Plus Button */}

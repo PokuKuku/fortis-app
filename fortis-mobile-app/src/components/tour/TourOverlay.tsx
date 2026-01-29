@@ -25,6 +25,8 @@ type TourOverlayProps = {
   primaryAction?: Action | null;
   onSkip?: (() => void) | null;
   showArrow?: boolean;
+  centerTooltip?: boolean;
+  showHighlight?: boolean;
 };
 
 const SCREEN = Dimensions.get('window');
@@ -50,6 +52,8 @@ export function TourOverlay({
   primaryAction,
   onSkip,
   showArrow = false,
+  centerTooltip = false,
+  showHighlight = true,
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -71,6 +75,13 @@ export function TourOverlay({
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
     const safeBottom = SCREEN.height - insets.bottom - TOOLTIP_SIDE_MARGIN;
 
+    if (centerTooltip) {
+      return {
+        left: (SCREEN.width - tooltipWidth) / 2,
+        top: clamp((SCREEN.height - (tooltipHeight ?? 0)) / 2, safeTop, safeBottom),
+      };
+    }
+
     if (!paddedRect || !tooltipHeight) {
       return {
         left: TOOLTIP_SIDE_MARGIN,
@@ -81,8 +92,9 @@ export function TourOverlay({
     const centerX = paddedRect.x + paddedRect.width / 2;
     const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, SCREEN.width - TOOLTIP_SIDE_MARGIN - tooltipWidth);
 
-    const aboveTop = paddedRect.y - TOOLTIP_GAP - tooltipHeight;
-    const belowTop = paddedRect.y + paddedRect.height + TOOLTIP_GAP;
+    const arrowOffset = showArrow ? ARROW_HEIGHT + ARROW_GAP : 0;
+    const aboveTop = paddedRect.y - TOOLTIP_GAP - arrowOffset - tooltipHeight;
+    const belowTop = paddedRect.y + paddedRect.height + TOOLTIP_GAP + arrowOffset;
     const canFitAbove = aboveTop >= safeTop;
 
     const topCandidate = canFitAbove ? aboveTop : belowTop;
@@ -140,7 +152,21 @@ export function TourOverlay({
 
     // When the anchor isn't available yet, block the whole screen to avoid accidental taps.
     if (!paddedRect) {
-      return <View style={[StyleSheet.absoluteFill, themedStyles.overlay]} pointerEvents="auto" />;
+      if (allowHolePassthrough) {
+        return (
+          <View
+            style={[StyleSheet.absoluteFill, themedStyles.overlay]}
+            pointerEvents="none"
+          />
+        );
+      }
+
+      return (
+        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+          <View style={[StyleSheet.absoluteFill, themedStyles.overlay]} pointerEvents="none" />
+          <View style={[StyleSheet.absoluteFill, styles.overlayBlock]} pointerEvents="auto" />
+        </View>
+      );
     }
 
     const topHeight = paddedRect.y;
@@ -216,50 +242,59 @@ export function TourOverlay({
 
   if (!visible) return null;
 
+  const overlayContent = (
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {renderBlockingOverlay()}
+      {showHighlight ? renderHighlight() : null}
+      {renderArrow()}
+
+      <View
+        style={[
+          styles.tooltip,
+          themedStyles.tooltip,
+          { width: tooltipWidth, left: tooltipPos.left, top: tooltipPos.top },
+        ]}
+        pointerEvents="auto"
+        accessibilityRole="alert"
+        onLayout={(e) => {
+          const nextHeight = e.nativeEvent.layout.height;
+          if (tooltipHeight !== nextHeight) {
+            setTooltipHeight(nextHeight);
+          }
+        }}
+      >
+        <View style={styles.tooltipHeader}>
+          <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel ?? ''}</Text>
+          {onSkip && (
+            <Pressable onPress={onSkip} hitSlop={8}>
+              <Text style={[styles.skipText, themedStyles.skipText]}>Skip</Text>
+            </Pressable>
+          )}
+        </View>
+
+        <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
+
+        {primaryAction ? (
+          <GlassButton
+            style={styles.primaryButton}
+            onPress={primaryAction.onPress}
+            disabled={primaryAction.disabled}
+            hapticFeedback="selection"
+          >
+            <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
+          </GlassButton>
+        ) : null}
+      </View>
+    </View>
+  );
+
+  if (mode === 'spotlight') {
+    return overlayContent;
+  }
+
   return (
     <Modal transparent visible animationType="fade" statusBarTranslucent>
-      <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        {renderBlockingOverlay()}
-        {renderHighlight()}
-        {renderArrow()}
-
-        <View
-          style={[
-            styles.tooltip,
-            themedStyles.tooltip,
-            { width: tooltipWidth, left: tooltipPos.left, top: tooltipPos.top },
-          ]}
-          onLayout={(e) => {
-            const nextHeight = e.nativeEvent.layout.height;
-            if (tooltipHeight !== nextHeight) {
-              setTooltipHeight(nextHeight);
-            }
-          }}
-          pointerEvents="auto"
-        >
-          <View style={styles.tooltipHeader}>
-            <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel ?? ''}</Text>
-            {onSkip && (
-              <Pressable onPress={onSkip} hitSlop={8}>
-                <Text style={[styles.skipText, themedStyles.skipText]}>Skip</Text>
-              </Pressable>
-            )}
-          </View>
-
-          <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
-
-          {primaryAction ? (
-            <GlassButton
-              style={styles.primaryButton}
-              onPress={primaryAction.onPress}
-              disabled={primaryAction.disabled}
-              hapticFeedback="selection"
-            >
-              <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
-            </GlassButton>
-          ) : null}
-        </View>
-      </View>
+      {overlayContent}
     </Modal>
   );
 }
@@ -267,17 +302,21 @@ export function TourOverlay({
 const styles = StyleSheet.create({
   overlayBlock: {
     position: 'absolute',
+    zIndex: 1,
   },
   highlight: {
     position: 'absolute',
     borderRadius: HIGHLIGHT_RADIUS,
     borderWidth: HIGHLIGHT_BORDER,
+    zIndex: 2,
   },
   tooltip: {
     position: 'absolute',
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     borderWidth: 1,
+    zIndex: 10,
+    elevation: 10,
   },
   tooltipHeader: {
     flexDirection: 'row',
@@ -315,6 +354,7 @@ const styles = StyleSheet.create({
     height: ARROW_HEIGHT,
     alignItems: 'center',
     justifyContent: 'flex-start',
+    zIndex: 5,
   },
   arrowLine: {
     width: scale(2),

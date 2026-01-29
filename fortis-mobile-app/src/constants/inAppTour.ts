@@ -7,6 +7,7 @@ export const TOUR_ANCHOR_IDS = {
   quickStartFab: 'tour.tabs.quickStartFab',
   startConfigGetStarted: 'tour.startConfig.getStarted',
   finishWorkoutButton: 'tour.workout.finishWorkout',
+  finishWorkoutCheckbox: 'tour.workout.finishCheckbox',
 } as const;
 
 export type TourAnchorId = typeof TOUR_ANCHOR_IDS[keyof typeof TOUR_ANCHOR_IDS];
