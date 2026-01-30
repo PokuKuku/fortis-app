@@ -174,18 +174,6 @@ export function SetRow({
   const unregisterWorkoutOverlay = useWorkoutStore(s => s.unregisterWorkoutOverlay);
   const { isTourActive, activeStepId } = useInAppTour();
 
-  const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
-  const isPushupExercise = Boolean(
-    exercise?.exerciseName?.toLowerCase?.includes('push up')
-    || exercise?.exerciseName?.toLowerCase?.includes('pushup')
-  );
-  const shouldAnchorCheckbox =
-    !useEditor
-    && isTourActive
-    && activeStepId === 'finish_workout'
-    && isPushupExercise
-    && setIndex === 0;
-
   // Check if this input is currently active
   const isWeightActive = activeInputType === 'weight';
   const isRepsActive = activeInputType === 'reps';
@@ -284,6 +272,15 @@ export function SetRow({
   // Find the current set
   const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
   const set = exercise?.sets.find(s => s.localId === setLocalId);
+
+  const pushupName = exercise?.exerciseName?.toLowerCase() ?? '';
+  const isPushupExercise = pushupName.includes('push up') || pushupName.includes('pushup');
+  const shouldAnchorReps =
+    !useEditor
+    && isTourActive
+    && activeStepId === 'log_reps'
+    && isPushupExercise
+    && setIndex === 0;
 
   if (!set) return null;
 
@@ -717,34 +714,67 @@ export function SetRow({
         {/* Reps input with RPE badge */}
         <Animated.View style={[styles.inputWrapper, styles.repsWrapper, !shouldShowCheckboxes && styles.flexCol, repsAnimatedStyle]}>
           <View style={styles.repsContainer}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`${setNumberLabel} reps`}
-              accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
-              onPress={() => handleInputPress('reps')}
-              onLongPress={() => handleApplyToRemaining('reps')}
-              delayLongPress={350}
-              style={[
-                getInputStyle('reps'),
-                isRepsActive && [styles.inputActive, themedStyles.inputActive],
-                isRepsActive && activeHasError && styles.inputError
-              ]}
-              >
-                <Text style={[
-                  styles.inputText,
-                  themedStyles.inputText,
-                  (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
-                  (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
+            {shouldAnchorReps ? (
+              <TourAnchor id={TOUR_ANCHOR_IDS.repsColumn}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`${setNumberLabel} reps`}
+                  accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
+                  onPress={() => handleInputPress('reps')}
+                  onLongPress={() => handleApplyToRemaining('reps')}
+                  delayLongPress={350}
+                  style={[
+                    getInputStyle('reps'),
+                    isRepsActive && [styles.inputActive, themedStyles.inputActive],
+                    isRepsActive && activeHasError && styles.inputError
+                  ]}
+                  >
+                    <Text style={[
+                      styles.inputText,
+                      themedStyles.inputText,
+                      (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
+                      (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.6}
+                    >
+                      {isRepsActive
+                        ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
+                        : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
+                    </Text>
+                </Pressable>
+              </TourAnchor>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${setNumberLabel} reps`}
+                accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
+                onPress={() => handleInputPress('reps')}
+                onLongPress={() => handleApplyToRemaining('reps')}
+                delayLongPress={350}
+                style={[
+                  getInputStyle('reps'),
+                  isRepsActive && [styles.inputActive, themedStyles.inputActive],
+                  isRepsActive && activeHasError && styles.inputError
                 ]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.6}
                 >
-                  {isRepsActive
-                    ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
-                    : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
-                </Text>
-          </Pressable>
+                  <Text style={[
+                    styles.inputText,
+                    themedStyles.inputText,
+                    (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
+                    (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
+                  ]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.6}
+                  >
+                    {isRepsActive
+                      ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
+                      : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
+                  </Text>
+              </Pressable>
+            )}
             {/* RPE Badge */}
             {set.rpe !== null && (
               <View
@@ -761,59 +791,30 @@ export function SetRow({
 
         {/* Completion checkbox */}
         {shouldShowCheckboxes && (
-          shouldAnchorCheckbox ? (
-            <TourAnchor id={TOUR_ANCHOR_IDS.finishWorkoutCheckbox}>
-              <Pressable
-                accessibilityRole="checkbox"
-                accessibilityLabel={`${setNumberLabel} completed`}
-                accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
-                accessibilityState={{ checked: set.isCompleted }}
-                onPress={handleCheckboxPress}
-                onLongPress={handleCheckboxLongPress}
-                delayLongPress={350}
-                style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
-              >
-                {set.isCompleted ? (
-                  <CheckIcon
-                    size={16}
-                    color={completedCheckColor}
-                    strokeWidth={2.5}
-                  />
-                ) : (
-                  <CheckIcon
-                    size={16}
-                    color={colors.textTertiary}
-                    strokeWidth={2}
-                  />
-                )}
-              </Pressable>
-            </TourAnchor>
-          ) : (
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityLabel={`${setNumberLabel} completed`}
-              accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
-              accessibilityState={{ checked: set.isCompleted }}
-              onPress={handleCheckboxPress}
-              onLongPress={handleCheckboxLongPress}
-              delayLongPress={350}
-              style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
-            >
-              {set.isCompleted ? (
-                <CheckIcon
-                  size={16}
-                  color={completedCheckColor}
-                  strokeWidth={2.5}
-                />
-              ) : (
-                <CheckIcon
-                  size={16}
-                  color={colors.textTertiary}
-                  strokeWidth={2}
-                />
-              )}
-            </Pressable>
-          )
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityLabel={`${setNumberLabel} completed`}
+            accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
+            accessibilityState={{ checked: set.isCompleted }}
+            onPress={handleCheckboxPress}
+            onLongPress={handleCheckboxLongPress}
+            delayLongPress={350}
+            style={[styles.checkbox, themedStyles.checkbox, set.isCompleted && [styles.checkboxCompleted, themedStyles.checkboxCompleted]]}
+          >
+            {set.isCompleted ? (
+              <CheckIcon
+                size={16}
+                color={completedCheckColor}
+                strokeWidth={2.5}
+              />
+            ) : (
+              <CheckIcon
+                size={16}
+                color={colors.textTertiary}
+                strokeWidth={2}
+              />
+            )}
+          </Pressable>
         )}
 
         {/* Set Type Popover */}

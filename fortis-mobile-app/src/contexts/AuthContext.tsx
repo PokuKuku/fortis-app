@@ -94,7 +94,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const FORCE_DEV_SIGN_OUT_ON_LAUNCH = __DEV__;
+  const FORCE_DEV_SIGN_OUT_ON_LAUNCH = false;
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);

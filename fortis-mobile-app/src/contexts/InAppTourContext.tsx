@@ -15,13 +15,16 @@ import { clearInAppTourState, loadInAppTourState, saveInAppTourState, type Persi
 import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
-import { TourOverlay, type AnchorRect, type TourOverlayMode } from '@/src/components/tour/TourOverlay';
+import { scale } from '@/src/utils/responsive';
+import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
 
 type TourStepId =
   | 'welcome'
   | 'programs_intro'
   | 'launch_workout'
-  | 'finish_workout';
+  | 'log_reps'
+  | 'finish_workout'
+  | 'go_insights';
 
 type TourRoute = '/(tabs)' | '/workout/active';
 
@@ -35,6 +38,8 @@ type TourStep = {
   showArrow?: boolean;
   centerTooltip?: boolean;
   showHighlight?: boolean;
+  tooltipOffsetY?: number;
+  placement?: TourOverlayPlacement;
 };
 
 const TOUR_STEPS: TourStep[] = [
@@ -66,10 +71,31 @@ const TOUR_STEPS: TourStep[] = [
     primaryActionLabel: null,
   },
   {
+    id: 'log_reps',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.repsColumn,
+    body: 'Tap the reps box, enter a number on the keyboard, then tap Next.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: true,
+    tooltipOffsetY: -scale(48),
+    placement: 'above',
+  },
+  {
     id: 'finish_workout',
     route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.finishWorkoutCheckbox,
-    body: 'Press the checkbox for push ups, then tap Finish.',
+    anchorId: TOUR_ANCHOR_IDS.finishWorkoutButton,
+    body: 'Great! Now tap Finish Workout.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    placement: 'above',
+  },
+  {
+    id: 'go_insights',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.insightsTab,
+    body: 'Tap Insights to see your progress.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -116,6 +142,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const workoutActiveSession = useWorkoutStore((s) => s.activeSession);
   const updateWorkoutSet = useWorkoutStore((s) => s.updateSet);
   const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
+  const closeNumberPad = useWorkoutStore((s) => s.closeNumberPad);
 
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
   const [tourLoaded, setTourLoaded] = useState(false);
@@ -393,6 +420,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   ]);
 
   const isInOnboardingOrAuth = segments[0] === 'onboarding' || segments[0] === 'auth';
+  const isMainAppRoute =
+    segments.length > 0 &&
+    segments[0] !== 'onboarding' &&
+    segments[0] !== 'auth' &&
+    segments[0] !== 'paywall-gate';
   const hasSeenServer = Boolean(
     profile?.has_seen_in_app_tour &&
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
@@ -402,6 +434,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const isEligibleForStart =
     tourLoaded &&
     !isInOnboardingOrAuth &&
+    isMainAppRoute &&
     isAuthenticated &&
     profile?.onboarding_completed === true &&
     !isTourActive &&
@@ -426,10 +459,18 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
 
+  // Complete tour when user reaches the Insights tab.
+  useEffect(() => {
+    if (!isTourActive || step?.id !== 'go_insights') return;
+    if (segments[0] === '(tabs)' && segments[1] === 'insights') {
+      void finishTour('completed');
+    }
+  }, [finishTour, isTourActive, segments, step?.id]);
+
   const finishPrefillRef = useRef(false);
 
   useEffect(() => {
-    if (!isTourActive || step?.id !== 'finish_workout') return;
+    if (!isTourActive || step?.id !== 'log_reps') return;
     if (!isOnStepRoute('/workout/active')) return;
     if (!workoutActiveSession) return;
     if (finishPrefillRef.current) return;
@@ -453,7 +494,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const lastWorkoutActiveRef = useRef<boolean>(Boolean(workoutActiveSession));
   const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
 
-  // Detect workout completion while on the "finish workout" step and complete the tour.
+  // Detect workout completion while on the "finish workout" step and move to insights step.
   useEffect(() => {
     const wasActive = lastWorkoutActiveRef.current;
     const isActiveNow = Boolean(workoutActiveSession);
@@ -467,10 +508,15 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
     const finishedAWorkout = wasActive && !isActiveNow && nextCompletedCount > prevCompletedCount;
     if (finishedAWorkout) {
-      void finishTour('completed');
-      router.replace('/(tabs)/insights');
+      void advanceStep();
     }
-  }, [finishTour, isTourActive, router, step?.id, workoutActiveSession, workoutCompletedSessions.length]);
+  }, [advanceStep, isTourActive, step?.id, workoutActiveSession, workoutCompletedSessions.length]);
+
+  // Keep the finish button visible/stable by closing the number pad for the finish step.
+  useEffect(() => {
+    if (!isTourActive || step?.id !== 'finish_workout') return;
+    closeNumberPad();
+  }, [closeNumberPad, isTourActive, step?.id]);
 
   const contextValue = useMemo<InAppTourContextValue>(() => ({
     registerAnchorRect,
@@ -494,7 +540,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     <InAppTourContext.Provider value={contextValue}>
       {children}
       <TourOverlay
-        visible={Boolean(isTourActive && step)}
+        visible={Boolean(isTourActive && step && isAuthenticated && isMainAppRoute)}
         mode={step?.mode ?? 'blocking'}
         anchorRect={currentAnchorRect}
         body={step?.body ?? ''}
@@ -504,6 +550,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         showArrow={Boolean(step?.showArrow)}
         centerTooltip={Boolean(step?.centerTooltip)}
         showHighlight={step?.showHighlight ?? true}
+        tooltipOffsetY={step?.tooltipOffsetY ?? 0}
+        placement={step?.placement}
       />
     </InAppTourContext.Provider>
   );

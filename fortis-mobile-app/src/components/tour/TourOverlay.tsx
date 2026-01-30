@@ -9,6 +9,7 @@ import { scale, moderateScale } from '@/src/utils/responsive';
 export type AnchorRect = { x: number; y: number; width: number; height: number };
 
 export type TourOverlayMode = 'blocking' | 'spotlight' | 'non_blocking';
+export type TourOverlayPlacement = 'auto' | 'above' | 'below';
 
 type Action = {
   label: string;
@@ -27,6 +28,8 @@ type TourOverlayProps = {
   showArrow?: boolean;
   centerTooltip?: boolean;
   showHighlight?: boolean;
+  tooltipOffsetY?: number;
+  placement?: TourOverlayPlacement;
 };
 
 const SCREEN = Dimensions.get('window');
@@ -54,6 +57,8 @@ export function TourOverlay({
   showArrow = false,
   centerTooltip = false,
   showHighlight = true,
+  tooltipOffsetY = 0,
+  placement = 'auto',
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -78,7 +83,7 @@ export function TourOverlay({
     if (centerTooltip) {
       return {
         left: (SCREEN.width - tooltipWidth) / 2,
-        top: clamp((SCREEN.height - (tooltipHeight ?? 0)) / 2, safeTop, safeBottom),
+        top: clamp((SCREEN.height - (tooltipHeight ?? 0)) / 2 + tooltipOffsetY, safeTop, safeBottom),
       };
     }
 
@@ -97,11 +102,16 @@ export function TourOverlay({
     const belowTop = paddedRect.y + paddedRect.height + TOOLTIP_GAP + arrowOffset;
     const canFitAbove = aboveTop >= safeTop;
 
-    const topCandidate = canFitAbove ? aboveTop : belowTop;
+    const shouldPlaceAbove = placement === 'above'
+      ? true
+      : placement === 'below'
+        ? false
+        : canFitAbove;
+    const topCandidate = (shouldPlaceAbove ? aboveTop : belowTop) + tooltipOffsetY;
     const top = clamp(topCandidate, safeTop, safeBottom - tooltipHeight);
 
     return { left, top };
-  }, [insets.bottom, insets.top, paddedRect, tooltipHeight, tooltipWidth]);
+  }, [insets.bottom, insets.top, paddedRect, tooltipHeight, tooltipWidth, tooltipOffsetY, placement]);
 
   const themedStyles = {
     overlay: { backgroundColor: colors.overlayHeavy },
@@ -152,19 +162,9 @@ export function TourOverlay({
 
     // When the anchor isn't available yet, block the whole screen to avoid accidental taps.
     if (!paddedRect) {
-      if (allowHolePassthrough) {
-        return (
-          <View
-            style={[StyleSheet.absoluteFill, themedStyles.overlay]}
-            pointerEvents="none"
-          />
-        );
-      }
-
       return (
-        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
           <View style={[StyleSheet.absoluteFill, themedStyles.overlay]} pointerEvents="none" />
-          <View style={[StyleSheet.absoluteFill, styles.overlayBlock]} pointerEvents="auto" />
         </View>
       );
     }
@@ -247,6 +247,9 @@ export function TourOverlay({
       {renderBlockingOverlay()}
       {showHighlight ? renderHighlight() : null}
       {renderArrow()}
+      {blockOutside && !paddedRect && !allowHolePassthrough ? (
+        <Pressable style={styles.touchBlocker} onPress={() => undefined} />
+      ) : null}
 
       <View
         style={[
@@ -255,6 +258,8 @@ export function TourOverlay({
           { width: tooltipWidth, left: tooltipPos.left, top: tooltipPos.top },
         ]}
         pointerEvents="auto"
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
         accessibilityRole="alert"
         onLayout={(e) => {
           const nextHeight = e.nativeEvent.layout.height;
@@ -292,17 +297,21 @@ export function TourOverlay({
     return overlayContent;
   }
 
-  return (
-    <Modal transparent visible animationType="fade" statusBarTranslucent>
-      {overlayContent}
-    </Modal>
-  );
+  return overlayContent;
 }
 
 const styles = StyleSheet.create({
   overlayBlock: {
     position: 'absolute',
     zIndex: 1,
+  },
+  touchBlocker: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    zIndex: 0,
   },
   highlight: {
     position: 'absolute',

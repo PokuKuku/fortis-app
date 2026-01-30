@@ -6,8 +6,9 @@ export const GET_STARTED_WORKOUT_ID = `${GET_STARTED_TEMPLATE_ID}-workout` as co
 export const TOUR_ANCHOR_IDS = {
   quickStartFab: 'tour.tabs.quickStartFab',
   startConfigGetStarted: 'tour.startConfig.getStarted',
+  repsColumn: 'tour.workout.repsColumn',
   finishWorkoutButton: 'tour.workout.finishWorkout',
-  finishWorkoutCheckbox: 'tour.workout.finishCheckbox',
+  insightsTab: 'tour.tabs.insightsTab',
 } as const;
 
 export type TourAnchorId = typeof TOUR_ANCHOR_IDS[keyof typeof TOUR_ANCHOR_IDS];

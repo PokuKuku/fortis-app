@@ -137,7 +137,11 @@ export default function ActiveWorkoutScreen() {
   const handleDismiss = () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
@@ -302,7 +306,11 @@ export default function ActiveWorkoutScreen() {
     isNavigating.current = true;
     cancelWorkout();
     setShowCancelModal(false);
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
@@ -418,7 +426,11 @@ export default function ActiveWorkoutScreen() {
     await finishWorkout();
     setShowFinishModal(false);
     setFinishSnapshot(null);
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
@@ -479,7 +491,11 @@ export default function ActiveWorkoutScreen() {
 
     setShowFinishModal(false);
     setFinishSnapshot(null);
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 

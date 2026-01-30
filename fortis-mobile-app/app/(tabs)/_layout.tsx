@@ -107,13 +107,6 @@ export default function TabLayout() {
     loadProgramProgress();
   }, [loadProgramProgress]);
 
-  useEffect(() => {
-    if (!isTourActive) return;
-    if (activeStepId !== 'programs_intro') return;
-    if (!startConfigVisible) return;
-    advanceStep();
-  }, [activeStepId, advanceStep, isTourActive, startConfigVisible]);
-
   // AI Store
   const { conversation } = useAIStore();
   const hasActiveChat =
@@ -504,9 +497,11 @@ export default function TabLayout() {
         options={{
           title: 'Insights',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
-              <ChartBarIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
-            </View>
+            <TourAnchor id={TOUR_ANCHOR_IDS.insightsTab}>
+              <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+                <ChartBarIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
+              </View>
+            </TourAnchor>
           ),
         }}
       />
