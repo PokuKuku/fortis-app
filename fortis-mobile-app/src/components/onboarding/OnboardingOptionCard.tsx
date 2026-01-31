@@ -11,6 +11,7 @@ interface OnboardingOptionCardProps {
   title: string;
   description?: string;
   selected: boolean;
+  rank?: number | null;
   onSelect: () => void;
 }
 
@@ -18,6 +19,7 @@ export function OnboardingOptionCard({
   title,
   description,
   selected,
+  rank,
   onSelect,
 }: OnboardingOptionCardProps) {
   const { colors } = useTheme();
@@ -38,6 +40,12 @@ export function OnboardingOptionCard({
     backgroundColor: selected ? colors.accent : 'transparent',
   };
 
+  const showRank = rank !== undefined;
+  const rankStyle = {
+    borderColor: selected ? colors.accent : colors.textTertiary,
+    backgroundColor: selected ? colors.accent : 'transparent',
+  };
+
   return (
     <GlassCard onPress={handlePress} padding={cardPadding} style={[styles.card, cardStyle]}>
       <View style={styles.row}>
@@ -49,7 +57,15 @@ export function OnboardingOptionCard({
             </Text>
           )}
         </View>
-        <View style={[styles.radio, radioStyle]} />
+        {showRank ? (
+          <View style={[styles.rank, rankStyle]}>
+            {selected ? (
+              <Text style={[styles.rankText, { color: colors.white }]}>{rank}</Text>
+            ) : null}
+          </View>
+        ) : (
+          <View style={[styles.radio, radioStyle]} />
+        )}
       </View>
     </GlassCard>
   );
@@ -83,5 +99,18 @@ const styles = StyleSheet.create({
     height: scale(18),
     borderRadius: BorderRadius.full,
     borderWidth: Math.max(1, scale(2)),
+  },
+  rank: {
+    width: scale(24),
+    height: scale(24),
+    borderRadius: BorderRadius.full,
+    borderWidth: Math.max(1, scale(2)),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(12),
+    letterSpacing: 0.3,
   },
 });

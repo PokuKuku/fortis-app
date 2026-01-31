@@ -266,11 +266,11 @@ export default function OnboardingCompleteScreen() {
   const summaryItems = useMemo<SummaryItem[]>(() => {
     if (!onboardingState) return [];
     const goalFromList = onboardingState.fitness_goals?.length
-      ? onboardingState.fitness_goals[onboardingState.fitness_goals.length - 1]
+      ? onboardingState.fitness_goals[0]
       : undefined;
     const resolvedGoal = onboardingState.fitness_goal ?? goalFromList;
     const challengeFromList = onboardingState.biggest_challenges?.length
-      ? onboardingState.biggest_challenges[onboardingState.biggest_challenges.length - 1]
+      ? onboardingState.biggest_challenges[0]
       : undefined;
     const resolvedChallenge = onboardingState.biggest_challenge ?? challengeFromList;
     const items: SummaryItem[] = [];
@@ -473,13 +473,13 @@ export default function OnboardingCompleteScreen() {
       if (state?.tried_other_apps && !profile?.tried_other_apps) {
         updates.tried_other_apps = state.tried_other_apps;
       }
-      const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[state.fitness_goals.length - 1];
+      const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[0];
       if (resolvedGoal && !profile?.fitness_goal) {
         updates.fitness_goal = resolvedGoal;
       }
       const resolvedChallenge =
         state?.biggest_challenge ??
-        state?.biggest_challenges?.[state.biggest_challenges.length - 1];
+        state?.biggest_challenges?.[0];
       if (resolvedChallenge && !profile?.biggest_challenge) {
         updates.biggest_challenge = resolvedChallenge;
       }

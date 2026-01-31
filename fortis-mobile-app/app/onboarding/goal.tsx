@@ -22,7 +22,6 @@ export default function OnboardingGoalScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [selected, setSelected] = useState<FitnessGoal[]>([]);
-  const [primary, setPrimary] = useState<FitnessGoal | null>(null);
   const isDisabled = selected.length === 0;
 
   useEffect(() => {
@@ -39,7 +38,6 @@ export default function OnboardingGoalScreen() {
           ? [storedPrimary]
           : [];
       setSelected(nextGoals);
-      setPrimary(storedPrimary ?? (nextGoals.length > 0 ? nextGoals[nextGoals.length - 1] : null));
     };
 
     loadState();
@@ -56,17 +54,9 @@ export default function OnboardingGoalScreen() {
         ? prev.filter((goal) => goal !== value)
         : [...prev, value];
 
-      setPrimary((prevPrimary) => {
-        const nextPrimary = wasSelected
-          ? (prevPrimary === value ? (nextSelected[nextSelected.length - 1] ?? null) : prevPrimary)
-          : value;
-
-        void updateOnboardingState({
-          fitness_goals: nextSelected,
-          fitness_goal: nextPrimary ?? undefined,
-        });
-
-        return nextPrimary;
+      void updateOnboardingState({
+        fitness_goals: nextSelected,
+        fitness_goal: nextSelected[0] ?? undefined,
       });
 
       return nextSelected;
@@ -83,7 +73,7 @@ export default function OnboardingGoalScreen() {
       step={11}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What are your main fitness goals?"
-      subtitle="Select all that apply."
+      subtitle="Rank all that apply. Tap in order of importance."
       onBack={() => router.back()}
       footer={
         <GlassButton
@@ -97,14 +87,18 @@ export default function OnboardingGoalScreen() {
       }
     >
       <View style={styles.options}>
-        {OPTIONS.map((option) => (
-          <OnboardingOptionCard
-            key={option.value}
-            title={option.title}
-            selected={selected.includes(option.value)}
-            onSelect={() => handleSelect(option.value)}
-          />
-        ))}
+        {OPTIONS.map((option) => {
+          const rank = selected.indexOf(option.value);
+          return (
+            <OnboardingOptionCard
+              key={option.value}
+              title={option.title}
+              selected={rank !== -1}
+              rank={rank === -1 ? null : rank + 1}
+              onSelect={() => handleSelect(option.value)}
+            />
+          );
+        })}
       </View>
     </OnboardingScreen>
   );

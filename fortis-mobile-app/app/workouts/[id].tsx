@@ -208,15 +208,12 @@ export default function WorkoutDetailScreen() {
           </View>
 
           <View style={styles.exercisesList}>
-            {workout.exercises.map((exercise, index) => (
+            {workout.exercises.map((exercise) => (
               <HubExerciseRow
                 key={exercise.id}
                 exerciseName={exercise.exerciseName}
-                targetSets={exercise.targetSets}
-                targetReps={exercise.targetReps}
                 primaryMuscles={exercise.primaryMuscles}
                 images={exercise.images}
-                index={index}
                 onPress={() => handleExercisePress(exercise.exerciseId)}
                 rightAction={
                   <DeleteKebabMenu

@@ -16,7 +16,13 @@ export function TourAnchor({ id, onLayout, children, ...viewProps }: TourAnchorP
     if (!node) return;
     node.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return;
-      registerAnchorRect(id, { x, y, width, height });
+      // Round to whole pixels to avoid jitter from subpixel layout changes.
+      registerAnchorRect(id, {
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.round(width),
+        height: Math.round(height),
+      });
     });
   }, [id, registerAnchorRect]);
 
@@ -43,4 +49,3 @@ export function TourAnchor({ id, onLayout, children, ...viewProps }: TourAnchorP
     </View>
   );
 }
-

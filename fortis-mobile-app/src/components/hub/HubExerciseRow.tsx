@@ -11,11 +11,8 @@ import { getMuscleCategory, getMuscleDisplayName, type MuscleKey } from '@/src/u
 
 interface HubExerciseRowProps {
   exerciseName: string;
-  targetSets: number;
-  targetReps: string;
   primaryMuscles: string[];
   images: string[];
-  index: number;
   onPress?: () => void;
   rightAction?: React.ReactNode;
 }
@@ -36,11 +33,8 @@ function getMuscleColor(muscle: string): string {
 
 export const HubExerciseRow = React.memo(function HubExerciseRow({
   exerciseName,
-  targetSets,
-  targetReps,
   primaryMuscles,
   images,
-  index,
   onPress,
   rightAction,
 }: HubExerciseRowProps) {
@@ -58,7 +52,6 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
     exerciseName: { color: colors.textPrimary },
     placeholderImage: { backgroundColor: colors.accentOverlay },
     placeholderText: { color: colors.accent },
-    setsReps: { color: colors.accent },
   };
 
   const handlePress = () => {
@@ -106,11 +99,6 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
 
         {/* Content */}
         <View style={styles.content}>
-          {/* Set x Reps indicator */}
-          <Text style={[styles.setsReps, themedStyles.setsReps]}>
-            {targetSets} × {targetReps}
-          </Text>
-
           {/* Exercise Name */}
           <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
             {exerciseName}
@@ -193,12 +181,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     gap: 2,
-  },
-  setsReps: {
-    fontSize: FontSizes.xs,
-    fontWeight: '700',
-    // color now applied via themedStyles (colors.accent)
-    letterSpacing: 0.5,
   },
   exerciseName: {
     fontSize: FontSizes.base,

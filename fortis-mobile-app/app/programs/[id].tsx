@@ -136,15 +136,12 @@ function WorkoutSection({
           entering={FadeIn.duration(200)}
           style={styles.workoutExercises}
         >
-          {workout.exercises.map((exercise, exerciseIndex) => (
+          {workout.exercises.map((exercise) => (
             <HubExerciseRow
               key={exercise.id}
               exerciseName={exercise.exerciseName}
-              targetSets={exercise.targetSets}
-              targetReps={exercise.targetReps}
               primaryMuscles={exercise.primaryMuscles}
               images={exercise.images}
-              index={exerciseIndex}
               onPress={() => onExercisePress(exercise.exerciseId)}
                 rightAction={
                   <DeleteKebabMenu

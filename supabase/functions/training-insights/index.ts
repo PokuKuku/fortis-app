@@ -49,11 +49,19 @@ type WorkoutSetRow = {
   is_warmup: boolean | null;
   exercise_id?: string | null;
   exercise_name_snapshot?: string | null;
+  primary_muscles_snapshot?: string[] | null;
+  exercises?: {
+    name?: string | null;
+    equipment?: string | null;
+    category?: string | null;
+    primary_muscles?: string[] | null;
+  } | null;
 };
 
 type WorkoutSessionWithSetsRow = {
   id: string;
   started_at: string;
+  completed_at: string | null;
   duration_seconds: number | null;
   workout_sets: WorkoutSetRow[] | null;
 };
@@ -365,7 +373,7 @@ const fetchWeeklyVolume = async (
 };
 
 const fetchWeekToDateVolume = async (
-  supabase: SupabaseClient,
+  adminClient: SupabaseClient,
   userId: string,
   weekStart: Date,
   lastWeekStart: Date,
@@ -379,71 +387,127 @@ const fetchWeekToDateVolume = async (
     total_time_seconds: 0,
   };
   const now = new Date();
-  const nowLocal = getLocalDateParts(now, timezone);
-  if (!nowLocal) {
-    return { thisWeek: empty, lastWeek: { ...empty, week_start: toIsoDate(lastWeekStart) } };
-  }
-  const nowLocalDate = new Date(Date.UTC(nowLocal.year, nowLocal.month - 1, nowLocal.day));
-  const currentDayIndex = getMondayIndex(nowLocal.weekday);
-  const nowLocalSeconds = nowLocal.hour * 3600 + nowLocal.minute * 60 + nowLocal.second;
-  const currentWeekStartDate = new Date(nowLocalDate);
-  currentWeekStartDate.setUTCDate(currentWeekStartDate.getUTCDate() - currentDayIndex);
-  const lastWeekStartDate = addDays(currentWeekStartDate, -7);
-  const dayMs = 24 * 60 * 60 * 1000;
+  const currentWeekStartDate = new Date(weekStart);
+  const lastWeekStartDate = new Date(lastWeekStart);
+  const nextWeekStartDate = addDays(currentWeekStartDate, 7);
 
-  const { data, error } = await supabase
+  const { data: sessionRows, error: sessionError } = await adminClient
     .from('workout_sessions')
-    .select('id, started_at, duration_seconds, workout_sets(weight, reps, weight_unit, is_warmup)')
+    .select('id, started_at, completed_at, duration_seconds')
     .eq('user_id', userId)
     .not('completed_at', 'is', null)
-    .gte('started_at', toIsoDateTime(lastWeekStartDate))
-    .lt('started_at', toIsoDateTime(now));
+    .gte('completed_at', toIsoDateTime(lastWeekStartDate))
+    .lt('completed_at', toIsoDateTime(now));
 
-  if (error) {
-    console.warn('[Insights] Failed to fetch week-to-date volume:', error.message);
+  if (sessionError) {
+    console.warn('[Insights] Failed to fetch week-to-date sessions:', sessionError.message);
     return { thisWeek: empty, lastWeek: { ...empty, week_start: toIsoDate(lastWeekStart) } };
   }
+
+  const sessions = (sessionRows as WorkoutSessionWithSetsRow[] | null) ?? [];
+  if (sessions.length === 0) {
+    return { thisWeek: { ...empty, week_start: toIsoDate(currentWeekStartDate) }, lastWeek: { ...empty, week_start: toIsoDate(lastWeekStartDate) } };
+  }
+
+  const sessionIds = sessions.map((session) => session.id);
+  const { data: setRows, error: setError } = await adminClient
+    .from('workout_sets')
+    .select('session_id, exercise_id, exercise_name_snapshot, primary_muscles_snapshot, reps, weight, weight_unit, is_warmup')
+    .in('session_id', sessionIds);
+
+  if (setError) {
+    console.warn('[Insights] Failed to fetch week-to-date sets:', setError.message);
+  }
+
+  const sets = (setRows as WorkoutSetRow[] | null) ?? [];
+  const exerciseIds = new Set<string>();
+  sets.forEach((set) => {
+    if (set.exercise_id) {
+      exerciseIds.add(set.exercise_id);
+    }
+  });
+
+  const { data: exerciseRows } = exerciseIds.size
+    ? await adminClient
+        .from('exercises')
+        .select('id, name, equipment, category, primary_muscles')
+        .in('id', Array.from(exerciseIds))
+    : { data: [] as Array<{ id: string; name: string; equipment?: string | null; category?: string | null; primary_muscles?: string[] | null }> };
+
+  const exerciseNameById = new Map<string, string>();
+  const exerciseEquipmentById = new Map<string, string>();
+  const exerciseCategoryById = new Map<string, string>();
+  const exercisePrimaryById = new Map<string, string[]>();
+  (exerciseRows ?? []).forEach((row) => {
+    if (!row?.id) return;
+    exerciseNameById.set(row.id, row.name);
+    if (row.equipment) exerciseEquipmentById.set(row.id, row.equipment ?? '');
+    if (row.category) exerciseCategoryById.set(row.id, row.category ?? '');
+    if (row.primary_muscles) exercisePrimaryById.set(row.id, row.primary_muscles ?? []);
+  });
+
+  const { data: bodyweightRows } = await adminClient
+    .from('user_body_metrics')
+    .select('weight, unit')
+    .eq('user_id', userId)
+    .order('recorded_at', { ascending: false })
+    .limit(1);
+  const bodyweightRow = bodyweightRows?.[0];
+  const bodyweightPreferred = bodyweightRow
+    ? normalizeBodyweight(bodyweightRow.weight, bodyweightRow.unit, preferredUnits)
+    : null;
 
   const thisWeek = { ...empty, week_start: toIsoDate(currentWeekStartDate) };
   const lastWeek = { ...empty, week_start: toIsoDate(lastWeekStartDate) };
 
-  (data as WorkoutSessionWithSetsRow[] | null)?.forEach((session) => {
-    const startedAt = new Date(session.started_at);
-    const localParts = getLocalDateParts(startedAt, timezone);
-    if (!localParts) return;
-    const sessionLocalDate = new Date(Date.UTC(localParts.year, localParts.month - 1, localParts.day));
-    const sessionDayDiff = Math.floor((sessionLocalDate.getTime() - currentWeekStartDate.getTime()) / dayMs);
-    const sessionSeconds = localParts.hour * 3600 + localParts.minute * 60 + localParts.second;
-    const isThisWeek = sessionDayDiff >= 0 && sessionDayDiff <= 6;
-    const isLastWeek = sessionDayDiff >= -7 && sessionDayDiff <= -1;
+  const setsBySession = new Map<string, WorkoutSetRow[]>();
+  sets.forEach((set) => {
+    if (!set.session_id) return;
+    const list = setsBySession.get(set.session_id) ?? [];
+    list.push(set);
+    setsBySession.set(set.session_id, list);
+  });
 
-    let shouldInclude = false;
+  sessions.forEach((session) => {
+    const sessionTime = new Date(session.completed_at ?? session.started_at);
     let target = thisWeek;
-
-    if (isThisWeek) {
-      shouldInclude =
-        sessionDayDiff < currentDayIndex ||
-        (sessionDayDiff === currentDayIndex && sessionSeconds <= nowLocalSeconds);
+    if (sessionTime >= currentWeekStartDate && sessionTime < nextWeekStartDate) {
       target = thisWeek;
-    } else if (isLastWeek) {
-      const lastWeekDayIndex = sessionDayDiff + 7;
-      shouldInclude =
-        lastWeekDayIndex < currentDayIndex ||
-        (lastWeekDayIndex === currentDayIndex && sessionSeconds <= nowLocalSeconds);
+    } else if (sessionTime >= lastWeekStartDate && sessionTime < currentWeekStartDate) {
       target = lastWeek;
+    } else {
+      return;
     }
-
-    if (!shouldInclude) return;
 
     target.workouts_count = clampNumber(target.workouts_count) + 1;
     target.total_time_seconds = clampNumber(target.total_time_seconds) + clampNumber(session.duration_seconds);
 
-    (session.workout_sets ?? []).forEach((set) => {
+    const sessionSets = setsBySession.get(session.id) ?? [];
+    sessionSets.forEach((set) => {
       if (set.is_warmup) return;
-      if (set.reps === null || set.weight === null) return;
-      if (set.reps <= 0 || set.weight <= 0) return;
-      const normalizedWeight = normalizeWeight(set.weight, set.weight_unit, preferredUnits);
-      target.total_volume = clampNumber(target.total_volume) + normalizedWeight * set.reps;
+      if (set.reps === null || set.reps <= 0) return;
+
+      let weightNorm: number | null = null;
+      if (set.weight !== null && set.weight > 0) {
+        weightNorm = normalizeWeight(set.weight, set.weight_unit, preferredUnits);
+      } else {
+        const equipment = set.exercise_id ? exerciseEquipmentById.get(set.exercise_id) : null;
+        const fallbackName = set.exercise_id
+          ? exerciseNameById.get(set.exercise_id) ?? set.exercise_name_snapshot ?? ''
+          : set.exercise_name_snapshot ?? '';
+        if (isBodyweightExercise(equipment ?? null, fallbackName)) {
+          const factor = getBodyweightMovementFactor(
+            set.primary_muscles_snapshot ?? (set.exercise_id ? exercisePrimaryById.get(set.exercise_id) ?? null : null),
+            set.exercise_id ? exerciseCategoryById.get(set.exercise_id) ?? null : null
+          );
+          if (bodyweightPreferred && factor > 0) {
+            weightNorm = bodyweightPreferred * factor;
+          }
+        }
+      }
+
+      if (weightNorm === null) return;
+      target.total_volume = clampNumber(target.total_volume) + weightNorm * set.reps;
     });
   });
 
@@ -654,6 +718,191 @@ const isBodyweightExercise = (equipment?: string | null, name?: string | null): 
   const normalizedName = (name ?? '').toLowerCase();
   if (!normalizedName) return false;
   return BODYWEIGHT_NAME_PATTERN.test(normalizedName);
+};
+
+const FULL_BODY_PATTERN = /full[- _]?body|total[- _]?body/i;
+
+const BODYWEIGHT_FACTORS: Record<string, number> = {
+  chest: 0.6,
+  front_delts: 0.5,
+  side_delts: 0.5,
+  rear_delts: 0.5,
+  triceps: 0.45,
+  biceps: 0.45,
+  forearms: 0.45,
+  lats: 0.85,
+  upper_back: 0.85,
+  lower_back: 0.85,
+  abs: 0.35,
+  obliques: 0.35,
+  glutes: 0.7,
+  quads: 0.7,
+  hamstrings: 0.7,
+  calves: 0.7,
+  adductors: 0.7,
+  abductors: 0.7,
+};
+
+const normalizeInput = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const MUSCLE_ALIASES: Record<string, string> = {
+  'pectorals': 'chest',
+  'pectoral': 'chest',
+  'pec': 'chest',
+  'pecs': 'chest',
+  'upper chest': 'chest',
+  'lower chest': 'chest',
+  'serratus anterior': 'chest',
+  'chest': 'chest',
+  'shoulders': 'side_delts',
+  'delts': 'side_delts',
+  'deltoids': 'side_delts',
+  'side delts': 'side_delts',
+  'lateral deltoid': 'side_delts',
+  'lateral delts': 'side_delts',
+  'front delts': 'front_delts',
+  'front deltoids': 'front_delts',
+  'anterior deltoid': 'front_delts',
+  'rear delts': 'rear_delts',
+  'rear deltoids': 'rear_delts',
+  'posterior deltoid': 'rear_delts',
+  'rotator cuff': 'rear_delts',
+  'biceps': 'biceps',
+  'bicep': 'biceps',
+  'biceps brachii': 'biceps',
+  'brachialis': 'biceps',
+  'triceps': 'triceps',
+  'tricep': 'triceps',
+  'triceps brachii': 'triceps',
+  'forearm': 'forearms',
+  'forearms': 'forearms',
+  'wrist flexors': 'forearms',
+  'wrist extensors': 'forearms',
+  'wrists': 'forearms',
+  'hands': 'forearms',
+  'grip muscles': 'forearms',
+  'back': 'upper_back',
+  'upper back': 'upper_back',
+  'middle back': 'upper_back',
+  'mid back': 'upper_back',
+  'rhomboids': 'upper_back',
+  'traps': 'upper_back',
+  'trapezius': 'upper_back',
+  'levator scapulae': 'upper_back',
+  'lats': 'lats',
+  'latissimus dorsi': 'lats',
+  'lower back': 'lower_back',
+  'erector spinae': 'lower_back',
+  'spine': 'lower_back',
+  'abs': 'abs',
+  'abdominals': 'abs',
+  'abdominal': 'abs',
+  'core': 'abs',
+  'hip flexors': 'abs',
+  'lower abs': 'abs',
+  'obliques': 'obliques',
+  'oblique': 'obliques',
+  'glutes': 'glutes',
+  'gluteus': 'glutes',
+  'gluteus maximus': 'glutes',
+  'gluteus medius': 'glutes',
+  'gluteus minimus': 'glutes',
+  'quads': 'quads',
+  'quadriceps': 'quads',
+  'hamstrings': 'hamstrings',
+  'hamstring': 'hamstrings',
+  'calves': 'calves',
+  'calf': 'calves',
+  'soleus': 'calves',
+  'tibialis anterior': 'calves',
+  'shins': 'calves',
+  'ankles': 'calves',
+  'ankle stabilizers': 'calves',
+  'adductors': 'adductors',
+  'adductor': 'adductors',
+  'inner thighs': 'adductors',
+  'groin': 'adductors',
+  'abductors': 'abductors',
+  'abductor': 'abductors',
+};
+
+const KEYWORD_RULES: Array<[RegExp, string]> = [
+  [/\bpectoral|\bpec\b/i, 'chest'],
+  [/\bdeltoid|\bdelt\b|\bshoulder/i, 'side_delts'],
+  [/\banterior deltoid|\bfront delt/i, 'front_delts'],
+  [/\bposterior deltoid|\brear delt/i, 'rear_delts'],
+  [/\btricep/i, 'triceps'],
+  [/\bbicep/i, 'biceps'],
+  [/\bforearm|\bbrachioradialis|\bwrist|\bgrip/i, 'forearms'],
+  [/\bquad|\bquadricep/i, 'quads'],
+  [/\bhamstring/i, 'hamstrings'],
+  [/\bglute/i, 'glutes'],
+  [/\bcalf|\bsoleus|\btibialis|\bshin/i, 'calves'],
+  [/\boblique/i, 'obliques'],
+  [/\babs|\babdom|\bcore|\bhip flexor/i, 'abs'],
+  [/\badductor|\binner thigh|\bgroin/i, 'adductors'],
+  [/\babductor/i, 'abductors'],
+  [/\btrapezius|\btrap\b|\brhomboid/i, 'upper_back'],
+  [/\blat(s|issimus)?\b/i, 'lats'],
+  [/\bupper back|\bmid back|\bmiddle back/i, 'upper_back'],
+  [/\blower back|\berector/i, 'lower_back'],
+  [/\bback\b/i, 'upper_back'],
+];
+
+const normalizeMuscleName = (input: string): string | null => {
+  if (!input) return null;
+  const normalized = normalizeInput(input);
+  if (!normalized) return null;
+  const alias = MUSCLE_ALIASES[normalized];
+  if (alias) return alias;
+  if (normalized in BODYWEIGHT_FACTORS) return normalized;
+  const rule = KEYWORD_RULES.find(([pattern]) => pattern.test(normalized));
+  return rule ? rule[1] : null;
+};
+
+const normalizeMuscleList = (muscles?: string[] | null): string[] => {
+  if (!muscles || !Array.isArray(muscles)) return [];
+  const normalized: string[] = [];
+  muscles.forEach((muscle) => {
+    const key = normalizeMuscleName(muscle);
+    if (!key) return;
+    if (!normalized.includes(key)) normalized.push(key);
+  });
+  return normalized;
+};
+
+const getBodyweightMovementFactor = (
+  primaryMuscles?: string[] | null,
+  category?: string | null
+): number => {
+  if (category) {
+    const normalizedCategory = category.toLowerCase();
+    if (
+      normalizedCategory.includes('cardio')
+      || normalizedCategory.includes('conditioning')
+      || normalizedCategory.includes('other')
+      || normalizedCategory.includes('unknown')
+    ) {
+      return 0;
+    }
+  }
+
+  const rawMuscles = primaryMuscles ?? [];
+  if (rawMuscles.some((muscle) => FULL_BODY_PATTERN.test(muscle))) {
+    return 0.6;
+  }
+
+  const normalized = normalizeMuscleList(rawMuscles);
+  if (normalized.length === 0) {
+    return 0;
+  }
+
+  return BODYWEIGHT_FACTORS[normalized[0]] ?? 0;
 };
 
 const buildStallRecommendation = ({
@@ -1116,7 +1365,7 @@ const buildWorkoutRecapInsights = async ({
 
   const { data: sets, error: setsError } = await adminClient
     .from('workout_sets')
-    .select('session_id, exercise_id, exercise_name_snapshot, reps, weight, weight_unit, is_warmup')
+    .select('session_id, exercise_id, exercise_name_snapshot, primary_muscles_snapshot, reps, weight, weight_unit, is_warmup')
     .in('session_id', sessionIds);
 
   if (setsError) {
@@ -1139,16 +1388,24 @@ const buildWorkoutRecapInsights = async ({
   const { data: exerciseRows } = exerciseIds.size
     ? await adminClient
         .from('exercises')
-        .select('id, name, equipment')
+        .select('id, name, equipment, category, primary_muscles')
         .in('id', Array.from(exerciseIds))
-    : { data: [] as Array<{ id: string; name: string; equipment?: string | null }> };
+    : { data: [] as Array<{ id: string; name: string; equipment?: string | null; category?: string | null; primary_muscles?: string[] | null }> };
   const exerciseNameById = new Map<string, string>();
   const exerciseEquipmentById = new Map<string, string>();
-  (exerciseRows ?? []).forEach((row: { id: string; name: string }) => {
+  const exerciseCategoryById = new Map<string, string>();
+  const exercisePrimaryById = new Map<string, string[]>();
+  (exerciseRows ?? []).forEach((row: { id: string; name: string; equipment?: string | null; category?: string | null; primary_muscles?: string[] | null }) => {
     if (row?.id) {
       exerciseNameById.set(row.id, row.name);
       if ((row as { equipment?: string | null }).equipment) {
         exerciseEquipmentById.set(row.id, (row as { equipment?: string | null }).equipment ?? '');
+      }
+      if ((row as { category?: string | null }).category) {
+        exerciseCategoryById.set(row.id, (row as { category?: string | null }).category ?? '');
+      }
+      if ((row as { primary_muscles?: string[] | null }).primary_muscles) {
+        exercisePrimaryById.set(row.id, (row as { primary_muscles?: string[] | null }).primary_muscles ?? []);
       }
     }
   });
@@ -1190,7 +1447,13 @@ const buildWorkoutRecapInsights = async ({
         const equipment = exerciseEquipmentById.get(row.exercise_id);
         const fallbackName = exerciseNameById.get(row.exercise_id) ?? row.exercise_name_snapshot ?? '';
         if (isBodyweightExercise(equipment, fallbackName)) {
-          weightNorm = bodyweightPreferred ?? 1;
+          const factor = getBodyweightMovementFactor(
+            row.primary_muscles_snapshot ?? exercisePrimaryById.get(row.exercise_id) ?? null,
+            exerciseCategoryById.get(row.exercise_id) ?? null
+          );
+          if (bodyweightPreferred && factor > 0) {
+            weightNorm = bodyweightPreferred * factor;
+          }
         }
       }
 
@@ -1854,7 +2117,7 @@ Deno.serve(async (req) => {
   ]);
 
   const weekToDateVolume = shouldRunWeeklyFinal
-    ? await fetchWeekToDateVolume(supabase, user.id, weekStart, lastWeekStart, preferredUnits, timezone)
+    ? await fetchWeekToDateVolume(adminClient, user.id, weekStart, lastWeekStart, preferredUnits, timezone)
     : null;
 
   const weeklySummary = shouldRunPositive

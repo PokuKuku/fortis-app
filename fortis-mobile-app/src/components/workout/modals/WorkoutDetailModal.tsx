@@ -39,7 +39,6 @@ export function WorkoutDetailModal({
     exerciseCount: { color: colors.textSecondary },
     exerciseRow: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)' },
     exerciseName: { color: colors.textPrimary },
-    setsReps: { color: colors.accent },
   };
   const exerciseIds = useMemo(
     () => workout?.exercises.map((exercise) => exercise.exerciseId) || [],
@@ -89,9 +88,6 @@ export function WorkoutDetailModal({
           <View key={exercise.id} style={[styles.exerciseRow, themedStyles.exerciseRow]}>
             <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
               {exercise.exerciseName}
-            </Text>
-            <Text style={[styles.setsReps, themedStyles.setsReps]}>
-              {exercise.sets} × {exercise.reps}
             </Text>
           </View>
         ))}
@@ -143,11 +139,6 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     flex: 1,
     marginRight: Spacing.md,
-  },
-  setsReps: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    // color now applied via themedStyles (colors.accent)
   },
   startButton: {
     height: 48,

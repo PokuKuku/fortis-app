@@ -39,6 +39,8 @@ type TourStep = {
   centerTooltip?: boolean;
   showHighlight?: boolean;
   tooltipOffsetY?: number;
+  pinTooltipToTop?: boolean;
+  tooltipTopOffset?: number;
   placement?: TourOverlayPlacement;
 };
 
@@ -78,7 +80,8 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: true,
-    tooltipOffsetY: -scale(48),
+    pinTooltipToTop: true,
+    tooltipTopOffset: scale(8),
     placement: 'above',
   },
   {
@@ -89,6 +92,8 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    pinTooltipToTop: true,
+    tooltipTopOffset: scale(8),
     placement: 'above',
   },
   {
@@ -551,6 +556,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         centerTooltip={Boolean(step?.centerTooltip)}
         showHighlight={step?.showHighlight ?? true}
         tooltipOffsetY={step?.tooltipOffsetY ?? 0}
+        pinTooltipToTop={step?.pinTooltipToTop ?? false}
+        tooltipTopOffset={step?.tooltipTopOffset ?? 0}
         placement={step?.placement}
       />
     </InAppTourContext.Provider>

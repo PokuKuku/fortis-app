@@ -29,6 +29,8 @@ type TourOverlayProps = {
   centerTooltip?: boolean;
   showHighlight?: boolean;
   tooltipOffsetY?: number;
+  pinTooltipToTop?: boolean;
+  tooltipTopOffset?: number;
   placement?: TourOverlayPlacement;
 };
 
@@ -58,6 +60,8 @@ export function TourOverlay({
   centerTooltip = false,
   showHighlight = true,
   tooltipOffsetY = 0,
+  pinTooltipToTop = false,
+  tooltipTopOffset = 0,
   placement = 'auto',
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
@@ -87,6 +91,13 @@ export function TourOverlay({
       };
     }
 
+    if (pinTooltipToTop) {
+      return {
+        left: (SCREEN.width - tooltipWidth) / 2,
+        top: clamp(safeTop + tooltipTopOffset, safeTop, safeBottom - (tooltipHeight ?? 0)),
+      };
+    }
+
     if (!paddedRect || !tooltipHeight) {
       return {
         left: TOOLTIP_SIDE_MARGIN,
@@ -111,7 +122,18 @@ export function TourOverlay({
     const top = clamp(topCandidate, safeTop, safeBottom - tooltipHeight);
 
     return { left, top };
-  }, [insets.bottom, insets.top, paddedRect, tooltipHeight, tooltipWidth, tooltipOffsetY, placement]);
+  }, [
+    centerTooltip,
+    insets.bottom,
+    insets.top,
+    paddedRect,
+    pinTooltipToTop,
+    placement,
+    tooltipHeight,
+    tooltipOffsetY,
+    tooltipTopOffset,
+    tooltipWidth,
+  ]);
 
   const themedStyles = {
     overlay: { backgroundColor: colors.overlayHeavy },
