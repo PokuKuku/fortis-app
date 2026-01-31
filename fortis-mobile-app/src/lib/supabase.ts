@@ -144,6 +144,13 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+export const clearSupabaseAuthStorage = async () => {
+  const storageKey = supabase.auth.storageKey;
+  if (storageKey) {
+    await SecureStorageAdapter.removeItem(storageKey);
+  }
+};
+
 // Helper function to check if Supabase is configured
 export const isSupabaseConfigured = () => {
   return (

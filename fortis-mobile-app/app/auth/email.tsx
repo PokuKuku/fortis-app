@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -45,12 +45,20 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 export default function EmailAuthScreen() {
   const router = useRouter();
   const { source } = useLocalSearchParams<{ source?: string }>();
-  const { signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithEmail, signUpWithEmail, setAllowProfileCreation } = useAuth();
   const { colors, isDark } = useTheme();
+  const sourceValue = Array.isArray(source) ? source[0] : source;
   const [isSignUp, setIsSignUp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAllowProfileCreation(sourceValue === 'onboarding-complete');
+    return () => {
+      setAllowProfileCreation(false);
+    };
+  }, [setAllowProfileCreation, sourceValue]);
 
   // Dynamic theme-aware styles
   const themedStyles = {

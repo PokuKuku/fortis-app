@@ -25,11 +25,12 @@ export default function OnboardingWelcomeScreen() {
     needsOnboarding,
     isLoading,
     profile,
+    profileResolved,
+    signOut,
   } = useAuth();
   const { height: windowHeight } = useWindowDimensions();
   const videoHeight = Math.min(420, Math.max(320, Math.round(windowHeight * 0.4)));
   const [showSignInSheet, setShowSignInSheet] = useState(false);
-  const [pendingOnboardingAfterSignIn, setPendingOnboardingAfterSignIn] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
@@ -46,16 +47,20 @@ export default function OnboardingWelcomeScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthenticated || isLoading) return;
-    if (pendingOnboardingAfterSignIn && !profile) return;
+    if (!isAuthenticated || isLoading || !profileResolved) return;
+    if (!profile) {
+      setShowSignInSheet(false);
+      void (async () => {
+        await signOut();
+        router.replace('/onboarding');
+      })();
+      return;
+    }
     if (needsOnboarding) {
-      if (!pendingOnboardingAfterSignIn) return;
-      setPendingOnboardingAfterSignIn(false);
       setShowSignInSheet(false);
       router.push('/onboarding');
       return;
     }
-    setPendingOnboardingAfterSignIn(false);
     setShowSignInSheet(false);
     console.log('[Routing] onboarding/welcome -> /paywall-gate');
     router.replace('/paywall-gate');
@@ -63,7 +68,9 @@ export default function OnboardingWelcomeScreen() {
     isAuthenticated,
     isLoading,
     needsOnboarding,
-    pendingOnboardingAfterSignIn,
+    profile,
+    profileResolved,
+    signOut,
     router,
   ]);
 
@@ -77,7 +84,6 @@ export default function OnboardingWelcomeScreen() {
 
   const handleCloseSheet = () => {
     setShowSignInSheet(false);
-    setPendingOnboardingAfterSignIn(false);
     setSignInError(null);
   };
 
@@ -89,13 +95,11 @@ export default function OnboardingWelcomeScreen() {
   const handleGoogleSignIn = async () => {
     setSignInError(null);
     setIsLoadingGoogle(true);
-    setPendingOnboardingAfterSignIn(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { error } = await signInWithGoogle();
       if (error) {
         setSignInError(error.message);
-        setPendingOnboardingAfterSignIn(false);
       } else {
         setSignInError(null);
       }
@@ -107,13 +111,11 @@ export default function OnboardingWelcomeScreen() {
   const handleAppleSignIn = async () => {
     setSignInError(null);
     setIsLoadingApple(true);
-    setPendingOnboardingAfterSignIn(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { error } = await signInWithApple();
       if (error) {
         setSignInError(error.message);
-        setPendingOnboardingAfterSignIn(false);
       } else {
         setSignInError(null);
       }

@@ -79,7 +79,7 @@ function FloatingParticle({
 export default function SplashScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { isAuthResolved, isAuthenticated, needsOnboarding } = useAuth();
+  const { isAuthResolved, isAuthenticated, needsOnboarding, profileResolved } = useAuth();
   const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasNavigatedRef = useRef(false);
   const [minDelayPassed, setMinDelayPassed] = useState(false);
@@ -118,6 +118,11 @@ export default function SplashScreen() {
 
     hasNavigatedRef.current = true;
 
+    if (isAuthenticated && !profileResolved) {
+      hasNavigatedRef.current = false;
+      return;
+    }
+
     if (isAuthenticated && needsOnboarding) {
       router.replace('/onboarding/welcome');
       return;
@@ -130,7 +135,7 @@ export default function SplashScreen() {
     }
 
     router.replace('/onboarding/welcome');
-  }, [minDelayPassed, isAuthResolved, isAuthenticated, needsOnboarding, router]);
+  }, [minDelayPassed, isAuthResolved, isAuthenticated, needsOnboarding, profileResolved, router]);
 
   useEffect(() => {
     ExpoSplashScreen.hideAsync().catch(() => undefined);

@@ -3,12 +3,12 @@ import { AppState, Platform } from 'react-native';
 import { Buffer } from 'buffer';
 import * as FileSystem from 'expo-file-system';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
+import { supabase, isSupabaseConfigured, clearSupabaseAuthStorage } from '@/src/lib/supabase';
 import { processPendingQueue, getPendingSyncCount, getPendingSyncSessions, fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { setCachedWorkoutHistory } from '@/src/hooks/useWorkoutHistorySource';
+import { clearCachedWorkoutHistory, setCachedWorkoutHistory } from '@/src/hooks/useWorkoutHistorySource';
 import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
@@ -56,11 +56,13 @@ export interface AuthContextValue {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
+  profileResolved: boolean;
   isLoading: boolean;
   isAuthResolved: boolean;
   isHydrating: boolean;
   isAuthenticated: boolean;
   needsOnboarding: boolean;
+  setAllowProfileCreation: (allow: boolean) => void;
 
   // Auth methods
   signInWithEmail: (email: string, password: string) => Promise<{ error: Error | null }>;
@@ -98,10 +100,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileResolved, setProfileResolved] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthResolved, setIsAuthResolved] = useState(false);
   const [isHydrating, setIsHydrating] = useState(false);
   const hydrateRunRef = useRef(0);
+  const [allowProfileCreation, setAllowProfileCreation] = useState(false);
 
   const isAuthenticated = !!session;
   const needsOnboarding = isAuthenticated && profile?.onboarding_completed === false;
@@ -149,8 +153,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         .single();
 
       if (error) {
-        // Profile doesn't exist, create it
+        // Profile doesn't exist
         if (error.code === 'PGRST116') {
+          if (!allowProfileCreation) {
+            return null;
+          }
+
           const { data: newProfile, error: createError } = await supabase
             .from('profiles')
             .insert({
@@ -187,13 +195,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Profile fetch error:', err);
       return null;
     }
-  }, []);
+  }, [allowProfileCreation]);
 
   // Refresh profile data
   const refreshProfile = useCallback(async () => {
     if (user?.id) {
       const profileData = await fetchProfile(user.id);
       setProfile(profileData);
+      setProfileResolved(true);
     }
   }, [user?.id, fetchProfile]);
 
@@ -274,8 +283,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await hydrateUserData();
         const profileData = await fetchProfile(sessionToUse.user.id);
         setProfile(profileData);
+        setProfileResolved(true);
       } else {
         setProfile(null);
+        setProfileResolved(false);
       }
 
       setIsLoading(false);
@@ -299,6 +310,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
           const profileData = await fetchProfile(userId);
           setProfile(profileData);
+          setProfileResolved(true);
 
           // Process any pending syncs when user signs in
           if (event === 'SIGNED_IN') {
@@ -330,7 +342,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 }
                 const localSessions = useWorkoutStore.getState().completedSessions;
                 const mergedSessions = mergeWorkoutSessions(sessions, localSessions);
-                setCachedWorkoutHistory(mergedSessions);
+                setCachedWorkoutHistory(userId, mergedSessions);
                 if (sessions.length > 0) {
                   useWorkoutStore.getState().replaceCompletedSessions(mergedSessions).catch(storeError => {
                     console.warn('Failed to replace workout history from cloud:', storeError);
@@ -343,7 +355,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
         })();
       } else {
+        const lastUserId = user?.id;
         setProfile(null);
+        setProfileResolved(false);
+        if (lastUserId) {
+          clearCachedWorkoutHistory(lastUserId);
+        }
         hydrateRunRef.current += 1;
         setIsHydrating(false);
       }
@@ -552,6 +569,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Sign out
   const signOut = useCallback(async () => {
+    console.log('[Auth] signOut invoked');
+    if (user?.id) {
+      clearCachedWorkoutHistory(user.id);
+    }
     hydrateRunRef.current += 1;
     setIsHydrating(false);
 
@@ -611,12 +632,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
     setSession(null);
     setProfile(null);
+    setProfileResolved(false);
 
     invalidateCustomCache();
 
     // Sign out from Supabase with global scope to clear all sessions
     try {
       await supabase.auth.signOut({ scope: 'global' });
+      const { data: { session: postSignOutSession } } = await supabase.auth.getSession();
+      if (postSignOutSession) {
+        console.warn('[Auth] Sign-out did not clear local session; retrying with local scope.');
+        await supabase.auth.signOut({ scope: 'local' });
+      } else {
+        console.log('[Auth] Sign-out cleared local session.');
+      }
+      await clearSupabaseAuthStorage();
     } catch (err) {
       console.warn('Sign out error:', err);
     }
@@ -741,11 +771,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     session,
     profile,
+    profileResolved,
     isLoading,
     isAuthResolved,
     isHydrating,
     isAuthenticated,
     needsOnboarding,
+    setAllowProfileCreation,
     signInWithEmail,
     signUpWithEmail,
     signInWithGoogle,

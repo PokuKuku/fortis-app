@@ -153,6 +153,7 @@ export default function SettingsScreen() {
   };
 
   const handleSignOut = () => {
+    console.log('[Settings] Sign out pressed');
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     Alert.alert(
@@ -167,9 +168,11 @@ export default function SettingsScreen() {
           text: 'Sign Out',
           style: 'destructive',
           onPress: async () => {
+            console.log('[Settings] Sign out confirmed');
             setIsSigningOut(true);
             try {
               await signOut();
+              console.log('[Settings] Sign out completed');
               router.replace('/auth');
             } finally {
               setIsSigningOut(false);

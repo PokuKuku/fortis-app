@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { usePathname, useRouter, useSegments } from 'expo-router';
+import * as Notifications from 'expo-notifications';
 import { HAS_AUTO_SET_GET_STARTED_PRESET_KEY } from '@/src/constants/storageKeys';
 import {
   GET_STARTED_TEMPLATE_ID,
@@ -137,6 +138,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, profile, updateProfile } = useAuth();
   const { hasCompletedGetStarted } = useGetStartedStatus();
   const forceTourThisSession = useRef(false);
+  const notificationPromptedRef = useRef(false);
   const AUTO_SET_GET_STARTED_PRESET = false;
 
   const startPreset = useStartPresetStore((s) => s.preset);
@@ -273,6 +275,20 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     void markTourSeenOnServer({ status: 'started' });
     router.replace(TOUR_STEPS[0].route);
   }, [isAuthenticated, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
+
+  const requestNotificationsIfNeeded = useCallback(async () => {
+    if (notificationPromptedRef.current) return;
+
+    try {
+      const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
+      if (granted || status === 'granted' || !canAskAgain) return;
+
+      notificationPromptedRef.current = true;
+      await Notifications.requestPermissionsAsync();
+    } catch {
+      // Ignore notification permission errors; tour should still start.
+    }
+  }, []);
 
   const finishTour = useCallback(async (status: 'completed' | 'skipped') => {
     if (!tourLoaded) return;
@@ -450,11 +466,15 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   // Auto-start tour when eligible.
   useEffect(() => {
     if (!isEligibleForStart) return;
-    if (FORCE_IN_APP_TOUR) {
-      forceTourThisSession.current = true;
-    }
-    void startTour();
-  }, [isEligibleForStart, startTour]);
+    const run = async () => {
+      await requestNotificationsIfNeeded();
+      if (FORCE_IN_APP_TOUR) {
+        forceTourThisSession.current = true;
+      }
+      await startTour();
+    };
+    void run();
+  }, [isEligibleForStart, requestNotificationsIfNeeded, startTour]);
 
   // Advance when the Start FAB launches a workout.
   useEffect(() => {

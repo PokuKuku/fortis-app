@@ -34,12 +34,21 @@ export default function AuthWelcomeScreen() {
     updateProfile,
     profile,
     isLoading,
+    profileResolved,
+    setAllowProfileCreation,
   } = useAuth();
   const { colors, isDark } = useTheme();
   const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
   const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
   const showBack = Boolean(onboardingValue);
   const [isFinalizing, setIsFinalizing] = useState(false);
+
+  useEffect(() => {
+    setAllowProfileCreation(onboardingValue === 'complete');
+    return () => {
+      setAllowProfileCreation(false);
+    };
+  }, [onboardingValue, setAllowProfileCreation]);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -65,7 +74,15 @@ export default function AuthWelcomeScreen() {
 
   // Navigate when auth state changes
   useEffect(() => {
-    if (!isAuthenticated || isFinalizing || isLoading) return;
+    if (!isAuthenticated || isFinalizing || isLoading || !profileResolved) return;
+
+    if (!profile) {
+      if (onboardingValue === 'complete') {
+        return;
+      }
+      router.replace('/onboarding/welcome');
+      return;
+    }
 
     if (onboardingValue === 'complete') {
       setIsFinalizing(true);
@@ -149,6 +166,7 @@ export default function AuthWelcomeScreen() {
     needsOnboarding,
     onboardingValue,
     profile,
+    profileResolved,
     router,
     updateProfile,
   ]);
@@ -197,6 +215,10 @@ export default function AuthWelcomeScreen() {
 
   const handleEmailPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (onboardingValue === 'complete') {
+      router.push({ pathname: '/auth/email', params: { source: 'onboarding-complete' } });
+      return;
+    }
     router.push('/auth/email');
   };
 
