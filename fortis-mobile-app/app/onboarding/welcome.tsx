@@ -126,7 +126,7 @@ export default function OnboardingWelcomeScreen() {
     <OnboardingScreen
       step={0}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title={'Workout insights\nmade simple'}
+      title="Workout insights made simple"
       subtitle={undefined}
       useScrollView={false}
       showProgress={false}
