@@ -73,7 +73,10 @@ export function TourOverlay({
   const arrowAnim = useRef(new Animated.Value(0)).current;
   const tooltipOpacity = useRef(new Animated.Value(0)).current;
   const tooltipTranslate = useRef(new Animated.Value(TOOLTIP_TRANSITION_Y)).current;
+  const tooltipLeft = useRef(new Animated.Value(0)).current;
+  const tooltipTop = useRef(new Animated.Value(0)).current;
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTooltipPosRef = useRef<{ left: number; top: number } | null>(null);
 
   const tooltipWidth = Math.min(TOOLTIP_MAX_WIDTH, SCREEN.width - TOOLTIP_SIDE_MARGIN * 2);
 
@@ -190,6 +193,41 @@ export function TourOverlay({
     arrow: { borderTopColor: colors.accent },
     arrowLine: { backgroundColor: colors.accent },
   };
+
+  useEffect(() => {
+    if (!visible) {
+      lastTooltipPosRef.current = null;
+      return;
+    }
+
+    const nextLeft = tooltipPos.left;
+    const nextTop = tooltipPos.top;
+    const last = lastTooltipPosRef.current;
+
+    if (!last) {
+      tooltipLeft.setValue(nextLeft);
+      tooltipTop.setValue(nextTop);
+      lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
+      return;
+    }
+
+    if (last.left === nextLeft && last.top === nextTop) return;
+
+    Animated.parallel([
+      Animated.timing(tooltipLeft, {
+        toValue: nextLeft,
+        duration: 140,
+        useNativeDriver: false,
+      }),
+      Animated.timing(tooltipTop, {
+        toValue: nextTop,
+        duration: 140,
+        useNativeDriver: false,
+      }),
+    ]).start();
+
+    lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
+  }, [tooltipLeft, tooltipPos.left, tooltipPos.top, tooltipTop, visible]);
 
   useEffect(() => {
     if (!visible || !showArrow) {
@@ -360,7 +398,7 @@ export function TourOverlay({
         style={[
           styles.tooltip,
           themedStyles.tooltip,
-          { width: tooltipWidth, left: tooltipPos.left, top: tooltipPos.top },
+          { width: tooltipWidth, left: tooltipLeft, top: tooltipTop },
           {
             opacity: tooltipOpacity,
             transform: [{ translateY: tooltipTranslate }],
