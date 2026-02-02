@@ -22,6 +22,9 @@ type TourStepId =
   | 'welcome'
   | 'workouts_intro'
   | 'programs_intro'
+  | 'ai_chat_open'
+  | 'ai_chat_overview'
+  | 'ai_chat_close'
   | 'quick_start'
   | 'start_config'
   | 'launch_workout'
@@ -33,7 +36,7 @@ type TourStepId =
   | 'go_insights'
   | 'insights_overview';
 
-type TourRoute = '/(tabs)' | '/(tabs)/insights' | '/workout/active';
+type TourRoute = '/(tabs)' | '/(tabs)/insights' | '/workout/active' | '/ai/chat';
 
 type TourStep = {
   id: TourStepId;
@@ -80,6 +83,35 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: true,
+  },
+  {
+    id: 'ai_chat_open',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.aiChatButton,
+    body: 'Tap to open the Fortis AI chat.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'ai_chat_overview',
+    route: '/ai/chat',
+    body: 'Fortis helps with training analysis and insights on your data—weekly progress, trends, and what to do next. Ask about your training insights, weekly progress, trends, and what to focus on next.',
+    mode: 'blocking',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
+  },
+  {
+    id: 'ai_chat_close',
+    route: '/ai/chat',
+    anchorId: TOUR_ANCHOR_IDS.aiChatClose,
+    body: 'Tap X to close the chat.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: false,
+    placement: 'below',
   },
   {
     id: 'quick_start',
@@ -252,6 +284,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       }
       if (route === '/(tabs)/insights') {
         return segments[0] === '(tabs)' && segments[1] === 'insights';
+      }
+      if (route === '/ai/chat') {
+        return segments[0] === 'ai' && segments[1] === 'chat';
       }
       if (route === '/workout/active') {
         return segments[0] === 'workout' && segments[1] === 'active';
@@ -584,6 +619,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
 
+  // Advance when the AI chat is opened.
+  useEffect(() => {
+    if (!isTourActive || step?.id !== 'ai_chat_open') return;
+    if (isOnStepRoute('/ai/chat')) {
+      void advanceStep();
+    }
+  }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
+
   const lastWorkoutActiveRef = useRef<boolean>(Boolean(workoutActiveSession));
 
   // Advance when the workout is closed on the "close workout" step.
@@ -602,6 +645,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isTourActive || step?.id !== 'go_insights') return;
     if (isOnStepRoute('/(tabs)/insights')) {
+      void advanceStep();
+    }
+  }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
+
+  // Advance when the AI chat is closed.
+  useEffect(() => {
+    if (!isTourActive || step?.id !== 'ai_chat_close') return;
+    if (isOnStepRoute('/(tabs)')) {
       void advanceStep();
     }
   }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);

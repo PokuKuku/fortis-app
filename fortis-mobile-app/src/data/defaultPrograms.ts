@@ -40,8 +40,8 @@ const GET_STARTED_TEMPLATE_SEED: TemplateSeed = {
   name: 'Get Started',
   exercises: [
     {
-      exerciseId: EXERCISE_IDS.pushUp,
-      exerciseName: 'Push-up',
+      exerciseId: EXERCISE_IDS.barbellBenchPress,
+      exerciseName: 'Barbell Bench Press',
       sets: 1,
       reps: '3',
     },

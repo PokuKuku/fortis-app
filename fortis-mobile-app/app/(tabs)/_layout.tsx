@@ -523,19 +523,21 @@ export default function TabLayout() {
           title: 'AI',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={styles.centerButtonContainer}>
-              <GlassButton
-                circular
-                size={CENTER_BUTTON_SIZE}
-                style={[
-                  styles.centerButton,
-                  { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
-                ]}
-                gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
-                onPress={handleAiPress}
-                onLongPress={handleAiPress}
-              >
-                <SparklesIcon color="#fff" size={CENTER_BUTTON_ICON_SIZE} strokeWidth={1.5} />
-              </GlassButton>
+              <TourAnchor id={TOUR_ANCHOR_IDS.aiChatButton}>
+                <GlassButton
+                  circular
+                  size={CENTER_BUTTON_SIZE}
+                  style={[
+                    styles.centerButton,
+                    { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
+                  ]}
+                  gradientColors={hasActiveChat ? (colors.contrastGradient as unknown as string[]) : undefined}
+                  onPress={handleAiPress}
+                  onLongPress={handleAiPress}
+                >
+                  <SparklesIcon color="#fff" size={CENTER_BUTTON_ICON_SIZE} strokeWidth={1.5} />
+                </GlassButton>
+              </TourAnchor>
             </View>
           ),
           tabBarLabelStyle: {

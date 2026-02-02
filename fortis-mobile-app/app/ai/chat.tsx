@@ -40,6 +40,8 @@ import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -343,13 +345,15 @@ export default function AIChatScreen() {
                   <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={handleClose}
-                activeOpacity={0.7}
-              >
-                <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
-              </TouchableOpacity>
+              <TourAnchor id={TOUR_ANCHOR_IDS.aiChatClose}>
+                <TouchableOpacity
+                  style={styles.closeButton}
+                  onPress={handleClose}
+                  activeOpacity={0.7}
+                >
+                  <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
+                </TouchableOpacity>
+              </TourAnchor>
             </View>
           </View>
         </GestureDetector>
