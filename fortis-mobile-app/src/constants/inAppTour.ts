@@ -5,6 +5,8 @@ export const GET_STARTED_WORKOUT_ID = `${GET_STARTED_TEMPLATE_ID}-workout` as co
 
 export const TOUR_ANCHOR_IDS = {
   quickStartFab: 'tour.tabs.quickStartFab',
+  workoutsSection: 'tour.programs.workoutsSection',
+  programsSection: 'tour.programs.programsSection',
   startConfigGetStarted: 'tour.startConfig.getStarted',
   restTimer: 'tour.workout.restTimer',
   workoutColumns: 'tour.workout.columns',

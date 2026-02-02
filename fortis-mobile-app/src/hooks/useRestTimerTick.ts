@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import * as Haptics from 'expo-haptics';
@@ -26,8 +26,8 @@ const scheduleRestTimerNotification = async (endTimestamp: number): Promise<stri
 
   return Notifications.scheduleNotificationAsync({
     content: {
-      title: 'Rest complete',
-      body: 'Rest complete.',
+      title: 'Rest complete!',
+      body: 'Back to it — crush the next set.',
       sound: 'default',
     },
     trigger: {
@@ -57,6 +57,9 @@ export function useRestTimerTick() {
   const restTimer = useWorkoutStore(s => s.restTimer);
   const appState = useRef(AppState.currentState);
   const notificationIdRef = useRef<string | null>(null);
+  const [isBackgrounded, setIsBackgrounded] = useState(
+    AppState.currentState.match(/inactive|background/) !== null
+  );
 
   useEffect(() => {
     if (!restTimer.isActive) return;
@@ -87,7 +90,7 @@ export function useRestTimerTick() {
     let isCancelled = false;
 
     const syncNotification = async () => {
-      if (!restTimer.isActive || !restTimer.endTimestamp) {
+      if (!restTimer.isActive || !restTimer.endTimestamp || !isBackgrounded) {
         await cancelRestTimerNotification(notificationIdRef.current);
         notificationIdRef.current = null;
         return;
@@ -105,12 +108,13 @@ export function useRestTimerTick() {
     return () => {
       isCancelled = true;
     };
-  }, [restTimer.isActive, restTimer.endTimestamp]);
+  }, [restTimer.isActive, restTimer.endTimestamp, isBackgrounded]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       const wasInactive = appState.current.match(/inactive|background/);
       appState.current = nextState;
+      setIsBackgrounded(nextState.match(/inactive|background/) !== null);
       if (wasInactive && nextState === 'active') {
         tickRestTimer();
       }

@@ -10,9 +10,9 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 
 const YEAR_MIN = 1930;
-const DEFAULT_YEAR = 2003;
+const DEFAULT_YEAR = 1998;
 const DEFAULT_MONTH_INDEX = 7;
-const DEFAULT_DAY = 27;
+const DEFAULT_DAY = 8;
 
 const MONTH_LABELS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',

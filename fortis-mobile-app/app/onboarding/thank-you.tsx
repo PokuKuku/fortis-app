@@ -8,6 +8,9 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
+import * as Notifications from 'expo-notifications';
+import { HAS_REQUESTED_NOTIFICATIONS_KEY } from '@/src/constants/storageKeys';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 
 const THANK_YOU_ANIMATION = require('../../assets/lottie/Lock Animation.json');
 
@@ -131,8 +134,21 @@ export default function OnboardingThankYouScreen() {
     return cloned;
   }, [colors.textPrimary]);
 
-  const handleContinue = () => {
-    router.push('/onboarding/complete');
+  const handleContinue = async () => {
+    try {
+      const alreadyRequested = await getScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY);
+      if (alreadyRequested !== 'true') {
+        const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
+        if (!granted && status !== 'granted' && canAskAgain) {
+          await Notifications.requestPermissionsAsync();
+        }
+        await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
+      }
+    } catch {
+      // Ignore permission errors to avoid blocking onboarding.
+    } finally {
+      router.push('/onboarding/complete');
+    }
   };
 
   return (

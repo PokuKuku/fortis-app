@@ -33,6 +33,8 @@ import { AnimatedLogo } from '../../components/AnimatedLogo';
 import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { Spacing } from '@/constants/Sizes';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useProgramsStore } from '../../src/store/programsStore';
 import { useProgramProgressStore } from '../../src/store/programProgressStore';
@@ -1152,22 +1154,24 @@ export default function ProgramsScreen() {
           {/* Programs Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <TouchableOpacity
-                onPress={() => setShowPrograms(!showPrograms)}
-                style={styles.sectionHeaderButton}
-              >
-                <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowPrograms(!showPrograms)}>
-                  <ChevronRightIcon
-                    color="#fff"
-                    size={SECTION_CHEVRON_SIZE}
-                    style={[
-                      styles.chevron,
-                      showPrograms && styles.chevronRotated,
-                    ]}
-                  />
-                </GlassButton>
-                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Programs</Text>
-              </TouchableOpacity>
+              <TourAnchor id={TOUR_ANCHOR_IDS.programsSection}>
+                <TouchableOpacity
+                  onPress={() => setShowPrograms(!showPrograms)}
+                  style={styles.sectionHeaderButton}
+                >
+                  <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowPrograms(!showPrograms)}>
+                    <ChevronRightIcon
+                      color="#fff"
+                      size={SECTION_CHEVRON_SIZE}
+                      style={[
+                        styles.chevron,
+                        showPrograms && styles.chevronRotated,
+                      ]}
+                    />
+                  </GlassButton>
+                  <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Programs</Text>
+                </TouchableOpacity>
+              </TourAnchor>
               <TouchableOpacity
                 onPress={handleAddProgramPress}
                 style={styles.sectionKebabButton}
@@ -1199,22 +1203,24 @@ export default function ProgramsScreen() {
           {/* Workouts Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <TouchableOpacity
-                onPress={() => setShowWorkouts(!showWorkouts)}
-                style={styles.sectionHeaderButton}
-              >
-                <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowWorkouts(!showWorkouts)}>
-                  <ChevronRightIcon
-                    color="#fff"
-                    size={SECTION_CHEVRON_SIZE}
-                    style={[
-                      styles.chevron,
-                      showWorkouts && styles.chevronRotated,
-                    ]}
-                  />
-                </GlassButton>
-                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
-              </TouchableOpacity>
+              <TourAnchor id={TOUR_ANCHOR_IDS.workoutsSection}>
+                <TouchableOpacity
+                  onPress={() => setShowWorkouts(!showWorkouts)}
+                  style={styles.sectionHeaderButton}
+                >
+                  <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowWorkouts(!showWorkouts)}>
+                    <ChevronRightIcon
+                      color="#fff"
+                      size={SECTION_CHEVRON_SIZE}
+                      style={[
+                        styles.chevron,
+                        showWorkouts && styles.chevronRotated,
+                      ]}
+                    />
+                  </GlassButton>
+                  <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
+                </TouchableOpacity>
+              </TourAnchor>
               <TouchableOpacity
                 onPress={handleAddWorkoutPress}
                 style={styles.sectionKebabButton}

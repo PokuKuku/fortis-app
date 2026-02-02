@@ -31,6 +31,7 @@ export const PROGRAM_PROGRESS_SEED_KEY = 'program_progress_seed_v1';
 export const IN_APP_TOUR_STATE_KEY = 'in_app_tour_state_v2';
 export const HAS_AUTO_SET_GET_STARTED_PRESET_KEY = 'has_auto_set_get_started_preset_v2';
 export const HAS_REQUESTED_REVIEW_KEY = 'has_requested_review_v1';
+export const HAS_REQUESTED_NOTIFICATIONS_KEY = 'has_requested_notifications_v1';
 
 // AI assistant
 export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
@@ -68,6 +69,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   IN_APP_TOUR_STATE_KEY,
   HAS_AUTO_SET_GET_STARTED_PRESET_KEY,
   HAS_REQUESTED_REVIEW_KEY,
+  HAS_REQUESTED_NOTIFICATIONS_KEY,
   AI_CONVERSATION_KEY,
   PROFILE_STATS_CACHE_KEY,
   TRAINING_INSIGHTS_CACHE_KEY,

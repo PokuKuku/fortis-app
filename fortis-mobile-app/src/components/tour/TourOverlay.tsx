@@ -28,6 +28,7 @@ type TourOverlayProps = {
   showArrow?: boolean;
   centerTooltip?: boolean;
   showHighlight?: boolean;
+  hideTooltip?: boolean;
   tooltipOffsetY?: number;
   pinTooltipToTop?: boolean;
   tooltipTopOffset?: number;
@@ -62,6 +63,7 @@ export function TourOverlay({
   showArrow = false,
   centerTooltip = false,
   showHighlight = true,
+  hideTooltip = false,
   tooltipOffsetY = 0,
   pinTooltipToTop = false,
   tooltipTopOffset = 0,
@@ -168,6 +170,7 @@ export function TourOverlay({
     mode,
     showArrow ? '1' : '0',
     showHighlight ? '1' : '0',
+    hideTooltip ? '1' : '0',
   ].join('|')), [
     body,
     centerTooltip,
@@ -176,6 +179,7 @@ export function TourOverlay({
     placement,
     showArrow,
     showHighlight,
+    hideTooltip,
     stepLabel,
   ]);
 
@@ -269,24 +273,32 @@ export function TourOverlay({
       return;
     }
 
+    if (hideTooltip) {
+      tooltipOpacity.stopAnimation();
+      tooltipTranslate.stopAnimation();
+      tooltipOpacity.setValue(0);
+      tooltipTranslate.setValue(TOOLTIP_TRANSITION_Y);
+      return;
+    }
+
     tooltipOpacity.stopAnimation();
     tooltipTranslate.stopAnimation();
     tooltipOpacity.setValue(0);
     tooltipTranslate.setValue(TOOLTIP_TRANSITION_Y);
 
     transitionTimeoutRef.current = setTimeout(() => {
-      Animated.parallel([
-        Animated.timing(tooltipOpacity, {
-          toValue: 1,
-          duration: TOOLTIP_TRANSITION_DURATION_MS,
-          useNativeDriver: true,
-        }),
-        Animated.timing(tooltipTranslate, {
-          toValue: 0,
-          duration: TOOLTIP_TRANSITION_DURATION_MS,
-          useNativeDriver: true,
-        }),
-      ]).start();
+        Animated.parallel([
+          Animated.timing(tooltipOpacity, {
+            toValue: 1,
+            duration: TOOLTIP_TRANSITION_DURATION_MS,
+            useNativeDriver: false,
+          }),
+          Animated.timing(tooltipTranslate, {
+            toValue: 0,
+            duration: TOOLTIP_TRANSITION_DURATION_MS,
+            useNativeDriver: false,
+          }),
+        ]).start();
     }, TOOLTIP_TRANSITION_DELAY_MS);
 
     return () => {
@@ -295,7 +307,7 @@ export function TourOverlay({
         transitionTimeoutRef.current = null;
       }
     };
-  }, [body, centerTooltip, mode, pinTooltipToTop, placement, stepKey, stepLabel, tooltipOpacity, tooltipTranslate, visible]);
+  }, [body, centerTooltip, hideTooltip, mode, pinTooltipToTop, placement, stepKey, stepLabel, tooltipOpacity, tooltipTranslate, visible]);
 
   const blockOutside = mode !== 'non_blocking';
   const allowHolePassthrough = mode === 'spotlight';
@@ -384,6 +396,7 @@ export function TourOverlay({
   };
 
   if (!visible) return null;
+  if (hideTooltip && !anchorRect) return null;
 
   const overlayContent = (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -394,49 +407,51 @@ export function TourOverlay({
         <Pressable style={styles.touchBlocker} onPress={() => undefined} />
       ) : null}
 
-      <Animated.View
-        style={[
-          styles.tooltip,
-          themedStyles.tooltip,
-          { width: tooltipWidth, left: tooltipLeft, top: tooltipTop },
-          {
-            opacity: tooltipOpacity,
-            transform: [{ translateY: tooltipTranslate }],
-          },
-        ]}
-        pointerEvents="auto"
-        onStartShouldSetResponder={() => true}
-        onMoveShouldSetResponder={() => true}
-        accessibilityRole="alert"
-        onLayout={(e) => {
-          const nextHeight = e.nativeEvent.layout.height;
-          if (tooltipHeight !== nextHeight) {
-            setTooltipHeight(nextHeight);
-          }
-        }}
-      >
-        <View style={styles.tooltipHeader}>
-          <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel ?? ''}</Text>
-          {onSkip && (
-            <Pressable onPress={onSkip} hitSlop={8}>
-              <Text style={[styles.skipText, themedStyles.skipText]}>Skip</Text>
-            </Pressable>
-          )}
-        </View>
+      {!hideTooltip ? (
+        <Animated.View
+          style={[
+            styles.tooltip,
+            themedStyles.tooltip,
+            { width: tooltipWidth, left: tooltipLeft, top: tooltipTop },
+            {
+              opacity: tooltipOpacity,
+              transform: [{ translateY: tooltipTranslate }],
+            },
+          ]}
+          pointerEvents="auto"
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          accessibilityRole="alert"
+          onLayout={(e) => {
+            const nextHeight = e.nativeEvent.layout.height;
+            if (tooltipHeight !== nextHeight) {
+              setTooltipHeight(nextHeight);
+            }
+          }}
+        >
+          <View style={styles.tooltipHeader}>
+            <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel ?? ''}</Text>
+            {onSkip && (
+              <Pressable onPress={onSkip} hitSlop={8}>
+                <Text style={[styles.skipText, themedStyles.skipText]}>Skip</Text>
+              </Pressable>
+            )}
+          </View>
 
-        <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
+          <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
 
-        {primaryAction ? (
-          <GlassButton
-            style={styles.primaryButton}
-            onPress={primaryAction.onPress}
-            disabled={primaryAction.disabled}
-            hapticFeedback="selection"
-          >
-            <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
-          </GlassButton>
-        ) : null}
-      </Animated.View>
+          {primaryAction ? (
+            <GlassButton
+              style={styles.primaryButton}
+              onPress={primaryAction.onPress}
+              disabled={primaryAction.disabled}
+              hapticFeedback="selection"
+            >
+              <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
+            </GlassButton>
+          ) : null}
+        </Animated.View>
+      ) : null}
     </View>
   );
 

@@ -20,7 +20,9 @@ import * as StoreReview from 'expo-store-review';
 
 type TourStepId =
   | 'welcome'
+  | 'workouts_intro'
   | 'programs_intro'
+  | 'quick_start'
   | 'start_config'
   | 'launch_workout'
   | 'rest_timer'
@@ -43,6 +45,7 @@ type TourStep = {
   showArrow?: boolean;
   centerTooltip?: boolean;
   showHighlight?: boolean;
+  hideTooltip?: boolean;
   tooltipOffsetY?: number;
   pinTooltipToTop?: boolean;
   tooltipTopOffset?: number;
@@ -61,7 +64,25 @@ const TOUR_STEPS: TourStep[] = [
     showHighlight: false,
   },
   {
+    id: 'workouts_intro',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.workoutsSection,
+    body: 'Workouts are templates that contain exercises.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: true,
+  },
+  {
     id: 'programs_intro',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.programsSection,
+    body: 'Programs are templates that contain workouts. Drag and drop a workout card into a program card to add it.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: true,
+  },
+  {
+    id: 'quick_start',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
     body: 'This button starts your default workout. Tap the dumbbell to choose what it launches, and press & hold anytime to change it later.',
@@ -77,6 +98,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: false,
+    hideTooltip: true,
   },
   {
     id: 'launch_workout',
@@ -191,6 +213,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const setStartPreset = useStartPresetStore((s) => s.setPreset);
 
   const workoutActiveSession = useWorkoutStore((s) => s.activeSession);
+  const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
 
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
   const [tourLoaded, setTourLoaded] = useState(false);
@@ -315,6 +338,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
+  const pendingFirstWorkoutReviewRef = useRef(false);
+
   const startTour = useCallback(async () => {
     if (!tourLoaded) return;
     if (isTourActive) return;
@@ -350,6 +376,33 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       }, 600);
     }
   }, [markTourSeenOnServer, requestAppReviewIfNeeded, setTourStateAndPersist, tourLoaded]);
+
+  // Ask for a review after the first completed workout if we haven't already.
+  useEffect(() => {
+    const prevCount = lastCompletedCountRef.current;
+    const nextCount = workoutCompletedSessions.length;
+    if (prevCount === nextCount) return;
+    lastCompletedCountRef.current = nextCount;
+
+    if (prevCount === 0 && nextCount > 0) {
+      if (isTourActive) {
+        pendingFirstWorkoutReviewRef.current = true;
+        return;
+      }
+      setTimeout(() => {
+        void requestAppReviewIfNeeded();
+      }, 600);
+    }
+  }, [isTourActive, requestAppReviewIfNeeded, workoutCompletedSessions.length]);
+
+  useEffect(() => {
+    if (isTourActive) return;
+    if (!pendingFirstWorkoutReviewRef.current) return;
+    pendingFirstWorkoutReviewRef.current = false;
+    setTimeout(() => {
+      void requestAppReviewIfNeeded();
+    }, 600);
+  }, [isTourActive, requestAppReviewIfNeeded]);
 
   const advanceStep = useCallback(async () => {
     if (!tourLoaded) return;
@@ -585,6 +638,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         showArrow={Boolean(step?.showArrow)}
         centerTooltip={Boolean(step?.centerTooltip)}
         showHighlight={step?.showHighlight ?? true}
+        hideTooltip={step?.hideTooltip ?? false}
         tooltipOffsetY={step?.tooltipOffsetY ?? 0}
         pinTooltipToTop={step?.pinTooltipToTop ?? false}
         tooltipTopOffset={step?.tooltipTopOffset ?? 0}

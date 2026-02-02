@@ -12,6 +12,7 @@ import { scale } from '@/src/utils/responsive';
 import Animated, { FadeOut, useAnimatedStyle, useSharedValue, withTiming, Easing } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { CancelWorkoutModal } from '@/src/components/workout/modals/CancelWorkoutModal';
+import { useWorkoutReminderNotifications } from '@/src/hooks/useWorkoutReminderNotifications';
 
 export const MINI_BAR_HEIGHT = 60;
 
@@ -29,6 +30,7 @@ function getCurrentExerciseName(session: ReturnType<typeof useWorkoutStore>['act
 }
 
 export function WorkoutMiniBar() {
+  useWorkoutReminderNotifications();
   const pathname = usePathname();
   const segments = useSegments();
   const { colors, isDark } = useTheme();

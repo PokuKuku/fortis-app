@@ -215,7 +215,7 @@ export default function TabLayout() {
 
   const handleStartPress = async () => {
     if (isWorkoutActive) return;
-    if (isTourActive && activeStepId === 'programs_intro') {
+    if (isTourActive && activeStepId === 'quick_start') {
       await openStartConfig();
       advanceStep();
       return;
@@ -295,6 +295,12 @@ export default function TabLayout() {
     if (isTourActive) return;
     openStartConfig();
   };
+
+  useEffect(() => {
+    if (!isTourActive || activeStepId !== 'start_config') return;
+    if (startConfigVisible || isWorkoutActive) return;
+    void openStartConfig();
+  }, [activeStepId, isTourActive, isWorkoutActive, openStartConfig, startConfigVisible]);
 
   const handleChangeStartPreset = (preset: StartPreset | null) => {
     setDraftStartPreset(preset);

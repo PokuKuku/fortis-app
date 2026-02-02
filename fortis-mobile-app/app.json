@@ -4,7 +4,11 @@
     "slug": "fortis",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/fortis-app-icon-gradient-fill.png",
+    "icon": "./assets/fortis_icon_sparkle_toned_down.png",
+    "notification": {
+      "icon": "./assets/fortis_icon_sparkle_toned_down.png",
+      "color": "#0a0a0a"
+    },
     "scheme": "fortis",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,7 +20,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fortisfitness.app",
       "usesAppleSignIn": true,
-      "icon": "./assets/fortis-app-icon-gradient-fill.png",
+      "icon": "./assets/fortis_icon_sparkle_toned_down.png",
       "infoPlist": {
         "UIBackgroundModes": [
           "remote-notification"
@@ -25,7 +29,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fortis-app-icon-gradient-fill.png",
+        "foregroundImage": "./assets/fortis_icon_sparkle_toned_down.png",
         "backgroundColor": "#0a0a0a"
       },
       "package": "com.fortis.app",
@@ -65,4 +69,3 @@
     }
   }
 }
-
