@@ -35,6 +35,7 @@ import {
 import { isCustomExercise } from '../services/exerciseService';
 import { analytics } from '../services/analyticsService';
 import { generateSecureUUID as generateId } from '../utils/uuid';
+import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
@@ -2554,7 +2555,10 @@ export const useWorkoutStore = create<WorkoutState>()(
 /**
  * Get workout summary statistics
  */
-export const getWorkoutSummary = (session: WorkoutSession | null) => {
+export const getWorkoutSummary = (
+  session: WorkoutSession | null,
+  volumeContext?: VolumeContext
+) => {
   if (!session) {
     return {
       totalExercises: 0,
@@ -2574,10 +2578,16 @@ export const getWorkoutSummary = (session: WorkoutSession | null) => {
       if (s.isCompleted) {
         totalSets++;
         totalReps += s.reps || 0;
-        totalVolume += (s.weight || 0) * (s.reps || 0);
+        if (!volumeContext) {
+          totalVolume += (s.weight || 0) * (s.reps || 0);
+        }
       }
     });
   });
+
+  if (volumeContext) {
+    totalVolume = getSessionVolume(session, volumeContext);
+  }
 
   const durationSeconds = session.completedAt
     ? Math.floor(

@@ -5,20 +5,20 @@ const DEFAULT_CREATED_AT = '2024-01-01T00:00:00Z';
 const EXERCISE_IDS = {
   // Upper workout exercises
   barbellBenchPress: '10a23ae7-3c11-4f71-b2ef-fb8d1d06fabc',
-  wideGripLatPulldown: 'c56d8350-56c1-4bc4-99e1-4de71e680c21',
-  dumbbellShoulderPress: 'fa6b8c4a-b771-4fbd-8bb4-ce0d86500c52',
+  cablePulldown: 'd4e6ab99-5b62-4ff0-9595-0263c247198f',
+  dumbbellSeatedShoulderPress: '44321c23-9411-44cf-ada0-b93238d60962',
   cableSeatedRow: '92d98b61-2fcc-4696-9c60-a038b5bf716e',
-  sideLateralRaise: 'a3a93383-4a13-4f37-8fc9-4ec4730fadd9',
-  alternateHammerCurl: '3dbc1d69-cfd9-4291-b589-9991144ad564',
-  cableOverheadTricepsExtension: '8cccde6a-6d23-4b91-b5be-9988e85c4493',
+  cableOneArmLateralRaise: '735338d2-9f6a-458a-9666-ba08d4a87a62',
+  dumbbellAlternateSeatedHammerCurl: '3e0b2dc1-5dd4-48f0-a350-641e2688ef4a',
+  cableStandingReverseGripOneArmOverheadTricepExtension: '7c8fcadd-61fb-4456-afeb-0f895b4ec716',
   pushUp: 'd6200aac-6593-412e-a394-b9e8810ece66',
   // Lower workout exercises
-  dumbbellGobletSquat: '2e16763e-3ac9-47d8-aee4-8b9dea0da4ab',
+  hackCalfRaise: 'd346b764-7ef5-4df5-8890-f899904cf7f5',
   barbellRomanianDeadlift: '20cb5cbb-91a9-4439-a753-0eb8eea32064',
   dumbbellSingleLegSplitSquat: '8e1fdc30-4f40-405a-a6fc-0c5495c60c96',
   leverLegExtension: 'd93d2328-bdc6-4c90-bb42-146fcbab489e',
   leverSeatedLegCurl: 'b32ea811-01f5-4269-ac23-532c16412939',
-  cableCrunch: '87b088d5-a949-42d8-a2a2-1fcc6bca4f0f',
+  cableKneelingCrunch: 'c592f0e1-ee8b-4747-a244-446dc2dff472',
 } as const;
 
 type TemplateSeedExercise = {
@@ -60,14 +60,14 @@ const TEMPLATE_SEEDS: TemplateSeed[] = [
         reps: '8-12',
       },
       {
-        exerciseId: EXERCISE_IDS.wideGripLatPulldown,
-        exerciseName: 'Wide-Grip Lat Pulldown',
+        exerciseId: EXERCISE_IDS.cablePulldown,
+        exerciseName: 'Cable Pulldown',
         sets: 3,
         reps: '8-12',
       },
       {
-        exerciseId: EXERCISE_IDS.dumbbellShoulderPress,
-        exerciseName: 'Dumbbell Shoulder Press',
+        exerciseId: EXERCISE_IDS.dumbbellSeatedShoulderPress,
+        exerciseName: 'Dumbbell Seated Shoulder Press',
         sets: 3,
         reps: '8-12',
       },
@@ -78,20 +78,20 @@ const TEMPLATE_SEEDS: TemplateSeed[] = [
         reps: '10-12',
       },
       {
-        exerciseId: EXERCISE_IDS.sideLateralRaise,
-        exerciseName: 'Side Lateral Raise',
+        exerciseId: EXERCISE_IDS.cableOneArmLateralRaise,
+        exerciseName: 'Cable One Arm Lateral Raise',
         sets: 3,
         reps: '12-15',
       },
       {
-        exerciseId: EXERCISE_IDS.alternateHammerCurl,
-        exerciseName: 'Alternate Hammer Curl',
+        exerciseId: EXERCISE_IDS.dumbbellAlternateSeatedHammerCurl,
+        exerciseName: 'Dumbbell Alternate Seated Hammer Curl',
         sets: 3,
         reps: '10-12',
       },
       {
-        exerciseId: EXERCISE_IDS.cableOverheadTricepsExtension,
-        exerciseName: 'Cable Rope Overhead Triceps Extension',
+        exerciseId: EXERCISE_IDS.cableStandingReverseGripOneArmOverheadTricepExtension,
+        exerciseName: 'Cable Standing Reverse Grip One Arm Overhead Tricep Extension',
         sets: 3,
         reps: '10-12',
       },
@@ -102,8 +102,8 @@ const TEMPLATE_SEEDS: TemplateSeed[] = [
     name: 'Lower',
     exercises: [
       {
-        exerciseId: EXERCISE_IDS.dumbbellGobletSquat,
-        exerciseName: 'Dumbbell Goblet Squat',
+        exerciseId: EXERCISE_IDS.hackCalfRaise,
+        exerciseName: 'Hack Calf Raise',
         sets: 3,
         reps: '8-12',
       },
@@ -132,8 +132,8 @@ const TEMPLATE_SEEDS: TemplateSeed[] = [
         reps: '12-15',
       },
       {
-        exerciseId: EXERCISE_IDS.cableCrunch,
-        exerciseName: 'Cable Crunch',
+        exerciseId: EXERCISE_IDS.cableKneelingCrunch,
+        exerciseName: 'Cable Kneeling Crunch',
         sets: 3,
         reps: '15-20',
       },

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Animated } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Animated, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon, ChevronLeftIcon, PlusIcon } from 'react-native-heroicons/outline';
@@ -13,6 +13,7 @@ import { Sizes, Spacing } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
 import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import { getExerciseImageUrl } from '@/src/services/exerciseService';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -40,6 +41,9 @@ const LIST_GAP = scale(12);
 const CARD_RADIUS = scale(16);
 const CARD_PADDING = scale(16);
 const CARD_CONTENT_GAP = scale(8);
+const EXERCISE_PREVIEW_SIZE = scale(36);
+const EXERCISE_PREVIEW_RADIUS = scale(10);
+const EXERCISE_PREVIEW_TEXT_SIZE = moderateScale(12);
 const EXERCISE_NAME_SIZE = moderateScale(14);
 const EXERCISE_META_SIZE = moderateScale(12);
 const POPOVER_TOP = scale(218);
@@ -173,6 +177,12 @@ export default function ExercisesScreen() {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.08)',
   };
+  const exercisePreviewTheme = {
+    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+  };
+  const exercisePreviewPlaceholderTheme = {
+    color: colors.accent,
+  };
 
   const popoverTheme = {
     backgroundColor: isDark ? '#0a0a0a' : '#FFFFFF',
@@ -236,26 +246,47 @@ export default function ExercisesScreen() {
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
-  const renderExerciseCard = ({ item }: { item: Exercise }) => (
-    <TouchableOpacity
-      style={[styles.exerciseCard, exerciseCardTheme]}
-      onPress={() => handleExercisePress(item.id)}
-      activeOpacity={0.7}
-    >
-      <View style={styles.exerciseCardContent}>
-        <Text style={[styles.exerciseName, { color: colors.textSecondary }]} numberOfLines={1}>
-          {item.name}
-        </Text>
-        {item.primaryMuscles && item.primaryMuscles.length > 0 && (
-          <Text style={[styles.exerciseMetaText, { color: colors.textTertiary }]} numberOfLines={1}>
-            {item.primaryMuscles
-              .map((muscle) => getMuscleDisplayName(muscle as MuscleKey))
-              .join(', ')}
-          </Text>
-        )}
-      </View>
-    </TouchableOpacity>
-  );
+  const renderExerciseCard = ({ item }: { item: Exercise }) => {
+    const imageUrl = item.images && item.images.length > 0
+      ? getExerciseImageUrl(item.images[0])
+      : null;
+
+    return (
+      <TouchableOpacity
+        style={[styles.exerciseCard, exerciseCardTheme]}
+        onPress={() => handleExercisePress(item.id)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.exerciseCardContent}>
+          <View style={styles.exerciseMain}>
+            <View style={[styles.exercisePreview, exercisePreviewTheme]}>
+              {imageUrl ? (
+                <Image
+                  source={{ uri: imageUrl }}
+                  style={styles.exercisePreviewImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <Text style={[styles.exercisePreviewPlaceholder, exercisePreviewPlaceholderTheme]}>
+                  {item.name.charAt(0).toUpperCase()}
+                </Text>
+              )}
+            </View>
+            <Text style={[styles.exerciseName, { color: colors.textSecondary }]} numberOfLines={1}>
+              {item.name}
+            </Text>
+          </View>
+          {item.primaryMuscles && item.primaryMuscles.length > 0 && (
+            <Text style={[styles.exerciseMetaText, { color: colors.textTertiary }]} numberOfLines={1}>
+              {item.primaryMuscles
+                .map((muscle) => getMuscleDisplayName(muscle as MuscleKey))
+                .join(', ')}
+            </Text>
+          )}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -685,15 +716,42 @@ const styles = StyleSheet.create({
   },
   exerciseCardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
     gap: CARD_CONTENT_GAP,
+  },
+  exerciseMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: CARD_CONTENT_GAP,
+    minWidth: 0,
+    flexShrink: 1,
+  },
+  exercisePreview: {
+    width: EXERCISE_PREVIEW_SIZE,
+    height: EXERCISE_PREVIEW_SIZE,
+    borderRadius: EXERCISE_PREVIEW_RADIUS,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  exercisePreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  exercisePreviewPlaceholder: {
+    fontSize: EXERCISE_PREVIEW_TEXT_SIZE,
+    fontWeight: '700',
   },
   exerciseName: {
     fontSize: EXERCISE_NAME_SIZE,
     fontWeight: '600',
     color: '#DFE2E6',
     flex: 1,
+    minWidth: 0,
+    flexShrink: 1,
+    lineHeight: EXERCISE_PREVIEW_SIZE,
   },
   exerciseMetaText: {
     fontSize: EXERCISE_META_SIZE,
@@ -701,6 +759,8 @@ const styles = StyleSheet.create({
     color: '#9CA3AF',
     textTransform: 'capitalize',
     flexShrink: 0,
+    marginLeft: 'auto',
+    lineHeight: EXERCISE_PREVIEW_SIZE,
   },
   popoverOverlay: {
     position: 'absolute',

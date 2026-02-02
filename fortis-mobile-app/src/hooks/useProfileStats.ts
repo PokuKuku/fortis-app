@@ -1,8 +1,13 @@
 import { useMemo } from 'react';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
+import { getSetVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 
 export interface ProfileStats {
-  totalVolume: number;        // Sum of weight × reps across all sessions
+  totalVolume: number;        // Normalized volume across all sessions
   totalWorkouts: number;      // Count of completed sessions
   totalTimeSeconds: number;   // Sum of all workout durations
   uniqueExercises: number;    // Count of unique exercise IDs
@@ -22,6 +27,11 @@ const EMPTY_STATS: ProfileStats = {
  */
 export function useProfileStats(): ProfileStats {
   const { sessions } = useWorkoutHistorySource();
+  const { profile } = useAuth();
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
 
   return useMemo(() => {
     if (sessions.length === 0) return EMPTY_STATS;
@@ -30,17 +40,28 @@ export function useProfileStats(): ProfileStats {
     let totalWorkouts = 0;
     let totalTimeSeconds = 0;
     const uniqueExercises = new Set<string>();
+    const volumeContext: VolumeContext = {
+      preferredUnits,
+      weightUnits,
+      exercisesById,
+      bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+    };
 
     sessions.forEach((session) => {
       let hasCompletedSet = false;
       session.exercises.forEach((exercise) => {
         uniqueExercises.add(exercise.exerciseId);
+        const exerciseMeta = exercisesById?.get(exercise.exerciseId);
+        const fallbackUnit = weightUnits?.[exercise.exerciseId];
         exercise.sets.forEach((set) => {
           if (!set.isCompleted) return;
           hasCompletedSet = true;
-          const weight = set.weight ?? 0;
-          const reps = set.reps ?? 0;
-          totalVolume += weight * reps;
+          totalVolume += getSetVolume(set, volumeContext, {
+            exerciseMeta,
+            fallbackUnit,
+            exerciseName: exercise.exerciseName,
+          });
         });
       });
 
@@ -63,5 +84,12 @@ export function useProfileStats(): ProfileStats {
       uniqueExercises: uniqueExercises.size,
       lastWorkoutDate,
     };
-  }, [sessions]);
+  }, [
+    sessions,
+    preferredUnits,
+    weightUnits,
+    exercisesById,
+    bodyweightKg,
+    profile?.weight_kg,
+  ]);
 }

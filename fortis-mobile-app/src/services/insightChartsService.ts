@@ -4,6 +4,7 @@ import { parseSubjectKey } from '@/src/types/insights';
 import type { TrainingInsight } from '@/src/types/insights';
 import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
 import { getMuscleCategory, normalizeMuscle, resolveMuscleTargetKeys, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import { getBodyweightMovementFactor, isBodyweightExercise } from '@/src/utils/workoutVolume';
 
 const WEEKLY_SERIES_WEEKS = 12;
 const EXPOSURE_LOOKBACK_DAYS = 42;
@@ -50,20 +51,6 @@ const parseNumber = (value: number | null | undefined): number => {
 
 const isWorkoutRecapType = (type: TrainingInsight['type']): boolean =>
   type === 'WORKOUT_RECAP_V1';
-
-const BODYWEIGHT_EQUIPMENT = new Set(['body only', 'bodyweight', 'body weight', 'assisted', 'suspension']);
-const BODYWEIGHT_NAME_PATTERN =
-  /(^|[^a-z])(pull[- ]?up|chin[- ]?up|push[- ]?up|dip|plank|sit[- ]?up|crunch|inverted row)($|[^a-z])/i;
-
-const isBodyweightExercise = (equipment?: string | null, name?: string | null): boolean => {
-  const normalizedEquipment = (equipment ?? '').toLowerCase();
-  if (BODYWEIGHT_EQUIPMENT.has(normalizedEquipment)) {
-    return true;
-  }
-  const normalizedName = (name ?? '').toLowerCase();
-  if (!normalizedName) return false;
-  return BODYWEIGHT_NAME_PATTERN.test(normalizedName);
-};
 
 const normalizeWeight = (
   weight: number,
@@ -341,13 +328,27 @@ export async function fetchInsightChartSeries(
       .eq('user_id', user.id)
       .order('recorded_at', { ascending: false })
       .limit(1);
+    const { data: profileRow } = await supabase
+      .from('profiles')
+      .select('weight_kg')
+      .eq('id', user.id)
+      .maybeSingle();
     const bodyweightRow = bodyweightRows?.[0];
     const bodyweightPreferred = bodyweightRow
       ? normalizeBodyweight(bodyweightRow.weight, bodyweightRow.unit, preferredUnits)
       : null;
+    const profileWeightPreferred =
+      profileRow?.weight_kg && profileRow.weight_kg > 0
+        ? preferredUnits === 'metric'
+          ? profileRow.weight_kg
+          : profileRow.weight_kg * 2.20462
+        : null;
+    const resolvedBodyweightPreferred = bodyweightPreferred ?? profileWeightPreferred ?? null;
     const { data, error } = await supabase
       .from('workout_sets')
-      .select('exercise_id, reps, weight, weight_unit, is_warmup, exercise_name_snapshot, exercises(name, equipment)')
+      .select(
+        'exercise_id, reps, weight, weight_unit, is_warmup, exercise_name_snapshot, primary_muscles_snapshot, exercises(name, equipment, primary_muscles)'
+      )
       .eq('session_id', subject.sessionId);
 
     if (error || !data) {
@@ -362,7 +363,8 @@ export async function fetchInsightChartSeries(
       weight_unit: string | null;
       is_warmup: boolean | null;
       exercise_name_snapshot?: string | null;
-      exercises?: { name?: string; equipment?: string | null } | null;
+      primary_muscles_snapshot?: string[] | null;
+      exercises?: { name?: string; equipment?: string | null; primary_muscles?: string[] | null } | null;
     }>)
       .forEach((row) => {
         if (!row?.exercise_id) return;
@@ -374,7 +376,12 @@ export async function fetchInsightChartSeries(
           const equipment = row.exercises?.equipment ?? null;
           const fallbackName = row.exercises?.name ?? row.exercise_name_snapshot ?? '';
           if (isBodyweightExercise(equipment, fallbackName)) {
-            weightNorm = bodyweightPreferred ?? 1;
+            const primaryMuscles =
+              row.primary_muscles_snapshot ?? row.exercises?.primary_muscles ?? null;
+            const movementFactor = getBodyweightMovementFactor(primaryMuscles ?? null);
+            if (resolvedBodyweightPreferred && movementFactor > 0) {
+              weightNorm = resolvedBodyweightPreferred * movementFactor;
+            }
           }
         }
         if (weightNorm === null) return;

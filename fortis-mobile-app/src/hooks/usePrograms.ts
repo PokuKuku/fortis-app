@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   ProgramDetail,
   WorkoutDetail,
@@ -11,14 +11,16 @@ import { useProgramsStore } from '@/src/store/programsStore';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { getSessionVolume } from '@/src/utils/workoutVolume';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { getSessionVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 import { getExerciseById, isCustomExercise } from '@/src/services/exerciseService';
 import {
   ProgramWorkout as StoreProgramWorkout,
   ProgramExercise as StoreProgramExercise,
   Program as StoreProgram,
 } from '@/src/types/workout';
-import type { WorkoutSession, WeightUnit } from '@/src/types/workout';
+import type { WorkoutSession } from '@/src/types/workout';
 
 /**
  * Hook to load all programs with refresh capability
@@ -33,6 +35,18 @@ export function usePrograms() {
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const { profile } = useAuth();
   const preferredUnits = profile?.preferred_units ?? 'imperial';
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const volumeContext = useMemo<VolumeContext>(
+    () => ({
+      preferredUnits,
+      weightUnits,
+      exercisesById,
+      bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+    }),
+    [preferredUnits, weightUnits, exercisesById, bodyweightKg, profile?.weight_kg]
+  );
 
   useEffect(() => {
     fetchPrograms();
@@ -50,8 +64,7 @@ export function usePrograms() {
                 convertStoreProgramToDetail(
                   program,
                   completedSessions,
-                  preferredUnits,
-                  weightUnits
+                  volumeContext
                 )
               )
           );
@@ -75,7 +88,7 @@ export function usePrograms() {
     return () => {
       isMounted = false;
     };
-  }, [storePrograms, completedSessions, preferredUnits, weightUnits]);
+  }, [storePrograms, completedSessions, volumeContext]);
 
   const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
@@ -96,6 +109,18 @@ export function useProgram(id: string | undefined) {
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const { profile } = useAuth();
   const preferredUnits = profile?.preferred_units ?? 'imperial';
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const volumeContext = useMemo<VolumeContext>(
+    () => ({
+      preferredUnits,
+      weightUnits,
+      exercisesById,
+      bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+    }),
+    [preferredUnits, weightUnits, exercisesById, bodyweightKg, profile?.weight_kg]
+  );
 
   // Track current program for deletion optimization (avoids stale closure)
   const programRef = useRef<ProgramDetail | null>(null);
@@ -183,8 +208,7 @@ export function useProgram(id: string | undefined) {
           const converted = await convertStoreProgramToDetail(
             foundProgram,
             completedSessions,
-            preferredUnits,
-            weightUnits
+            volumeContext
           );
           if (isMounted) {
             setProgram(converted);
@@ -213,7 +237,7 @@ export function useProgram(id: string | undefined) {
     return () => {
       isMounted = false;
     };
-  }, [id, storePrograms, completedSessions, preferredUnits, weightUnits]);
+  }, [id, storePrograms, completedSessions, volumeContext]);
 
   const refresh = useCallback(() => fetchPrograms({ force: true }), [fetchPrograms]);
 
@@ -327,15 +351,14 @@ async function convertStoreWorkoutToHub(
 async function convertStoreProgramToDetail(
   program: StoreProgram,
   completedSessions: WorkoutSession[],
-  preferredUnits: 'imperial' | 'metric',
-  weightUnits: Record<string, WeightUnit>
+  volumeContext: VolumeContext
 ): Promise<ProgramDetail> {
   // Convert all workouts with metadata lookup
   const workouts = await Promise.all(
     program.workouts.map((w) => convertStoreWorkoutToHub(w))
   );
 
-  const stats = buildProgramStats(program.id, completedSessions, preferredUnits, weightUnits);
+  const stats = buildProgramStats(program.id, completedSessions, volumeContext);
 
   return {
     id: program.id,
@@ -401,8 +424,7 @@ async function convertProgramWorkoutToDetail(
 const buildProgramStats = (
   programId: string,
   completedSessions: WorkoutSession[],
-  preferredUnits: 'imperial' | 'metric',
-  weightUnits: Record<string, WeightUnit>
+  volumeContext: VolumeContext
 ): HubStats => {
   const sessions = completedSessions.filter(
     (session) => session.programId === programId && session.completedAt
@@ -427,7 +449,7 @@ const buildProgramStats = (
   const recentSessions = sortedSessions.slice(-historyLimit);
 
   const volumeHistory = recentSessions.map((session) => {
-    const totalVolume = getSessionVolume(session, preferredUnits, weightUnits);
+    const totalVolume = getSessionVolume(session, volumeContext);
     return {
       date: session.completedAt ? new Date(session.completedAt).toISOString() : new Date().toISOString(),
       value: Math.round(totalVolume),

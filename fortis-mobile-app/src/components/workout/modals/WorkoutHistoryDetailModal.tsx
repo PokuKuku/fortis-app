@@ -6,6 +6,11 @@ import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { getWorkoutSummary } from '@/src/store/workoutStore';
 import type { WeightUnit, WorkoutSession, WorkoutSet } from '@/src/types/workout';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import type { VolumeContext } from '@/src/utils/workoutVolume';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { getExerciseById } from '@/src/services/exerciseService';
@@ -59,17 +64,6 @@ function formatWeightUnit(unit?: WeightUnit | null): string {
   return unit === 'kg' ? 'kg' : 'lbs';
 }
 
-function getSessionWeightUnit(session: WorkoutSession): WeightUnit | null {
-  for (const exercise of session.exercises) {
-    for (const set of exercise.sets) {
-      if (set.isCompleted && set.weight !== null) {
-        return set.weightUnit ?? 'lbs';
-      }
-    }
-  }
-  return null;
-}
-
 function formatSetDetails(set: WorkoutSet): string {
   const weightText = formatWeightValue(set.weight);
   const repsText = set.reps === null || set.reps === undefined ? '—' : set.reps.toString();
@@ -84,6 +78,10 @@ export function WorkoutHistoryDetailModal({
   session,
 }: WorkoutHistoryDetailModalProps) {
   const { colors, isDark } = useTheme();
+  const { profile } = useAuth();
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const modalStyles = useModalStyles();
 
   // Map of exerciseId -> resolved exercise name (for UUID exercise names)
@@ -159,15 +157,22 @@ export function WorkoutHistoryDetailModal({
 
   if (!session) return null;
 
-  const summary = getWorkoutSummary(session);
-  const sessionWeightUnit = getSessionWeightUnit(session);
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
+  const volumeContext: VolumeContext = {
+    preferredUnits,
+    weightUnits,
+    exercisesById,
+    bodyweightKg,
+    profileWeightKg: profile?.weight_kg ?? null,
+  };
+  const summary = getWorkoutSummary(session, volumeContext);
   const durationSeconds = session.durationSeconds === null
     ? null
     : session.durationSeconds ?? summary.durationSeconds;
   const formattedDateTime = format(session.startedAt, "HH:mm, EEEE, MMM d yyyy");
-  const volumeLabel = sessionWeightUnit
-    ? `${formatVolume(summary.totalVolume)} ${formatWeightUnit(sessionWeightUnit)}`
-    : `${formatVolume(summary.totalVolume)} ${formatWeightUnit()}`;
+  const volumeLabel = `${formatVolume(summary.totalVolume)} ${formatWeightUnit(
+    preferredUnits === 'metric' ? 'kg' : 'lbs'
+  )}`;
   const canRetry = !session.isSynced && typeof onRetry === 'function';
 
   const handleRetryPress = () => {

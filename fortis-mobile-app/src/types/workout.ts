@@ -98,7 +98,7 @@ export interface WorkoutSummary {
   totalExercises: number;
   totalSets: number;
   totalReps: number;
-  totalVolume: number;       // weight * reps sum
+  totalVolume: number;       // normalized volume (bodyweight-adjusted, warmups excluded)
   durationSeconds: number;
 }
 

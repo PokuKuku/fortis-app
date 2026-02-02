@@ -22,8 +22,11 @@ import { getWorkoutSummary, useWorkoutStore } from '../../src/store/workoutStore
 import { getPendingSyncSessions, processPendingQueue } from '../../src/services/workoutHistoryService';
 import { useWorkoutHistorySource } from '../../src/hooks/useWorkoutHistorySource';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useExerciseLookup } from '../../src/hooks/useExerciseLookup';
+import { useLatestBodyweight } from '../../src/hooks/useLatestBodyweight';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { WorkoutSession } from '../../src/types/workout';
+import type { VolumeContext } from '../../src/utils/workoutVolume';
 import { Colors } from '../../constants/Colors';
 import { Spacing, BorderRadius } from '../../constants/Sizes';
 import { scale, moderateScale } from '../../src/utils/responsive';
@@ -122,7 +125,10 @@ function formatVolume(volume: number): string {
 }
 
 // Get volume and activity by date for heatmap
-function getDailyStats(sessions: WorkoutSession[]): {
+function getDailyStats(
+  sessions: WorkoutSession[],
+  volumeContext: VolumeContext
+): {
   volumeByDate: Record<string, number>;
   activityByDate: Record<string, boolean>;
 } {
@@ -130,7 +136,7 @@ function getDailyStats(sessions: WorkoutSession[]): {
   const activityByDate: Record<string, boolean> = {};
 
   sessions.forEach(session => {
-    const summary = getWorkoutSummary(session);
+    const summary = getWorkoutSummary(session, volumeContext);
     if (summary.totalSets === 0) return;
 
     const dateKey = format(session.startedAt, 'yyyy-MM-dd');
@@ -232,9 +238,19 @@ function AnimatedDay({
 }
 
 // Workout History Card Component
-function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onPress: () => void }) {
+function WorkoutHistoryCard({
+  session,
+  onPress,
+  volumeContext,
+  volumeUnitLabel,
+}: {
+  session: WorkoutSession;
+  onPress: () => void;
+  volumeContext: VolumeContext;
+  volumeUnitLabel: string;
+}) {
   const { colors, isDark } = useTheme();
-  const summary = getWorkoutSummary(session);
+  const summary = getWorkoutSummary(session, volumeContext);
   const formattedDate = format(session.startedAt, 'MMM d, yyyy');
   const formattedTime = format(session.startedAt, 'h:mm a');
   const durationSeconds = session.durationSeconds === null
@@ -283,7 +299,9 @@ function WorkoutHistoryCard({ session, onPress }: { session: WorkoutSession; onP
 
         <View style={styles.stat}>
           <TrophyIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
-          <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatVolume(summary.totalVolume)} lbs</Text>
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>
+            {formatVolume(summary.totalVolume)} {volumeUnitLabel}
+          </Text>
         </View>
       </View>
 
@@ -300,13 +318,17 @@ function PendingSyncCard({
   session,
   status,
   onPress,
+  volumeContext,
+  volumeUnitLabel,
 }: {
   session: WorkoutSession;
   status: 'pending' | 'syncing';
   onPress?: () => void;
+  volumeContext: VolumeContext;
+  volumeUnitLabel: string;
 }) {
   const { colors, isDark } = useTheme();
-  const summary = getWorkoutSummary(session);
+  const summary = getWorkoutSummary(session, volumeContext);
   const formattedDate = format(session.startedAt, 'MMM d, yyyy');
   const formattedTime = format(session.startedAt, 'h:mm a');
   const isSyncing = status === 'syncing';
@@ -358,10 +380,12 @@ function PendingSyncCard({
 
           <View style={[styles.statDivider, { backgroundColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)' }]} />
 
-          <View style={styles.stat}>
-            <TrophyIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
-            <Text style={[styles.statValue, { color: colors.textPrimary }]}>{formatVolume(summary.totalVolume)} lbs</Text>
-          </View>
+        <View style={styles.stat}>
+          <TrophyIcon color={colors.accent} size={ICON_SIZE_MD} strokeWidth={2} />
+          <Text style={[styles.statValue, { color: colors.textPrimary }]}>
+            {formatVolume(summary.totalVolume)} {volumeUnitLabel}
+          </Text>
+        </View>
         </View>
 
         <Text style={[styles.exerciseCount, { color: colors.textSecondary }]}>
@@ -450,10 +474,25 @@ function DateHeader({ date, onLogPastWorkout }: { date: Date; onLogPastWorkout: 
 
 export default function HistoryScreen() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, profile } = useAuth();
   const { colors, isDark } = useTheme();
   const syncingSessionIds = useWorkoutStore((state) => state.syncingSessionIds);
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
+  const volumeUnitLabel = preferredUnits === 'metric' ? 'kg' : 'lbs';
+  const volumeContext = useMemo<VolumeContext>(
+    () => ({
+      preferredUnits,
+      weightUnits,
+      exercisesById,
+      bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+    }),
+    [preferredUnits, weightUnits, exercisesById, bodyweightKg, profile?.weight_kg]
+  );
   const markSessionsSyncing = useWorkoutStore((state) => state.markSessionsSyncing);
   const clearSessionsSyncing = useWorkoutStore((state) => state.clearSessionsSyncing);
   const markSessionsSynced = useWorkoutStore((state) => state.markSessionsSynced);
@@ -475,7 +514,10 @@ export default function HistoryScreen() {
     return [...historySessions].sort((a, b) => b.startedAt.getTime() - a.startedAt.getTime());
   }, [historySessions]);
 
-  const { volumeByDate, activityByDate } = useMemo(() => getDailyStats(allSessions), [allSessions]);
+  const { volumeByDate, activityByDate } = useMemo(
+    () => getDailyStats(allSessions, volumeContext),
+    [allSessions, volumeContext]
+  );
   const maxVolume = useMemo(() => Math.max(...Object.values(volumeByDate), 1), [volumeByDate]);
 
   const markedDates = useMemo(() => {
@@ -689,7 +731,14 @@ export default function HistoryScreen() {
           <FlatList
             data={filteredWorkouts}
             keyExtractor={(item) => item.localId}
-            renderItem={({ item }) => <WorkoutHistoryCard session={item} onPress={() => handleCardPress(item)} />}
+            renderItem={({ item }) => (
+              <WorkoutHistoryCard
+                session={item}
+                onPress={() => handleCardPress(item)}
+                volumeContext={volumeContext}
+                volumeUnitLabel={volumeUnitLabel}
+              />
+            )}
             ListHeaderComponent={
               <>
                 <View style={styles.titleContainer}>
@@ -750,6 +799,8 @@ export default function HistoryScreen() {
                         session={session}
                         status={status}
                         onPress={() => handleCardPress(session)}
+                        volumeContext={volumeContext}
+                        volumeUnitLabel={volumeUnitLabel}
                       />
                     ))}
                   </View>

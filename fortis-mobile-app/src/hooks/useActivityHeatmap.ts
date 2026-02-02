@@ -14,6 +14,11 @@ import {
 import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
 import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import type { WorkoutSession } from '@/src/types/workout';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { getSetVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 
 export interface HeatmapDay {
   date: Date;
@@ -56,6 +61,11 @@ export function useActivityHeatmap(
   isLoading: boolean;
   hasActivity: boolean;
 } {
+  const { profile } = useAuth();
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
   const [dayVolumes, setDayVolumes] = useState<Record<string, number>>({});
   const [dayActivity, setDayActivity] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -82,6 +92,13 @@ export function useActivityHeatmap(
   useEffect(() => {
     let isMounted = true;
     const hasLocalSessions = (localSessions?.length ?? 0) > 0;
+    const volumeContext: VolumeContext = {
+      preferredUnits,
+      weightUnits,
+      exercisesById,
+      bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+    };
     const isInRange = (date: Date) => {
       if (date < startDate) return false;
       if (mode === 'year' && date > yearEnd) return false;
@@ -99,13 +116,16 @@ export function useActivityHeatmap(
         let dayHasActivity = false;
 
         session.exercises.forEach((exercise) => {
+          const exerciseMeta = exercisesById?.get(exercise.exerciseId);
+          const fallbackUnit = weightUnits?.[exercise.exerciseId];
           exercise.sets.forEach((set) => {
             if (!set.isCompleted) return;
             dayHasActivity = true;
-            if (set.setType === 'warmup') return;
-            const weight = set.weight ?? 0;
-            const reps = set.reps ?? 0;
-            dayVolume += weight * reps;
+            dayVolume += getSetVolume(set, volumeContext, {
+              exerciseMeta,
+              fallbackUnit,
+              exerciseName: exercise.exerciseName,
+            });
           });
         });
 
@@ -162,7 +182,19 @@ export function useActivityHeatmap(
     return () => {
       isMounted = false;
     };
-  }, [localSessions, mode, startDate, userId, yearEnd, today]);
+  }, [
+    localSessions,
+    mode,
+    startDate,
+    userId,
+    yearEnd,
+    today,
+    preferredUnits,
+    weightUnits,
+    exercisesById,
+    bodyweightKg,
+    profile?.weight_kg,
+  ]);
 
   const weeks = useMemo(() => {
     const result: HeatmapWeek[] = [];

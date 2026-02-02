@@ -22,10 +22,14 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { useExercise } from '@/src/hooks/useExercises';
 import { useExerciseHistory } from '@/src/hooks/useExerciseHistory';
 import { useExerciseRecords } from '@/src/hooks/useExerciseRecords';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getExerciseImageUrl, getExerciseVariants } from '@/src/services/exerciseService';
 import type { Exercise } from '@/src/types/exercise';
 import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
+import { getSetVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 
 type TabType = 'About' | 'History' | 'Charts' | 'Records';
 
@@ -51,6 +55,9 @@ export default function ExerciseDetailsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { profile } = useAuth();
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const [selectedTab, setSelectedTab] = useState<TabType>('About');
   const isNavigating = useRef(false);
 
@@ -170,6 +177,17 @@ export default function ExerciseDetailsScreen() {
   const preferredUnits = profile?.preferred_units ?? 'imperial';
   const unitLabel = preferredUnits === 'metric' ? 'kg' : 'lbs';
 
+  const volumeContext = useMemo<VolumeContext>(
+    () => ({
+      preferredUnits,
+      weightUnits,
+      exercisesById,
+      bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+    }),
+    [preferredUnits, weightUnits, exercisesById, bodyweightKg, profile?.weight_kg]
+  );
+
   const chartData = useMemo(() => {
     const normalizeWeight = (weight: number, unit?: 'lbs' | 'kg' | null) => {
       if (!Number.isFinite(weight)) return 0;
@@ -187,7 +205,6 @@ export default function ExerciseDetailsScreen() {
           (set) =>
             set.isCompleted &&
             set.setType !== 'warmup' &&
-            (set.weight ?? 0) > 0 &&
             (set.reps ?? 0) > 0
         );
 
@@ -197,11 +214,20 @@ export default function ExerciseDetailsScreen() {
         let maxWeight = 0;
         let maxE1rm = 0;
 
+        const exerciseMeta = id ? exercisesById?.get(id) : undefined;
+        const fallbackUnit = id ? weightUnits?.[id] : undefined;
+
         workingSets.forEach((set) => {
-          const weight = normalizeWeight(set.weight ?? 0, set.weightUnit ?? unitLabel);
           const reps = set.reps ?? 0;
-          if (!Number.isFinite(weight) || !Number.isFinite(reps)) return;
-          totalVolume += weight * reps;
+          if (!Number.isFinite(reps) || reps <= 0) return;
+          totalVolume += getSetVolume(set, volumeContext, {
+            exerciseMeta,
+            fallbackUnit,
+            exerciseName: exercise?.name ?? null,
+          });
+
+          const weight = normalizeWeight(set.weight ?? 0, set.weightUnit ?? unitLabel);
+          if (!Number.isFinite(weight) || weight <= 0) return;
           if (weight > maxWeight) {
             maxWeight = weight;
           }
@@ -231,7 +257,16 @@ export default function ExerciseDetailsScreen() {
       x: point.date.getTime(),
       ...point,
     }));
-  }, [history, preferredUnits, unitLabel]);
+  }, [
+    history,
+    preferredUnits,
+    unitLabel,
+    volumeContext,
+    exercisesById,
+    weightUnits,
+    id,
+    exercise?.name,
+  ]);
 
   if (!exercise) {
     return (
@@ -532,7 +567,7 @@ export default function ExerciseDetailsScreen() {
                     <View style={styles.recordInfo}>
                       <Text style={[styles.recordLabel, themedStyles.recordLabel]}>Best Session Volume</Text>
                       <Text style={[styles.recordValue, themedStyles.recordValue]}>
-                        {formatVolume(records.maxVolume.value)} lbs
+                        {formatVolume(records.maxVolume.value)} {unitLabel}
                       </Text>
                       <Text style={[styles.recordDate, themedStyles.recordDate]}>
                         {format(records.maxVolume.date, 'MMM d, yyyy')}

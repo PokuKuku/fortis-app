@@ -1,5 +1,10 @@
 import { useMemo } from 'react';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
+import { getSetVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 
 interface RecordEntry {
   value: number;
@@ -35,6 +40,11 @@ function calculateEstimated1RM(weight: number, reps: number): number {
 
 export function useExerciseRecords(exerciseId: string | undefined): ExerciseRecords {
   const { sessions } = useWorkoutHistorySource({ enabled: Boolean(exerciseId) });
+  const { profile } = useAuth();
+  const { exercisesById } = useExerciseLookup();
+  const { bodyweightKg } = useLatestBodyweight();
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const preferredUnits = profile?.preferred_units ?? 'imperial';
 
   return useMemo(() => {
     const emptyRecords: ExerciseRecords = {
@@ -55,6 +65,14 @@ export function useExerciseRecords(exerciseId: string | undefined): ExerciseReco
     let totalSets = 0;
     let totalWorkouts = 0;
 
+    const volumeContext: VolumeContext = {
+      preferredUnits,
+      weightUnits,
+      exercisesById,
+      bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+    };
+
     for (const session of sessions) {
       const exerciseData = session.exercises.find(
         (ex) => ex.exerciseId === exerciseId
@@ -71,12 +89,19 @@ export function useExerciseRecords(exerciseId: string | undefined): ExerciseReco
       // Calculate session volume for this exercise
       let sessionVolume = 0;
 
+      const exerciseMeta = exercisesById?.get(exerciseId);
+      const fallbackUnit = weightUnits?.[exerciseId];
+
       for (const set of completedSets) {
         totalSets++;
         const weight = set.weight || 0;
         const reps = set.reps || 0;
 
-        sessionVolume += weight * reps;
+        sessionVolume += getSetVolume(set, volumeContext, {
+          exerciseMeta,
+          fallbackUnit,
+          exerciseName: exerciseData.exerciseName,
+        });
 
         // Check max weight (only non-warmup sets)
         if (set.setType !== 'warmup' && weight > 0) {
@@ -117,5 +142,13 @@ export function useExerciseRecords(exerciseId: string | undefined): ExerciseReco
       totalSets,
       totalWorkouts,
     };
-  }, [exerciseId, sessions]);
+  }, [
+    exerciseId,
+    sessions,
+    preferredUnits,
+    weightUnits,
+    exercisesById,
+    bodyweightKg,
+    profile?.weight_kg,
+  ]);
 }
