@@ -45,7 +45,13 @@ export default function OnboardingNameScreen() {
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What should we call you?"
       subtitle={undefined}
-      onBack={() => router.back()}
+      onBack={() => {
+        if (router.canGoBack()) {
+          router.back();
+          return;
+        }
+        router.replace({ pathname: '/onboarding/welcome', params: { returning: '1' } });
+      }}
       footer={
         <GlassButton
           style={styles.button}

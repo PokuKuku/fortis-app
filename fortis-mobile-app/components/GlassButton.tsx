@@ -135,6 +135,7 @@ const styles = StyleSheet.create({
   },
   touchable: {
     flex: 1,
+    alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',

@@ -1,6 +1,7 @@
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Modal, Platform } from 'react-native';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { XMarkIcon } from 'react-native-heroicons/outline';
@@ -17,6 +18,9 @@ const DEMO_VIDEO = require('../../assets/videos/FortisDemo3.mp4');
 
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const { returning } = useLocalSearchParams<{ returning?: string }>();
+  const isReturning = returning === '1' || returning === 'true';
   const { colors } = useTheme();
   const {
     signInWithGoogle,
@@ -37,6 +41,20 @@ export default function OnboardingWelcomeScreen() {
   const [signInError, setSignInError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!isReturning) return;
+    navigation.setOptions({
+      animation: 'slide_from_left',
+      animationTypeForReplace: 'pop',
+    });
+    return () => {
+      navigation.setOptions({
+        animation: 'slide_from_right',
+        animationTypeForReplace: 'push',
+      });
+    };
+  }, [isReturning, navigation]);
+
+  useEffect(() => {
     if (Platform.OS !== 'ios') {
       return;
     }
@@ -48,17 +66,12 @@ export default function OnboardingWelcomeScreen() {
 
   useEffect(() => {
     if (!isAuthenticated || isLoading || !profileResolved) return;
-    if (!profile) {
+    if (!profile || needsOnboarding) {
       setShowSignInSheet(false);
       void (async () => {
         await signOut();
         router.replace('/onboarding');
       })();
-      return;
-    }
-    if (needsOnboarding) {
-      setShowSignInSheet(false);
-      router.push('/onboarding');
       return;
     }
     setShowSignInSheet(false);
@@ -75,7 +88,7 @@ export default function OnboardingWelcomeScreen() {
   ]);
 
   const handleStart = () => {
-    router.push('/onboarding');
+    router.replace('/onboarding');
   };
 
   const handleSignIn = () => {

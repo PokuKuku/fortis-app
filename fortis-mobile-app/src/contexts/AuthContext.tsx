@@ -335,14 +335,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
             // Restore ALL workout history from cloud to local cache
             // Users need full history for strength tracking/progress
             // Using high limit (10000) covers even 10+ years of daily workouts
+            const signedInUserId = userId;
             fetchWorkoutHistory(10000)
-              .then(({ sessions, error }) => {
+              .then(async ({ sessions, error }) => {
                 if (error) {
+                  return;
+                }
+                const { data: { session: currentSession } } = await supabase.auth.getSession();
+                if (!currentSession?.user || currentSession.user.id !== signedInUserId) {
                   return;
                 }
                 const localSessions = useWorkoutStore.getState().completedSessions;
                 const mergedSessions = mergeWorkoutSessions(sessions, localSessions);
-                setCachedWorkoutHistory(userId, mergedSessions);
+                setCachedWorkoutHistory(signedInUserId, mergedSessions);
                 if (sessions.length > 0) {
                   useWorkoutStore.getState().replaceCompletedSessions(mergedSessions).catch(storeError => {
                     console.warn('Failed to replace workout history from cloud:', storeError);
@@ -606,6 +611,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch (err) {
         console.warn('Failed to clear user-scoped storage:', err);
       }
+    }
+    try {
+      await clearUserScopedStorage(null);
+    } catch (err) {
+      console.warn('Failed to clear guest-scoped storage:', err);
     }
 
     // Reset all Zustand stores to clear in-memory user data

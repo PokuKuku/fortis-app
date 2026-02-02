@@ -498,11 +498,10 @@ export default function OnboardingCompleteScreen() {
       const { error } = await Promise.race([updateProfile(updates), timeoutResult]);
       if (!error && !didTimeout) {
         await clearOnboardingState();
+        router.replace('/(tabs)');
       }
     } finally {
       setIsSaving(false);
-      console.log('[Routing] onboarding/complete -> /paywall-gate');
-      router.replace('/paywall-gate');
     }
   }, [isAuthenticated, phase, profile, router, summaryAnim, updateProfile]);
 
@@ -711,14 +710,6 @@ export default function OnboardingCompleteScreen() {
           </Animated.View>
         ) : null}
 
-        {phase === 'ready' && isAuthenticated ? (
-          <View style={styles.savingRow}>
-            <ActivityIndicator size="small" color={colors.accent} />
-            <Text style={[styles.savingText, { color: colors.textSecondary }]}>
-              Opening Fortis…
-            </Text>
-          </View>
-        ) : null}
       </View>
     </OnboardingScreen>
   );

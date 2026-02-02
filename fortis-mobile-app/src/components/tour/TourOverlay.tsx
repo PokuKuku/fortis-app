@@ -45,6 +45,9 @@ const ARROW_LINE_HEIGHT = scale(16);
 const HOLE_PADDING = scale(10);
 const HIGHLIGHT_RADIUS = scale(16);
 const HIGHLIGHT_BORDER = scale(2);
+const TOOLTIP_TRANSITION_Y = scale(6);
+const TOOLTIP_TRANSITION_DURATION_MS = 180;
+const TOOLTIP_TRANSITION_DELAY_MS = 80;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -68,6 +71,9 @@ export function TourOverlay({
   const insets = useSafeAreaInsets();
   const [tooltipHeight, setTooltipHeight] = useState<number | null>(null);
   const arrowAnim = useRef(new Animated.Value(0)).current;
+  const tooltipOpacity = useRef(new Animated.Value(0)).current;
+  const tooltipTranslate = useRef(new Animated.Value(TOOLTIP_TRANSITION_Y)).current;
+  const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const tooltipWidth = Math.min(TOOLTIP_MAX_WIDTH, SCREEN.width - TOOLTIP_SIDE_MARGIN * 2);
 
@@ -99,9 +105,23 @@ export function TourOverlay({
     }
 
     if (!paddedRect || !tooltipHeight) {
+      if (!paddedRect) {
+        return {
+          left: TOOLTIP_SIDE_MARGIN,
+          top: clamp(safeBottom - (tooltipHeight ?? 0), safeTop, safeBottom),
+        };
+      }
+
+      const centerX = paddedRect.x + paddedRect.width / 2;
+      const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, SCREEN.width - TOOLTIP_SIDE_MARGIN - tooltipWidth);
+      const arrowOffset = showArrow ? ARROW_HEIGHT + ARROW_GAP : 0;
+      const topCandidate = placement === 'below'
+        ? paddedRect.y + paddedRect.height + TOOLTIP_GAP + arrowOffset
+        : paddedRect.y - TOOLTIP_GAP - arrowOffset;
+
       return {
-        left: TOOLTIP_SIDE_MARGIN,
-        top: clamp(safeBottom - (tooltipHeight ?? 0), safeTop, safeBottom),
+        left,
+        top: clamp(topCandidate + tooltipOffsetY, safeTop, safeBottom),
       };
     }
 
@@ -133,6 +153,27 @@ export function TourOverlay({
     tooltipOffsetY,
     tooltipTopOffset,
     tooltipWidth,
+    showArrow,
+  ]);
+
+  const stepKey = useMemo(() => ([
+    body,
+    stepLabel ?? '',
+    centerTooltip ? '1' : '0',
+    pinTooltipToTop ? '1' : '0',
+    placement ?? 'auto',
+    mode,
+    showArrow ? '1' : '0',
+    showHighlight ? '1' : '0',
+  ].join('|')), [
+    body,
+    centerTooltip,
+    mode,
+    pinTooltipToTop,
+    placement,
+    showArrow,
+    showHighlight,
+    stepLabel,
   ]);
 
   const themedStyles = {
@@ -175,6 +216,48 @@ export function TourOverlay({
     loop.start();
     return () => loop.stop();
   }, [arrowAnim, showArrow, visible]);
+
+  useEffect(() => {
+    if (transitionTimeoutRef.current) {
+      clearTimeout(transitionTimeoutRef.current);
+      transitionTimeoutRef.current = null;
+    }
+
+    if (!visible) {
+      tooltipOpacity.stopAnimation();
+      tooltipTranslate.stopAnimation();
+      tooltipOpacity.setValue(0);
+      tooltipTranslate.setValue(TOOLTIP_TRANSITION_Y);
+      return;
+    }
+
+    tooltipOpacity.stopAnimation();
+    tooltipTranslate.stopAnimation();
+    tooltipOpacity.setValue(0);
+    tooltipTranslate.setValue(TOOLTIP_TRANSITION_Y);
+
+    transitionTimeoutRef.current = setTimeout(() => {
+      Animated.parallel([
+        Animated.timing(tooltipOpacity, {
+          toValue: 1,
+          duration: TOOLTIP_TRANSITION_DURATION_MS,
+          useNativeDriver: true,
+        }),
+        Animated.timing(tooltipTranslate, {
+          toValue: 0,
+          duration: TOOLTIP_TRANSITION_DURATION_MS,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, TOOLTIP_TRANSITION_DELAY_MS);
+
+    return () => {
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+        transitionTimeoutRef.current = null;
+      }
+    };
+  }, [body, centerTooltip, mode, pinTooltipToTop, placement, stepKey, stepLabel, tooltipOpacity, tooltipTranslate, visible]);
 
   const blockOutside = mode !== 'non_blocking';
   const allowHolePassthrough = mode === 'spotlight';
@@ -273,11 +356,15 @@ export function TourOverlay({
         <Pressable style={styles.touchBlocker} onPress={() => undefined} />
       ) : null}
 
-      <View
+      <Animated.View
         style={[
           styles.tooltip,
           themedStyles.tooltip,
           { width: tooltipWidth, left: tooltipPos.left, top: tooltipPos.top },
+          {
+            opacity: tooltipOpacity,
+            transform: [{ translateY: tooltipTranslate }],
+          },
         ]}
         pointerEvents="auto"
         onStartShouldSetResponder={() => true}
@@ -311,7 +398,7 @@ export function TourOverlay({
             <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
           </GlassButton>
         ) : null}
-      </View>
+      </Animated.View>
     </View>
   );
 

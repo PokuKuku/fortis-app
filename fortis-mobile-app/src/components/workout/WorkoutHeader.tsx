@@ -10,6 +10,9 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { MuscleHeatmap } from './MuscleHeatmap';
 import type { MuscleKey } from '@/src/utils/muscleTaxonomy';
 import * as Haptics from 'expo-haptics';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const BUTTON_PADDING = scale(Spacing.sm);
@@ -73,6 +76,7 @@ export function WorkoutHeaderTopBar({
   restTimerBgColor,
 }: WorkoutHeaderTopBarProps) {
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId } = useInAppTour();
 
   const themedStyles = {
     clockButton: {
@@ -89,6 +93,12 @@ export function WorkoutHeaderTopBar({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onRestTimerPress();
   };
+
+  const shouldAnchorClose = isTourActive && activeStepId === 'close_workout';
+  const shouldAnchorRestTimerSettings = isTourActive && activeStepId === 'rest_timer_settings';
+
+  const wrapAnchor = (enabled: boolean, id: string, node: JSX.Element) =>
+    enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
 
   const renderTimers = (compact: boolean) => (
     <View style={[styles.timersRow, compact && styles.timersRowCompact]}>
@@ -143,37 +153,45 @@ export function WorkoutHeaderTopBar({
   return (
     <View style={styles.topContainer}>
       <View style={styles.topRow}>
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onTimerSettingsPress();
-          }}
-          style={({ pressed }) => [
-            styles.clockButton,
-            themedStyles.clockButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <ClockIcon size={ICON_SIZE} color={colors.textSecondary} strokeWidth={2} />
-        </Pressable>
+        {wrapAnchor(
+          shouldAnchorRestTimerSettings,
+          TOUR_ANCHOR_IDS.restTimerSettings,
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onTimerSettingsPress();
+            }}
+            style={({ pressed }) => [
+              styles.clockButton,
+              themedStyles.clockButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <ClockIcon size={ICON_SIZE} color={colors.textSecondary} strokeWidth={2} />
+          </Pressable>
+        )}
 
         <View style={styles.topCenter}>
           {showCompactTimers && renderTimers(true)}
         </View>
 
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            onCancelPress();
-          }}
-          style={({ pressed }) => [
-            styles.cancelButton,
-            themedStyles.cancelButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
-        </Pressable>
+        {wrapAnchor(
+          shouldAnchorClose,
+          TOUR_ANCHOR_IDS.closeWorkoutButton,
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onCancelPress();
+            }}
+            style={({ pressed }) => [
+              styles.cancelButton,
+              themedStyles.cancelButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
+          </Pressable>
+        )}
       </View>
     </View>
   );
@@ -189,6 +207,7 @@ export function WorkoutHeaderDetails({
   workoutName,
 }: WorkoutHeaderDetailsProps) {
   const { colors } = useTheme();
+  const { isTourActive, activeStepId } = useInAppTour();
   const fallbackWorkoutName = useWorkoutStore(s => s.activeSession?.name ?? null);
   const workoutTitle = workoutName ?? fallbackWorkoutName;
 
@@ -202,6 +221,10 @@ export function WorkoutHeaderDetails({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onRestTimerPress();
   };
+
+  const shouldAnchorRestTimer = isTourActive && activeStepId === 'rest_timer';
+  const wrapAnchor = (enabled: boolean, id: string, node: JSX.Element) =>
+    enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
 
   return (
     <View style={styles.detailsContainer}>
@@ -234,23 +257,27 @@ export function WorkoutHeaderDetails({
               {formatElapsedTime(elapsed)}
             </Text>
             <Text style={[styles.separator, themedStyles.separator]}>|</Text>
-            <Pressable
-              onPress={handleRestTimerPress}
-              style={[
-                styles.restTimerButton,
-                { backgroundColor: restTimerBgColor },
-              ]}
-            >
-              <Text
-                style={[styles.restTimerText, { color: restTimerColor }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.8}
-                allowFontScaling={false}
+            {wrapAnchor(
+              shouldAnchorRestTimer,
+              TOUR_ANCHOR_IDS.restTimer,
+              <Pressable
+                onPress={handleRestTimerPress}
+                style={[
+                  styles.restTimerButton,
+                  { backgroundColor: restTimerBgColor },
+                ]}
               >
-                {formatRestTime(displaySeconds)}
-              </Text>
-            </Pressable>
+                <Text
+                  style={[styles.restTimerText, { color: restTimerColor }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                  allowFontScaling={false}
+                >
+                  {formatRestTime(displaySeconds)}
+                </Text>
+              </Pressable>
+            )}
           </View>
         </View>
 

@@ -74,17 +74,10 @@ export default function AuthWelcomeScreen() {
 
   // Navigate when auth state changes
   useEffect(() => {
-    if (!isAuthenticated || isFinalizing || isLoading || !profileResolved) return;
-
-    if (!profile) {
-      if (onboardingValue === 'complete') {
-        return;
-      }
-      router.replace('/onboarding/welcome');
-      return;
-    }
+    if (!isAuthenticated || isLoading || !profileResolved) return;
 
     if (onboardingValue === 'complete') {
+      if (isFinalizing) return;
       setIsFinalizing(true);
       void (async () => {
         const state = await getOnboardingState();
@@ -146,14 +139,14 @@ export default function AuthWelcomeScreen() {
         }
 
         await clearOnboardingState();
-        console.log('[Routing] auth/index -> /paywall-gate (onboarding complete)');
+        setIsFinalizing(false);
         router.replace('/paywall-gate');
       })();
       return;
     }
 
-    if (needsOnboarding) {
-      router.replace('/onboarding/welcome');
+    if (!profile || needsOnboarding) {
+      router.replace('/onboarding');
       return;
     }
 

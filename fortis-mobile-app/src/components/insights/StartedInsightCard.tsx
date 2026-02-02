@@ -26,7 +26,7 @@ export function StartedInsightCard() {
       </View>
 
       <Text style={[styles.subtitle, themedStyles.subtitle]}>
-        Complete this quick workout to unlock your first recap and weekly insights.
+        Complete a quick workout to unlock your first recap and weekly insights.
       </Text>
 
       <View style={styles.bullets}>
@@ -90,4 +90,3 @@ const styles = StyleSheet.create({
     lineHeight: moderateScale(16),
   },
 });
-

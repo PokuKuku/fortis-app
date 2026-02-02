@@ -217,6 +217,7 @@ export default function TabLayout() {
     if (isWorkoutActive) return;
     if (isTourActive && activeStepId === 'programs_intro') {
       await openStartConfig();
+      advanceStep();
       return;
     }
     if (!startPreset) {
@@ -300,14 +301,9 @@ export default function TabLayout() {
   };
 
   const handleConfirmStartPreset = async () => {
-    const isGetStartedPreset =
-      draftStartPreset?.type === 'template' &&
-      (draftStartPreset.templateId === GET_STARTED_TEMPLATE_ID ||
-        draftStartPreset.templateWorkoutId === GET_STARTED_WORKOUT_ID);
-
     await setStartPreset(draftStartPreset ?? null);
     setStartConfigVisible(false);
-    if (isTourActive && isGetStartedPreset) {
+    if (isTourActive && activeStepId === 'start_config') {
       advanceStep();
     }
   };
@@ -579,7 +575,7 @@ export default function TabLayout() {
       onConfirm={handleConfirmStartPreset}
       onClose={() => setStartConfigVisible(false)}
       forceTemplateId={null}
-      disableClose={false}
+      disableClose={isTourActive && activeStepId === 'start_config'}
     />
 
     {/* Plus Button */}

@@ -12,9 +12,6 @@ import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetTypeSelector } from './SetTypeSelector';
-import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { useInAppTour } from '@/src/contexts/InAppTourContext';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -172,7 +169,6 @@ export function SetRow({
   const setValidationErrorsBySet = useWorkoutStore(s => s.setValidationErrorsBySet);
   const registerWorkoutOverlay = useWorkoutStore(s => s.registerWorkoutOverlay);
   const unregisterWorkoutOverlay = useWorkoutStore(s => s.unregisterWorkoutOverlay);
-  const { isTourActive, activeStepId } = useInAppTour();
 
   // Check if this input is currently active
   const isWeightActive = activeInputType === 'weight';
@@ -273,14 +269,6 @@ export function SetRow({
   const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
   const set = exercise?.sets.find(s => s.localId === setLocalId);
 
-  const pushupName = exercise?.exerciseName?.toLowerCase() ?? '';
-  const isPushupExercise = pushupName.includes('push up') || pushupName.includes('pushup');
-  const shouldAnchorReps =
-    !useEditor
-    && isTourActive
-    && activeStepId === 'log_reps'
-    && isPushupExercise
-    && setIndex === 0;
 
   if (!set) return null;
 
@@ -714,67 +702,34 @@ export function SetRow({
         {/* Reps input with RPE badge */}
         <Animated.View style={[styles.inputWrapper, styles.repsWrapper, !shouldShowCheckboxes && styles.flexCol, repsAnimatedStyle]}>
           <View style={styles.repsContainer}>
-            {shouldAnchorReps ? (
-              <TourAnchor id={TOUR_ANCHOR_IDS.repsColumn}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${setNumberLabel} reps`}
-                  accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
-                  onPress={() => handleInputPress('reps')}
-                  onLongPress={() => handleApplyToRemaining('reps')}
-                  delayLongPress={350}
-                  style={[
-                    getInputStyle('reps'),
-                    isRepsActive && [styles.inputActive, themedStyles.inputActive],
-                    isRepsActive && activeHasError && styles.inputError
-                  ]}
-                  >
-                    <Text style={[
-                      styles.inputText,
-                      themedStyles.inputText,
-                      (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
-                      (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
-                    ]}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                    minimumFontScale={0.6}
-                    >
-                      {isRepsActive
-                        ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
-                        : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
-                    </Text>
-                </Pressable>
-              </TourAnchor>
-            ) : (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`${setNumberLabel} reps`}
-                accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
-                onPress={() => handleInputPress('reps')}
-                onLongPress={() => handleApplyToRemaining('reps')}
-                delayLongPress={350}
-                style={[
-                  getInputStyle('reps'),
-                  isRepsActive && [styles.inputActive, themedStyles.inputActive],
-                  isRepsActive && activeHasError && styles.inputError
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${setNumberLabel} reps`}
+              accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
+              onPress={() => handleInputPress('reps')}
+              onLongPress={() => handleApplyToRemaining('reps')}
+              delayLongPress={350}
+              style={[
+                getInputStyle('reps'),
+                isRepsActive && [styles.inputActive, themedStyles.inputActive],
+                isRepsActive && activeHasError && styles.inputError
+              ]}
+              >
+                <Text style={[
+                  styles.inputText,
+                  themedStyles.inputText,
+                  (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
+                  (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
                 ]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.6}
                 >
-                  <Text style={[
-                    styles.inputText,
-                    themedStyles.inputText,
-                    (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
-                    (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
-                  ]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.6}
-                  >
-                    {isRepsActive
-                      ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
-                      : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
-                  </Text>
-              </Pressable>
-            )}
+                  {isRepsActive
+                    ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
+                    : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
+                </Text>
+            </Pressable>
             {/* RPE Badge */}
             {set.rpe !== null && (
               <View

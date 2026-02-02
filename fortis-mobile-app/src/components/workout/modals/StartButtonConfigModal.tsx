@@ -13,6 +13,7 @@ import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { getModalWidth, responsiveValue } from '@/src/utils/responsive';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import type { StartPreset } from '@/src/store/startPresetStore';
 import type { Program } from '@/src/types/workout';
 
@@ -46,6 +47,7 @@ export function StartButtonConfigModal({
   disableClose = false,
 }: StartButtonConfigModalProps) {
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId } = useInAppTour();
   const modalStyles = useModalStyles();
 
   // Dynamic theme-aware styles
@@ -115,7 +117,14 @@ export function StartButtonConfigModal({
     isForceMode &&
     draftPreset?.type === 'template' &&
     draftPreset.templateId === forceTemplateId;
-  const canConfirm = hasChanges || hasForcedSelection;
+  const isTourGetStartedSelected =
+    isTourSelectionStep &&
+    draftPreset?.type === 'template' &&
+    draftPreset.templateId === GET_STARTED_TEMPLATE_ID;
+  const canConfirm = hasChanges || hasForcedSelection || isTourGetStartedSelected;
+  const isTourSelectionStep = isTourActive && activeStepId === 'start_config';
+  const disableBlankWorkout = isTourSelectionStep;
+  const disableNonGetStarted = isTourSelectionStep;
 
   return (
     <BaseModal
@@ -139,8 +148,10 @@ export function StartButtonConfigModal({
       {currentPreset && !isForceMode && (
         <Pressable
           onPress={() => onChange(null)}
+          disabled={isTourSelectionStep}
           style={({ pressed }) => [
             styles.unsetButton,
+            isTourSelectionStep && styles.optionDisabled,
             pressed && modalStyles.buttonPressed,
           ]}
         >
@@ -161,7 +172,7 @@ export function StartButtonConfigModal({
           subtitle: 'Start a fresh workout log',
           selected: draftPreset?.type === 'blank',
           icon: <PlayIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
-          disabled: isForceMode,
+          disabled: isForceMode || disableBlankWorkout,
           onPress: () => onChange({ type: 'blank' }),
         })}
 
@@ -180,7 +191,8 @@ export function StartButtonConfigModal({
                 (draftPreset.templateId === template.id ||
                   template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
               icon: <Squares2X2Icon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
-              disabled: isForceMode && template.id !== forceTemplateId,
+              disabled: (isForceMode && template.id !== forceTemplateId) ||
+                (disableNonGetStarted && template.id !== GET_STARTED_TEMPLATE_ID),
               onPress: () =>
                 onChange({
                   type: 'template',
@@ -214,7 +226,7 @@ export function StartButtonConfigModal({
                 subtitle: 'Continue to the next workout',
                 selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
                 icon: <CalendarDaysIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
-                disabled: isForceMode,
+                disabled: isForceMode || disableNonGetStarted,
                 onPress: () => onChange({ type: 'program', programId: program.id }),
               })}
             </View>

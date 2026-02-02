@@ -128,12 +128,6 @@ export default function SplashScreen() {
       return;
     }
 
-    if (isAuthenticated) {
-      console.log('[Routing] index -> /paywall-gate (authenticated)');
-      router.replace('/paywall-gate');
-      return;
-    }
-
     router.replace('/onboarding/welcome');
   }, [minDelayPassed, isAuthResolved, isAuthenticated, needsOnboarding, profileResolved, router]);
 

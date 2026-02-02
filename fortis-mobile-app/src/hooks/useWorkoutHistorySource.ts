@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
+import { supabase } from '@/src/lib/supabase';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import type { WorkoutSession } from '@/src/types/workout';
@@ -93,9 +94,14 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     }
 
     if (!inFlightByUser[userId]) {
+      const expectedUserId = userId;
       inFlightByUser[userId] = fetchWorkoutHistory({ limit })
-        .then(({ sessions, error }) => {
+        .then(async ({ sessions, error }) => {
           if (error) {
+            return cachedForUser ?? [];
+          }
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (!currentSession?.user || currentSession.user.id !== expectedUserId) {
             return cachedForUser ?? [];
           }
           const latestLocal = localSessions ?? useWorkoutStore.getState().completedSessions;

@@ -13,7 +13,7 @@ import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
-import { useGetStartedStatus } from '@/src/hooks/useGetStartedStatus';
+import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAIStore } from '@/src/store/aiStore';
 import { StartedInsightCard } from '@/src/components/insights/StartedInsightCard';
 import { EvidenceItem, TrainingInsight, InsightType } from '@/src/types/insights';
@@ -727,7 +727,6 @@ export default function InsightsScreen() {
   const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights();
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
-  const { hasCompletedGetStarted } = useGetStartedStatus();
   const {
     trackInsightsViewed,
     trackVerdictWhyTapped,
@@ -933,7 +932,8 @@ export default function InsightsScreen() {
     router.push('/exercises');
   };
 
-  const showStartedCard = !hasCompletedGetStarted;
+  const completedSessions = useWorkoutStore((s) => s.completedSessions);
+  const showStartedCard = completedSessions.length === 0;
 
   const hasInsights =
     showStartedCard ||

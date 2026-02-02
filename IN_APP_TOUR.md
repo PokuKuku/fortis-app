@@ -9,36 +9,45 @@ We will **plan first**, then implement.
 - Persist (server): `has_seen_in_app_tour`, `tour_completed_at`, `tour_version`.
 - If app backgrounds mid-tour, resume gracefully (still the same one tour).
 - Include **Skip** (still sets `has_seen_in_app_tour = true`).
-- Introduce **Workout Recap**: completing a workout generates a recap and where to find it.
+- Teach the **workout basics** (rest timer, columns, and card/modal basics) after the workout opens.
 - No new screens: anchored overlays/tooltips on real UI elements.
 
 ---
 
-## Proposed Tour (v2)
+## Proposed Tour (v4)
 
 ### Happy Path Flow
 
 1) User finishes onboarding + paywall (entitled) -> lands on Programs tab.
 2) Tour starts on Programs -> points to Quick Start FAB.
-3) Start config modal opens; user is forced to set **Get Started**.
-4) User presses the Start FAB to launch the **Get Started** workout.
-5) User finishes workout (3 pushups).
-6) App auto-navigates to Insights; tour completes.
+3) Start config modal opens; user chooses any workout/program to set.
+4) User presses the Start FAB to launch the chosen workout.
+5) In workout, highlight the **rest timer** control and how it works.
+6) In workout, explain the **clock icon** sets rest timer defaults.
+7) In workout, explain the **set columns** (set, prev, weight, reps, done).
+8) In workout, explain **exercise card basics** (menu, add sets).
+9) User closes the workout session (X).
+10) Tour points to the Insights tab; user taps it, then the Insights intro finishes the tour.
 
 ### Step Sequence + Copy
 
 Notes:
 - Each step is anchored to a real UI element.
 - “Advance” describes how we move to the next step.
-- After workout completion, we auto-navigate to Insights and mark the tour complete (no tooltip).
+- After closing the workout, the user manually taps the Insights tab.
 
 | Step | Screen/Route | Anchor | Copy | Advance |
 |---:|---|---|---|---|
-| 1 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | **This button starts your default workout.** Set **Get Started** now, and press & hold anytime to change it later. | Tap FAB |
-| 2 | Start Config Modal | **Get Started** option | Tap **Get Started** and confirm to lock in your default. | Confirm selection (forced) |
+| 1 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | **This button starts your default workout.** Tap the dumbbell to choose what it launches, and press & hold anytime to change it later. | Tap FAB |
+| 2 | Start Config Modal | Any workout/program option | Choose a workout or program and confirm to set your default. | Confirm selection |
 | 3 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | Now press the dumbbell Start button to launch your workout. | Tap FAB |
-| 4 | `/workout/active` | “Finish Workout” button | Do 3 pushups, then tap **Finish**. | Wait for workout completion |
-| 5 | `/(tabs)/insights` | n/a | Auto-navigate to Insights; mark tour complete. | Done |
+| 4 | `/workout/active` | Rest timer control | **Rest Timer** keeps you on pace between sets. Tap to start/pause, and adjust as needed. | Tap Next |
+| 5 | `/workout/active` | Clock icon | Set your rest timer defaults here. | Tap Next |
+| 6 | `/workout/active` | Set columns row | **Columns:** set → prev → weight → reps → done. Tap a box to edit, long‑press to apply to remaining sets. | Tap Next |
+| 7 | `/workout/active` | Exercise card header | **Exercise cards:** use the menu for options and “+ Add Set” to add volume. | Tap Next |
+| 8 | `/workout/active` | Close (X) | Tap X to close the workout. | Close workout |
+| 9 | `/(tabs)` | Insights tab | Next, tap Insights to see your progress. | Tap Insights tab |
+| 10 | `/(tabs)/insights` | n/a | Insights power Fortis AI—tap "Ask Fortis" on any insight to get a breakdown and next steps. | Tap Done |
 
 ---
 
@@ -107,8 +116,12 @@ Resume rule:
 2) **History tab**: tap a workout to open `WorkoutHistoryDetailModal`.
 
 Tour behavior:
-- Before any workout, set expectation (“you’ll see a recap after finishing”).
-- After Get Started completion, navigate to Insights.
+- After the workout‑basics steps, the user closes the session and taps the Insights tab.
+- The tour ends after the Insights intro step.
+
+Get Started insight card:
+- Copy: “Complete a quick workout to unlock your first recap and weekly insights.”
+- Hide after the first completed workout session (any workout).
 
 ---
 
@@ -129,7 +142,8 @@ Tour overlay system:
 - `fortis-mobile-app/src/components/tour/useTourAnchor.ts`
 - `fortis-mobile-app/app/(tabs)/_layout.tsx` (register anchor for Quick Start FAB)
 - `fortis-mobile-app/app/(tabs)/index.tsx` (register anchor for Start FAB)
-- `fortis-mobile-app/app/workout/active.tsx` (register Finish button anchor)
+- `fortis-mobile-app/src/components/workout/WorkoutHeader.tsx` (register rest timer + rest timer settings + close button anchors)
+- `fortis-mobile-app/src/components/workout/ExerciseCard.tsx` (register columns + exercise card anchors)
 - Start config modal anchor (wherever the modal component is implemented)
 
 Get Started workflow:
@@ -151,7 +165,7 @@ Tests:
 - Background mid-tour: resume on next foreground from last `stepId`.
 - User switches tabs: overlay should either follow (if anchor exists) or auto-navigate back to expected route.
 - User starts a different workout:
-  - Keep tour in “in progress”; after they finish any workout, auto-navigate to Insights and complete.
+  - Keep tour in “in progress”; continue the workout‑basics steps on the active session screen.
 
 ---
 
@@ -160,8 +174,8 @@ Tests:
 ### Confirm + Align
 
 - [ ] Tour starts on Programs tab with Quick Start FAB anchor.
-- [ ] Step 2 is forced inside Start config modal.
-- [ ] Step 3 prompts tapping the FAB to launch Get Started.
-- [ ] Get Started workout is 1 set of 3 pushups.
-- [ ] Auto-navigate to Insights after workout completion; no tooltip on Insights.
-
+- [ ] Step 2 allows choosing any workout/program in Start config modal.
+- [ ] Step 3 prompts tapping the FAB to launch the chosen workout.
+- [ ] Workout basics steps show (rest timer, rest timer settings, columns, exercise card basics).
+- [ ] User closes the workout session and taps the Insights tab.
+- [ ] Tour completes after the Insights intro step.

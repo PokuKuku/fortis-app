@@ -1,7 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { usePathname, useRouter, useSegments } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import { HAS_AUTO_SET_GET_STARTED_PRESET_KEY } from '@/src/constants/storageKeys';
 import {
   GET_STARTED_TEMPLATE_ID,
@@ -16,18 +15,21 @@ import { clearInAppTourState, loadInAppTourState, saveInAppTourState, type Persi
 import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
-import { scale } from '@/src/utils/responsive';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
 
 type TourStepId =
-  | 'welcome'
   | 'programs_intro'
+  | 'start_config'
   | 'launch_workout'
-  | 'log_reps'
-  | 'finish_workout'
-  | 'go_insights';
+  | 'rest_timer'
+  | 'rest_timer_settings'
+  | 'columns_intro'
+  | 'card_basics'
+  | 'close_workout'
+  | 'go_insights'
+  | 'insights_overview';
 
-type TourRoute = '/(tabs)' | '/workout/active';
+type TourRoute = '/(tabs)' | '/(tabs)/insights' | '/workout/active';
 
 type TourStep = {
   id: TourStepId;
@@ -47,23 +49,22 @@ type TourStep = {
 
 const TOUR_STEPS: TourStep[] = [
   {
-    id: 'welcome',
-    route: '/(tabs)',
-    body: 'Welcome to Fortis! Congrats on committing to your fitness journey! Now let’s show you around.',
-    mode: 'blocking',
-    primaryActionLabel: 'Next',
-    showArrow: false,
-    centerTooltip: true,
-    showHighlight: false,
-  },
-  {
     id: 'programs_intro',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'This button starts your default workout. Set the Get Started workout as default by tapping the dumbbell, and press & hold anytime to change it later.',
+    body: 'This button starts your default workout. Tap the dumbbell to choose what it launches, and press & hold anytime to change it later.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+  },
+  {
+    id: 'start_config',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.startConfigGetStarted,
+    body: 'Select “Get Started” and tap Confirm to set your default workout.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: false,
   },
   {
     id: 'launch_workout',
@@ -74,37 +75,69 @@ const TOUR_STEPS: TourStep[] = [
     primaryActionLabel: null,
   },
   {
-    id: 'log_reps',
+    id: 'rest_timer',
     route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.repsColumn,
-    body: 'Tap the reps box, enter a number on the keyboard, then tap Next.',
+    anchorId: TOUR_ANCHOR_IDS.restTimer,
+    body: 'Rest Timer keeps you on pace between sets. Tap to start/pause and adjust anytime.',
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: true,
-    pinTooltipToTop: true,
-    tooltipTopOffset: scale(8),
-    placement: 'above',
   },
   {
-    id: 'finish_workout',
+    id: 'rest_timer_settings',
     route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.finishWorkoutButton,
-    body: 'Great! Now tap Finish Workout.',
+    anchorId: TOUR_ANCHOR_IDS.restTimerSettings,
+    body: 'Use the clock to set your rest timer defaults.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+  },
+  {
+    id: 'columns_intro',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.workoutColumns,
+    body: 'Columns show set, previous, weight, reps, and done. Tap a box to edit; long-press to apply to remaining sets.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+  },
+  {
+    id: 'card_basics',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.addSetButton,
+    body: 'Tap “+ Add Set” to add another set for this exercise.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+  },
+  {
+    id: 'close_workout',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.closeWorkoutButton,
+    body: 'Tap X to close this workout.',
     mode: 'spotlight',
     primaryActionLabel: null,
-    showArrow: true,
-    pinTooltipToTop: true,
-    tooltipTopOffset: scale(8),
-    placement: 'above',
+    showArrow: false,
+    placement: 'below',
   },
   {
     id: 'go_insights',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.insightsTab,
-    body: 'Tap Insights to see your progress.',
+    body: 'Next, tap Insights to see your progress.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+  },
+  {
+    id: 'insights_overview',
+    route: '/(tabs)/insights',
+    body: 'Insights power Fortis AI—tap "Ask Fortis" on any insight to get a breakdown and next steps.',
+    mode: 'blocking',
+    primaryActionLabel: 'Done',
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
   },
 ];
 
@@ -138,7 +171,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, profile, updateProfile } = useAuth();
   const { hasCompletedGetStarted } = useGetStartedStatus();
   const forceTourThisSession = useRef(false);
-  const notificationPromptedRef = useRef(false);
   const AUTO_SET_GET_STARTED_PRESET = false;
 
   const startPreset = useStartPresetStore((s) => s.preset);
@@ -147,9 +179,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const setStartPreset = useStartPresetStore((s) => s.setPreset);
 
   const workoutActiveSession = useWorkoutStore((s) => s.activeSession);
-  const updateWorkoutSet = useWorkoutStore((s) => s.updateSet);
-  const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
-  const closeNumberPad = useWorkoutStore((s) => s.closeNumberPad);
 
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
   const [tourLoaded, setTourLoaded] = useState(false);
@@ -185,6 +214,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       }
       if (route === '/(tabs)') {
         return segments[0] === '(tabs)';
+      }
+      if (route === '/(tabs)/insights') {
+        return segments[0] === '(tabs)' && segments[1] === 'insights';
       }
       if (route === '/workout/active') {
         return segments[0] === 'workout' && segments[1] === 'active';
@@ -275,20 +307,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     void markTourSeenOnServer({ status: 'started' });
     router.replace(TOUR_STEPS[0].route);
   }, [isAuthenticated, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
-
-  const requestNotificationsIfNeeded = useCallback(async () => {
-    if (notificationPromptedRef.current) return;
-
-    try {
-      const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
-      if (granted || status === 'granted' || !canAskAgain) return;
-
-      notificationPromptedRef.current = true;
-      await Notifications.requestPermissionsAsync();
-    } catch {
-      // Ignore notification permission errors; tour should still start.
-    }
-  }, []);
 
   const finishTour = useCallback(async (status: 'completed' | 'skipped') => {
     if (!tourLoaded) return;
@@ -467,14 +485,13 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isEligibleForStart) return;
     const run = async () => {
-      await requestNotificationsIfNeeded();
       if (FORCE_IN_APP_TOUR) {
         forceTourThisSession.current = true;
       }
       await startTour();
     };
     void run();
-  }, [isEligibleForStart, requestNotificationsIfNeeded, startTour]);
+  }, [isEligibleForStart, startTour]);
 
   // Advance when the Start FAB launches a workout.
   useEffect(() => {
@@ -484,64 +501,27 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
 
-  // Complete tour when user reaches the Insights tab.
-  useEffect(() => {
-    if (!isTourActive || step?.id !== 'go_insights') return;
-    if (segments[0] === '(tabs)' && segments[1] === 'insights') {
-      void finishTour('completed');
-    }
-  }, [finishTour, isTourActive, segments, step?.id]);
-
-  const finishPrefillRef = useRef(false);
-
-  useEffect(() => {
-    if (!isTourActive || step?.id !== 'log_reps') return;
-    if (!isOnStepRoute('/workout/active')) return;
-    if (!workoutActiveSession) return;
-    if (finishPrefillRef.current) return;
-
-    const pushupExercise = workoutActiveSession.exercises.find((exercise) => {
-      const name = exercise.exerciseName?.toLowerCase?.() ?? '';
-      return name.includes('push up') || name.includes('pushup');
-    });
-
-    const targetSet = pushupExercise?.sets?.[0];
-    if (!pushupExercise || !targetSet) return;
-
-    finishPrefillRef.current = true;
-
-    updateWorkoutSet(pushupExercise.localId, targetSet.localId, {
-      weight: 0,
-      reps: 3,
-    });
-  }, [isOnStepRoute, isTourActive, step?.id, updateWorkoutSet, workoutActiveSession]);
-
   const lastWorkoutActiveRef = useRef<boolean>(Boolean(workoutActiveSession));
-  const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
 
-  // Detect workout completion while on the "finish workout" step and move to insights step.
+  // Advance when the workout is closed on the "close workout" step.
   useEffect(() => {
     const wasActive = lastWorkoutActiveRef.current;
     const isActiveNow = Boolean(workoutActiveSession);
-    const prevCompletedCount = lastCompletedCountRef.current;
-    const nextCompletedCount = workoutCompletedSessions.length;
-
     lastWorkoutActiveRef.current = isActiveNow;
-    lastCompletedCountRef.current = nextCompletedCount;
 
-    if (!isTourActive || step?.id !== 'finish_workout') return;
-
-    const finishedAWorkout = wasActive && !isActiveNow && nextCompletedCount > prevCompletedCount;
-    if (finishedAWorkout) {
+    if (!isTourActive || step?.id !== 'close_workout') return;
+    if (wasActive && !isActiveNow) {
       void advanceStep();
     }
-  }, [advanceStep, isTourActive, step?.id, workoutActiveSession, workoutCompletedSessions.length]);
+  }, [advanceStep, isTourActive, step?.id, workoutActiveSession]);
 
-  // Keep the finish button visible/stable by closing the number pad for the finish step.
+  // Advance when user reaches the Insights tab.
   useEffect(() => {
-    if (!isTourActive || step?.id !== 'finish_workout') return;
-    closeNumberPad();
-  }, [closeNumberPad, isTourActive, step?.id]);
+    if (!isTourActive || step?.id !== 'go_insights') return;
+    if (isOnStepRoute('/(tabs)/insights')) {
+      void advanceStep();
+    }
+  }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
 
   const contextValue = useMemo<InAppTourContextValue>(() => ({
     registerAnchorRect,
