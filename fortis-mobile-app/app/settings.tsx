@@ -23,6 +23,7 @@ import {
   ChatBubbleLeftEllipsisIcon,
   BugAntIcon,
   MagnifyingGlassIcon,
+  TrashIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -33,6 +34,7 @@ import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { supabase } from '@/src/lib/supabase';
 
 interface SettingsRowProps {
   icon: React.ReactNode;
@@ -82,6 +84,7 @@ export default function SettingsScreen() {
   });
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
 
   // Theme mode labels
@@ -183,6 +186,62 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleDeleteAccount = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      'Delete account?',
+      'This permanently deletes your account and data. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeletingAccount(true);
+            try {
+              const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+              if (sessionError || !session?.access_token) {
+                throw new Error('Please sign in again to delete your account.');
+              }
+
+              const { error } = await supabase.functions.invoke('delete-account', {
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                },
+              });
+              if (error) {
+                const context = (error as { context?: { body?: unknown } }).context;
+                const rawBody = context?.body;
+                let detailedMessage: string | null = null;
+                if (rawBody) {
+                  try {
+                    const parsed = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
+                    detailedMessage = parsed?.error?.message ?? parsed?.message ?? null;
+                  } catch {
+                    detailedMessage = typeof rawBody === 'string' ? rawBody : null;
+                  }
+                }
+                throw new Error(detailedMessage || error.message || 'Unable to delete account.');
+              }
+              try {
+                await signOut();
+              } catch (signOutError) {
+                console.warn('[Settings] Sign out after delete failed', signOutError);
+              }
+              router.replace('/auth');
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Unable to delete account.';
+              Alert.alert('Delete failed', message);
+            } finally {
+              setIsDeletingAccount(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleOpenExerciseLibrary = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/exercises');
@@ -192,6 +251,11 @@ export default function SettingsScreen() {
   const cardStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+  };
+
+  const dangerCardStyle = {
+    backgroundColor: isDark ? 'rgba(255, 82, 82, 0.14)' : 'rgba(255, 82, 82, 0.1)',
+    borderColor: isDark ? 'rgba(255, 82, 82, 0.35)' : 'rgba(255, 82, 82, 0.28)',
   };
 
   const dividerStyle = {
@@ -342,6 +406,25 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {/* Danger Zone Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionHeader, { color: colors.error }]}>Danger Zone</Text>
+
+            <View style={[styles.settingsCard, cardStyle, dangerCardStyle]}>
+              <TouchableOpacity
+                style={styles.dangerButton}
+                onPress={handleDeleteAccount}
+                disabled={isDeletingAccount}
+                activeOpacity={0.7}
+              >
+                <TrashIcon color={colors.error} size={20} strokeWidth={2} />
+                <Text style={[styles.dangerText, { color: colors.error }]}>
+                  {isDeletingAccount ? 'Deleting account...' : 'Permanently delete account'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {/* Version */}
           <Text style={[styles.version, { color: colors.textSecondary }]}>Fortis v1.0.0</Text>
         </ScrollView>
@@ -449,6 +532,17 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.lg,
   },
   signOutText: {
+    ...Typography.button,
+    color: Colors.error,
+  },
+  dangerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+  },
+  dangerText: {
     ...Typography.button,
     color: Colors.error,
   },

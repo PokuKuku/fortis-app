@@ -1,4 +1,4 @@
-export const IN_APP_TOUR_VERSION = 4 as const;
+export const IN_APP_TOUR_VERSION = 5 as const;
 
 export const GET_STARTED_TEMPLATE_ID = 'default-template-get-started' as const;
 export const GET_STARTED_WORKOUT_ID = `${GET_STARTED_TEMPLATE_ID}-workout` as const;

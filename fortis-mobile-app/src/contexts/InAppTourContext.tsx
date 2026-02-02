@@ -85,7 +85,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'quick_start',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'This button starts your default workout. Tap the dumbbell to choose what it launches, and press & hold anytime to change it later.',
+    body: 'This button starts your default workout or continues your default program. Tap the dumbbell to set your default, and press & hold anytime to change it later.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
