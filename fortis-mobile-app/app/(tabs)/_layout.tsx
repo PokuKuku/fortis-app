@@ -21,7 +21,7 @@ import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { GET_STARTED_TEMPLATE_ID, TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';

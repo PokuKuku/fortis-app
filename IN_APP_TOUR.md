@@ -19,15 +19,17 @@ We will **plan first**, then implement.
 ### Happy Path Flow
 
 1) User finishes onboarding + paywall (entitled) -> lands on Programs tab.
-2) Tour starts on Programs -> points to Quick Start FAB.
-3) Start config modal opens; user chooses any workout/program to set.
-4) User presses the Start FAB to launch the chosen workout.
-5) In workout, highlight the **rest timer** control and how it works.
-6) In workout, explain the **clock icon** sets rest timer defaults.
-7) In workout, explain the **set columns** (set, prev, weight, reps, done).
-8) In workout, explain **exercise card basics** (menu, add sets).
-9) User closes the workout session (X).
-10) Tour points to the Insights tab; user taps it, then the Insights intro finishes the tour.
+2) Tour welcomes the user (intro text).
+3) Tour points to Quick Start FAB.
+4) Start config modal opens; user chooses any workout/program to set.
+5) User presses the Start FAB to launch the chosen workout.
+6) In workout, highlight the **rest timer** control and how it works.
+7) In workout, explain the **clock icon** sets rest timer defaults.
+8) In workout, explain the **set columns** (set, prev, weight, reps, done).
+9) In workout, explain **exercise card basics** (menu, add sets).
+10) User closes the workout session (X).
+11) Tour points to the Insights tab; user taps it, then the Insights intro finishes the tour.
+12) System in-app review prompt appears right after the tour completes.
 
 ### Step Sequence + Copy
 
@@ -38,16 +40,17 @@ Notes:
 
 | Step | Screen/Route | Anchor | Copy | Advance |
 |---:|---|---|---|---|
-| 1 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | **This button starts your default workout.** Tap the dumbbell to choose what it launches, and press & hold anytime to change it later. | Tap FAB |
-| 2 | Start Config Modal | Any workout/program option | Choose a workout or program and confirm to set your default. | Confirm selection |
-| 3 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | Now press the dumbbell Start button to launch your workout. | Tap FAB |
-| 4 | `/workout/active` | Rest timer control | **Rest Timer** keeps you on pace between sets. Tap to start/pause, and adjust as needed. | Tap Next |
-| 5 | `/workout/active` | Clock icon | Set your rest timer defaults here. | Tap Next |
-| 6 | `/workout/active` | Set columns row | **Columns:** set → prev → weight → reps → done. Tap a box to edit, long‑press to apply to remaining sets. | Tap Next |
-| 7 | `/workout/active` | Exercise card header | **Exercise cards:** use the menu for options and “+ Add Set” to add volume. | Tap Next |
-| 8 | `/workout/active` | Close (X) | Tap X to close the workout. | Close workout |
-| 9 | `/(tabs)` | Insights tab | Next, tap Insights to see your progress. | Tap Insights tab |
-| 10 | `/(tabs)/insights` | n/a | Insights power Fortis AI—tap "Ask Fortis" on any insight to get a breakdown and next steps. | Tap Done |
+| 1 | `/(tabs)/index` | n/a | Welcome to Fortis! Congrats on committing to your fitness journey! Now let’s show you around. | Tap Next |
+| 2 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | **This button starts your default workout.** Tap the dumbbell to choose what it launches, and press & hold anytime to change it later. | Tap FAB |
+| 3 | Start Config Modal | Any workout/program option | Choose a workout or program and confirm to set your default. | Confirm selection |
+| 4 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | Now press the dumbbell Start button to launch your workout. | Tap FAB |
+| 5 | `/workout/active` | Rest timer control | **Rest Timer** keeps you on pace between sets. Tap to start/pause, and adjust as needed. | Tap Next |
+| 6 | `/workout/active` | Clock icon | Set your rest timer defaults here. | Tap Next |
+| 7 | `/workout/active` | Set columns row | **Columns:** set → prev → weight → reps → done. Tap a box to edit, long‑press to apply to remaining sets. | Tap Next |
+| 8 | `/workout/active` | Exercise card header | **Exercise cards:** use the menu for options and “+ Add Set” to add volume. | Tap Next |
+| 9 | `/workout/active` | Close (X) | Tap X to close the workout. | Close workout |
+| 10 | `/(tabs)` | Insights tab | Next, tap Insights to see your progress. | Tap Insights tab |
+| 11 | `/(tabs)/insights` | n/a | Insights power Fortis AI—tap "Ask Fortis" on any insight to get a breakdown and next steps. | Tap Done |
 
 ---
 

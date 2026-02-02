@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { usePathname, useRouter, useSegments } from 'expo-router';
-import { HAS_AUTO_SET_GET_STARTED_PRESET_KEY } from '@/src/constants/storageKeys';
+import { HAS_AUTO_SET_GET_STARTED_PRESET_KEY, HAS_REQUESTED_REVIEW_KEY } from '@/src/constants/storageKeys';
 import {
   GET_STARTED_TEMPLATE_ID,
   GET_STARTED_WORKOUT_ID,
@@ -16,8 +16,10 @@ import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetSt
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
+import * as StoreReview from 'expo-store-review';
 
 type TourStepId =
+  | 'welcome'
   | 'programs_intro'
   | 'start_config'
   | 'launch_workout'
@@ -48,6 +50,16 @@ type TourStep = {
 };
 
 const TOUR_STEPS: TourStep[] = [
+  {
+    id: 'welcome',
+    route: '/(tabs)',
+    body: 'Welcome to Fortis! Congrats on committing to your fitness journey! Now let’s show you around.',
+    mode: 'blocking',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
+  },
   {
     id: 'programs_intro',
     route: '/(tabs)',
@@ -290,6 +302,19 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, updateProfile]);
 
+  const requestAppReviewIfNeeded = useCallback(async () => {
+    try {
+      const alreadyRequested = await getScopedItem(HAS_REQUESTED_REVIEW_KEY);
+      if (alreadyRequested === 'true') return;
+      const isAvailable = await StoreReview.isAvailableAsync();
+      if (!isAvailable) return;
+      await StoreReview.requestReview();
+      await setScopedItem(HAS_REQUESTED_REVIEW_KEY, 'true');
+    } catch {
+      // Ignore review prompt failures; avoid blocking the tour completion.
+    }
+  }, []);
+
   const startTour = useCallback(async () => {
     if (!tourLoaded) return;
     if (isTourActive) return;
@@ -319,7 +344,12 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
     await setTourStateAndPersist(next);
     void markTourSeenOnServer({ status, completedAt: now });
-  }, [markTourSeenOnServer, setTourStateAndPersist, tourLoaded]);
+    if (status === 'completed') {
+      setTimeout(() => {
+        void requestAppReviewIfNeeded();
+      }, 600);
+    }
+  }, [markTourSeenOnServer, requestAppReviewIfNeeded, setTourStateAndPersist, tourLoaded]);
 
   const advanceStep = useCallback(async () => {
     if (!tourLoaded) return;
