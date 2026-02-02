@@ -2,6 +2,7 @@ import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { addDays, format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
@@ -727,6 +728,7 @@ export default function InsightsScreen() {
   const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights();
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
+  const isFocused = useIsFocused();
   const {
     trackInsightsViewed,
     trackVerdictWhyTapped,
@@ -933,7 +935,34 @@ export default function InsightsScreen() {
   };
 
   const completedSessions = useWorkoutStore((s) => s.completedSessions);
+  const lastCompletedKeyRef = useRef<string | null>(null);
+  const pendingRefreshRef = useRef(false);
+  const latestCompletedKey = useMemo(() => {
+    if (completedSessions.length === 0) return null;
+    const latest = completedSessions[0];
+    const timestamp = latest.completedAt ?? latest.startedAt;
+    const millis = timestamp ? timestamp.getTime() : 0;
+    return `${latest.localId}:${millis}`;
+  }, [completedSessions]);
   const showStartedCard = completedSessions.length === 0;
+
+  useEffect(() => {
+    if (!latestCompletedKey) return;
+    if (latestCompletedKey === lastCompletedKeyRef.current) return;
+    lastCompletedKeyRef.current = latestCompletedKey;
+    if (isFocused) {
+      refresh();
+    } else {
+      pendingRefreshRef.current = true;
+    }
+  }, [isFocused, latestCompletedKey, refresh]);
+
+  useEffect(() => {
+    if (!isFocused) return;
+    if (!pendingRefreshRef.current) return;
+    pendingRefreshRef.current = false;
+    refresh();
+  }, [isFocused, refresh]);
 
   const hasInsights =
     showStartedCard ||

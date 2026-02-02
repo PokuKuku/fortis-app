@@ -82,7 +82,7 @@ export const getBodyweightMovementFactor = (
       'serratus anterior',
     ].includes(primary)
   ) {
-    return 0.6;
+    return 0.4;
   }
   if (
     [
@@ -201,14 +201,14 @@ export const getSetVolume = (
   if (reps === null || reps <= 0) return 0;
 
   const weight = set.weight ?? null;
+  let addedWeightNorm: number | null = null;
   if (weight !== null && weight > 0) {
     const resolvedUnit = resolveWeightUnit(
       set.weightUnit,
       options.fallbackUnit,
       context.preferredUnits
     );
-    const normalizedWeight = normalizeWeight(weight, resolvedUnit, context.preferredUnits);
-    return normalizedWeight * reps;
+    addedWeightNorm = normalizeWeight(weight, resolvedUnit, context.preferredUnits);
   }
 
   const exerciseMeta = options.exerciseMeta;
@@ -216,16 +216,19 @@ export const getSetVolume = (
     exerciseMeta?.equipment ?? null,
     exerciseMeta?.name ?? options.exerciseName ?? null
   );
-  if (!isBodyweight) return 0;
+  let bodyweightNorm: number | null = null;
+  if (isBodyweight) {
+    const bodyweightKg = resolveBodyweightKg(context);
+    const movementFactor = getBodyweightMovementFactor(exerciseMeta?.primaryMuscles ?? null);
+    if (bodyweightKg && movementFactor > 0) {
+      const bodyweightPreferred =
+        context.preferredUnits === 'metric' ? bodyweightKg : bodyweightKg * KG_TO_LBS;
+      bodyweightNorm = bodyweightPreferred * movementFactor;
+    }
+  }
 
-  const bodyweightKg = resolveBodyweightKg(context);
-  const movementFactor = getBodyweightMovementFactor(exerciseMeta?.primaryMuscles ?? null);
-  if (!bodyweightKg || movementFactor <= 0) return 0;
-
-  const bodyweightPreferred =
-    context.preferredUnits === 'metric' ? bodyweightKg : bodyweightKg * KG_TO_LBS;
-
-  return bodyweightPreferred * movementFactor * reps;
+  if (addedWeightNorm === null && bodyweightNorm === null) return 0;
+  return (Number(addedWeightNorm ?? 0) + Number(bodyweightNorm ?? 0)) * reps;
 };
 
 export const getSessionVolume = (

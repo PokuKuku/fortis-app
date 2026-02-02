@@ -176,7 +176,7 @@ export default function SettingsScreen() {
             try {
               await signOut();
               console.log('[Settings] Sign out completed');
-              router.replace('/auth');
+              router.replace('/onboarding/welcome');
             } finally {
               setIsSigningOut(false);
             }
@@ -229,7 +229,7 @@ export default function SettingsScreen() {
               } catch (signOutError) {
                 console.warn('[Settings] Sign out after delete failed', signOutError);
               }
-              router.replace('/auth');
+              router.replace('/onboarding/welcome');
             } catch (error) {
               const message = error instanceof Error ? error.message : 'Unable to delete account.';
               Alert.alert('Delete failed', message);

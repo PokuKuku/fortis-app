@@ -369,22 +369,25 @@ export async function fetchInsightChartSeries(
       .forEach((row) => {
         if (!row?.exercise_id) return;
         if (!row.reps || row.reps <= 0) return;
-        let weightNorm: number | null = null;
+        let addedWeightNorm: number | null = null;
         if (row.weight && row.weight > 0) {
-          weightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
-        } else {
-          const equipment = row.exercises?.equipment ?? null;
-          const fallbackName = row.exercises?.name ?? row.exercise_name_snapshot ?? '';
-          if (isBodyweightExercise(equipment, fallbackName)) {
-            const primaryMuscles =
-              row.primary_muscles_snapshot ?? row.exercises?.primary_muscles ?? null;
-            const movementFactor = getBodyweightMovementFactor(primaryMuscles ?? null);
-            if (resolvedBodyweightPreferred && movementFactor > 0) {
-              weightNorm = resolvedBodyweightPreferred * movementFactor;
-            }
+          addedWeightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
+        }
+
+        let bodyweightNorm: number | null = null;
+        const equipment = row.exercises?.equipment ?? null;
+        const fallbackName = row.exercises?.name ?? row.exercise_name_snapshot ?? '';
+        if (isBodyweightExercise(equipment, fallbackName)) {
+          const primaryMuscles =
+            row.primary_muscles_snapshot ?? row.exercises?.primary_muscles ?? null;
+          const movementFactor = getBodyweightMovementFactor(primaryMuscles ?? null);
+          if (resolvedBodyweightPreferred && movementFactor > 0) {
+            bodyweightNorm = resolvedBodyweightPreferred * movementFactor;
           }
         }
-        if (weightNorm === null) return;
+
+        if (addedWeightNorm === null && bodyweightNorm === null) return;
+        const weightNorm = (addedWeightNorm ?? 0) + (bodyweightNorm ?? 0);
         const volume = weightNorm * row.reps;
         const name = row.exercises?.name ?? row.exercise_name_snapshot ?? 'Exercise';
         const existing = byExercise.get(row.exercise_id) ?? { name, volume: 0 };

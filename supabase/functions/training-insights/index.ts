@@ -452,10 +452,22 @@ const fetchWeekToDateVolume = async (
     .eq('user_id', userId)
     .order('recorded_at', { ascending: false })
     .limit(1);
+  const { data: profileRow } = await adminClient
+    .from('profiles')
+    .select('weight_kg')
+    .eq('id', userId)
+    .maybeSingle();
   const bodyweightRow = bodyweightRows?.[0];
   const bodyweightPreferred = bodyweightRow
     ? normalizeBodyweight(bodyweightRow.weight, bodyweightRow.unit, preferredUnits)
     : null;
+  const profileWeightPreferred =
+    profileRow?.weight_kg && profileRow.weight_kg > 0
+      ? preferredUnits === 'metric'
+        ? profileRow.weight_kg
+        : profileRow.weight_kg * 2.20462
+      : null;
+  const resolvedBodyweightPreferred = bodyweightPreferred ?? profileWeightPreferred ?? null;
 
   const thisWeek = { ...empty, week_start: toIsoDate(currentWeekStartDate) };
   const lastWeek = { ...empty, week_start: toIsoDate(lastWeekStartDate) };
@@ -487,26 +499,28 @@ const fetchWeekToDateVolume = async (
       if (set.is_warmup) return;
       if (set.reps === null || set.reps <= 0) return;
 
-      let weightNorm: number | null = null;
+      let addedWeightNorm: number | null = null;
       if (set.weight !== null && set.weight > 0) {
-        weightNorm = normalizeWeight(set.weight, set.weight_unit, preferredUnits);
-      } else {
-        const equipment = set.exercise_id ? exerciseEquipmentById.get(set.exercise_id) : null;
-        const fallbackName = set.exercise_id
-          ? exerciseNameById.get(set.exercise_id) ?? set.exercise_name_snapshot ?? ''
-          : set.exercise_name_snapshot ?? '';
-        if (isBodyweightExercise(equipment ?? null, fallbackName)) {
-          const factor = getBodyweightMovementFactor(
-            set.primary_muscles_snapshot ?? (set.exercise_id ? exercisePrimaryById.get(set.exercise_id) ?? null : null),
-            set.exercise_id ? exerciseCategoryById.get(set.exercise_id) ?? null : null
-          );
-          if (bodyweightPreferred && factor > 0) {
-            weightNorm = bodyweightPreferred * factor;
-          }
+        addedWeightNorm = normalizeWeight(set.weight, set.weight_unit, preferredUnits);
+      }
+
+      let bodyweightNorm: number | null = null;
+      const equipment = set.exercise_id ? exerciseEquipmentById.get(set.exercise_id) : null;
+      const fallbackName = set.exercise_id
+        ? exerciseNameById.get(set.exercise_id) ?? set.exercise_name_snapshot ?? ''
+        : set.exercise_name_snapshot ?? '';
+      if (isBodyweightExercise(equipment ?? null, fallbackName)) {
+        const factor = getBodyweightMovementFactor(
+          set.primary_muscles_snapshot ?? (set.exercise_id ? exercisePrimaryById.get(set.exercise_id) ?? null : null),
+          set.exercise_id ? exerciseCategoryById.get(set.exercise_id) ?? null : null
+        );
+        if (resolvedBodyweightPreferred && factor > 0) {
+          bodyweightNorm = resolvedBodyweightPreferred * factor;
         }
       }
 
-      if (weightNorm === null) return;
+      if (addedWeightNorm === null && bodyweightNorm === null) return;
+      const weightNorm = (addedWeightNorm ?? 0) + (bodyweightNorm ?? 0);
       target.total_volume = clampNumber(target.total_volume) + weightNorm * set.reps;
     });
   });
@@ -723,7 +737,7 @@ const isBodyweightExercise = (equipment?: string | null, name?: string | null): 
 const FULL_BODY_PATTERN = /full[- _]?body|total[- _]?body/i;
 
 const BODYWEIGHT_FACTORS: Record<string, number> = {
-  chest: 0.6,
+  chest: 0.4,
   front_delts: 0.5,
   side_delts: 0.5,
   rear_delts: 0.5,
@@ -1416,10 +1430,22 @@ const buildWorkoutRecapInsights = async ({
     .eq('user_id', userId)
     .order('recorded_at', { ascending: false })
     .limit(1);
+  const { data: profileRow } = await adminClient
+    .from('profiles')
+    .select('weight_kg')
+    .eq('id', userId)
+    .maybeSingle();
   const bodyweightRow = bodyweightRows?.[0];
   const bodyweightPreferred = bodyweightRow
     ? normalizeBodyweight(bodyweightRow.weight, bodyweightRow.unit, preferredUnits)
     : null;
+  const profileWeightPreferred =
+    profileRow?.weight_kg && profileRow.weight_kg > 0
+      ? preferredUnits === 'metric'
+        ? profileRow.weight_kg
+        : profileRow.weight_kg * 2.20462
+      : null;
+  const resolvedBodyweightPreferred = bodyweightPreferred ?? profileWeightPreferred ?? null;
 
   const volumeUnit = preferredUnits === 'metric' ? 'kg' : 'lbs';
   const latestSession = sessions[0];
@@ -1440,35 +1466,36 @@ const buildWorkoutRecapInsights = async ({
       loggedSets += 1;
       exercises.add(row.exercise_id);
 
-      let weightNorm: number | null = null;
+      let addedWeightNorm: number | null = null;
       if (row.weight && row.weight > 0) {
-        weightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
-      } else {
-        const equipment = exerciseEquipmentById.get(row.exercise_id);
-        const fallbackName = exerciseNameById.get(row.exercise_id) ?? row.exercise_name_snapshot ?? '';
-        if (isBodyweightExercise(equipment, fallbackName)) {
-          const factor = getBodyweightMovementFactor(
-            row.primary_muscles_snapshot ?? exercisePrimaryById.get(row.exercise_id) ?? null,
-            exerciseCategoryById.get(row.exercise_id) ?? null
-          );
-          if (bodyweightPreferred && factor > 0) {
-            weightNorm = bodyweightPreferred * factor;
-          }
+        addedWeightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
+      }
+
+      let bodyweightNorm: number | null = null;
+      const equipment = exerciseEquipmentById.get(row.exercise_id);
+      const fallbackName = exerciseNameById.get(row.exercise_id) ?? row.exercise_name_snapshot ?? '';
+      if (isBodyweightExercise(equipment, fallbackName)) {
+        const factor = getBodyweightMovementFactor(
+          row.primary_muscles_snapshot ?? exercisePrimaryById.get(row.exercise_id) ?? null,
+          exerciseCategoryById.get(row.exercise_id) ?? null
+        );
+        if (resolvedBodyweightPreferred && factor > 0) {
+          bodyweightNorm = resolvedBodyweightPreferred * factor;
         }
       }
 
-      if (weightNorm !== null) {
-        totalVolume += weightNorm * row.reps;
-        const repsClamped = Math.min(row.reps, 12);
-        const e1rm = weightNorm * (1 + repsClamped / 30.0);
-        if (!topSet || e1rm > topSet.e1rm) {
-          topSet = {
-            exerciseId: row.exercise_id,
-            weight: weightNorm,
-            reps: row.reps,
-            e1rm,
-          };
-        }
+      if (addedWeightNorm === null && bodyweightNorm === null) return;
+      const weightNorm = (addedWeightNorm ?? 0) + (bodyweightNorm ?? 0);
+      totalVolume += weightNorm * row.reps;
+      const repsClamped = Math.min(row.reps, 12);
+      const e1rm = weightNorm * (1 + repsClamped / 30.0);
+      if (!topSet || e1rm > topSet.e1rm) {
+        topSet = {
+          exerciseId: row.exercise_id,
+          weight: weightNorm,
+          reps: row.reps,
+          e1rm,
+        };
       }
     });
 
