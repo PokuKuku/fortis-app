@@ -24,6 +24,7 @@ import {
   BugAntIcon,
   MagnifyingGlassIcon,
   TrashIcon,
+  DocumentTextIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -87,11 +88,31 @@ export default function SettingsScreen() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
 
+  const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
+  const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
+
   // Theme mode labels
   const themeModeLabel: Record<ThemeMode, string> = {
     system: 'System',
     light: 'Light',
     dark: 'Dark',
+  };
+
+  const openExternalLink = async (url: string, label: string) => {
+    if (!url) {
+      Alert.alert('Missing link', `${label} link is not configured yet.`);
+      return;
+    }
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert('Unable to open link', 'Please try again later.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Unable to open link', 'Please try again later.');
+    }
   };
 
   const handleToggleTheme = async () => {
@@ -381,6 +402,31 @@ export default function SettingsScreen() {
                 icon={<BugAntIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Report a Bug"
                 onPress={handleSendFeedback}
+                colors={colors}
+                isDark={isDark}
+              />
+            </View>
+          </View>
+
+          {/* Legal & Security Section */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Legal & Security</Text>
+
+            <View style={[styles.settingsCard, cardStyle]}>
+              <SettingsRow
+                icon={<DocumentTextIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Terms & Conditions"
+                onPress={() => openExternalLink(TERMS_OF_SERVICE_URL, 'Terms & Conditions')}
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<DocumentTextIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Privacy Policy"
+                onPress={() => openExternalLink(PRIVACY_POLICY_URL, 'Privacy Policy')}
                 colors={colors}
                 isDark={isDark}
               />

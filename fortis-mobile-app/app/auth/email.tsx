@@ -44,13 +44,15 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 
 export default function EmailAuthScreen() {
   const router = useRouter();
-  const { source } = useLocalSearchParams<{ source?: string }>();
+  const { source, mode } = useLocalSearchParams<{ source?: string; mode?: string }>();
   const { signInWithEmail, signUpWithEmail, setAllowProfileCreation } = useAuth();
   const { colors, isDark } = useTheme();
   const sourceValue = Array.isArray(source) ? source[0] : source;
-  const [isSignUp, setIsSignUp] = useState(false);
+  const modeValue = Array.isArray(mode) ? mode[0] : mode;
+  const [isSignUp, setIsSignUp] = useState(modeValue === 'signup');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmationNotice, setConfirmationNotice] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,6 +61,16 @@ export default function EmailAuthScreen() {
       setAllowProfileCreation(false);
     };
   }, [setAllowProfileCreation, sourceValue]);
+
+  useEffect(() => {
+    if (modeValue === 'signup') {
+      setIsSignUp(true);
+      return;
+    }
+    if (modeValue === 'signin') {
+      setIsSignUp(false);
+    }
+  }, [modeValue]);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -78,6 +90,10 @@ export default function EmailAuthScreen() {
     },
     input: { color: colors.textPrimary },
     toggleText: { color: colors.textSecondary },
+    noticeContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    noticeText: { color: colors.textSecondary },
   };
 
   const {
@@ -98,12 +114,14 @@ export default function EmailAuthScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsSignUp(!isSignUp);
     setError(null);
+    setConfirmationNotice(null);
     reset();
   };
 
   const onSubmit = async (data: SignInFormData | SignUpFormData) => {
     Keyboard.dismiss();
     setError(null);
+    setConfirmationNotice(null);
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -127,6 +145,11 @@ export default function EmailAuthScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (isSignUp) {
+        setConfirmationNotice(
+          "Check your email to confirm your account. If you don't see it in a few minutes, check your spam or promotions folder."
+        );
+      }
       // Auth context will handle navigation
     }
   };
@@ -170,6 +193,13 @@ export default function EmailAuthScreen() {
 
               {/* Form */}
               <View style={styles.form}>
+                {confirmationNotice && (
+                  <View style={[styles.noticeContainer, themedStyles.noticeContainer]}>
+                    <Text style={[styles.noticeText, themedStyles.noticeText]}>
+                      {confirmationNotice}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.inputContainer}>
                   <Text style={[styles.label, themedStyles.label]}>Email</Text>
                   <Controller
@@ -380,6 +410,16 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: Spacing.lg,
+  },
+  noticeContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+  },
+  noticeText: {
+    ...Typography.bodySmall,
+    color: Colors.textSecondary,
   },
   inputContainer: {
     gap: Spacing.xs,

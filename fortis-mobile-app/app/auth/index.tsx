@@ -209,10 +209,10 @@ export default function AuthWelcomeScreen() {
   const handleEmailPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (onboardingValue === 'complete') {
-      router.push({ pathname: '/auth/email', params: { source: 'onboarding-complete' } });
+      router.push({ pathname: '/auth/email', params: { source: 'onboarding-complete', mode: 'signup' } });
       return;
     }
-    router.push('/auth/email');
+    router.push({ pathname: '/auth/email', params: { mode: 'signup' } });
   };
 
   const handleBack = () => {

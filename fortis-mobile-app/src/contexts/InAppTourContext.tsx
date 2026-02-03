@@ -587,7 +587,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
   );
   const hasSeenLocal = tourState?.status === 'completed' || tourState?.status === 'skipped';
-  const FORCE_IN_APP_TOUR = true;
+  const FORCE_IN_APP_TOUR = false;
   const isEligibleForStart =
     tourLoaded &&
     !isInOnboardingOrAuth &&
