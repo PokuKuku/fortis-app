@@ -13,6 +13,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { clearOnboardingState, getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
 import { Typography } from '@/constants/Typography';
+import { trackOnboardingFinished } from '@/src/services/onboardingAnalyticsService';
 
 const LOADING_DURATION_MS = 13000;
 const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
@@ -497,6 +498,7 @@ export default function OnboardingCompleteScreen() {
 
       const { error } = await Promise.race([updateProfile(updates), timeoutResult]);
       if (!error && !didTimeout) {
+        trackOnboardingFinished();
         await clearOnboardingState();
         router.replace('/(tabs)');
       }
