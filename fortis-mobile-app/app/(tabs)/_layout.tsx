@@ -213,23 +213,13 @@ export default function TabLayout() {
     }
   };
 
-  const handleStartPress = async () => {
+  const startWorkoutFromPreset = async (preset: StartPreset) => {
     if (isWorkoutActive) return;
-    if (isTourActive && activeStepId === 'quick_start') {
-      await openStartConfig();
-      advanceStep();
-      return;
-    }
-    if (!startPreset) {
-      await openStartConfig();
-      return;
-    }
-
     if (startActionLock.current) return;
     startActionLock.current = true;
 
     try {
-      if (startPreset.type === 'blank') {
+      if (preset.type === 'blank') {
         startWorkout();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
         router.push('/workout/active');
@@ -240,14 +230,14 @@ export default function TabLayout() {
         await fetchPrograms();
       }
 
-      if (startPreset.type === 'template') {
-        const hasTemplateWorkout = !!startPreset.templateWorkoutId
+      if (preset.type === 'template') {
+        const hasTemplateWorkout = !!preset.templateWorkoutId
           && templates.some((template) =>
-            template.workouts.some((workout) => workout.id === startPreset.templateWorkoutId)
+            template.workouts.some((workout) => workout.id === preset.templateWorkoutId)
           );
         const templateId = hasTemplateWorkout
-          ? startPreset.templateWorkoutId
-          : startPreset.templateId;
+          ? preset.templateWorkoutId
+          : preset.templateId;
         if (!templateId) {
           await setStartPreset(null);
           openStartConfig();
@@ -261,8 +251,8 @@ export default function TabLayout() {
         }
       }
 
-      if (startPreset.type === 'program') {
-        const program = programs.find((item) => item.id === startPreset.programId);
+      if (preset.type === 'program') {
+        const program = programs.find((item) => item.id === preset.programId);
         const workouts = program?.workouts ? [...program.workouts] : [];
         workouts.sort((a, b) => a.dayNumber - b.dayNumber);
         const totalDays = workouts.length;
@@ -290,26 +280,35 @@ export default function TabLayout() {
     }
   };
 
+  const handleStartPress = async () => {
+    if (isWorkoutActive) return;
+    if (isTourActive && activeStepId === 'quick_start') {
+      await openStartConfig();
+      return;
+    }
+    if (!startPreset) {
+      await openStartConfig();
+      return;
+    }
+
+    await startWorkoutFromPreset(startPreset);
+  };
+
   const handleStartLongPress = () => {
     if (isWorkoutActive) return;
     if (isTourActive) return;
     openStartConfig();
   };
 
-  useEffect(() => {
-    if (!isTourActive || activeStepId !== 'start_config') return;
-    if (startConfigVisible || isWorkoutActive) return;
-    void openStartConfig();
-  }, [activeStepId, isTourActive, isWorkoutActive, openStartConfig, startConfigVisible]);
-
   const handleChangeStartPreset = (preset: StartPreset | null) => {
     setDraftStartPreset(preset);
   };
 
   const handleConfirmStartPreset = async () => {
-    await setStartPreset(draftStartPreset ?? null);
+    const nextPreset = draftStartPreset ?? null;
+    await setStartPreset(nextPreset);
     setStartConfigVisible(false);
-    if (isTourActive && activeStepId === 'start_config') {
+    if (isTourActive && activeStepId === 'quick_start' && nextPreset) {
       advanceStep();
     }
   };
@@ -606,7 +605,15 @@ export default function TabLayout() {
       ]}
       pointerEvents="auto"
     >
-      <TourAnchor id={TOUR_ANCHOR_IDS.quickStartFab}>
+      <TourAnchor
+        id={TOUR_ANCHOR_IDS.quickStartFab}
+        style={{
+          width: FAB_BUTTON_SIZE,
+          height: FAB_BUTTON_SIZE,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         <GlassButton
           circular
           size={FAB_BUTTON_SIZE}

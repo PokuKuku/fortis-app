@@ -19,6 +19,13 @@ export default function OnboardingGreetingScreen() {
   const textSize = scale(28);
   const commaOffset = -Math.round(textSize * 0.35);
   const logoNudge = -Math.round(textSize * 0.18);
+  const [lineWidth, setLineWidth] = useState(0);
+  const [nameWidth, setNameWidth] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(0);
+  const maxLineWidth = Math.max(lineWidth, nameWidth);
+  const lineScale = containerWidth > 0 && maxLineWidth > 0
+    ? Math.min(1, containerWidth / maxLineWidth)
+    : 1;
 
   useEffect(() => {
     let isActive = true;
@@ -94,26 +101,41 @@ export default function OnboardingGreetingScreen() {
           },
         ]}
       >
-        <View style={styles.line}>
-          <Text style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}>Welcome to</Text>
-          <View style={[styles.logoInline, { marginTop: logoNudge }]}>
-            <InlineAnimatedLogo fontSize={textSize} introDurationMs={450} shineDurationMs={1400} />
+        <View
+          style={styles.lineContainer}
+          onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
+        >
+          <View style={[styles.textGroup, { transform: [{ scale: lineScale }] }]}>
+            <View
+              style={styles.line}
+              onLayout={(event) => setLineWidth(event.nativeEvent.layout.width)}
+            >
+              <Text style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}>Welcome to</Text>
+              <View style={styles.logoGroup}>
+                <View style={[styles.logoInline, { marginTop: logoNudge }]}>
+                  <InlineAnimatedLogo fontSize={textSize} introDurationMs={450} shineDurationMs={1400} />
+                </View>
+                <Text
+                  style={[
+                    styles.text,
+                    styles.comma,
+                    { color: colors.textPrimary, fontSize: textSize, marginLeft: commaOffset },
+                  ]}
+                >
+                  ,
+                </Text>
+              </View>
+            </View>
+            {trailingText ? (
+              <Text
+                style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}
+                onLayout={(event) => setNameWidth(event.nativeEvent.layout.width)}
+              >
+                {trailingText}
+              </Text>
+            ) : null}
           </View>
-          <Text
-            style={[
-              styles.text,
-              styles.comma,
-              { color: colors.textPrimary, fontSize: textSize, marginLeft: commaOffset },
-            ]}
-          >
-            ,
-          </Text>
         </View>
-        {trailingText ? (
-          <Text style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}>
-            {trailingText}
-          </Text>
-        ) : null}
       </Animated.View>
     </OnboardingScreen>
   );
@@ -126,11 +148,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
   },
+  lineContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+  },
+  textGroup: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   line: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.xs,
+    flexWrap: 'nowrap',
+    maxWidth: '100%',
+    alignSelf: 'center',
+  },
+  logoGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
   },
   logoInline: {
     alignItems: 'center',
@@ -142,6 +182,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
     textAlign: 'center',
+    flexShrink: 1,
   },
   comma: {
     marginLeft: 0,

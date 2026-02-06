@@ -103,6 +103,47 @@ async function removeFromPendingQueue(exerciseId: string): Promise<void> {
   await savePendingQueue(filtered);
 }
 
+async function upsertStickyNoteForUser(
+  userId: string,
+  exerciseId: string,
+  content: string
+): Promise<{ success: boolean; error?: string }> {
+  const { data: updated, error: updateError } = await supabase
+    .from('exercise_sticky_notes')
+    .update({
+      content,
+      show_in_workout: true,
+    })
+    .eq('user_id', userId)
+    .eq('exercise_id', exerciseId)
+    .is('set_index', null)
+    .select('id');
+
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+
+  if (updated && updated.length > 0) {
+    return { success: true };
+  }
+
+  const { error: insertError } = await supabase
+    .from('exercise_sticky_notes')
+    .insert({
+      user_id: userId,
+      exercise_id: exerciseId,
+      set_index: null,
+      content,
+      show_in_workout: true,
+    });
+
+  if (insertError) {
+    return { success: false, error: insertError.message };
+  }
+
+  return { success: true };
+}
+
 /**
  * Sync a single sticky note to Supabase (upsert)
  */
@@ -135,25 +176,11 @@ export async function syncStickyNote(
   }
 
   try {
-    // Upsert the sticky note
-    const { error } = await supabase
-      .from('exercise_sticky_notes')
-      .upsert(
-        {
-          user_id: user.id,
-          exercise_id: exerciseId,
-          content,
-          show_in_workout: true,
-        },
-        {
-          onConflict: 'user_id,exercise_id',
-        }
-      );
-
-    if (error) {
+    const { success, error } = await upsertStickyNoteForUser(user.id, exerciseId, content);
+    if (!success) {
       console.error('Error syncing sticky note:', error);
       await addToPendingQueue(exerciseId, content);
-      return { success: false, queued: true, error: error.message };
+      return { success: false, queued: true, error };
     }
 
     // Remove from pending queue if it was there
@@ -205,7 +232,8 @@ export async function deleteStickyNoteFromCloud(
       .from('exercise_sticky_notes')
       .delete()
       .eq('user_id', user.id)
-      .eq('exercise_id', exerciseId);
+      .eq('exercise_id', exerciseId)
+      .is('set_index', null);
 
     if (error) {
       console.error('Error deleting sticky note:', error);
@@ -317,21 +345,12 @@ export async function processPendingStickyNotesQueue(): Promise<{
         success = !error;
       } else {
         // Upsert operation
-        const { error } = await supabase
-          .from('exercise_sticky_notes')
-          .upsert(
-            {
-              user_id: user.id,
-              exercise_id: item.exerciseId,
-              content: item.content,
-              show_in_workout: true,
-            },
-            {
-              onConflict: 'user_id,exercise_id',
-            }
-          );
-
-        success = !error;
+        const upsertResult = await upsertStickyNoteForUser(
+          user.id,
+          item.exerciseId,
+          item.content
+        );
+        success = upsertResult.success;
       }
 
       if (success) {

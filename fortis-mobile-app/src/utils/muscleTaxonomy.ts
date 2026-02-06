@@ -1,5 +1,6 @@
-import type { WorkoutSession, WorkoutSet, WeightUnit } from '@/src/types/workout';
+import type { WorkoutSession, WeightUnit } from '@/src/types/workout';
 import type { Exercise } from '@/src/types/exercise';
+import { getSetVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 
 export type MuscleKey =
   | 'chest'
@@ -313,71 +314,10 @@ export function resolveMuscleTargetKeys(input: string): MuscleKey[] {
   return key ? [key] : [];
 }
 
-const BODYWEIGHT_EQUIPMENT = new Set([
-  'body only',
-  'bodyweight',
-  'body weight',
-  'assisted',
-  'assisted bodyweight',
-  'suspension',
-]);
-
-const BODYWEIGHT_NAME_REGEX = /\b(pull[- ]?up|chin[- ]?up|push[- ]?up|dip|plank|sit[- ]?up|crunch|inverted row)\b/i;
-
-export function isBodyweightExercise(exercise: Pick<Exercise, 'name' | 'equipment'>): boolean {
-  const equipment = normalizeInput(exercise.equipment || '');
-  if (equipment && BODYWEIGHT_EQUIPMENT.has(equipment)) {
-    return true;
-  }
-  if (!equipment && exercise.name) {
-    return BODYWEIGHT_NAME_REGEX.test(exercise.name);
-  }
-  return false;
-}
-
-const LBS_TO_KG = 1 / 2.20462;
-
-function toKg(weight: number, unit: WeightUnit | null | undefined): number {
-  if (!Number.isFinite(weight)) return 0;
-  if (unit === 'kg') return weight;
-  return weight * LBS_TO_KG;
-}
-
-type SetUnitOptions = {
-  isBodyweight?: boolean;
-  bodyweightKg?: number | null;
-  fallbackWeightUnit?: WeightUnit;
-};
-
-export function computeSetUnits(set: WorkoutSet, options: SetUnitOptions = {}): number {
-  if (!set.isCompleted) return 0;
-
-  const reps = set.reps ?? null;
-  const weight = set.weight ?? null;
-
-  if (reps !== null && reps <= 0) return 0;
-  if (weight !== null && weight <= 0) return 0;
-
-  if (typeof weight === 'number' && typeof reps === 'number') {
-    return toKg(weight, set.weightUnit ?? options.fallbackWeightUnit ?? 'lbs') * reps;
-  }
-
-  if (options.isBodyweight && typeof reps === 'number') {
-    if (options.bodyweightKg && options.bodyweightKg > 0) {
-      return options.bodyweightKg * reps;
-    }
-    return reps;
-  }
-
-  if (typeof reps === 'number') {
-    return reps;
-  }
-
-  return 1;
-}
-
 type AttributionOptions = {
   bodyweightKg?: number | null;
+  profileWeightKg?: number | null;
+  preferredUnits?: 'imperial' | 'metric';
   weightUnitByExercise?: Record<string, WeightUnit>;
 };
 
@@ -387,6 +327,13 @@ export function attributeSessionToMuscles(
   options: AttributionOptions = {}
 ): Record<MuscleKey, number> {
   const scores: Record<MuscleKey, number> = {};
+  const preferredUnits = options.preferredUnits ?? 'imperial';
+  const volumeContext: VolumeContext = {
+    preferredUnits,
+    weightUnits: options.weightUnitByExercise,
+    bodyweightKg: options.bodyweightKg ?? null,
+    profileWeightKg: options.profileWeightKg ?? null,
+  };
 
   session.exercises.forEach((workoutExercise) => {
     const exercise = exercisesById.get(workoutExercise.exerciseId);
@@ -396,14 +343,13 @@ export function attributeSessionToMuscles(
     const secondary = normalizeMuscleArray(exercise.secondaryMuscles || []);
     if (primary.length === 0 && secondary.length === 0) return;
 
-    const isBodyweight = isBodyweightExercise(exercise);
     const fallbackWeightUnit = options.weightUnitByExercise?.[workoutExercise.exerciseId];
 
     workoutExercise.sets.forEach((set) => {
-      const units = computeSetUnits(set, {
-        isBodyweight,
-        bodyweightKg: options.bodyweightKg ?? null,
-        fallbackWeightUnit,
+      const units = getSetVolume(set, volumeContext, {
+        exerciseMeta: exercise,
+        fallbackUnit: fallbackWeightUnit,
+        exerciseName: workoutExercise.exerciseName,
       });
       if (units <= 0) return;
 

@@ -35,16 +35,6 @@ export function WeeklyMuscleHeatmapCard() {
         <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>
           Muscles Hit This Week
         </Text>
-        <TouchableOpacity
-          style={[
-            styles.shareButton,
-            { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
-          ]}
-          onPress={handleShareSignature}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
-        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -59,13 +49,22 @@ export function WeeklyMuscleHeatmapCard() {
             scale={0.45}
             compact
           />
-          {!hasWorkouts && (
-            <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
-              Complete a workout to see your muscle activity
-            </Text>
-          )}
+          {!hasWorkouts && null}
         </View>
       )}
+
+      <View style={styles.shareRow}>
+        <TouchableOpacity
+          style={[
+            styles.shareButton,
+            { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+          ]}
+          onPress={handleShareSignature}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -78,9 +77,13 @@ const styles = StyleSheet.create({
   },
   headerRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
+  },
+  shareRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: Spacing.sm,
   },
   sectionHeader: {
     ...Typography.caption,

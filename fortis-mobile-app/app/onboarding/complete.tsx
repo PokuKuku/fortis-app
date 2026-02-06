@@ -584,7 +584,8 @@ export default function OnboardingCompleteScreen() {
       subtitle={undefined}
       hideTitle
       onBack={() => router.back()}
-      useScrollView={false}
+      useScrollView
+      scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.lg}
       footer={

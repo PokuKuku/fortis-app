@@ -195,17 +195,38 @@ export function WorkoutHistoryDetailModal({
       <View style={[styles.statsRow, themedStyles.statsRow]}>
         <View style={styles.stat}>
           <ClockIcon color={colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={[styles.statValue, themedStyles.statValue]}>{formatDuration(durationSeconds)}</Text>
+          <Text
+            style={[styles.statValue, themedStyles.statValue]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {formatDuration(durationSeconds)}
+          </Text>
         </View>
 
         <View style={styles.stat}>
           <ScaleIcon color={colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={[styles.statValue, themedStyles.statValue]}>{volumeLabel}</Text>
+          <Text
+            style={[styles.statValue, themedStyles.statValue]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {volumeLabel}
+          </Text>
         </View>
 
         <View style={styles.stat}>
           <TrophyIcon color={colors.textSecondary} size={16} strokeWidth={2} />
-          <Text style={[styles.statValue, themedStyles.statValue]}>0 PR</Text>
+          <Text
+            style={[styles.statValue, themedStyles.statValue]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            0 PR
+          </Text>
         </View>
       </View>
 
@@ -265,22 +286,27 @@ const styles = StyleSheet.create({
   },
   statsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     alignItems: 'center',
     paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
     marginBottom: Spacing.lg,
     backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderRadius: BorderRadius.lg,
   },
   stat: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+    minWidth: 0,
   },
   statValue: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
     color: Colors.textPrimary,
+    flexShrink: 1,
+    minWidth: 0,
   },
   exerciseList: {
     maxHeight: 300,

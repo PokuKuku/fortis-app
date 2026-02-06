@@ -9,7 +9,7 @@ We will **plan first**, then implement.
 - Persist (server): `has_seen_in_app_tour`, `tour_completed_at`, `tour_version`.
 - If app backgrounds mid-tour, resume gracefully (still the same one tour).
 - Include **Skip** (still sets `has_seen_in_app_tour = true`).
-- Teach the **workout basics** (rest timer, columns, and card/modal basics) after the workout opens.
+- Teach the core **workout basics** (rest timer) after the workout opens.
 - No new screens: anchored overlays/tooltips on real UI elements.
 
 ---
@@ -20,21 +20,15 @@ We will **plan first**, then implement.
 
 1) User finishes onboarding + paywall (entitled) -> lands on Programs tab.
 2) Tour welcomes the user (intro text).
-3) Tour points to **Workouts** and explains workout templates.
-4) Tour points to **Programs** and explains program templates + drag-and-drop.
-5) Tour points to the **AI chat button**, explains what it is, and asks the user to tap it.
-6) In the chat, explain what Fortis AI can be used for.
-7) Tour points to the **close (X)** button in chat; user closes it.
-8) Tour points to Quick Start FAB.
-9) Start config modal opens; user chooses any workout/program to set.
-10) User presses the Start FAB to launch the chosen workout.
-11) In workout, highlight the **rest timer** control and how it works.
-12) In workout, explain the **clock icon** sets rest timer defaults.
-13) In workout, explain the **set columns** (set, prev, weight, reps, done).
-14) In workout, explain **exercise card basics** (menu, add sets).
-15) User closes the workout session (X).
-16) Tour points to the Insights tab; user taps it, then the Insights intro finishes the tour.
-17) System in-app review prompt appears right after the tour completes.
+3) Tour explains Workouts + Programs (templates + drag-and-drop).
+4) Tour highlights Fortis AI chat and asks the user to open it.
+5) In the chat, explain what Fortis AI can be used for.
+6) Tour highlights the Quick Start FAB to set a default (Get Started).
+7) Tour asks the user to tap the FAB again to start the workout.
+8) In workout, highlight the **rest timer** control and how it works.
+9) In workout, explain how to set the **rest timer duration**.
+10) Workout closes automatically, then the user taps Insights.
+11) Insights intro finishes the tour.
 
 ### Step Sequence + Copy
 
@@ -46,21 +40,15 @@ Notes:
 | Step | Screen/Route | Anchor | Copy | Advance |
 |---:|---|---|---|---|
 | 1 | `/(tabs)/index` | n/a | Welcome to Fortis! Congrats on committing to your fitness journey! Now let’s show you around. | Tap Next |
-| 2 | `/(tabs)/index` | Workouts header | Workouts are templates that contain exercises. | Tap Next |
-| 3 | `/(tabs)/index` | Programs header | Programs are templates that contain workouts. Drag and drop a workout card into a program card to add it. | Tap Next |
-| 4 | `/(tabs)/index` | AI chat button | Tap to open the Fortis AI chat. | Tap AI button |
-| 5 | `/ai/chat` | n/a | Fortis helps with training analysis and insights on your data—weekly progress, trends, and what to do next. Ask about your training insights, weekly progress, trends, and what to focus on next. | Tap Next |
-| 6 | `/ai/chat` | Close (X) | Tap X to close the chat. | Close chat |
-| 7 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | **This button starts your default workout.** Tap the dumbbell to choose what it launches, and press & hold anytime to change it later. | Tap FAB |
-| 8 | Start Config Modal | Any workout/program option | Choose a workout or program and confirm to set your default. | Confirm selection |
-| 9 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | Now press the dumbbell Start button to launch your workout. | Tap FAB |
-| 10 | `/workout/active` | Rest timer control | **Rest Timer** keeps you on pace between sets. Tap to start/pause, and adjust as needed. | Tap Next |
-| 11 | `/workout/active` | Clock icon | Set your rest timer defaults here. | Tap Next |
-| 12 | `/workout/active` | Set columns row | **Columns:** set → prev → weight → reps → done. Tap a box to edit, long‑press to apply to remaining sets. | Tap Next |
-| 13 | `/workout/active` | Exercise card header | **Exercise cards:** use the menu for options and “+ Add Set” to add volume. | Tap Next |
-| 14 | `/workout/active` | Close (X) | Tap X to close the workout. | Close workout |
-| 15 | `/(tabs)` | Insights tab | Next, tap Insights to see your progress. | Tap Insights tab |
-| 16 | `/(tabs)/insights` | n/a | Insights power Fortis AI—tap "Ask Fortis" on any insight to get a breakdown and next steps. | Tap Done |
+| 2 | `/(tabs)/index` | Workouts header | Workouts are exercise templates. Programs group workouts—drag a workout card into a program to add it. | Tap Next |
+| 3 | `/(tabs)/index` | AI chat button | Tap to open the Fortis AI chat. | Tap AI button |
+| 4 | `/ai/chat` | n/a | Fortis helps with training analysis and insights on your data—weekly progress, trends, and what to do next. Ask about your training insights, weekly progress, trends, and what to focus on next. | Tap Next |
+| 5 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | Tap the dumbbell, select “Get Started,” and confirm to set your default workout. | Tap FAB |
+| 6 | `/(tabs)/index` | Quick Start FAB (Dumbbell) | Now tap the dumbbell to start your workout. | Tap FAB |
+| 7 | `/workout/active` | Rest timer control | **Rest Timer** keeps you on pace between sets. Tap to start/pause and adjust anytime. | Tap Next |
+| 8 | `/workout/active` | Clock icon | Use the clock to set your rest timer duration. | Tap Next |
+| 9 | `/(tabs)` | Insights tab | Next, tap Insights to see your progress. | Tap Insights tab |
+| 10 | `/(tabs)/insights` | n/a | Insights power Fortis AI—tap "Ask Fortis" on any insight to get a breakdown and next steps. | Tap Done |
 
 ---
 
@@ -129,7 +117,7 @@ Resume rule:
 2) **History tab**: tap a workout to open `WorkoutHistoryDetailModal`.
 
 Tour behavior:
-- After the workout‑basics steps, the user closes the session and taps the Insights tab.
+- After the rest timer steps, the workout closes automatically.
 - The tour ends after the Insights intro step.
 
 Get Started insight card:
@@ -156,9 +144,7 @@ Tour overlay system:
 - `fortis-mobile-app/app/(tabs)/_layout.tsx` (register anchor for Quick Start FAB)
 - `fortis-mobile-app/app/(tabs)/index.tsx` (register anchor for Start FAB)
 - `fortis-mobile-app/app/(tabs)/_layout.tsx` (register anchor for AI chat button)
-- `fortis-mobile-app/app/ai/chat.tsx` (register anchor for chat close button)
-- `fortis-mobile-app/src/components/workout/WorkoutHeader.tsx` (register rest timer + rest timer settings + close button anchors)
-- `fortis-mobile-app/src/components/workout/ExerciseCard.tsx` (register columns + exercise card anchors)
+- `fortis-mobile-app/src/components/workout/WorkoutHeader.tsx` (register rest timer + rest timer settings anchors)
 - Start config modal anchor (wherever the modal component is implemented)
 
 Get Started workflow:
@@ -189,10 +175,9 @@ Tests:
 ### Confirm + Align
 
 - [ ] Tour starts on Programs tab with Quick Start FAB anchor.
-- [ ] AI chat button is introduced before Quick Start (tooltip + tap to open chat).
-- [ ] Chat explainer step shows in `/ai/chat`, then user closes via X.
-- [ ] Start config modal allows choosing any workout/program.
-- [ ] Quick Start FAB prompts tapping to launch the chosen workout.
-- [ ] Workout basics steps show (rest timer, rest timer settings, columns, exercise card basics).
-- [ ] User closes the workout session and taps the Insights tab.
+- [ ] AI chat button is introduced before Quick Start (tap to open chat).
+- [ ] Chat explainer step shows in `/ai/chat`.
+- [ ] Quick Start FAB prompts setting a default, then prompts tapping to start the workout.
+- [ ] Rest timer steps show once the workout starts (timer + duration).
+- [ ] Workout closes automatically after the rest timer steps, then user taps Insights.
 - [ ] Tour completes after the Insights intro step.

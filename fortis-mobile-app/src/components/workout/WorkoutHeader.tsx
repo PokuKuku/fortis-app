@@ -36,6 +36,7 @@ const WORKOUT_NAME_SIZE = moderateScale(FontSizes.base);
 const WORKOUT_NAME_LETTER_SPACING = moderateScale(1);
 const TIMER_LETTER_SPACING = moderateScale(0.5);
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
+const TOP_BAR_OFFSET = scale(6);
 
 const COMPACT_ELAPSED_FONT_SIZE = moderateScale(FontSizes.sm);
 const COMPACT_ELAPSED_MIN_WIDTH = scale(38);
@@ -94,7 +95,6 @@ export function WorkoutHeaderTopBar({
     onRestTimerPress();
   };
 
-  const shouldAnchorClose = isTourActive && activeStepId === 'close_workout';
   const shouldAnchorRestTimerSettings = isTourActive && activeStepId === 'rest_timer_settings';
 
   const wrapAnchor = (enabled: boolean, id: string, node: JSX.Element) =>
@@ -112,7 +112,6 @@ export function WorkoutHeaderTopBar({
         numberOfLines={1}
         adjustsFontSizeToFit
         minimumFontScale={0.8}
-        allowFontScaling={false}
       >
         {formatElapsedTime(elapsed)}
       </Text>
@@ -133,19 +132,18 @@ export function WorkoutHeaderTopBar({
           compact && styles.restTimerButtonCompact,
         ]}
       >
-        <Text
-          style={[
-            styles.restTimerText,
-            { color: restTimerColor },
-            compact && styles.restTimerTextCompact,
-          ]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.8}
-          allowFontScaling={false}
-        >
-          {formatRestTime(displaySeconds)}
-        </Text>
+          <Text
+            style={[
+              styles.restTimerText,
+              { color: restTimerColor },
+              compact && styles.restTimerTextCompact,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {formatRestTime(displaySeconds)}
+          </Text>
       </Pressable>
     </View>
   );
@@ -175,23 +173,19 @@ export function WorkoutHeaderTopBar({
           {showCompactTimers && renderTimers(true)}
         </View>
 
-        {wrapAnchor(
-          shouldAnchorClose,
-          TOUR_ANCHOR_IDS.closeWorkoutButton,
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              onCancelPress();
-            }}
-            style={({ pressed }) => [
-              styles.cancelButton,
-              themedStyles.cancelButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
-          </Pressable>
-        )}
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onCancelPress();
+          }}
+          style={({ pressed }) => [
+            styles.cancelButton,
+            themedStyles.cancelButton,
+            pressed && styles.pressed,
+          ]}
+        >
+          <XMarkIcon size={ICON_SIZE} color={colors.error} strokeWidth={2} />
+        </Pressable>
       </View>
     </View>
   );
@@ -243,19 +237,18 @@ export function WorkoutHeaderDetails({
           )}
 
           <View style={styles.timersRow}>
-            <Text
-              style={[
-                styles.elapsedTime,
-                themedStyles.elapsedTime,
-                elapsed >= 3600 && styles.elapsedTimeSmall,
-              ]}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.8}
-              allowFontScaling={false}
-            >
-              {formatElapsedTime(elapsed)}
-            </Text>
+          <Text
+            style={[
+              styles.elapsedTime,
+              themedStyles.elapsedTime,
+              elapsed >= 3600 && styles.elapsedTimeSmall,
+            ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {formatElapsedTime(elapsed)}
+          </Text>
             <Text style={[styles.separator, themedStyles.separator]}>|</Text>
             {wrapAnchor(
               shouldAnchorRestTimer,
@@ -272,7 +265,6 @@ export function WorkoutHeaderDetails({
                   numberOfLines={1}
                   adjustsFontSizeToFit
                   minimumFontScale={0.8}
-                  allowFontScaling={false}
                 >
                   {formatRestTime(displaySeconds)}
                 </Text>
@@ -296,7 +288,7 @@ export function WorkoutHeaderDetails({
 const styles = StyleSheet.create({
   topContainer: {
     paddingHorizontal: HORIZONTAL_PADDING,
-    paddingTop: 0,
+    paddingTop: TOP_BAR_OFFSET,
     paddingBottom: scale(Spacing.sm),
     backgroundColor: 'transparent',
   },
@@ -309,6 +301,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: scale(Spacing.sm),
+    minWidth: 0,
   },
   clockButton: {
     backgroundColor: 'rgba(163, 163, 163, 0.2)',
@@ -339,6 +332,9 @@ const styles = StyleSheet.create({
   timersRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    maxWidth: '100%',
   },
   timersRowCompact: {
     gap: scale(Spacing.xs),
@@ -350,6 +346,7 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: TIMER_LETTER_SPACING,
     minWidth: ELAPSED_MIN_WIDTH,
+    flexShrink: 1,
   },
   elapsedTimeSmall: {
     fontSize: ELAPSED_SMALL_FONT_SIZE,
@@ -363,6 +360,7 @@ const styles = StyleSheet.create({
     marginLeft: SEPARATOR_MARGIN_LEFT,
     paddingHorizontal: SEPARATOR_PADDING_X,
     fontSize: SEPARATOR_FONT_SIZE,
+    flexShrink: 0,
   },
   separatorCompact: {
     fontSize: COMPACT_SEPARATOR_FONT_SIZE,
@@ -371,6 +369,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: REST_TIMER_PADDING_X,
     paddingVertical: REST_TIMER_PADDING_Y,
     borderRadius: BUTTON_RADIUS,
+    flexShrink: 1,
   },
   restTimerButtonCompact: {
     paddingHorizontal: COMPACT_REST_TIMER_PADDING_X,
@@ -383,6 +382,8 @@ const styles = StyleSheet.create({
     letterSpacing: TIMER_LETTER_SPACING,
     textAlign: 'center',
     minWidth: REST_TIMER_MIN_WIDTH,
+    flexShrink: 1,
+    minWidth: 0,
   },
   restTimerTextCompact: {
     fontSize: COMPACT_REST_TIMER_FONT_SIZE,

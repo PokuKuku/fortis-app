@@ -5,6 +5,7 @@ import { startOfDay, startOfWeek, endOfDay } from 'date-fns';
 import { attributeSessionToMuscles, bucketIntensity, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { useWorkoutHistoryRange } from '@/src/hooks/useWorkoutHistoryRange';
+import { useAuth } from '@/src/contexts/AuthContext';
 import type { Exercise } from '@/src/types/exercise';
 import type { WorkoutSession } from '@/src/types/workout';
 
@@ -21,6 +22,7 @@ export function useWeeklyMuscles(): {
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const { bodyweightKg } = useLatestBodyweight();
+  const { profile } = useAuth();
   const [muscleLevels, setMuscleLevels] = useState<Record<MuscleKey, number>>({});
   const [isComputing, setIsComputing] = useState(true);
 
@@ -63,14 +65,25 @@ export function useWeeklyMuscles(): {
         );
 
         const exerciseMap = new Map<string, Exercise>();
-        results.forEach((exercise) => {
-          if (exercise) exerciseMap.set(exercise.id, exercise);
+        results.forEach((exercise, index) => {
+          if (!exercise) return;
+          const lookupId = weeklyExerciseIds[index];
+          if (lookupId) {
+            exerciseMap.set(lookupId, exercise);
+          }
+          exerciseMap.set(exercise.id, exercise);
+          if (exercise.slug) {
+            exerciseMap.set(exercise.slug, exercise);
+          }
         });
 
         const scores: Record<MuscleKey, number> = {};
+        const preferredUnits = profile?.preferred_units ?? 'imperial';
         sourceSessions.forEach((session) => {
           const sessionScores = attributeSessionToMuscles(session, exerciseMap, {
             bodyweightKg,
+            profileWeightKg: profile?.weight_kg ?? null,
+            preferredUnits,
             weightUnitByExercise: weightUnits,
           });
           Object.entries(sessionScores).forEach(([key, value]) => {
@@ -93,7 +106,7 @@ export function useWeeklyMuscles(): {
     return () => {
       isMounted = false;
     };
-  }, [weeklyExerciseIds, sourceSessions, bodyweightKg, weightUnits]);
+  }, [weeklyExerciseIds, sourceSessions, bodyweightKg, weightUnits, profile?.preferred_units, profile?.weight_kg]);
 
   return {
     muscleLevels,

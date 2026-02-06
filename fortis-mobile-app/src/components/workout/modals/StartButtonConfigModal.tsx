@@ -117,12 +117,12 @@ export function StartButtonConfigModal({
     isForceMode &&
     draftPreset?.type === 'template' &&
     draftPreset.templateId === forceTemplateId;
+  const isTourSelectionStep = isTourActive && activeStepId === 'quick_start';
   const isTourGetStartedSelected =
     isTourSelectionStep &&
     draftPreset?.type === 'template' &&
     draftPreset.templateId === GET_STARTED_TEMPLATE_ID;
   const canConfirm = hasChanges || hasForcedSelection || isTourGetStartedSelected;
-  const isTourSelectionStep = isTourActive && activeStepId === 'start_config';
   const disableBlankWorkout = isTourSelectionStep;
   const disableNonGetStarted = isTourSelectionStep;
 

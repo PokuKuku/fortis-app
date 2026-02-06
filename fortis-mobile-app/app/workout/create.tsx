@@ -30,6 +30,7 @@ import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { useAuth } from '@/src/contexts/AuthContext';
 import type { Exercise } from '@/src/types/exercise';
 import { responsiveValue, scale } from '@/src/utils/responsive';
 import { format } from 'date-fns';
@@ -108,6 +109,7 @@ export default function CreateWorkoutScreen() {
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
   const weightUnits = useWorkoutStore(s => s.weightUnits);
+  const { profile } = useAuth();
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
@@ -136,6 +138,7 @@ export default function CreateWorkoutScreen() {
       exercise.sets.some((set) => set.isCompleted)
     );
     if (!hasCompletedSets) return null;
+    const preferredUnits = profile?.preferred_units ?? 'imperial';
 
     const exercisesById = new Map<string, Exercise>();
     exercisesWithMuscles.forEach((exercise) => {
@@ -144,12 +147,14 @@ export default function CreateWorkoutScreen() {
 
     const scores = attributeSessionToMuscles(editorSession, exercisesById, {
       bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+      preferredUnits,
       weightUnitByExercise: weightUnits,
     });
     const levels = bucketIntensity(scores);
     const hasIntensity = Object.values(levels).some((value) => value > 0);
     return hasIntensity ? levels : null;
-  }, [editorSession, exercisesWithMuscles, bodyweightKg, weightUnits]);
+  }, [editorSession, exercisesWithMuscles, bodyweightKg, profile?.preferred_units, profile?.weight_kg, weightUnits]);
 
   // Calculate stats for the stats row
   const exerciseCount = editorSession?.exercises.length || 0;

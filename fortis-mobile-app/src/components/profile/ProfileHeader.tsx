@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
+import { format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
@@ -64,7 +65,7 @@ function getRelativeIntensity(
 }
 
 /**
- * ProfileHeader - Displays avatar, name, email with inline editing,
+ * ProfileHeader - Displays avatar, name, member since with inline editing,
  * plus training activity heatmap.
  */
 export function ProfileHeader() {
@@ -112,6 +113,13 @@ export function ProfileHeader() {
     if (weeks.length === 0) return 0;
     return (weeks.length * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP)) - HEATMAP_CELL_GAP;
   }, [weeks.length]);
+  const memberSince = useMemo(() => {
+    const createdAt = profile?.created_at || user?.created_at;
+    if (!createdAt) return null;
+    const date = new Date(createdAt);
+    if (Number.isNaN(date.getTime())) return null;
+    return format(date, 'MMM yyyy');
+  }, [profile?.created_at, user?.created_at]);
 
   const handleAvatarPress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -299,13 +307,15 @@ export function ProfileHeader() {
             </TouchableOpacity>
           )}
 
-          <Text
-            style={[styles.userEmail, { color: colors.textSecondary }]}
-            numberOfLines={1}
-            ellipsizeMode="middle"
-          >
-            {user?.email}
-          </Text>
+          {memberSince ? (
+            <Text
+              style={[styles.userEmail, { color: colors.textSecondary }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Member since {memberSince}
+            </Text>
+          ) : null}
         </View>
       </View>
 

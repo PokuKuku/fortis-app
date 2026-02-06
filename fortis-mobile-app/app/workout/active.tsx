@@ -46,10 +46,11 @@ import { GlassButton } from '@/components/GlassButton';
 import { getExerciseById } from '@/src/services/exerciseService';
 import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { useAuth } from '@/src/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
-const LIST_PADDING_TOP = scale(Spacing.lg);
+const LIST_PADDING_TOP = Math.max(0, scale(Spacing.lg) - scale(6));
 const EMPTY_GAP = scale(Spacing.md);
 const EMPTY_PADDING_BOTTOM = scale(100);
 const EMPTY_TITLE_SIZE = moderateScale(14);
@@ -100,6 +101,7 @@ export default function ActiveWorkoutScreen() {
   const isNumberPadVisible = useWorkoutStore(s => s.activeNumberPad !== null);
   const numberPadInputType = useWorkoutStore(s => s.activeNumberPad?.inputType ?? 'weight');
   const weightUnits = useWorkoutStore(s => s.weightUnits);
+  const { profile } = useAuth();
   const updateSet = useWorkoutStore(s => s.updateSet);
   const closeNumberPad = useWorkoutStore(s => s.closeNumberPad);
   const openNumberPad = useWorkoutStore(s => s.openNumberPad);
@@ -282,16 +284,19 @@ export default function ActiveWorkoutScreen() {
   // Compute muscle intensity levels for heatmap (volume-based)
   const muscleLevels = useMemo(() => {
     if (!activeSession) return {};
+    const preferredUnits = profile?.preferred_units ?? 'imperial';
     const exercisesById = new Map<string, Exercise>();
     Object.entries(exerciseMuscleCache).forEach(([id, exercise]) => {
       exercisesById.set(id, exercise);
     });
     const scores = attributeSessionToMuscles(activeSession, exercisesById, {
       bodyweightKg,
+      profileWeightKg: profile?.weight_kg ?? null,
+      preferredUnits,
       weightUnitByExercise: weightUnits,
     });
     return bucketIntensity(scores);
-  }, [activeSession, exerciseMuscleCache, bodyweightKg, weightUnits]);
+  }, [activeSession, exerciseMuscleCache, bodyweightKg, profile?.preferred_units, profile?.weight_kg, weightUnits]);
 
   // Handle cancel workout
   const handleCancelPress = () => {

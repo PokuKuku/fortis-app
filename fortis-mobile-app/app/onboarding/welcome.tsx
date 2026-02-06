@@ -13,6 +13,8 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { AuthProviderButtons } from '@/src/components/auth/AuthProviderButtons';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { Typography } from '@/constants/Typography';
 
 const DEMO_VIDEO = require('../../assets/videos/FortisDemo3.mp4');
 
@@ -21,7 +23,7 @@ export default function OnboardingWelcomeScreen() {
   const navigation = useNavigation();
   const { returning } = useLocalSearchParams<{ returning?: string }>();
   const isReturning = returning === '1' || returning === 'true';
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const {
     signInWithGoogle,
     signInWithApple,
@@ -39,6 +41,14 @@ export default function OnboardingWelcomeScreen() {
   const [isLoadingApple, setIsLoadingApple] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const [signInError, setSignInError] = useState<string | null>(null);
+  const [authInProgress, setAuthInProgress] = useState(false);
+  const isAuthProcessing = authInProgress || (isAuthenticated && !profileResolved);
+
+  const themedStyles = {
+    loadingOverlay: {
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.35)' : 'rgba(0, 0, 0, 0.15)',
+    },
+  };
 
   useEffect(() => {
     if (!isReturning) return;
@@ -63,6 +73,18 @@ export default function OnboardingWelcomeScreen() {
       .then(setIsAppleAvailable)
       .catch(() => setIsAppleAvailable(false));
   }, []);
+
+  useEffect(() => {
+    if (signInError) {
+      setAuthInProgress(false);
+    }
+  }, [signInError]);
+
+  useEffect(() => {
+    if (isAuthenticated && profileResolved) {
+      setAuthInProgress(false);
+    }
+  }, [isAuthenticated, profileResolved]);
 
   useEffect(() => {
     if (!isAuthenticated || isLoading || !profileResolved) return;
@@ -108,6 +130,7 @@ export default function OnboardingWelcomeScreen() {
   const handleGoogleSignIn = async () => {
     setSignInError(null);
     setIsLoadingGoogle(true);
+    setAuthInProgress(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { error } = await signInWithGoogle();
@@ -124,6 +147,7 @@ export default function OnboardingWelcomeScreen() {
   const handleAppleSignIn = async () => {
     setSignInError(null);
     setIsLoadingApple(true);
+    setAuthInProgress(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       const { error } = await signInWithApple();
@@ -211,6 +235,19 @@ export default function OnboardingWelcomeScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal
+        transparent
+        visible={isAuthProcessing}
+        animationType="fade"
+      >
+        <View style={[styles.loadingOverlay, themedStyles.loadingOverlay]}>
+          <AnimatedLogo size="large" centered introDurationMs={0} shineDurationMs={2600} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Getting things ready...
+          </Text>
+        </View>
+      </Modal>
     </OnboardingScreen>
   );
 }
@@ -289,5 +326,14 @@ const styles = StyleSheet.create({
   sheetError: {
     fontSize: 13,
     textAlign: 'center',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.caption,
+    marginTop: Spacing.md,
   },
 });

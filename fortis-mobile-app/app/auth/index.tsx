@@ -65,12 +65,16 @@ export default function AuthWelcomeScreen() {
     glassCardTitle: { color: isDark ? '#DFE2E6' : colors.textSecondary },
     errorText: { color: colors.error },
     terms: { color: colors.textSecondary },
+    loadingOverlay: {
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.35)' : 'rgba(0, 0, 0, 0.15)',
+    },
   };
 
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const [error, setError] = useState<string | null>(null);
+  const isAuthProcessing = isLoading || isFinalizing || (isAuthenticated && !profileResolved);
 
   // Navigate when auth state changes
   useEffect(() => {
@@ -292,6 +296,15 @@ export default function AuthWelcomeScreen() {
           {/* Terms */}
         </View>
       </SafeAreaView>
+
+      {isAuthProcessing && (
+        <View style={[styles.loadingOverlay, themedStyles.loadingOverlay]} pointerEvents="none">
+          <AnimatedLogo size="large" centered introDurationMs={0} shineDurationMs={2600} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Getting things ready...
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -303,6 +316,15 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    ...Typography.caption,
+    marginTop: Spacing.md,
   },
   header: {
     paddingHorizontal: Spacing['2xl'],

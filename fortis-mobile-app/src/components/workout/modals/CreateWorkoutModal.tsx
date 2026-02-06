@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,9 @@ import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Program } from '@/src/types/workout';
 import { generateSecureUUID as generateLocalId } from '@/src/utils/uuid';
+import { scale } from '@/src/utils/responsive';
+
+const HEADER_COLLAPSE_THRESHOLD = scale(48);
 
 // Template exercise type for local state
 interface TemplateExercise {
@@ -62,6 +65,10 @@ export function CreateWorkoutModal({
       color: colors.textPrimary,
       borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
     },
+    headerDivider: { backgroundColor: colors.borderLight },
+    compactStatLabel: { color: colors.textSecondary },
+    compactStatValue: { color: colors.textPrimary },
+    compactStatDivider: { backgroundColor: colors.borderLight },
     exerciseCard: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)',
@@ -95,9 +102,16 @@ export function CreateWorkoutModal({
   const [exercises, setExercises] = useState<TemplateExercise[]>([]);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showHeaderDetails, setShowHeaderDetails] = useState(true);
+  const headerDetailsVisibleRef = useRef(true);
   const exerciseIds = useMemo(() => exercises.map(ex => ex.exerciseId), [exercises]);
   const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
   const hasMuscles = exercisesWithMuscles.length > 0;
+  const totalExercises = exercises.length;
+  const totalSets = useMemo(
+    () => exercises.reduce((sum, exercise) => sum + (exercise.sets || 0), 0),
+    [exercises]
+  );
 
   // Reset or prefill state when modal opens/closes
   useEffect(() => {
@@ -137,6 +151,16 @@ export function CreateWorkoutModal({
 
   // Check if we can save
   const canSave = templateName.trim().length > 0 && exercises.length > 0 && !isSaving;
+  const showCompactStats = !showHeaderDetails && totalExercises > 0;
+
+  const handleListScroll = useCallback((event: any) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const shouldShowDetails = offsetY < HEADER_COLLAPSE_THRESHOLD;
+    if (headerDetailsVisibleRef.current !== shouldShowDetails) {
+      headerDetailsVisibleRef.current = shouldShowDetails;
+      setShowHeaderDetails(shouldShowDetails);
+    }
+  }, []);
 
   // Handle adding exercises from the exercise modal
   const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string }>) => {
@@ -305,6 +329,34 @@ export function CreateWorkoutModal({
   const headerTitle = isEditing ? 'Edit Template' : 'New Template';
   const saveButtonText = isEditing ? 'Update' : 'Save';
 
+  const listHeader = (
+    <>
+      {/* Template Name Input */}
+      <View style={styles.nameInputContainer}>
+        <TextInput
+          style={[styles.nameInput, themedStyles.nameInput]}
+          placeholder="Template Name"
+          placeholderTextColor={colors.textSecondary}
+          value={templateName}
+          onChangeText={setTemplateName}
+          autoCorrect={false}
+          maxLength={50}
+        />
+      </View>
+
+      {hasMuscles && (
+        <View style={styles.heatmapContainer}>
+          <MuscleHeatmap
+            exercises={exercisesWithMuscles}
+            gender={bodyType}
+            scale={0.22}
+            compact
+          />
+        </View>
+      )}
+    </>
+  );
+
   return (
     <Modal
       transparent
@@ -323,56 +375,48 @@ export function CreateWorkoutModal({
 
           {/* Header */}
           <View style={styles.header}>
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [
-                styles.closeButton,
-                themedStyles.closeButton,
-                pressed && styles.closeButtonPressed,
-              ]}
-            >
-              <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
-            </Pressable>
-            <Text style={[styles.headerTitle, themedStyles.headerTitle]}>{headerTitle}</Text>
-            <GlassButton
-              style={{
-                ...styles.saveButton,
-                ...(!canSave ? styles.saveButtonDisabled : {}),
-              }}
-              onPress={handleSave}
-              disabled={!canSave}
-            >
-              {isSaving ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>{saveButtonText}</Text>
-              )}
-            </GlassButton>
-          </View>
-
-          {/* Template Name Input */}
-          <View style={styles.nameInputContainer}>
-            <TextInput
-              style={[styles.nameInput, themedStyles.nameInput]}
-              placeholder="Template Name"
-              placeholderTextColor={colors.textSecondary}
-              value={templateName}
-              onChangeText={setTemplateName}
-              autoCorrect={false}
-              maxLength={50}
-            />
-          </View>
-
-          {hasMuscles && (
-            <View style={styles.heatmapContainer}>
-              <MuscleHeatmap
-                exercises={exercisesWithMuscles}
-                gender={bodyType}
-                scale={0.22}
-                compact
-              />
+            <View style={styles.headerRow}>
+              <Pressable
+                onPress={onClose}
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  themedStyles.closeButton,
+                  pressed && styles.closeButtonPressed,
+                ]}
+              >
+                <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
+              </Pressable>
+              <Text style={[styles.headerTitle, themedStyles.headerTitle]}>{headerTitle}</Text>
+              <GlassButton
+                style={{
+                  ...styles.saveButton,
+                  ...(!canSave ? styles.saveButtonDisabled : {}),
+                }}
+                onPress={handleSave}
+                disabled={!canSave}
+              >
+                {isSaving ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>{saveButtonText}</Text>
+                )}
+              </GlassButton>
             </View>
-          )}
+            {showCompactStats && (
+              <View style={styles.compactStatsRow}>
+                <View style={styles.compactStat}>
+                  <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Exercises</Text>
+                  <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{totalExercises}</Text>
+                </View>
+                <View style={[styles.compactStatDivider, themedStyles.compactStatDivider]} />
+                <View style={styles.compactStat}>
+                  <Text style={[styles.compactStatLabel, themedStyles.compactStatLabel]}>Sets</Text>
+                  <Text style={[styles.compactStatValue, themedStyles.compactStatValue]}>{totalSets}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+          <View style={[styles.headerDivider, themedStyles.headerDivider]} />
 
           {/* Exercise List */}
           <FlatList
@@ -382,6 +426,9 @@ export function CreateWorkoutModal({
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={renderEmptyState}
+            ListHeaderComponent={listHeader}
+            onScroll={handleListScroll}
+            scrollEventThrottle={16}
           />
 
           {/* Add Exercises Button */}
@@ -424,12 +471,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    zIndex: 1,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: Spacing['2xl'],
-    paddingVertical: Spacing.lg,
-    zIndex: 1,
   },
   closeButton: {
     width: 40,
@@ -457,6 +508,36 @@ const styles = StyleSheet.create({
   saveButtonText: {
     ...Typography.button,
     color: '#fff',
+  },
+  headerDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: Spacing['2xl'],
+  },
+  compactStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  compactStat: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  compactStatLabel: {
+    fontSize: FontSizes.xs,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  compactStatValue: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+  },
+  compactStatDivider: {
+    width: 1,
+    height: 24,
   },
   nameInputContainer: {
     paddingHorizontal: Spacing['2xl'],

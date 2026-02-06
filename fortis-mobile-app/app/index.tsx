@@ -112,16 +112,11 @@ export default function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    if (!minDelayPassed || !isAuthResolved || hasNavigatedRef.current) {
+    if (!minDelayPassed || hasNavigatedRef.current) {
       return;
     }
 
     hasNavigatedRef.current = true;
-
-    if (isAuthenticated && !profileResolved) {
-      hasNavigatedRef.current = false;
-      return;
-    }
 
     if (isAuthenticated && needsOnboarding) {
       router.replace('/onboarding/welcome');
