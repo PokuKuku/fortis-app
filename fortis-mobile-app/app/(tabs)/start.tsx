@@ -1,25 +1,37 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import { GlassButton } from '@/components/GlassButton';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import { scale, moderateScale } from '@/src/utils/responsive';
 
 const HORIZONTAL_PADDING = scale(24);
 const PLACEHOLDER_TEXT_SIZE = moderateScale(16);
 
-/**
- * NOTE: This is a placeholder screen.
- * The Start button in the navigation will trigger a workout logging modal,
- * not navigate to this screen. This page exists to maintain tab structure.
- */
 export default function StartScreen() {
+  const router = useRouter();
+  const { colors, isDark } = useTheme();
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.content}>
-          <Text style={styles.placeholderText}>
-            Start a workout using the button below
+          <Text style={[styles.title, { color: colors.textPrimary }]}>AI Coach</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+            Ask Fortis Analyst about your recent training and get actionable next-step guidance.
           </Text>
+          <GlassButton
+            style={{
+              ...styles.button,
+              borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)',
+            }}
+            gradientColors={colors.contrastGradient as unknown as string[]}
+            onPress={() => router.push('/ai/chat')}
+          >
+            <Text style={[styles.buttonText, { color: colors.white }]}>Open AI Chat</Text>
+          </GlassButton>
         </View>
       </SafeAreaView>
     </View>
@@ -29,7 +41,6 @@ export default function StartScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#222222',
   },
   safeArea: {
     flex: 1,
@@ -39,11 +50,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: HORIZONTAL_PADDING,
+    gap: scale(16),
   },
-  placeholderText: {
+  title: {
+    fontSize: moderateScale(28),
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  subtitle: {
     fontSize: PLACEHOLDER_TEXT_SIZE,
     fontWeight: '500',
-    color: '#9CA3AF',
     textAlign: 'center',
+    lineHeight: moderateScale(24),
+    maxWidth: scale(320),
+  },
+  button: {
+    minWidth: scale(180),
+  },
+  buttonText: {
+    fontWeight: '700',
+    fontSize: moderateScale(15),
   },
 });

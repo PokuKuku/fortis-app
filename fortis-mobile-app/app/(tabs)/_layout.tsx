@@ -660,7 +660,7 @@ export default function TabLayout() {
                   fieldErrors.name && styles.invalidInput,
                 ]}
                 placeholder="e.g. Single Arm Cable Row"
-                placeholderTextColor="#6b7280"
+                placeholderTextColor={colors.textTertiary}
                 value={exerciseName}
                 onChangeText={(v) => {
                   setExerciseName(v);
@@ -765,7 +765,7 @@ export default function TabLayout() {
               <TextInput
                 style={styles.textInput}
                 placeholder="Search a canonical exercise..."
-                placeholderTextColor="#6b7280"
+                placeholderTextColor={colors.textTertiary}
                 value={basedOnQuery}
                 onChangeText={(value) => {
                   setBasedOnQuery(value);
@@ -819,15 +819,11 @@ export default function TabLayout() {
             <TextInput
               style={[styles.textInput, styles.instructionsInput]}
               placeholder="Step-by-step cues"
-              placeholderTextColor="#6b7280"
+              placeholderTextColor={colors.textTertiary}
               multiline
               value={instructions}
               onChangeText={setInstructions}
             />
-
-            <TouchableOpacity style={styles.importButton} activeOpacity={0.8}>
-              <Text style={styles.importButtonText}>Import Image (coming soon)</Text>
-            </TouchableOpacity>
           </ScrollView>
 
           <View style={styles.modalActions}>
@@ -1085,19 +1081,6 @@ const styles = StyleSheet.create({
   },
   invalidChip: {
     borderColor: '#ef4444',
-  },
-  importButton: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  importButtonText: {
-    color: '#9ca3af',
-    fontSize: 14,
-    fontWeight: '700',
   },
   modalActions: {
     flexDirection: 'row',

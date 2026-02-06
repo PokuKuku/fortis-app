@@ -617,47 +617,6 @@ const fetchSnoozes = async (
   return snoozes;
 };
 
-const fetchFeedbackSignals = async (
-  adminClient: SupabaseClient,
-  userId: string,
-  weekStart: Date
-): Promise<{ suppressed: Set<string>; notHelpfulCounts: Map<string, number> }> => {
-  const lookbackStart = addDays(weekStart, -30);
-  const { data, error } = await adminClient
-    .from('training_insight_feedback')
-    .select('type, rating, created_at')
-    .eq('user_id', userId)
-    .gte('created_at', toIsoDateTime(lookbackStart));
-
-  if (error) {
-    console.warn('[Insights] Failed to fetch insight feedback:', error.message);
-    return { suppressed: new Set(), notHelpfulCounts: new Map() };
-  }
-
-  const suppression = new Map<string, { count: number; last: number }>();
-  (data ?? []).forEach((row: { type: string; rating: string; created_at: string }) => {
-    if (row?.rating !== 'not_helpful' || !row.type || !row.created_at) return;
-    const createdAt = new Date(row.created_at).getTime();
-    const current = suppression.get(row.type) ?? { count: 0, last: 0 };
-    suppression.set(row.type, {
-      count: current.count + 1,
-      last: Math.max(current.last, createdAt),
-    });
-  });
-
-  const suppressionWindowStart = addDays(weekStart, -14).getTime();
-  const suppressed = new Set<string>();
-  const notHelpfulCounts = new Map<string, number>();
-  suppression.forEach((value, type) => {
-    notHelpfulCounts.set(type, value.count);
-    if (value.count >= 2 && value.last >= suppressionWindowStart) {
-      suppressed.add(type);
-    }
-  });
-
-  return { suppressed, notHelpfulCounts };
-};
-
 const STALL_THRESHOLDS: Record<'chill' | 'standard' | 'aggressive', number> = {
   chill: 0,
   standard: 0.5,
@@ -984,12 +943,10 @@ const buildImbalanceInsight = async ({
   adminClient,
   userId,
   weekStart,
-  feedbackCount,
 }: {
   adminClient: SupabaseClient;
   userId: string;
   weekStart: Date;
-  feedbackCount: number;
 }): Promise<Record<string, unknown> | null> => {
   const lookbackStart = addDays(weekStart, -7);
   const { data, error } = await adminClient
@@ -1014,15 +971,7 @@ const buildImbalanceInsight = async ({
     totalSets += sets;
   });
 
-  const thresholds =
-    feedbackCount > 0
-      ? {
-          pushPullMin: IMBALANCE_THRESHOLDS.pushPullMin + 0.05,
-          pushPullMax: IMBALANCE_THRESHOLDS.pushPullMax - 0.05,
-          minTotalSets: IMBALANCE_THRESHOLDS.minTotalSets + 4,
-          underdoseSets: IMBALANCE_THRESHOLDS.underdoseSets + 2,
-        }
-      : IMBALANCE_THRESHOLDS;
+  const thresholds = IMBALANCE_THRESHOLDS;
 
   if (totalSets < thresholds.minTotalSets) {
     return null;
@@ -1151,7 +1100,6 @@ const buildFatigueRiskInsight = async ({
   weekStart,
   lastWeekStart,
   conservatismLevel,
-  feedbackCount,
   thisWeekVolume,
   lastWeekVolume,
   thisWeekWorkouts,
@@ -1164,7 +1112,6 @@ const buildFatigueRiskInsight = async ({
   weekStart: Date;
   lastWeekStart: Date;
   conservatismLevel: 'chill' | 'standard' | 'aggressive';
-  feedbackCount: number;
   thisWeekVolume: number;
   lastWeekVolume: number;
   thisWeekWorkouts: number;
@@ -1172,15 +1119,7 @@ const buildFatigueRiskInsight = async ({
   thisWeekRpe?: number | null;
   lastWeekRpe?: number | null;
 }): Promise<Record<string, unknown> | null> => {
-  const baseThreshold = FATIGUE_THRESHOLDS[conservatismLevel] ?? FATIGUE_THRESHOLDS.standard;
-  const threshold =
-    feedbackCount > 0
-      ? {
-          volumeSpikeWoW: baseThreshold.volumeSpikeWoW + 10,
-          e1rmDropForFatigue: baseThreshold.e1rmDropForFatigue - 0.5,
-          minSessions: baseThreshold.minSessions + 1,
-        }
-      : baseThreshold;
+  const threshold = FATIGUE_THRESHOLDS[conservatismLevel] ?? FATIGUE_THRESHOLDS.standard;
   const totalWorkouts = thisWeekWorkouts + lastWeekWorkouts;
   if (totalWorkouts < threshold.minSessions) {
     return null;
@@ -2102,7 +2041,6 @@ Deno.serve(async (req) => {
 
   const weekStart = resolveWeekStart(timezone);
   const lastWeekStart = addDays(weekStart, -7);
-  const feedbackSignals = await fetchFeedbackSignals(adminClient, user.id, weekStart);
 
   const snoozedUntilWeekly = snoozes.get(INSIGHT_TYPE);
   const snoozedUntilStall = snoozes.get(STALL_RISK_TYPE);
@@ -2111,32 +2049,16 @@ Deno.serve(async (req) => {
   const shouldRunWeeklyFinal = shouldRunWeekly && (!snoozedUntilWeekly || snoozedUntilWeekly < toIsoDate(weekStart));
   const shouldRunStallFinal =
     shouldRunStall &&
-    (!snoozedUntilStall || snoozedUntilStall < toIsoDate(weekStart)) &&
-    !feedbackSignals.suppressed.has(STALL_RISK_TYPE);
+    (!snoozedUntilStall || snoozedUntilStall < toIsoDate(weekStart));
   const shouldRunFatigueFinal =
     shouldRunFatigue &&
-    (!snoozedUntilFatigue || snoozedUntilFatigue < toIsoDate(weekStart)) &&
-    !feedbackSignals.suppressed.has(FATIGUE_RISK_TYPE);
+    (!snoozedUntilFatigue || snoozedUntilFatigue < toIsoDate(weekStart));
   const shouldRunImbalanceFinal =
     shouldRunImbalance &&
-    (!snoozedUntilImbalance || snoozedUntilImbalance < toIsoDate(weekStart)) &&
-    !feedbackSignals.suppressed.has(IMBALANCE_FLAG_TYPE);
+    (!snoozedUntilImbalance || snoozedUntilImbalance < toIsoDate(weekStart));
 
   const shouldFetchWeeklyVolume =
     shouldRunWeeklyFinal || shouldRunFatigueFinal || shouldRunPositive || shouldRunStallFinal;
-
-  if (feedbackSignals.suppressed.size > 0) {
-    const suppressedTypes = Array.from(feedbackSignals.suppressed);
-    const { error: suppressError } = await adminClient
-      .from('training_insights')
-      .update({ status: 'dismissed' })
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .in('type', suppressedTypes);
-    if (suppressError) {
-      console.warn('[Insights] Failed to suppress insights via feedback:', suppressError.message);
-    }
-  }
 
   const [weeklyVolume, prCounts] = await Promise.all([
     shouldFetchWeeklyVolume ? fetchWeeklyVolume(supabase, user.id, weekStart, lastWeekStart) : Promise.resolve({ thisWeek: null, lastWeek: null }),
@@ -2259,7 +2181,6 @@ Deno.serve(async (req) => {
       weekStart,
       lastWeekStart,
       conservatismLevel,
-      feedbackCount: feedbackSignals.notHelpfulCounts.get(FATIGUE_RISK_TYPE) ?? 0,
       thisWeekVolume,
       lastWeekVolume,
       thisWeekWorkouts,
@@ -2278,7 +2199,6 @@ Deno.serve(async (req) => {
       adminClient,
       userId: user.id,
       weekStart,
-      feedbackCount: feedbackSignals.notHelpfulCounts.get(IMBALANCE_FLAG_TYPE) ?? 0,
     });
 
     if (imbalanceInsight) {

@@ -122,13 +122,6 @@ interface InsightTypeSnoozedProps {
   snooze_days: number;
 }
 
-/** Insight feedback submitted event properties */
-interface InsightFeedbackSubmittedProps {
-  insight_id: string;
-  insight_type: string;
-  rating: string;
-}
-
 /** Insight share started event properties */
 interface InsightShareStartedProps {
   insight_id: string;
@@ -201,7 +194,6 @@ const Events = {
   CHAT_OPENED_FROM_INSIGHT: 'chat_opened_from_insight',
   INSIGHT_DISMISSED: 'insight_dismissed',
   TYPE_SNOOZED: 'type_snoozed',
-  INSIGHT_FEEDBACK_SUBMITTED: 'insight_feedback_submitted',
   INSIGHT_SHARE_STARTED: 'share_started',
   INSIGHT_SHARE_COMPLETED: 'share_completed',
   // Error/failure events
@@ -404,17 +396,6 @@ export const analytics = {
     capture(Events.TYPE_SNOOZED, {
       insight_type: props.insight_type,
       snooze_days: props.snooze_days,
-    });
-  },
-
-  /**
-   * Track when insight feedback is submitted
-   */
-  trackInsightFeedbackSubmitted(props: InsightFeedbackSubmittedProps) {
-    capture(Events.INSIGHT_FEEDBACK_SUBMITTED, {
-      insight_id: props.insight_id,
-      insight_type: props.insight_type,
-      rating: props.rating,
     });
   },
 

@@ -79,7 +79,7 @@ function FloatingParticle({
 export default function SplashScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { isAuthResolved, isAuthenticated, needsOnboarding, profileResolved } = useAuth();
+  const { isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved } = useAuth();
   const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasNavigatedRef = useRef(false);
   const [minDelayPassed, setMinDelayPassed] = useState(false);
@@ -112,19 +112,25 @@ export default function SplashScreen() {
   }, []);
 
   useEffect(() => {
-    if (!minDelayPassed || hasNavigatedRef.current) {
+    const profileStateReady = !isAuthenticated || profileResolved;
+    if (!minDelayPassed || !isAuthResolved || !profileStateReady || hasNavigatedRef.current) {
       return;
     }
 
     hasNavigatedRef.current = true;
 
-    if (isAuthenticated && needsOnboarding) {
+    if (isAuthenticated && (!profile || needsOnboarding)) {
       router.replace('/onboarding/welcome');
       return;
     }
 
+    if (isAuthenticated) {
+      router.replace('/paywall-gate');
+      return;
+    }
+
     router.replace('/onboarding/welcome');
-  }, [minDelayPassed, isAuthResolved, isAuthenticated, needsOnboarding, profileResolved, router]);
+  }, [minDelayPassed, isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved, router]);
 
   useEffect(() => {
     ExpoSplashScreen.hideAsync().catch(() => undefined);

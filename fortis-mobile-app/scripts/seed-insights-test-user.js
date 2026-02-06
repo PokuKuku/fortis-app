@@ -325,7 +325,6 @@ const run = async () => {
 
   console.log(`Seeding user ${email} (${userId}) with timezone ${timezone}`);
 
-  await supabase.from('training_insight_feedback').delete().eq('user_id', userId);
   await supabase.from('training_insight_snoozes').delete().eq('user_id', userId);
   await supabase.from('training_insights').delete().eq('user_id', userId);
   await supabase.from('workout_sessions').delete().eq('user_id', userId);
