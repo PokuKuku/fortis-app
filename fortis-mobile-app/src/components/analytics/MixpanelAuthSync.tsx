@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { getMixpanelDistinctId, initMixpanel } from '@/src/lib/mixpanel';
-import { initMixpanelSessionReplay } from '@/src/lib/mixpanelSessionReplay';
+import { initMixpanel } from '@/src/lib/mixpanel';
 
 export function MixpanelAuthSync() {
   const { user, profile } = useAuth();
@@ -28,8 +27,6 @@ export function MixpanelAuthSync() {
           mixpanel.reset();
         }
 
-        const distinctId = await getMixpanelDistinctId(mixpanel);
-        await initMixpanelSessionReplay(distinctId);
       } catch (error) {
         console.warn('[Mixpanel] Failed to sync identity:', error);
       }

@@ -52,6 +52,6 @@ describe('programsStore default deletion persistence', () => {
     await useProgramsStore.getState().loadLocalPrograms();
 
     expect(useProgramsStore.getState().programs.some((program) => program.id === 'default-template-upper')).toBe(false);
-    expect(useProgramsStore.getState().programs.some((program) => program.id === 'default-template-get-started')).toBe(true);
+    expect(useProgramsStore.getState().programs.some((program) => program.id === 'default-template-lower')).toBe(true);
   });
 });

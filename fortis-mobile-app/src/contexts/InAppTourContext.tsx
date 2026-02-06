@@ -92,7 +92,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'quick_start',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'Tap the dumbbell, select “Get Started,” and confirm to set your default workout. You can reset it later by press & hold.',
+    body: 'Tap the dumbbell, select “Upper,” and confirm to set your default workout. You can reset it later by press & hold.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -145,6 +145,16 @@ const TOUR_STEPS: TourStep[] = [
   },
 ];
 
+const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
+  'welcome',
+  'workouts_intro',
+  'ai_chat_overview',
+  'quick_start',
+  'rest_timer',
+  'rest_timer_settings',
+  'insights_overview',
+]);
+
 const getStepIndexById = (stepId: string): number => {
   const index = TOUR_STEPS.findIndex((step) => step.id === stepId);
   return index === -1 ? 0 : index;
@@ -176,12 +186,22 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const forceTourThisSession = useRef(false);
 
   const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
+  const isWorkoutActive = useWorkoutStore((s) => s.isWorkoutActive);
   const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
 
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
   const [tourLoaded, setTourLoaded] = useState(false);
   const [anchorRects, setAnchorRects] = useState<Record<string, AnchorRect>>({});
-  const [transitionHideTooltip, setTransitionHideTooltip] = useState(false);
+  const [renderStepId, setRenderStepId] = useState<TourStepId | null>(null);
+  const [pendingStepId, setPendingStepId] = useState<TourStepId | null>(null);
+  const [isTooltipVisible, setIsTooltipVisible] = useState(false);
+  const [isExitingTooltip, setIsExitingTooltip] = useState(false);
+
+  const getStepById = useCallback((stepId: string | null | undefined): TourStep | null => {
+    if (!stepId) return null;
+    const index = getStepIndexById(stepId);
+    return TOUR_STEPS[index] ?? null;
+  }, []);
 
   const isTourActive = tourState?.status === 'in_progress';
   const currentStepIndex = useMemo(() => {
@@ -189,15 +209,16 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     return getStepIndexById(tourState?.stepId ?? TOUR_STEPS[0].id);
   }, [isTourActive, tourState?.stepId]);
 
-  const step = currentStepIndex >= 0 ? TOUR_STEPS[currentStepIndex] : null;
+  const logicalStep = currentStepIndex >= 0 ? TOUR_STEPS[currentStepIndex] : null;
+  const renderStep = useMemo(() => getStepById(renderStepId), [getStepById, renderStepId]);
+  const pendingStep = useMemo(() => getStepById(pendingStepId), [getStepById, pendingStepId]);
+  const overlayStep = renderStep ?? pendingStep ?? logicalStep;
 
-  const pendingAdvanceRef = useRef<{ stepId: TourStepId; updatedAt: string } | null>(null);
-
-  const stepLabel = step && currentStepIndex >= 0
+  const stepLabel = logicalStep && currentStepIndex >= 0
     ? `${currentStepIndex + 1} of ${TOUR_STEPS.length}`
     : undefined;
 
-  const currentAnchorRect = step?.anchorId ? anchorRects[step.anchorId] ?? null : null;
+  const currentAnchorRect = overlayStep?.anchorId ? anchorRects[overlayStep.anchorId] ?? null : null;
   const normalizedPathname = useMemo(
     () => (pathname ? pathname.replace('/(tabs)', '') : ''),
     [pathname]
@@ -205,15 +226,13 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   const isOnStepRoute = useCallback(
     (route: TourRoute) => {
+      if (route === '/(tabs)') {
+        return segments[0] === '(tabs)' && (segments.length === 1 || segments[1] === 'index');
+      }
+
       const normalizedRoute = route.replace('/(tabs)', '');
       if (normalizedPathname === normalizedRoute) {
         return true;
-      }
-      if (normalizedRoute === '/index' && normalizedPathname === '/') {
-        return true;
-      }
-      if (route === '/(tabs)') {
-        return segments[0] === '(tabs)';
       }
       if (route === '/(tabs)/insights') {
         return segments[0] === '(tabs)' && segments[1] === 'insights';
@@ -228,6 +247,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     },
     [normalizedPathname, segments]
   );
+
+  const isLogicalStepOnRoute = logicalStep ? isOnStepRoute(logicalStep.route) : false;
+  const shouldRouteLockLogicalStep = logicalStep ? ROUTE_LOCKED_STEP_IDS.has(logicalStep.id) : false;
 
   const registerAnchorRect = useCallback((id: string, rect: AnchorRect) => {
     setAnchorRects((prev) => {
@@ -253,6 +275,74 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       return next;
     });
   }, []);
+
+  const isStepReady = useCallback((candidateStep: TourStep | null): boolean => {
+    if (!candidateStep) return false;
+    if (!isOnStepRoute(candidateStep.route)) return false;
+    if (candidateStep.id === 'go_insights' && isWorkoutActive) return false;
+    return true;
+  }, [isOnStepRoute, isWorkoutActive]);
+
+  useEffect(() => {
+    if (!isTourActive || !logicalStep) {
+      setPendingStepId(null);
+      setRenderStepId(null);
+      setIsTooltipVisible(false);
+      setIsExitingTooltip(false);
+      return;
+    }
+
+    setPendingStepId((current) => (current === logicalStep.id ? current : logicalStep.id));
+  }, [isTourActive, logicalStep?.id]);
+
+  useEffect(() => {
+    if (!isTourActive || !pendingStep) return;
+    if (!isStepReady(pendingStep)) return;
+
+    if (!renderStepId || renderStepId === pendingStep.id) {
+      if (renderStepId !== pendingStep.id) {
+        setRenderStepId(pendingStep.id);
+      }
+      setPendingStepId(null);
+      setIsExitingTooltip(false);
+      setIsTooltipVisible(true);
+      return;
+    }
+
+    if (!isExitingTooltip) {
+      if (isTooltipVisible) {
+        setIsExitingTooltip(true);
+        setIsTooltipVisible(false);
+        return;
+      }
+
+      setRenderStepId(pendingStep.id);
+      setPendingStepId(null);
+      setIsTooltipVisible(true);
+    }
+  }, [isExitingTooltip, isStepReady, isTourActive, isTooltipVisible, pendingStep, renderStepId]);
+
+  const handleTooltipHideComplete = useCallback(() => {
+    if (!isExitingTooltip) return;
+    if (!isTourActive) {
+      setIsExitingTooltip(false);
+      return;
+    }
+
+    const nextStep = getStepById(pendingStepId);
+    if (!isStepReady(nextStep)) {
+      setIsExitingTooltip(false);
+      setIsTooltipVisible(true);
+      return;
+    }
+
+    if (nextStep && renderStepId !== nextStep.id) {
+      setRenderStepId(nextStep.id);
+    }
+    setPendingStepId(null);
+    setIsExitingTooltip(false);
+    setIsTooltipVisible(true);
+  }, [getStepById, isExitingTooltip, isStepReady, isTourActive, pendingStepId, renderStepId]);
 
   const persistTour = useCallback(async (next: PersistedInAppTourState | null) => {
     if (!next) {
@@ -396,65 +486,34 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       stepId: nextStep.id,
       updatedAt: now,
     };
-    if (step?.id === 'ai_chat_overview') {
-      setTransitionHideTooltip(true);
-      pendingAdvanceRef.current = { stepId: nextStep.id, updatedAt: now };
-      router.replace('/(tabs)');
-      return;
-    }
-    if (step?.id === 'rest_timer_settings') {
-      setTransitionHideTooltip(true);
-      pendingAdvanceRef.current = { stepId: nextStep.id, updatedAt: now };
+
+    if (logicalStep?.id === 'rest_timer_settings' && isWorkoutActive) {
       cancelWorkout();
+    }
+
+    await setTourStateAndPersist(next);
+
+    if (logicalStep?.id === 'ai_chat_overview') {
       router.replace('/(tabs)');
       return;
     }
-    await setTourStateAndPersist(next);
-  }, [cancelWorkout, currentStepIndex, finishTour, isTourActive, router, setTourStateAndPersist, step?.id, tourLoaded]);
-
-  useEffect(() => {
-    if (!isTourActive) {
-      pendingAdvanceRef.current = null;
-      return;
+    if (logicalStep?.id === 'rest_timer_settings') {
+      router.replace('/(tabs)');
     }
-    const pending = pendingAdvanceRef.current;
-    if (!pending) return;
-    const nextStep = TOUR_STEPS[getStepIndexById(pending.stepId)];
-    if (!nextStep) {
-      pendingAdvanceRef.current = null;
-      return;
-    }
-    if (isOnStepRoute(nextStep.route)) {
-      const next: PersistedInAppTourState = {
-        version: IN_APP_TOUR_VERSION,
-        status: 'in_progress',
-        stepId: nextStep.id,
-        updatedAt: pending.updatedAt,
-      };
-      pendingAdvanceRef.current = null;
-      setTransitionHideTooltip(false);
-      void setTourStateAndPersist(next);
-    }
-  }, [isOnStepRoute, isTourActive, setTourStateAndPersist]);
-
-  useEffect(() => {
-    if (!isTourActive && transitionHideTooltip) {
-      setTransitionHideTooltip(false);
-    }
-  }, [isTourActive, transitionHideTooltip]);
+  }, [cancelWorkout, currentStepIndex, finishTour, isTourActive, isWorkoutActive, logicalStep?.id, router, setTourStateAndPersist, tourLoaded]);
 
   const autoNavStepRef = useRef<string | null>(null);
 
   // One-time navigation per step (avoid fighting user-driven navigation when a step advances itself).
   useEffect(() => {
-    if (!isTourActive || !step) return;
-    if (autoNavStepRef.current === step.id) return;
-    autoNavStepRef.current = step.id;
+    if (!isTourActive || !logicalStep) return;
+    if (autoNavStepRef.current === logicalStep.id) return;
+    autoNavStepRef.current = logicalStep.id;
 
-    if (!isOnStepRoute(step.route)) {
-      router.replace(step.route);
+    if (!isOnStepRoute(logicalStep.route)) {
+      router.replace(logicalStep.route);
     }
-  }, [isOnStepRoute, isTourActive, router, step]);
+  }, [isOnStepRoute, isTourActive, logicalStep, router]);
 
   // Reset per-step navigation when returning from background.
   useEffect(() => {
@@ -465,6 +524,20 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     });
     return () => subscription.remove();
   }, []);
+
+  // Keep route-locked steps on their required route even after first navigation.
+  useEffect(() => {
+    if (!isTourActive || !logicalStep || !shouldRouteLockLogicalStep) return;
+    if (isLogicalStepOnRoute) return;
+    router.replace(logicalStep.route);
+  }, [isLogicalStepOnRoute, isTourActive, logicalStep, router, shouldRouteLockLogicalStep]);
+
+  // Defensive close: step 9 should never render with an active workout session.
+  useEffect(() => {
+    if (!isTourActive || logicalStep?.id !== 'go_insights') return;
+    if (!isWorkoutActive) return;
+    cancelWorkout();
+  }, [cancelWorkout, isTourActive, isWorkoutActive, logicalStep?.id]);
 
   // Load persisted tour state (resume).
   useEffect(() => {
@@ -537,65 +610,77 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   // Advance when a workout is launched from Quick Start.
   useEffect(() => {
-    if (!isTourActive || step?.id !== 'launch_workout') return;
+    if (!isTourActive || logicalStep?.id !== 'launch_workout') return;
     if (isOnStepRoute('/workout/active')) {
       void advanceStep();
     }
-  }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
+  }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
 
   // Advance when the AI chat is opened.
   useEffect(() => {
-    if (!isTourActive || step?.id !== 'ai_chat_open') return;
+    if (!isTourActive || logicalStep?.id !== 'ai_chat_open') return;
     if (isOnStepRoute('/ai/chat')) {
       void advanceStep();
     }
-  }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
+  }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
 
   // Advance when user reaches the Insights tab.
   useEffect(() => {
-    if (!isTourActive || step?.id !== 'go_insights') return;
+    if (!isTourActive || logicalStep?.id !== 'go_insights') return;
     if (isOnStepRoute('/(tabs)/insights')) {
       void advanceStep();
     }
-  }, [advanceStep, isOnStepRoute, isTourActive, step?.id]);
+  }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
 
   const contextValue = useMemo<InAppTourContextValue>(() => ({
     registerAnchorRect,
     unregisterAnchor,
     isTourActive,
-    activeStepId: step?.id ?? null,
+    activeStepId: logicalStep?.id ?? null,
     advanceStep: () => void advanceStep(),
-  }), [advanceStep, isTourActive, registerAnchorRect, step?.id, unregisterAnchor]);
+  }), [advanceStep, isTourActive, logicalStep?.id, registerAnchorRect, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {
-    if (!isTourActive || !step || !step.primaryActionLabel) return null;
+    if (!isTourActive || !logicalStep || !logicalStep.primaryActionLabel) return null;
     return {
-      label: step.primaryActionLabel,
+      label: logicalStep.primaryActionLabel,
       onPress: () => {
         void advanceStep();
       },
     };
-  }, [advanceStep, isTourActive, step]);
+  }, [advanceStep, isTourActive, logicalStep]);
+
+  const showOverlay = Boolean(
+    isTourActive &&
+    overlayStep &&
+    isAuthenticated &&
+    isMainAppRoute &&
+    (!shouldRouteLockLogicalStep || isLogicalStepOnRoute)
+  );
 
   return (
     <InAppTourContext.Provider value={contextValue}>
       {children}
       <TourOverlay
-        visible={Boolean(isTourActive && step && isAuthenticated && isMainAppRoute)}
-        mode={step?.mode ?? 'blocking'}
+        visible={showOverlay}
+        mode={overlayStep?.mode ?? 'blocking'}
         anchorRect={currentAnchorRect}
-        body={step?.body ?? ''}
+        body={overlayStep?.body ?? ''}
         stepLabel={stepLabel}
         primaryAction={primaryAction}
         onSkip={isTourActive ? () => void finishTour('skipped') : null}
-        showArrow={Boolean(step?.showArrow) && !transitionHideTooltip}
-        centerTooltip={Boolean(step?.centerTooltip)}
-        showHighlight={!transitionHideTooltip && (step?.showHighlight ?? true)}
-        hideTooltip={Boolean(step?.hideTooltip) || transitionHideTooltip}
-        tooltipOffsetY={step?.tooltipOffsetY ?? 0}
-        pinTooltipToTop={step?.pinTooltipToTop ?? false}
-        tooltipTopOffset={step?.tooltipTopOffset ?? 0}
-        placement={step?.placement}
+        showArrow={Boolean(overlayStep?.showArrow) && isTooltipVisible && Boolean(currentAnchorRect)}
+        centerTooltip={
+          Boolean(overlayStep?.centerTooltip) ||
+          (overlayStep?.mode === 'spotlight' && !currentAnchorRect)
+        }
+        showHighlight={isTooltipVisible && (overlayStep?.showHighlight ?? true) && Boolean(currentAnchorRect)}
+        hideTooltip={Boolean(overlayStep?.hideTooltip) || !isTooltipVisible}
+        tooltipOffsetY={overlayStep?.tooltipOffsetY ?? 0}
+        pinTooltipToTop={overlayStep?.pinTooltipToTop ?? false}
+        tooltipTopOffset={overlayStep?.tooltipTopOffset ?? 0}
+        placement={overlayStep?.placement}
+        onTooltipHideComplete={handleTooltipHideComplete}
       />
     </InAppTourContext.Provider>
   );

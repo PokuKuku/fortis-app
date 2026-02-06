@@ -35,19 +35,6 @@ type TemplateSeed = {
   exercises: TemplateSeedExercise[];
 };
 
-const GET_STARTED_TEMPLATE_SEED: TemplateSeed = {
-  id: 'default-template-get-started',
-  name: 'Get Started',
-  exercises: [
-    {
-      exerciseId: EXERCISE_IDS.barbellBenchPress,
-      exerciseName: 'Barbell Bench Press',
-      sets: 1,
-      reps: '3',
-    },
-  ],
-};
-
 const TEMPLATE_SEEDS: TemplateSeed[] = [
   {
     id: 'default-template-upper',
@@ -195,7 +182,7 @@ const buildProgramWorkout = (
 };
 
 export const getDefaultTemplates = (): Program[] =>
-  [GET_STARTED_TEMPLATE_SEED, ...TEMPLATE_SEEDS].map(buildTemplateProgram);
+  TEMPLATE_SEEDS.map(buildTemplateProgram);
 
 export const getDefaultPrograms = (): Program[] => {
   const programId = 'default-program-upper-lower';

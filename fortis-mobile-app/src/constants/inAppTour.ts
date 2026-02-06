@@ -1,6 +1,6 @@
 export const IN_APP_TOUR_VERSION = 7 as const;
 
-export const GET_STARTED_TEMPLATE_ID = 'default-template-get-started' as const;
+export const TOUR_QUICK_START_TEMPLATE_ID = 'default-template-upper' as const;
 
 export const TOUR_ANCHOR_IDS = {
   aiChatButton: 'tour.tabs.aiChatButton',

@@ -100,10 +100,10 @@ export default function OnboardingBirthdateScreen() {
       age -= 1;
     }
 
-    if (age < 13) {
+    if (age < 9) {
       Alert.alert(
         'Age requirement',
-        'You must be at least 13 years old to use Fortis.',
+        'You must be at least 9 years old to use Fortis.',
         [{ text: 'OK', onPress: () => router.replace('/onboarding/welcome') }]
       );
       return;

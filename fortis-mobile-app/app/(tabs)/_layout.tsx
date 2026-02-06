@@ -21,7 +21,7 @@ import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { TOUR_ANCHOR_IDS, TOUR_QUICK_START_TEMPLATE_ID } from '@/src/constants/inAppTour';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
@@ -186,6 +186,25 @@ export default function TabLayout() {
     return templateMatch?.name ?? 'Workout template';
   }, [startPreset, programs]);
 
+  const upperQuickStartTemplate = useMemo(
+    () => templates.find((template) => template.id === TOUR_QUICK_START_TEMPLATE_ID) ?? null,
+    [templates]
+  );
+
+  const isQuickStartUpperPreset = (preset: StartPreset | null) => {
+    if (!preset || preset.type !== 'template') return false;
+
+    if (preset.templateId === TOUR_QUICK_START_TEMPLATE_ID) {
+      return true;
+    }
+
+    if (!upperQuickStartTemplate || !preset.templateWorkoutId) {
+      return false;
+    }
+
+    return upperQuickStartTemplate.workouts.some((workout) => workout.id === preset.templateWorkoutId);
+  };
+
   const startButtonColors = startPreset
     ? (colors.contrastGradient as unknown as string[])
     : undefined;
@@ -305,10 +324,23 @@ export default function TabLayout() {
   };
 
   const handleConfirmStartPreset = async () => {
-    const nextPreset = draftStartPreset ?? null;
+    let nextPreset = draftStartPreset ?? null;
+
+    if (isTourActive && activeStepId === 'quick_start') {
+      if (!isQuickStartUpperPreset(nextPreset)) {
+        nextPreset = upperQuickStartTemplate
+          ? {
+              type: 'template',
+              templateId: upperQuickStartTemplate.id,
+              templateWorkoutId: upperQuickStartTemplate.workouts[0]?.id,
+            }
+          : null;
+      }
+    }
+
     await setStartPreset(nextPreset);
     setStartConfigVisible(false);
-    if (isTourActive && activeStepId === 'quick_start' && nextPreset) {
+    if (isTourActive && activeStepId === 'quick_start' && isQuickStartUpperPreset(nextPreset)) {
       advanceStep();
     }
   };

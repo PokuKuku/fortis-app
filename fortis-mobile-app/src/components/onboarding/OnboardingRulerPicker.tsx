@@ -48,7 +48,8 @@ export function OnboardingRulerPicker({
   const lastHapticAt = useRef<number>(0);
   const lastProgrammaticIndex = useRef<number | null>(null);
   const isInteracting = useRef(false);
-  const hasMounted = useRef(false);
+  const isMomentumScrolling = useRef(false);
+  const dragEndTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [containerWidth, setContainerWidth] = useState(0);
 
   const count = Math.floor((max - min) / step) + 1;
@@ -74,14 +75,24 @@ export function OnboardingRulerPicker({
     if (isInteracting.current) return;
     if (lastProgrammaticIndex.current === currentIndex) return;
 
+    const nextOffset = currentIndex * TICK_SPACING;
+    if (!Number.isFinite(nextOffset)) return;
+
     listRef.current.scrollToOffset({
-      offset: currentIndex * TICK_SPACING,
-      animated: hasMounted.current,
+      offset: nextOffset,
+      animated: false,
     });
     lastProgrammaticIndex.current = currentIndex;
     lastEmittedIndex.current = currentIndex;
-    hasMounted.current = true;
   }, [containerWidth, currentIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (!dragEndTimer.current) return;
+      clearTimeout(dragEndTimer.current);
+      dragEndTimer.current = null;
+    };
+  }, []);
 
   const getTickLevel = (tickValue: number): TickLevel => {
     const scaled = Math.round(tickValue / step);
@@ -117,6 +128,7 @@ export function OnboardingRulerPicker({
     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / TICK_SPACING);
     handlePreviewIndex(nextIndex);
     handleCommitIndex(nextIndex);
+    isMomentumScrolling.current = false;
     isInteracting.current = false;
     lastProgrammaticIndex.current = clamp(nextIndex, 0, count - 1);
   };
@@ -192,15 +204,33 @@ export function OnboardingRulerPicker({
         snapToAlignment="center"
         decelerationRate="fast"
         onScrollBeginDrag={() => {
+          if (dragEndTimer.current) {
+            clearTimeout(dragEndTimer.current);
+            dragEndTimer.current = null;
+          }
           isInteracting.current = true;
+          isMomentumScrolling.current = false;
         }}
         onMomentumScrollBegin={() => {
+          if (dragEndTimer.current) {
+            clearTimeout(dragEndTimer.current);
+            dragEndTimer.current = null;
+          }
           isInteracting.current = true;
+          isMomentumScrolling.current = true;
         }}
         onMomentumScrollEnd={handleMomentumEnd}
         onScrollEndDrag={(event) => {
           handleScrollEndDrag(event);
-          isInteracting.current = false;
+          if (dragEndTimer.current) {
+            clearTimeout(dragEndTimer.current);
+          }
+          dragEndTimer.current = setTimeout(() => {
+            if (!isMomentumScrolling.current) {
+              isInteracting.current = false;
+            }
+            dragEndTimer.current = null;
+          }, 80);
         }}
         onScroll={(event) => {
           const nextIndex = Math.round(event.nativeEvent.contentOffset.x / TICK_SPACING);

@@ -7,7 +7,7 @@ import {
   XMarkIcon,
 } from 'react-native-heroicons/outline';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
-import { GET_STARTED_TEMPLATE_ID } from '@/src/constants/inAppTour';
+import { TOUR_QUICK_START_TEMPLATE_ID } from '@/src/constants/inAppTour';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { getModalWidth, responsiveValue } from '@/src/utils/responsive';
@@ -117,13 +117,13 @@ export function StartButtonConfigModal({
     draftPreset?.type === 'template' &&
     draftPreset.templateId === forceTemplateId;
   const isTourSelectionStep = isTourActive && activeStepId === 'quick_start';
-  const isTourGetStartedSelected =
+  const isTourQuickStartTemplateSelected =
     isTourSelectionStep &&
     draftPreset?.type === 'template' &&
-    draftPreset.templateId === GET_STARTED_TEMPLATE_ID;
-  const canConfirm = hasChanges || hasForcedSelection || isTourGetStartedSelected;
+    draftPreset.templateId === TOUR_QUICK_START_TEMPLATE_ID;
+  const canConfirm = hasChanges || hasForcedSelection || isTourQuickStartTemplateSelected;
   const disableBlankWorkout = isTourSelectionStep;
-  const disableNonGetStarted = isTourSelectionStep;
+  const disableNonQuickStartTemplate = isTourSelectionStep;
 
   return (
     <BaseModal
@@ -191,7 +191,7 @@ export function StartButtonConfigModal({
                   template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
               icon: <Squares2X2Icon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
               disabled: (isForceMode && template.id !== forceTemplateId) ||
-                (disableNonGetStarted && template.id !== GET_STARTED_TEMPLATE_ID),
+                (disableNonQuickStartTemplate && template.id !== TOUR_QUICK_START_TEMPLATE_ID),
               onPress: () =>
                 onChange({
                   type: 'template',
@@ -217,7 +217,7 @@ export function StartButtonConfigModal({
                 subtitle: 'Continue to the next workout',
                 selected: draftPreset?.type === 'program' && draftPreset.programId === program.id,
                 icon: <CalendarDaysIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
-                disabled: isForceMode || disableNonGetStarted,
+                disabled: isForceMode || disableNonQuickStartTemplate,
                 onPress: () => onChange({ type: 'program', programId: program.id }),
               })}
             </View>
