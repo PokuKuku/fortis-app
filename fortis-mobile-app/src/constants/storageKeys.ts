@@ -7,6 +7,7 @@ export const EXERCISE_LIBRARY_VERSION_KEY = 'exercise_library_version_v2';
 // Programs
 export const PROGRAMS_KEY = 'fortis_programs_v1';
 export const LOCAL_TEMPLATES_KEY = 'fortis_local_templates_v5';
+export const DELETED_DEFAULT_PROGRAM_IDS_KEY = 'deleted_default_program_ids_v1';
 export const PROGRAM_PROGRESS_KEY = 'program_progress_v1';
 
 // Workout templates
@@ -52,6 +53,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   PROGRAMS_KEY,
   WORKOUTS_KEY,
   LOCAL_TEMPLATES_KEY,
+  DELETED_DEFAULT_PROGRAM_IDS_KEY,
   PROGRAM_PROGRESS_KEY,
   ACTIVE_WORKOUT_KEY,
   COMPLETED_WORKOUTS_KEY,

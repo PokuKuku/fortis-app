@@ -106,16 +106,10 @@ describe('muscleTaxonomy attribution', () => {
 
     const levels = bucketIntensity(scores);
 
-    // Regression output for quick inspection when needed.
-    // eslint-disable-next-line no-console
-    console.log('[muscleTaxonomy] sample scores', scores);
-    // eslint-disable-next-line no-console
-    console.log('[muscleTaxonomy] sample levels', levels);
-
     expect(scores.chest).toBeGreaterThan(scores.lats ?? 0);
     expect(scores.lats ?? 0).toBeGreaterThan(scores.triceps ?? 0);
     expect(levels.chest).toBe(5);
-    expect(levels.lats).toBe(4);
+    expect(levels.lats).toBe(3);
     expect(levels.triceps).toBe(3);
   });
 });

@@ -24,9 +24,36 @@ import {
   ProgramExerciseDTO,
   TemplateSetDetail,
 } from '../types/workout';
-import { LOCAL_TEMPLATES_KEY } from '../constants/storageKeys';
+import { DELETED_DEFAULT_PROGRAM_IDS_KEY, LOCAL_TEMPLATES_KEY } from '../constants/storageKeys';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../constants/programs';
 import { analytics } from '../services/analyticsService';
+
+const DEFAULT_PROGRAM_IDS = new Set(
+  [...getDefaultPrograms(), ...getDefaultTemplates()].map((program) => program.id)
+);
+
+const parseDeletedDefaultProgramIds = (raw: string | null): Set<string> => {
+  if (!raw) return new Set();
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.filter((value): value is string => typeof value === 'string'));
+  } catch {
+    return new Set();
+  }
+};
+
+const loadDeletedDefaultProgramIds = async (): Promise<Set<string>> => {
+  const raw = await getScopedItem(DELETED_DEFAULT_PROGRAM_IDS_KEY);
+  return parseDeletedDefaultProgramIds(raw);
+};
+
+const persistDeletedDefaultProgramIds = async (ids: Set<string>): Promise<void> => {
+  await setScopedItem(DELETED_DEFAULT_PROGRAM_IDS_KEY, JSON.stringify(Array.from(ids)));
+};
+
+const isSeededDefaultProgram = (program: Program | undefined): program is Program =>
+  Boolean(program?.isDefault && program?.id && DEFAULT_PROGRAM_IDS.has(program.id));
 
 interface ProgramsState {
   // Data
@@ -378,7 +405,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         return;
       }
 
-      const programs = (data as ProgramDTO[]).map(mapProgramFromDTO);
+      const deletedDefaultIds = await loadDeletedDefaultProgramIds();
+      const programs = (data as ProgramDTO[])
+        .map(mapProgramFromDTO)
+        .filter((program) => !(program.isDefault && deletedDefaultIds.has(program.id)));
       const hasServerDefaults = programs.some((program) => program.isDefault);
 
       // Fetch exercise names for each program
@@ -451,6 +481,24 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Delete a program (handles both Supabase and local programs)
   deleteProgram: async (id: string) => {
     set({ isDeleting: true, error: null });
+    const program = get().programs.find((p) => p.id === id);
+
+    if (isSeededDefaultProgram(program)) {
+      try {
+        const deletedDefaultIds = await loadDeletedDefaultProgramIds();
+        deletedDefaultIds.add(id);
+        await persistDeletedDefaultProgramIds(deletedDefaultIds);
+      } catch (err) {
+        console.warn('Failed to persist deleted default program IDs:', err);
+      }
+
+      set((state) => ({
+        programs: state.programs.filter((p) => p.id !== id),
+        isDeleting: false,
+      }));
+
+      return true;
+    }
 
     // Handle local programs (delete from AsyncStorage only)
     if (isLocalProgramId(id)) {
@@ -1839,14 +1887,28 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   loadLocalPrograms: async () => {
     try {
       const stored = await getScopedItem(LOCAL_TEMPLATES_KEY);
-      const defaults = [...getDefaultPrograms(), ...getDefaultTemplates()];
+      const deletedDefaultIds = await loadDeletedDefaultProgramIds();
+      const defaults = [...getDefaultPrograms(), ...getDefaultTemplates()].filter(
+        (program) => !deletedDefaultIds.has(program.id)
+      );
       let localPrograms = stored ? (JSON.parse(stored) as Program[]) : defaults;
+      let didChangeStoredPrograms = false;
 
       if (stored) {
+        const beforePrune = localPrograms.length;
+        localPrograms = localPrograms.filter(
+          (program) => !(program.isDefault && deletedDefaultIds.has(program.id))
+        );
+        didChangeStoredPrograms = beforePrune !== localPrograms.length;
+
         const existingIds = new Set(localPrograms.map((program) => program.id));
         const missingDefaults = defaults.filter((program) => !existingIds.has(program.id));
         if (missingDefaults.length > 0) {
           localPrograms = [...localPrograms, ...missingDefaults];
+          didChangeStoredPrograms = true;
+        }
+
+        if (didChangeStoredPrograms) {
           await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
         }
       } else if (localPrograms.length > 0) {

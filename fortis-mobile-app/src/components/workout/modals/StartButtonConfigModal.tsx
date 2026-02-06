@@ -7,8 +7,7 @@ import {
   XMarkIcon,
 } from 'react-native-heroicons/outline';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
-import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { GET_STARTED_TEMPLATE_ID, TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { GET_STARTED_TEMPLATE_ID } from '@/src/constants/inAppTour';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { getModalWidth, responsiveValue } from '@/src/utils/responsive';
@@ -200,14 +199,6 @@ export function StartButtonConfigModal({
                   templateWorkoutId: template.workouts[0]?.id,
                 }),
             });
-
-            if (template.id === GET_STARTED_TEMPLATE_ID) {
-              return (
-                <TourAnchor id={TOUR_ANCHOR_IDS.startConfigGetStarted} key={`template-${template.id}`}>
-                  {option}
-                </TourAnchor>
-              );
-            }
 
             return <View key={`template-${template.id}`}>{option}</View>;
           })

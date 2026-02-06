@@ -7,9 +7,6 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { responsiveValue, moderateScale } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
-import { useInAppTour } from '@/src/contexts/InAppTourContext';
-import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { SetRow } from './SetRow';
 import { ExerciseKebabPopover } from './ExerciseKebabPopover';
 import * as Haptics from 'expo-haptics';
@@ -56,7 +53,6 @@ export function ExerciseCard({
   completedSetTint = 'accent',
 }: ExerciseCardProps) {
   const { colors, isDark } = useTheme();
-  const { isTourActive, activeStepId } = useInAppTour();
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -100,11 +96,6 @@ export function ExerciseCard({
   const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
   const stickyNote = exercise ? stickyNotes[exercise.exerciseId] : undefined;
   const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
-  const isPrimaryExercise = session?.exercises?.[0]?.localId === exerciseLocalId;
-  const shouldAnchorColumns = isTourActive && activeStepId === 'columns_intro' && isPrimaryExercise;
-  const shouldAnchorAddSet = isTourActive && activeStepId === 'card_basics' && isPrimaryExercise;
-  const wrapAnchor = (enabled: boolean, id: string, node: JSX.Element) =>
-    enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
 
   // Fetch last performance for this exercise from previous sessions
   const performanceContext = useMemo(() => ({
@@ -285,91 +276,83 @@ export function ExerciseCard({
         )}
 
         {/* Sets Table */}
-        {wrapAnchor(
-          shouldAnchorColumns,
-          TOUR_ANCHOR_IDS.workoutColumns,
-          <View style={styles.setsTable}>
-            {/* Header Row */}
-            <View style={styles.tableHeader}>
-              <Text
-                style={[styles.headerText, themedStyles.headerText, styles.setCol]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-                allowFontScaling={false}
-              >
-                Set
-              </Text>
-              <Text
-                style={[styles.headerText, themedStyles.headerText, styles.previousCol]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-                allowFontScaling={false}
-              >
-                Prev
-              </Text>
-              <Text
-                style={[styles.headerText, themedStyles.headerText, styles.weightCol, !shouldShowCheckboxes && styles.flexCol]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-                allowFontScaling={false}
-              >
-                {weightUnit}
-              </Text>
-              <Text
-                style={[styles.headerText, themedStyles.headerText, styles.repsCol, !shouldShowCheckboxes && styles.flexCol]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.75}
-                allowFontScaling={false}
-              >
-                Reps
-              </Text>
-              {shouldShowCheckboxes && <View style={styles.checkCol} />}
-            </View>
-
-            {/* Header Divider */}
-            <View style={[styles.headerDivider, themedStyles.headerDivider]} />
-
-            {/* Set Rows */}
-            {exercise.sets.map((set, index) => (
-              <SetRow
-                key={set.localId}
-                exerciseLocalId={exerciseLocalId}
-                setLocalId={set.localId}
-                setIndex={index}
-                useEditor={useEditor}
-                showCheckboxes={shouldShowCheckboxes}
-                previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
-                lastPerformance={lastPerformance}
-                baselinePerformance={exercise.baselinePerformance}
-                completedSetTint={completedSetTint}
-              />
-            ))}
+        <View style={styles.setsTable}>
+          {/* Header Row */}
+          <View style={styles.tableHeader}>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.setCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              Set
+            </Text>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.previousCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              Prev
+            </Text>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.weightCol, !shouldShowCheckboxes && styles.flexCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              {weightUnit}
+            </Text>
+            <Text
+              style={[styles.headerText, themedStyles.headerText, styles.repsCol, !shouldShowCheckboxes && styles.flexCol]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+              allowFontScaling={false}
+            >
+              Reps
+            </Text>
+            {shouldShowCheckboxes && <View style={styles.checkCol} />}
           </View>
-        )}
+
+          {/* Header Divider */}
+          <View style={[styles.headerDivider, themedStyles.headerDivider]} />
+
+          {/* Set Rows */}
+          {exercise.sets.map((set, index) => (
+            <SetRow
+              key={set.localId}
+              exerciseLocalId={exerciseLocalId}
+              setLocalId={set.localId}
+              setIndex={index}
+              useEditor={useEditor}
+              showCheckboxes={shouldShowCheckboxes}
+              previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
+              lastPerformance={lastPerformance}
+              baselinePerformance={exercise.baselinePerformance}
+              completedSetTint={completedSetTint}
+            />
+          ))}
+        </View>
 
         {/* Add Set Button */}
-        {wrapAnchor(
-          shouldAnchorAddSet,
-          TOUR_ANCHOR_IDS.addSetButton,
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add set"
-            accessibilityHint="Adds a set to this exercise"
-            onPress={handleAddSet}
-            style={({ pressed }) => [
-              styles.addSetButton,
-              pressed && styles.pressed
-            ]}
-          >
-            <View style={[styles.addSetLine, themedStyles.addSetLine]} />
-            <Text style={[styles.addSetText, themedStyles.addSetText]}>+ Add Set</Text>
-            <View style={[styles.addSetLine, themedStyles.addSetLine]} />
-          </Pressable>
-        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Add set"
+          accessibilityHint="Adds a set to this exercise"
+          onPress={handleAddSet}
+          style={({ pressed }) => [
+            styles.addSetButton,
+            pressed && styles.pressed
+          ]}
+        >
+          <View style={[styles.addSetLine, themedStyles.addSetLine]} />
+          <Text style={[styles.addSetText, themedStyles.addSetText]}>+ Add Set</Text>
+          <View style={[styles.addSetLine, themedStyles.addSetLine]} />
+        </Pressable>
       </View>
 
       {/* Kebab Popover */}

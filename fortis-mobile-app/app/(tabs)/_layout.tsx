@@ -582,7 +582,6 @@ export default function TabLayout() {
       onConfirm={handleConfirmStartPreset}
       onClose={() => setStartConfigVisible(false)}
       forceTemplateId={null}
-      disableClose={isTourActive && activeStepId === 'start_config'}
     />
 
     {/* Plus Button */}

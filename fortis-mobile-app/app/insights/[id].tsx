@@ -121,7 +121,19 @@ const formatChartValue = (value: number, unit?: string): string => {
   return formatEvidenceValue(item);
 };
 
-const formatDateLabel = (value: string): string => {
+const formatChartMetaDateLabel = (value: string): string => {
+  const date = parseDateInput(value);
+  if (!date) {
+    return value;
+  }
+  if (isDateOnly(value)) {
+    const end = addDays(date, 6);
+    return `${format(date, 'MMM d')}\u2013${format(end, 'MMM d')}`;
+  }
+  return format(date, 'MMM d');
+};
+
+const formatChartAxisDateLabel = (value: string): string => {
   const date = parseDateInput(value);
   if (!date) {
     return value;
@@ -175,24 +187,36 @@ export default function InsightDetailScreen() {
   useEffect(() => {
     if (!insight) return;
     setSelectedTab((initialTab as InsightChartTab | null) ?? getDefaultTab(insight));
-  }, [initialTab, insight]);
+  }, [initialTab, insight?.id]);
 
   useEffect(() => {
     if (!series || !insight) return;
+    // Keep user's selected tab when it has enough data; only auto-pick if invalid.
+    if (series[selectedTab].length > 1) {
+      return;
+    }
     const preferred = (initialTab as InsightChartTab | null) ?? getDefaultTab(insight);
     const hasPreferred = series[preferred].length > 1;
     if (hasPreferred) {
-      setSelectedTab(preferred);
+      if (selectedTab !== preferred) {
+        setSelectedTab(preferred);
+      }
       return;
     }
     if (series.volume.length > 1) {
-      setSelectedTab('volume');
+      if (selectedTab !== 'volume') {
+        setSelectedTab('volume');
+      }
     } else if (series.progress.length > 1) {
-      setSelectedTab('progress');
+      if (selectedTab !== 'progress') {
+        setSelectedTab('progress');
+      }
     } else if (series.frequency.length > 1) {
-      setSelectedTab('frequency');
+      if (selectedTab !== 'frequency') {
+        setSelectedTab('frequency');
+      }
     }
-  }, [initialTab, insight, series]);
+  }, [initialTab, insight, selectedTab, series]);
 
   const tabOptions = [
     { key: 'progress', label: resolveTabLabel('progress', series?.units?.progress, insight), disabled: (series?.progress?.length ?? 0) < 2 },
@@ -236,7 +260,7 @@ export default function InsightDetailScreen() {
   const chartTitle = resolveChartTitle(selectedTab, mapping, unit, insight);
   const latestPoint = activeSeries.length > 0 ? activeSeries[activeSeries.length - 1] : null;
   const latestValue = latestPoint ? formatChartValue(latestPoint.value, unit) : null;
-  const latestMeta = latestPoint ? formatDateLabel(latestPoint.date) : null;
+  const latestMeta = latestPoint ? formatChartMetaDateLabel(latestPoint.date) : null;
   const unitLabel = isWorkoutRecap
     ? series?.breakdownUnit ?? unit
     : unit === 'ratio'
@@ -407,7 +431,7 @@ export default function InsightDetailScreen() {
                   highlightPoints={highlightPoints}
                   xLabel={xLabel}
                   yLabel={yLabel}
-                  formatXValue={formatDateLabel}
+                  formatXValue={formatChartAxisDateLabel}
                   formatYValue={formatYAxisValue}
                   variant={
                     insight.type === 'IMBALANCE_FLAG_V1'

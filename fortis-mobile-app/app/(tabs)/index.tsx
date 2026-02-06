@@ -1154,24 +1154,22 @@ export default function ProgramsScreen() {
           {/* Programs Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <TourAnchor id={TOUR_ANCHOR_IDS.programsSection}>
-                <TouchableOpacity
-                  onPress={() => setShowPrograms(!showPrograms)}
-                  style={styles.sectionHeaderButton}
-                >
-                  <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowPrograms(!showPrograms)}>
-                    <ChevronRightIcon
-                      color="#fff"
-                      size={SECTION_CHEVRON_SIZE}
-                      style={[
-                        styles.chevron,
-                        showPrograms && styles.chevronRotated,
-                      ]}
-                    />
-                  </GlassButton>
-                  <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Programs</Text>
-                </TouchableOpacity>
-              </TourAnchor>
+              <TouchableOpacity
+                onPress={() => setShowPrograms(!showPrograms)}
+                style={styles.sectionHeaderButton}
+              >
+                <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowPrograms(!showPrograms)}>
+                  <ChevronRightIcon
+                    color="#fff"
+                    size={SECTION_CHEVRON_SIZE}
+                    style={[
+                      styles.chevron,
+                      showPrograms && styles.chevronRotated,
+                    ]}
+                  />
+                </GlassButton>
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Programs</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 onPress={handleAddProgramPress}
                 style={styles.sectionKebabButton}

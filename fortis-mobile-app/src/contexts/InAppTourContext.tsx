@@ -2,24 +2,19 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import { usePathname, useRouter, useSegments } from 'expo-router';
 import {
-  HAS_AUTO_SET_GET_STARTED_PRESET_KEY,
   HAS_REQUESTED_REVIEW_DEVICE_KEY,
   HAS_REQUESTED_REVIEW_KEY,
 } from '@/src/constants/storageKeys';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
-  GET_STARTED_TEMPLATE_ID,
-  GET_STARTED_WORKOUT_ID,
   IN_APP_TOUR_VERSION,
   TOUR_ANCHOR_IDS,
   type TourAnchorId,
 } from '@/src/constants/inAppTour';
 import { useAuth, type Profile } from '@/src/contexts/AuthContext';
-import { useGetStartedStatus } from '@/src/hooks/useGetStartedStatus';
 import { clearInAppTourState, loadInAppTourState, saveInAppTourState, type PersistedInAppTourState } from '@/src/services/inAppTourService';
-import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { getScopedItem } from '@/src/utils/scopedStorage';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
 import * as StoreReview from 'expo-store-review';
 
@@ -30,11 +25,8 @@ type TourStepId =
   | 'ai_chat_overview'
   | 'quick_start'
   | 'launch_workout'
-  | 'start_config'
   | 'rest_timer'
   | 'rest_timer_settings'
-  | 'columns_intro'
-  | 'card_basics'
   | 'go_insights'
   | 'insights_overview';
 
@@ -181,14 +173,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const segments = useSegments();
   const { isAuthenticated, profile, updateProfile } = useAuth();
-  const { hasCompletedGetStarted } = useGetStartedStatus();
   const forceTourThisSession = useRef(false);
-  const AUTO_SET_GET_STARTED_PRESET = false;
-
-  const startPreset = useStartPresetStore((s) => s.preset);
-  const startPresetLoaded = useStartPresetStore((s) => s.isLoaded);
-  const loadStartPreset = useStartPresetStore((s) => s.loadPreset);
-  const setStartPreset = useStartPresetStore((s) => s.setPreset);
 
   const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
   const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
@@ -196,7 +181,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
   const [tourLoaded, setTourLoaded] = useState(false);
   const [anchorRects, setAnchorRects] = useState<Record<string, AnchorRect>>({});
-  const [hasAutoSetGetStarted, setHasAutoSetGetStarted] = useState<boolean | null>(null);
   const [transitionHideTooltip, setTransitionHideTooltip] = useState(false);
 
   const isTourActive = tourState?.status === 'in_progress';
@@ -515,65 +499,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       isMounted = false;
     };
   }, []);
-
-  // Load the "auto-set Get Started preset" guard flag.
-  useEffect(() => {
-    let isMounted = true;
-    if (!isAuthenticated) {
-      setHasAutoSetGetStarted(null);
-      return;
-    }
-
-    const run = async () => {
-      const raw = await getScopedItem(HAS_AUTO_SET_GET_STARTED_PRESET_KEY);
-      if (!isMounted) return;
-      setHasAutoSetGetStarted(raw === 'true');
-    };
-
-    void run();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isAuthenticated]);
-
-  // Ensure start preset is loaded early for new users (so Quick Start works immediately).
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (startPresetLoaded) return;
-    void loadStartPreset();
-  }, [isAuthenticated, loadStartPreset, startPresetLoaded]);
-
-  // Auto-set Quick Start to Get Started once (only when the user hasn't configured it yet).
-  useEffect(() => {
-    if (!AUTO_SET_GET_STARTED_PRESET) return;
-    if (!isAuthenticated) return;
-    if (hasCompletedGetStarted) return;
-    if (!startPresetLoaded) return;
-    if (startPreset !== null) return;
-    if (hasAutoSetGetStarted !== false) return;
-
-    const preset: StartPreset = {
-      type: 'template',
-      templateId: GET_STARTED_TEMPLATE_ID,
-      templateWorkoutId: GET_STARTED_WORKOUT_ID,
-    };
-
-    const run = async () => {
-      await setStartPreset(preset);
-      await setScopedItem(HAS_AUTO_SET_GET_STARTED_PRESET_KEY, 'true');
-      setHasAutoSetGetStarted(true);
-    };
-
-    void run();
-  }, [
-    hasAutoSetGetStarted,
-    hasCompletedGetStarted,
-    isAuthenticated,
-    setStartPreset,
-    startPreset,
-    startPresetLoaded,
-  ]);
 
   const isInOnboardingOrAuth = segments[0] === 'onboarding' || segments[0] === 'auth';
   const isMainAppRoute =
