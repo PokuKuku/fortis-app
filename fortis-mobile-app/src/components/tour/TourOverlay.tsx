@@ -1,6 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { GlassButton } from '@/components/GlassButton';
 import { BorderRadius, FontWeights, Spacing } from '@/constants/Sizes';
@@ -44,6 +54,7 @@ const ARROW_GAP = scale(8);
 const ARROW_HEIGHT = scale(28);
 const ARROW_WIDTH = scale(18);
 const ARROW_LINE_HEIGHT = scale(16);
+const ARROW_BOB_DISTANCE = scale(6);
 const HOLE_PADDING = scale(10);
 const HIGHLIGHT_RADIUS = scale(16);
 const HIGHLIGHT_BORDER = scale(2);
@@ -77,13 +88,27 @@ export function TourOverlay({
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
   const [tooltipHeight, setTooltipHeight] = useState<number | null>(null);
-  const arrowAnim = useRef(new Animated.Value(0)).current;
-  const tooltipOpacity = useRef(new Animated.Value(0)).current;
-  const tooltipTranslate = useRef(new Animated.Value(TOOLTIP_TRANSITION_Y)).current;
-  const tooltipLeft = useRef(new Animated.Value(0)).current;
-  const tooltipTop = useRef(new Animated.Value(0)).current;
+  const arrowAnim = useSharedValue(0);
+  const tooltipOpacity = useSharedValue(0);
+  const tooltipTranslate = useSharedValue(TOOLTIP_TRANSITION_Y);
+  const tooltipLeft = useSharedValue(0);
+  const tooltipTop = useSharedValue(0);
   const lastTooltipPosRef = useRef<{ left: number; top: number } | null>(null);
   const wasTooltipShownRef = useRef(false);
+  const onTooltipHideCompleteRef = useRef(onTooltipHideComplete);
+
+  useEffect(() => {
+    onTooltipHideCompleteRef.current = onTooltipHideComplete;
+  }, [onTooltipHideComplete]);
+
+  const notifyTooltipHideComplete = useCallback(() => {
+    onTooltipHideCompleteRef.current?.();
+  }, []);
+
+  const finalizeTooltipExit = useCallback(() => {
+    wasTooltipShownRef.current = false;
+    notifyTooltipHideComplete();
+  }, [notifyTooltipHideComplete]);
 
   const tooltipWidth = Math.min(TOOLTIP_MAX_WIDTH, SCREEN.width - TOOLTIP_SIDE_MARGIN * 2);
 
@@ -193,16 +218,16 @@ export function TourOverlay({
     const nextTop = tooltipPos.top;
 
     if (!shouldShowTooltip) {
-      tooltipLeft.setValue(nextLeft);
-      tooltipTop.setValue(nextTop);
+      tooltipLeft.value = nextLeft;
+      tooltipTop.value = nextTop;
       lastTooltipPosRef.current = null;
       return;
     }
 
     const last = lastTooltipPosRef.current;
     if (!last) {
-      tooltipLeft.setValue(nextLeft);
-      tooltipTop.setValue(nextTop);
+      tooltipLeft.value = nextLeft;
+      tooltipTop.value = nextTop;
       lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
       return;
     }
@@ -211,122 +236,129 @@ export function TourOverlay({
     const deltaTop = Math.abs(last.top - nextTop);
     if (deltaLeft <= TOOLTIP_POSITION_JITTER_PX && deltaTop <= TOOLTIP_POSITION_JITTER_PX) return;
 
-    tooltipLeft.stopAnimation();
-    tooltipTop.stopAnimation();
+    cancelAnimation(tooltipLeft);
+    cancelAnimation(tooltipTop);
 
     const totalDelta = deltaLeft + deltaTop;
     if (totalDelta >= TOOLTIP_POSITION_DIRECT_SET_THRESHOLD_PX) {
-      tooltipLeft.setValue(nextLeft);
-      tooltipTop.setValue(nextTop);
+      tooltipLeft.value = nextLeft;
+      tooltipTop.value = nextTop;
       lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
       return;
     }
 
-    Animated.parallel([
-      Animated.timing(tooltipLeft, {
-        toValue: nextLeft,
-        duration: TOOLTIP_POSITION_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-      Animated.timing(tooltipTop, {
-        toValue: nextTop,
-        duration: TOOLTIP_POSITION_DURATION_MS,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
-    ]).start();
+    tooltipLeft.value = withTiming(nextLeft, {
+      duration: TOOLTIP_POSITION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+    tooltipTop.value = withTiming(nextTop, {
+      duration: TOOLTIP_POSITION_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+    });
 
     lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
   }, [shouldShowTooltip, tooltipLeft, tooltipPos.left, tooltipPos.top, tooltipTop, visible]);
 
   useEffect(() => {
     if (!visible || !showArrow || !shouldShowTooltip) {
-      arrowAnim.stopAnimation();
-      arrowAnim.setValue(0);
+      cancelAnimation(arrowAnim);
+      arrowAnim.value = 0;
       return;
     }
 
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(arrowAnim, {
-          toValue: 1,
+    arrowAnim.value = withRepeat(
+      withSequence(
+        withTiming(1, {
           duration: 600,
-          useNativeDriver: true,
+          easing: Easing.inOut(Easing.cubic),
         }),
-        Animated.timing(arrowAnim, {
-          toValue: 0,
+        withTiming(0, {
           duration: 600,
-          useNativeDriver: true,
-        }),
-      ])
+          easing: Easing.inOut(Easing.cubic),
+        })
+      ),
+      -1,
+      false
     );
 
-    loop.start();
-    return () => loop.stop();
+    return () => {
+      cancelAnimation(arrowAnim);
+    };
   }, [arrowAnim, shouldShowTooltip, showArrow, visible]);
 
   useEffect(() => {
     if (!visible) {
-      tooltipOpacity.stopAnimation();
-      tooltipTranslate.stopAnimation();
-      tooltipOpacity.setValue(0);
-      tooltipTranslate.setValue(TOOLTIP_TRANSITION_Y);
+      const wasShown = wasTooltipShownRef.current;
+      cancelAnimation(tooltipOpacity);
+      cancelAnimation(tooltipTranslate);
+      tooltipOpacity.value = 0;
+      tooltipTranslate.value = TOOLTIP_TRANSITION_Y;
       wasTooltipShownRef.current = false;
+      if (wasShown) {
+        notifyTooltipHideComplete();
+      }
       return;
     }
 
-    tooltipOpacity.stopAnimation();
-    tooltipTranslate.stopAnimation();
+    cancelAnimation(tooltipOpacity);
+    cancelAnimation(tooltipTranslate);
 
     if (shouldShowTooltip) {
       if (!wasTooltipShownRef.current) {
-        tooltipOpacity.setValue(0);
-        tooltipTranslate.setValue(TOOLTIP_TRANSITION_Y);
+        tooltipOpacity.value = 0;
+        tooltipTranslate.value = TOOLTIP_TRANSITION_Y;
       }
 
-      Animated.parallel([
-        Animated.timing(tooltipOpacity, {
-          toValue: 1,
-          duration: TOOLTIP_ENTER_DURATION_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(tooltipTranslate, {
-          toValue: 0,
-          duration: TOOLTIP_ENTER_DURATION_MS,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-      ]).start();
+      tooltipOpacity.value = withTiming(1, {
+        duration: TOOLTIP_ENTER_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+      });
+      tooltipTranslate.value = withTiming(0, {
+        duration: TOOLTIP_ENTER_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+      });
 
       wasTooltipShownRef.current = true;
       return;
     }
 
     if (!wasTooltipShownRef.current) {
-      onTooltipHideComplete?.();
+      notifyTooltipHideComplete();
       return;
     }
 
-    Animated.parallel([
-      Animated.timing(tooltipOpacity, {
-        toValue: 0,
-        duration: TOOLTIP_EXIT_DURATION_MS,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(tooltipTranslate, {
-        toValue: TOOLTIP_TRANSITION_Y,
-        duration: TOOLTIP_EXIT_DURATION_MS,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      wasTooltipShownRef.current = false;
-      onTooltipHideComplete?.();
+    tooltipOpacity.value = withTiming(0, {
+      duration: TOOLTIP_EXIT_DURATION_MS,
+      easing: Easing.in(Easing.cubic),
+    }, (finished) => {
+      if (finished) {
+        runOnJS(finalizeTooltipExit)();
+      }
     });
-  }, [onTooltipHideComplete, shouldShowTooltip, tooltipOpacity, tooltipTranslate, visible]);
+    tooltipTranslate.value = withTiming(TOOLTIP_TRANSITION_Y, {
+      duration: TOOLTIP_EXIT_DURATION_MS,
+      easing: Easing.in(Easing.cubic),
+    });
+  }, [finalizeTooltipExit, notifyTooltipHideComplete, shouldShowTooltip, tooltipOpacity, tooltipTranslate, visible]);
+
+  const highlightAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+  }));
+
+  const arrowAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+    transform: [{ translateY: arrowAnim.value * ARROW_BOB_DISTANCE }],
+  }));
+
+  const tooltipPositionAnimatedStyle = useAnimatedStyle(() => ({
+    left: tooltipLeft.value,
+    top: tooltipTop.value,
+  }));
+
+  const tooltipContentAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: tooltipOpacity.value,
+    transform: [{ translateY: tooltipTranslate.value }],
+  }));
 
   const blockOutside = mode !== 'non_blocking';
   const allowHolePassthrough = mode === 'spotlight';
@@ -387,8 +419,8 @@ export function TourOverlay({
             top: paddedRect.y,
             width: paddedRect.width,
             height: paddedRect.height,
-            opacity: tooltipOpacity,
           },
+          highlightAnimatedStyle,
         ]}
       />
     );
@@ -402,13 +434,8 @@ export function TourOverlay({
     const topCandidate = paddedRect.y - ARROW_GAP - ARROW_HEIGHT;
     const top = clamp(topCandidate, safeTop, SCREEN.height - insets.bottom - ARROW_HEIGHT);
 
-    const translateY = arrowAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, scale(6)],
-    });
-
     return (
-      <Animated.View style={[styles.arrow, { left, top, opacity: tooltipOpacity, transform: [{ translateY }] }]} pointerEvents="none">
+      <Animated.View style={[styles.arrow, { left, top }, arrowAnimatedStyle]} pointerEvents="none">
         <View style={[styles.arrowLine, themedStyles.arrowLine]} />
         <View style={[styles.arrowHead, themedStyles.arrow]} />
       </Animated.View>
@@ -427,7 +454,8 @@ export function TourOverlay({
         <Animated.View
           style={[
             styles.tooltipPosition,
-            { width: tooltipWidth, left: tooltipLeft, top: tooltipTop },
+            { width: tooltipWidth },
+            tooltipPositionAnimatedStyle,
           ]}
           pointerEvents="box-none"
         >
@@ -435,10 +463,7 @@ export function TourOverlay({
             style={[
               styles.tooltip,
               themedStyles.tooltip,
-              {
-                opacity: tooltipOpacity,
-                transform: [{ translateY: tooltipTranslate }],
-              },
+              tooltipContentAnimatedStyle,
             ]}
             pointerEvents="auto"
             accessibilityRole="alert"

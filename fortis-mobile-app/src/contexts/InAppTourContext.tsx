@@ -316,6 +316,16 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    const currentRenderStep = getStepById(renderStepId);
+    const canAnimateCurrentStepOut = isStepReady(currentRenderStep);
+    if (!canAnimateCurrentStepOut) {
+      setRenderStepId(pendingStep.id);
+      setPendingStepId(null);
+      setIsExitingTooltip(false);
+      setIsTooltipVisible(true);
+      return;
+    }
+
     if (!isExitingTooltip) {
       if (isTooltipVisible) {
         setIsExitingTooltip(true);
@@ -327,7 +337,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       setPendingStepId(null);
       setIsTooltipVisible(true);
     }
-  }, [isExitingTooltip, isStepReady, isTourActive, isTooltipVisible, pendingStep, renderStepId]);
+  }, [getStepById, isExitingTooltip, isStepReady, isTourActive, isTooltipVisible, pendingStep, renderStepId]);
 
   const handleTooltipHideComplete = useCallback(() => {
     if (!isExitingTooltip) return;
@@ -427,7 +437,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
     await setTourStateAndPersist(next);
     void markTourSeenOnServer({ status: 'started' });
-    router.replace(TOUR_STEPS[0].route);
+    router.navigate(TOUR_STEPS[0].route);
   }, [isAuthenticated, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
 
   const finishTour = useCallback(async (status: 'completed' | 'skipped') => {
@@ -501,11 +511,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     await setTourStateAndPersist(next);
 
     if (logicalStep?.id === 'ai_chat_overview') {
-      router.replace('/(tabs)');
+      router.navigate('/(tabs)');
       return;
     }
     if (logicalStep?.id === 'rest_timer_settings') {
-      router.replace('/(tabs)');
+      router.navigate('/(tabs)');
     }
   }, [cancelWorkout, currentStepIndex, finishTour, isTourActive, isWorkoutActive, logicalStep?.id, router, setTourStateAndPersist, tourLoaded]);
 
@@ -518,7 +528,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     autoNavStepRef.current = logicalStep.id;
 
     if (!isOnStepRoute(logicalStep.route)) {
-      router.replace(logicalStep.route);
+      router.navigate(logicalStep.route);
     }
   }, [isOnStepRoute, isTourActive, logicalStep, router]);
 
@@ -536,7 +546,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isTourActive || !logicalStep || !shouldRouteLockLogicalStep) return;
     if (isLogicalStepOnRoute) return;
-    router.replace(logicalStep.route);
+    router.navigate(logicalStep.route);
   }, [isLogicalStepOnRoute, isTourActive, logicalStep, router, shouldRouteLockLogicalStep]);
 
   // Defensive close: step 9 should never render with an active workout session.
