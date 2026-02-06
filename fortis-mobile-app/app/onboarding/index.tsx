@@ -7,6 +7,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 export default function OnboardingNameScreen() {
   const router = useRouter();
@@ -34,6 +35,7 @@ export default function OnboardingNameScreen() {
     if (!trimmed) return;
 
     await updateOnboardingState({ full_name: trimmed });
+    trackOnboardingStepCompleted('profile_name');
     router.push('/onboarding/greeting');
   };
 

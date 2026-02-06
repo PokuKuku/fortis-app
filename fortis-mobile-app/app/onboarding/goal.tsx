@@ -8,6 +8,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 type FitnessGoal = 'build_muscle' | 'general_health' | 'improve_strength' | 'stay_consistent';
 
@@ -65,6 +66,7 @@ export default function OnboardingGoalScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) return;
+    trackOnboardingStepCompleted('fitness_goals');
     router.push('/onboarding/challenge');
   };
 

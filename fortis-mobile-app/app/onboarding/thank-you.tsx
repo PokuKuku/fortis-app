@@ -11,6 +11,7 @@ import { Typography } from '@/constants/Typography';
 import * as Notifications from 'expo-notifications';
 import { HAS_REQUESTED_NOTIFICATIONS_KEY } from '@/src/constants/storageKeys';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const THANK_YOU_ANIMATION = require('../../assets/lottie/Lock Animation.json');
 
@@ -135,6 +136,7 @@ export default function OnboardingThankYouScreen() {
   }, [colors.textPrimary]);
 
   const handleContinue = async () => {
+    trackOnboardingStepCompleted('privacy_thank_you');
     try {
       const alreadyRequested = await getScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY);
       if (alreadyRequested !== 'true') {

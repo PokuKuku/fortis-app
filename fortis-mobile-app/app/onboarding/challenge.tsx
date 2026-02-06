@@ -8,6 +8,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 type Challenge = 'consistency' | 'plateaus' | 'starting_out' | 'time';
 
@@ -65,6 +66,7 @@ export default function OnboardingChallengeScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) return;
+    trackOnboardingStepCompleted('biggest_challenges');
     router.push('/onboarding/insights');
   };
 

@@ -41,8 +41,7 @@ export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
 export const THEME_MODE_KEY = 'theme_mode_v1';
 export const ACCENT_COLOR_KEY = 'accent_color_v1';
 
-// Analytics / Retention
-export const LAST_SESSION_TIMESTAMP_KEY = 'last_session_timestamp_v1';
+// Analytics
 export const PROFILE_STATS_CACHE_KEY = 'profile_stats_cache_v1';
 export const TRAINING_INSIGHTS_CACHE_KEY = 'training_insights_cache_v1';
 export const INSIGHT_CHARTS_CACHE_KEY = 'training_insight_charts_cache_v1';

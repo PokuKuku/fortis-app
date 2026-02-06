@@ -14,7 +14,6 @@ import { isLocalId } from '@/src/utils/localIds';
 import { PENDING_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
 import { isCustomExercise, getCustomExercises, getAllExercises } from '@/src/services/exerciseService';
 import { refreshTrainingInsights } from '@/src/services/insightsService';
-import { analytics } from '@/src/services/analyticsService';
 
 function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
@@ -554,12 +553,6 @@ async function uploadSession(
     return { success: true };
   } catch (error) {
     console.error('Failed to upload session:', error);
-    // Track sync failure
-    analytics.trackSyncFailed({
-      syncType: 'workout',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      willRetry: true,
-    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'

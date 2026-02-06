@@ -5,6 +5,7 @@ import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const SUCCESS_ANIMATION = require('../../assets/lottie/success.json');
 
@@ -41,6 +42,7 @@ export default function OnboardingFitnessBackgroundScreen() {
   const handleContinue = useCallback(() => {
     if (didNavigateRef.current) return;
     didNavigateRef.current = true;
+    trackOnboardingStepCompleted('fitness_background');
     router.push('/onboarding/experience');
   }, [router]);
 

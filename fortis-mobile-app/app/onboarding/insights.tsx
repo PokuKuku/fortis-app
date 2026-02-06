@@ -6,6 +6,7 @@ import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const INSIGHTS_ANIMATION = require('../../assets/lottie/render-graph-1-up.json');
 
@@ -142,6 +143,7 @@ export default function OnboardingInsightsScreen() {
   }, [colors.accent, colors.textPrimary]);
 
   const handleContinue = () => {
+    trackOnboardingStepCompleted('insights_preview');
     router.push('/onboarding/thank-you');
   };
 

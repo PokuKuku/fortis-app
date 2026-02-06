@@ -154,6 +154,7 @@ const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'rest_timer_settings',
   'insights_overview',
 ]);
+const ANCHOR_RECT_JITTER_PX = 2;
 
 const getStepIndexById = (stepId: string): number => {
   const index = TOUR_STEPS.findIndex((step) => step.id === stepId);
@@ -214,8 +215,12 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const pendingStep = useMemo(() => getStepById(pendingStepId), [getStepById, pendingStepId]);
   const overlayStep = renderStep ?? pendingStep ?? logicalStep;
 
-  const stepLabel = logicalStep && currentStepIndex >= 0
-    ? `${currentStepIndex + 1} of ${TOUR_STEPS.length}`
+  const overlayStepIndex = useMemo(() => {
+    if (!overlayStep) return -1;
+    return getStepIndexById(overlayStep.id);
+  }, [overlayStep]);
+  const stepLabel = overlayStepIndex >= 0
+    ? `${overlayStepIndex + 1} of ${TOUR_STEPS.length}`
     : undefined;
 
   const currentAnchorRect = overlayStep?.anchorId ? anchorRects[overlayStep.anchorId] ?? null : null;
@@ -250,16 +255,18 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   const isLogicalStepOnRoute = logicalStep ? isOnStepRoute(logicalStep.route) : false;
   const shouldRouteLockLogicalStep = logicalStep ? ROUTE_LOCKED_STEP_IDS.has(logicalStep.id) : false;
+  const isOverlayStepOnRoute = overlayStep ? isOnStepRoute(overlayStep.route) : false;
+  const shouldRouteLockOverlayStep = overlayStep ? ROUTE_LOCKED_STEP_IDS.has(overlayStep.id) : false;
 
   const registerAnchorRect = useCallback((id: string, rect: AnchorRect) => {
     setAnchorRects((prev) => {
       const existing = prev[id];
       if (
         existing &&
-        existing.x === rect.x &&
-        existing.y === rect.y &&
-        existing.width === rect.width &&
-        existing.height === rect.height
+        Math.abs(existing.x - rect.x) <= ANCHOR_RECT_JITTER_PX &&
+        Math.abs(existing.y - rect.y) <= ANCHOR_RECT_JITTER_PX &&
+        Math.abs(existing.width - rect.width) <= ANCHOR_RECT_JITTER_PX &&
+        Math.abs(existing.height - rect.height) <= ANCHOR_RECT_JITTER_PX
       ) {
         return prev;
       }
@@ -641,21 +648,27 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   }), [advanceStep, isTourActive, logicalStep?.id, registerAnchorRect, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {
-    if (!isTourActive || !logicalStep || !logicalStep.primaryActionLabel) return null;
+    if (!isTourActive || !overlayStep || !overlayStep.primaryActionLabel) return null;
+    const canAdvanceFromDisplayedStep =
+      !isExitingTooltip &&
+      !pendingStepId &&
+      logicalStep?.id === overlayStep.id;
     return {
-      label: logicalStep.primaryActionLabel,
+      label: overlayStep.primaryActionLabel,
       onPress: () => {
+        if (!canAdvanceFromDisplayedStep) return;
         void advanceStep();
       },
+      disabled: !canAdvanceFromDisplayedStep,
     };
-  }, [advanceStep, isTourActive, logicalStep]);
+  }, [advanceStep, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
 
   const showOverlay = Boolean(
     isTourActive &&
     overlayStep &&
     isAuthenticated &&
     isMainAppRoute &&
-    (!shouldRouteLockLogicalStep || isLogicalStepOnRoute)
+    (!shouldRouteLockOverlayStep || isOverlayStepOnRoute)
   );
 
   return (

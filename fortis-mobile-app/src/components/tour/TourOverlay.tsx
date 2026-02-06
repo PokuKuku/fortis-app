@@ -51,6 +51,8 @@ const TOOLTIP_TRANSITION_Y = scale(6);
 const TOOLTIP_ENTER_DURATION_MS = 240;
 const TOOLTIP_EXIT_DURATION_MS = 140;
 const TOOLTIP_POSITION_DURATION_MS = 180;
+const TOOLTIP_POSITION_JITTER_PX = 2;
+const TOOLTIP_POSITION_DIRECT_SET_THRESHOLD_PX = 40;
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -205,7 +207,20 @@ export function TourOverlay({
       return;
     }
 
-    if (last.left === nextLeft && last.top === nextTop) return;
+    const deltaLeft = Math.abs(last.left - nextLeft);
+    const deltaTop = Math.abs(last.top - nextTop);
+    if (deltaLeft <= TOOLTIP_POSITION_JITTER_PX && deltaTop <= TOOLTIP_POSITION_JITTER_PX) return;
+
+    tooltipLeft.stopAnimation();
+    tooltipTop.stopAnimation();
+
+    const totalDelta = deltaLeft + deltaTop;
+    if (totalDelta >= TOOLTIP_POSITION_DIRECT_SET_THRESHOLD_PX) {
+      tooltipLeft.setValue(nextLeft);
+      tooltipTop.setValue(nextTop);
+      lastTooltipPosRef.current = { left: nextLeft, top: nextTop };
+      return;
+    }
 
     Animated.parallel([
       Animated.timing(tooltipLeft, {
@@ -237,12 +252,12 @@ export function TourOverlay({
         Animated.timing(arrowAnim, {
           toValue: 1,
           duration: 600,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
         Animated.timing(arrowAnim, {
           toValue: 0,
           duration: 600,
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
       ])
     );
@@ -275,13 +290,13 @@ export function TourOverlay({
           toValue: 1,
           duration: TOOLTIP_ENTER_DURATION_MS,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
         Animated.timing(tooltipTranslate, {
           toValue: 0,
           duration: TOOLTIP_ENTER_DURATION_MS,
           easing: Easing.out(Easing.cubic),
-          useNativeDriver: false,
+          useNativeDriver: true,
         }),
       ]).start();
 
@@ -299,13 +314,13 @@ export function TourOverlay({
         toValue: 0,
         duration: TOOLTIP_EXIT_DURATION_MS,
         easing: Easing.in(Easing.cubic),
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
       Animated.timing(tooltipTranslate, {
         toValue: TOOLTIP_TRANSITION_Y,
         duration: TOOLTIP_EXIT_DURATION_MS,
         easing: Easing.in(Easing.cubic),
-        useNativeDriver: false,
+        useNativeDriver: true,
       }),
     ]).start(() => {
       wasTooltipShownRef.current = false;
@@ -411,44 +426,51 @@ export function TourOverlay({
       {!hideTooltip ? (
         <Animated.View
           style={[
-            styles.tooltip,
-            themedStyles.tooltip,
+            styles.tooltipPosition,
             { width: tooltipWidth, left: tooltipLeft, top: tooltipTop },
-            {
-              opacity: tooltipOpacity,
-              transform: [{ translateY: tooltipTranslate }],
-            },
           ]}
-          pointerEvents="auto"
-          accessibilityRole="alert"
-          onLayout={(e) => {
-            const nextHeight = e.nativeEvent.layout.height;
-            if (tooltipHeight !== nextHeight) {
-              setTooltipHeight(nextHeight);
-            }
-          }}
+          pointerEvents="box-none"
         >
-          <View style={styles.tooltipHeader}>
-            <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel ?? ''}</Text>
-            {onSkip && (
-              <Pressable onPress={onSkip} hitSlop={8}>
-                <Text style={[styles.skipText, themedStyles.skipText]}>Skip</Text>
-              </Pressable>
-            )}
-          </View>
+          <Animated.View
+            style={[
+              styles.tooltip,
+              themedStyles.tooltip,
+              {
+                opacity: tooltipOpacity,
+                transform: [{ translateY: tooltipTranslate }],
+              },
+            ]}
+            pointerEvents="auto"
+            accessibilityRole="alert"
+            onLayout={(e) => {
+              const nextHeight = e.nativeEvent.layout.height;
+              if (tooltipHeight !== nextHeight) {
+                setTooltipHeight(nextHeight);
+              }
+            }}
+          >
+            <View style={styles.tooltipHeader}>
+              <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel ?? ''}</Text>
+              {onSkip && (
+                <Pressable onPress={onSkip} hitSlop={8}>
+                  <Text style={[styles.skipText, themedStyles.skipText]}>Skip</Text>
+                </Pressable>
+              )}
+            </View>
 
-          <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
+            <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
 
-          {primaryAction ? (
-            <GlassButton
-              style={styles.primaryButton}
-              onPress={primaryAction.onPress}
-              disabled={primaryAction.disabled}
-              hapticFeedback="selection"
-            >
-              <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
-            </GlassButton>
-          ) : null}
+            {primaryAction ? (
+              <GlassButton
+                style={styles.primaryButton}
+                onPress={primaryAction.onPress}
+                disabled={primaryAction.disabled}
+                hapticFeedback="selection"
+              >
+                <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
+              </GlassButton>
+            ) : null}
+          </Animated.View>
         </Animated.View>
       ) : null}
     </View>
@@ -469,10 +491,12 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   tooltip: {
-    position: 'absolute',
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     borderWidth: 1,
+  },
+  tooltipPosition: {
+    position: 'absolute',
     zIndex: 10,
     elevation: 10,
   },

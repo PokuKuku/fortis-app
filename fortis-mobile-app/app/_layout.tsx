@@ -13,11 +13,7 @@ import { AuthProvider } from '@/src/contexts/AuthContext';
 import { InAppTourProvider } from '@/src/contexts/InAppTourContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
-import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
-import { MixpanelScreenTracker } from '@/src/components/analytics/MixpanelScreenTracker';
-import { RetentionTracker } from '@/src/components/analytics/RetentionTracker';
 import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics';
-import { initMixpanel, isMixpanelConfigured } from '@/src/lib/mixpanel';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallDebugEvents } from '@/src/components/superwall/SuperwallDebugEvents';
@@ -48,10 +44,8 @@ Notifications.setNotificationHandler({
  * Themed content wrapper - uses theme context for StatusBar and Stack styling
  */
 function ThemedAppContent({
-  mixpanelEnabled,
   disableThemeSync = false,
 }: {
-  mixpanelEnabled: boolean;
   disableThemeSync?: boolean;
 }) {
   const { colors, isDark } = useTheme();
@@ -63,7 +57,6 @@ function ThemedAppContent({
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
         <DragDropProvider>
-          {mixpanelEnabled && <MixpanelAuthSync />}
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <Stack
             screenOptions={{
@@ -328,8 +321,6 @@ function ThemedAppContent({
           />
           </Stack>
           <RouteChangeHaptics />
-          {mixpanelEnabled && <MixpanelScreenTracker />}
-          {mixpanelEnabled && <RetentionTracker />}
           <WorkoutMiniBar />
         </DragDropProvider>
       </InAppTourProvider>
@@ -354,8 +345,6 @@ export default function RootLayout() {
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
 
-  const mixpanelEnabled = isMixpanelConfigured();
-
   // Load persisted preferences on app start
   useEffect(() => {
     loadStickyNotes();
@@ -372,14 +361,6 @@ export default function RootLayout() {
     loadActiveSession,
     loadRestTimerSettings,
   ]);
-
-  useEffect(() => {
-    if (!mixpanelEnabled) {
-      return;
-    }
-
-    void initMixpanel();
-  }, [mixpanelEnabled]);
 
   useEffect(() => {
     const logInitialUrl = async () => {
@@ -411,7 +392,6 @@ export default function RootLayout() {
       }
     >
       <ThemedAppContent
-        mixpanelEnabled={mixpanelEnabled}
         disableThemeSync={shouldForceTheme}
       />
     </ThemeProvider>

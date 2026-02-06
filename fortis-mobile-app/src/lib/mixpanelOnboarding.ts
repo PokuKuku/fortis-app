@@ -1,25 +1,25 @@
 import { Mixpanel } from 'mixpanel-react-native';
 
-const defaultMixpanelToken = '8aa3499e9f5ed4d8160f7d5f0f68b30e';
-const mixpanelToken = process.env.EXPO_PUBLIC_MIXPANEL_TOKEN ?? defaultMixpanelToken;
-
-const isMixpanelConfigured = () => Boolean(mixpanelToken);
+const mixpanelToken = process.env.EXPO_PUBLIC_MIXPANEL_TOKEN;
 
 let mixpanelInstance: Mixpanel | null = null;
 let mixpanelInitPromise: Promise<Mixpanel | null> | null = null;
+
+const isMixpanelConfigured = () => Boolean(mixpanelToken);
 
 async function createMixpanelInstance(): Promise<Mixpanel | null> {
   if (!isMixpanelConfigured()) {
     return null;
   }
 
-  const instance = new Mixpanel(mixpanelToken, true);
+  // Keep tracking strictly explicit to onboarding-only events.
+  const instance = new Mixpanel(mixpanelToken as string, false);
   await instance.init();
   mixpanelInstance = instance;
   return instance;
 }
 
-export async function initMixpanel(): Promise<Mixpanel | null> {
+async function getMixpanelInstance(): Promise<Mixpanel | null> {
   if (mixpanelInstance) {
     return mixpanelInstance;
   }
@@ -36,8 +36,18 @@ export async function initMixpanel(): Promise<Mixpanel | null> {
   return mixpanelInitPromise;
 }
 
-export function getMixpanelInstance(): Mixpanel | null {
-  return mixpanelInstance;
-}
+export async function trackAnonymousMixpanelEvent(
+  eventName: string,
+  properties: Record<string, unknown>
+): Promise<void> {
+  const mixpanel = await getMixpanelInstance();
+  if (!mixpanel) {
+    return;
+  }
 
-export { mixpanelToken, isMixpanelConfigured };
+  try {
+    mixpanel.track(eventName, properties);
+  } catch (error) {
+    console.warn('[Mixpanel] Track failed:', eventName, error);
+  }
+}

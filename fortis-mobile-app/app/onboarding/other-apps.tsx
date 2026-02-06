@@ -8,6 +8,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 type TriedApps = 'consistent' | 'occasionally' | 'stopped' | 'never';
 
@@ -46,6 +47,7 @@ export default function OnboardingOtherAppsScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
+    trackOnboardingStepCompleted('tried_other_apps');
     router.push('/onboarding/clarity');
   };
 

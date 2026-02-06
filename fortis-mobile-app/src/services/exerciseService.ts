@@ -10,7 +10,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { normalizeMuscleArray } from '@/src/utils/muscleMapping';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
-import { analytics } from '@/src/services/analyticsService';
 
 // In-memory cache
 let baseExerciseCache: Exercise[] | null = null;
@@ -630,13 +629,6 @@ async function getBaseExercises(options?: { includeVariants?: boolean }): Promis
 
     return merged;
   } catch (error) {
-    // Track API error
-    analytics.trackApiError({
-      service: 'exercises',
-      operation: 'fetch_base_exercises',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
-
     // 4. Try to use stale cache if API fails
     const staleCache = await loadCachedExercises();
     if (staleCache && staleCache.length > 0) {

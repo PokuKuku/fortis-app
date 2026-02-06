@@ -11,6 +11,7 @@ import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardin
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { moderateScale, scale } from '@/src/utils/responsive';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 type ReferralSource =
   | 'tiktok'
@@ -146,6 +147,7 @@ export default function OnboardingSourceScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
+    trackOnboardingStepCompleted('referral_source');
     router.push('/onboarding/fitness-background');
   };
 

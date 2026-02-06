@@ -8,6 +8,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { moderateScale } from '@/src/utils/responsive';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const CLARITY_ANIMATION = require('../../assets/lottie/graphs.json');
 const FORTIS_LABEL_DELAY_MS = 1650;
@@ -113,6 +114,7 @@ export default function OnboardingClarityScreen() {
   );
 
   const handleContinue = () => {
+    trackOnboardingStepCompleted('clarity_animation');
     router.push('/onboarding/goal');
   };
 

@@ -33,7 +33,6 @@ import {
   fetchStickyNotesFromCloud,
 } from '../services/stickyNotesService';
 import { isCustomExercise } from '../services/exerciseService';
-import { analytics } from '../services/analyticsService';
 import { generateSecureUUID as generateId } from '../utils/uuid';
 import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
 
@@ -374,11 +373,6 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       get().persistSession();
 
-      // Track workout started analytics
-      analytics.trackWorkoutStarted({
-        source: 'blank',
-        exerciseCount: 0,
-      });
     },
 
     startWorkoutFromTemplate: async (templateId: string) => {
@@ -486,17 +480,6 @@ export const useWorkoutStore = create<WorkoutState>()(
 
         get().persistSession();
 
-        // Track workout started analytics
-        analytics.trackWorkoutStarted({
-          source: 'template',
-          exerciseCount: exercises.length,
-          templateId: template.id,
-        });
-
-        if (template.isAiCreated) {
-          analytics.trackAIWorkoutStarted({ templateId: template.id });
-        }
-
         return true;
       } catch (error) {
         console.error('Failed to start workout from template:', error);
@@ -598,13 +581,6 @@ export const useWorkoutStore = create<WorkoutState>()(
         });
 
         get().persistSession();
-
-        // Track workout started analytics
-        analytics.trackWorkoutStarted({
-          source: 'program',
-          exerciseCount: exercises.length,
-          programId,
-        });
 
         return true;
       } catch (error) {
@@ -719,23 +695,6 @@ export const useWorkoutStore = create<WorkoutState>()(
           get().clearSessionsSyncing([completedSession.localId]);
           console.warn('Failed to sync workout session:', error);
         });
-
-      // Track workout completed analytics
-      const durationSeconds = completedSession.startedAt && completedSession.completedAt
-        ? Math.round((completedSession.completedAt.getTime() - completedSession.startedAt.getTime()) / 1000)
-        : 0;
-      const setsCompleted = completedSetCount;
-      const source = completedSession.programWorkoutId
-        ? 'program'
-        : completedSession.programId
-          ? 'template'
-          : 'blank';
-      analytics.trackWorkoutCompleted({
-        durationSeconds,
-        setsCompleted,
-        exerciseCount: completedSession.exercises.length,
-        source,
-      });
 
       return completedSession;
     },
@@ -1185,14 +1144,6 @@ export const useWorkoutStore = create<WorkoutState>()(
       // Auto-start rest timer if set was marked complete
       if (completedSet?.isCompleted) {
         get().startRestTimer(completedSetType);
-
-        // Track set logged analytics (only when completing, not uncompleting)
-        analytics.trackSetLogged({
-          exerciseName: exercise?.exerciseName || 'Unknown',
-          hasWeight: completedSet.weight !== null && completedSet.weight > 0,
-          hasReps: completedSet.reps !== null && completedSet.reps > 0,
-          setNumber: completedSet.setNumber,
-        });
       }
 
       get().persistSession();

@@ -30,6 +30,7 @@ const REST_TIMER_PADDING_X = scale(Spacing.md);
 const REST_TIMER_PADDING_Y = scale(Spacing.xs);
 const REST_TIMER_FONT_SIZE = moderateScale(FontSizes.base);
 const REST_TIMER_MIN_WIDTH = scale(40);
+const REST_TIMER_BUTTON_WIDTH = scale(88);
 const RIGHT_COLUMN_GAP = scale(Spacing.xs);
 const RIGHT_COLUMN_MARGIN_TOP = -scale(Spacing.xs);
 const WORKOUT_NAME_SIZE = moderateScale(FontSizes.base);
@@ -44,6 +45,7 @@ const COMPACT_SEPARATOR_FONT_SIZE = moderateScale(FontSizes.sm);
 const COMPACT_REST_TIMER_PADDING_X = scale(Spacing.sm);
 const COMPACT_REST_TIMER_PADDING_Y = scale(Spacing.xs);
 const COMPACT_REST_TIMER_FONT_SIZE = moderateScale(FontSizes.sm);
+const COMPACT_REST_TIMER_BUTTON_WIDTH = scale(74);
 
 interface WorkoutHeaderTopBarProps {
   onCancelPress: () => void;
@@ -366,12 +368,16 @@ const styles = StyleSheet.create({
     fontSize: COMPACT_SEPARATOR_FONT_SIZE,
   },
   restTimerButton: {
+    width: REST_TIMER_BUTTON_WIDTH,
     paddingHorizontal: REST_TIMER_PADDING_X,
     paddingVertical: REST_TIMER_PADDING_Y,
     borderRadius: BUTTON_RADIUS,
+    alignItems: 'center',
+    justifyContent: 'center',
     flexShrink: 1,
   },
   restTimerButtonCompact: {
+    width: COMPACT_REST_TIMER_BUTTON_WIDTH,
     paddingHorizontal: COMPACT_REST_TIMER_PADDING_X,
     paddingVertical: COMPACT_REST_TIMER_PADDING_Y,
   },
@@ -383,7 +389,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     minWidth: REST_TIMER_MIN_WIDTH,
     flexShrink: 1,
-    minWidth: 0,
   },
   restTimerTextCompact: {
     fontSize: COMPACT_REST_TIMER_FONT_SIZE,

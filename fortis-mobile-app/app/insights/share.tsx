@@ -19,7 +19,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
-import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
 import { InsightBarChart } from '@/src/components/insights/InsightBarChart';
 import type { TrainingInsight } from '@/src/types/insights';
@@ -219,7 +218,6 @@ export default function InsightShareScreen() {
   const { colors, isDark } = useTheme();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const { insights } = useTrainingInsights();
-  const { trackInsightShareStarted, trackInsightShareCompleted } = useAnalytics();
   const viewShotRef = useRef<any>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
@@ -282,11 +280,6 @@ export default function InsightShareScreen() {
     }
     setIsSharing(true);
     setShareError(null);
-    trackInsightShareStarted({
-      insight_id: insight.id,
-      insight_type: insight.type,
-      privacy_mode: 'detailed',
-    });
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
@@ -299,31 +292,13 @@ export default function InsightShareScreen() {
         result: 'tmpfile',
       });
       const title = insight.title;
-      const shareResult = await Share.share(
+      await Share.share(
         Platform.OS === 'ios'
           ? { url: uri, title }
           : { message: title, url: uri, title }
       );
-      const result =
-        shareResult.action === Share.sharedAction
-          ? 'shared'
-          : shareResult.action === Share.dismissedAction
-          ? 'dismissed'
-          : 'unknown';
-      trackInsightShareCompleted({
-        insight_id: insight.id,
-        insight_type: insight.type,
-        privacy_mode: 'detailed',
-        result,
-      });
     } catch (error) {
       setShareError('Could not generate the share image.');
-      trackInsightShareCompleted({
-        insight_id: insight.id,
-        insight_type: insight.type,
-        privacy_mode: 'detailed',
-        result: 'error',
-      });
     } finally {
       setIsSharing(false);
     }

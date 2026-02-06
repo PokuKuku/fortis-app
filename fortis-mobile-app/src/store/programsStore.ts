@@ -26,7 +26,6 @@ import {
 } from '../types/workout';
 import { DELETED_DEFAULT_PROGRAM_IDS_KEY, LOCAL_TEMPLATES_KEY } from '../constants/storageKeys';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../constants/programs';
-import { analytics } from '../services/analyticsService';
 
 const DEFAULT_PROGRAM_IDS = new Set(
   [...getDefaultPrograms(), ...getDefaultTemplates()].map((program) => program.id)
@@ -464,12 +463,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         return;
       }
       console.error('Error fetching programs:', err);
-      // Track API error
-      analytics.trackApiError({
-        service: 'programs',
-        operation: 'fetch_programs',
-        errorMessage: err instanceof Error ? err.message : 'Unknown error',
-      });
       set({
         error: err instanceof Error ? err.message : 'Failed to fetch programs',
         isLoading: false,
@@ -536,12 +529,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       return true;
     } catch (err) {
-      // Track API error
-      analytics.trackApiError({
-        service: 'programs',
-        operation: 'delete_program',
-        errorMessage: err instanceof Error ? err.message : 'Unknown error',
-      });
       set({
         error: err instanceof Error ? err.message : 'Failed to delete program',
         isDeleting: false,
@@ -860,11 +847,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         console.warn('Background program sync failed:', err);
       });
 
-      // Track template created analytics
-      analytics.trackTemplateCreated({
-        exerciseCount: exercises.length,
-      });
-
       return localId;
     };
 
@@ -1001,11 +983,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       // Refresh programs list to include the new template
       get().fetchPrograms({ force: true });
 
-      // Track template created analytics
-      analytics.trackTemplateCreated({
-        exerciseCount: exercises.length,
-      });
-
       return program.id;
     } catch (err) {
       set({
@@ -1101,12 +1078,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           });
       }
 
-      // Track program created analytics
-      analytics.trackProgramCreated({
-        workoutCount: programWorkouts.length,
-        weekCount: options?.durationWeeks ?? 1,
-      });
-
       return localId;
     };
 
@@ -1189,12 +1160,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       get().fetchPrograms({ force: true });
-
-      // Track program created analytics
-      analytics.trackProgramCreated({
-        workoutCount: templates.length,
-        weekCount: options?.durationWeeks ?? 1,
-      });
 
       return program.id;
     } catch (err) {

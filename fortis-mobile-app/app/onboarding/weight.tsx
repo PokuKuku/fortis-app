@@ -9,6 +9,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 type UnitSystem = 'imperial' | 'metric';
 
@@ -65,6 +66,7 @@ export default function OnboardingWeightScreen() {
     const normalizedKg = clamp(roundTo(weightKg, 1), KG_MIN, KG_MAX);
 
     await updateOnboardingState({ weight_kg: normalizedKg, preferred_units: unit });
+    trackOnboardingStepCompleted('body_metrics');
     router.push('/onboarding/source');
   };
 

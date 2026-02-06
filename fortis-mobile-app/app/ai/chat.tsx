@@ -34,7 +34,6 @@ import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAIStore } from '@/src/store/aiStore';
-import { useAnalytics } from '@/src/services/analyticsService';
 import { AIIntent, AIConversationMessage } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
@@ -173,7 +172,6 @@ const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
 export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { trackAIChatOpened } = useAnalytics();
   const isNavigating = useRef(false);
   const [inputText, setInputText] = useState('');
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
@@ -219,11 +217,9 @@ export default function AIChatScreen() {
   useEffect(() => {
     loadConversation();
     checkRateLimits();
-    trackAIChatOpened();
   }, [
     loadConversation,
     checkRateLimits,
-    trackAIChatOpened,
   ]);
 
   // Auto-scroll to bottom

@@ -9,6 +9,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 type ExperienceLevel = 'none' | 'beginner' | 'intermediate' | 'advanced';
 
@@ -64,6 +65,7 @@ export default function OnboardingExperienceScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
+    trackOnboardingStepCompleted('lifting_experience');
     router.push('/onboarding/consistency');
   };
 

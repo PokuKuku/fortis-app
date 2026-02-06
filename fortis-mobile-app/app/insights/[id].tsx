@@ -9,7 +9,6 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useAIStore } from '@/src/store/aiStore';
-import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
 import { InsightBarChart } from '@/src/components/insights/InsightBarChart';
 import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
@@ -170,7 +169,6 @@ export default function InsightDetailScreen() {
   const { colors, isDark } = useTheme();
   const { id, tab } = useLocalSearchParams<{ id?: string; tab?: string }>();
   const { insights } = useTrainingInsights();
-  const { trackChatOpenedFromInsight } = useAnalytics();
   const sendMessage = useAIStore((state) => state.sendMessage);
 
   const insight = useMemo(
@@ -308,7 +306,6 @@ export default function InsightDetailScreen() {
         ? 'Explain this stall risk and suggest what I should adjust next week.'
         : 'Explain this weekly insight and suggest what I should do next week.';
     void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
-    trackChatOpenedFromInsight({ insight_id: insight.id, insight_type: insight.type });
     router.push('/ai/chat');
   };
 

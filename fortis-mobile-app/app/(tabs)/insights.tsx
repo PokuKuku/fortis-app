@@ -21,7 +21,6 @@ import { EvidenceItem, TrainingInsight, InsightType } from '@/src/types/insights
 import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { isDateOnly, parseDateInput } from '@/src/utils/dateParsing';
-import { useAnalytics } from '@/src/services/analyticsService';
 import { InsightSparkline } from '@/src/components/insights/InsightSparkline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
@@ -729,15 +728,6 @@ export default function InsightsScreen() {
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
   const isFocused = useIsFocused();
-  const {
-    trackInsightsViewed,
-    trackVerdictWhyTapped,
-    trackWatchlistItemOpened,
-    trackChatOpenedFromInsight,
-    trackInsightDismissed,
-    trackInsightTypeSnoozed,
-  } = useAnalytics();
-  const hasTrackedView = useRef(false);
 
   const exerciseNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -854,32 +844,13 @@ export default function InsightsScreen() {
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
   };
 
-  useEffect(() => {
-    if (hasTrackedView.current || isLoading) {
-      return;
-    }
-    hasTrackedView.current = true;
-    trackInsightsViewed({
-      has_weekly_verdict: Boolean(weeklyVerdict),
-      watchlist_count: watchlistItems.length,
-      watchlist_eligible: eligibleCount,
-    });
-  }, [eligibleCount, isLoading, trackInsightsViewed, watchlistItems.length, weeklyVerdict]);
-
   const openInsightChat = (insight: TrainingInsight, prompt: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
-    trackChatOpenedFromInsight({
-      insight_id: insight.id,
-      insight_type: insight.type,
-    });
     router.push('/ai/chat');
   };
 
   const handleInsightWhyPress = (insight: TrainingInsight) => {
-    if (insight.type === 'WEEKLY_VERDICT_V1') {
-      trackVerdictWhyTapped({ insight_id: insight.id });
-    }
     const prompt =
       insight.type === 'FATIGUE_RISK_V1'
         ? 'Explain this fatigue risk and suggest what I should adjust next week.'
@@ -904,11 +875,6 @@ export default function InsightsScreen() {
     const exerciseName = insight.exerciseId
       ? exerciseNameById.get(insight.exerciseId) ?? 'this lift'
       : 'this lift';
-    trackWatchlistItemOpened({
-      insight_id: insight.id,
-      exercise_id: insight.exerciseId,
-      severity: insight.severity,
-    });
     openInsightChat(
       insight,
       `Explain why ${exerciseName} is at stall risk and suggest adjustments for the next two weeks.`
@@ -920,12 +886,10 @@ export default function InsightsScreen() {
   };
 
   const handleDismissInsight = async (insight: TrainingInsight) => {
-    trackInsightDismissed({ insight_id: insight.id, insight_type: insight.type });
     await dismissInsight(insight.id);
   };
 
   const handleSnoozeWatchlist = async () => {
-    trackInsightTypeSnoozed({ insight_type: 'LIFT_STALL_RISK_V1', snooze_days: 14 });
     await snoozeInsightType('LIFT_STALL_RISK_V1', 14);
   };
 

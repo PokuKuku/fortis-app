@@ -10,7 +10,6 @@ import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { Program, ProgramWorkout, ProgramExercise } from '@/src/types/workout';
 import { PENDING_PROGRAM_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
-import { analytics } from '@/src/services/analyticsService';
 
 // Pending sync item stored in queue
 interface PendingProgramSyncItem {
@@ -279,12 +278,6 @@ async function uploadProgram(
     return { success: true, serverId };
   } catch (error) {
     console.error('Failed to upload program:', error);
-    // Track sync failure
-    analytics.trackSyncFailed({
-      syncType: 'program',
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-      willRetry: true,
-    });
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

@@ -9,6 +9,7 @@ import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardin
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius } from '@/constants/Sizes';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 type GenderOption = 'male' | 'female' | 'other';
 
@@ -59,6 +60,7 @@ export default function OnboardingGenderScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
+    trackOnboardingStepCompleted('gender');
     router.push('/onboarding/birthdate');
   };
 

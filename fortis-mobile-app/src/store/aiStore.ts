@@ -19,7 +19,6 @@ import {
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
-import { analytics } from '../services/analyticsService';
 import { generateSecureUUID as generateId } from '../utils/uuid';
 
 const makeFriendlyClarification = (question: string | undefined): string => {
@@ -127,10 +126,6 @@ export const useAIStore = create<AIState>()(
         conversation: updatedConversation,
         isSendingMessage: true,
         error: null,
-      });
-
-      analytics.trackAIMessageSent({
-        intent,
       });
 
       const messageParams: LastFailedMessage = {

@@ -8,6 +8,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const YEAR_MIN = 1930;
 const DEFAULT_YEAR = 1998;
@@ -109,6 +110,7 @@ export default function OnboardingBirthdateScreen() {
       return;
     }
 
+    trackOnboardingStepCompleted('birthdate');
     router.push('/onboarding/height');
   };
 
