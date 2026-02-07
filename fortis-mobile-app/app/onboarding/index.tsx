@@ -48,10 +48,6 @@ export default function OnboardingNameScreen() {
       title="What should we call you?"
       subtitle={undefined}
       onBack={() => {
-        if (router.canGoBack()) {
-          router.back();
-          return;
-        }
         router.replace({ pathname: '/onboarding/welcome', params: { returning: '1' } });
       }}
       footer={

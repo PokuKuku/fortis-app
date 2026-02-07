@@ -407,8 +407,8 @@ export default function RootLayout() {
   );
 
   const superwallOptions = {
-    // Keep parity across simulator/TestFlight so paywall behavior is consistent.
-    shouldBypassAppTransactionCheck: true,
+    // Keep enabled so iOS launch-time transaction checks can reconcile subscription state.
+    shouldBypassAppTransactionCheck: false,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,
     // Emit detailed SDK logs only in development builds.

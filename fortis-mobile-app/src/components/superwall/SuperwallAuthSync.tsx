@@ -1,62 +1,101 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { AppState, type AppStateStatus } from 'react-native';
 import { useSuperwall, useUser } from 'expo-superwall';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
-import * as Crypto from 'expo-crypto';
+import { useAuth } from '@/src/contexts/AuthContext';
 
-const SUPERWALL_DEVICE_ID_KEY = 'superwall_device_id';
-
-const getOrCreateSuperwallDeviceId = async (): Promise<string> => {
-  const secureId = await SecureStore.getItemAsync(SUPERWALL_DEVICE_ID_KEY);
-  if (secureId) return secureId;
-
-  const storedId = await AsyncStorage.getItem(SUPERWALL_DEVICE_ID_KEY);
-  if (storedId) {
-    await SecureStore.setItemAsync(SUPERWALL_DEVICE_ID_KEY, storedId);
-    return storedId;
-  }
-
-  const newId = Crypto.randomUUID();
-  await SecureStore.setItemAsync(SUPERWALL_DEVICE_ID_KEY, newId);
-  await AsyncStorage.setItem(SUPERWALL_DEVICE_ID_KEY, newId);
-  return newId;
-};
+const MIN_REFRESH_INTERVAL_MS = 5_000;
 
 export function SuperwallAuthSync() {
-  const { identify, refresh } = useUser();
+  const { user: authUser, isAuthResolved } = useAuth();
+  const { identify, refresh, signOut, user: superwallUser } = useUser();
   const { isLoaded, hasError } = useSuperwall((state) => ({
     isLoaded: !state.isLoading && state.isConfigured,
     hasError: state.configurationError !== null,
   }));
-  const hasIdentifiedRef = useRef(false);
+  const identifiedUserIdRef = useRef<string | null>(null);
+  const inFlightSyncRef = useRef<Promise<void> | null>(null);
+  const lastRefreshAtRef = useRef(0);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  const syncSuperwall = useCallback(async (forceRefresh = false) => {
+    // Superwall can take a moment to configure; avoid syncing too early.
+    if (!isLoaded || hasError || !isAuthResolved) {
+      return;
+    }
+
+    if (inFlightSyncRef.current) {
+      return inFlightSyncRef.current;
+    }
+
+    const now = Date.now();
+    const shouldRefresh =
+      forceRefresh ||
+      !lastRefreshAtRef.current ||
+      now - lastRefreshAtRef.current >= MIN_REFRESH_INTERVAL_MS;
+
+    const task = (async () => {
+      try {
+        const authUserId = authUser?.id ?? null;
+        const superwallUserId =
+          typeof superwallUser?.appUserId === 'string' && superwallUser.appUserId.trim().length > 0
+            ? superwallUser.appUserId
+            : null;
+
+        if (authUserId) {
+          if (superwallUserId !== authUserId || identifiedUserIdRef.current !== authUserId) {
+            await identify(authUserId, { restorePaywallAssignments: true });
+            identifiedUserIdRef.current = authUserId;
+          }
+        } else if (identifiedUserIdRef.current || superwallUserId) {
+          await signOut();
+          identifiedUserIdRef.current = null;
+        }
+
+        if (shouldRefresh) {
+          await refresh();
+          lastRefreshAtRef.current = Date.now();
+        }
+      } catch (error) {
+        console.warn('[Superwall] Failed to sync user:', error);
+      } finally {
+        inFlightSyncRef.current = null;
+      }
+    })();
+
+    inFlightSyncRef.current = task;
+    return task;
+  }, [
+    authUser?.id,
+    hasError,
+    identify,
+    isAuthResolved,
+    isLoaded,
+    refresh,
+    signOut,
+    superwallUser?.appUserId,
+  ]);
 
   useEffect(() => {
-    let isMounted = true;
+    void syncSuperwall(true);
+  }, [syncSuperwall]);
 
-    const run = async () => {
-      try {
-        // Superwall can take a moment to configure; avoid doing a one-time sync too early.
-        if (!isLoaded || hasError || hasIdentifiedRef.current) {
-          return;
-        }
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
 
-        const deviceId = await getOrCreateSuperwallDeviceId();
-        await identify(deviceId);
-        await refresh();
-        hasIdentifiedRef.current = true;
-      } catch (error) {
-        if (isMounted) {
-          console.warn('[Superwall] Failed to sync user:', error);
-        }
+      if (
+        (previousState === 'background' || previousState === 'inactive') &&
+        nextState === 'active'
+      ) {
+        void syncSuperwall(true);
       }
-    };
-
-    void run();
+    });
 
     return () => {
-      isMounted = false;
+      subscription.remove();
     };
-  }, [hasError, identify, isLoaded, refresh]);
+  }, [syncSuperwall]);
 
   return null;
 }
