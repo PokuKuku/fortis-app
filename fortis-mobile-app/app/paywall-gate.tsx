@@ -1,11 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { usePlacement, useSuperwallEvents } from 'expo-superwall';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 
 export default function PaywallGateScreen() {
   const router = useRouter();
+  const { queueTourStartAfterPaywallClose } = useInAppTour();
   const hasRegisteredRef = useRef(false);
   const hasNavigatedRef = useRef(false);
 
@@ -14,6 +16,7 @@ export default function PaywallGateScreen() {
       return;
     }
     hasNavigatedRef.current = true;
+    queueTourStartAfterPaywallClose();
     router.replace('/(tabs)');
   };
 

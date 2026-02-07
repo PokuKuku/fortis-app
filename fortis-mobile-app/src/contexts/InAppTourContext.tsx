@@ -167,6 +167,7 @@ type InAppTourContextValue = {
   isTourActive: boolean;
   activeStepId: TourStepId | null;
   advanceStep: () => void;
+  queueTourStartAfterPaywallClose: () => void;
 };
 
 const InAppTourContext = createContext<InAppTourContextValue | null>(null);
@@ -183,8 +184,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const segments = useSegments();
-  const { isAuthenticated, profile, updateProfile } = useAuth();
-  const forceTourThisSession = useRef(false);
+  const { user, isAuthResolved, isAuthenticated, profile, profileResolved, updateProfile } = useAuth();
 
   const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
   const isWorkoutActive = useWorkoutStore((s) => s.isWorkoutActive);
@@ -197,6 +197,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const [pendingStepId, setPendingStepId] = useState<TourStepId | null>(null);
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const [isExitingTooltip, setIsExitingTooltip] = useState(false);
+  const [pendingPaywallStartRequestedAt, setPendingPaywallStartRequestedAt] = useState<number | null>(null);
 
   const getStepById = useCallback((stepId: string | null | undefined): TourStep | null => {
     if (!stepId) return null;
@@ -422,10 +423,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
   const pendingFirstWorkoutReviewRef = useRef(false);
 
-  const startTour = useCallback(async () => {
-    if (!tourLoaded) return;
-    if (isTourActive) return;
-    if (!isAuthenticated) return;
+  const startTour = useCallback(async (): Promise<boolean> => {
+    if (!tourLoaded) return false;
+    if (isTourActive) return false;
+    if (!isAuthenticated) return false;
 
     const now = new Date().toISOString();
     const next: PersistedInAppTourState = {
@@ -438,6 +439,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     await setTourStateAndPersist(next);
     void markTourSeenOnServer({ status: 'started' });
     router.navigate(TOUR_STEPS[0].route);
+    return true;
   }, [isAuthenticated, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
 
   const finishTour = useCallback(async (status: 'completed' | 'skipped') => {
@@ -556,9 +558,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     cancelWorkout();
   }, [cancelWorkout, isTourActive, isWorkoutActive, logicalStep?.id]);
 
-  // Load persisted tour state (resume).
+  // Load persisted tour state for the active auth scope (guest vs signed-in user).
   useEffect(() => {
+    if (!isAuthResolved) return;
+    if (isAuthenticated && !user?.id) return;
+
     let isMounted = true;
+    setTourLoaded(false);
+    setTourState(null);
 
     const run = async () => {
       const loaded = await loadInAppTourState();
@@ -588,7 +595,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthResolved, isAuthenticated, user?.id]);
 
   const isInOnboardingOrAuth = segments[0] === 'onboarding' || segments[0] === 'auth';
   const isMainAppRoute =
@@ -601,29 +608,98 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
   );
   const hasSeenLocal = tourState?.status === 'completed' || tourState?.status === 'skipped';
-  const FORCE_IN_APP_TOUR = true; // TEMP: always run once per app session for testing
   const isEligibleForStart =
     tourLoaded &&
+    profileResolved &&
     !isInOnboardingOrAuth &&
     isMainAppRoute &&
     isAuthenticated &&
     profile?.onboarding_completed === true &&
     !isTourActive &&
-    (FORCE_IN_APP_TOUR
-      ? !forceTourThisSession.current
-      : !hasSeenServer && !hasSeenLocal);
+    !hasSeenServer &&
+    !hasSeenLocal;
+
+  const queueTourStartAfterPaywallClose = useCallback(() => {
+    setPendingPaywallStartRequestedAt(Date.now());
+  }, []);
 
   // Auto-start tour when eligible.
   useEffect(() => {
     if (!isEligibleForStart) return;
     const run = async () => {
-      if (FORCE_IN_APP_TOUR) {
-        forceTourThisSession.current = true;
-      }
       await startTour();
     };
     void run();
   }, [isEligibleForStart, startTour]);
+
+  // Prioritize starting the tour right after paywall close.
+  useEffect(() => {
+    if (pendingPaywallStartRequestedAt === null) return;
+
+    let cancelled = false;
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+    const deadlineMs = pendingPaywallStartRequestedAt + 5000;
+
+    const attemptStart = async () => {
+      if (cancelled) return;
+      const hasSeenTour = hasSeenServer || hasSeenLocal;
+      if (hasSeenTour) {
+        if (!cancelled) {
+          setPendingPaywallStartRequestedAt(null);
+        }
+        return;
+      }
+
+      const isReadyToStart =
+        tourLoaded &&
+        profileResolved &&
+        isMainAppRoute &&
+        isAuthenticated &&
+        profile?.onboarding_completed === true &&
+        !isTourActive;
+
+      if (isReadyToStart) {
+        const didStart = await startTour();
+        if (didStart) {
+          if (!cancelled) {
+            setPendingPaywallStartRequestedAt(null);
+          }
+          return;
+        }
+      }
+
+      if (Date.now() >= deadlineMs) {
+        if (!cancelled) {
+          setPendingPaywallStartRequestedAt(null);
+        }
+        return;
+      }
+
+      retryTimeout = setTimeout(() => {
+        void attemptStart();
+      }, 120);
+    };
+
+    void attemptStart();
+
+    return () => {
+      cancelled = true;
+      if (retryTimeout) {
+        clearTimeout(retryTimeout);
+      }
+    };
+  }, [
+    hasSeenLocal,
+    hasSeenServer,
+    isAuthenticated,
+    isMainAppRoute,
+    isTourActive,
+    pendingPaywallStartRequestedAt,
+    profile?.onboarding_completed,
+    profileResolved,
+    startTour,
+    tourLoaded,
+  ]);
 
   // Advance when a workout is launched from Quick Start.
   useEffect(() => {
@@ -655,7 +731,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     isTourActive,
     activeStepId: logicalStep?.id ?? null,
     advanceStep: () => void advanceStep(),
-  }), [advanceStep, isTourActive, logicalStep?.id, registerAnchorRect, unregisterAnchor]);
+    queueTourStartAfterPaywallClose,
+  }), [advanceStep, isTourActive, logicalStep?.id, queueTourStartAfterPaywallClose, registerAnchorRect, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {
     if (!isTourActive || !overlayStep || !overlayStep.primaryActionLabel) return null;

@@ -14,6 +14,13 @@ export const getUserScopedKey = async (baseKey: string): Promise<string> => {
   }
 
   try {
+    // Prefer local session lookup so writes during first-launch transitions
+    // don't fall back to guest scope while auth/profile hydration is still settling.
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      return getUserScopedKeySync(baseKey, session.user.id);
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     return getUserScopedKeySync(baseKey, user?.id ?? null);
   } catch {
