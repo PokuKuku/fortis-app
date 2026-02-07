@@ -1000,6 +1000,15 @@ export async function resyncMissingSets(
     return result;
   }
 
+  const exerciseMeta = await getAllExercises();
+  const exerciseMetaById = new Map<string, ExerciseWithSource>();
+  exerciseMeta.forEach((exercise) => {
+    exerciseMetaById.set(exercise.id, exercise);
+    if (exercise.slug) {
+      exerciseMetaById.set(exercise.slug, exercise);
+    }
+  });
+
   console.log(`[ResyncSets] Starting resync for ${localSessions.length} local sessions`);
 
   for (const session of localSessions) {
@@ -1072,12 +1081,20 @@ export async function resyncMissingSets(
           continue;
         }
 
+        const exerciseMetaEntry = exerciseMetaById.get(exercise.exerciseId);
+        const exerciseNameSnapshot = exercise.exerciseName || exerciseMetaEntry?.name || null;
+        const primaryMusclesSnapshot = exerciseMetaEntry?.primaryMuscles ?? null;
+        const secondaryMusclesSnapshot = exerciseMetaEntry?.secondaryMuscles ?? null;
+
         for (const set of exercise.sets) {
           if (!set.isCompleted) continue;
 
           setsToInsert.push({
             session_id: dbSession.id,
             exercise_id: resolvedExerciseId,
+            exercise_name_snapshot: exerciseNameSnapshot,
+            primary_muscles_snapshot: primaryMusclesSnapshot,
+            secondary_muscles_snapshot: secondaryMusclesSnapshot,
             set_number: set.setNumber,
             reps: set.reps,
             weight: set.weight,

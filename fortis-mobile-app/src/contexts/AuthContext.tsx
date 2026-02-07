@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
-import { AppState, Platform } from 'react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
 import { Buffer } from 'buffer';
 import * as FileSystem from 'expo-file-system';
 import { Session, User } from '@supabase/supabase-js';
@@ -377,7 +377,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [FORCE_DEV_SIGN_OUT_ON_LAUNCH, fetchProfile, hydrateUserData, syncPendingWorkouts]);
 
   useEffect(() => {
-    const handleAppStateChange = (nextState: string) => {
+    const handleAppStateChange = (nextState: AppStateStatus) => {
       appStateRef.current = nextState;
       if (nextState !== 'active' || !user) return;
       syncPendingWorkouts();
@@ -735,7 +735,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           uploadBody = blob;
         } catch {
           const fileBase64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
+            encoding: 'base64',
           });
           uploadBody = Buffer.from(fileBase64, 'base64');
         }

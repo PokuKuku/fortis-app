@@ -285,6 +285,7 @@ interface WorkoutState {
     setType: SetType
   ) => void;
   openEditorNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
+  closeEditorNumberPad: () => void;
   updateEditorExerciseNotes: (localId: string, notes: string) => void;
   saveEditorAsTemplate: (templateId?: string) => Promise<string | null>;
   saveEditorAsWorkout: () => Promise<void>;
@@ -2315,6 +2316,10 @@ export const useWorkoutStore = create<WorkoutState>()(
           shouldReplaceOnNextInput,
         },
       });
+    },
+
+    closeEditorNumberPad: () => {
+      set({ activeNumberPad: null });
     },
 
     updateEditorExerciseNotes: (localId, notes) => {

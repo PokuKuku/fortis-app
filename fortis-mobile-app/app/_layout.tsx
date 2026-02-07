@@ -338,12 +338,17 @@ export default function RootLayout() {
   const segments = useSegments();
   const isOnboarding = segments[0] === 'onboarding';
   const isAuth = segments[0] === 'auth';
-  const isSplash = segments.length === 0;
+  const isSplash = typeof segments[0] === 'undefined';
   const shouldForceTheme = isOnboarding || isAuth || isSplash;
 
   const [fontsLoaded] = useFonts({
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
+
+  const sanitizeUrlForLogging = (url: string | null): string => {
+    if (!url) return 'null';
+    return url.split('#')[0]?.split('?')[0] ?? '[unparseable-url]';
+  };
 
   // Load persisted preferences on app start
   useEffect(() => {
@@ -363,15 +368,19 @@ export default function RootLayout() {
   ]);
 
   useEffect(() => {
+    if (!__DEV__) {
+      return;
+    }
+
     const logInitialUrl = async () => {
       const initialUrl = await Linking.getInitialURL();
-      console.log('[Routing] initial URL:', initialUrl ?? 'null');
+      console.log('[Routing] initial URL:', sanitizeUrlForLogging(initialUrl));
     };
 
     void logInitialUrl();
 
     const subscription = Linking.addEventListener('url', ({ url }) => {
-      console.log('[Routing] incoming URL:', url);
+      console.log('[Routing] incoming URL:', sanitizeUrlForLogging(url));
     });
 
     return () => {
@@ -397,19 +406,21 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 
-  const superwallOptions = __DEV__
-    ? {
-        // The Superwall app transaction check can block purchases in dev builds.
-        shouldBypassAppTransactionCheck: true,
-        // Emit detailed SDK logs to help diagnose purchase issues locally.
-        logging: {
-          level: 'debug' as const,
-          scopes: ['all' as const],
-        },
-        // Observe purchases that might complete outside of Superwall's paywall UI.
-        shouldObservePurchases: true,
-      }
-    : undefined;
+  const superwallOptions = {
+    // Keep parity across simulator/TestFlight so paywall behavior is consistent.
+    shouldBypassAppTransactionCheck: true,
+    // Observe purchases that might complete outside of Superwall's paywall UI.
+    shouldObservePurchases: true,
+    // Emit detailed SDK logs only in development builds.
+    ...(__DEV__
+      ? {
+          logging: {
+            level: 'debug' as const,
+            scopes: ['all' as const],
+          },
+        }
+      : {}),
+  };
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

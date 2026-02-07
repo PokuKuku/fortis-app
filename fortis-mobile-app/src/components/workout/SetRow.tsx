@@ -474,10 +474,12 @@ export function SetRow({
     completeSet(exerciseLocalId, setLocalId);
   };
 
-  const normalSetNumber = exercise.sets
-    .slice(0, setIndex + 1)
-    .filter((s) => s.setType === 'normal')
-    .length;
+  const normalSetNumber = exercise
+    ? exercise.sets
+      .slice(0, setIndex + 1)
+      .filter((s) => s.setType === 'normal')
+      .length
+    : setIndex + 1;
 
   const getSetDisplay = () => {
     switch (set.setType) {
