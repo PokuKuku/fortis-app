@@ -5,7 +5,7 @@
  * surrounding text (e.g., onboarding greeting).
  */
 import { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, View } from 'react-native';
 import Svg, { Defs, LinearGradient as SvgLinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
@@ -27,8 +27,7 @@ export function InlineAnimatedLogo({
   shineDurationMs,
 }: InlineAnimatedLogoProps) {
   const { colors } = useTheme();
-  const { fontScale } = useWindowDimensions();
-  const scaledFontSize = Math.round(fontSize * fontScale);
+  const resolvedFontSize = Math.round(fontSize);
   const introDuration = Math.max(0, introDurationMs ?? 500);
   const shineDuration = Math.max(0, shineDurationMs ?? 1400);
   const shineAnim = useRef(new Animated.Value(0)).current;
@@ -37,12 +36,12 @@ export function InlineAnimatedLogo({
   const gradientId = useRef(`inlineTextGradient-${Math.random().toString(36).slice(2, 9)}`).current;
 
   const config = useMemo(() => {
-    const width = Math.round(scaledFontSize * 4.8);
-    const height = Math.round(scaledFontSize * 1.55);
-    const y = Math.round(scaledFontSize * 1.22);
+    const width = Math.round(resolvedFontSize * 4.5);
+    const height = Math.round(resolvedFontSize * 1.55);
+    const y = Math.round(resolvedFontSize * 1.22);
     const letterSpacing = 0.5;
     return { width, height, y, letterSpacing };
-  }, [scaledFontSize]);
+  }, [resolvedFontSize]);
 
   const letterOffsets = useMemo(() => {
     const totalSpacing = config.letterSpacing * (LOGO_TEXT.length - 1);
@@ -94,7 +93,7 @@ export function InlineAnimatedLogo({
     return () => {
       shineLoop.stop();
     };
-  }, [animate, fadeAnim, introDuration, scaleAnim, shineAnim, shineDuration, scaledFontSize]);
+  }, [animate, fadeAnim, introDuration, scaleAnim, shineAnim, shineDuration, resolvedFontSize]);
 
   const gradientStops = animate
     ? [
@@ -147,7 +146,7 @@ export function InlineAnimatedLogo({
           </Defs>
           <SvgText
             fill={`url(#${gradientId})`}
-            fontSize={scaledFontSize}
+            fontSize={resolvedFontSize}
             fontWeight="900"
             dx={letterOffsets}
             x={config.width / 2}

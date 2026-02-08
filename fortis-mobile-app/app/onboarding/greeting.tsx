@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
@@ -7,25 +7,20 @@ import { Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getOnboardingState } from '@/src/utils/onboardingState';
 import { InlineAnimatedLogo } from '@/components/InlineAnimatedLogo';
-import { scale } from '@/src/utils/responsive';
 
 const ADVANCE_DELAY_MS = 2400;
+const GREETING_TEXT_SIZE = 28;
+const COMMA_RIGHT_NUDGE = 7;
 
 export default function OnboardingGreetingScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
   const [fullName, setFullName] = useState<string | null>(null);
   const floatOffset = useState(() => new Animated.Value(0))[0];
-  const textSize = scale(28);
-  const commaOffset = -Math.round(textSize * 0.35);
+  const textSize = GREETING_TEXT_SIZE;
+  const commaOffset = -Math.round(textSize * 0.35) + COMMA_RIGHT_NUDGE;
   const logoNudge = -Math.round(textSize * 0.18);
-  const [lineWidth, setLineWidth] = useState(0);
-  const [nameWidth, setNameWidth] = useState(0);
-  const [containerWidth, setContainerWidth] = useState(0);
-  const maxLineWidth = Math.max(lineWidth, nameWidth);
-  const lineScale = containerWidth > 0 && maxLineWidth > 0
-    ? Math.min(1, containerWidth / maxLineWidth)
-    : 1;
 
   useEffect(() => {
     let isActive = true;
@@ -102,15 +97,17 @@ export default function OnboardingGreetingScreen() {
         ]}
       >
         <View
-          style={styles.lineContainer}
-          onLayout={(event) => setContainerWidth(event.nativeEvent.layout.width)}
+          style={[styles.lineContainer, { width: screenWidth }]}
         >
-          <View style={[styles.textGroup, { transform: [{ scale: lineScale }] }]}>
-            <View
-              style={styles.line}
-              onLayout={(event) => setLineWidth(event.nativeEvent.layout.width)}
-            >
-              <Text style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}>Welcome to</Text>
+          <View style={styles.textGroup}>
+            <View style={styles.line}>
+              <Text
+                style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}
+                allowFontScaling={false}
+                numberOfLines={1}
+              >
+                Welcome to
+              </Text>
               <View style={styles.logoGroup}>
                 <View style={[styles.logoInline, { marginTop: logoNudge }]}>
                   <InlineAnimatedLogo fontSize={textSize} introDurationMs={450} shineDurationMs={1400} />
@@ -121,6 +118,8 @@ export default function OnboardingGreetingScreen() {
                     styles.comma,
                     { color: colors.textPrimary, fontSize: textSize, marginLeft: commaOffset },
                   ]}
+                  allowFontScaling={false}
+                  numberOfLines={1}
                 >
                   ,
                 </Text>
@@ -129,7 +128,9 @@ export default function OnboardingGreetingScreen() {
             {trailingText ? (
               <Text
                 style={[styles.text, { color: colors.textPrimary, fontSize: textSize }]}
-                onLayout={(event) => setNameWidth(event.nativeEvent.layout.width)}
+                allowFontScaling={false}
+                numberOfLines={1}
+                ellipsizeMode="tail"
               >
                 {trailingText}
               </Text>
@@ -149,12 +150,12 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   lineContainer: {
-    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
   textGroup: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -166,11 +167,11 @@ const styles = StyleSheet.create({
     flexWrap: 'nowrap',
     maxWidth: '100%',
     alignSelf: 'center',
+    paddingHorizontal: Spacing.xs,
   },
   logoGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexShrink: 1,
   },
   logoInline: {
     alignItems: 'center',
@@ -182,7 +183,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
     textAlign: 'center',
-    flexShrink: 1,
+    maxWidth: '100%',
   },
   comma: {
     marginLeft: 0,
