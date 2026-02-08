@@ -407,8 +407,9 @@ export default function RootLayout() {
   );
 
   const superwallOptions = {
-    // Keep enabled so iOS launch-time transaction checks can reconcile subscription state.
-    shouldBypassAppTransactionCheck: false,
+    // StoreKit local testing on simulator does not always provide a verifiable app transaction.
+    // Bypass only in development so local test purchases can complete.
+    shouldBypassAppTransactionCheck: __DEV__,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,
     // Emit detailed SDK logs only in development builds.

@@ -13,6 +13,7 @@ import {
   Alert,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useSuperwall, useUser } from 'expo-superwall';
 import { CalendarDaysIcon, Squares2X2Icon, UserIcon, SparklesIcon, ChartBarIcon } from 'react-native-heroicons/outline';
 import { DumbbellIcon } from '../../src/components/icons/DumbbellIcon';
 import { GlassButton } from '../../components/GlassButton';
@@ -38,12 +39,17 @@ import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/
 import { useExercises } from '@/src/hooks/useExercises';
 import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 import { saveCustomExercise } from '@/src/services/exerciseService';
+import { shouldRedirectToPaywallGateFromTabs } from '@/src/components/superwall/superwallGuards';
 
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
+  const { subscriptionStatus } = useUser();
+  const { isSuperwallReady } = useSuperwall((state) => ({
+    isSuperwallReady: state.isConfigured && !state.isLoading,
+  }));
   const { isTourActive, activeStepId, advanceStep } = useInAppTour();
 
   // Theme-aware dynamic styles for accent color
@@ -96,6 +102,19 @@ export default function TabLayout() {
       router.replace('/onboarding/welcome');
     }
   }, [isLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (
+      shouldRedirectToPaywallGateFromTabs({
+        isAuthLoading: isLoading,
+        isAuthenticated,
+        isSuperwallReady,
+        subscriptionStatus: subscriptionStatus.status,
+      })
+    ) {
+      router.replace('/paywall-gate');
+    }
+  }, [isAuthenticated, isLoading, isSuperwallReady, router, subscriptionStatus.status]);
 
   useEffect(() => {
     if (!isLoading) {

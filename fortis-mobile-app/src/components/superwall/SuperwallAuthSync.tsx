@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
-import { useSuperwall, useUser } from 'expo-superwall';
+import { useSuperwall, useSuperwallEvents, useUser } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 const MIN_REFRESH_INTERVAL_MS = 5_000;
+const POST_PAYWALL_SYNC_COOLDOWN_MS = 2_000;
 
 export function SuperwallAuthSync() {
   const { user: authUser, isAuthResolved } = useAuth();
@@ -16,10 +17,45 @@ export function SuperwallAuthSync() {
   const inFlightSyncRef = useRef<Promise<void> | null>(null);
   const lastRefreshAtRef = useRef(0);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const isPaywallVisibleRef = useRef(false);
+  const isPurchaseInProgressRef = useRef(false);
+  const suppressSyncUntilRef = useRef(0);
+
+  useSuperwallEvents({
+    onPaywallPresent: () => {
+      isPaywallVisibleRef.current = true;
+    },
+    onPaywallDismiss: () => {
+      isPaywallVisibleRef.current = false;
+      isPurchaseInProgressRef.current = false;
+      suppressSyncUntilRef.current = Date.now() + POST_PAYWALL_SYNC_COOLDOWN_MS;
+    },
+    onPaywallSkip: () => {
+      isPaywallVisibleRef.current = false;
+      isPurchaseInProgressRef.current = false;
+      suppressSyncUntilRef.current = Date.now() + POST_PAYWALL_SYNC_COOLDOWN_MS;
+    },
+    onPaywallError: () => {
+      isPaywallVisibleRef.current = false;
+      isPurchaseInProgressRef.current = false;
+      suppressSyncUntilRef.current = Date.now() + POST_PAYWALL_SYNC_COOLDOWN_MS;
+    },
+    onPurchase: () => {
+      isPurchaseInProgressRef.current = true;
+    },
+  });
 
   const syncSuperwall = useCallback(async (forceRefresh = false) => {
     // Superwall can take a moment to configure; avoid syncing too early.
     if (!isLoaded || hasError || !isAuthResolved) {
+      return;
+    }
+    // Avoid identity/refresh churn while a paywall or purchase flow is active.
+    if (
+      isPaywallVisibleRef.current ||
+      isPurchaseInProgressRef.current ||
+      Date.now() < suppressSyncUntilRef.current
+    ) {
       return;
     }
 
@@ -88,7 +124,9 @@ export function SuperwallAuthSync() {
         (previousState === 'background' || previousState === 'inactive') &&
         nextState === 'active'
       ) {
-        void syncSuperwall(true);
+        // Returning from the App Store sheet can trigger this transition.
+        // Keep it non-forced so we don't interrupt transaction reconciliation.
+        void syncSuperwall(false);
       }
     });
 

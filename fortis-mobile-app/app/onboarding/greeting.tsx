@@ -9,7 +9,7 @@ import { getOnboardingState } from '@/src/utils/onboardingState';
 import { InlineAnimatedLogo } from '@/components/InlineAnimatedLogo';
 
 const ADVANCE_DELAY_MS = 2400;
-const GREETING_TEXT_SIZE = 28;
+const GREETING_TEXT_SIZE = 26;
 const COMMA_RIGHT_NUDGE = 7;
 
 export default function OnboardingGreetingScreen() {

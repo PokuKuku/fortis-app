@@ -8,15 +8,25 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/superwallGuards';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
+const ENTITLEMENT_RETRY_INTERVAL_MS = 1_000;
+const ENTITLEMENT_RETRY_WINDOW_MS = 12_000;
+const PAYWALL_CONFIG_ERROR_MESSAGE = 'Unable to load paywall. Check connection and try again.';
 
 export default function PaywallGateScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { user: authUser, isAuthResolved } = useAuth();
   const { queueTourStartAfterPaywallClose } = useInAppTour();
-  const { refresh, subscriptionStatus, user: superwallUser } = useUser();
+  const {
+    refresh,
+    subscriptionStatus,
+    user: superwallUser,
+    getEntitlements,
+    setSubscriptionStatus,
+  } = useUser();
   const { isSuperwallReady, hasSuperwallError } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
     hasSuperwallError: state.configurationError !== null,
@@ -32,6 +42,7 @@ export default function PaywallGateScreen() {
       ? superwallUser.appUserId
       : null;
   const hasActiveSubscription = subscriptionStatus.status === 'ACTIVE';
+  const hasActiveSubscriptionRef = useRef(hasActiveSubscription);
   const isIdentityReady = useMemo(() => {
     if (!isAuthResolved || !isSuperwallReady || hasSuperwallError) {
       return false;
@@ -46,53 +57,160 @@ export default function PaywallGateScreen() {
     if (hasNavigatedRef.current) {
       return;
     }
+    if (__DEV__) {
+      console.log('[Superwall] finishGate -> /(tabs)', {
+        status: subscriptionStatus.status,
+        hasActiveSubscription: hasActiveSubscriptionRef.current,
+      });
+    }
     hasNavigatedRef.current = true;
     queueTourStartAfterPaywallClose();
     router.replace('/(tabs)');
-  }, [queueTourStartAfterPaywallClose, router]);
+  }, [queueTourStartAfterPaywallClose, router, subscriptionStatus.status]);
+
+  const reconcileSubscriptionAccess = useCallback(async () => {
+    try {
+      await refresh();
+    } catch {
+      // Best effort: entitlement check below can still recover ACTIVE access.
+    }
+
+    if (hasActiveSubscriptionRef.current) {
+      return true;
+    }
+
+    try {
+      const entitlements = await getEntitlements();
+      if (entitlements.active.length > 0) {
+        await setSubscriptionStatus({
+          status: 'ACTIVE',
+          entitlements: entitlements.active,
+        });
+        hasActiveSubscriptionRef.current = true;
+        return true;
+      }
+    } catch (error) {
+      if (__DEV__) {
+        console.warn('[Superwall] entitlement reconciliation failed:', error);
+      }
+    }
+
+    return hasActiveSubscriptionRef.current;
+  }, [getEntitlements, refresh, setSubscriptionStatus]);
+
+  const waitForAccessAfterCheckout = useCallback(
+    async (trigger: string) => {
+      const startedAt = Date.now();
+
+      while (Date.now() - startedAt <= ENTITLEMENT_RETRY_WINDOW_MS) {
+        const hasAccess = await reconcileSubscriptionAccess();
+        if (hasAccess) {
+          if (__DEV__) {
+            console.log('[Superwall] access recovered after checkout', {
+              trigger,
+              elapsedMs: Date.now() - startedAt,
+            });
+          }
+          return true;
+        }
+
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, ENTITLEMENT_RETRY_INTERVAL_MS);
+        });
+      }
+
+      if (__DEV__) {
+        console.warn('[Superwall] access did not recover after retry window', {
+          trigger,
+          retryWindowMs: ENTITLEMENT_RETRY_WINDOW_MS,
+        });
+      }
+
+      return false;
+    },
+    [reconcileSubscriptionAccess],
+  );
 
   const handleDismiss = useCallback(
     (_paywallInfo: unknown, result: PaywallResult) => {
-      if (result.type === 'purchased' || result.type === 'restored' || hasActiveSubscription) {
-        finishGate();
-        return;
-      }
-      setGateError('Subscription required to continue.');
+      void (async () => {
+        if (__DEV__) {
+          console.log('[Superwall] paywall dismissed:', {
+            resultType: result.type,
+            status: subscriptionStatus.status,
+            hasActiveSubscription: hasActiveSubscriptionRef.current,
+          });
+        }
+        if (
+          result.type === 'purchased' ||
+          result.type === 'restored' ||
+          hasActiveSubscriptionRef.current
+        ) {
+          finishGate();
+          return;
+        }
+
+        const hasAccess = await waitForAccessAfterCheckout(`dismiss:${result.type}`);
+        if (hasAccess) {
+          finishGate();
+          return;
+        }
+
+        setGateError('Subscription required to continue.');
+      })();
     },
-    [finishGate, hasActiveSubscription],
+    [finishGate, subscriptionStatus.status, waitForAccessAfterCheckout],
   );
 
   const handleSkip = useCallback(
     (reason: PaywallSkippedReason) => {
-      if (__DEV__) {
-        console.log(
-          '[Superwall] paywall gate skipped:',
-          reason.type,
-          'subscription:',
-          subscriptionStatus.status,
-        );
-      }
-      if (hasActiveSubscription) {
-        finishGate();
-        return;
-      }
-      setGateError('Unable to verify access. Please try again.');
+      void (async () => {
+        if (__DEV__) {
+          console.log(
+            '[Superwall] paywall gate skipped:',
+            reason.type,
+            'subscription:',
+            subscriptionStatus.status,
+          );
+        }
+        if (hasActiveSubscriptionRef.current) {
+          finishGate();
+          return;
+        }
+
+        const hasAccess = await waitForAccessAfterCheckout(`skip:${reason.type}`);
+        if (hasAccess) {
+          finishGate();
+          return;
+        }
+
+        setGateError('Unable to verify access. Please try again.');
+      })();
     },
-    [finishGate, hasActiveSubscription, subscriptionStatus.status],
+    [finishGate, subscriptionStatus.status, waitForAccessAfterCheckout],
   );
 
   const handleError = useCallback(
     (error: string) => {
-      if (__DEV__) {
-        console.warn('[Superwall] paywall gate error:', error);
-      }
-      if (hasActiveSubscription) {
-        finishGate();
-        return;
-      }
-      setGateError('Unable to load paywall. Check connection and try again.');
+      void (async () => {
+        if (__DEV__) {
+          console.warn('[Superwall] paywall gate error:', error);
+        }
+        if (hasActiveSubscriptionRef.current) {
+          finishGate();
+          return;
+        }
+
+        const hasAccess = await waitForAccessAfterCheckout(`error:${error}`);
+        if (hasAccess) {
+          finishGate();
+          return;
+        }
+
+        setGateError('Unable to load paywall. Check connection and try again.');
+      })();
     },
-    [finishGate, hasActiveSubscription],
+    [finishGate, waitForAccessAfterCheckout],
   );
 
   const { registerPlacement } = usePlacement({
@@ -102,13 +220,29 @@ export default function PaywallGateScreen() {
   });
 
   useEffect(() => {
+    hasActiveSubscriptionRef.current = hasActiveSubscription;
+    if (__DEV__) {
+      console.log('[Superwall] subscription status changed:', subscriptionStatus.status);
+    }
     if (hasActiveSubscription) {
       finishGate();
     }
-  }, [finishGate, hasActiveSubscription]);
+  }, [finishGate, hasActiveSubscription, subscriptionStatus.status]);
 
   useEffect(() => {
-    if (!isIdentityReady || hasNavigatedRef.current) {
+    if (hasNavigatedRef.current) {
+      return;
+    }
+
+    if (shouldShowPaywallGateConfigError({
+      hasSuperwallError,
+      hasNavigated: hasNavigatedRef.current,
+    })) {
+      setGateError(PAYWALL_CONFIG_ERROR_MESSAGE);
+      return;
+    }
+
+    if (!isIdentityReady) {
       return;
     }
     if (lastAttemptRef.current === attempt) {
@@ -119,32 +253,58 @@ export default function PaywallGateScreen() {
     void (async () => {
       setGateError(null);
 
-      try {
-        await refresh();
-      } catch (error) {
-        console.warn('[Superwall] Failed to refresh before paywall gate:', error);
-        if (!hasActiveSubscription) {
-          setGateError('Unable to refresh subscription state. Please try again.');
-          return;
+      const hasAccess = await reconcileSubscriptionAccess();
+      if (hasAccess || hasNavigatedRef.current) {
+        if (__DEV__) {
+          console.log('[Superwall] gate resolved before registerPlacement', {
+            hasNavigated: hasNavigatedRef.current,
+            status: subscriptionStatus.status,
+          });
+        }
+        finishGate();
+        return;
+      }
+
+      if (hasNavigatedRef.current || hasActiveSubscriptionRef.current) {
+        if (__DEV__) {
+          console.log('[Superwall] skipping registerPlacement: already active/navigated', {
+            hasNavigated: hasNavigatedRef.current,
+            status: subscriptionStatus.status,
+          });
         }
         finishGate();
         return;
       }
 
       try {
+        if (__DEV__) {
+          console.log('[Superwall] registerPlacement start', {
+            placement: POST_SIGN_UP_PLACEMENT,
+            status: subscriptionStatus.status,
+          });
+        }
         await registerPlacement({ placement: POST_SIGN_UP_PLACEMENT });
       } catch (error) {
         if (__DEV__) {
           console.warn('[Superwall] registerPlacement failed:', error);
         }
-        if (!hasActiveSubscription) {
-          setGateError('Unable to load paywall. Please try again.');
+        if (!hasActiveSubscriptionRef.current) {
+          setGateError(PAYWALL_CONFIG_ERROR_MESSAGE);
           return;
         }
         finishGate();
       }
     })();
-  }, [attempt, finishGate, hasActiveSubscription, isIdentityReady, refresh, registerPlacement]);
+  }, [
+    attempt,
+    finishGate,
+    hasActiveSubscription,
+    hasSuperwallError,
+    isIdentityReady,
+    reconcileSubscriptionAccess,
+    registerPlacement,
+    subscriptionStatus.status,
+  ]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -168,6 +328,7 @@ export default function PaywallGateScreen() {
               },
             ]}
             onPress={() => {
+              setGateError(null);
               setAttempt((value) => value + 1);
             }}
           >
