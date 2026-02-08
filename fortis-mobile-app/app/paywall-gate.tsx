@@ -13,7 +13,10 @@ import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/sup
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const ENTITLEMENT_RETRY_INTERVAL_MS = 1_000;
 const ENTITLEMENT_RETRY_WINDOW_MS = 12_000;
+const IDENTITY_SYNC_RETRY_INTERVAL_MS = 1_500;
+const IDENTITY_SYNC_TIMEOUT_MS = 15_000;
 const PAYWALL_CONFIG_ERROR_MESSAGE = 'Unable to load paywall. Check connection and try again.';
+const IDENTITY_SYNC_ERROR_MESSAGE = 'Unable to sync account. Please try again.';
 
 export default function PaywallGateScreen() {
   const router = useRouter();
@@ -26,6 +29,8 @@ export default function PaywallGateScreen() {
     user: superwallUser,
     getEntitlements,
     setSubscriptionStatus,
+    identify,
+    signOut,
   } = useUser();
   const { isSuperwallReady, hasSuperwallError } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
@@ -33,6 +38,7 @@ export default function PaywallGateScreen() {
   }));
   const lastAttemptRef = useRef(-1);
   const hasNavigatedRef = useRef(false);
+  const identitySyncStartedAtRef = useRef<number | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [gateError, setGateError] = useState<string | null>(null);
 
@@ -234,6 +240,89 @@ export default function PaywallGateScreen() {
       return;
     }
 
+    if (!isAuthResolved || !isSuperwallReady || hasSuperwallError) {
+      identitySyncStartedAtRef.current = null;
+      return;
+    }
+
+    if (isIdentityReady) {
+      identitySyncStartedAtRef.current = null;
+      if (gateError === IDENTITY_SYNC_ERROR_MESSAGE) {
+        setGateError(null);
+      }
+      return;
+    }
+
+    if (identitySyncStartedAtRef.current === null) {
+      identitySyncStartedAtRef.current = Date.now();
+    }
+
+    let cancelled = false;
+
+    const syncIdentity = async () => {
+      try {
+        if (authUserId) {
+          if (superwallUserId !== authUserId) {
+            if (__DEV__) {
+              console.log('[Superwall] forcing identity sync in paywall gate', {
+                authUserId,
+                superwallUserId,
+              });
+            }
+            await identify(authUserId, { restorePaywallAssignments: true });
+          }
+        } else if (superwallUserId) {
+          await signOut();
+        }
+
+        await refresh();
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('[Superwall] paywall gate identity sync failed:', error);
+        }
+      }
+    };
+
+    void syncIdentity();
+
+    const intervalId = setInterval(() => {
+      if (cancelled || hasNavigatedRef.current) {
+        return;
+      }
+
+      const startedAt = identitySyncStartedAtRef.current;
+      if (startedAt && Date.now() - startedAt >= IDENTITY_SYNC_TIMEOUT_MS) {
+        setGateError(IDENTITY_SYNC_ERROR_MESSAGE);
+        clearInterval(intervalId);
+        return;
+      }
+
+      void syncIdentity();
+    }, IDENTITY_SYNC_RETRY_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+    };
+  }, [
+    authUserId,
+    gateError,
+    hasSuperwallError,
+    identify,
+    isAuthResolved,
+    isIdentityReady,
+    isSuperwallReady,
+    refresh,
+    signOut,
+    superwallUserId,
+    attempt,
+  ]);
+
+  useEffect(() => {
+    if (hasNavigatedRef.current) {
+      return;
+    }
+
     if (shouldShowPaywallGateConfigError({
       hasSuperwallError,
       hasNavigated: hasNavigatedRef.current,
@@ -328,6 +417,7 @@ export default function PaywallGateScreen() {
               },
             ]}
             onPress={() => {
+              identitySyncStartedAtRef.current = null;
               setGateError(null);
               setAttempt((value) => value + 1);
             }}
