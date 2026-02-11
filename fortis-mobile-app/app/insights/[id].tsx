@@ -22,6 +22,7 @@ import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonomy';
+import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
@@ -295,7 +296,7 @@ export default function InsightDetailScreen() {
   const suggestionPayload = insight.recommendation?.[0]?.payload as { text?: string } | undefined;
   const suggestionText = typeof suggestionPayload?.text === 'string' ? suggestionPayload.text : null;
 
-  const handleNextSteps = () => {
+  const handleNextSteps = async () => {
     if (!insight) return;
     const prompt =
       insight.type === 'FATIGUE_RISK_V1'
@@ -305,6 +306,8 @@ export default function InsightDetailScreen() {
         : insight.type === 'LIFT_STALL_RISK_V1'
         ? 'Explain this stall risk and suggest what I should adjust next week.'
         : 'Explain this weekly insight and suggest what I should do next week.';
+    const allowed = await requestAIDataSharingConsent();
+    if (!allowed) return;
     void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
     router.push('/ai/chat');
   };

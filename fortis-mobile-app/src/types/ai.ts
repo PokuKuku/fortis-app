@@ -62,6 +62,7 @@ export interface AIError {
 export type AIRateLimitWindow = 'minute' | 'hour' | 'day' | 'week' | 'month';
 
 export type AIErrorCode =
+  | 'CONSENT_REQUIRED'
   | 'RATE_LIMITED'
   | 'INVALID_REQUEST'
   | 'UNAUTHORIZED'

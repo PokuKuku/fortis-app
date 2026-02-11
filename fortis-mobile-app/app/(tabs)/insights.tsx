@@ -28,6 +28,7 @@ import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonomy';
+import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -844,8 +845,10 @@ export default function InsightsScreen() {
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
   };
 
-  const openInsightChat = (insight: TrainingInsight, prompt: string) => {
+  const openInsightChat = async (insight: TrainingInsight, prompt: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    const allowed = await requestAIDataSharingConsent();
+    if (!allowed) return;
     void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
     router.push('/ai/chat');
   };
@@ -857,7 +860,7 @@ export default function InsightsScreen() {
         : insight.type === 'IMBALANCE_FLAG_V1'
         ? 'Explain this imbalance flag and suggest what I should adjust next week.'
         : 'Explain this insight and suggest what I should do next week.';
-    openInsightChat(insight, prompt);
+    void openInsightChat(insight, prompt);
   };
 
   const handleOpenChart = (insight: TrainingInsight, tabOverride?: ChartTab) => {

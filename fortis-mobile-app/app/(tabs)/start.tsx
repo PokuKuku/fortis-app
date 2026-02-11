@@ -1,10 +1,12 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { scale, moderateScale } from '@/src/utils/responsive';
+import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 
 const HORIZONTAL_PADDING = scale(24);
 const PLACEHOLDER_TEXT_SIZE = moderateScale(16);
@@ -12,6 +14,13 @@ const PLACEHOLDER_TEXT_SIZE = moderateScale(16);
 export default function StartScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+
+  const handleOpenAIChat = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const allowed = await requestAIDataSharingConsent();
+    if (!allowed) return;
+    router.push('/ai/chat');
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -28,7 +37,7 @@ export default function StartScreen() {
               borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)',
             }}
             gradientColors={colors.contrastGradient as unknown as string[]}
-            onPress={() => router.push('/ai/chat')}
+            onPress={handleOpenAIChat}
           >
             <Text style={[styles.buttonText, { color: colors.white }]}>Open AI Chat</Text>
           </GlassButton>

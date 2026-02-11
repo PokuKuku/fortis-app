@@ -14,6 +14,7 @@ import {
   AIResponse,
   AIRateLimitStatus,
 } from '../types/ai';
+import { hasAIDataSharingConsent } from '@/src/services/aiConsentService';
 
 async function getAuthenticatedUserId(): Promise<string | null> {
   if (!isSupabaseConfigured()) {
@@ -33,6 +34,19 @@ export async function sendAIMessage(
   context?: AIRequestContext,
   history?: AIChatMessage[]
 ): Promise<AIResponse> {
+  const hasConsent = await hasAIDataSharingConsent();
+  if (!hasConsent) {
+    return {
+      type: 'error',
+      requestId: Crypto.randomUUID(),
+      error: {
+        code: 'CONSENT_REQUIRED',
+        message: 'Allow AI data sharing in Settings to use AI features.',
+        retryable: false,
+      },
+    };
+  }
+
   if (!isSupabaseConfigured()) {
     return {
       type: 'error',

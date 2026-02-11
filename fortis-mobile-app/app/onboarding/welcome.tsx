@@ -87,6 +87,7 @@ export default function OnboardingWelcomeScreen() {
   }, [isAuthenticated, profileResolved]);
 
   useEffect(() => {
+    if (!showSignInSheet && !authInProgress) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
     if (!profile || needsOnboarding) {
       setShowSignInSheet(false);
@@ -105,6 +106,8 @@ export default function OnboardingWelcomeScreen() {
     needsOnboarding,
     profile,
     profileResolved,
+    showSignInSheet,
+    authInProgress,
     signOut,
     router,
   ]);

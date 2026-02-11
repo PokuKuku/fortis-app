@@ -154,8 +154,8 @@ export default function AuthWelcomeScreen() {
       return;
     }
 
-    console.log('[Routing] auth/index -> /paywall-gate (authenticated)');
-    router.replace('/paywall-gate');
+    console.log('[Routing] auth/index -> /onboarding/welcome (authenticated)');
+    router.replace('/onboarding/welcome');
   }, [
     isAuthenticated,
     isFinalizing,

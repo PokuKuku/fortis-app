@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import {
   ChevronLeftIcon,
@@ -36,6 +36,11 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { supabase } from '@/src/lib/supabase';
+import {
+  hasAIDataSharingConsent,
+  requestAIDataSharingConsent,
+  setAIDataSharingConsent,
+} from '@/src/services/aiConsentService';
 
 interface SettingsRowProps {
   icon: React.ReactNode;
@@ -87,6 +92,7 @@ export default function SettingsScreen() {
   const [isExporting, setIsExporting] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
+  const [aiDataSharingAllowed, setAIDataSharingAllowed] = useState<boolean>(false);
 
   const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
   const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
@@ -113,6 +119,47 @@ export default function SettingsScreen() {
     } catch {
       Alert.alert('Unable to open link', 'Please try again later.');
     }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    void (async () => {
+      const allowed = await hasAIDataSharingConsent();
+      if (isMounted) {
+        setAIDataSharingAllowed(allowed);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleAIDataSharingPress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    if (aiDataSharingAllowed) {
+      Alert.alert(
+        'Disable AI data sharing?',
+        'Fortis will stop sending your data to OpenAI for AI responses until you re-enable this setting.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Disable',
+            style: 'destructive',
+            onPress: () => {
+              void (async () => {
+                await setAIDataSharingConsent(false);
+                setAIDataSharingAllowed(false);
+              })();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    const allowed = await requestAIDataSharingConsent();
+    setAIDataSharingAllowed(allowed);
   };
 
   const handleToggleTheme = async () => {
@@ -413,6 +460,17 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Legal & Security</Text>
 
             <View style={[styles.settingsCard, cardStyle]}>
+              <SettingsRow
+                icon={<DocumentTextIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="AI Data Sharing"
+                value={aiDataSharingAllowed ? 'Allowed' : 'Not allowed'}
+                onPress={handleAIDataSharingPress}
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
               <SettingsRow
                 icon={<DocumentTextIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Terms & Conditions"

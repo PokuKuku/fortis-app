@@ -407,9 +407,10 @@ export default function RootLayout() {
   );
 
   const superwallOptions = {
-    // StoreKit local testing on simulator does not always provide a verifiable app transaction.
-    // Bypass only in development so local test purchases can complete.
-    shouldBypassAppTransactionCheck: __DEV__,
+    // Pin StoreKit 2 to avoid runtime mode drift during local StoreKit testing.
+    storeKitVersion: 'STOREKIT2' as const,
+    // Keep app transaction verification enabled in all environments.
+    shouldBypassAppTransactionCheck: false,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,
     // Emit detailed SDK logs only in development builds.

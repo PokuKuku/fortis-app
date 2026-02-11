@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { usePlacement, useSuperwall, useUser } from 'expo-superwall';
+import { usePlacement, useSuperwall, useSuperwallEvents, useUser } from 'expo-superwall';
 import type { PaywallResult, PaywallSkippedReason } from 'expo-superwall';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -13,8 +13,9 @@ import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/sup
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const ENTITLEMENT_RETRY_INTERVAL_MS = 1_000;
 const ENTITLEMENT_RETRY_WINDOW_MS = 12_000;
-const IDENTITY_SYNC_RETRY_INTERVAL_MS = 1_500;
-const IDENTITY_SYNC_TIMEOUT_MS = 15_000;
+const CHECKOUT_RECOVERY_INITIAL_DELAY_MS = 1_200;
+const CHECKOUT_RECOVERY_INTERVAL_MS = 1_000;
+const CHECKOUT_RECOVERY_WINDOW_MS = 90_000;
 const PAYWALL_CONFIG_ERROR_MESSAGE = 'Unable to load paywall. Check connection and try again.';
 const IDENTITY_SYNC_ERROR_MESSAGE = 'Unable to sync account. Please try again.';
 
@@ -38,8 +39,11 @@ export default function PaywallGateScreen() {
   }));
   const lastAttemptRef = useRef(-1);
   const hasNavigatedRef = useRef(false);
-  const identitySyncStartedAtRef = useRef<number | null>(null);
+  const identitySyncAttemptRef = useRef<string | null>(null);
+  const identitySyncInFlightRef = useRef<Promise<void> | null>(null);
+  const checkoutRecoveryStartedAtRef = useRef<number | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [checkoutRecoveryAttempt, setCheckoutRecoveryAttempt] = useState(0);
   const [gateError, setGateError] = useState<string | null>(null);
 
   const authUserId = authUser?.id ?? null;
@@ -225,6 +229,74 @@ export default function PaywallGateScreen() {
     onError: handleError,
   });
 
+  const startCheckoutRecovery = useCallback((trigger: string, productId?: string) => {
+    checkoutRecoveryStartedAtRef.current = Date.now();
+    setCheckoutRecoveryAttempt((value) => value + 1);
+    if (__DEV__) {
+      console.log('[Superwall] checkout recovery armed', {
+        trigger,
+        productId: productId ?? null,
+      });
+    }
+  }, []);
+
+  const forceActivateFromTransaction = useCallback(
+    async (trigger: string) => {
+      try {
+        const entitlements = await getEntitlements();
+        const activeEntitlements = entitlements.active;
+
+        if (activeEntitlements.length === 0) {
+          if (__DEV__) {
+            console.warn('[Superwall] transaction completed but no active entitlements yet', { trigger });
+          }
+          return;
+        }
+
+        await setSubscriptionStatus({
+          status: 'ACTIVE',
+          entitlements: activeEntitlements,
+        });
+        hasActiveSubscriptionRef.current = true;
+        if (__DEV__) {
+          console.log('[Superwall] force-activated from transaction event', { trigger });
+        }
+        finishGate();
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('[Superwall] failed to force-activate from transaction event', {
+            trigger,
+            error,
+          });
+        }
+      }
+    },
+    [finishGate, getEntitlements, setSubscriptionStatus],
+  );
+
+  useSuperwallEvents({
+    onPurchase: (params: { productId?: string }) => {
+      startCheckoutRecovery('purchase-start', params.productId);
+    },
+    onPurchaseRestore: () => {
+      startCheckoutRecovery('restore-start');
+    },
+    onSuperwallEvent: (eventInfo: { event?: { event?: string } }) => {
+      const eventType = eventInfo?.event?.event;
+      if (eventType === 'transactionStart') {
+        startCheckoutRecovery(`event:${eventType}`);
+      }
+      if (
+        eventType === 'transactionComplete' ||
+        eventType === 'subscriptionStart' ||
+        eventType === 'freeTrialStart'
+      ) {
+        startCheckoutRecovery(`event:${eventType}`);
+        void forceActivateFromTransaction(`event:${eventType}`);
+      }
+    },
+  });
+
   useEffect(() => {
     hasActiveSubscriptionRef.current = hasActiveSubscription;
     if (__DEV__) {
@@ -236,30 +308,83 @@ export default function PaywallGateScreen() {
   }, [finishGate, hasActiveSubscription, subscriptionStatus.status]);
 
   useEffect(() => {
+    if (checkoutRecoveryAttempt === 0 || hasNavigatedRef.current) {
+      return;
+    }
+
+    const startedAt = checkoutRecoveryStartedAtRef.current;
+    if (!startedAt) {
+      return;
+    }
+
+    let cancelled = false;
+    let activeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const sleep = (ms: number) =>
+      new Promise<void>((resolve) => {
+        activeTimeout = setTimeout(() => {
+          resolve();
+        }, ms);
+      });
+
+    void (async () => {
+      await sleep(CHECKOUT_RECOVERY_INITIAL_DELAY_MS);
+
+      while (
+        !cancelled &&
+        !hasNavigatedRef.current &&
+        Date.now() - startedAt <= CHECKOUT_RECOVERY_WINDOW_MS
+      ) {
+        const hasAccess = await reconcileSubscriptionAccess();
+        if (hasAccess) {
+          if (__DEV__) {
+            console.log('[Superwall] checkout recovery granted access');
+          }
+          finishGate();
+          return;
+        }
+
+        await sleep(CHECKOUT_RECOVERY_INTERVAL_MS);
+      }
+
+      if (__DEV__ && !cancelled && !hasNavigatedRef.current) {
+        console.warn('[Superwall] checkout recovery timed out without access');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      if (activeTimeout) {
+        clearTimeout(activeTimeout);
+      }
+    };
+  }, [checkoutRecoveryAttempt, finishGate, reconcileSubscriptionAccess]);
+
+  useEffect(() => {
     if (hasNavigatedRef.current) {
       return;
     }
 
     if (!isAuthResolved || !isSuperwallReady || hasSuperwallError) {
-      identitySyncStartedAtRef.current = null;
+      identitySyncAttemptRef.current = null;
       return;
     }
 
     if (isIdentityReady) {
-      identitySyncStartedAtRef.current = null;
+      identitySyncAttemptRef.current = null;
       if (gateError === IDENTITY_SYNC_ERROR_MESSAGE) {
         setGateError(null);
       }
       return;
     }
 
-    if (identitySyncStartedAtRef.current === null) {
-      identitySyncStartedAtRef.current = Date.now();
+    const syncKey = `${authUserId ?? 'anon'}:${superwallUserId ?? 'anon'}:${attempt}`;
+    if (identitySyncAttemptRef.current === syncKey || identitySyncInFlightRef.current) {
+      return;
     }
+    identitySyncAttemptRef.current = syncKey;
 
-    let cancelled = false;
-
-    const syncIdentity = async () => {
+    const syncIdentity = (async () => {
       try {
         if (authUserId) {
           if (superwallUserId !== authUserId) {
@@ -280,30 +405,15 @@ export default function PaywallGateScreen() {
         if (__DEV__) {
           console.warn('[Superwall] paywall gate identity sync failed:', error);
         }
+        if (!hasNavigatedRef.current) {
+          setGateError(IDENTITY_SYNC_ERROR_MESSAGE);
+        }
+      } finally {
+        identitySyncInFlightRef.current = null;
       }
-    };
+    })();
 
-    void syncIdentity();
-
-    const intervalId = setInterval(() => {
-      if (cancelled || hasNavigatedRef.current) {
-        return;
-      }
-
-      const startedAt = identitySyncStartedAtRef.current;
-      if (startedAt && Date.now() - startedAt >= IDENTITY_SYNC_TIMEOUT_MS) {
-        setGateError(IDENTITY_SYNC_ERROR_MESSAGE);
-        clearInterval(intervalId);
-        return;
-      }
-
-      void syncIdentity();
-    }, IDENTITY_SYNC_RETRY_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      clearInterval(intervalId);
-    };
+    identitySyncInFlightRef.current = syncIdentity;
   }, [
     authUserId,
     gateError,
@@ -392,6 +502,7 @@ export default function PaywallGateScreen() {
     isIdentityReady,
     reconcileSubscriptionAccess,
     registerPlacement,
+    startCheckoutRecovery,
     subscriptionStatus.status,
   ]);
 
@@ -417,7 +528,7 @@ export default function PaywallGateScreen() {
               },
             ]}
             onPress={() => {
-              identitySyncStartedAtRef.current = null;
+              identitySyncAttemptRef.current = null;
               setGateError(null);
               setAttempt((value) => value + 1);
             }}

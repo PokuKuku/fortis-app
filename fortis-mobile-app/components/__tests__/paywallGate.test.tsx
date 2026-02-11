@@ -20,6 +20,7 @@ jest.mock(
         configurationError: new Error('config failed'),
       }),
     ),
+    useSuperwallEvents: jest.fn(),
     useUser: jest.fn(() => ({
       refresh: mockRefresh,
       subscriptionStatus: { status: 'INACTIVE' },

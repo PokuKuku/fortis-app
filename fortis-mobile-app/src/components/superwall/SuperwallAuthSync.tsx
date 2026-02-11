@@ -5,6 +5,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 
 const MIN_REFRESH_INTERVAL_MS = 5_000;
 const POST_PAYWALL_SYNC_COOLDOWN_MS = 2_000;
+const PURCHASE_SYNC_GUARD_WINDOW_MS = 20_000;
 
 export function SuperwallAuthSync() {
   const { user: authUser, isAuthResolved } = useAuth();
@@ -42,6 +43,36 @@ export function SuperwallAuthSync() {
     },
     onPurchase: () => {
       isPurchaseInProgressRef.current = true;
+      suppressSyncUntilRef.current = Date.now() + PURCHASE_SYNC_GUARD_WINDOW_MS;
+    },
+    onSuperwallEvent: (eventInfo: { event?: { event?: string } }) => {
+      const eventType = eventInfo?.event?.event;
+      if (!eventType) return;
+
+      if (eventType === 'transactionStart' || eventType === 'transactionRestore') {
+        isPurchaseInProgressRef.current = true;
+        suppressSyncUntilRef.current = Date.now() + PURCHASE_SYNC_GUARD_WINDOW_MS;
+        return;
+      }
+
+      if (
+        eventType === 'transactionComplete' ||
+        eventType === 'subscriptionStart' ||
+        eventType === 'freeTrialStart'
+      ) {
+        isPurchaseInProgressRef.current = false;
+        suppressSyncUntilRef.current = Date.now() + POST_PAYWALL_SYNC_COOLDOWN_MS;
+        return;
+      }
+
+      if (
+        eventType === 'transactionAbandon' ||
+        eventType === 'transactionFail' ||
+        eventType === 'transactionTimeout'
+      ) {
+        isPurchaseInProgressRef.current = false;
+        suppressSyncUntilRef.current = Date.now() + POST_PAYWALL_SYNC_COOLDOWN_MS;
+      }
     },
   });
 

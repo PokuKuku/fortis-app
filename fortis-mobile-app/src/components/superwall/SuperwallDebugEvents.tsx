@@ -40,7 +40,7 @@ export function SuperwallDebugEvents() {
               console.log('[Superwall] Subscription status changed:', status?.status);
             },
             onLog: (params: { level: string; scope: string; message: string | null }) => {
-              console.log('[Superwall][log]', params.level, params.scope, params.message);
+              console.log('[Superwall][log]', params);
             },
           }
         : {},

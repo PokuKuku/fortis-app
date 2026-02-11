@@ -39,6 +39,7 @@ import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
+import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -289,6 +290,9 @@ export default function AIChatScreen() {
   const handleSend = async () => {
     if (!inputText.trim() || isSendingMessage) return;
 
+    const allowed = await requestAIDataSharingConsent();
+    if (!allowed) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const message = inputText.trim();
     const inferredIntent = inferIntentFromMessage(message);
@@ -315,6 +319,8 @@ export default function AIChatScreen() {
 
   // Retry failed message
   const handleRetry = useCallback(async () => {
+    const allowed = await requestAIDataSharingConsent();
+    if (!allowed) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await retryLastMessage();
   }, [retryLastMessage]);

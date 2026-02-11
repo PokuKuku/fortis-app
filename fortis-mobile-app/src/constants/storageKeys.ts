@@ -36,6 +36,7 @@ export const HAS_REQUESTED_NOTIFICATIONS_KEY = 'has_requested_notifications_v1';
 
 // AI assistant
 export const AI_CONVERSATION_KEY = 'ai_conversation_v1';
+export const AI_DATA_SHARING_CONSENT_KEY = 'ai_data_sharing_consent_v1';
 
 // Appearance
 export const THEME_MODE_KEY = 'theme_mode_v1';
@@ -70,6 +71,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   HAS_AUTO_SET_GET_STARTED_PRESET_KEY,
   HAS_REQUESTED_NOTIFICATIONS_KEY,
   AI_CONVERSATION_KEY,
+  AI_DATA_SHARING_CONSENT_KEY,
   PROFILE_STATS_CACHE_KEY,
   TRAINING_INSIGHTS_CACHE_KEY,
   INSIGHT_CHARTS_CACHE_KEY,
