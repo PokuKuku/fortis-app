@@ -17,6 +17,7 @@ import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics'
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallDebugEvents } from '@/src/components/superwall/SuperwallDebugEvents';
+import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
 
 const PAGE_TRANSITION = {
   animation: 'fade_from_bottom' as const,
@@ -53,6 +54,7 @@ function ThemedAppContent({
   return (
     <AuthProvider>
       <SuperwallAuthSync />
+      <SuperwallPurchaseRecovery />
       <SuperwallDebugEvents />
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
@@ -406,11 +408,13 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 
+  const shouldBypassAppTransactionCheck =
+    process.env.EXPO_PUBLIC_BYPASS_APP_TRANSACTION_CHECK === 'true';
+
   const superwallOptions = {
-    // Pin StoreKit 2 to avoid runtime mode drift during local StoreKit testing.
-    storeKitVersion: 'STOREKIT2' as const,
-    // Keep app transaction verification enabled in all environments.
-    shouldBypassAppTransactionCheck: false,
+    // Explicit opt-in (via env) for local StoreKit testing.
+    // Keep this false for TestFlight/App Store.
+    shouldBypassAppTransactionCheck,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,
     // Emit detailed SDK logs only in development builds.

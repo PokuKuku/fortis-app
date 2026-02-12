@@ -85,15 +85,18 @@ export default function AuthWelcomeScreen() {
       setIsFinalizing(true);
       void (async () => {
         const state = await getOnboardingState();
-        const shouldSetString = (value: string | null | undefined) => !value || value.trim().length === 0;
         const shouldSetNumber = (value: number | null | undefined) => typeof value !== 'number' || Number.isNaN(value);
 
         const updates: Parameters<typeof updateProfile>[0] = {
           onboarding_completed: true,
+          avatar_url: null,
+          has_seen_in_app_tour: false,
+          in_app_tour_completed_at: null,
+          in_app_tour_version: 0,
         };
 
-        if (state?.full_name?.trim() && shouldSetString(profile?.full_name)) {
-          updates.full_name = state.full_name.trim();
+        if (typeof state?.full_name === 'string') {
+          updates.full_name = state.full_name.trim() || null;
         }
         if (state?.gender && !profile?.gender) {
           updates.gender = state.gender;

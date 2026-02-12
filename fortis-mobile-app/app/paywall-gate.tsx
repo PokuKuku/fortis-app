@@ -39,6 +39,9 @@ export default function PaywallGateScreen() {
   }));
   const lastAttemptRef = useRef(-1);
   const hasNavigatedRef = useRef(false);
+  const isPaywallVisibleRef = useRef(false);
+  const isTransactionInFlightRef = useRef(false);
+  const isRegisteringPlacementRef = useRef(false);
   const identitySyncAttemptRef = useRef<string | null>(null);
   const identitySyncInFlightRef = useRef<Promise<void> | null>(null);
   const checkoutRecoveryStartedAtRef = useRef<number | null>(null);
@@ -143,6 +146,8 @@ export default function PaywallGateScreen() {
 
   const handleDismiss = useCallback(
     (_paywallInfo: unknown, result: PaywallResult) => {
+      isPaywallVisibleRef.current = false;
+      isTransactionInFlightRef.current = false;
       void (async () => {
         if (__DEV__) {
           console.log('[Superwall] paywall dismissed:', {
@@ -174,6 +179,8 @@ export default function PaywallGateScreen() {
 
   const handleSkip = useCallback(
     (reason: PaywallSkippedReason) => {
+      isPaywallVisibleRef.current = false;
+      isTransactionInFlightRef.current = false;
       void (async () => {
         if (__DEV__) {
           console.log(
@@ -202,6 +209,8 @@ export default function PaywallGateScreen() {
 
   const handleError = useCallback(
     (error: string) => {
+      isPaywallVisibleRef.current = false;
+      isTransactionInFlightRef.current = false;
       void (async () => {
         if (__DEV__) {
           console.warn('[Superwall] paywall gate error:', error);
@@ -275,15 +284,33 @@ export default function PaywallGateScreen() {
   );
 
   useSuperwallEvents({
+    onPaywallPresent: () => {
+      isPaywallVisibleRef.current = true;
+    },
+    onPaywallDismiss: () => {
+      isPaywallVisibleRef.current = false;
+      isTransactionInFlightRef.current = false;
+    },
+    onPaywallSkip: () => {
+      isPaywallVisibleRef.current = false;
+      isTransactionInFlightRef.current = false;
+    },
+    onPaywallError: () => {
+      isPaywallVisibleRef.current = false;
+      isTransactionInFlightRef.current = false;
+    },
     onPurchase: (params: { productId?: string }) => {
+      isTransactionInFlightRef.current = true;
       startCheckoutRecovery('purchase-start', params.productId);
     },
     onPurchaseRestore: () => {
+      isTransactionInFlightRef.current = true;
       startCheckoutRecovery('restore-start');
     },
     onSuperwallEvent: (eventInfo: { event?: { event?: string } }) => {
       const eventType = eventInfo?.event?.event;
-      if (eventType === 'transactionStart') {
+      if (eventType === 'transactionStart' || eventType === 'transactionRestore') {
+        isTransactionInFlightRef.current = true;
         startCheckoutRecovery(`event:${eventType}`);
       }
       if (
@@ -291,8 +318,16 @@ export default function PaywallGateScreen() {
         eventType === 'subscriptionStart' ||
         eventType === 'freeTrialStart'
       ) {
+        isTransactionInFlightRef.current = false;
         startCheckoutRecovery(`event:${eventType}`);
         void forceActivateFromTransaction(`event:${eventType}`);
+      }
+      if (
+        eventType === 'transactionAbandon' ||
+        eventType === 'transactionFail' ||
+        eventType === 'transactionTimeout'
+      ) {
+        isTransactionInFlightRef.current = false;
       }
     },
   });
@@ -362,6 +397,14 @@ export default function PaywallGateScreen() {
 
   useEffect(() => {
     if (hasNavigatedRef.current) {
+      return;
+    }
+
+    if (
+      isPaywallVisibleRef.current ||
+      isTransactionInFlightRef.current ||
+      isRegisteringPlacementRef.current
+    ) {
       return;
     }
 
@@ -482,6 +525,7 @@ export default function PaywallGateScreen() {
             status: subscriptionStatus.status,
           });
         }
+        isRegisteringPlacementRef.current = true;
         await registerPlacement({ placement: POST_SIGN_UP_PLACEMENT });
       } catch (error) {
         if (__DEV__) {
@@ -492,6 +536,8 @@ export default function PaywallGateScreen() {
           return;
         }
         finishGate();
+      } finally {
+        isRegisteringPlacementRef.current = false;
       }
     })();
   }, [
@@ -502,7 +548,6 @@ export default function PaywallGateScreen() {
     isIdentityReady,
     reconcileSubscriptionAccess,
     registerPlacement,
-    startCheckoutRecovery,
     subscriptionStatus.status,
   ]);
 

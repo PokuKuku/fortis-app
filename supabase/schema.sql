@@ -517,8 +517,8 @@ BEGIN
   VALUES (
     NEW.id,
     NEW.email,
-    NEW.raw_user_meta_data->>'full_name',
-    NEW.raw_user_meta_data->>'avatar_url'
+    NULL,
+    NULL
   );
 
   -- Create initial free subscription
