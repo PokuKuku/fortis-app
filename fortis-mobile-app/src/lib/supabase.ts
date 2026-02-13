@@ -82,22 +82,31 @@ const SecureStorageAdapter = {
 
       // If session exists, verify refresh token is in SecureStore
       if (session) {
-        const secureRefreshToken = await SecureStore.getItemAsync(
-          SECURE_REFRESH_TOKEN_KEY
-        );
+        try {
+          const secureRefreshToken = await SecureStore.getItemAsync(
+            SECURE_REFRESH_TOKEN_KEY
+          );
 
-        // If refresh token is missing from SecureStore, clear session
-        // (prevents using potentially compromised session)
-        if (!secureRefreshToken) {
-          // Session exists but refresh token doesn't - possible tampering
-          // For first-time migration, we allow it to pass through
-          // The next setItem will properly store the refresh token
+          // If refresh token is missing from SecureStore, allow session to continue.
+          // This can happen during migration or transient keychain access issues.
+          if (!secureRefreshToken) {
+            // The next setItem will re-store refresh token in SecureStore.
+          }
+        } catch (error) {
+          // iOS can throw "User interaction is not allowed" for keychain reads
+          // during certain lifecycle windows (e.g. app state transitions/locked device).
+          // Do not invalidate the full Supabase session because of this best-effort check.
+          if (__DEV__) {
+            console.warn('Storage SecureStore refresh token check skipped:', error);
+          }
         }
       }
 
       return session;
     } catch (error) {
-      console.error('Storage getItem error:', error);
+      if (__DEV__) {
+        console.warn('Storage getItem error:', error);
+      }
       return null;
     }
   },
@@ -128,9 +137,17 @@ const SecureStorageAdapter = {
     try {
       // Remove from both storage locations
       await AsyncStorage.removeItem(key);
-      await SecureStore.deleteItemAsync(SECURE_REFRESH_TOKEN_KEY);
+      try {
+        await SecureStore.deleteItemAsync(SECURE_REFRESH_TOKEN_KEY);
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('Storage SecureStore deleteItem warning:', error);
+        }
+      }
     } catch (error) {
-      console.error('Storage removeItem error:', error);
+      if (__DEV__) {
+        console.warn('Storage removeItem error:', error);
+      }
     }
   },
 };
