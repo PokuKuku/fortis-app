@@ -69,11 +69,11 @@ describe('PaywallGateScreen', () => {
     jest.clearAllMocks();
   });
 
-  it('shows a recoverable error when Superwall has a configuration error', async () => {
-    const { findByText } = render(<PaywallGateScreen />);
+  it('does not render the error card when Superwall has a configuration error', async () => {
+    const { queryByText } = render(<PaywallGateScreen />);
 
-    expect(await findByText('Subscription Required')).toBeTruthy();
-    expect(await findByText('Unable to load paywall. Check connection and try again.')).toBeTruthy();
+    expect(queryByText('Subscription Required')).toBeNull();
+    expect(queryByText('Unable to load paywall. Check connection and try again.')).toBeNull();
 
     await waitFor(() => {
       expect(mockRegisterPlacement).not.toHaveBeenCalled();

@@ -9,6 +9,27 @@ import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { scale } from '@/src/utils/responsive';
 
 const PARTICLE_TRAVEL_Y = scale(120);
+type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate';
+
+const resolveStartupRoute = ({
+  isAuthenticated,
+  needsOnboarding,
+  hasProfile,
+}: {
+  isAuthenticated: boolean;
+  needsOnboarding: boolean;
+  hasProfile: boolean;
+}): StartupRoute => {
+  if (!isAuthenticated) {
+    return '/onboarding/welcome';
+  }
+
+  if (!hasProfile || needsOnboarding) {
+    return '/onboarding';
+  }
+
+  return '/paywall-gate';
+};
 
 // Floating Particle
 function FloatingParticle({
@@ -118,18 +139,12 @@ export default function SplashScreen() {
     }
 
     hasNavigatedRef.current = true;
-
-    if (isAuthenticated && (!profile || needsOnboarding)) {
-      router.replace('/onboarding/welcome');
-      return;
-    }
-
-    if (isAuthenticated) {
-      router.replace('/onboarding/welcome');
-      return;
-    }
-
-    router.replace('/onboarding/welcome');
+    const nextRoute = resolveStartupRoute({
+      isAuthenticated,
+      needsOnboarding,
+      hasProfile: Boolean(profile),
+    });
+    router.replace(nextRoute);
   }, [minDelayPassed, isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved, router]);
 
   useEffect(() => {

@@ -5,7 +5,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
-import * as Linking from 'expo-linking';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
@@ -16,7 +15,6 @@ import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
-import { SuperwallDebugEvents } from '@/src/components/superwall/SuperwallDebugEvents';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
 
 const PAGE_TRANSITION = {
@@ -55,7 +53,6 @@ function ThemedAppContent({
     <AuthProvider>
       <SuperwallAuthSync />
       <SuperwallPurchaseRecovery />
-      <SuperwallDebugEvents />
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
         <DragDropProvider>
@@ -347,11 +344,6 @@ export default function RootLayout() {
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
 
-  const sanitizeUrlForLogging = (url: string | null): string => {
-    if (!url) return 'null';
-    return url.split('#')[0]?.split('?')[0] ?? '[unparseable-url]';
-  };
-
   // Load persisted preferences on app start
   useEffect(() => {
     loadStickyNotes();
@@ -368,27 +360,6 @@ export default function RootLayout() {
     loadActiveSession,
     loadRestTimerSettings,
   ]);
-
-  useEffect(() => {
-    if (!__DEV__) {
-      return;
-    }
-
-    const logInitialUrl = async () => {
-      const initialUrl = await Linking.getInitialURL();
-      console.log('[Routing] initial URL:', sanitizeUrlForLogging(initialUrl));
-    };
-
-    void logInitialUrl();
-
-    const subscription = Linking.addEventListener('url', ({ url }) => {
-      console.log('[Routing] incoming URL:', sanitizeUrlForLogging(url));
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
 
   if (!fontsLoaded) {
     return null;
@@ -417,15 +388,6 @@ export default function RootLayout() {
     shouldBypassAppTransactionCheck,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,
-    // Emit detailed SDK logs only in development builds.
-    ...(__DEV__
-      ? {
-          logging: {
-            level: 'debug' as const,
-            scopes: ['all' as const],
-          },
-        }
-      : {}),
   };
 
   return (
