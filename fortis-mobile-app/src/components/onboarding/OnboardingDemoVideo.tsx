@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
+import { View, StyleSheet, LayoutChangeEvent, AppState, type AppStateStatus } from 'react-native';
 import type { ComponentType } from 'react';
+import { useIsFocused } from '@react-navigation/native';
 
 interface OnboardingDemoVideoProps {
   sourceModule: number;
@@ -10,6 +11,8 @@ interface OnboardingDemoVideoProps {
 export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVideoProps) {
   const [width, setWidth] = useState(0);
   const [player, setPlayer] = useState<any>(null);
+  const isFocused = useIsFocused();
+  const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
 
   const expoVideo = useMemo(() => {
     try {
@@ -59,6 +62,33 @@ export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVide
       }
     };
   }, [expoVideo, sourceModule]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      setAppState(nextState);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!player || width <= 0) {
+      return;
+    }
+
+    const shouldPlay = isFocused && appState === 'active';
+    try {
+      if (shouldPlay) {
+        player.play?.();
+      } else {
+        player.pause?.();
+      }
+    } catch {
+      // no-op
+    }
+  }, [appState, isFocused, player, width]);
 
   if (!expoVideo || !player) {
     return <View style={[styles.container, { height }]} onLayout={onLayout} />;

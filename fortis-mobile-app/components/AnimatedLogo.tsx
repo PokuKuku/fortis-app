@@ -40,7 +40,8 @@ export function AnimatedLogo({
   const introDuration = Math.max(0, introDurationMs ?? 800);
   const shineDuration = Math.max(0, shineDurationMs ?? 3500);
   const shineAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  // Keep logo visible on first paint even if JS effects are delayed under load.
+  const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const [paintTick, setPaintTick] = useState(0);
   const gradientId = useRef(
@@ -80,7 +81,7 @@ export function AnimatedLogo({
       return;
     }
 
-    fadeAnim.setValue(0);
+    fadeAnim.setValue(1);
     scaleAnim.setValue(0.95);
     shineAnim.setValue(0);
 

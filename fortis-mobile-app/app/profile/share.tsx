@@ -475,7 +475,7 @@ export default function ProfileShareScreen() {
                     ]}
                   />
                   <View style={styles.shareHeader}>
-                    <Text style={[styles.brand, { color: colors.accent }]}>FORTIS</Text>
+                    <Text style={[styles.brand, { color: colors.accent }]}>FORTIS AI</Text>
                     <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>
                       {resolveShareTitle(shareType)}
                     </Text>
@@ -684,7 +684,7 @@ export default function ProfileShareScreen() {
 
                   <View style={styles.shareFooter}>
                     <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
-                      fortis.app
+                      fortisai.app
                     </Text>
                   </View>
                 </LinearGradient>
