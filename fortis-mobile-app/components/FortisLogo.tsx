@@ -44,7 +44,7 @@ export function FortisLogo({ size = 120, showBackground = false }: FortisLogoPro
     dumbbellEnd: themeColors.accentDark,
     // Background (if shown)
     bgStart: isDark ? '#111111' : '#ffffff',
-    bgEnd: isDark ? '#0a0a0a' : '#f5f5f5',
+    bgEnd: isDark ? '#121214' : '#f5f5f5',
   };
 
   return (

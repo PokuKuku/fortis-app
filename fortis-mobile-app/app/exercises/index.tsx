@@ -185,7 +185,7 @@ export default function ExercisesScreen() {
   };
 
   const popoverTheme = {
-    backgroundColor: isDark ? '#0a0a0a' : '#FFFFFF',
+    backgroundColor: isDark ? '#121214' : '#FFFFFF',
     borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
   };
 
@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
     top: POPOVER_TOP,
     width: POPOVER_WIDTH,
     maxHeight: POPOVER_MAX_HEIGHT,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#121214',
     borderRadius: POPOVER_RADIUS,
     overflow: 'hidden',
     borderWidth: 1,

@@ -67,11 +67,11 @@ export const BaseColors = {
  */
 export const DarkTheme = {
   // Core
-  background: '#0a0a0a',
+  background: '#121214',
   foreground: '#fafafa',
-  card: '#0a0a0a',
+  card: '#121214',
   cardForeground: '#fafafa',
-  popover: '#0a0a0a',
+  popover: '#121214',
   popoverForeground: '#fafafa',
 
   // Primary
@@ -110,7 +110,7 @@ export const DarkTheme = {
   overlay: 'rgba(0, 0, 0, 0.5)',
   overlayLight: 'rgba(0, 0, 0, 0.3)',
   overlayHeavy: 'rgba(0, 0, 0, 0.7)',
-  backdrop: 'rgba(10, 10, 10, 0.8)',
+  backdrop: 'rgba(18, 18, 20, 0.8)',
 
   // Glass morphism (white glass on dark)
   glassBackground: 'rgba(255, 255, 255, 0.08)',
@@ -144,12 +144,12 @@ export const DarkTheme = {
   buttonFog: ['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)'] as readonly string[],
 
   // Pattern (StainlessSteelPattern)
-  patternBase: '#0a0a0a',
+  patternBase: '#121214',
   patternStroke: 'rgba(255, 255, 255, 0.03)',
   patternStrokeAccent: 'rgba(255, 255, 255, 0.05)',
 
   // Tab bar
-  tabBarBackground: 'rgba(10, 10, 10, 0.92)',
+  tabBarBackground: 'rgba(18, 18, 20, 0.92)',
   tabBarBorder: 'rgba(255, 255, 255, 0.08)',
   tabInactive: '#525252',
   tabActive: '#22c55e',

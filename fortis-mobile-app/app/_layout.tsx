@@ -18,7 +18,7 @@ import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync'
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
 
 const PAGE_TRANSITION = {
-  animation: 'fade_from_bottom' as const,
+  animation: 'fade' as const,
   animationDuration: 220,
 };
 

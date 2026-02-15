@@ -40,6 +40,9 @@ import { useExercises } from '@/src/hooks/useExercises';
 import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 import { saveCustomExercise } from '@/src/services/exerciseService';
 import { shouldRedirectToPaywallGateFromTabs } from '@/src/components/superwall/superwallGuards';
+import { triggerImmediateNavigationHaptic } from '@/src/components/haptics/navigationHaptics';
+
+type PrimaryTabRoute = 'history' | 'insights' | 'index' | 'profile';
 
 export default function TabLayout() {
   const router = useRouter();
@@ -149,9 +152,11 @@ export default function TabLayout() {
   const [startConfigVisible, setStartConfigVisible] = useState(false);
   const [draftStartPreset, setDraftStartPreset] = useState<StartPreset | null>(null);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [pendingTabFeedback, setPendingTabFeedback] = useState<PrimaryTabRoute | null>(null);
   const nameShake = useRef(new Animated.Value(0)).current;
   const primaryShake = useRef(new Animated.Value(0)).current;
   const startActionLock = useRef(false);
+  const pendingTabFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { exercises: allExercises } = useExercises();
 
   const canonicalExercises = useMemo(
@@ -235,6 +240,34 @@ export default function TabLayout() {
     });
     return () => sub.remove();
   }, []);
+
+  useEffect(() => {
+    setPendingTabFeedback(null);
+    if (pendingTabFeedbackTimeoutRef.current) {
+      clearTimeout(pendingTabFeedbackTimeoutRef.current);
+      pendingTabFeedbackTimeoutRef.current = null;
+    }
+  }, [pathname]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingTabFeedbackTimeoutRef.current) {
+        clearTimeout(pendingTabFeedbackTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handlePrimaryTabPress = (tabName: PrimaryTabRoute) => {
+    setPendingTabFeedback(tabName);
+    if (pendingTabFeedbackTimeoutRef.current) {
+      clearTimeout(pendingTabFeedbackTimeoutRef.current);
+    }
+    pendingTabFeedbackTimeoutRef.current = setTimeout(() => {
+      setPendingTabFeedback(null);
+      pendingTabFeedbackTimeoutRef.current = null;
+    }, 240);
+    triggerImmediateNavigationHaptic();
+  };
 
   const handleAiPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -488,7 +521,7 @@ export default function TabLayout() {
   return (
     <>
       <Tabs
-        detachInactiveScreens={false}
+        detachInactiveScreens
         screenOptions={{
           headerShown: false,
           tabBarActiveTintColor: colors.tabActive,
@@ -496,9 +529,9 @@ export default function TabLayout() {
           animation: 'shift',
           animationEnabled: true,
           sceneStyle: { backgroundColor: colors.background },
-          lazy: false,
+          lazy: true,
           unmountOnBlur: false,
-          freezeOnBlur: false,
+          freezeOnBlur: true,
           tabBarStyle: {
             backgroundColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)',
             borderTopColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
@@ -535,10 +568,20 @@ export default function TabLayout() {
     >
       <Tabs.Screen
         name="history"
+        listeners={{
+          tabPress: () => {
+            handlePrimaryTabPress('history');
+          },
+        }}
         options={{
           title: 'History',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+            <View
+              style={[
+                styles.tabIconContainer,
+                (focused || pendingTabFeedback === 'history') && themedStyles.tabIconContainerActive,
+              ]}
+            >
               <CalendarDaysIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
@@ -546,11 +589,21 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="insights"
+        listeners={{
+          tabPress: () => {
+            handlePrimaryTabPress('insights');
+          },
+        }}
         options={{
           title: 'Insights',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <TourAnchor id={TOUR_ANCHOR_IDS.insightsTab}>
-              <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+              <View
+                style={[
+                  styles.tabIconContainer,
+                  (focused || pendingTabFeedback === 'insights') && themedStyles.tabIconContainerActive,
+                ]}
+              >
                 <ChartBarIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
               </View>
             </TourAnchor>
@@ -599,10 +652,20 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="index"
+        listeners={{
+          tabPress: () => {
+            handlePrimaryTabPress('index');
+          },
+        }}
         options={{
           title: 'Programs',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+            <View
+              style={[
+                styles.tabIconContainer,
+                (focused || pendingTabFeedback === 'index') && themedStyles.tabIconContainerActive,
+              ]}
+            >
               <Squares2X2Icon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
@@ -610,10 +673,20 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="profile"
+        listeners={{
+          tabPress: () => {
+            handlePrimaryTabPress('profile');
+          },
+        }}
         options={{
           title: 'Profile',
           tabBarIcon: ({ color, size = 18, focused }) => (
-            <View style={[styles.tabIconContainer, focused && themedStyles.tabIconContainerActive]}>
+            <View
+              style={[
+                styles.tabIconContainer,
+                (focused || pendingTabFeedback === 'profile') && themedStyles.tabIconContainerActive,
+              ]}
+            >
               <UserIcon color={color} size={TAB_ICON_SIZE} strokeWidth={2} />
             </View>
           ),
@@ -944,7 +1017,7 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#121214',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
@@ -990,7 +1063,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 440,
-    backgroundColor: '#0a0a0a',
+    backgroundColor: '#121214',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',

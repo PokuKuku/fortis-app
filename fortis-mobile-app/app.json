@@ -7,14 +7,14 @@
     "icon": "./assets/fortis_final_icon.png",
     "notification": {
       "icon": "./assets/fortis_final_icon.png",
-      "color": "#0a0a0a"
+      "color": "#121214"
     },
     "scheme": "fortis",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#0a0a0a"
+      "backgroundColor": "#121214"
     },
     "ios": {
       "supportsTablet": true,
@@ -31,7 +31,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/fortis_final_icon.png",
-        "backgroundColor": "#0a0a0a"
+        "backgroundColor": "#121214"
       },
       "package": "com.fortis.app",
       "edgeToEdgeEnabled": true,
