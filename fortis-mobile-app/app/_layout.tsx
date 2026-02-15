@@ -204,42 +204,43 @@ function ThemedAppContent({
               }}
             />
             <Stack.Screen
-            name="workout/active"
-            options={{
-              animation: 'slide_from_bottom',
-              animationDuration: 300,
-              gestureEnabled: false,
-            }}
-          />
-          <Stack.Screen
-            name="workout/create"
-            options={{
-              animation: 'slide_from_bottom',
-              gestureEnabled: false,
-              gestureDirection: 'vertical',
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="ai/chat"
-            options={{
-              animation: 'slide_from_bottom',
-              animationDuration: 500,
-              gestureEnabled: false, // Custom gesture handler in chat.tsx
-              gestureDirection: 'vertical',
-              headerShown: false,
-            }}
-          />
-          <Stack.Screen
-            name="exercise/[id]"
-            options={{
-              animation: 'slide_from_right',
-              animationDuration: 220,
-              gestureEnabled: true,
-              gestureDirection: 'horizontal',
-            }}
-          />
-          <Stack.Screen
+              name="workout/active"
+              options={{
+                animation: 'slide_from_bottom',
+                animationDuration: 400,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
+              name="workout/create"
+              options={{
+                animation: 'slide_from_bottom',
+                animationDuration: 400,
+                gestureEnabled: false,
+                gestureDirection: 'vertical',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="ai/chat"
+              options={{
+                animation: 'slide_from_bottom',
+                animationDuration: 500,
+                gestureEnabled: false, // Custom gesture handler in chat.tsx
+                gestureDirection: 'vertical',
+                headerShown: false,
+              }}
+            />
+            <Stack.Screen
+              name="exercise/[id]"
+              options={{
+                animation: 'slide_from_right',
+                animationDuration: 220,
+                gestureEnabled: true,
+                gestureDirection: 'horizontal',
+              }}
+            />
+            <Stack.Screen
             name="exercises/index"
             options={{
               animation: 'slide_from_right',
@@ -279,6 +280,7 @@ function ThemedAppContent({
             name="programs/create"
             options={{
               animation: 'slide_from_bottom',
+              animationDuration: 400,
               gestureEnabled: false,
               gestureDirection: 'vertical',
               headerShown: false,
