@@ -207,10 +207,18 @@ export default function OnboardingWelcomeScreen() {
   const titleAccessory = (
     <View style={styles.titleAccessory}>
       <View style={styles.typewriterTitleFrame}>
-        <Text style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}>
+        <Text
+          allowFontScaling={false}
+          maxFontSizeMultiplier={1}
+          style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}
+        >
           {WELCOME_TITLE}
         </Text>
-        <Text style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}>
+        <Text
+          allowFontScaling={false}
+          maxFontSizeMultiplier={1}
+          style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}
+        >
           {typedTitle}
         </Text>
       </View>

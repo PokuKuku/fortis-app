@@ -453,12 +453,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
     await setTourStateAndPersist(next);
     void markTourSeenOnServer({ status, completedAt: now });
-    if (status === 'completed') {
-      setTimeout(() => {
-        void requestAppReviewIfNeeded();
-      }, 600);
-    }
-  }, [markTourSeenOnServer, requestAppReviewIfNeeded, setTourStateAndPersist, tourLoaded]);
+  }, [markTourSeenOnServer, setTourStateAndPersist, tourLoaded]);
 
   // Ask for a review after the first completed workout if we haven't already.
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, LayoutChangeEvent, AppState, type AppStateStatus } from 'react-native';
+import { View, StyleSheet, AppState, type AppStateStatus } from 'react-native';
 import type { ComponentType } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -9,7 +9,6 @@ interface OnboardingDemoVideoProps {
 }
 
 export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVideoProps) {
-  const [width, setWidth] = useState(0);
   const [player, setPlayer] = useState<any>(null);
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
@@ -37,11 +36,6 @@ export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVide
       return null;
     }
   }, []);
-
-  const onLayout = (event: LayoutChangeEvent) => {
-    const nextWidth = Math.max(0, Math.floor(event.nativeEvent.layout.width));
-    if (nextWidth !== width) setWidth(nextWidth);
-  };
 
   useEffect(() => {
     if (!expoVideo) return;
@@ -74,7 +68,7 @@ export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVide
   }, []);
 
   useEffect(() => {
-    if (!player || width <= 0) {
+    if (!player) {
       return;
     }
 
@@ -88,24 +82,22 @@ export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVide
     } catch {
       // no-op
     }
-  }, [appState, isFocused, player, width]);
+  }, [appState, isFocused, player]);
 
   if (!expoVideo || !player) {
-    return <View style={[styles.container, { height }]} onLayout={onLayout} />;
+    return <View style={[styles.container, { height }]} />;
   }
 
   const { VideoView } = expoVideo;
 
   return (
-    <View style={[styles.container, { height }]} onLayout={onLayout}>
-      {width > 0 ? (
-        <VideoView
-          player={player}
-          nativeControls={false}
-          contentFit="contain"
-          style={{ width, height }}
-        />
-      ) : null}
+    <View style={[styles.container, { height }]}>
+      <VideoView
+        player={player}
+        nativeControls={false}
+        contentFit="contain"
+        style={{ width: '100%', height }}
+      />
     </View>
   );
 }
