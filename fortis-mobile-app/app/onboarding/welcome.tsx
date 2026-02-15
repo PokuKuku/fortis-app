@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable, useWindowDimensions, Modal, Platform } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { XMarkIcon } from 'react-native-heroicons/outline';
@@ -17,6 +17,12 @@ import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { Typography } from '@/constants/Typography';
 
 const DEMO_VIDEO = require('../../assets/videos/FortisDemo3.mp4');
+const WELCOME_TITLE_LINE_ONE = 'Workout Insights';
+const WELCOME_TITLE_LINE_TWO = 'made Simple';
+const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;
+const TITLE_TYPEWRITER_START_DELAY_MS = 140;
+const TITLE_TYPEWRITER_INTERVAL_MS = 60;
+const TITLE_HAPTIC_EVERY_N_CHARS = 1;
 
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
@@ -42,6 +48,8 @@ export default function OnboardingWelcomeScreen() {
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const [signInError, setSignInError] = useState<string | null>(null);
   const [authInProgress, setAuthInProgress] = useState(false);
+  const [typedTitle, setTypedTitle] = useState('');
+  const titleTypeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isAuthProcessing = authInProgress || (isAuthenticated && !profileResolved);
 
   const themedStyles = {
@@ -63,6 +71,38 @@ export default function OnboardingWelcomeScreen() {
       });
     };
   }, [isReturning, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let titleIndex = 0;
+      setTypedTitle('');
+
+      const typeNextCharacter = () => {
+        titleIndex += 1;
+        setTypedTitle(WELCOME_TITLE.slice(0, titleIndex));
+        const currentChar = WELCOME_TITLE.charAt(titleIndex - 1);
+        if (currentChar.trim().length > 0) {
+          if (titleIndex === WELCOME_TITLE.length) {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          } else if (titleIndex % TITLE_HAPTIC_EVERY_N_CHARS === 0) {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          }
+        }
+        if (titleIndex < WELCOME_TITLE.length) {
+          titleTypeTimeoutRef.current = setTimeout(typeNextCharacter, TITLE_TYPEWRITER_INTERVAL_MS);
+        }
+      };
+
+      titleTypeTimeoutRef.current = setTimeout(typeNextCharacter, TITLE_TYPEWRITER_START_DELAY_MS);
+
+      return () => {
+        if (titleTypeTimeoutRef.current) {
+          clearTimeout(titleTypeTimeoutRef.current);
+          titleTypeTimeoutRef.current = null;
+        }
+      };
+    }, [])
+  );
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -164,21 +204,29 @@ export default function OnboardingWelcomeScreen() {
     }
   };
 
+  const titleAccessory = (
+    <View style={styles.titleAccessory}>
+      <View style={styles.typewriterTitleFrame}>
+        <Text style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}>
+          {WELCOME_TITLE}
+        </Text>
+        <Text style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}>
+          {typedTitle}
+        </Text>
+      </View>
+    </View>
+  );
+
   return (
     <OnboardingScreen
       step={0}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Workout insights made simple"
+      title=""
       subtitle={undefined}
+      hideTitle
+      headerAccessory={titleAccessory}
       useScrollView={false}
       showProgress={false}
-      titleAlign="center"
-      subtitleAlign="center"
-      titleFontSize={36}
-      titleNumberOfLines={2}
-      titleAdjustsFontSizeToFit
-      titleMinimumFontScale={0.8}
-      titleTopOffset={Spacing.lg}
       bodyAlign="center"
       contentGap={Spacing.lg}
       footer={
@@ -258,6 +306,32 @@ export default function OnboardingWelcomeScreen() {
 const styles = StyleSheet.create({
   videoWrap: {
     width: '100%',
+  },
+  titleAccessory: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+  },
+  typewriterTitleFrame: {
+    position: 'relative',
+    alignSelf: 'center',
+  },
+  typewriterTitleText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 32,
+    fontWeight: '600',
+    lineHeight: 40,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  typewriterTitleReserve: {
+    color: 'transparent',
+  },
+  typewriterTitleOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   footer: {
     gap: Spacing.md,

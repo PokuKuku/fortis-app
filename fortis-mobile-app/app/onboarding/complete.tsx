@@ -21,6 +21,8 @@ const UPDATE_TIMEOUT_MS = 5000;
 const LOADING_FAILSAFE_MS = LOADING_DURATION_MS + 1000;
 const TYPEWRITER_INTERVAL_MS = 36;
 const LOADING_TITLE_TYPEWRITER_MS = 50;
+const TYPEWRITER_HAPTIC_EVERY_N_CHARS = 3;
+const NUMBER_HAPTIC_STEP_PCT = 5;
 
 type Phase = 'loading' | 'ready';
 
@@ -37,6 +39,20 @@ const LOADING_STEPS: LoadingStep[] = [
 ];
 
 const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+const triggerTypewriterHaptic = (index: number, text: string) => {
+  const currentChar = text.charAt(index - 1);
+  if (currentChar.trim().length === 0) return;
+
+  if (index === text.length) {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    return;
+  }
+
+  if (index % TYPEWRITER_HAPTIC_EVERY_N_CHARS === 0) {
+    void Haptics.selectionAsync();
+  }
+};
 
 type SummaryItem = {
   label: string;
@@ -95,6 +111,7 @@ export default function OnboardingCompleteScreen() {
   const stepsAnim = useRef(new Animated.Value(1)).current;
   const lastProgressRef = useRef(-1);
   const lastHapticStepRef = useRef(0);
+  const lastNumberHapticBucketRef = useRef(0);
   const returnedFromAuthRef = useRef(false);
 
   const [phase, setPhase] = useState<Phase>('loading');
@@ -148,6 +165,7 @@ export default function OnboardingCompleteScreen() {
       if (isCancelled) return;
       index += 1;
       setTypedStatusLine(statusLine.slice(0, index));
+      triggerTypewriterHaptic(index, statusLine);
       if (index < statusLine.length) {
         statusTypewriterTimeoutRef.current = setTimeout(typeStatus, TYPEWRITER_INTERVAL_MS);
       }
@@ -188,6 +206,7 @@ export default function OnboardingCompleteScreen() {
       if (isCancelled) return;
       titleIndex += 1;
       setTypedLoadingTitle(loadingTitleLine.slice(0, titleIndex));
+      triggerTypewriterHaptic(titleIndex, loadingTitleLine);
       if (titleIndex < loadingTitleLine.length) {
         typewriterTimeoutRef.current = setTimeout(typeTitle, LOADING_TITLE_TYPEWRITER_MS);
       } else {
@@ -228,6 +247,7 @@ export default function OnboardingCompleteScreen() {
       if (isCancelled) return;
       subtitleIndex += 1;
       setTypedReadySubtitle(readySubtitleLine.slice(0, subtitleIndex));
+      triggerTypewriterHaptic(subtitleIndex, readySubtitleLine);
       if (subtitleIndex < readySubtitleLine.length) {
         readyTypeTimeoutRef.current = setTimeout(typeSubtitle, TYPEWRITER_INTERVAL_MS);
       }
@@ -237,6 +257,7 @@ export default function OnboardingCompleteScreen() {
       if (isCancelled) return;
       titleIndex += 1;
       setTypedReadyTitle(readyTitleLine.slice(0, titleIndex));
+      triggerTypewriterHaptic(titleIndex, readyTitleLine);
       if (titleIndex < readyTitleLine.length) {
         readyTypeTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
         return;
@@ -364,6 +385,15 @@ export default function OnboardingCompleteScreen() {
     if (completedCount <= lastHapticStepRef.current) return;
     lastHapticStepRef.current = completedCount;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  }, [phase, progressPct]);
+
+  useEffect(() => {
+    if (phase !== 'loading') return;
+    const bucket = Math.floor(progressPct / NUMBER_HAPTIC_STEP_PCT);
+    if (bucket <= lastNumberHapticBucketRef.current) return;
+    lastNumberHapticBucketRef.current = bucket;
+    if (bucket === 0) return;
+    void Haptics.selectionAsync();
   }, [phase, progressPct]);
 
   useEffect(() => {
