@@ -6,7 +6,7 @@ import {
   ScrollView,
   Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -39,6 +39,8 @@ interface OnboardingScreenProps {
   scrollEnabled?: boolean;
   useScrollView?: boolean;
   showProgress?: boolean;
+  hideHeader?: boolean;
+  safeAreaEdges?: Edge[];
   children: React.ReactNode;
   footer?: React.ReactNode;
   floatingFooter?: React.ReactNode;
@@ -67,6 +69,8 @@ export function OnboardingScreen({
   scrollEnabled = true,
   useScrollView = true,
   showProgress = true,
+  hideHeader = false,
+  safeAreaEdges = ['top', 'bottom'],
   children,
   footer,
   floatingFooter,
@@ -127,6 +131,11 @@ export function OnboardingScreen({
       )}
     </View>
   );
+  const hasTopSectionContent = Boolean(
+    headerAccessory ||
+    sectionLabel ||
+    (titlePlacement === 'top' && titleBlock)
+  );
 
   const bodyStyle = bodyAlign === 'center'
     ? [styles.bodySection, styles.bodySectionCentered]
@@ -151,29 +160,31 @@ export function OnboardingScreen({
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
 
-      <SafeAreaView style={[styles.safeArea, themedStyles.safeArea]} edges={['top', 'bottom']}>
-        <View style={styles.headerRow}>
-          <Pressable
-            style={[styles.backButton, themedStyles.backButton, !onBack && styles.backButtonHidden]}
-            onPress={() => {
-              if (!onBack) return;
-              Haptics.selectionAsync();
-              onBack();
-            }}
-            disabled={!onBack}
-            hitSlop={8}
-          >
-            <ChevronLeftIcon size={18} color={colors.textPrimary} strokeWidth={2} />
-          </Pressable>
-          {showProgress ? (
-            <View style={styles.progressWrapper}>
-              <OnboardingProgressBar step={step} totalSteps={totalSteps} />
-            </View>
-          ) : (
-            <View style={styles.progressSpacer} />
-          )}
-          <View style={styles.headerSpacer} />
-        </View>
+      <SafeAreaView style={[styles.safeArea, themedStyles.safeArea]} edges={safeAreaEdges}>
+        {!hideHeader && (
+          <View style={styles.headerRow}>
+            <Pressable
+              style={[styles.backButton, themedStyles.backButton, !onBack && styles.backButtonHidden]}
+              onPress={() => {
+                if (!onBack) return;
+                Haptics.selectionAsync();
+                onBack();
+              }}
+              disabled={!onBack}
+              hitSlop={8}
+            >
+              <ChevronLeftIcon size={18} color={colors.textPrimary} strokeWidth={2} />
+            </Pressable>
+            {showProgress ? (
+              <View style={styles.progressWrapper}>
+                <OnboardingProgressBar step={step} totalSteps={totalSteps} />
+              </View>
+            ) : (
+              <View style={styles.progressSpacer} />
+            )}
+            <View style={styles.headerSpacer} />
+          </View>
+        )}
 
         {useScrollView ? (
           <ScrollView
@@ -183,6 +194,29 @@ export function OnboardingScreen({
             keyboardShouldPersistTaps="handled"
           >
             <View style={contentBlockStyle}>
+              {hasTopSectionContent ? (
+                <View style={styles.topSection}>
+                  {headerAccessory ? (
+                    <View style={styles.headerAccessory}>{headerAccessory}</View>
+                  ) : null}
+                  {sectionLabel && (
+                    <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>
+                      {sectionLabel}
+                    </Text>
+                  )}
+                  {titlePlacement === 'top' ? titleBlock : null}
+                </View>
+              ) : null}
+
+              <View style={bodyStyle}>{children}</View>
+            </View>
+
+            {footerBlock}
+          </ScrollView>
+        ) : (
+          <View style={styles.staticContent}>
+          <View style={contentBlockStyle}>
+            {hasTopSectionContent ? (
               <View style={styles.topSection}>
                 {headerAccessory ? (
                   <View style={styles.headerAccessory}>{headerAccessory}</View>
@@ -194,26 +228,7 @@ export function OnboardingScreen({
                 )}
                 {titlePlacement === 'top' ? titleBlock : null}
               </View>
-
-              <View style={bodyStyle}>{children}</View>
-            </View>
-
-            {footerBlock}
-          </ScrollView>
-        ) : (
-          <View style={styles.staticContent}>
-          <View style={contentBlockStyle}>
-            <View style={styles.topSection}>
-              {headerAccessory ? (
-                <View style={styles.headerAccessory}>{headerAccessory}</View>
-              ) : null}
-              {sectionLabel && (
-                <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>
-                  {sectionLabel}
-                </Text>
-              )}
-              {titlePlacement === 'top' ? titleBlock : null}
-              </View>
+            ) : null}
 
               <View style={bodyStyle}>{children}</View>
             </View>

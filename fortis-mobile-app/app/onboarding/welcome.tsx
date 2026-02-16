@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, useWindowDimensions, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Modal, Platform } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -16,7 +16,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { Typography } from '@/constants/Typography';
 
-const DEMO_VIDEO = require('../../assets/videos/FortisDemo3.mp4');
+const DEMO_VIDEO = require('../../assets/videos/Test.mov');
 const WELCOME_TITLE_LINE_ONE = 'Workout Insights';
 const WELCOME_TITLE_LINE_TWO = 'made Simple';
 const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;
@@ -40,8 +40,6 @@ export default function OnboardingWelcomeScreen() {
     profileResolved,
     signOut,
   } = useAuth();
-  const { height: windowHeight } = useWindowDimensions();
-  const videoHeight = Math.min(420, Math.max(320, Math.round(windowHeight * 0.4)));
   const [showSignInSheet, setShowSignInSheet] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
@@ -204,27 +202,6 @@ export default function OnboardingWelcomeScreen() {
     }
   };
 
-  const titleAccessory = (
-    <View style={styles.titleAccessory}>
-      <View style={styles.typewriterTitleFrame}>
-        <Text
-          allowFontScaling={false}
-          maxFontSizeMultiplier={1}
-          style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}
-        >
-          {WELCOME_TITLE}
-        </Text>
-        <Text
-          allowFontScaling={false}
-          maxFontSizeMultiplier={1}
-          style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}
-        >
-          {typedTitle}
-        </Text>
-      </View>
-    </View>
-  );
-
   return (
     <OnboardingScreen
       step={0}
@@ -232,13 +209,32 @@ export default function OnboardingWelcomeScreen() {
       title=""
       subtitle={undefined}
       hideTitle
-      headerAccessory={titleAccessory}
       useScrollView={false}
       showProgress={false}
+      hideHeader
+      safeAreaEdges={['bottom']}
       bodyAlign="center"
-      contentGap={Spacing.lg}
+      contentGap={0}
       footer={
         <View style={styles.footer}>
+          <View style={styles.footerTitleWrap}>
+            <View style={styles.typewriterTitleFrame}>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}
+              >
+                {WELCOME_TITLE}
+              </Text>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}
+              >
+                {typedTitle}
+              </Text>
+            </View>
+          </View>
           <GlassButton style={styles.button} onPress={handleStart} hapticFeedback="impactMedium">
             <Text style={[styles.buttonText, { color: colors.white }]}>Get started</Text>
           </GlassButton>
@@ -255,7 +251,7 @@ export default function OnboardingWelcomeScreen() {
       }
     >
       <View style={styles.videoWrap}>
-        <OnboardingDemoVideo sourceModule={DEMO_VIDEO} height={videoHeight} />
+        <OnboardingDemoVideo sourceModule={DEMO_VIDEO} height="100%" scale={2.3} offsetY={30} />
       </View>
 
       <Modal
@@ -314,10 +310,7 @@ export default function OnboardingWelcomeScreen() {
 const styles = StyleSheet.create({
   videoWrap: {
     width: '100%',
-  },
-  titleAccessory: {
-    marginTop: Spacing.lg,
-    alignItems: 'center',
+    flex: 1,
   },
   typewriterTitleFrame: {
     position: 'relative',
@@ -343,6 +336,10 @@ const styles = StyleSheet.create({
   },
   footer: {
     gap: Spacing.md,
+  },
+  footerTitleWrap: {
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
   },
   signInRow: {
     flexDirection: 'row',

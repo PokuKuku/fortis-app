@@ -5,10 +5,17 @@ import { useIsFocused } from '@react-navigation/native';
 
 interface OnboardingDemoVideoProps {
   sourceModule: number;
-  height: number;
+  height: number | string;
+  scale?: number;
+  offsetY?: number;
 }
 
-export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVideoProps) {
+export function OnboardingDemoVideo({
+  sourceModule,
+  height,
+  scale = 1.18,
+  offsetY = 0,
+}: OnboardingDemoVideoProps) {
   const [player, setPlayer] = useState<any>(null);
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
@@ -96,7 +103,7 @@ export function OnboardingDemoVideo({ sourceModule, height }: OnboardingDemoVide
         player={player}
         nativeControls={false}
         contentFit="contain"
-        style={{ width: '100%', height }}
+        style={{ width: '100%', height: '100%', transform: [{ scale }, { translateY: offsetY }] }}
       />
     </View>
   );
