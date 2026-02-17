@@ -10,6 +10,30 @@ interface OnboardingDemoVideoProps {
   offsetY?: number;
 }
 
+const PLAYBACK_WATCHDOG_MS = 1_200;
+const FREEZE_DETECTION_TICKS = 3;
+const FREEZE_TIME_EPSILON = 0.01;
+
+const shouldKeepPlaying = (isFocused: boolean, appState: AppStateStatus) =>
+  isFocused && (appState === 'active' || appState === 'unknown');
+
+const safePlay = (videoPlayer: any) => {
+  try {
+    videoPlayer.loop = true;
+    videoPlayer.play?.();
+  } catch {
+    // no-op
+  }
+};
+
+const safePause = (videoPlayer: any) => {
+  try {
+    videoPlayer.pause?.();
+  } catch {
+    // no-op
+  }
+};
+
 export function OnboardingDemoVideo({
   sourceModule,
   height,
@@ -50,19 +74,25 @@ export function OnboardingDemoVideo({
     const nextPlayer = expoVideo.createVideoPlayer(sourceModule);
     nextPlayer.loop = true;
     nextPlayer.muted = true;
-    nextPlayer.play();
+    safePlay(nextPlayer);
     if (isActive) setPlayer(nextPlayer);
 
     return () => {
       isActive = false;
       try {
-        nextPlayer.pause?.();
+        safePause(nextPlayer);
         nextPlayer.release?.();
       } catch {
         // no-op
       }
     };
   }, [expoVideo, sourceModule]);
+
+  useEffect(() => {
+    if (isFocused) {
+      setAppState(AppState.currentState);
+    }
+  }, [isFocused]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -79,16 +109,52 @@ export function OnboardingDemoVideo({
       return;
     }
 
-    const shouldPlay = isFocused && appState === 'active';
-    try {
-      if (shouldPlay) {
-        player.play?.();
-      } else {
-        player.pause?.();
-      }
-    } catch {
-      // no-op
+    const shouldPlay = shouldKeepPlaying(isFocused, appState);
+    if (!shouldPlay) {
+      safePause(player);
+      return;
     }
+
+    safePlay(player);
+
+    let lastTime = -1;
+    let stalledTicks = 0;
+
+    const watchdog = setInterval(() => {
+      try {
+        if (!player.playing) {
+          safePlay(player);
+          return;
+        }
+
+        const currentTime =
+          typeof player.currentTime === 'number' ? player.currentTime : null;
+        const isReady = player.status === 'readyToPlay';
+
+        if (currentTime === null || !isReady) {
+          stalledTicks = 0;
+          return;
+        }
+
+        if (lastTime >= 0 && Math.abs(currentTime - lastTime) <= FREEZE_TIME_EPSILON) {
+          stalledTicks += 1;
+        } else {
+          stalledTicks = 0;
+        }
+        lastTime = currentTime;
+
+        if (stalledTicks >= FREEZE_DETECTION_TICKS) {
+          safePlay(player);
+          stalledTicks = 0;
+        }
+      } catch {
+        safePlay(player);
+      }
+    }, PLAYBACK_WATCHDOG_MS);
+
+    return () => {
+      clearInterval(watchdog);
+    };
   }, [appState, isFocused, player]);
 
   if (!expoVideo || !player) {
@@ -103,7 +169,7 @@ export function OnboardingDemoVideo({
         player={player}
         nativeControls={false}
         contentFit="contain"
-        style={{ width: '100%', height: '100%', transform: [{ scale }, { translateY: offsetY }] }}
+        style={[styles.video, { transform: [{ scale }, { translateY: offsetY }] }]}
       />
     </View>
   );
@@ -112,7 +178,13 @@ export function OnboardingDemoVideo({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  video: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'transparent',
   },
 });

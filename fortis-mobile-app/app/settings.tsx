@@ -269,18 +269,44 @@ export default function SettingsScreen() {
             setIsDeletingAccount(true);
             try {
               const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-              if (sessionError || !session?.access_token) {
+              if (sessionError || !session) {
                 throw new Error('Please sign in again to delete your account.');
               }
 
-              const { error } = await supabase.functions.invoke('delete-account', {
-                headers: {
-                  Authorization: `Bearer ${session.access_token}`,
-                },
-              });
+              const invokeDelete = async (accessToken: string) =>
+                supabase.functions.invoke('delete-account', {
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                  },
+                });
+
+              const { data: refreshedData, error: refreshError } = await supabase.auth.refreshSession();
+              if (refreshError) {
+                console.warn('[Settings] Failed to refresh session before delete', refreshError);
+              }
+
+              let accessToken =
+                refreshedData.session?.access_token ??
+                session.access_token;
+              if (!accessToken) {
+                throw new Error('Please sign in again to delete your account.');
+              }
+
+              let { error } = await invokeDelete(accessToken);
+              const context = (error as { context?: { body?: unknown; status?: number } } | null)?.context;
+              const statusCode = context?.status;
+
+              if (error && (statusCode === 401 || statusCode === 403)) {
+                const { data: retryRefreshData, error: retryRefreshError } = await supabase.auth.refreshSession();
+                if (!retryRefreshError && retryRefreshData.session?.access_token) {
+                  accessToken = retryRefreshData.session.access_token;
+                  ({ error } = await invokeDelete(accessToken));
+                }
+              }
+
               if (error) {
-                const context = (error as { context?: { body?: unknown } }).context;
-                const rawBody = context?.body;
+                const latestContext = (error as { context?: { body?: unknown } }).context;
+                const rawBody = latestContext?.body;
                 let detailedMessage: string | null = null;
                 if (rawBody) {
                   try {

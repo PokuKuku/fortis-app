@@ -21,15 +21,16 @@ Deno.serve(async (req) => {
   if (!authHeader?.startsWith('Bearer ')) {
     return errorResponse('Missing or invalid authorization', 'unauthorized', 401, false, undefined, origin);
   }
+  const accessToken = authHeader.slice('Bearer '.length).trim();
+  if (!accessToken) {
+    return errorResponse('Missing or invalid authorization', 'unauthorized', 401, false, undefined, origin);
+  }
 
   const authClient = createClient(supabaseUrl, anonKey, {
     auth: { persistSession: false },
-    global: {
-      headers: { Authorization: authHeader },
-    },
   });
 
-  const { data: { user }, error: userError } = await authClient.auth.getUser();
+  const { data: { user }, error: userError } = await authClient.auth.getUser(accessToken);
   if (userError || !user) {
     return errorResponse('Unauthorized', 'unauthorized', 401, false, undefined, origin);
   }

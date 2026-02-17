@@ -1867,6 +1867,13 @@ export const useWorkoutStore = create<WorkoutState>()(
     updatePendingValue: (value) => {
       const { activeNumberPad } = get();
       if (!activeNumberPad) return;
+      if (
+        activeNumberPad.pendingValue === value
+        && !activeNumberPad.hasError
+        && !activeNumberPad.shouldReplaceOnNextInput
+      ) {
+        return;
+      }
 
       set({
         activeNumberPad: {

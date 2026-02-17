@@ -39,7 +39,12 @@ export default function PaywallGateScreen() {
   const lastIdentityRetryRef = useRef(-1);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasActiveSubscriptionRef = useRef(false);
+  const subscriptionStatusRef = useRef(subscriptionStatus);
   const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    subscriptionStatusRef.current = subscriptionStatus;
+  }, [subscriptionStatus]);
 
   const authUserId = authUser?.id ?? null;
   const superwallUserId =
@@ -102,14 +107,17 @@ export default function PaywallGateScreen() {
     }
 
     const reconciliation = await reconcileSubscriptionStatus({
-      currentStatus: subscriptionStatus,
+      currentStatus: subscriptionStatusRef.current,
       getEntitlements,
       setSubscriptionStatus,
     });
 
-    hasActiveSubscriptionRef.current = reconciliation.hasActiveSubscription;
-    return reconciliation.hasActiveSubscription;
-  }, [getEntitlements, refresh, setSubscriptionStatus, subscriptionStatus]);
+    if (reconciliation.wasVerified) {
+      hasActiveSubscriptionRef.current = reconciliation.hasActiveSubscription;
+    }
+
+    return reconciliation;
+  }, [getEntitlements, refresh, setSubscriptionStatus]);
 
   const retryIdentitySync = useCallback(async () => {
     if (!isAuthResolved || !isSuperwallReady || hasSuperwallError) {
@@ -231,9 +239,17 @@ export default function PaywallGateScreen() {
     lastAttemptRef.current = attempt;
 
     void (async () => {
-      const hasAccess = await syncAccessOnce();
-      if (hasAccess || hasNavigatedRef.current) {
+      const access = await syncAccessOnce();
+      if (
+        (access.wasVerified && access.hasActiveSubscription) ||
+        hasNavigatedRef.current
+      ) {
         finishGate();
+        return;
+      }
+
+      if (!access.wasVerified) {
+        scheduleRetry();
         return;
       }
 

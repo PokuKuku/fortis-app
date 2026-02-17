@@ -12,7 +12,6 @@ import { AuthProvider } from '@/src/contexts/AuthContext';
 import { InAppTourProvider } from '@/src/contexts/InAppTourContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
-import { RouteChangeHaptics } from '@/src/components/haptics/RouteChangeHaptics';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
@@ -321,7 +320,6 @@ function ThemedAppContent({
             }}
           />
           </Stack>
-          <RouteChangeHaptics />
           <WorkoutMiniBar />
         </DragDropProvider>
       </InAppTourProvider>

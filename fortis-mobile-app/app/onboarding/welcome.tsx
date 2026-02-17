@@ -1,7 +1,7 @@
-import { View, Text, StyleSheet, Pressable, Modal, Platform } from 'react-native';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Modal, Platform, useWindowDimensions } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { XMarkIcon } from 'react-native-heroicons/outline';
@@ -16,13 +16,29 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { Typography } from '@/constants/Typography';
 
-const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal.mov');
+const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal33.mov');
 const WELCOME_TITLE_LINE_ONE = 'Workout Insights';
 const WELCOME_TITLE_LINE_TWO = 'made Simple';
 const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;
 const TITLE_TYPEWRITER_START_DELAY_MS = 140;
 const TITLE_TYPEWRITER_INTERVAL_MS = 60;
 const TITLE_HAPTIC_EVERY_N_CHARS = 1;
+
+const getSharedWelcomeTitleMetrics = (screenWidth: number) => {
+  if (screenWidth <= 350) {
+    return { fontSize: 22, lineHeight: 28 };
+  }
+  if (screenWidth <= 375) {
+    return { fontSize: 24, lineHeight: 30 };
+  }
+  if (screenWidth <= 390) {
+    return { fontSize: 25, lineHeight: 31 };
+  }
+  if (screenWidth <= 430) {
+    return { fontSize: 26, lineHeight: 32 };
+  }
+  return { fontSize: 27, lineHeight: 33 };
+};
 
 export default function OnboardingWelcomeScreen() {
   const router = useRouter();
@@ -47,8 +63,23 @@ export default function OnboardingWelcomeScreen() {
   const [signInError, setSignInError] = useState<string | null>(null);
   const [authInProgress, setAuthInProgress] = useState(false);
   const [typedTitle, setTypedTitle] = useState('');
+  const { width: windowWidth } = useWindowDimensions();
   const titleTypeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isAuthProcessing = authInProgress || (isAuthenticated && !profileResolved);
+  const isFocused = useIsFocused();
+  const isAuthProcessing =
+    isFocused &&
+    (authInProgress || (showSignInSheet && isAuthenticated && !profileResolved));
+  const typedTitleBreakIndex = typedTitle.indexOf('\n');
+  const typedTitleLineOne = typedTitleBreakIndex >= 0
+    ? typedTitle.slice(0, typedTitleBreakIndex)
+    : typedTitle;
+  const typedTitleLineTwo = typedTitleBreakIndex >= 0
+    ? typedTitle.slice(typedTitleBreakIndex + 1)
+    : '';
+
+  const sharedTitleTextStyle = useMemo(() => {
+    return getSharedWelcomeTitleMetrics(windowWidth);
+  }, [windowWidth]);
 
   const themedStyles = {
     loadingOverlay: {
@@ -125,6 +156,7 @@ export default function OnboardingWelcomeScreen() {
   }, [isAuthenticated, profileResolved]);
 
   useEffect(() => {
+    if (!isFocused) return;
     if (!showSignInSheet && !authInProgress) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
     if (!profile || needsOnboarding) {
@@ -146,6 +178,7 @@ export default function OnboardingWelcomeScreen() {
     profileResolved,
     showSignInSheet,
     authInProgress,
+    isFocused,
     signOut,
     router,
   ]);
@@ -161,6 +194,7 @@ export default function OnboardingWelcomeScreen() {
   const handleCloseSheet = () => {
     setShowSignInSheet(false);
     setSignInError(null);
+    setAuthInProgress(false);
   };
 
   const handleEmailPress = () => {
@@ -182,6 +216,7 @@ export default function OnboardingWelcomeScreen() {
       }
     } finally {
       setIsLoadingGoogle(false);
+      setAuthInProgress(false);
     }
   };
 
@@ -199,6 +234,7 @@ export default function OnboardingWelcomeScreen() {
       }
     } finally {
       setIsLoadingApple(false);
+      setAuthInProgress(false);
     }
   };
 
@@ -235,20 +271,53 @@ export default function OnboardingWelcomeScreen() {
       <View style={styles.videoWrap}>
         <View pointerEvents="none" style={styles.videoTitleOverlay}>
           <View style={styles.typewriterTitleFrame}>
-            <Text
-              allowFontScaling={false}
-              maxFontSizeMultiplier={1}
-              style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}
-            >
-              {WELCOME_TITLE}
-            </Text>
-            <Text
-              allowFontScaling={false}
-              maxFontSizeMultiplier={1}
-              style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}
-            >
-              {typedTitle}
-            </Text>
+            <View style={styles.typewriterTitleLineWrap}>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                numberOfLines={1}
+                style={[styles.typewriterTitleText, sharedTitleTextStyle, styles.typewriterTitleReserve]}
+              >
+                {WELCOME_TITLE_LINE_ONE}
+              </Text>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                numberOfLines={1}
+                style={[
+                  styles.typewriterTitleText,
+                  sharedTitleTextStyle,
+                  styles.typewriterTitleOverlay,
+                  { color: colors.textPrimary },
+                ]}
+              >
+                {typedTitleLineOne}
+              </Text>
+            </View>
+
+            <View style={styles.typewriterTitleLineWrap}>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                numberOfLines={1}
+                style={[styles.typewriterTitleText, sharedTitleTextStyle, styles.typewriterTitleReserve]}
+              >
+                {WELCOME_TITLE_LINE_TWO}
+              </Text>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                numberOfLines={1}
+                style={[
+                  styles.typewriterTitleText,
+                  sharedTitleTextStyle,
+                  styles.typewriterTitleOverlay,
+                  { color: colors.textPrimary },
+                ]}
+              >
+                {typedTitleLineTwo}
+              </Text>
+            </View>
           </View>
         </View>
         <OnboardingDemoVideo sourceModule={DEMO_VIDEO} height="100%" scale={1.4} offsetY={0} />
@@ -323,7 +392,12 @@ const styles = StyleSheet.create({
   },
   typewriterTitleFrame: {
     position: 'relative',
+    width: '100%',
     alignSelf: 'center',
+  },
+  typewriterTitleLineWrap: {
+    position: 'relative',
+    width: '100%',
   },
   typewriterTitleText: {
     fontFamily: 'BankGothicBT-Medium',
@@ -332,6 +406,7 @@ const styles = StyleSheet.create({
     lineHeight: 40,
     letterSpacing: 0.5,
     textAlign: 'center',
+    textTransform: 'uppercase',
   },
   typewriterTitleReserve: {
     color: 'transparent',
@@ -352,6 +427,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    marginTop: Spacing.md,
     gap: 6,
   },
   signInText: {

@@ -633,7 +633,6 @@ export default function OnboardingCompleteScreen() {
       title=""
       subtitle={undefined}
       hideTitle
-      onBack={() => router.back()}
       useScrollView
       scrollEnabled
       bodyAlign="center"

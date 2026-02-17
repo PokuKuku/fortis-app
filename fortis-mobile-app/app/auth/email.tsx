@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Keyboard,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -42,6 +43,55 @@ const signUpSchema = signInSchema.extend({
 type SignInFormData = z.infer<typeof signInSchema>;
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
+const getFriendlyAuthErrorMessage = (rawMessage: string): string => {
+  const message = rawMessage.trim();
+  const lowerMessage = message.toLowerCase();
+
+  if (!message) {
+    return 'Something went wrong. Please try again.';
+  }
+
+  if (lowerMessage.includes('invalid login credentials')) {
+    return 'Invalid email or password. Please try again.';
+  }
+
+  if (lowerMessage.includes('email not confirmed')) {
+    return 'Please confirm your email before signing in.';
+  }
+
+  if (
+    lowerMessage.includes('user already registered') ||
+    lowerMessage.includes('already been registered')
+  ) {
+    return 'An account with this email already exists. Please sign in instead.';
+  }
+
+  if (
+    lowerMessage.includes('cloudflare') ||
+    lowerMessage.includes('response_incomplete') ||
+    lowerMessage.includes('proxy-status') ||
+    lowerMessage.includes('"status":502') ||
+    lowerMessage.includes('bad gateway') ||
+    lowerMessage.includes('network request failed') ||
+    lowerMessage.includes('failed to fetch') ||
+    lowerMessage.includes('network error') ||
+    lowerMessage.includes('timeout')
+  ) {
+    return 'We could not reach the server. Please try again in a moment.';
+  }
+
+  const looksLikeRawPayload =
+    message.startsWith('{') ||
+    message.startsWith('<!doctype html') ||
+    message.length > 220;
+
+  if (looksLikeRawPayload) {
+    return 'Something went wrong while signing in. Please try again.';
+  }
+
+  return message;
+};
+
 export default function EmailAuthScreen() {
   const router = useRouter();
   const { source, mode } = useLocalSearchParams<{ source?: string; mode?: string }>();
@@ -58,6 +108,7 @@ export default function EmailAuthScreen() {
   const sourceValue = Array.isArray(source) ? source[0] : source;
   const modeValue = Array.isArray(mode) ? mode[0] : mode;
   const [isSignUp, setIsSignUp] = useState(modeValue === 'signup');
+  const hideModeToggleForWelcomeSignIn = sourceValue === 'onboarding' && !isSignUp;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmationNotice, setConfirmationNotice] = useState<string | null>(null);
@@ -88,6 +139,11 @@ export default function EmailAuthScreen() {
     setPendingPostSignInRedirect(false);
     setIsLoading(false);
 
+    if (sourceValue === 'onboarding-complete') {
+      router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
+      return;
+    }
+
     if (!profile || needsOnboarding) {
       router.replace('/onboarding');
       return;
@@ -101,6 +157,7 @@ export default function EmailAuthScreen() {
     profile,
     profileResolved,
     router,
+    sourceValue,
   ]);
 
   // Dynamic theme-aware styles
@@ -164,10 +221,16 @@ export default function EmailAuthScreen() {
       : await signInWithEmail(data.email, data.password);
 
     if (authError) {
+      const rawAuthMessage =
+        typeof authError.message === 'string' ? authError.message : String(authError);
+      const userFacingAuthMessage = getFriendlyAuthErrorMessage(rawAuthMessage);
+
       setIsLoading(false);
       setPendingPostSignInRedirect(false);
       const isOnboardingSource = sourceValue === 'onboarding';
-      const isInvalidCredentials = authError.message.toLowerCase().includes('invalid login credentials');
+      const isInvalidCredentials = rawAuthMessage
+        .toLowerCase()
+        .includes('invalid login credentials');
       if (!isSignUp && isOnboardingSource && isInvalidCredentials) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setIsLoading(false);
@@ -175,7 +238,7 @@ export default function EmailAuthScreen() {
         router.replace('/onboarding');
         return;
       }
-      setError(authError.message);
+      setError(userFacingAuthMessage);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -187,7 +250,7 @@ export default function EmailAuthScreen() {
       setIsLoading(false);
       if (isSignUp) {
         setConfirmationNotice(
-          "Check your email to confirm your account. If you don't see it in a few minutes, check your spam or promotions folder."
+          "Check your email to confirm your account. If you don't see it in a few minutes, check your spam or promotions folder. Once you've confirmed your account, sign in using the Sign In button."
         );
       }
       // Auth context will handle navigation
@@ -223,135 +286,58 @@ export default function EmailAuthScreen() {
             </View>
 
             {/* Content */}
-            <View style={styles.content}>
-              <Text style={[styles.title, themedStyles.title]}>
-                {isSignUp ? 'Create Account' : 'Welcome Back'}
-              </Text>
-              <Text style={[styles.subtitle, themedStyles.subtitle]}>
-                {isSignUp
-                  ? 'Enter your email to get started'
-                  : 'Sign in to continue your journey'}
-              </Text>
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+            >
+              <View style={styles.content}>
+                <Text style={[styles.title, themedStyles.title]}>
+                  {isSignUp ? 'Create Account' : 'Welcome Back'}
+                </Text>
+                <Text style={[styles.subtitle, themedStyles.subtitle]}>
+                  {isSignUp
+                    ? 'Enter your email to get started'
+                    : 'Sign in to continue your journey'}
+                </Text>
 
-              {/* Form */}
-              <View style={styles.form}>
-                {confirmationNotice && (
-                  <View style={[styles.noticeContainer, themedStyles.noticeContainer]}>
-                    <Text style={[styles.noticeText, themedStyles.noticeText]}>
-                      {confirmationNotice}
-                    </Text>
-                  </View>
-                )}
-                <View style={styles.inputContainer}>
-                  <Text style={[styles.label, themedStyles.label]}>Email</Text>
-                  <Controller
-                    control={control}
-                    name="email"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                      <View style={[
-                        styles.inputWrapper,
-                        themedStyles.inputWrapper,
-                        focusedField === 'email' && styles.inputWrapperFocused,
-                        focusedField === 'email' && themedStyles.inputWrapperFocused,
-                        errors.email && styles.inputWrapperError,
-                      ]}>
-                        <EnvelopeIcon
-                          size={18}
-                          color={focusedField === 'email' ? colors.accent : colors.textSecondary}
-                          strokeWidth={2}
-                          style={styles.inputIcon}
-                        />
-                        <TextInput
-                          style={[styles.input, themedStyles.input]}
-                          placeholder="your@email.com"
-                          placeholderTextColor={colors.textSecondary}
-                          keyboardType="email-address"
-                          autoCapitalize="none"
-                          autoComplete="email"
-                          onFocus={() => setFocusedField('email')}
-                          onBlur={() => {
-                            setFocusedField(null);
-                            onBlur();
-                          }}
-                          onChangeText={onChange}
-                          value={value}
-                        />
-                      </View>
-                    )}
-                  />
-                  {errors.email && (
-                    <Text style={styles.errorText}>{errors.email.message}</Text>
+                {/* Form */}
+                <View style={styles.form}>
+                  {confirmationNotice && (
+                    <View style={[styles.noticeContainer, themedStyles.noticeContainer]}>
+                      <Text style={[styles.noticeText, themedStyles.noticeText]}>
+                        {confirmationNotice}
+                      </Text>
+                    </View>
                   )}
-                </View>
-
-                <View style={styles.inputContainer}>
-                  <Text style={[styles.label, themedStyles.label]}>Password</Text>
-                  <Controller
-                    control={control}
-                    name="password"
-                    render={({ field: { onChange, onBlur, value } }) => (
-                      <View style={[
-                        styles.inputWrapper,
-                        themedStyles.inputWrapper,
-                        focusedField === 'password' && styles.inputWrapperFocused,
-                        focusedField === 'password' && themedStyles.inputWrapperFocused,
-                        errors.password && styles.inputWrapperError,
-                      ]}>
-                        <LockClosedIcon
-                          size={18}
-                          color={focusedField === 'password' ? colors.accent : colors.textSecondary}
-                          strokeWidth={2}
-                          style={styles.inputIcon}
-                        />
-                        <TextInput
-                          style={[styles.input, themedStyles.input]}
-                          placeholder="Enter your password"
-                          placeholderTextColor={colors.textSecondary}
-                          secureTextEntry
-                          autoComplete="password"
-                          onFocus={() => setFocusedField('password')}
-                          onBlur={() => {
-                            setFocusedField(null);
-                            onBlur();
-                          }}
-                          onChangeText={onChange}
-                          value={value}
-                        />
-                      </View>
-                    )}
-                  />
-                  {errors.password && (
-                    <Text style={styles.errorText}>{errors.password.message}</Text>
-                  )}
-                </View>
-
-                {isSignUp && (
                   <View style={styles.inputContainer}>
-                    <Text style={[styles.label, themedStyles.label]}>Confirm Password</Text>
+                    <Text style={[styles.label, themedStyles.label]}>Email</Text>
                     <Controller
                       control={control}
-                      name="confirmPassword"
+                      name="email"
                       render={({ field: { onChange, onBlur, value } }) => (
                         <View style={[
                           styles.inputWrapper,
                           themedStyles.inputWrapper,
-                          focusedField === 'confirmPassword' && styles.inputWrapperFocused,
-                          focusedField === 'confirmPassword' && themedStyles.inputWrapperFocused,
-                          errors.confirmPassword && styles.inputWrapperError,
+                          focusedField === 'email' && styles.inputWrapperFocused,
+                          focusedField === 'email' && themedStyles.inputWrapperFocused,
+                          errors.email && styles.inputWrapperError,
                         ]}>
-                          <LockClosedIcon
+                          <EnvelopeIcon
                             size={18}
-                            color={focusedField === 'confirmPassword' ? colors.accent : colors.textSecondary}
+                            color={focusedField === 'email' ? colors.accent : colors.textSecondary}
                             strokeWidth={2}
                             style={styles.inputIcon}
                           />
                           <TextInput
                             style={[styles.input, themedStyles.input]}
-                            placeholder="Confirm your password"
+                            placeholder="your@email.com"
                             placeholderTextColor={colors.textSecondary}
-                            secureTextEntry
-                            autoComplete="password-new"
-                            onFocus={() => setFocusedField('confirmPassword')}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoComplete="email"
+                            onFocus={() => setFocusedField('email')}
                             onBlur={() => {
                               setFocusedField(null);
                               onBlur();
@@ -362,49 +348,135 @@ export default function EmailAuthScreen() {
                         </View>
                       )}
                     />
-                    {errors.confirmPassword && (
-                      <Text style={styles.errorText}>
-                        {errors.confirmPassword.message}
-                      </Text>
+                    {errors.email && (
+                      <Text style={styles.errorText}>{errors.email.message}</Text>
                     )}
                   </View>
-                )}
 
-                {/* Error Message */}
-                {error && (
-                  <View style={styles.errorContainer}>
-                    <Text style={styles.errorMessage}>{error}</Text>
+                  <View style={styles.inputContainer}>
+                    <Text style={[styles.label, themedStyles.label]}>Password</Text>
+                    <Controller
+                      control={control}
+                      name="password"
+                      render={({ field: { onChange, onBlur, value } }) => (
+                        <View style={[
+                          styles.inputWrapper,
+                          themedStyles.inputWrapper,
+                          focusedField === 'password' && styles.inputWrapperFocused,
+                          focusedField === 'password' && themedStyles.inputWrapperFocused,
+                          errors.password && styles.inputWrapperError,
+                        ]}>
+                          <LockClosedIcon
+                            size={18}
+                            color={focusedField === 'password' ? colors.accent : colors.textSecondary}
+                            strokeWidth={2}
+                            style={styles.inputIcon}
+                          />
+                          <TextInput
+                            style={[styles.input, themedStyles.input]}
+                            placeholder="Enter your password"
+                            placeholderTextColor={colors.textSecondary}
+                            secureTextEntry
+                            autoComplete="password"
+                            onFocus={() => setFocusedField('password')}
+                            onBlur={() => {
+                              setFocusedField(null);
+                              onBlur();
+                            }}
+                            onChangeText={onChange}
+                            value={value}
+                          />
+                        </View>
+                      )}
+                    />
+                    {errors.password && (
+                      <Text style={styles.errorText}>{errors.password.message}</Text>
+                    )}
+                  </View>
+
+                  {isSignUp && (
+                    <View style={styles.inputContainer}>
+                      <Text style={[styles.label, themedStyles.label]}>Confirm Password</Text>
+                      <Controller
+                        control={control}
+                        name="confirmPassword"
+                        render={({ field: { onChange, onBlur, value } }) => (
+                          <View style={[
+                            styles.inputWrapper,
+                            themedStyles.inputWrapper,
+                            focusedField === 'confirmPassword' && styles.inputWrapperFocused,
+                            focusedField === 'confirmPassword' && themedStyles.inputWrapperFocused,
+                            errors.confirmPassword && styles.inputWrapperError,
+                          ]}>
+                            <LockClosedIcon
+                              size={18}
+                              color={focusedField === 'confirmPassword' ? colors.accent : colors.textSecondary}
+                              strokeWidth={2}
+                              style={styles.inputIcon}
+                            />
+                            <TextInput
+                              style={[styles.input, themedStyles.input]}
+                              placeholder="Confirm your password"
+                              placeholderTextColor={colors.textSecondary}
+                              secureTextEntry
+                              autoComplete="password-new"
+                              onFocus={() => setFocusedField('confirmPassword')}
+                              onBlur={() => {
+                                setFocusedField(null);
+                                onBlur();
+                              }}
+                              onChangeText={onChange}
+                              value={value}
+                            />
+                          </View>
+                        )}
+                      />
+                      {errors.confirmPassword && (
+                        <Text style={styles.errorText}>
+                          {errors.confirmPassword.message}
+                        </Text>
+                      )}
+                    </View>
+                  )}
+
+                  {/* Error Message */}
+                  {error && (
+                    <View style={styles.errorContainer}>
+                      <Text style={styles.errorMessage}>{error}</Text>
+                    </View>
+                  )}
+
+                  {/* Submit Button */}
+                  <GlassButton
+                    style={styles.submitButton}
+                    onPress={handleSubmit(onSubmit)}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <ActivityIndicator color={Colors.white} size="small" />
+                    ) : (
+                      <Text style={styles.submitButtonText}>
+                        {isSignUp ? 'Create Account' : 'Sign In'}
+                      </Text>
+                    )}
+                  </GlassButton>
+                </View>
+
+                {/* Toggle Mode */}
+                {!hideModeToggleForWelcomeSignIn && (
+                  <View style={styles.toggleContainer}>
+                    <Text style={[styles.toggleText, themedStyles.toggleText]}>
+                      {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+                    </Text>
+                    <TouchableOpacity onPress={toggleMode}>
+                      <Text style={styles.toggleLink}>
+                        {isSignUp ? 'Sign In' : 'Sign Up'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
-
-                {/* Submit Button */}
-                <GlassButton
-                  style={styles.submitButton}
-                  onPress={handleSubmit(onSubmit)}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color={Colors.white} size="small" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>
-                      {isSignUp ? 'Create Account' : 'Sign In'}
-                    </Text>
-                  )}
-                </GlassButton>
               </View>
-
-              {/* Toggle Mode */}
-              <View style={styles.toggleContainer}>
-                <Text style={[styles.toggleText, themedStyles.toggleText]}>
-                  {isSignUp ? 'Already have an account?' : "Don't have an account?"}
-                </Text>
-                <TouchableOpacity onPress={toggleMode}>
-                  <Text style={styles.toggleLink}>
-                    {isSignUp ? 'Sign In' : 'Sign Up'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
       </View>
@@ -423,6 +495,9 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   header: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
@@ -436,9 +511,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   content: {
-    flex: 1,
     paddingHorizontal: Spacing['2xl'],
     paddingTop: Spacing['3xl'],
+    paddingBottom: Spacing['3xl'],
   },
   title: {
     ...Typography.h1,

@@ -95,9 +95,10 @@ export function NumberPadModal({
     nextButtonShadow: { shadowColor: colors.accentShadow },
   };
 
-  const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
   // Use editor session or active session based on mode
   const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
+  const activeExerciseLocalId = useWorkoutStore((s) => s.activeNumberPad?.exerciseLocalId ?? null);
+  const activeSetLocalId = useWorkoutStore((s) => s.activeNumberPad?.setLocalId ?? null);
   const updatePendingValue = useWorkoutStore(s => s.updatePendingValue);
   const showRpeSelector = useWorkoutStore(s => s.showRpeSelector);
   const showRpeHelp = useWorkoutStore(s => s.showRpeHelp);
@@ -110,29 +111,22 @@ export function NumberPadModal({
   const updateEditorSet = useWorkoutStore(s => s.updateEditorSet);
   const applyPendingValueToRemainingSets = useWorkoutStore(s => s.applyPendingValueToRemainingSets);
 
-  // Get current RPE value for the active set
-  const getCurrentRpe = (): RpeValue => {
-    if (!activeNumberPad || !session) return null;
-    const exercise = session.exercises.find(
-      (e) => e.localId === activeNumberPad.exerciseLocalId
-    );
-    const set = exercise?.sets.find(
-      (s) => s.localId === activeNumberPad.setLocalId
-    );
-    return set?.rpe ?? null;
-  };
+  const getActiveNumberPadSnapshot = () => useWorkoutStore.getState().activeNumberPad;
 
-  const currentRpe = getCurrentRpe();
+  const getPendingValue = () => getActiveNumberPadSnapshot()?.pendingValue ?? '';
 
-  // Get current exercise for weight unit
-  const currentExercise = activeNumberPad && session
-    ? session.exercises.find(e => e.localId === activeNumberPad.exerciseLocalId)
+  // Get current set context for RPE and weight unit controls
+  const currentExercise = activeExerciseLocalId && session
+    ? session.exercises.find((e) => e.localId === activeExerciseLocalId)
     : null;
+  const currentSet = currentExercise && activeSetLocalId
+    ? currentExercise.sets.find((s) => s.localId === activeSetLocalId)
+    : null;
+  const currentRpe: RpeValue = currentSet?.rpe ?? null;
   const currentWeightUnit = currentExercise
     ? (weightUnits[currentExercise.exerciseId] || 'lbs')
     : 'lbs';
 
-  const displayValue = activeNumberPad?.pendingValue ?? '';
   const translateY = useSharedValue(0);
 
   useEffect(() => {
@@ -142,13 +136,18 @@ export function NumberPadModal({
   }, [visible, translateY]);
 
   const setDisplayValue = (updater: string | ((prev: string) => string)) => {
-    const newValue = typeof updater === 'function' ? updater(displayValue) : updater;
+    const currentValue = getPendingValue();
+    const newValue = typeof updater === 'function' ? updater(currentValue) : updater;
     updatePendingValue(newValue);
   };
 
   const handleNumberPress = (num: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const baseValue = activeNumberPad?.shouldReplaceOnNextInput ? '' : displayValue;
+    const activeNumberPad = getActiveNumberPadSnapshot();
+    if (!activeNumberPad) return;
+    const baseValue = activeNumberPad.shouldReplaceOnNextInput
+      ? ''
+      : activeNumberPad.pendingValue;
 
     if (num === '.') {
       // Only allow decimal for weight, and only one decimal point
@@ -174,6 +173,7 @@ export function NumberPadModal({
 
   const handleNext = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const displayValue = getPendingValue();
     const value = displayValue === '' ? null : parseFloat(displayValue);
     if (onNext) {
       onNext(value);
@@ -184,7 +184,9 @@ export function NumberPadModal({
 
   const handleKeyboardToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const activeNumberPad = getActiveNumberPadSnapshot();
     if (activeNumberPad) {
+      const displayValue = activeNumberPad.pendingValue;
       const trimmedValue = displayValue.trim();
       if (trimmedValue.length > 0) {
         const parsedValue = Number(trimmedValue);

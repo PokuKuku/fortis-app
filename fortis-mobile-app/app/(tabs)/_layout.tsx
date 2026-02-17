@@ -41,7 +41,6 @@ import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/
 import { useExercises } from '@/src/hooks/useExercises';
 import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 import { saveCustomExercise } from '@/src/services/exerciseService';
-import { shouldRedirectToPaywallGateFromTabs } from '@/src/components/superwall/superwallGuards';
 import { triggerImmediateNavigationHaptic } from '@/src/components/haptics/navigationHaptics';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 
@@ -51,8 +50,8 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
-  const { isAuthenticated, isLoading } = useAuth();
-  const { subscriptionStatus, getEntitlements, setSubscriptionStatus } = useUser();
+  const { isAuthenticated, isLoading, user: authUser } = useAuth();
+  const { subscriptionStatus, getEntitlements, setSubscriptionStatus, user: superwallUser } = useUser();
   const { isSuperwallReady } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
   }));
@@ -103,15 +102,27 @@ export default function TabLayout() {
   const FAB_ICON_SIZE = scale(34);
   const TAB_BAR_MAX_WIDTH = scale(420);
   const accessSyncInFlightRef = useRef(false);
+  const initialAccessSyncCompletedRef = useRef(false);
   const lastAccessSyncAtRef = useRef(0);
+  const subscriptionStatusRef = useRef(subscriptionStatus);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const authUserId = authUser?.id ?? null;
+  const superwallUserId =
+    typeof superwallUser?.appUserId === 'string' && superwallUser.appUserId.trim().length > 0
+      ? superwallUser.appUserId
+      : null;
+  const isIdentityReadyForAccessCheck = authUserId ? superwallUserId === authUserId : superwallUserId === null;
+
+  useEffect(() => {
+    subscriptionStatusRef.current = subscriptionStatus;
+  }, [subscriptionStatus]);
 
   const syncAccessState = useCallback(
     async (reason: 'initial' | 'app-active') => {
       if (accessSyncInFlightRef.current) {
         return;
       }
-      if (isLoading || !isAuthenticated || !isSuperwallReady) {
+      if (isLoading || !isAuthenticated || !isSuperwallReady || !isIdentityReadyForAccessCheck) {
         return;
       }
 
@@ -123,7 +134,7 @@ export default function TabLayout() {
       accessSyncInFlightRef.current = true;
       try {
         const reconciliation = await reconcileSubscriptionStatus({
-          currentStatus: subscriptionStatus,
+          currentStatus: subscriptionStatusRef.current,
           getEntitlements,
           setSubscriptionStatus,
           onError: (error) => {
@@ -145,11 +156,11 @@ export default function TabLayout() {
     [
       getEntitlements,
       isAuthenticated,
+      isIdentityReadyForAccessCheck,
       isLoading,
       isSuperwallReady,
       router,
       setSubscriptionStatus,
-      subscriptionStatus,
     ],
   );
 
@@ -160,21 +171,20 @@ export default function TabLayout() {
   }, [isLoading, isAuthenticated, router]);
 
   useEffect(() => {
-    if (
-      shouldRedirectToPaywallGateFromTabs({
-        isAuthLoading: isLoading,
-        isAuthenticated,
-        isSuperwallReady,
-        subscriptionStatus: subscriptionStatus.status,
-      })
-    ) {
-      router.replace('/paywall-gate');
+    if (!isAuthenticated) {
+      initialAccessSyncCompletedRef.current = false;
+      return;
     }
-  }, [isAuthenticated, isLoading, isSuperwallReady, router, subscriptionStatus.status]);
+    if (initialAccessSyncCompletedRef.current) {
+      return;
+    }
+    if (isLoading || !isSuperwallReady || !isIdentityReadyForAccessCheck) {
+      return;
+    }
 
-  useEffect(() => {
+    initialAccessSyncCompletedRef.current = true;
     void syncAccessState('initial');
-  }, [syncAccessState]);
+  }, [isAuthenticated, isIdentityReadyForAccessCheck, isLoading, isSuperwallReady, syncAccessState]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {

@@ -10,7 +10,12 @@ export function SuperwallPurchaseRecovery() {
   const { refresh, getEntitlements, setSubscriptionStatus, subscriptionStatus } = useUser();
   const recoveryDeadlineRef = useRef(0);
   const recoveryInFlightRef = useRef(false);
+  const subscriptionStatusRef = useRef(subscriptionStatus);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  useEffect(() => {
+    subscriptionStatusRef.current = subscriptionStatus;
+  }, [subscriptionStatus]);
 
   const sleep = (ms: number) =>
     new Promise<void>((resolve) => {
@@ -26,7 +31,7 @@ export function SuperwallPurchaseRecovery() {
       }
 
       const reconciliation = await reconcileSubscriptionStatus({
-        currentStatus: subscriptionStatus,
+        currentStatus: subscriptionStatusRef.current,
         getEntitlements,
         setSubscriptionStatus,
         onError: (error) => {
@@ -42,7 +47,7 @@ export function SuperwallPurchaseRecovery() {
 
       return reconciliation.hasActiveSubscription;
     },
-    [getEntitlements, refresh, setSubscriptionStatus, subscriptionStatus],
+    [getEntitlements, refresh, setSubscriptionStatus],
   );
 
   const runRecoveryLoop = useCallback(async () => {

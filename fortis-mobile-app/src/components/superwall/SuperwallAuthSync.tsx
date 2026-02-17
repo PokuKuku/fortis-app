@@ -26,10 +26,15 @@ export function SuperwallAuthSync() {
   const identifiedUserIdRef = useRef<string | null>(null);
   const inFlightSyncRef = useRef<Promise<void> | null>(null);
   const lastRefreshAtRef = useRef(0);
+  const subscriptionStatusRef = useRef(subscriptionStatus);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const isPaywallVisibleRef = useRef(false);
   const isPurchaseInProgressRef = useRef(false);
   const suppressSyncUntilRef = useRef(0);
+
+  useEffect(() => {
+    subscriptionStatusRef.current = subscriptionStatus;
+  }, [subscriptionStatus]);
 
   useSuperwallEvents({
     onPaywallPresent: () => {
@@ -130,7 +135,7 @@ export function SuperwallAuthSync() {
         if (shouldRefresh) {
           await refresh();
           await reconcileSubscriptionStatus({
-            currentStatus: subscriptionStatus,
+            currentStatus: subscriptionStatusRef.current,
             getEntitlements,
             setSubscriptionStatus,
             onError: (error) => {
@@ -160,7 +165,6 @@ export function SuperwallAuthSync() {
     refresh,
     setSubscriptionStatus,
     signOut,
-    subscriptionStatus,
     superwallUser?.appUserId,
   ]);
 
