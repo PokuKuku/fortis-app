@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { useSuperwall, useSuperwallEvents, useUser } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 
 const MIN_REFRESH_INTERVAL_MS = 5_000;
 const POST_PAYWALL_SYNC_COOLDOWN_MS = 2_000;
@@ -9,7 +10,15 @@ const PURCHASE_SYNC_GUARD_WINDOW_MS = 20_000;
 
 export function SuperwallAuthSync() {
   const { user: authUser, isAuthResolved } = useAuth();
-  const { identify, refresh, signOut, user: superwallUser } = useUser();
+  const {
+    identify,
+    refresh,
+    signOut,
+    user: superwallUser,
+    getEntitlements,
+    setSubscriptionStatus,
+    subscriptionStatus,
+  } = useUser();
   const { isLoaded, hasError } = useSuperwall((state) => ({
     isLoaded: !state.isLoading && state.isConfigured,
     hasError: state.configurationError !== null,
@@ -120,6 +129,16 @@ export function SuperwallAuthSync() {
 
         if (shouldRefresh) {
           await refresh();
+          await reconcileSubscriptionStatus({
+            currentStatus: subscriptionStatus,
+            getEntitlements,
+            setSubscriptionStatus,
+            onError: (error) => {
+              if (__DEV__) {
+                console.warn('[Superwall] entitlement reconciliation failed during auth sync', error);
+              }
+            },
+          });
           lastRefreshAtRef.current = Date.now();
         }
       } catch (error) {
@@ -134,11 +153,14 @@ export function SuperwallAuthSync() {
   }, [
     authUser?.id,
     hasError,
+    getEntitlements,
     identify,
     isAuthResolved,
     isLoaded,
     refresh,
+    setSubscriptionStatus,
     signOut,
+    subscriptionStatus,
     superwallUser?.appUserId,
   ]);
 

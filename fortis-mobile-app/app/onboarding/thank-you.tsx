@@ -140,9 +140,16 @@ export default function OnboardingThankYouScreen() {
     try {
       const alreadyRequested = await getScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY);
       if (alreadyRequested !== 'true') {
+        if (typeof Notifications.getPermissionsAsync !== 'function') {
+          await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
+          return;
+        }
+
         const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
         if (!granted && status !== 'granted' && canAskAgain) {
-          await Notifications.requestPermissionsAsync();
+          if (typeof Notifications.requestPermissionsAsync === 'function') {
+            await Notifications.requestPermissionsAsync();
+          }
         }
         await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
       }

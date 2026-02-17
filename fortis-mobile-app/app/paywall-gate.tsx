@@ -9,9 +9,11 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/superwallGuards';
+import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const GATE_RETRY_DELAY_MS = 2_000;
+const IDENTITY_SYNC_MAX_RETRIES = 3;
 
 export default function PaywallGateScreen() {
   const router = useRouter();
@@ -19,7 +21,9 @@ export default function PaywallGateScreen() {
   const { user: authUser, isAuthResolved } = useAuth();
   const { queueTourStartAfterPaywallClose } = useInAppTour();
   const {
+    identify,
     refresh,
+    signOut,
     subscriptionStatus,
     user: superwallUser,
     getEntitlements,
@@ -32,8 +36,9 @@ export default function PaywallGateScreen() {
 
   const hasNavigatedRef = useRef(false);
   const lastAttemptRef = useRef(-1);
+  const lastIdentityRetryRef = useRef(-1);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasActiveSubscriptionRef = useRef(subscriptionStatus.status === 'ACTIVE');
+  const hasActiveSubscriptionRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
 
   const authUserId = authUser?.id ?? null;
@@ -53,6 +58,14 @@ export default function PaywallGateScreen() {
 
     return superwallUserId === null;
   }, [authUserId, hasSuperwallError, isAuthResolved, isSuperwallReady, superwallUserId]);
+
+  const canBypassIdentityGate =
+    isAuthResolved &&
+    isSuperwallReady &&
+    !hasSuperwallError &&
+    authUserId !== null &&
+    superwallUserId === null &&
+    attempt >= IDENTITY_SYNC_MAX_RETRIES;
 
   const finishGate = useCallback(() => {
     if (hasNavigatedRef.current) {
@@ -88,35 +101,56 @@ export default function PaywallGateScreen() {
       // Best effort.
     }
 
-    if (hasActiveSubscriptionRef.current || subscriptionStatus.status === 'ACTIVE') {
-      hasActiveSubscriptionRef.current = true;
-      return true;
+    const reconciliation = await reconcileSubscriptionStatus({
+      currentStatus: subscriptionStatus,
+      getEntitlements,
+      setSubscriptionStatus,
+    });
+
+    hasActiveSubscriptionRef.current = reconciliation.hasActiveSubscription;
+    return reconciliation.hasActiveSubscription;
+  }, [getEntitlements, refresh, setSubscriptionStatus, subscriptionStatus]);
+
+  const retryIdentitySync = useCallback(async () => {
+    if (!isAuthResolved || !isSuperwallReady || hasSuperwallError) {
+      return;
     }
 
     try {
-      const entitlements = await getEntitlements();
-      if (entitlements.active.length > 0) {
-        await setSubscriptionStatus({
-          status: 'ACTIVE',
-          entitlements: entitlements.active,
-        });
-        hasActiveSubscriptionRef.current = true;
-        return true;
+      if (authUserId) {
+        await identify(authUserId, { restorePaywallAssignments: true });
+      } else if (superwallUserId) {
+        await signOut();
       }
     } catch {
       // Best effort.
     }
 
-    return false;
-  }, [getEntitlements, refresh, setSubscriptionStatus, subscriptionStatus.status]);
+    try {
+      await refresh();
+    } catch {
+      // Best effort.
+    }
+  }, [
+    authUserId,
+    hasSuperwallError,
+    identify,
+    isAuthResolved,
+    isSuperwallReady,
+    refresh,
+    signOut,
+    superwallUserId,
+  ]);
 
   const handleDismiss = useCallback(
     (_paywallInfo: unknown, result: PaywallResult) => {
-      if (
-        result.type === 'purchased' ||
-        result.type === 'restored' ||
-        hasActiveSubscriptionRef.current
-      ) {
+      if (result.type === 'purchased' || result.type === 'restored') {
+        hasActiveSubscriptionRef.current = true;
+        finishGate();
+        return;
+      }
+
+      if (hasActiveSubscriptionRef.current) {
         finishGate();
         return;
       }
@@ -165,14 +199,6 @@ export default function PaywallGateScreen() {
   }, []);
 
   useEffect(() => {
-    hasActiveSubscriptionRef.current = subscriptionStatus.status === 'ACTIVE';
-
-    if (hasActiveSubscriptionRef.current) {
-      finishGate();
-    }
-  }, [finishGate, subscriptionStatus.status]);
-
-  useEffect(() => {
     if (hasNavigatedRef.current) {
       return;
     }
@@ -185,7 +211,17 @@ export default function PaywallGateScreen() {
       return;
     }
 
-    if (!isIdentityReady) {
+    if (!isAuthResolved || !isSuperwallReady) {
+      scheduleRetry();
+      return;
+    }
+
+    if (!isIdentityReady && !canBypassIdentityGate) {
+      if (lastIdentityRetryRef.current !== attempt) {
+        lastIdentityRetryRef.current = attempt;
+        void retryIdentitySync();
+      }
+      scheduleRetry();
       return;
     }
 
@@ -212,9 +248,13 @@ export default function PaywallGateScreen() {
     finishGate,
     hasSuperwallError,
     isIdentityReady,
+    isSuperwallReady,
     registerPlacement,
+    retryIdentitySync,
     scheduleRetry,
     syncAccessOnce,
+    canBypassIdentityGate,
+    isAuthResolved,
   ]);
 
   return (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { useSuperwallEvents, useUser } from 'expo-superwall';
+import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 
 const RECOVERY_WINDOW_MS = 120_000;
 const RECOVERY_POLL_MS = 1_500;
@@ -18,37 +19,30 @@ export function SuperwallPurchaseRecovery() {
 
   const reconcileEntitlements = useCallback(
     async (trigger: string) => {
-      if (subscriptionStatus.status === 'ACTIVE') {
-        return true;
-      }
-
       try {
         await refresh();
       } catch {
         // Best effort.
       }
 
-      try {
-        const entitlements = await getEntitlements();
-        if (entitlements.active.length > 0) {
-          await setSubscriptionStatus({
-            status: 'ACTIVE',
-            entitlements: entitlements.active,
-          });
+      const reconciliation = await reconcileSubscriptionStatus({
+        currentStatus: subscriptionStatus,
+        getEntitlements,
+        setSubscriptionStatus,
+        onError: (error) => {
           if (__DEV__) {
-            console.log('[Superwall] purchase recovery activated subscription', { trigger });
+            console.warn('[Superwall] purchase recovery entitlement check failed', { trigger, error });
           }
-          return true;
-        }
-      } catch (error) {
-        if (__DEV__) {
-          console.warn('[Superwall] purchase recovery entitlement check failed', { trigger, error });
-        }
+        },
+      });
+
+      if (__DEV__ && reconciliation.wasVerified && reconciliation.hasActiveSubscription) {
+        console.log('[Superwall] purchase recovery activated subscription', { trigger });
       }
 
-      return false;
+      return reconciliation.hasActiveSubscription;
     },
-    [getEntitlements, refresh, setSubscriptionStatus, subscriptionStatus.status],
+    [getEntitlements, refresh, setSubscriptionStatus, subscriptionStatus],
   );
 
   const runRecoveryLoop = useCallback(async () => {
@@ -140,4 +134,3 @@ export function SuperwallPurchaseRecovery() {
 
   return null;
 }
-

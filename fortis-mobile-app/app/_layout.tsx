@@ -381,12 +381,10 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 
-  const shouldBypassAppTransactionCheck =
-    process.env.EXPO_PUBLIC_BYPASS_APP_TRANSACTION_CHECK === 'true';
+  const shouldBypassAppTransactionCheck = false;
 
   const superwallOptions = {
-    // Explicit opt-in (via env) for local StoreKit testing.
-    // Keep this false for TestFlight/App Store.
+    // Keep app transaction verification enabled in all environments.
     shouldBypassAppTransactionCheck,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,

@@ -19,13 +19,19 @@ const ONBOARDING_STEP_INDEX = {
 
 type OnboardingStepId = keyof typeof ONBOARDING_STEP_INDEX;
 
+function fireAndForgetTracking(eventName: string, properties: Record<string, unknown>): void {
+  void trackAnonymousMixpanelEvent(eventName, properties).catch((error) => {
+    console.warn('[OnboardingAnalytics] Tracking failed:', eventName, error);
+  });
+}
+
 export function trackOnboardingStepCompleted(stepId: OnboardingStepId): void {
-  void trackAnonymousMixpanelEvent('onboarding_step_completed', {
+  fireAndForgetTracking('onboarding_step_completed', {
     step_id: stepId,
     step_index: ONBOARDING_STEP_INDEX[stepId],
   });
 }
 
 export function trackOnboardingFinished(): void {
-  void trackAnonymousMixpanelEvent('onboarding_finished', {});
+  fireAndForgetTracking('onboarding_finished', {});
 }

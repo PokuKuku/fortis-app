@@ -377,16 +377,28 @@ function InsightCard({
       {sparkline && (
         <View style={[styles.sparklineShell, sparklineTheme]}>
           <View style={styles.sparklineHeaderRow}>
-            <Text style={[styles.sparklineLabel, { color: readableText.tertiary }]}>
+            <Text
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[styles.sparklineLabel, { color: readableText.tertiary }]}
+            >
               {sparklineLabel}
             </Text>
             {latestValue && (
               <View style={[styles.sparklineValuePill, pillTheme]}>
-                <Text style={[styles.sparklineValueText, { color: colors.textPrimary }]}>
+                <Text
+                  allowFontScaling={false}
+                  maxFontSizeMultiplier={1}
+                  style={[styles.sparklineValueText, { color: colors.textPrimary }]}
+                >
                   {latestValue}
                 </Text>
                 {latestMeta && (
-                  <Text style={[styles.sparklineValueMeta, { color: readableText.tertiary }]}>
+                  <Text
+                    allowFontScaling={false}
+                    maxFontSizeMultiplier={1}
+                    style={[styles.sparklineValueMeta, { color: readableText.tertiary }]}
+                  >
                     {latestMeta}
                   </Text>
                 )}
@@ -423,6 +435,8 @@ function InsightCard({
                       activeOpacity={0.8}
                     >
                       <Text
+                        allowFontScaling={false}
+                        maxFontSizeMultiplier={1}
                         style={[
                           styles.sparklineTabText,
                           { color: isActive ? colors.accent : readableText.secondary },
@@ -457,6 +471,8 @@ function InsightCard({
                       activeOpacity={0.8}
                     >
                       <Text
+                        allowFontScaling={false}
+                        maxFontSizeMultiplier={1}
                         style={[
                           styles.sparklineTabText,
                           { color: isActive ? colors.accent : readableText.secondary },
@@ -609,7 +625,11 @@ function WatchlistRow({
       </View>
       {sparkline && (
         <View style={[styles.watchlistSparklineCard, sparklineTheme]}>
-          <Text style={[styles.sparklineLabel, { color: readableText.tertiary }]}>
+          <Text
+            allowFontScaling={false}
+            maxFontSizeMultiplier={1}
+            style={[styles.sparklineLabel, { color: readableText.tertiary }]}
+          >
             {sparklineLabel}
           </Text>
           <InsightSparkline

@@ -1,5 +1,5 @@
 import { Tabs, usePathname, useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -11,6 +11,8 @@ import {
   TextInput,
   DeviceEventEmitter,
   Alert,
+  AppState,
+  type AppStateStatus,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSuperwall, useUser } from 'expo-superwall';
@@ -41,6 +43,7 @@ import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } f
 import { saveCustomExercise } from '@/src/services/exerciseService';
 import { shouldRedirectToPaywallGateFromTabs } from '@/src/components/superwall/superwallGuards';
 import { triggerImmediateNavigationHaptic } from '@/src/components/haptics/navigationHaptics';
+import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 
 type PrimaryTabRoute = 'history' | 'insights' | 'index' | 'profile';
 
@@ -49,7 +52,7 @@ export default function TabLayout() {
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
   const { isAuthenticated, isLoading } = useAuth();
-  const { subscriptionStatus } = useUser();
+  const { subscriptionStatus, getEntitlements, setSubscriptionStatus } = useUser();
   const { isSuperwallReady } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
   }));
@@ -99,6 +102,56 @@ export default function TabLayout() {
   const FAB_BUTTON_SIZE = scale(68);
   const FAB_ICON_SIZE = scale(34);
   const TAB_BAR_MAX_WIDTH = scale(420);
+  const accessSyncInFlightRef = useRef(false);
+  const lastAccessSyncAtRef = useRef(0);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
+  const syncAccessState = useCallback(
+    async (reason: 'initial' | 'app-active') => {
+      if (accessSyncInFlightRef.current) {
+        return;
+      }
+      if (isLoading || !isAuthenticated || !isSuperwallReady) {
+        return;
+      }
+
+      const now = Date.now();
+      if (reason === 'app-active' && now - lastAccessSyncAtRef.current < 3_000) {
+        return;
+      }
+
+      accessSyncInFlightRef.current = true;
+      try {
+        const reconciliation = await reconcileSubscriptionStatus({
+          currentStatus: subscriptionStatus,
+          getEntitlements,
+          setSubscriptionStatus,
+          onError: (error) => {
+            if (__DEV__) {
+              console.warn('[Superwall] tabs entitlement reconciliation failed', { reason, error });
+            }
+          },
+        });
+
+        lastAccessSyncAtRef.current = Date.now();
+
+        if (reconciliation.wasVerified && !reconciliation.hasActiveSubscription) {
+          router.replace('/paywall-gate');
+        }
+      } finally {
+        accessSyncInFlightRef.current = false;
+      }
+    },
+    [
+      getEntitlements,
+      isAuthenticated,
+      isLoading,
+      isSuperwallReady,
+      router,
+      setSubscriptionStatus,
+      subscriptionStatus,
+    ],
+  );
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -118,6 +171,28 @@ export default function TabLayout() {
       router.replace('/paywall-gate');
     }
   }, [isAuthenticated, isLoading, isSuperwallReady, router, subscriptionStatus.status]);
+
+  useEffect(() => {
+    void syncAccessState('initial');
+  }, [syncAccessState]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (
+        (previousState === 'background' || previousState === 'inactive') &&
+        nextState === 'active'
+      ) {
+        void syncAccessState('app-active');
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [syncAccessState]);
 
   useEffect(() => {
     if (!isLoading) {

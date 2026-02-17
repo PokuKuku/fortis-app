@@ -5,6 +5,8 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
+  Alert,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -41,6 +43,8 @@ export default function AuthWelcomeScreen() {
   const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
   const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
   const showBack = Boolean(onboardingValue);
+  const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
+  const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   useEffect(() => {
@@ -235,6 +239,23 @@ export default function AuthWelcomeScreen() {
     router.back();
   };
 
+  const openExternalLink = async (url: string, label: string) => {
+    if (!url) {
+      Alert.alert('Missing link', `${label} link is not configured yet.`);
+      return;
+    }
+    try {
+      const canOpen = await Linking.canOpenURL(url);
+      if (!canOpen) {
+        Alert.alert('Unable to open link', 'Please try again later.');
+        return;
+      }
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert('Unable to open link', 'Please try again later.');
+    }
+  };
+
   return (
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
@@ -297,6 +318,25 @@ export default function AuthWelcomeScreen() {
           </View>
 
           {/* Terms */}
+          <View style={styles.termsContainer}>
+            <Text style={[styles.terms, themedStyles.terms]}>
+              By continuing, you agree to our{' '}
+            </Text>
+            <TouchableOpacity
+              onPress={() => openExternalLink(TERMS_OF_SERVICE_URL, 'Terms & Conditions')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.termsLink, { color: colors.accent }]}>Terms & Conditions</Text>
+            </TouchableOpacity>
+            <Text style={[styles.terms, themedStyles.terms]}> and </Text>
+            <TouchableOpacity
+              onPress={() => openExternalLink(PRIVACY_POLICY_URL, 'Privacy Policy')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.termsLink, { color: colors.accent }]}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={[styles.terms, themedStyles.terms]}>.</Text>
+          </View>
         </View>
       </SafeAreaView>
 
@@ -404,10 +444,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   // Terms
+  termsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: Spacing.md,
+  },
   terms: {
     ...Typography.caption,
     color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  termsLink: {
+    ...Typography.caption,
+    lineHeight: 18,
+    textDecorationLine: 'underline',
   },
 });

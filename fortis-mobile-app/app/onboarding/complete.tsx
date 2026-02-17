@@ -522,19 +522,34 @@ export default function OnboardingCompleteScreen() {
       }
 
       let didTimeout = false;
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
       const timeoutResult = new Promise<{ error: Error | null }>((resolve) => {
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           didTimeout = true;
           resolve({ error: new Error('Update timeout') });
         }, UPDATE_TIMEOUT_MS);
       });
 
       const { error } = await Promise.race([updateProfile(updates), timeoutResult]);
-      if (!error && !didTimeout) {
-        trackOnboardingFinished();
-        await clearOnboardingState();
-        router.replace('/(tabs)');
+      if (timeoutId) {
+        clearTimeout(timeoutId);
       }
+
+      if (error || didTimeout) {
+        didContinueRef.current = false;
+        return;
+      }
+
+      trackOnboardingFinished();
+      try {
+        await clearOnboardingState();
+      } catch (clearError) {
+        console.warn('[Onboarding] Failed to clear local onboarding state:', clearError);
+      }
+      router.replace('/paywall-gate');
+    } catch (error) {
+      console.warn('[Onboarding] Failed to finalize onboarding:', error);
+      didContinueRef.current = false;
     } finally {
       setIsSaving(false);
     }

@@ -45,7 +45,15 @@ type SignUpFormData = z.infer<typeof signUpSchema>;
 export default function EmailAuthScreen() {
   const router = useRouter();
   const { source, mode } = useLocalSearchParams<{ source?: string; mode?: string }>();
-  const { signInWithEmail, signUpWithEmail, setAllowProfileCreation } = useAuth();
+  const {
+    signInWithEmail,
+    signUpWithEmail,
+    setAllowProfileCreation,
+    isAuthenticated,
+    profileResolved,
+    profile,
+    needsOnboarding,
+  } = useAuth();
   const { colors, isDark } = useTheme();
   const sourceValue = Array.isArray(source) ? source[0] : source;
   const modeValue = Array.isArray(mode) ? mode[0] : mode;
@@ -54,6 +62,7 @@ export default function EmailAuthScreen() {
   const [error, setError] = useState<string | null>(null);
   const [confirmationNotice, setConfirmationNotice] = useState<string | null>(null);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const [pendingPostSignInRedirect, setPendingPostSignInRedirect] = useState(false);
 
   useEffect(() => {
     setAllowProfileCreation(sourceValue === 'onboarding-complete');
@@ -71,6 +80,28 @@ export default function EmailAuthScreen() {
       setIsSignUp(false);
     }
   }, [modeValue]);
+
+  useEffect(() => {
+    if (!pendingPostSignInRedirect) return;
+    if (!isAuthenticated || !profileResolved) return;
+
+    setPendingPostSignInRedirect(false);
+    setIsLoading(false);
+
+    if (!profile || needsOnboarding) {
+      router.replace('/onboarding');
+      return;
+    }
+
+    router.replace('/paywall-gate');
+  }, [
+    isAuthenticated,
+    needsOnboarding,
+    pendingPostSignInRedirect,
+    profile,
+    profileResolved,
+    router,
+  ]);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -109,12 +140,15 @@ export default function EmailAuthScreen() {
       confirmPassword: '',
     },
   });
+  const isSubmitting = isLoading || pendingPostSignInRedirect;
 
   const toggleMode = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsSignUp(!isSignUp);
+    setPendingPostSignInRedirect(false);
     setError(null);
     setConfirmationNotice(null);
+    setIsLoading(false);
     reset();
   };
 
@@ -129,10 +163,10 @@ export default function EmailAuthScreen() {
       ? await signUpWithEmail(data.email, data.password)
       : await signInWithEmail(data.email, data.password);
 
-    setIsLoading(false);
-
     if (authError) {
-      const isOnboardingSource = source === 'onboarding';
+      setIsLoading(false);
+      setPendingPostSignInRedirect(false);
+      const isOnboardingSource = sourceValue === 'onboarding';
       const isInvalidCredentials = authError.message.toLowerCase().includes('invalid login credentials');
       if (!isSignUp && isOnboardingSource && isInvalidCredentials) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -145,6 +179,12 @@ export default function EmailAuthScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (!isSignUp) {
+        setIsLoading(false);
+        setPendingPostSignInRedirect(true);
+        return;
+      }
+      setIsLoading(false);
       if (isSignUp) {
         setConfirmationNotice(
           "Check your email to confirm your account. If you don't see it in a few minutes, check your spam or promotions folder."
@@ -156,6 +196,8 @@ export default function EmailAuthScreen() {
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setPendingPostSignInRedirect(false);
+    setIsLoading(false);
     router.back();
   };
 
@@ -339,9 +381,9 @@ export default function EmailAuthScreen() {
                 <GlassButton
                   style={styles.submitButton}
                   onPress={handleSubmit(onSubmit)}
-                  disabled={isLoading}
+                  disabled={isSubmitting}
                 >
-                  {isLoading ? (
+                  {isSubmitting ? (
                     <ActivityIndicator color={Colors.white} size="small" />
                   ) : (
                     <Text style={styles.submitButtonText}>

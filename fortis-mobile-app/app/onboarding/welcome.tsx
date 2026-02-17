@@ -16,7 +16,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { Typography } from '@/constants/Typography';
 
-const DEMO_VIDEO = require('../../assets/videos/Test.mov');
+const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal.mov');
 const WELCOME_TITLE_LINE_ONE = 'Workout Insights';
 const WELCOME_TITLE_LINE_TWO = 'made Simple';
 const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;
@@ -217,24 +217,6 @@ export default function OnboardingWelcomeScreen() {
       contentGap={0}
       footer={
         <View style={styles.footer}>
-          <View style={styles.footerTitleWrap}>
-            <View style={styles.typewriterTitleFrame}>
-              <Text
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}
-              >
-                {WELCOME_TITLE}
-              </Text>
-              <Text
-                allowFontScaling={false}
-                maxFontSizeMultiplier={1}
-                style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}
-              >
-                {typedTitle}
-              </Text>
-            </View>
-          </View>
           <GlassButton style={styles.button} onPress={handleStart} hapticFeedback="impactMedium">
             <Text style={[styles.buttonText, { color: colors.white }]}>Get started</Text>
           </GlassButton>
@@ -251,7 +233,25 @@ export default function OnboardingWelcomeScreen() {
       }
     >
       <View style={styles.videoWrap}>
-        <OnboardingDemoVideo sourceModule={DEMO_VIDEO} height="100%" scale={2.3} offsetY={30} />
+        <View pointerEvents="none" style={styles.videoTitleOverlay}>
+          <View style={styles.typewriterTitleFrame}>
+            <Text
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[styles.typewriterTitleText, styles.typewriterTitleReserve]}
+            >
+              {WELCOME_TITLE}
+            </Text>
+            <Text
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[styles.typewriterTitleText, styles.typewriterTitleOverlay, { color: colors.textPrimary }]}
+            >
+              {typedTitle}
+            </Text>
+          </View>
+        </View>
+        <OnboardingDemoVideo sourceModule={DEMO_VIDEO} height="100%" scale={1.4} offsetY={0} />
       </View>
 
       <Modal
@@ -311,6 +311,15 @@ const styles = StyleSheet.create({
   videoWrap: {
     width: '100%',
     flex: 1,
+    position: 'relative',
+  },
+  videoTitleOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: Spacing.lg,
+    zIndex: 2,
+    alignItems: 'center',
   },
   typewriterTitleFrame: {
     position: 'relative',
@@ -335,11 +344,9 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   footer: {
-    gap: Spacing.md,
-  },
-  footerTitleWrap: {
-    alignItems: 'center',
-    marginBottom: Spacing.xs,
+    gap: Spacing.xs,
+    marginTop: -Spacing.sm,
+    marginBottom: -Spacing.sm,
   },
   signInRow: {
     flexDirection: 'row',
