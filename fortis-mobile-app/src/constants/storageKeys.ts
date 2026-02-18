@@ -20,6 +20,7 @@ export const PENDING_SYNC_QUEUE_KEY = 'pending_sync_queue_v1';
 export const PENDING_PROGRAM_SYNC_QUEUE_KEY = 'pending_program_sync_queue_v1';
 export const PENDING_STICKY_NOTES_SYNC_KEY = 'pending_sticky_notes_sync_v1';
 export const REST_TIMER_SETTINGS_KEY = 'rest_timer_settings_v1';
+export const WORKOUT_REMINDER_NOTIFICATION_IDS_KEY = 'workout_reminder_notification_ids_v1';
 export const EXERCISE_ORDER_KEY = 'exercise_order_v1';
 export const EXERCISE_STICKY_NOTES_KEY = 'exercise_sticky_notes_v1';
 export const EXERCISE_WEIGHT_UNITS_KEY = 'exercise_weight_units_v1';
@@ -61,6 +62,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   PENDING_PROGRAM_SYNC_QUEUE_KEY,
   PENDING_STICKY_NOTES_SYNC_KEY,
   REST_TIMER_SETTINGS_KEY,
+  WORKOUT_REMINDER_NOTIFICATION_IDS_KEY,
   EXERCISE_ORDER_KEY,
   EXERCISE_STICKY_NOTES_KEY,
   EXERCISE_WEIGHT_UNITS_KEY,
