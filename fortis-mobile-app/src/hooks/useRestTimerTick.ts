@@ -5,6 +5,7 @@ import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 
 const REST_TIMER_CHANNEL_ID = 'rest-timer';
+const MIN_NOTIFICATION_LEAD_MS = 1500;
 
 const ensureRestTimerChannel = async () => {
   if (Platform.OS !== 'android') return;
@@ -17,25 +18,50 @@ const ensureRestTimerChannel = async () => {
 };
 
 const scheduleRestTimerNotification = async (endTimestamp: number): Promise<string | null> => {
-  const { status, granted } = await Notifications.getPermissionsAsync();
-  if (!granted && status !== 'granted') return null;
+  try {
+    const { status, granted } = await Notifications.getPermissionsAsync();
+    if (!granted && status !== 'granted') return null;
+    if (!Number.isFinite(endTimestamp) || endTimestamp <= 0) return null;
 
-  await ensureRestTimerChannel();
+    await ensureRestTimerChannel();
 
-  if (endTimestamp <= Date.now()) return null;
+    const msUntilEnd = Math.max(
+      MIN_NOTIFICATION_LEAD_MS,
+      endTimestamp - Date.now()
+    );
+    const secondsUntilEnd = Math.max(1, Math.ceil(msUntilEnd / 1000));
 
-  return Notifications.scheduleNotificationAsync({
-    content: {
-      title: 'Rest complete!',
-      body: 'Back to it — crush the next set.',
-      sound: 'default',
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-      date: new Date(endTimestamp),
-      channelId: REST_TIMER_CHANNEL_ID,
-    },
-  });
+    if (Platform.OS === 'android') {
+      return await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Rest complete!',
+          body: 'Back to it — crush the next set.',
+          sound: 'default',
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          repeats: false,
+          seconds: secondsUntilEnd,
+          channelId: REST_TIMER_CHANNEL_ID,
+        },
+      });
+    }
+
+    return await Notifications.scheduleNotificationAsync({
+      content: {
+        title: 'Rest complete!',
+        body: 'Back to it — crush the next set.',
+        sound: 'default',
+      },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+        repeats: false,
+        seconds: secondsUntilEnd,
+      },
+    });
+  } catch {
+    return null;
+  }
 };
 
 const cancelRestTimerNotification = async (notificationId: string | null) => {
@@ -90,16 +116,22 @@ export function useRestTimerTick() {
     let isCancelled = false;
 
     const syncNotification = async () => {
-      if (!restTimer.isActive || !restTimer.endTimestamp || !isBackgrounded) {
-        await cancelRestTimerNotification(notificationIdRef.current);
-        notificationIdRef.current = null;
-        return;
-      }
+      try {
+        if (!restTimer.isActive || !restTimer.endTimestamp || !isBackgrounded) {
+          await cancelRestTimerNotification(notificationIdRef.current);
+          notificationIdRef.current = null;
+          return;
+        }
 
-      await cancelRestTimerNotification(notificationIdRef.current);
-      const nextId = await scheduleRestTimerNotification(restTimer.endTimestamp);
-      if (!isCancelled) {
+        await cancelRestTimerNotification(notificationIdRef.current);
+        const nextId = await scheduleRestTimerNotification(restTimer.endTimestamp);
+        if (isCancelled) {
+          await cancelRestTimerNotification(nextId);
+          return;
+        }
         notificationIdRef.current = nextId;
+      } catch {
+        // Best effort only. Prevent uncaught promise errors from bubbling in effects.
       }
     };
 

@@ -70,7 +70,13 @@ function ThemedAppContent({
             }}
           >
             <Stack.Screen name="index" options={{ animation: 'none' }} />
-            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="(tabs)"
+              options={{
+                ...ONBOARDING_TRANSITION,
+                animationTypeForReplace: 'push',
+              }}
+            />
             <Stack.Screen
               name="paywall-gate"
               options={{
