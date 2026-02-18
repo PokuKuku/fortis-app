@@ -7,7 +7,8 @@
  * Supports both dark mode (forge black) and light mode (titanium).
  * Used across all screens for visual consistency.
  */
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { memo } from 'react';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, {
   Defs,
@@ -16,23 +17,26 @@ import Svg, {
   Rect,
   RadialGradient,
   Stop,
-  G,
 } from 'react-native-svg';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
-const { width, height } = Dimensions.get('window');
-
-export function StainlessSteelPattern() {
+function StainlessSteelPatternComponent() {
   const { colors, isDark } = useTheme();
+  const { width, height } = useWindowDimensions();
 
   // Theme-specific colors
   const baseColor = colors.patternBase;
   const strokeColor = colors.patternStroke;
-  const strokeAccent = colors.patternStrokeAccent;
 
   // Vignette color (dark edges on both themes, just different opacity)
   const vignetteColor = isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.15)';
   const vignetteGradientEnd = isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.05)';
+  const grainColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)';
+  const streakColor = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+  const horizontalGrainId = isDark ? 'horizontalGrainDark' : 'horizontalGrainLight';
+  const horizontalStreakId = isDark ? 'horizontalStreakDark' : 'horizontalStreakLight';
+  const slashPatternId = isDark ? 'slashPatternDark' : 'slashPatternLight';
+  const vignetteId = isDark ? 'vignetteDark' : 'vignetteLight';
 
   return (
     <View style={StyleSheet.absoluteFillObject}>
@@ -53,19 +57,19 @@ export function StainlessSteelPattern() {
         pointerEvents="none"
       >
         <Svg width={width} height={height} style={StyleSheet.absoluteFillObject}>
-          <G>
-            {Array.from({ length: Math.ceil(height / 2) }).map((_, i) => (
-              <Line
-                key={`v-${i}`}
-                x1={0}
-                y1={i * 2}
-                x2={width}
-                y2={i * 2}
-                stroke={isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)'}
-                strokeWidth={1}
-              />
-            ))}
-          </G>
+          <Defs>
+            <Pattern
+              id={horizontalGrainId}
+              x="0"
+              y="0"
+              width="2"
+              height="2"
+              patternUnits="userSpaceOnUse"
+            >
+              <Line x1="0" y1="0" x2="2" y2="0" stroke={grainColor} strokeWidth="1" />
+            </Pattern>
+          </Defs>
+          <Rect width={width} height={height} fill={`url(#${horizontalGrainId})`} />
         </Svg>
       </View>
 
@@ -80,7 +84,7 @@ export function StainlessSteelPattern() {
         <Svg width={width} height={height} style={StyleSheet.absoluteFillObject}>
           <Defs>
             <Pattern
-              id="horizontalStreak"
+              id={horizontalStreakId}
               x="0"
               y="0"
               width="100"
@@ -92,12 +96,12 @@ export function StainlessSteelPattern() {
                 y="0"
                 width="2"
                 height="1"
-                fill={isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'}
+                fill={streakColor}
               />
               <Rect x="2" y="0" width="2" height="1" fill="transparent" />
             </Pattern>
           </Defs>
-          <Rect width={width} height={height} fill="url(#horizontalStreak)" />
+          <Rect width={width} height={height} fill={`url(#${horizontalStreakId})`} />
         </Svg>
       </View>
 
@@ -110,7 +114,7 @@ export function StainlessSteelPattern() {
       >
         <Defs>
           <Pattern
-            id="slashPattern"
+            id={slashPatternId}
             x="0"
             y="0"
             width="24"
@@ -137,13 +141,13 @@ export function StainlessSteelPattern() {
             />
           </Pattern>
 
-          <RadialGradient id="vignette" cx="50%" cy="50%" r="70%">
+          <RadialGradient id={vignetteId} cx="50%" cy="50%" r="70%">
             <Stop offset="0%" stopColor="rgba(0,0,0,0)" />
             <Stop offset="100%" stopColor={vignetteColor} />
           </RadialGradient>
         </Defs>
 
-        <Rect width="100%" height="100%" fill="url(#slashPattern)" />
+        <Rect width="100%" height="100%" fill={`url(#${slashPatternId})`} />
       </Svg>
 
       {/* Subtle vignette effects */}
@@ -161,8 +165,10 @@ export function StainlessSteelPattern() {
         style={StyleSheet.absoluteFillObject}
         pointerEvents="none"
       >
-        <Rect width={width} height={height} fill="url(#vignette)" />
+        <Rect width={width} height={height} fill={`url(#${vignetteId})`} />
       </Svg>
     </View>
   );
 }
+
+export const StainlessSteelPattern = memo(StainlessSteelPatternComponent);

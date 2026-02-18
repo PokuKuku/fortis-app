@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, AppState, type AppStateStatus } from 'react-native';
+import { View, StyleSheet, AppState, InteractionManager, type AppStateStatus } from 'react-native';
 import type { ComponentType } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 
@@ -8,11 +8,24 @@ interface OnboardingDemoVideoProps {
   height: number | string;
   scale?: number;
   offsetY?: number;
+  active?: boolean;
+  deferMountUntilInteractions?: boolean;
+  enablePlaybackWatchdog?: boolean;
 }
 
 const PLAYBACK_WATCHDOG_MS = 1_200;
 const FREEZE_DETECTION_TICKS = 3;
 const FREEZE_TIME_EPSILON = 0.01;
+
+type ExpoVideoModule = {
+  VideoView: ComponentType<any>;
+  createVideoPlayer: (source: number | { assetId: number }) => any;
+};
+
+let sharedExpoVideoModule: ExpoVideoModule | null = null;
+let sharedPlayer: any | null = null;
+let sharedPlayerSourceModule: number | null = null;
+let sharedPlayerConsumerCount = 0;
 
 const shouldKeepPlaying = (isFocused: boolean, appState: AppStateStatus) =>
   isFocused && (appState === 'active' || appState === 'unknown');
@@ -34,59 +47,110 @@ const safePause = (videoPlayer: any) => {
   }
 };
 
+const getExpoVideoModule = (): ExpoVideoModule | null => {
+  if (sharedExpoVideoModule) {
+    return sharedExpoVideoModule;
+  }
+
+  try {
+    // Avoid importing `expo-video` unless the native module is present, otherwise it throws:
+    // "Cannot find native module 'ExpoVideo'".
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const modulesCore = require('expo-modules-core') as {
+      requireOptionalNativeModule?: (name: string) => unknown;
+    };
+
+    const nativeModule = modulesCore.requireOptionalNativeModule?.('ExpoVideo');
+    if (!nativeModule) return null;
+
+    // `expo-video` requires a native module which may not exist until the dev client is rebuilt.
+    // Require it lazily to avoid crashing the route module on import.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    sharedExpoVideoModule = require('expo-video') as ExpoVideoModule;
+    return sharedExpoVideoModule;
+  } catch {
+    return null;
+  }
+};
+
+const getOrCreateSharedPlayer = (
+  expoVideo: ExpoVideoModule,
+  sourceModule: number
+): any => {
+  if (sharedPlayer && sharedPlayerSourceModule === sourceModule) {
+    return sharedPlayer;
+  }
+
+  if (sharedPlayer && sharedPlayerSourceModule !== sourceModule) {
+    try {
+      safePause(sharedPlayer);
+      sharedPlayer.release?.();
+    } catch {
+      // no-op
+    }
+    sharedPlayer = null;
+    sharedPlayerSourceModule = null;
+  }
+
+  const nextPlayer = expoVideo.createVideoPlayer(sourceModule);
+  nextPlayer.loop = true;
+  nextPlayer.muted = true;
+  safePlay(nextPlayer);
+  sharedPlayer = nextPlayer;
+  sharedPlayerSourceModule = sourceModule;
+  return nextPlayer;
+};
+
 export function OnboardingDemoVideo({
   sourceModule,
   height,
   scale = 1.18,
   offsetY = 0,
+  active = true,
+  deferMountUntilInteractions = false,
+  enablePlaybackWatchdog = true,
 }: OnboardingDemoVideoProps) {
   const [player, setPlayer] = useState<any>(null);
   const isFocused = useIsFocused();
   const [appState, setAppState] = useState<AppStateStatus>(AppState.currentState);
-
-  const expoVideo = useMemo(() => {
-    try {
-      // Avoid importing `expo-video` unless the native module is present, otherwise it throws:
-      // "Cannot find native module 'ExpoVideo'".
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const modulesCore = require('expo-modules-core') as {
-        requireOptionalNativeModule?: (name: string) => unknown;
-      };
-
-      const nativeModule = modulesCore.requireOptionalNativeModule?.('ExpoVideo');
-      if (!nativeModule) return null;
-
-      // `expo-video` requires a native module which may not exist until the dev client is rebuilt.
-      // Require it lazily to avoid crashing the route module on import.
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      return require('expo-video') as {
-        VideoView: ComponentType<any>;
-        createVideoPlayer: (source: number | { assetId: number }) => any;
-      };
-    } catch {
-      return null;
-    }
-  }, []);
+  const [isMountReady, setIsMountReady] = useState(!deferMountUntilInteractions);
 
   useEffect(() => {
-    if (!expoVideo) return;
+    if (!deferMountUntilInteractions) {
+      return;
+    }
     let isActive = true;
-    const nextPlayer = expoVideo.createVideoPlayer(sourceModule);
-    nextPlayer.loop = true;
-    nextPlayer.muted = true;
-    safePlay(nextPlayer);
-    if (isActive) setPlayer(nextPlayer);
-
+    const task = InteractionManager.runAfterInteractions(() => {
+      if (!isActive) return;
+      setIsMountReady(true);
+    });
     return () => {
       isActive = false;
-      try {
-        safePause(nextPlayer);
-        nextPlayer.release?.();
-      } catch {
-        // no-op
+      task.cancel();
+    };
+  }, [deferMountUntilInteractions]);
+
+  const expoVideo = useMemo(() => {
+    if (!isMountReady) {
+      return null;
+    }
+    return getExpoVideoModule();
+  }, [isMountReady]);
+
+  useEffect(() => {
+    if (!expoVideo || !isMountReady) return;
+    sharedPlayerConsumerCount += 1;
+
+    const nextPlayer = getOrCreateSharedPlayer(expoVideo, sourceModule);
+    setPlayer(nextPlayer);
+
+    return () => {
+      sharedPlayerConsumerCount = Math.max(0, sharedPlayerConsumerCount - 1);
+      if (sharedPlayerConsumerCount === 0 && sharedPlayer) {
+        safePause(sharedPlayer);
       }
     };
-  }, [expoVideo, sourceModule]);
+  }, [expoVideo, isMountReady, sourceModule]);
 
   useEffect(() => {
     if (isFocused) {
@@ -109,13 +173,16 @@ export function OnboardingDemoVideo({
       return;
     }
 
-    const shouldPlay = shouldKeepPlaying(isFocused, appState);
+    const shouldPlay = active && shouldKeepPlaying(isFocused, appState);
     if (!shouldPlay) {
       safePause(player);
       return;
     }
 
     safePlay(player);
+    if (!enablePlaybackWatchdog) {
+      return;
+    }
 
     let lastTime = -1;
     let stalledTicks = 0;
@@ -155,7 +222,7 @@ export function OnboardingDemoVideo({
     return () => {
       clearInterval(watchdog);
     };
-  }, [appState, isFocused, player]);
+  }, [active, appState, isFocused, player, enablePlaybackWatchdog]);
 
   if (!expoVideo || !player) {
     return <View style={[styles.container, { height }]} />;

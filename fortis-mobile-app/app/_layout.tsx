@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { InteractionManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -47,6 +48,11 @@ function ThemedAppContent({
   disableThemeSync?: boolean;
 }) {
   const { colors, isDark } = useTheme();
+  const segments = useSegments();
+  const isEarlyRoute =
+    typeof segments[0] === 'undefined' ||
+    segments[0] === 'onboarding' ||
+    segments[0] === 'auth';
 
   return (
     <AuthProvider>
@@ -320,7 +326,7 @@ function ThemedAppContent({
             }}
           />
           </Stack>
-          <WorkoutMiniBar />
+          {!isEarlyRoute ? <WorkoutMiniBar /> : null}
         </DragDropProvider>
       </InAppTourProvider>
     </AuthProvider>
@@ -346,12 +352,33 @@ export default function RootLayout() {
 
   // Load persisted preferences on app start
   useEffect(() => {
-    loadStickyNotes();
-    loadWeightUnits();
-    loadCompletedSessions();
-    loadBodyType();
-    loadActiveSession();
-    loadRestTimerSettings();
+    if (shouldForceTheme) {
+      return;
+    }
+
+    let isActive = true;
+    let deferredTimer: ReturnType<typeof setTimeout> | null = null;
+    const task = InteractionManager.runAfterInteractions(() => {
+      deferredTimer = setTimeout(() => {
+        if (!isActive) return;
+        void Promise.allSettled([
+          loadStickyNotes(),
+          loadWeightUnits(),
+          loadCompletedSessions(),
+          loadBodyType(),
+          loadActiveSession(),
+          loadRestTimerSettings(),
+        ]);
+      }, 250);
+    });
+
+    return () => {
+      isActive = false;
+      if (deferredTimer) {
+        clearTimeout(deferredTimer);
+      }
+      task.cancel();
+    };
   }, [
     loadStickyNotes,
     loadWeightUnits,
@@ -359,6 +386,7 @@ export default function RootLayout() {
     loadBodyType,
     loadActiveSession,
     loadRestTimerSettings,
+    shouldForceTheme,
   ]);
 
   if (!fontsLoaded) {

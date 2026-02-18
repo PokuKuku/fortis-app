@@ -102,6 +102,8 @@ export default function AuthWelcomeScreen() {
   const [error, setError] = useState<string | null>(null);
   const isFocused = useIsFocused();
   const isFocusedRef = useRef(isFocused);
+  const isMountedRef = useRef(true);
+  const onboardingFinalizeInFlightRef = useRef(false);
   const isAuthProcessing =
     isFocused && (isLoading || isFinalizing || (isAuthenticated && !profileResolved));
 
@@ -109,129 +111,152 @@ export default function AuthWelcomeScreen() {
     isFocusedRef.current = isFocused;
   }, [isFocused]);
 
-  // Navigate when auth state changes
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  // Finalize onboarding after sign-in from onboarding-complete auth entry.
+  useEffect(() => {
+    if (!isFocused) return;
+    if (onboardingValue !== 'complete') return;
+    if (!isAuthenticated || isLoading || !profileResolved) return;
+
+    if (profile?.onboarding_completed) {
+      router.replace('/paywall-gate');
+      return;
+    }
+
+    if (onboardingFinalizeInFlightRef.current) return;
+
+    onboardingFinalizeInFlightRef.current = true;
+    setIsFinalizing(true);
+
+    const profileSnapshot = profile;
+
+    void (async () => {
+      try {
+        const state = await withTimeout(
+          getOnboardingState(),
+          ONBOARDING_STATE_LOAD_TIMEOUT_MS,
+          'Loading onboarding state',
+        );
+        const shouldSetNumber = (value: number | null | undefined) =>
+          typeof value !== 'number' || Number.isNaN(value);
+
+        const updates: Parameters<typeof updateProfile>[0] = {
+          onboarding_completed: true,
+          avatar_url: null,
+          has_seen_in_app_tour: false,
+          in_app_tour_completed_at: null,
+          in_app_tour_version: 0,
+        };
+
+        if (typeof state?.full_name === 'string') {
+          updates.full_name = state.full_name.trim() || null;
+        }
+        if (state?.gender && !profileSnapshot?.gender) {
+          updates.gender = state.gender;
+        }
+        if (state?.birth_date && !profileSnapshot?.birth_date) {
+          updates.birth_date = state.birth_date;
+        }
+        if (typeof state?.height_cm === 'number' && shouldSetNumber(profileSnapshot?.height_cm)) {
+          updates.height_cm = state.height_cm;
+        }
+        if (typeof state?.weight_kg === 'number' && shouldSetNumber(profileSnapshot?.weight_kg)) {
+          updates.weight_kg = state.weight_kg;
+        }
+        if (state?.preferred_units && !profileSnapshot?.preferred_units) {
+          updates.preferred_units = state.preferred_units;
+        }
+        if (state?.lifting_experience && !profileSnapshot?.lifting_experience) {
+          updates.lifting_experience = state.lifting_experience;
+        }
+        if (typeof state?.workouts_per_week === 'number') {
+          if (shouldSetNumber(profileSnapshot?.workouts_per_week)) {
+            updates.workouts_per_week = state.workouts_per_week;
+          }
+        }
+        if (state?.tried_other_apps && !profileSnapshot?.tried_other_apps) {
+          updates.tried_other_apps = state.tried_other_apps;
+        }
+        const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[state.fitness_goals.length - 1];
+        if (resolvedGoal && !profileSnapshot?.fitness_goal) {
+          updates.fitness_goal = resolvedGoal;
+        }
+        const resolvedChallenge =
+          state?.biggest_challenge ??
+          state?.biggest_challenges?.[state.biggest_challenges.length - 1];
+        if (resolvedChallenge && !profileSnapshot?.biggest_challenge) {
+          updates.biggest_challenge = resolvedChallenge;
+        }
+        if (state?.workout_consistency && !profileSnapshot?.workout_consistency) {
+          updates.workout_consistency = state.workout_consistency;
+        }
+
+        const { error } = await withTimeout(
+          updateProfile(updates),
+          PROFILE_FINALIZATION_TIMEOUT_MS,
+          'Finalizing profile',
+        );
+        if (error) {
+          if (isMountedRef.current && isFocusedRef.current) {
+            router.replace('/onboarding/welcome');
+          }
+          return;
+        }
+
+        await withTimeout(
+          clearOnboardingState(),
+          ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
+          'Clearing onboarding state',
+        );
+
+        if (isMountedRef.current && isFocusedRef.current) {
+          router.replace('/paywall-gate');
+        }
+      } catch (finalizeError) {
+        console.warn('[Auth] Failed to finalize onboarding after sign-in:', finalizeError);
+        if (isMountedRef.current && isFocusedRef.current) {
+          router.replace('/onboarding/welcome');
+        }
+      } finally {
+        onboardingFinalizeInFlightRef.current = false;
+        if (isMountedRef.current) {
+          setIsFinalizing(false);
+        }
+      }
+    })();
+  }, [
+    isAuthenticated,
+    isFocused,
+    isLoading,
+    onboardingValue,
+    profile,
+    profileResolved,
+    router,
+    updateProfile,
+  ]);
+
+  // Navigate when auth state changes in non-onboarding-complete auth entry paths.
   useEffect(() => {
     if (!isFocused) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
-    let isCancelled = false;
-
     if (onboardingValue === 'complete') {
-      if (isFinalizing) return;
-      setIsFinalizing(true);
-      void (async () => {
-        try {
-          const state = await withTimeout(
-            getOnboardingState(),
-            ONBOARDING_STATE_LOAD_TIMEOUT_MS,
-            'Loading onboarding state',
-          );
-          const shouldSetNumber = (value: number | null | undefined) =>
-            typeof value !== 'number' || Number.isNaN(value);
-
-          const updates: Parameters<typeof updateProfile>[0] = {
-            onboarding_completed: true,
-            avatar_url: null,
-            has_seen_in_app_tour: false,
-            in_app_tour_completed_at: null,
-            in_app_tour_version: 0,
-          };
-
-          if (typeof state?.full_name === 'string') {
-            updates.full_name = state.full_name.trim() || null;
-          }
-          if (state?.gender && !profile?.gender) {
-            updates.gender = state.gender;
-          }
-          if (state?.birth_date && !profile?.birth_date) {
-            updates.birth_date = state.birth_date;
-          }
-          if (typeof state?.height_cm === 'number' && shouldSetNumber(profile?.height_cm)) {
-            updates.height_cm = state.height_cm;
-          }
-          if (typeof state?.weight_kg === 'number' && shouldSetNumber(profile?.weight_kg)) {
-            updates.weight_kg = state.weight_kg;
-          }
-          if (state?.preferred_units && !profile?.preferred_units) {
-            updates.preferred_units = state.preferred_units;
-          }
-          if (state?.lifting_experience && !profile?.lifting_experience) {
-            updates.lifting_experience = state.lifting_experience;
-          }
-          if (typeof state?.workouts_per_week === 'number') {
-            if (shouldSetNumber(profile?.workouts_per_week)) {
-              updates.workouts_per_week = state.workouts_per_week;
-            }
-          }
-          if (state?.tried_other_apps && !profile?.tried_other_apps) {
-            updates.tried_other_apps = state.tried_other_apps;
-          }
-          const resolvedGoal = state?.fitness_goal ?? state?.fitness_goals?.[state.fitness_goals.length - 1];
-          if (resolvedGoal && !profile?.fitness_goal) {
-            updates.fitness_goal = resolvedGoal;
-          }
-          const resolvedChallenge =
-            state?.biggest_challenge ??
-            state?.biggest_challenges?.[state.biggest_challenges.length - 1];
-          if (resolvedChallenge && !profile?.biggest_challenge) {
-            updates.biggest_challenge = resolvedChallenge;
-          }
-          if (state?.workout_consistency && !profile?.workout_consistency) {
-            updates.workout_consistency = state.workout_consistency;
-          }
-
-          const { error } = await withTimeout(
-            updateProfile(updates),
-            PROFILE_FINALIZATION_TIMEOUT_MS,
-            'Finalizing profile',
-          );
-          if (isCancelled || !isFocusedRef.current) {
-            return;
-          }
-          if (error) {
-            router.replace('/onboarding/welcome');
-            return;
-          }
-
-          await withTimeout(
-            clearOnboardingState(),
-            ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
-            'Clearing onboarding state',
-          );
-          if (isCancelled || !isFocusedRef.current) {
-            return;
-          }
-          router.replace('/paywall-gate');
-        } catch (finalizeError) {
-          console.warn('[Auth] Failed to finalize onboarding after sign-in:', finalizeError);
-          if (!isCancelled && isFocusedRef.current) {
-            router.replace('/onboarding/welcome');
-          }
-        } finally {
-          if (!isCancelled) {
-            setIsFinalizing(false);
-          }
-        }
-      })();
-      return () => {
-        isCancelled = true;
-      };
+      return;
     }
 
     if (!profile || needsOnboarding) {
       router.replace('/onboarding');
-      return () => {
-        isCancelled = true;
-      };
+      return;
     }
 
     console.log('[Routing] auth/index -> /onboarding/welcome (authenticated)');
     router.replace('/onboarding/welcome');
-    return () => {
-      isCancelled = true;
-    };
   }, [
     isAuthenticated,
-    isFinalizing,
     isFocused,
     isLoading,
     needsOnboarding,
@@ -239,7 +264,6 @@ export default function AuthWelcomeScreen() {
     profile,
     profileResolved,
     router,
-    updateProfile,
   ]);
 
   useEffect(() => {

@@ -1,4 +1,3 @@
-import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { ONBOARDING_STATE_KEY } from '@/src/constants/storageKeys';
 import { getScopedItem, removeScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 
@@ -35,23 +34,10 @@ export type OnboardingState = {
 
 let inMemoryState: OnboardingState | null = null;
 
-const getAuthorizedUserId = async (): Promise<string | null> => {
-  if (!isSupabaseConfigured()) return null;
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    return session?.user?.id ?? null;
-  } catch {
-    return null;
-  }
-};
-
 export async function getOnboardingState(): Promise<OnboardingState | null> {
   if (inMemoryState) {
     return inMemoryState;
   }
-
-  const userId = await getAuthorizedUserId();
-  if (!userId) return null;
 
   const stored = await getScopedItem(ONBOARDING_STATE_KEY);
   if (!stored) return null;
@@ -67,20 +53,14 @@ export async function getOnboardingState(): Promise<OnboardingState | null> {
 }
 
 export async function updateOnboardingState(updates: Partial<OnboardingState>): Promise<OnboardingState> {
-  const userId = await getAuthorizedUserId();
   const current = (await getOnboardingState()) ?? {};
   const next = { ...current, ...updates };
   inMemoryState = next;
-  if (userId) {
-    await setScopedItem(ONBOARDING_STATE_KEY, JSON.stringify(next));
-  }
+  await setScopedItem(ONBOARDING_STATE_KEY, JSON.stringify(next));
   return next;
 }
 
 export async function clearOnboardingState(): Promise<void> {
   inMemoryState = null;
-  const userId = await getAuthorizedUserId();
-  if (userId) {
-    await removeScopedItem(ONBOARDING_STATE_KEY);
-  }
+  await removeScopedItem(ONBOARDING_STATE_KEY);
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, TextInput, StyleSheet } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, InteractionManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -13,20 +13,53 @@ export default function OnboardingNameScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [name, setName] = useState('');
+  const inputRef = useRef<TextInput | null>(null);
+  const hasTypedRef = useRef(false);
+  const isInputFocusedRef = useRef(false);
+  const pendingHydrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingFocusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let isActive = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      pendingHydrationTimeoutRef.current = setTimeout(() => {
+        const loadState = async () => {
+          if (!isActive || hasTypedRef.current || isInputFocusedRef.current) return;
+          const state = await getOnboardingState();
+          if (!isActive || !state?.full_name || hasTypedRef.current || isInputFocusedRef.current) return;
+          setName((current) => (current.trim().length > 0 ? current : state.full_name ?? ''));
+        };
 
-    const loadState = async () => {
-      const state = await getOnboardingState();
-      if (!isActive || !state?.full_name) return;
-      setName(state.full_name);
-    };
-
-    loadState();
+        void loadState();
+      }, 900);
+    });
 
     return () => {
       isActive = false;
+      if (pendingHydrationTimeoutRef.current) {
+        clearTimeout(pendingHydrationTimeoutRef.current);
+        pendingHydrationTimeoutRef.current = null;
+      }
+      task.cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      pendingFocusTimeoutRef.current = setTimeout(() => {
+        if (!isActive || hasTypedRef.current || isInputFocusedRef.current) return;
+        inputRef.current?.focus();
+      }, 180);
+    });
+
+    return () => {
+      isActive = false;
+      if (pendingFocusTimeoutRef.current) {
+        clearTimeout(pendingFocusTimeoutRef.current);
+        pendingFocusTimeoutRef.current = null;
+      }
+      task.cancel();
     };
   }, []);
 
@@ -47,6 +80,7 @@ export default function OnboardingNameScreen() {
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What should we call you?"
       subtitle={undefined}
+      useScrollView={false}
       onBack={() => {
         router.replace({ pathname: '/onboarding/welcome', params: { returning: '1' } });
       }}
@@ -64,15 +98,26 @@ export default function OnboardingNameScreen() {
       <View style={[styles.inputWrapper, { borderColor: colors.glassBorder, backgroundColor: colors.surfaceElevated }]}
       >
         <TextInput
+          ref={inputRef}
           value={name}
-          onChangeText={setName}
+          onChangeText={(value) => {
+            hasTypedRef.current = true;
+            setName(value);
+          }}
           placeholder="Enter your name"
           placeholderTextColor={colors.textTertiary}
           style={[styles.input, { color: colors.textPrimary }]}
           autoCapitalize="words"
+          autoCorrect={false}
           textContentType="name"
           returnKeyType="next"
           onSubmitEditing={handleContinue}
+          onFocus={() => {
+            isInputFocusedRef.current = true;
+          }}
+          onBlur={() => {
+            isInputFocusedRef.current = false;
+          }}
         />
       </View>
     </OnboardingScreen>
