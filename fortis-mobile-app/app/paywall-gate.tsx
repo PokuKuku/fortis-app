@@ -277,7 +277,7 @@ export default function PaywallGateScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
       <View style={styles.logoContainer}>
-        <AnimatedLogo size="large" centered animate={false} />
+        <AnimatedLogo size="large" centered animate />
       </View>
     </View>
   );

@@ -58,7 +58,6 @@ export default function OnboardingWelcomeScreen() {
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const [signInError, setSignInError] = useState<string | null>(null);
   const [authInProgress, setAuthInProgress] = useState(false);
-  const [isStartingOnboarding, setIsStartingOnboarding] = useState(false);
   const { width: windowWidth } = useWindowDimensions();
   const isFocused = useIsFocused();
   const isAuthProcessing =
@@ -140,9 +139,7 @@ export default function OnboardingWelcomeScreen() {
   ]);
 
   const handleStart = () => {
-    if (isStartingOnboarding) return;
-    setIsStartingOnboarding(true);
-    router.replace('/onboarding');
+    router.push('/onboarding');
   };
 
   const handleSignIn = () => {
@@ -214,7 +211,6 @@ export default function OnboardingWelcomeScreen() {
           <GlassButton
             style={styles.button}
             onPress={handleStart}
-            disabled={isStartingOnboarding}
             hapticFeedback="impactMedium"
           >
             <Text style={[styles.buttonText, { color: colors.white }]}>Get started</Text>
@@ -270,7 +266,7 @@ export default function OnboardingWelcomeScreen() {
           height="100%"
           scale={1.4}
           offsetY={0}
-          active={!isStartingOnboarding}
+          active
           deferMountUntilInteractions
           enablePlaybackWatchdog={false}
         />
