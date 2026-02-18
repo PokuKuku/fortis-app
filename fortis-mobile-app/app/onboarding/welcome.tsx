@@ -1,7 +1,7 @@
 import { View, Text, StyleSheet, Pressable, Modal, Platform, useWindowDimensions } from 'react-native';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { XMarkIcon } from 'react-native-heroicons/outline';
@@ -19,6 +19,10 @@ import { Typography } from '@/constants/Typography';
 const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal33.mov');
 const WELCOME_TITLE_LINE_ONE = 'Workout Insights';
 const WELCOME_TITLE_LINE_TWO = 'made Simple';
+const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;
+const TITLE_TYPEWRITER_START_DELAY_MS = 140;
+const TITLE_TYPEWRITER_INTERVAL_MS = 60;
+const TITLE_HAPTIC_EVERY_N_CHARS = 1;
 
 const getSharedWelcomeTitleMetrics = (screenWidth: number) => {
   if (screenWidth <= 350) {
@@ -58,11 +62,20 @@ export default function OnboardingWelcomeScreen() {
   const [isAppleAvailable, setIsAppleAvailable] = useState(Platform.OS === 'ios');
   const [signInError, setSignInError] = useState<string | null>(null);
   const [authInProgress, setAuthInProgress] = useState(false);
+  const [typedTitle, setTypedTitle] = useState('');
   const { width: windowWidth } = useWindowDimensions();
+  const titleTypeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFocused = useIsFocused();
   const isAuthProcessing =
     isFocused &&
     (authInProgress || (showSignInSheet && isAuthenticated && !profileResolved));
+  const typedTitleBreakIndex = typedTitle.indexOf('\n');
+  const typedTitleLineOne = typedTitleBreakIndex >= 0
+    ? typedTitle.slice(0, typedTitleBreakIndex)
+    : typedTitle;
+  const typedTitleLineTwo = typedTitleBreakIndex >= 0
+    ? typedTitle.slice(typedTitleBreakIndex + 1)
+    : '';
 
   const sharedTitleTextStyle = useMemo(() => {
     return getSharedWelcomeTitleMetrics(windowWidth);
@@ -87,6 +100,38 @@ export default function OnboardingWelcomeScreen() {
       });
     };
   }, [isReturning, navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      let titleIndex = 0;
+      setTypedTitle('');
+
+      const typeNextCharacter = () => {
+        titleIndex += 1;
+        setTypedTitle(WELCOME_TITLE.slice(0, titleIndex));
+        const currentChar = WELCOME_TITLE.charAt(titleIndex - 1);
+        if (currentChar.trim().length > 0) {
+          if (titleIndex === WELCOME_TITLE.length) {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+          } else if (titleIndex % TITLE_HAPTIC_EVERY_N_CHARS === 0) {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          }
+        }
+        if (titleIndex < WELCOME_TITLE.length) {
+          titleTypeTimeoutRef.current = setTimeout(typeNextCharacter, TITLE_TYPEWRITER_INTERVAL_MS);
+        }
+      };
+
+      titleTypeTimeoutRef.current = setTimeout(typeNextCharacter, TITLE_TYPEWRITER_START_DELAY_MS);
+
+      return () => {
+        if (titleTypeTimeoutRef.current) {
+          clearTimeout(titleTypeTimeoutRef.current);
+          titleTypeTimeoutRef.current = null;
+        }
+      };
+    }, [])
+  );
 
   useEffect(() => {
     if (Platform.OS !== 'ios') {
@@ -235,13 +280,22 @@ export default function OnboardingWelcomeScreen() {
                 allowFontScaling={false}
                 maxFontSizeMultiplier={1}
                 numberOfLines={1}
+                style={[styles.typewriterTitleText, sharedTitleTextStyle, styles.typewriterTitleReserve]}
+              >
+                {WELCOME_TITLE_LINE_ONE}
+              </Text>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                numberOfLines={1}
                 style={[
                   styles.typewriterTitleText,
                   sharedTitleTextStyle,
+                  styles.typewriterTitleOverlay,
                   { color: colors.textPrimary },
                 ]}
               >
-                {WELCOME_TITLE_LINE_ONE}
+                {typedTitleLineOne}
               </Text>
             </View>
 
@@ -250,13 +304,22 @@ export default function OnboardingWelcomeScreen() {
                 allowFontScaling={false}
                 maxFontSizeMultiplier={1}
                 numberOfLines={1}
+                style={[styles.typewriterTitleText, sharedTitleTextStyle, styles.typewriterTitleReserve]}
+              >
+                {WELCOME_TITLE_LINE_TWO}
+              </Text>
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                numberOfLines={1}
                 style={[
                   styles.typewriterTitleText,
                   sharedTitleTextStyle,
+                  styles.typewriterTitleOverlay,
                   { color: colors.textPrimary },
                 ]}
               >
-                {WELCOME_TITLE_LINE_TWO}
+                {typedTitleLineTwo}
               </Text>
             </View>
           </View>
