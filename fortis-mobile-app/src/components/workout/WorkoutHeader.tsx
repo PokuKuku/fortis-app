@@ -330,11 +330,12 @@ const styles = StyleSheet.create({
   leftColumn: {
     gap: LEFT_COLUMN_GAP,
     marginTop: LEFT_COLUMN_MARGIN_TOP,
+    flex: 1,
   },
   timersRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     width: '100%',
     maxWidth: '100%',
   },
