@@ -103,7 +103,7 @@ export function WorkoutHeaderTopBar({
     enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
 
   const renderTimers = (compact: boolean) => (
-    <View style={[styles.timersRow, compact && styles.timersRowCompact]}>
+    <View style={[styles.timersRowBase, compact ? styles.timersRowCompact : styles.timersRow]}>
       <Text
         style={[
           styles.elapsedTime,
@@ -238,7 +238,7 @@ export function WorkoutHeaderDetails({
             </Text>
           )}
 
-          <View style={styles.timersRow}>
+          <View style={[styles.timersRowBase, styles.timersRow]}>
           <Text
             style={[
               styles.elapsedTime,
@@ -297,11 +297,18 @@ const styles = StyleSheet.create({
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    position: 'relative',
   },
   topCenter: {
-    flex: 1,
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    pointerEvents: 'box-none',
     paddingHorizontal: scale(Spacing.sm),
     minWidth: 0,
   },
@@ -332,15 +339,19 @@ const styles = StyleSheet.create({
     marginTop: LEFT_COLUMN_MARGIN_TOP,
     flex: 1,
   },
-  timersRow: {
+  timersRowBase: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  timersRow: {
     justifyContent: 'flex-start',
     width: '100%',
     maxWidth: '100%',
   },
   timersRowCompact: {
     gap: scale(Spacing.xs),
+    justifyContent: 'center',
+    alignSelf: 'center',
   },
   elapsedTime: {
     fontSize: ELAPSED_FONT_SIZE,
