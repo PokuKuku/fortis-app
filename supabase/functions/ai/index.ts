@@ -1616,18 +1616,46 @@ function normalizeInsightSections(content: string): string {
     .trim();
 }
 
+const INSIGHT_SECTION_LINE_REGEX =
+  /^\s*(?:\*\*)?(Diagnosis|Evidence|Recommendations)(?:\*\*)?\s*(?:\:\*\*|\*\*:|:)\s*(.*)$/i;
+
+function canonicalizeInsightHeader(header: string): string {
+  const normalized = header.trim().toLowerCase();
+  if (normalized === 'diagnosis') return 'Diagnosis';
+  if (normalized === 'evidence') return 'Evidence';
+  return 'Recommendations';
+}
+
 function formatInsightLayout(content: string): string {
   if (!content) return '';
-  let formatted = content.replace(/\r\n/g, '\n');
+  const lines = content.replace(/\r\n/g, '\n').split('\n');
+  const rebuilt: string[] = [];
 
-  formatted = formatted.replace(
-    /\s*(Diagnosis|Evidence|Recommendations)\s*:/gi,
-    (match, header, offset, full) => {
-      const before = full.slice(0, offset);
-      const needsBreak = offset > 0 && !before.endsWith('\n\n');
-      return `${needsBreak ? '\n\n' : ''}${header}:`;
+  for (const rawLine of lines) {
+    const sectionMatch = rawLine.match(INSIGHT_SECTION_LINE_REGEX);
+    if (!sectionMatch) {
+      rebuilt.push(rawLine);
+      continue;
     }
-  );
+
+    const header = canonicalizeInsightHeader(sectionMatch[1] ?? '');
+    const remainder = (sectionMatch[2] ?? '')
+      .replace(/^\*\*\s*/, '')
+      .replace(/\s*\*\*$/, '')
+      .trim();
+
+    if (rebuilt.length > 0 && rebuilt[rebuilt.length - 1].trim() !== '') {
+      rebuilt.push('');
+    }
+
+    rebuilt.push(`${header}:`);
+
+    if (remainder) {
+      rebuilt.push(remainder);
+    }
+  }
+
+  let formatted = rebuilt.join('\n');
 
   formatted = formatted
     .replace(/:\s*-\s+/g, ':\n- ')
