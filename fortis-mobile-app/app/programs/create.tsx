@@ -529,6 +529,59 @@ export default function CreateProgramScreen() {
   const titleRowWidth = headerLeftWidth && titleTextWidth
     ? Math.min(titleTextWidth + Spacing.xs + 14, headerLeftWidth)
     : undefined;
+  const headerDetailsContent = (
+    <View style={[styles.headerContentRow, styles.listHeaderContentRow]}>
+      <View
+        style={styles.headerLeftColumn}
+        onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
+      >
+        <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
+          <TextInput
+            style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
+            placeholder="Program Name"
+            placeholderTextColor={colors.textSecondary}
+            value={programName}
+            onChangeText={setProgramName}
+            autoCorrect={false}
+            autoCapitalize="words"
+            autoComplete="off"
+            editable={true}
+            maxLength={50}
+            returnKeyType="done"
+            onFocus={() => setIsNameFocused(true)}
+            onBlur={() => setIsNameFocused(false)}
+          />
+          <View style={styles.editIconSlot}>
+            {!isNameFocused && (
+              <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
+            )}
+          </View>
+        </View>
+        <View style={styles.titleMeasureContainer} pointerEvents="none">
+          <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
+            {titleMeasureText}
+          </Text>
+        </View>
+        {workoutCount > 0 && (
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
+              <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
+              <Text style={[styles.statValue, themedStyles.statValue]}>{totalExercises}</Text>
+            </View>
+          </View>
+        )}
+      </View>
+      {hasMuscles && workoutCount > 0 && (
+        <View style={styles.headerHeatmap}>
+          <MuscleHeatmap exercises={exercisesWithMuscles} scale={HEATMAP_SCALE} compact />
+        </View>
+      )}
+    </View>
+  );
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -571,63 +624,8 @@ export default function CreateProgramScreen() {
                   <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
                 </Pressable>
               </View>
-              {showHeaderDetails && (
-                <>
-                  <View style={[styles.headerDivider, themedStyles.headerDivider]} />
-                  <View style={styles.headerContentRow}>
-                  <View
-                    style={styles.headerLeftColumn}
-                    onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
-                  >
-                    <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
-                      <TextInput
-                        style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
-                        placeholder="Program Name"
-                        placeholderTextColor={colors.textSecondary}
-                        value={programName}
-                        onChangeText={setProgramName}
-                        autoCorrect={false}
-                        autoCapitalize="words"
-                        autoComplete="off"
-                        editable={true}
-                        maxLength={50}
-                        returnKeyType="done"
-                        onFocus={() => setIsNameFocused(true)}
-                        onBlur={() => setIsNameFocused(false)}
-                      />
-                      <View style={styles.editIconSlot}>
-                        {!isNameFocused && (
-                          <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
-                        )}
-                      </View>
-                    </View>
-                    <View style={styles.titleMeasureContainer} pointerEvents="none">
-                      <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
-                        {titleMeasureText}
-                      </Text>
-                    </View>
-                    {workoutCount > 0 && (
-                      <View style={styles.statsRow}>
-                        <View style={styles.statItem}>
-                          <Text style={[styles.statLabel, themedStyles.statLabel]}>Workouts</Text>
-                          <Text style={[styles.statValue, themedStyles.statValue]}>{workoutCount}</Text>
-                        </View>
-                        <View style={styles.statItem}>
-                          <Text style={[styles.statLabel, themedStyles.statLabel]}>Exercises</Text>
-                          <Text style={[styles.statValue, themedStyles.statValue]}>{totalExercises}</Text>
-                        </View>
-                      </View>
-                    )}
-                  </View>
-                  {hasMuscles && workoutCount > 0 && (
-                    <View style={styles.headerHeatmap}>
-                      <MuscleHeatmap exercises={exercisesWithMuscles} scale={HEATMAP_SCALE} compact />
-                    </View>
-                  )}
-                  </View>
-                </>
-              )}
             </View>
+            <View style={[styles.headerDivider, themedStyles.headerDivider]} />
           </View>
         </GestureDetector>
 
@@ -641,17 +639,20 @@ export default function CreateProgramScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
           ListHeaderComponent={(
-            <View style={styles.descriptionWrapper}>
-              <TextInput
-                style={[styles.descriptionInput, themedStyles.descriptionInput]}
-                placeholder="Program Description (optional)"
-                placeholderTextColor={colors.textSecondary}
-                value={programDescription}
-                onChangeText={setProgramDescription}
-                multiline
-                maxLength={180}
-                textAlignVertical="top"
-              />
+            <View style={styles.listHeaderDetails}>
+              {headerDetailsContent}
+              <View style={styles.descriptionWrapper}>
+                <TextInput
+                  style={[styles.descriptionInput, themedStyles.descriptionInput]}
+                  placeholder="Program Description (optional)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={programDescription}
+                  onChangeText={setProgramDescription}
+                  multiline
+                  maxLength={180}
+                  textAlignVertical="top"
+                />
+              </View>
             </View>
           )}
           ListFooterComponent={(
@@ -936,6 +937,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: -10,
   },
+  listHeaderContentRow: {
+    marginTop: 0,
+  },
+  listHeaderDetails: {
+    paddingTop: Spacing.lg,
+  },
   headerDivider: {
     height: StyleSheet.hairlineWidth,
   },
@@ -990,6 +997,7 @@ const styles = StyleSheet.create({
     marginTop: -Spacing.md,
   },
   descriptionWrapper: {
+    paddingTop: Spacing.md,
     paddingBottom: Spacing.md,
   },
   descriptionInput: {
