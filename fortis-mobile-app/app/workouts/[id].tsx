@@ -19,12 +19,13 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 
 export default function WorkoutDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const modalStyles = useModalStyles();
   const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
+  const isReadOnlyFromProgramEdit = source === 'program-edit';
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -39,7 +40,7 @@ export default function WorkoutDetailScreen() {
   };
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const template = useProgramsStore(s => s.programs.find(p => p.id === id && p.isTemplate));
-  const canEditTemplate = !!template;
+  const canEditTemplate = !!template && !isReadOnlyFromProgramEdit;
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
 
   // Delete confirmation modal state
@@ -216,10 +217,12 @@ export default function WorkoutDetailScreen() {
                 images={exercise.images}
                 onPress={() => handleExercisePress(exercise.exerciseId)}
                 rightAction={
-                  <DeleteKebabMenu
-                    deleteLabel="Delete Exercise"
-                    onDelete={() => handleDeleteExercise(exercise.id, exercise.exerciseName)}
-                  />
+                  canEditTemplate ? (
+                    <DeleteKebabMenu
+                      deleteLabel="Delete Exercise"
+                      onDelete={() => handleDeleteExercise(exercise.id, exercise.exerciseName)}
+                    />
+                  ) : undefined
                 }
               />
             ))}

@@ -360,7 +360,7 @@ export default function CreateProgramScreen() {
     if (!templateId || isNavigating.current) return;
     isNavigating.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/workouts/${templateId}`);
+    router.push(`/workouts/${templateId}?source=program-edit`);
     setTimeout(() => { isNavigating.current = false; }, 500);
   }, [router]);
 

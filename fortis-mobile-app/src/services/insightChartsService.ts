@@ -3,11 +3,20 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { parseSubjectKey } from '@/src/types/insights';
 import type { TrainingInsight } from '@/src/types/insights';
 import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
-import { getMuscleCategory, normalizeMuscle, resolveMuscleTargetKeys, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import {
+  getMuscleDisplayName,
+  getMuscleCategory,
+  normalizeMuscle,
+  normalizeMuscleArray,
+  resolveMuscleTargetKeys,
+  type MuscleKey,
+} from '@/src/utils/muscleTaxonomy';
 import { getBodyweightMovementFactor, isBodyweightExercise } from '@/src/utils/workoutVolume';
 
 const WEEKLY_SERIES_WEEKS = 12;
 const EXPOSURE_LOOKBACK_DAYS = 42;
+const KG_TO_LBS = 2.20462;
+const LBS_TO_KG = 1 / KG_TO_LBS;
 
 type WeeklyVolumeRow = {
   week_start: string;
@@ -38,6 +47,30 @@ type MuscleGroupSetRow = {
   working_sets: number | null;
 };
 
+type WorkoutSessionLookupRow = {
+  id: string;
+};
+
+type WorkoutSetRecapRow = {
+  session_id: string;
+  exercise_id: string;
+  reps: number | null;
+  weight: number | null;
+  weight_unit: string | null;
+  is_warmup: boolean | null;
+  exercise_name_snapshot?: string | null;
+  primary_muscles_snapshot?: string[] | null;
+  secondary_muscles_snapshot?: string[] | null;
+};
+
+type ExerciseMetaRow = {
+  id: string;
+  name: string | null;
+  equipment: string | null;
+  primary_muscles: string[] | null;
+  secondary_muscles: string[] | null;
+};
+
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
 
 const toIsoDateTime = (date: Date): string => date.toISOString();
@@ -49,6 +82,8 @@ const parseNumber = (value: number | null | undefined): number => {
   return Number(value);
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const isWorkoutRecapType = (type: TrainingInsight['type']): boolean =>
   type === 'WORKOUT_RECAP_V1';
 
@@ -58,9 +93,9 @@ const normalizeWeight = (
   preferredUnits: 'imperial' | 'metric'
 ): number => {
   if (preferredUnits === 'metric') {
-    return weightUnit === 'lbs' ? weight / 2.20462 : weight;
+    return weightUnit === 'lbs' ? weight * LBS_TO_KG : weight;
   }
-  return weightUnit === 'kg' ? weight * 2.20462 : weight;
+  return weightUnit === 'kg' ? weight * KG_TO_LBS : weight;
 };
 
 const normalizeBodyweight = (
@@ -71,10 +106,10 @@ const normalizeBodyweight = (
   if (!weight || weight <= 0) return null;
   const normalizedUnit = (unit ?? '').toLowerCase();
   if (normalizedUnit === 'kg') {
-    return preferredUnits === 'metric' ? weight : weight * 2.20462;
+    return preferredUnits === 'metric' ? weight : weight * KG_TO_LBS;
   }
   if (normalizedUnit === 'lb' || normalizedUnit === 'lbs') {
-    return preferredUnits === 'imperial' ? weight : weight / 2.20462;
+    return preferredUnits === 'imperial' ? weight : weight * LBS_TO_KG;
   }
   return null;
 };
@@ -110,10 +145,6 @@ const getVolumeUnit = (insight: TrainingInsight): string | undefined => {
 
 const getProgressUnit = (insight: TrainingInsight): string | undefined => {
   return insight.evidence.find((item) => item.key === 'best_e1rm')?.unit;
-};
-
-const getVolumeUnitFallback = (insight: TrainingInsight): string => {
-  return getVolumeUnit(insight) ?? 'lbs';
 };
 
 const upsertWeekPoint = (
@@ -317,10 +348,20 @@ export async function fetchInsightChartSeries(
 
   if (isWorkoutRecapType(insight.type)) {
     const subject = parseSubjectKey(insight.subjectKey);
-    if (subject.type !== 'session') {
+    const sessionRef =
+      subject.type === 'session'
+        ? subject.sessionId
+        : insight.subjectKey && insight.subjectKey !== 'global'
+        ? insight.subjectKey
+        : null;
+    if (!sessionRef) {
       return series;
     }
-    const volumeUnit = getVolumeUnitFallback(insight);
+
+    const volumeUnit =
+      insight.evidence.find((item) => item.key === 'total_volume')?.unit ??
+      getVolumeUnit(insight) ??
+      'lbs';
     const preferredUnits = resolvePreferredUnits(volumeUnit);
     const { data: bodyweightRows } = await supabase
       .from('user_body_metrics')
@@ -341,74 +382,139 @@ export async function fetchInsightChartSeries(
       profileRow?.weight_kg && profileRow.weight_kg > 0
         ? preferredUnits === 'metric'
           ? profileRow.weight_kg
-          : profileRow.weight_kg * 2.20462
+          : profileRow.weight_kg * KG_TO_LBS
         : null;
     const resolvedBodyweightPreferred = bodyweightPreferred ?? profileWeightPreferred ?? null;
+
+    const resolvedSessionIds = new Set<string>();
+    if (UUID_REGEX.test(sessionRef)) {
+      resolvedSessionIds.add(sessionRef);
+    }
+
+    const { data: byIdRows } = UUID_REGEX.test(sessionRef)
+      ? await supabase
+          .from('workout_sessions')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('id', sessionRef)
+          .limit(1)
+      : { data: [] as WorkoutSessionLookupRow[] };
+    (byIdRows ?? []).forEach((row) => {
+      if (row?.id) {
+        resolvedSessionIds.add(row.id);
+      }
+    });
+
+    const hasDirectSessionMatch = (byIdRows?.length ?? 0) > 0;
+    if (!hasDirectSessionMatch) {
+      const { data: byLocalIdRows } = await supabase
+        .from('workout_sessions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('local_id', sessionRef)
+        .limit(1);
+      (byLocalIdRows ?? []).forEach((row) => {
+        if (row?.id) {
+          resolvedSessionIds.add(row.id);
+        }
+      });
+    }
+
+    const sessionIds = Array.from(resolvedSessionIds);
+    if (sessionIds.length === 0) {
+      return series;
+    }
+
     const { data, error } = await supabase
       .from('workout_sets')
       .select(
-        'exercise_id, reps, weight, weight_unit, is_warmup, exercise_name_snapshot, primary_muscles_snapshot, exercises(name, equipment, primary_muscles)'
+        'session_id, exercise_id, reps, weight, weight_unit, is_warmup, exercise_name_snapshot, primary_muscles_snapshot, secondary_muscles_snapshot'
       )
-      .eq('session_id', subject.sessionId);
+      .in('session_id', sessionIds);
 
     if (error || !data) {
       return series;
     }
 
-    const byExercise = new Map<string, { name: string; volume: number }>();
-    (data as Array<{
-      exercise_id: string;
-      reps: number | null;
-      weight: number | null;
-      weight_unit: string | null;
-      is_warmup: boolean | null;
-      exercise_name_snapshot?: string | null;
-      primary_muscles_snapshot?: string[] | null;
-      exercises?: { name?: string; equipment?: string | null; primary_muscles?: string[] | null } | null;
-    }>)
-      .forEach((row) => {
-        if (!row?.exercise_id) return;
-        if (!row.reps || row.reps <= 0) return;
-        let addedWeightNorm: number | null = null;
-        if (row.weight && row.weight > 0) {
-          addedWeightNorm = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
-        }
-
-        let bodyweightNorm: number | null = null;
-        const equipment = row.exercises?.equipment ?? null;
-        const fallbackName = row.exercises?.name ?? row.exercise_name_snapshot ?? '';
-        if (isBodyweightExercise(equipment, fallbackName)) {
-          const primaryMuscles =
-            row.primary_muscles_snapshot ?? row.exercises?.primary_muscles ?? null;
-          const movementFactor = getBodyweightMovementFactor(primaryMuscles ?? null);
-          if (resolvedBodyweightPreferred && movementFactor > 0) {
-            bodyweightNorm = resolvedBodyweightPreferred * movementFactor;
-          }
-        }
-
-        if (addedWeightNorm === null && bodyweightNorm === null) return;
-        const weightNorm = (addedWeightNorm ?? 0) + (bodyweightNorm ?? 0);
-        const volume = weightNorm * row.reps;
-        const name = row.exercises?.name ?? row.exercise_name_snapshot ?? 'Exercise';
-        const existing = byExercise.get(row.exercise_id) ?? { name, volume: 0 };
-        existing.volume += volume;
-        byExercise.set(row.exercise_id, existing);
-      });
-
-    const breakdown: InsightBarPoint[] = Array.from(byExercise.values())
-      .map((entry) => ({
-        label: entry.name,
-        value: entry.volume,
-      }))
-      .sort((a, b) => b.value - a.value);
-
-    const top = breakdown.slice(0, 5);
-    if (breakdown.length > 5) {
-      const otherTotal = breakdown.slice(5).reduce((sum, item) => sum + item.value, 0);
-      top.push({ label: 'Other', value: otherTotal });
+    const setRows = data as WorkoutSetRecapRow[];
+    if (setRows.length === 0) {
+      return series;
     }
 
-    series.breakdown = top;
+    const exerciseIds = Array.from(new Set(setRows.map((row) => row.exercise_id).filter(Boolean)));
+    const exerciseMetaById = new Map<string, ExerciseMetaRow>();
+    if (exerciseIds.length > 0) {
+      const { data: exerciseRows } = await supabase
+        .from('exercises')
+        .select('id, name, equipment, primary_muscles, secondary_muscles')
+        .in('id', exerciseIds);
+      (exerciseRows as ExerciseMetaRow[] | null | undefined)?.forEach((row) => {
+        if (row?.id) {
+          exerciseMetaById.set(row.id, row);
+        }
+      });
+    }
+
+    const muscleVolume = new Map<MuscleKey, number>();
+
+    setRows.forEach((row) => {
+      const exerciseMeta = exerciseMetaById.get(row.exercise_id);
+      if (!row.reps || row.reps <= 0) return;
+      if (row.is_warmup) return;
+
+      let setVolume = 0;
+      if (row.weight && row.weight > 0) {
+        const normalizedWeight = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
+        setVolume += normalizedWeight * row.reps;
+      }
+
+      const exerciseName = row.exercise_name_snapshot ?? exerciseMeta?.name ?? '';
+      if (isBodyweightExercise(exerciseMeta?.equipment ?? null, exerciseName)) {
+        const movementFactor = getBodyweightMovementFactor(
+          row.primary_muscles_snapshot ?? exerciseMeta?.primary_muscles ?? null
+        );
+        if (resolvedBodyweightPreferred && movementFactor > 0) {
+          setVolume += resolvedBodyweightPreferred * movementFactor * row.reps;
+        }
+      }
+      if (setVolume <= 0) return;
+
+      const primaryMuscles = normalizeMuscleArray(
+        row.primary_muscles_snapshot ?? exerciseMeta?.primary_muscles ?? []
+      );
+      const secondaryMuscles = normalizeMuscleArray(
+        row.secondary_muscles_snapshot ?? exerciseMeta?.secondary_muscles ?? []
+      );
+      const fallbackMuscles =
+        primaryMuscles.length === 0 && secondaryMuscles.length === 0
+          ? normalizeMuscleArray([exerciseName])
+          : [];
+
+      const resolvedPrimary = primaryMuscles.length > 0 ? primaryMuscles : fallbackMuscles;
+      if (resolvedPrimary.length > 0) {
+        const primaryShare = setVolume / resolvedPrimary.length;
+        resolvedPrimary.forEach((muscle) => {
+          muscleVolume.set(muscle, (muscleVolume.get(muscle) ?? 0) + primaryShare);
+        });
+      }
+
+      if (secondaryMuscles.length > 0) {
+        const secondaryShare = (setVolume * 0.5) / secondaryMuscles.length;
+        secondaryMuscles.forEach((muscle) => {
+          muscleVolume.set(muscle, (muscleVolume.get(muscle) ?? 0) + secondaryShare);
+        });
+      }
+    });
+
+    const points: InsightBarPoint[] = Array.from(muscleVolume.entries())
+      .filter(([, volume]) => volume > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([muscle, volume]) => ({
+        label: getMuscleDisplayName(muscle),
+        value: Number(volume.toFixed(2)),
+      }));
+
+    series.breakdown = points;
     series.breakdownUnit = volumeUnit;
     return series;
   }

@@ -10,7 +10,7 @@ import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useAIStore } from '@/src/store/aiStore';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
-import { InsightBarChart } from '@/src/components/insights/InsightBarChart';
+import { InsightRadarChart } from '@/src/components/insights/InsightRadarChart';
 import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
 import type { EvidenceItem, TrainingInsight } from '@/src/types/insights';
 import type { InsightChartTab } from '@/src/types/insightCharts';
@@ -260,11 +260,6 @@ export default function InsightDetailScreen() {
   const latestPoint = activeSeries.length > 0 ? activeSeries[activeSeries.length - 1] : null;
   const latestValue = latestPoint ? formatChartValue(latestPoint.value, unit) : null;
   const latestMeta = latestPoint ? formatChartMetaDateLabel(latestPoint.date) : null;
-  const unitLabel = isWorkoutRecap
-    ? series?.breakdownUnit ?? unit
-    : unit === 'ratio'
-    ? 'x'
-    : unit;
   const xLabel =
     selectedTab === 'progress' && isExposureProgress
       ? 'Exposures'
@@ -378,7 +373,7 @@ export default function InsightDetailScreen() {
 
             <View style={styles.chartHeader}>
               <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>
-                {isWorkoutRecap ? 'Workout volume by exercise' : chartTitle}
+                {isWorkoutRecap ? 'Muscle volume profile' : chartTitle}
               </Text>
               {!isWorkoutRecap && latestValue && (
                 <View
@@ -410,10 +405,7 @@ export default function InsightDetailScreen() {
                 </Text>
               </View>
             ) : isWorkoutRecap ? (
-              <InsightBarChart
-                data={series?.breakdown ?? []}
-                unit={series?.breakdownUnit ?? unitLabel}
-              />
+              <InsightRadarChart data={series?.breakdown ?? []} />
             ) : (
               <View
                 style={[

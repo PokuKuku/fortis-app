@@ -22,6 +22,7 @@ import type { InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
 import { isDateOnly, parseDateInput } from '@/src/utils/dateParsing';
 import { InsightSparkline } from '@/src/components/insights/InsightSparkline';
+import { InsightRadarChart } from '@/src/components/insights/InsightRadarChart';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -56,7 +57,7 @@ type SparklineData = {
 
 type ChartTab = 'progress' | 'volume' | 'frequency';
 
-const isShareableInsight = (): boolean => true;
+const isShareableInsight = (_type?: InsightType): boolean => true;
 
 const POSITIVE_INSIGHT_TYPES: InsightType[] = ['CONSISTENCY_STREAK_V1', 'WEEKLY_VOLUME_PR_V1'];
 const RISK_INSIGHT_TYPES: InsightType[] = ['FATIGUE_RISK_V1', 'IMBALANCE_FLAG_V1'];
@@ -280,8 +281,8 @@ function InsightCard({
   const defaultTab = useMemo(() => {
     const preferred = mapping.sparklineMetric;
     if (seriesMap?.[preferred]?.length) return preferred;
-    const fallback = CHART_TABS.find((tab) => (seriesMap?.[tab.key]?.length ?? 0) > 0);
-    return fallback?.key ?? preferred;
+    const fallback = CHART_TABS.find((tab) => (seriesMap?.[tab]?.length ?? 0) > 0);
+    return fallback ?? preferred;
   }, [mapping.sparklineMetric, seriesMap]);
   const [activeTab, setActiveTab] = useState<ChartTab>(defaultTab);
 
@@ -302,6 +303,8 @@ function InsightCard({
     () => resolveSparkline(insight, series, activeTab),
     [activeTab, insight, series]
   );
+  const isWorkoutRecap = isWorkoutRecapType(insight.type);
+  const recapBreakdown = series?.breakdown ?? [];
   const activeUnit = series?.units?.[activeTab];
   const sparklineLabel = resolveSparklineLabel(activeTab, mapping, activeUnit, insight);
   const evidenceItems = useMemo(() => resolveEvidence(insight).slice(0, 4), [insight]);
@@ -374,7 +377,22 @@ function InsightCard({
         </Text>
       </View>
 
-      {sparkline && (
+      {isWorkoutRecap ? (
+        <View style={[styles.sparklineShell, sparklineTheme]}>
+          <View style={styles.sparklineHeaderRow}>
+            <Text
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[styles.sparklineLabel, { color: readableText.tertiary }]}
+            >
+              Muscle volume profile
+            </Text>
+          </View>
+          <View style={styles.recapRadarShell}>
+            <InsightRadarChart data={recapBreakdown} compact />
+          </View>
+        </View>
+      ) : sparkline ? (
         <View style={[styles.sparklineShell, sparklineTheme]}>
           <View style={styles.sparklineHeaderRow}>
             <Text
@@ -499,7 +517,7 @@ function InsightCard({
             />
           </View>
         </View>
-      )}
+      ) : null}
 
       <View style={styles.evidenceList}>
         {evidenceItems.map((item) => {
@@ -1430,6 +1448,10 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   sparklineChart: {
+    paddingHorizontal: scale(Spacing.xs),
+    paddingBottom: scale(Spacing.xs),
+  },
+  recapRadarShell: {
     paddingHorizontal: scale(Spacing.xs),
     paddingBottom: scale(Spacing.xs),
   },

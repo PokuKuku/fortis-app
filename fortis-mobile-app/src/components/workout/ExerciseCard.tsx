@@ -38,6 +38,7 @@ const STICKY_NOTE_TEXT_SIZE = moderateScale(FontSizes.base);
 interface ExerciseCardProps {
   exerciseLocalId: string;
   useEditor?: boolean;
+  deferStickyNoteSave?: boolean;
   showCheckboxes?: boolean;
   onReplace?: (exerciseLocalId: string) => void;
   onViewDetails?: (exerciseId: string) => void;
@@ -47,6 +48,7 @@ interface ExerciseCardProps {
 export function ExerciseCard({
   exerciseLocalId,
   useEditor = false,
+  deferStickyNoteSave = false,
   showCheckboxes,
   onReplace,
   onViewDetails,
@@ -78,7 +80,9 @@ export function ExerciseCard({
   const updateExerciseNotes = useWorkoutStore(s => useEditor ? s.updateEditorExerciseNotes : s.updateExerciseNotes);
   const addSet = useWorkoutStore(s => useEditor ? s.addEditorSet : s.addSet);
   const stickyNotes = useWorkoutStore(s => s.stickyNotes);
+  const editorStickyNotesDraft = useWorkoutStore(s => s.editorStickyNotesDraft);
   const setStickyNote = useWorkoutStore(s => s.setStickyNote);
+  const setEditorStickyNoteDraft = useWorkoutStore(s => s.setEditorStickyNoteDraft);
   const weightUnits = useWorkoutStore(s => s.weightUnits);
   const registerWorkoutOverlay = useWorkoutStore(s => s.registerWorkoutOverlay);
   const unregisterWorkoutOverlay = useWorkoutStore(s => s.unregisterWorkoutOverlay);
@@ -92,10 +96,43 @@ export function ExerciseCard({
   const stickyNoteInputRef = useRef<TextInput>(null);
   const notesInputRef = useRef<TextInput>(null);
   const isKebabOpenRef = useRef(false);
+  const stickyNoteValueRef = useRef('');
+  const stickyNoteFromStoreRef = useRef('');
+  const stickyNoteEditingRef = useRef(false);
+  const shouldDeferStickyNoteSave = useEditor && deferStickyNoteSave;
 
   const exercise = session?.exercises.find(e => e.localId === exerciseLocalId);
-  const stickyNote = exercise ? stickyNotes[exercise.exerciseId] : undefined;
+  const stickyNote = exercise
+    ? (
+      shouldDeferStickyNoteSave
+        ? (editorStickyNotesDraft[exercise.exerciseId] ?? stickyNotes[exercise.exerciseId])
+        : stickyNotes[exercise.exerciseId]
+    )
+    : undefined;
   const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
+  const exerciseId = exercise?.exerciseId;
+
+  useEffect(() => {
+    stickyNoteValueRef.current = stickyNoteValue;
+  }, [stickyNoteValue]);
+
+  useEffect(() => {
+    stickyNoteFromStoreRef.current = stickyNote || '';
+  }, [stickyNote]);
+
+  useEffect(() => {
+    return () => {
+      if (!stickyNoteEditingRef.current || !exerciseId) return;
+      const trimmed = stickyNoteValueRef.current.trim();
+      if (trimmed !== stickyNoteFromStoreRef.current) {
+        if (shouldDeferStickyNoteSave) {
+          setEditorStickyNoteDraft(exerciseId, trimmed);
+        } else {
+          void setStickyNote(exerciseId, trimmed);
+        }
+      }
+    };
+  }, [exerciseId, setStickyNote, setEditorStickyNoteDraft, shouldDeferStickyNoteSave]);
 
   // Fetch last performance for this exercise from previous sessions
   const performanceContext = useMemo(() => ({
@@ -157,6 +194,7 @@ export function ExerciseCard({
   const handleOpenStickyNote = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStickyNoteValue(stickyNote || '');
+    stickyNoteEditingRef.current = true;
     setShowStickyNoteInput(true);
     // Focus the input after state update
     setTimeout(() => stickyNoteInputRef.current?.focus(), 100);
@@ -164,8 +202,13 @@ export function ExerciseCard({
 
   const handleStickyNoteBlur = () => {
     const trimmed = stickyNoteValue.trim();
+    stickyNoteEditingRef.current = false;
     if (trimmed !== (stickyNote || '')) {
-      setStickyNote(exercise.exerciseId, trimmed);
+      if (shouldDeferStickyNoteSave) {
+        setEditorStickyNoteDraft(exercise.exerciseId, trimmed);
+      } else {
+        void setStickyNote(exercise.exerciseId, trimmed);
+      }
     }
     if (!trimmed) {
       setShowStickyNoteInput(false);
@@ -174,7 +217,12 @@ export function ExerciseCard({
 
   const handleRemoveStickyNote = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setStickyNote(exercise.exerciseId, '');
+    stickyNoteEditingRef.current = false;
+    if (shouldDeferStickyNoteSave) {
+      setEditorStickyNoteDraft(exercise.exerciseId, '');
+    } else {
+      void setStickyNote(exercise.exerciseId, '');
+    }
     setStickyNoteValue('');
     setShowStickyNoteInput(false);
   };
@@ -234,6 +282,7 @@ export function ExerciseCard({
               onChangeText={setStickyNoteValue}
               onFocus={() => {
                 setStickyNoteValue(stickyNote || '');
+                stickyNoteEditingRef.current = true;
                 setShowStickyNoteInput(true);
               }}
               onBlur={handleStickyNoteBlur}

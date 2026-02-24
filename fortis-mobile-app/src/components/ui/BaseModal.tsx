@@ -69,6 +69,8 @@ export interface BaseModalProps {
   onClose: () => void;
   /** Modal title displayed in header */
   title: string;
+  /** Optional style override for modal title text */
+  titleStyle?: TextStyle;
   /** Optional icon displayed before the title */
   icon?: React.ReactNode;
   /** Whether to show the close button (default: true) */
@@ -91,6 +93,7 @@ export function BaseModal({
   visible,
   onClose,
   title,
+  titleStyle,
   icon,
   showCloseButton = true,
   closeButtonColor,
@@ -171,7 +174,7 @@ export function BaseModal({
                   </Pressable>
                 )}
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
-                <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+                <Text style={[styles.title, { color: colors.textPrimary }, titleStyle]}>{title}</Text>
               </View>
 
               {/* Content */}

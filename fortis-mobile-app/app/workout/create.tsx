@@ -99,8 +99,10 @@ export default function CreateWorkoutScreen() {
   const setEditorWorkoutName = useWorkoutStore(s => s.setEditorWorkoutName);
   const setEditorDate = useWorkoutStore(s => s.setEditorDate);
   const addEditorExercises = useWorkoutStore(s => s.addEditorExercises);
+  const replaceEditorExercise = useWorkoutStore(s => s.replaceEditorExercise);
   const saveEditorAsTemplate = useWorkoutStore(s => s.saveEditorAsTemplate);
   const saveEditorAsWorkout = useWorkoutStore(s => s.saveEditorAsWorkout);
+  const commitEditorStickyNotesDraft = useWorkoutStore(s => s.commitEditorStickyNotesDraft);
   const clearEditorSession = useWorkoutStore(s => s.clearEditorSession);
   const activeNumberPad = useWorkoutStore(s => s.activeNumberPad);
   const closeNumberPad = useWorkoutStore(s => s.closeNumberPad);
@@ -113,6 +115,7 @@ export default function CreateWorkoutScreen() {
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
+  const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimerSettingsModal, setShowTimerSettingsModal] = useState(false);
@@ -237,9 +240,16 @@ export default function CreateWorkoutScreen() {
   const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string }>) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addEditorExercises(exercisesToAdd);
+    setReplaceExerciseLocalId(null);
     setShowAddExerciseModal(false);
     setAddExerciseSuspended(false);
   }, [addEditorExercises]);
+
+  const handleReplaceExercise = useCallback((exerciseLocalId: string) => {
+    setReplaceExerciseLocalId(exerciseLocalId);
+    setAddExerciseSuspended(false);
+    setShowAddExerciseModal(true);
+  }, []);
 
   const handleModalExerciseDetails = (exerciseId: string) => {
     if (isNavigating.current) return;
@@ -248,6 +258,13 @@ export default function CreateWorkoutScreen() {
     router.push(`/exercise/${exerciseId}`);
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
+
+  const handleViewExerciseDetails = useCallback((exerciseId: string) => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    router.push(`/exercise/${exerciseId}?source=workout-modal`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  }, [router]);
 
   // Handle save
   const handleSave = async () => {
@@ -267,6 +284,7 @@ export default function CreateWorkoutScreen() {
           ? await saveEditorAsTemplate(templateId)
           : await saveEditorAsTemplate();
         if (updatedTemplateId) {
+          await commitEditorStickyNotesDraft();
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           DeviceEventEmitter.emit('workout-updated');
           router.back();
@@ -332,14 +350,28 @@ export default function CreateWorkoutScreen() {
     setEditorDate(selectedDate);
   };
 
+  const replaceExerciseIdToAllow = useMemo(() => {
+    if (!replaceExerciseLocalId) return null;
+    return editorSession?.exercises.find((exercise) => exercise.localId === replaceExerciseLocalId)?.exerciseId ?? null;
+  }, [editorSession, replaceExerciseLocalId]);
+
+  const handleModalReplaceExercise = useCallback((exerciseId: string, exerciseName: string) => {
+    if (!replaceExerciseLocalId) return;
+    replaceEditorExercise(replaceExerciseLocalId, exerciseId, exerciseName);
+    setReplaceExerciseLocalId(null);
+  }, [replaceEditorExercise, replaceExerciseLocalId]);
+
   // Render exercise card
   const renderExerciseCard = useCallback(({ item }: { item: { localId: string } }) => (
     <ExerciseCard
       exerciseLocalId={item.localId}
+      onReplace={handleReplaceExercise}
+      onViewDetails={handleViewExerciseDetails}
       useEditor={true}
+      deferStickyNoteSave={mode !== 'log'}
       showCheckboxes={mode === 'log'}
     />
-  ), [mode]);
+  ), [handleReplaceExercise, handleViewExerciseDetails, mode]);
 
   // Render empty state
   const renderEmptyState = () => (
@@ -519,6 +551,7 @@ export default function CreateWorkoutScreen() {
               <Pressable
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setReplaceExerciseLocalId(null);
                   setShowAddExerciseModal(true);
                 }}
                 style={({ pressed }) => [
@@ -563,9 +596,14 @@ export default function CreateWorkoutScreen() {
         visible={showAddExerciseModal}
         onClose={() => {
           setShowAddExerciseModal(false);
+          setReplaceExerciseLocalId(null);
           setAddExerciseSuspended(false);
         }}
         suspended={addExerciseSuspended}
+        replaceMode={replaceExerciseLocalId !== null}
+        exerciseLocalIdToReplace={replaceExerciseLocalId ?? undefined}
+        replaceExerciseIdToAllow={replaceExerciseIdToAllow}
+        onReplaceExerciseCallback={handleModalReplaceExercise}
         onAddExercisesCallback={handleAddExercises}
         existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
         onOpenExerciseDetails={handleModalExerciseDetails}

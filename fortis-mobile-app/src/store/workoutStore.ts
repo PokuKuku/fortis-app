@@ -141,6 +141,9 @@ interface WorkoutState {
 
   // Sticky notes (persist across sessions, keyed by exerciseId)
   stickyNotes: Record<string, string>;
+  // Sticky note edits staged while using the workout editor.
+  // These should only be committed when the user explicitly saves.
+  editorStickyNotesDraft: Record<string, string>;
 
   // Weight units (persist across sessions, keyed by exerciseId)
   weightUnits: Record<string, WeightUnit>;
@@ -238,6 +241,9 @@ interface WorkoutState {
   setStickyNote: (exerciseId: string, note: string) => Promise<void>;
   deleteStickyNote: (exerciseId: string) => Promise<void>;
   loadStickyNotes: () => Promise<void>;
+  setEditorStickyNoteDraft: (exerciseId: string, note: string) => void;
+  commitEditorStickyNotesDraft: (exerciseIds?: string[]) => Promise<void>;
+  clearEditorStickyNotesDraft: () => void;
 
   // Actions - Weight Units
   setWeightUnit: (exerciseId: string, unit: WeightUnit) => Promise<void>;
@@ -270,6 +276,7 @@ interface WorkoutState {
   setEditorDate: (date: Date) => void;
   setEditorWorkoutName: (name: string) => void;
   addEditorExercises: (exercises: Array<{ id: string; name: string }>) => void;
+  replaceEditorExercise: (localId: string, newExerciseId: string, newExerciseName: string) => void;
   removeEditorExercise: (localId: string) => void;
   addEditorSet: (exerciseLocalId: string) => void;
   removeEditorSet: (exerciseLocalId: string, setLocalId: string) => void;
@@ -317,6 +324,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     validationErrorsBySet: {},
     validationErrorsTrigger: 0,
     stickyNotes: {},
+    editorStickyNotesDraft: {},
     weightUnits: {},
     bodyType: 'male',
     showRpeSelector: false,
@@ -1691,6 +1699,70 @@ export const useWorkoutStore = create<WorkoutState>()(
       }
     },
 
+    setEditorStickyNoteDraft: (exerciseId, note) => {
+      set((state) => ({
+        editorStickyNotesDraft: {
+          ...state.editorStickyNotesDraft,
+          [exerciseId]: note,
+        },
+      }));
+    },
+
+    commitEditorStickyNotesDraft: async (exerciseIds) => {
+      const { editorStickyNotesDraft, stickyNotes, editorSession } = get();
+      const targetExerciseIds = exerciseIds
+        ?? editorSession?.exercises.map(ex => ex.exerciseId)
+        ?? Object.keys(editorStickyNotesDraft);
+
+      if (targetExerciseIds.length === 0) return;
+
+      const uniqueExerciseIds = Array.from(new Set(targetExerciseIds));
+      let hasChanges = false;
+      const nextNotes = { ...stickyNotes };
+
+      uniqueExerciseIds.forEach((exerciseId) => {
+        if (!Object.prototype.hasOwnProperty.call(editorStickyNotesDraft, exerciseId)) {
+          return;
+        }
+
+        const trimmedDraft = (editorStickyNotesDraft[exerciseId] || '').trim();
+        const current = stickyNotes[exerciseId] || '';
+        if (trimmedDraft === current) return;
+
+        hasChanges = true;
+
+        if (trimmedDraft === '') {
+          delete nextNotes[exerciseId];
+          deleteStickyNoteFromCloud(exerciseId).catch((err) => {
+            console.warn('Failed to delete sticky note from cloud:', err);
+          });
+          return;
+        }
+
+        nextNotes[exerciseId] = trimmedDraft;
+        syncStickyNote(exerciseId, trimmedDraft).catch((err) => {
+          console.warn('Failed to sync sticky note to cloud:', err);
+        });
+      });
+
+      if (!hasChanges) return;
+
+      set({ stickyNotes: nextNotes });
+
+      try {
+        await setScopedItem(
+          EXERCISE_STICKY_NOTES_KEY,
+          JSON.stringify(nextNotes)
+        );
+      } catch (error) {
+        console.warn('Failed to save sticky notes:', error);
+      }
+    },
+
+    clearEditorStickyNotesDraft: () => {
+      set({ editorStickyNotesDraft: {} });
+    },
+
     // ========================================
     // Weight Units Actions
     // ========================================
@@ -2002,6 +2074,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       set({
         editorSession: session,
         editorDate: new Date(),
+        editorStickyNotesDraft: {},
         activeNumberPad: null,
       });
     },
@@ -2069,6 +2142,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           editorSession: session,
           editorDate: new Date(),
           editorMode: 'template',
+          editorStickyNotesDraft: {},
           activeNumberPad: null,
         });
 
@@ -2141,6 +2215,45 @@ export const useWorkoutStore = create<WorkoutState>()(
         editorSession: {
           ...editorSession,
           exercises: [...editorSession.exercises, ...newExercises],
+        },
+      });
+    },
+
+    replaceEditorExercise: (localId, newExerciseId, newExerciseName) => {
+      const { editorSession, weightUnits } = get();
+      if (!editorSession) return;
+      const exerciseWeightUnit = weightUnits[newExerciseId] || 'lbs';
+
+      const exercises = editorSession.exercises.map((ex) => {
+        if (ex.localId !== localId) return ex;
+
+        return {
+          ...ex,
+          exerciseId: newExerciseId,
+          exerciseName: newExerciseName,
+          sets: [
+            {
+              localId: generateId(),
+              setNumber: 1,
+              setType: 'normal' as const,
+              weight: null,
+              weightUnit: exerciseWeightUnit,
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          notes: '',
+        };
+      });
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises,
         },
       });
     },
@@ -2457,6 +2570,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         editorSession: null,
         editorMode: 'template',
         editorDate: new Date(),
+        editorStickyNotesDraft: {},
       });
     },
 
@@ -2493,6 +2607,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         editorSession: null,
         editorMode: 'template',
         editorDate: new Date(),
+        editorStickyNotesDraft: {},
       });
     },
 

@@ -130,6 +130,7 @@ export function StartButtonConfigModal({
       visible={visible}
       onClose={disableClose ? () => undefined : onClose}
       title="Start Button"
+      titleStyle={styles.modalTitle}
       icon={<PlayIcon size={24} color={themedStyles.iconColor} strokeWidth={2} />}
       width={getModalWidth(responsiveValue(300, 320, 320))}
       showCloseButton={!disableClose}
@@ -244,6 +245,9 @@ export function StartButtonConfigModal({
 }
 
 const styles = StyleSheet.create({
+  modalTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+  },
   list: {
     maxHeight: responsiveValue(260, 320, 360),
   },
@@ -251,8 +255,8 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.sm,
   },
   sectionTitle: {
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: FontSizes.sm,
-    fontWeight: '700',
     color: Colors.textSecondary,
     marginTop: Spacing.sm,
     marginBottom: Spacing.sm,

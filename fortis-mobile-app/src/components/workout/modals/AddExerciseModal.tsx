@@ -31,6 +31,8 @@ interface AddExerciseModalProps {
   suspended?: boolean;
   replaceMode?: boolean;
   exerciseLocalIdToReplace?: string;
+  replaceExerciseIdToAllow?: string | null;
+  onReplaceExerciseCallback?: (exerciseId: string, exerciseName: string) => void;
   // Callback mode for template creation (doesn't use workoutStore)
   onAddExercisesCallback?: (exercises: Array<{ id: string; name: string }>) => void;
   existingExerciseIds?: string[];
@@ -54,6 +56,8 @@ export function AddExerciseModal({
   suspended = false,
   replaceMode = false,
   exerciseLocalIdToReplace,
+  replaceExerciseIdToAllow,
+  onReplaceExerciseCallback,
   onAddExercisesCallback,
   existingExerciseIds: externalExistingIds,
   showRestTimerBanner = false,
@@ -159,7 +163,10 @@ export function AddExerciseModal({
   const filteredExercises = useMemo(() => {
     // Get the exerciseId of the exercise being replaced (if in replace mode)
     const replacingExerciseId = replaceMode && exerciseLocalIdToReplace
-      ? activeSession?.exercises.find(e => e.localId === exerciseLocalIdToReplace)?.exerciseId
+      ? (
+          replaceExerciseIdToAllow
+          ?? activeSession?.exercises.find(e => e.localId === exerciseLocalIdToReplace)?.exerciseId
+        )
       : null;
 
     return searchExercises(searchQuery, searchIndex)
@@ -169,7 +176,15 @@ export function AddExerciseModal({
         if (isExisting && ex.id !== replacingExerciseId) return false;
         return true;
       });
-  }, [searchQuery, searchIndex, existingExerciseIds, replaceMode, exerciseLocalIdToReplace, activeSession]);
+  }, [
+    searchQuery,
+    searchIndex,
+    existingExerciseIds,
+    replaceMode,
+    exerciseLocalIdToReplace,
+    replaceExerciseIdToAllow,
+    activeSession,
+  ]);
 
   // Toggle exercise selection (different behavior in replace mode)
   const toggleExercise = (exerciseId: string) => {
@@ -182,9 +197,16 @@ export function AddExerciseModal({
 
       // In replace mode, immediately replace and close
       const exercise = allExercises.find(ex => ex.id === exerciseId);
-      if (exercise && exerciseLocalIdToReplace) {
+      if (exercise) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        replaceExercise(exerciseLocalIdToReplace, exerciseId, exercise.name);
+        if (onReplaceExerciseCallback) {
+          onReplaceExerciseCallback(exerciseId, exercise.name);
+        } else if (exerciseLocalIdToReplace) {
+          replaceExercise(exerciseLocalIdToReplace, exerciseId, exercise.name);
+        } else {
+          isProcessing.current = false;
+          return;
+        }
         onClose();
       } else {
         isProcessing.current = false;
