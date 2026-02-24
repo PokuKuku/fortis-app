@@ -15,6 +15,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { getExerciseById } from '@/src/services/exerciseService';
 import { getModalWidth } from '@/src/utils/responsive';
+import { getSetVolume } from '@/src/utils/workoutVolume';
 
 // UUID v4 pattern: 8-4-4-4-12 hex characters
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -28,6 +29,7 @@ interface WorkoutHistoryDetailModalProps {
   onClose: () => void;
   onRetry?: () => void;
   session: WorkoutSession | null;
+  allSessions?: WorkoutSession[];
 }
 
 function formatDuration(seconds?: number | null): string {
@@ -76,6 +78,7 @@ export function WorkoutHistoryDetailModal({
   onClose,
   onRetry,
   session,
+  allSessions = [],
 }: WorkoutHistoryDetailModalProps) {
   const { colors, isDark } = useTheme();
   const { profile } = useAuth();
@@ -166,6 +169,54 @@ export function WorkoutHistoryDetailModal({
     profileWeightKg: profile?.weight_kg ?? null,
   };
   const summary = getWorkoutSummary(session, volumeContext);
+  const sessionPrCount = (() => {
+    const targetStartMs = session.startedAt.getTime();
+    const priorSessions = allSessions
+      .filter((candidate) => candidate.localId !== session.localId)
+      .filter((candidate) => candidate.startedAt.getTime() < targetStartMs);
+
+    const priorBestByExercise = new Map<string, number>();
+
+    const updateBestE1rm = (candidateSession: WorkoutSession, target: Map<string, number>) => {
+      candidateSession.exercises.forEach((exercise) => {
+        const fallbackUnit = weightUnits[exercise.exerciseId];
+        const exerciseMeta = exercisesById.get(exercise.exerciseId);
+        exercise.sets.forEach((set) => {
+          if (!set.isCompleted || set.setType === 'warmup') return;
+          if (!set.reps || set.reps <= 0) return;
+
+          const setVolume = getSetVolume(set, volumeContext, {
+            exerciseMeta,
+            fallbackUnit,
+            exerciseName: exercise.exerciseName,
+          });
+          if (setVolume <= 0) return;
+
+          const effectiveWeight = setVolume / set.reps;
+          const e1rm = effectiveWeight * (1 + Math.min(set.reps, 12) / 30);
+          const prevBest = target.get(exercise.exerciseId) ?? 0;
+          if (e1rm > prevBest) {
+            target.set(exercise.exerciseId, e1rm);
+          }
+        });
+      });
+    };
+
+    priorSessions.forEach((priorSession) => updateBestE1rm(priorSession, priorBestByExercise));
+
+    const sessionBestByExercise = new Map<string, number>();
+    updateBestE1rm(session, sessionBestByExercise);
+
+    let prCount = 0;
+    sessionBestByExercise.forEach((sessionBest, exerciseId) => {
+      const priorBest = priorBestByExercise.get(exerciseId);
+      if (priorBest === undefined || sessionBest > priorBest) {
+        prCount += 1;
+      }
+    });
+
+    return prCount;
+  })();
   const durationSeconds = session.durationSeconds === null
     ? null
     : session.durationSeconds ?? summary.durationSeconds;
@@ -225,7 +276,7 @@ export function WorkoutHistoryDetailModal({
             adjustsFontSizeToFit
             minimumFontScale={0.7}
           >
-            0 PR
+            {sessionPrCount} PR{sessionPrCount === 1 ? '' : 's'}
           </Text>
         </View>
       </View>

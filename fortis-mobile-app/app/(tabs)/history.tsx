@@ -836,6 +836,7 @@ export default function HistoryScreen() {
         onClose={() => setSelectedSession(null)}
         onRetry={handleRetryPendingSync}
         session={selectedSession}
+        allSessions={allSessions}
       />
     </View>
   );
