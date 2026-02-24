@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -6,8 +6,11 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { getExerciseImageUrl } from '@/src/services/exerciseService';
 import { getMuscleCategory, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import {
+  getCachedExerciseImageSource,
+  prefetchExerciseImageUrls,
+} from '@/src/utils/exerciseImageCache';
 
 interface HubExerciseRowProps {
   exerciseName: string;
@@ -39,9 +42,11 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
   rightAction,
 }: HubExerciseRowProps) {
   const { colors, isDark } = useTheme();
-  const imageUrl = images.length > 0
-    ? getExerciseImageUrl(images[0])
-    : null;
+  const imageSource = getCachedExerciseImageSource(images[0]);
+
+  useEffect(() => {
+    prefetchExerciseImageUrls([images[0]], 1);
+  }, [images[0]]);
 
   // Theme-aware styles
   const themedStyles = {
@@ -77,11 +82,12 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
       >
         {/* Exercise Image */}
         <View style={styles.imageContainer}>
-          {imageUrl ? (
+          {imageSource ? (
             <Image
-              source={{ uri: imageUrl }}
+              source={imageSource}
               style={styles.image}
               resizeMode="cover"
+              fadeDuration={100}
             />
           ) : (
             <View style={[styles.placeholderImage, themedStyles.placeholderImage]}>
@@ -134,10 +140,10 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
   // This prevents animation storms when exercises are deleted
   return (
     prev.exerciseName === next.exerciseName &&
-    prev.targetSets === next.targetSets &&
-    prev.targetReps === next.targetReps &&
     prev.images[0] === next.images[0] &&
-    prev.primaryMuscles[0] === next.primaryMuscles[0]
+    prev.primaryMuscles[0] === next.primaryMuscles[0] &&
+    prev.onPress === next.onPress &&
+    prev.rightAction === next.rightAction
   );
 });
 

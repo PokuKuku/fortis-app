@@ -25,7 +25,11 @@ import { useExerciseRecords } from '@/src/hooks/useExerciseRecords';
 import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { getExerciseImageUrl, getExerciseVariants } from '@/src/services/exerciseService';
+import { getExerciseVariants } from '@/src/services/exerciseService';
+import {
+  getCachedExerciseImageSource,
+  prefetchExerciseImageUrls,
+} from '@/src/utils/exerciseImageCache';
 import type { Exercise } from '@/src/types/exercise';
 import { format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
@@ -135,10 +139,17 @@ export default function ExerciseDetailsScreen() {
   const { history } = useExerciseHistory(id);
   const records = useExerciseRecords(id);
   const [variants, setVariants] = useState<Exercise[]>([]);
+  const mainImagePath = exercise?.images?.[0];
+  const mainImageSource = getCachedExerciseImageSource(mainImagePath);
   const shouldLoadVariants = useMemo(
     () => !!exercise && !exercise.isCustom && !exercise.canonicalId,
     [exercise]
   );
+
+  useEffect(() => {
+    if (!mainImagePath) return;
+    prefetchExerciseImageUrls([mainImagePath], 1);
+  }, [mainImagePath]);
 
   useEffect(() => {
     let isMounted = true;
@@ -321,11 +332,12 @@ export default function ExerciseDetailsScreen() {
         {selectedTab === 'About' && (
           <>
             <View style={[styles.exerciseImageContainer, themedStyles.exerciseImageContainer]}>
-              {exercise.images && exercise.images.length > 0 ? (
+              {mainImageSource ? (
                 <Image
-                  source={{ uri: getExerciseImageUrl(exercise.images[0]) }}
+                  source={mainImageSource}
                   style={styles.exerciseImage}
                   resizeMode="contain"
+                  fadeDuration={120}
                 />
               ) : (
                 <View style={[styles.placeholderImage, themedStyles.placeholderImage]}>

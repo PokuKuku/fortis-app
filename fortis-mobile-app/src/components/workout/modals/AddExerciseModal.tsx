@@ -22,8 +22,11 @@ import * as Haptics from 'expo-haptics';
 import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
-import { getExerciseImageUrl } from '@/src/services/exerciseService';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
+import {
+  getCachedExerciseImageSource,
+  prefetchExerciseImagesFromExercises,
+} from '@/src/utils/exerciseImageCache';
 
 interface AddExerciseModalProps {
   visible: boolean;
@@ -129,6 +132,7 @@ export function AddExerciseModal({
   const restoreAttempts = useRef(0);
   const wasLoading = useRef(false);
   const contentReady = useRef(false);
+  const filteredExercisesRef = useRef<Exercise[]>([]);
   const restoreTargetOffset = useRef(0);
   const restoreTargetIndex = useRef(0);
   const firstVisibleIndex = useRef(0);
@@ -185,6 +189,15 @@ export function AddExerciseModal({
     replaceExerciseIdToAllow,
     activeSession,
   ]);
+
+  useEffect(() => {
+    filteredExercisesRef.current = filteredExercises;
+  }, [filteredExercises]);
+
+  useEffect(() => {
+    if (!isModalVisible) return;
+    prefetchExerciseImagesFromExercises(filteredExercises, 0, 32);
+  }, [isModalVisible, filteredExercises]);
 
   // Toggle exercise selection (different behavior in replace mode)
   const toggleExercise = (exerciseId: string) => {
@@ -378,6 +391,7 @@ export function AddExerciseModal({
     const firstIndex = viewableItems.find(item => typeof item.index === 'number')?.index;
     if (typeof firstIndex === 'number') {
       firstVisibleIndex.current = firstIndex;
+      prefetchExerciseImagesFromExercises(filteredExercisesRef.current, firstIndex + 1, 24);
     }
   }).current;
 
@@ -385,9 +399,7 @@ export function AddExerciseModal({
 
   const renderExercise = ({ item }: { item: Exercise }) => {
     const selected = isSelected(item.id);
-    const imageUrl = item.images.length > 0
-      ? getExerciseImageUrl(item.images[0])
-      : null;
+    const imageSource = getCachedExerciseImageSource(item.images[0]);
     return (
       <Pressable
         onPress={() => handleExercisePress(item.id)}
@@ -400,11 +412,12 @@ export function AddExerciseModal({
       >
         <View style={styles.exerciseContent}>
           <View style={[styles.exercisePreview, themedStyles.exercisePreview]}>
-            {imageUrl ? (
+            {imageSource ? (
               <Image
-                source={{ uri: imageUrl }}
+                source={imageSource}
                 style={styles.exercisePreviewImage}
                 resizeMode="cover"
+                fadeDuration={100}
               />
             ) : (
               <Text style={[styles.exercisePreviewPlaceholder, themedStyles.exercisePreviewPlaceholder]}>

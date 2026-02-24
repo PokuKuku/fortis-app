@@ -13,7 +13,10 @@ import { Sizes, Spacing } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
 import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
-import { getExerciseImageUrl } from '@/src/services/exerciseService';
+import {
+  getCachedExerciseImageSource,
+  prefetchExerciseImagesFromExercises,
+} from '@/src/utils/exerciseImageCache';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -82,6 +85,7 @@ export default function ExercisesScreen() {
   const [activePopover, setActivePopover] = useState<'muscle' | 'category' | 'equipment' | null>(null);
   const [customModalVisible, setCustomModalVisible] = useState(false);
   const isNavigating = useRef(false);
+  const filteredExercisesRef = useRef<Exercise[]>([]);
 
   // Use centralized exercise service
   const { exercises: allExercises } = useExercises();
@@ -215,6 +219,14 @@ export default function ExercisesScreen() {
     });
   }, [searchQuery, searchIndex, selectedMuscles, selectedCategories, selectedEquipment]);
 
+  useEffect(() => {
+    filteredExercisesRef.current = filteredExercises;
+  }, [filteredExercises]);
+
+  useEffect(() => {
+    prefetchExerciseImagesFromExercises(filteredExercises, 0, 36);
+  }, [filteredExercises]);
+
   const toggleMuscle = (muscle: string) => {
     setSelectedMuscles(prev =>
       prev.includes(muscle)
@@ -247,9 +259,7 @@ export default function ExercisesScreen() {
   };
 
   const renderExerciseCard = ({ item }: { item: Exercise }) => {
-    const imageUrl = item.images && item.images.length > 0
-      ? getExerciseImageUrl(item.images[0])
-      : null;
+    const imageSource = getCachedExerciseImageSource(item.images[0]);
 
     return (
       <TouchableOpacity
@@ -260,11 +270,12 @@ export default function ExercisesScreen() {
         <View style={styles.exerciseCardContent}>
           <View style={styles.exerciseMain}>
             <View style={[styles.exercisePreview, exercisePreviewTheme]}>
-              {imageUrl ? (
+              {imageSource ? (
                 <Image
-                  source={{ uri: imageUrl }}
+                  source={imageSource}
                   style={styles.exercisePreviewImage}
                   resizeMode="cover"
+                  fadeDuration={100}
                 />
               ) : (
                 <Text style={[styles.exercisePreviewPlaceholder, exercisePreviewPlaceholderTheme]}>
@@ -287,6 +298,15 @@ export default function ExercisesScreen() {
       </TouchableOpacity>
     );
   };
+
+  const handleViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
+    const firstVisible = viewableItems.find(item => typeof item.index === 'number')?.index;
+    if (typeof firstVisible === 'number') {
+      prefetchExerciseImagesFromExercises(filteredExercisesRef.current, firstVisible + 1, 24);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 10 }).current;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -385,6 +405,8 @@ export default function ExercisesScreen() {
           initialNumToRender={20}
           maxToRenderPerBatch={10}
           windowSize={10}
+          onViewableItemsChanged={handleViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
         />
       </SafeAreaView>
 
