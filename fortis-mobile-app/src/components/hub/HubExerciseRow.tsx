@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn } from 'react-native-reanimated';
@@ -9,7 +9,6 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { getMuscleCategory, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import {
   getCachedExerciseImageSource,
-  prefetchExerciseImageUrls,
 } from '@/src/utils/exerciseImageCache';
 
 interface HubExerciseRowProps {
@@ -43,10 +42,6 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
 }: HubExerciseRowProps) {
   const { colors, isDark } = useTheme();
   const imageSource = getCachedExerciseImageSource(images[0]);
-
-  useEffect(() => {
-    prefetchExerciseImageUrls([images[0]], 1);
-  }, [images[0]]);
 
   // Theme-aware styles
   const themedStyles = {

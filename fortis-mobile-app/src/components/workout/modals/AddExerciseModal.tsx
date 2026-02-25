@@ -196,7 +196,7 @@ export function AddExerciseModal({
 
   useEffect(() => {
     if (!isModalVisible) return;
-    prefetchExerciseImagesFromExercises(filteredExercises, 0, 32);
+    prefetchExerciseImagesFromExercises(filteredExercises, 0, 12);
   }, [isModalVisible, filteredExercises]);
 
   // Toggle exercise selection (different behavior in replace mode)
@@ -391,7 +391,7 @@ export function AddExerciseModal({
     const firstIndex = viewableItems.find(item => typeof item.index === 'number')?.index;
     if (typeof firstIndex === 'number') {
       firstVisibleIndex.current = firstIndex;
-      prefetchExerciseImagesFromExercises(filteredExercisesRef.current, firstIndex + 1, 24);
+      prefetchExerciseImagesFromExercises(filteredExercisesRef.current, firstIndex + 1, 8);
     }
   }).current;
 

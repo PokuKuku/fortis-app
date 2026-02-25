@@ -224,7 +224,7 @@ export default function ExercisesScreen() {
   }, [filteredExercises]);
 
   useEffect(() => {
-    prefetchExerciseImagesFromExercises(filteredExercises, 0, 36);
+    prefetchExerciseImagesFromExercises(filteredExercises, 0, 12);
   }, [filteredExercises]);
 
   const toggleMuscle = (muscle: string) => {
@@ -302,7 +302,7 @@ export default function ExercisesScreen() {
   const handleViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
     const firstVisible = viewableItems.find(item => typeof item.index === 'number')?.index;
     if (typeof firstVisible === 'number') {
-      prefetchExerciseImagesFromExercises(filteredExercisesRef.current, firstVisible + 1, 24);
+      prefetchExerciseImagesFromExercises(filteredExercisesRef.current, firstVisible + 1, 8);
     }
   }).current;
 

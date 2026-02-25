@@ -4,6 +4,11 @@ import { getExerciseImageUrl } from '@/src/services/exerciseService';
 
 const prefetchedExerciseImageUrls = new Set<string>();
 const inflightExerciseImageUrls = new Set<string>();
+const MAX_GIF_PREFETCH_PER_CALL = 2;
+
+function isGifUrl(url: string): boolean {
+  return /\.gif($|\?)/i.test(url);
+}
 
 function normalizeImageUrl(imagePath: string | null | undefined): string | null {
   if (!imagePath) return null;
@@ -24,12 +29,17 @@ export function prefetchExerciseImageUrls(
   maxCount = 24
 ): void {
   const candidates: string[] = [];
+  let gifCount = 0;
 
   for (const path of imagePaths) {
     const url = normalizeImageUrl(path);
     if (!url) continue;
     if (prefetchedExerciseImageUrls.has(url)) continue;
     if (inflightExerciseImageUrls.has(url)) continue;
+    if (isGifUrl(url)) {
+      if (gifCount >= MAX_GIF_PREFETCH_PER_CALL) continue;
+      gifCount += 1;
+    }
     candidates.push(url);
     if (candidates.length >= maxCount) break;
   }
@@ -67,4 +77,3 @@ export function prefetchExerciseImagesFromExercises(
 
   prefetchExerciseImageUrls(imagePaths, count);
 }
-
