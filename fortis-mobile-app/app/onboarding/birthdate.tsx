@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignSelf: 'center',
     gap: Spacing.md,
-    marginTop: 120,
+    marginTop: 40,
   },
   pickerColumn: {
     flex: 1,
