@@ -23,6 +23,14 @@
       "icon": "./assets/fortis_final_icon.png",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Turning on Photo access will allow us to display your chosen photo for your profile.",
+        "UIApplicationShortcutItems": [
+          {
+            "UIApplicationShortcutItemType": "com.fortisfitness.app.delete-feedback",
+            "UIApplicationShortcutItemTitle": "Deleting? Tell us why.",
+            "UIApplicationShortcutItemSubtitle": "Send feedback before you delete.",
+            "UIApplicationShortcutItemIconSymbolName": "square.and.pencil"
+          }
+        ],
         "UIBackgroundModes": [
           "remote-notification"
         ]
