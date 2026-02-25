@@ -82,7 +82,7 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
 }
 
 export default function SettingsScreen() {
-  const APP_VERSION = '1.0.1';
+const APP_VERSION = '1.0.0';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { profile, signOut } = useAuth();
