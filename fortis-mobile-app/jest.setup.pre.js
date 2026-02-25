@@ -7,6 +7,20 @@ global.__ExpoImportMetaRegistry = {
   set: () => {},
 };
 
+// React Native renderer expects DOM-like window event APIs in some runtimes.
+// Node 25 can expose a partial window object without dispatchEvent.
+const testWindow = global.window ?? global;
+if (typeof testWindow.dispatchEvent !== 'function') {
+  testWindow.dispatchEvent = () => true;
+}
+if (typeof testWindow.addEventListener !== 'function') {
+  testWindow.addEventListener = () => {};
+}
+if (typeof testWindow.removeEventListener !== 'function') {
+  testWindow.removeEventListener = () => {};
+}
+global.window = testWindow;
+
 // Mock structuredClone if not available
 if (typeof global.structuredClone === 'undefined') {
   global.structuredClone = (val) => JSON.parse(JSON.stringify(val));

@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
+import {
+  getInFlightWorkoutHistoryRequest,
+  getWorkoutHistoryCacheEntry,
+  setCachedWorkoutHistory,
+  setInFlightWorkoutHistoryRequest,
+} from '@/src/services/workoutHistoryCache';
 import { supabase } from '@/src/lib/supabase';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
@@ -14,33 +20,8 @@ type WorkoutHistorySourceOptions = {
   syncToStore?: boolean;
 };
 
-type WorkoutHistoryCache = {
-  sessions: WorkoutSession[] | null;
-  cachedAt: number;
-};
-
-let cachedByUser: Record<string, WorkoutHistoryCache> = {};
-let inFlightByUser: Record<string, Promise<WorkoutSession[]> | null> = {};
-
 const DEFAULT_LIMIT = 10000;
 const DEFAULT_STALE_MS = 5 * 60 * 1000;
-
-export const getCachedWorkoutHistory = (userId?: string | null) => {
-  if (!userId) return [];
-  return cachedByUser[userId]?.sessions ?? [];
-};
-
-export const setCachedWorkoutHistory = (userId: string, sessions: WorkoutSession[]) => {
-  cachedByUser[userId] = {
-    sessions,
-    cachedAt: Date.now(),
-  };
-};
-
-export const clearCachedWorkoutHistory = (userId: string) => {
-  delete cachedByUser[userId];
-  delete inFlightByUser[userId];
-};
 
 export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {}) {
   const { user } = useAuth();
@@ -55,8 +36,8 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
   const fallbackLocal = useWorkoutStore((state) => state.completedSessions);
   const replaceCompletedSessions = useWorkoutStore((state) => state.replaceCompletedSessions);
   const local = localSessions ?? fallbackLocal;
-  const cachedForUser = userId ? cachedByUser[userId]?.sessions ?? null : null;
-  const cachedAt = userId ? cachedByUser[userId]?.cachedAt ?? 0 : 0;
+  const cachedForUser = getWorkoutHistoryCacheEntry(userId)?.sessions ?? null;
+  const cachedAt = getWorkoutHistoryCacheEntry(userId)?.cachedAt ?? 0;
 
   const [remoteSessions, setRemoteSessions] = useState<WorkoutSession[]>(
     cachedForUser ?? []
@@ -93,34 +74,46 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
       };
     }
 
-    if (!inFlightByUser[userId]) {
+    if (!getInFlightWorkoutHistoryRequest(userId)) {
       const expectedUserId = userId;
-      inFlightByUser[userId] = fetchWorkoutHistory({ limit })
-        .then(async ({ sessions, error }) => {
-          if (error) {
-            return cachedForUser ?? [];
-          }
-          const { data: { session: currentSession } } = await supabase.auth.getSession();
-          if (!currentSession?.user || currentSession.user.id !== expectedUserId) {
-            return cachedForUser ?? [];
-          }
-          const latestLocal = localSessions ?? useWorkoutStore.getState().completedSessions;
-          const merged = mergeWorkoutSessions(sessions, latestLocal);
-          setCachedWorkoutHistory(userId, merged);
-          if (syncToStore && sessions.length > 0) {
-            replaceCompletedSessions(merged).catch((storeError) => {
-              console.warn('[WorkoutHistorySource] Failed to persist merged sessions:', storeError);
-            });
-          }
-          return merged;
-        })
-        .finally(() => {
-          inFlightByUser[userId] = null;
-        });
+      setInFlightWorkoutHistoryRequest(
+        userId,
+        fetchWorkoutHistory({ limit })
+          .then(async ({ sessions, error }) => {
+            if (error) {
+              return cachedForUser ?? [];
+            }
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (!currentSession?.user || currentSession.user.id !== expectedUserId) {
+              return cachedForUser ?? [];
+            }
+            const latestLocal = localSessions ?? useWorkoutStore.getState().completedSessions;
+            const merged = mergeWorkoutSessions(sessions, latestLocal);
+            setCachedWorkoutHistory(userId, merged);
+            if (syncToStore && sessions.length > 0) {
+              replaceCompletedSessions(merged).catch((storeError) => {
+                console.warn('[WorkoutHistorySource] Failed to persist merged sessions:', storeError);
+              });
+            }
+            return merged;
+          })
+          .finally(() => {
+            setInFlightWorkoutHistoryRequest(userId, null);
+          }),
+      );
+    }
+
+    const inFlightRequest = getInFlightWorkoutHistoryRequest(userId);
+    if (!inFlightRequest) {
+      setRemoteSessions(cachedForUser ?? []);
+      setIsLoading(false);
+      return () => {
+        isMounted = false;
+      };
     }
 
     setIsLoading(true);
-    inFlightByUser[userId]
+    inFlightRequest
       .then((sessions) => {
         if (!isMounted) return;
         setRemoteSessions(sessions);

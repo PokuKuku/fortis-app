@@ -82,6 +82,7 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
 }
 
 export default function SettingsScreen() {
+  const APP_VERSION = '1.0.1';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { profile, signOut } = useAuth();
@@ -199,7 +200,7 @@ export default function SettingsScreen() {
     const email = 'fortisfitnessapp@gmail.com';
     const subject = encodeURIComponent('Fortis App Feedback');
     const body = encodeURIComponent(
-      '\n\n---\nApp Version: 1.0.0\nPlease describe your feedback or issue above.'
+      `\n\n---\nApp Version: ${APP_VERSION}\nPlease describe your feedback or issue above.`
     );
 
     const mailtoUrl = `mailto:${email}?subject=${subject}&body=${body}`;
@@ -556,7 +557,7 @@ export default function SettingsScreen() {
           </View>
 
           {/* Version */}
-          <Text style={[styles.version, { color: colors.textSecondary }]}>Fortis v1.0.0</Text>
+          <Text style={[styles.version, { color: colors.textSecondary }]}>Fortis v{APP_VERSION}</Text>
         </ScrollView>
       </SafeAreaView>
 
