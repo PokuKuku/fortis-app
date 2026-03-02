@@ -20,7 +20,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
-import { InsightBarChart } from '@/src/components/insights/InsightBarChart';
+import { InsightRadarChart } from '@/src/components/insights/InsightRadarChart';
 import type { TrainingInsight } from '@/src/types/insights';
 import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
@@ -45,9 +45,8 @@ type ShareChartConfig =
       baselineValue?: number;
     }
   | {
-      kind: 'bar';
+      kind: 'radar';
       data: InsightBarPoint[];
-      unit?: string;
     };
 
 const HEADER_PADDING = scale(Spacing.lg);
@@ -106,9 +105,8 @@ const resolveShareChart = (
 ): ShareChartConfig => {
   if (isWorkoutRecapType(insight.type)) {
     return {
-      kind: 'bar',
+      kind: 'radar',
       data: series.breakdown ?? [],
-      unit: series.breakdownUnit ?? series.units.volume,
     };
   }
 
@@ -328,8 +326,8 @@ export default function InsightShareScreen() {
       return null;
     }
 
-    if (shareChart.kind === 'bar') {
-      return <InsightBarChart data={shareChart.data} unit={shareChart.unit} />;
+    if (shareChart.kind === 'radar') {
+      return <InsightRadarChart data={shareChart.data} compact />;
     }
 
     const fill = shareChart.variant === 'area' ? colors.accentOverlay : undefined;
@@ -737,8 +735,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   shareTitle: {
-    ...Typography.h3,
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(20),
+    letterSpacing: 0.5,
   },
   shareSummary: {
     fontSize: moderateScale(13),

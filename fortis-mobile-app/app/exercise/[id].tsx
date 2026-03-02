@@ -264,10 +264,18 @@ export default function ExerciseDetailsScreen() {
       })
       .filter((point): point is { weight: number; volume: number; e1rm: number; date: Date } => Boolean(point));
 
-    return points.map((point) => ({
-      x: point.date.getTime(),
-      ...point,
-    }));
+    // Ensure strictly increasing x values when multiple entries share the same timestamp.
+    // This prevents interpolation artifacts in line charts.
+    const seenTimestamps = new Map<number, number>();
+    return points.map((point) => {
+      const baseX = point.date.getTime();
+      const duplicateCount = seenTimestamps.get(baseX) ?? 0;
+      seenTimestamps.set(baseX, duplicateCount + 1);
+      return {
+        x: baseX + duplicateCount,
+        ...point,
+      };
+    });
   }, [
     history,
     preferredUnits,

@@ -1,4 +1,12 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { format } from 'date-fns';
 import { useFont } from '@shopify/react-native-skia';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -33,27 +41,151 @@ interface ExerciseChartsProps {
   unitLabel: string;
 }
 
+type ChartMetric = 'weight' | 'volume' | 'e1rm';
+type ChartSelection = { metric: ChartMetric; index: number } | null;
+
+const TOOLTIP_WIDTH = 140;
+
 export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseChartsProps) {
   const { colors, isDark } = useTheme();
+  const [chartWidths, setChartWidths] = useState<Record<ChartMetric, number>>({
+    weight: 0,
+    volume: 0,
+    e1rm: 0,
+  });
+  const [selection, setSelection] = useState<ChartSelection>(null);
   const axisFont = useFont(
     require('../../../assets/fonts/BankGothicMediumBT.ttf'),
     10
   );
+  const xValues = useMemo(
+    () => chartData.map((point) => point.x).filter((value) => Number.isFinite(value)),
+    [chartData]
+  );
+  const minX = xValues.length ? Math.min(...xValues) : null;
+  const maxX = xValues.length ? Math.max(...xValues) : null;
+
+  useEffect(() => {
+    setSelection(null);
+  }, [chartData]);
+
   const dateTicks = (() => {
     if (!chartData.length) return [];
     const targetCount = Math.min(4, chartData.length);
-    if (targetCount === 1) return [chartData[0].x];
-    const step = (chartData.length - 1) / (targetCount - 1);
-    return Array.from({ length: targetCount }, (_, index) => {
-      const pointIndex = Math.round(index * step);
-      return chartData[pointIndex]?.x ?? chartData[0].x;
+    if (!xValues.length) return [];
+    const localMinX = Math.min(...xValues);
+    const localMaxX = Math.max(...xValues);
+    if (targetCount === 1 || localMinX === localMaxX) return [localMinX];
+    const step = (localMaxX - localMinX) / (targetCount - 1);
+    const evenlySpacedTicks = Array.from({ length: targetCount }, (_, index) => localMinX + step * index);
+    const seenDayLabels = new Set<string>();
+    const dedupedTicks: number[] = [];
+
+    evenlySpacedTicks.forEach((tick) => {
+      const dayLabel = format(new Date(tick), 'd');
+      if (seenDayLabels.has(dayLabel)) return;
+      seenDayLabels.add(dayLabel);
+      dedupedTicks.push(tick);
     });
+
+    return dedupedTicks;
   })();
   const formatDateTick = (value: number) => {
     if (!Number.isFinite(value)) return '';
-    return format(new Date(value), 'MMM d');
+    return format(new Date(value), 'd');
   };
   const chartPadding = { top: 18, bottom: 38, left: 80, right: 4 };
+  const plotInset = 8;
+
+  const handleChartLayout = (metric: ChartMetric) => (event: LayoutChangeEvent) => {
+    const { width } = event.nativeEvent.layout;
+    setChartWidths((prev) => (prev[metric] === width ? prev : { ...prev, [metric]: width }));
+  };
+
+  const resolveNearestPointIndex = (tapX: number, chartWidth: number) => {
+    if (!chartData.length || !Number.isFinite(tapX) || chartWidth <= 0 || minX === null || maxX === null) {
+      return null;
+    }
+    const plotWidth = chartWidth - chartPadding.left - chartPadding.right;
+    if (plotWidth <= 0) return null;
+
+    if (minX === maxX) return 0;
+
+    const clampedX = Math.min(Math.max(tapX - chartPadding.left, 0), plotWidth);
+    const tappedDomainX = minX + (clampedX / plotWidth) * (maxX - minX);
+    let closestIndex = 0;
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    chartData.forEach((point, index) => {
+      const distance = Math.abs(point.x - tappedDomainX);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestIndex = index;
+      }
+    });
+
+    return closestIndex;
+  };
+
+  const handleChartPress = (metric: ChartMetric) => (event: GestureResponderEvent) => {
+    const chartWidth = chartWidths[metric];
+    const index = resolveNearestPointIndex(event.nativeEvent.locationX, chartWidth);
+    if (index === null) return;
+    setSelection((prev) => {
+      if (prev?.metric === metric && prev.index === index) return null;
+      return { metric, index };
+    });
+  };
+
+  const resolveTooltipLeft = (pointX: number, chartWidth: number) => {
+    if (chartWidth <= 0 || minX === null || maxX === null) return plotInset;
+    const plotWidth = chartWidth - chartPadding.left - chartPadding.right;
+    if (plotWidth <= 0) return plotInset;
+    const ratio = maxX === minX ? 0.5 : (pointX - minX) / (maxX - minX);
+    const x = chartPadding.left + ratio * plotWidth;
+    return Math.min(
+      Math.max(x - TOOLTIP_WIDTH / 2, plotInset),
+      chartWidth - TOOLTIP_WIDTH - plotInset
+    );
+  };
+
+  const formatMetricValue = (metric: ChartMetric, point: ChartDataPoint) => {
+    if (metric === 'weight') {
+      const value = point.weight;
+      return Number.isInteger(value) ? `${value} ${unitLabel}` : `${value.toFixed(1)} ${unitLabel}`;
+    }
+    if (metric === 'volume') {
+      return `${formatVolume(point.volume)} ${unitLabel}`;
+    }
+    return `${Math.round(point.e1rm)} ${unitLabel}`;
+  };
+
+  const renderTooltip = (metric: ChartMetric) => {
+    if (!selection || selection.metric !== metric) return null;
+    const point = chartData[selection.index];
+    const chartWidth = chartWidths[metric];
+    if (!point || chartWidth <= 0) return null;
+    return (
+      <View
+        style={[
+          styles.chartTooltip,
+          {
+            left: resolveTooltipLeft(point.x, chartWidth),
+            borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+            backgroundColor: isDark ? 'rgba(18,18,18,0.94)' : 'rgba(255,255,255,0.96)',
+          },
+        ]}
+        pointerEvents="none"
+      >
+        <Text style={[styles.tooltipValue, { color: colors.textPrimary }]}>
+          {formatMetricValue(metric, point)}
+        </Text>
+        <Text style={[styles.tooltipLabel, { color: colors.textTertiary }]}>
+          {format(new Date(point.x), 'MMM d, yyyy')}
+        </Text>
+      </View>
+    );
+  };
 
   // Theme-aware styles
   const themedStyles = {
@@ -96,7 +228,10 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
     <>
       {/* Weight Progress Chart */}
       <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>WEIGHT PROGRESS</Text>
-      <View style={[styles.chartContainer, themedStyles.chartContainer]}>
+      <View
+        style={[styles.chartContainer, themedStyles.chartContainer]}
+        onLayout={handleChartLayout('weight')}
+      >
         <CartesianChart
           data={chartData}
           xKey="x"
@@ -130,7 +265,7 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
                 points={points.weight}
                 color={colors.accent}
                 strokeWidth={2}
-                curveType="natural"
+                curveType="monotoneX"
                 animate={{ type: 'timing', duration: 500 }}
               />
               <Scatter
@@ -142,6 +277,8 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
             </>
           )}
         </CartesianChart>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleChartPress('weight')} />
+        {renderTooltip('weight')}
         <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Date</Text>
         <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
           Max weight ({unitLabel})
@@ -150,7 +287,10 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
 
       {/* Volume Progress Chart */}
       <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>VOLUME PROGRESS</Text>
-      <View style={[styles.chartContainer, themedStyles.chartContainer]}>
+      <View
+        style={[styles.chartContainer, themedStyles.chartContainer]}
+        onLayout={handleChartLayout('volume')}
+      >
         <CartesianChart
           data={chartData}
           xKey="x"
@@ -184,7 +324,7 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
                 points={points.volume}
                 color="#3b82f6"
                 strokeWidth={2}
-                curveType="natural"
+                curveType="monotoneX"
                 animate={{ type: 'timing', duration: 500 }}
               />
               <Scatter
@@ -196,6 +336,8 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
             </>
           )}
         </CartesianChart>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleChartPress('volume')} />
+        {renderTooltip('volume')}
         <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Date</Text>
         <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
           Volume ({unitLabel})
@@ -204,7 +346,10 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
 
       {/* Estimated 1RM Progress Chart */}
       <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>E1RM PROGRESS</Text>
-      <View style={[styles.chartContainer, themedStyles.chartContainer]}>
+      <View
+        style={[styles.chartContainer, themedStyles.chartContainer]}
+        onLayout={handleChartLayout('e1rm')}
+      >
         <CartesianChart
           data={chartData}
           xKey="x"
@@ -238,7 +383,7 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
                 points={points.e1rm}
                 color={Colors.success}
                 strokeWidth={2}
-                curveType="natural"
+                curveType="monotoneX"
                 animate={{ type: 'timing', duration: 500 }}
               />
               <Scatter
@@ -250,6 +395,8 @@ export function ExerciseCharts({ chartData, formatVolume, unitLabel }: ExerciseC
             </>
           )}
         </CartesianChart>
+        <Pressable style={StyleSheet.absoluteFillObject} onPress={handleChartPress('e1rm')} />
+        {renderTooltip('e1rm')}
         <Text style={[styles.axisLabel, styles.axisLabelX, themedStyles.axisLabel]}>Date</Text>
         <Text style={[styles.axisLabel, styles.axisLabelY, themedStyles.axisLabel]}>
           Estimated 1RM ({unitLabel})
@@ -294,6 +441,25 @@ const styles = StyleSheet.create({
     width: 150,
     textAlign: 'center',
     transform: [{ translateY: -34 }, { rotate: '-90deg' }],
+  },
+  chartTooltip: {
+    position: 'absolute',
+    top: Spacing.sm,
+    width: TOOLTIP_WIDTH,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  tooltipValue: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  tooltipLabel: {
+    marginTop: 2,
+    fontSize: FontSizes.xs,
+    textAlign: 'center',
   },
   placeholderTab: {
     flex: 1,

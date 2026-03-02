@@ -373,7 +373,7 @@ export default function InsightDetailScreen() {
 
             <View style={styles.chartHeader}>
               <Text style={[styles.chartTitle, { color: colors.textSecondary }]}>
-                {isWorkoutRecap ? 'Muscle volume profile' : chartTitle}
+                {isWorkoutRecap ? 'Muscle set profile' : chartTitle}
               </Text>
               {!isWorkoutRecap && latestValue && (
                 <View
@@ -545,8 +545,9 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.sm),
   },
   title: {
-    ...Typography.h3,
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(18),
+    letterSpacing: 0.4,
   },
   summary: {
     fontSize: moderateScale(14),
@@ -625,9 +626,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   chartTitle: {
-    ...Typography.body,
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(14),
-    fontWeight: '600',
+    letterSpacing: 0.4,
   },
   chartUnit: {
     fontSize: moderateScale(11),

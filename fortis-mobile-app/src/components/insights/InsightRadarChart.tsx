@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import type { InsightBarPoint } from '@/src/types/insightCharts';
 import { Typography } from '@/constants/Typography';
@@ -18,6 +18,9 @@ const CENTER_X = VIEWBOX_WIDTH / 2;
 const DEFAULT_CENTER_Y = 120;
 const DEFAULT_OUTER_RADIUS = 84;
 const GRID_LEVELS = 4;
+const TOOLTIP_WIDTH = 120;
+const TOOLTIP_HEIGHT = 34;
+const TOOLTIP_PADDING = 8;
 
 const pointFor = (centerX: number, centerY: number, radius: number, angle: number) => ({
   x: centerX + radius * Math.cos(angle),
@@ -30,8 +33,20 @@ const getTextAnchor = (cosValue: number): 'start' | 'middle' | 'end' => {
   return 'middle';
 };
 
+// Compress high outliers so one dominant muscle does not visually flatten the others.
+const compressRatio = (value: number): number => Math.sqrt(Math.max(value, 0));
+
+const formatRadarValue = (value: number): string => {
+  if (Number.isInteger(value)) {
+    return `${value}`;
+  }
+  const rounded = Number(value.toFixed(2));
+  return `${rounded}`;
+};
+
 export function InsightRadarChart({ data, compact = false }: InsightRadarChartProps) {
   const { colors, isDark } = useTheme();
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const filtered = data.filter((item) => item.value > 0);
   const maxValue = Math.max(...data.map((item) => item.value), 0);
   const axisCount = data.length;
@@ -74,7 +89,7 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
   });
 
   const radarPoints = data.map((item, index) => {
-    const ratio = item.value / maxValue;
+    const ratio = compressRatio(item.value / maxValue);
     const point = pointFor(CENTER_X, centerY, outerRadius * ratio, angles[index]);
     return {
       ...point,
@@ -84,6 +99,19 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
     };
   });
   const radarPolygon = radarPoints.map((point) => `${point.x},${point.y}`).join(' ');
+  const selectedPoint = selectedIndex === null ? null : radarPoints[selectedIndex];
+  const tooltipX = selectedPoint
+    ? Math.min(
+      Math.max(selectedPoint.x - TOOLTIP_WIDTH / 2, TOOLTIP_PADDING),
+      VIEWBOX_WIDTH - TOOLTIP_WIDTH - TOOLTIP_PADDING
+    )
+    : 0;
+  const tooltipY = selectedPoint
+    ? Math.min(
+      Math.max(selectedPoint.y - (compact ? 48 : 56), TOOLTIP_PADDING),
+      viewBoxHeight - TOOLTIP_HEIGHT - TOOLTIP_PADDING
+    )
+    : 0;
 
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
@@ -124,7 +152,6 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
           const labelPoint = pointFor(CENTER_X, centerY, labelRadius, point.angle);
           return (
             <React.Fragment key={`point-${index}`}>
-              <Circle cx={point.x} cy={point.y} r={3.5} fill={colors.accent} />
               <SvgText
                 x={labelPoint.x}
                 y={labelPoint.y}
@@ -139,6 +166,81 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
             </React.Fragment>
           );
         })}
+
+        {selectedPoint && (
+          <Rect
+            x={0}
+            y={0}
+            width={VIEWBOX_WIDTH}
+            height={viewBoxHeight}
+            fill="transparent"
+            onPress={() => setSelectedIndex(null)}
+          />
+        )}
+
+        {radarPoints.map((point, index) => {
+          const isSelected = selectedIndex === index;
+          return (
+            <React.Fragment key={`node-${index}`}>
+              <Circle
+                cx={point.x}
+                cy={point.y}
+                r={14}
+                fill="transparent"
+                onPress={() => {
+                  setSelectedIndex((prev) => (prev === index ? null : index));
+                }}
+              />
+              {isSelected && (
+                <Circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={6}
+                  fill="none"
+                  stroke={colors.accent}
+                  strokeWidth={2}
+                />
+              )}
+              <Circle cx={point.x} cy={point.y} r={3.5} fill={colors.accent} />
+            </React.Fragment>
+          );
+        })}
+
+        {selectedPoint && (
+          <>
+            <Rect
+              x={tooltipX}
+              y={tooltipY}
+              rx={8}
+              width={TOOLTIP_WIDTH}
+              height={TOOLTIP_HEIGHT}
+              fill={isDark ? 'rgba(18,18,18,0.94)' : 'rgba(255,255,255,0.96)'}
+              stroke={isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'}
+              strokeWidth={1}
+            />
+            <SvgText
+              x={tooltipX + TOOLTIP_WIDTH / 2}
+              y={tooltipY + 13}
+              fill={colors.textPrimary}
+              fontSize={11}
+              fontWeight="700"
+              textAnchor="middle"
+              alignmentBaseline="middle"
+            >
+              {selectedPoint.label}
+            </SvgText>
+            <SvgText
+              x={tooltipX + TOOLTIP_WIDTH / 2}
+              y={tooltipY + 25}
+              fill={colors.textTertiary}
+              fontSize={10}
+              textAnchor="middle"
+              alignmentBaseline="middle"
+            >
+              {formatRadarValue(selectedPoint.value)} sets
+            </SvgText>
+          </>
+        )}
       </Svg>
     </View>
   );

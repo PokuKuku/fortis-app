@@ -24,7 +24,7 @@ import { Typography } from '@/constants/Typography';
 
 const HEATMAP_CELL_SIZE = 10;
 const HEATMAP_CELL_GAP = 4;
-const HEATMAP_DAY_LABEL_WIDTH = 28;
+const HEATMAP_DAY_LABEL_WIDTH = 34;
 
 function withAlpha(color: string, alpha: number): string {
   if (!color.startsWith('#') || color.length !== 7) {
@@ -364,9 +364,30 @@ export function ProfileHeader() {
 
               <View style={styles.heatmapRow}>
                 <View style={styles.dayLabelsColumn}>
-                  <Text style={[styles.dayLabel, { color: colors.textTertiary }]}>Mon</Text>
-                  <Text style={[styles.dayLabel, { color: colors.textTertiary }]}>Wed</Text>
-                  <Text style={[styles.dayLabel, { color: colors.textTertiary }]}>Fri</Text>
+                  <Text
+                    style={[styles.dayLabel, { color: colors.textTertiary }]}
+                    allowFontScaling={false}
+                    maxFontSizeMultiplier={1}
+                    numberOfLines={1}
+                  >
+                    Mon
+                  </Text>
+                  <Text
+                    style={[styles.dayLabel, { color: colors.textTertiary }]}
+                    allowFontScaling={false}
+                    maxFontSizeMultiplier={1}
+                    numberOfLines={1}
+                  >
+                    Wed
+                  </Text>
+                  <Text
+                    style={[styles.dayLabel, { color: colors.textTertiary }]}
+                    allowFontScaling={false}
+                    maxFontSizeMultiplier={1}
+                    numberOfLines={1}
+                  >
+                    Fri
+                  </Text>
                 </View>
                 <View style={[styles.weeksRow, { width: gridWidth }]}>
                   {weeks.map((week, weekIndex) => (
@@ -572,6 +593,8 @@ const styles = StyleSheet.create({
   dayLabel: {
     fontSize: 10,
     fontWeight: '600',
+    lineHeight: 12,
+    includeFontPadding: false,
   },
   weeksRow: {
     flexDirection: 'row',

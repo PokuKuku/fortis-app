@@ -20,7 +20,6 @@ import Animated, {
 import { ChevronDownIcon } from 'react-native-heroicons/outline';
 import { Colors } from '../../../constants/Colors';
 import { Spacing, BorderRadius } from '../../../constants/Sizes';
-import { Typography } from '../../../constants/Typography';
 import { StainlessSteelPattern } from '../../../components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
@@ -299,7 +298,15 @@ export function DateSelector({
                   style={[styles.selector, themedStyles.selector, showMonthPicker && themedStyles.selectorActive]}
                   onPress={toggleMonthPicker}
                 >
-                  <Text style={[styles.selectorText, themedStyles.selectorText]}>{MONTHS[viewMonth]}</Text>
+                  <Text
+                    allowFontScaling={false}
+                    maxFontSizeMultiplier={1}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    style={[styles.selectorText, themedStyles.selectorText]}
+                  >
+                    {MONTHS[viewMonth]}
+                  </Text>
                   <ChevronDownIcon
                     color={colors.textSecondary}
                     size={14}
@@ -327,6 +334,9 @@ export function DateSelector({
                           onPress={() => handleMonthSelect(index)}
                         >
                           <Text
+                            allowFontScaling={false}
+                            maxFontSizeMultiplier={1}
+                            numberOfLines={1}
                             style={[
                               styles.dropdownItemText,
                               themedStyles.dropdownItemText,
@@ -348,7 +358,14 @@ export function DateSelector({
                   style={[styles.selector, themedStyles.selector, showYearPicker && themedStyles.selectorActive]}
                   onPress={toggleYearPicker}
                 >
-                  <Text style={[styles.selectorText, themedStyles.selectorText]}>{viewYear}</Text>
+                  <Text
+                    allowFontScaling={false}
+                    maxFontSizeMultiplier={1}
+                    numberOfLines={1}
+                    style={[styles.selectorText, themedStyles.selectorText]}
+                  >
+                    {viewYear}
+                  </Text>
                   <ChevronDownIcon
                     color={colors.textSecondary}
                     size={14}
@@ -376,6 +393,9 @@ export function DateSelector({
                           onPress={() => handleYearSelect(year)}
                         >
                           <Text
+                            allowFontScaling={false}
+                            maxFontSizeMultiplier={1}
+                            numberOfLines={1}
                             style={[
                               styles.dropdownItemText,
                               themedStyles.dropdownItemText,
@@ -481,9 +501,10 @@ const styles = StyleSheet.create({
     borderColor: Colors.success,
   },
   selectorText: {
-    ...Typography.caption,
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: '600',
     color: Colors.textPrimary,
-    fontSize: 12,
   },
   chevronRotated: {
     transform: [{ rotate: '180deg' }],
@@ -513,9 +534,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(34, 197, 94, 0.15)',
   },
   dropdownItemText: {
-    ...Typography.caption,
+    fontSize: 13,
+    lineHeight: 16,
+    fontWeight: '500',
     color: '#DFE2E6',
-    fontSize: 12,
   },
   dropdownItemTextSelected: {
     color: Colors.success,

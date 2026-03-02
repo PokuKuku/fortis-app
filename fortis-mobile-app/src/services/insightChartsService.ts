@@ -11,12 +11,9 @@ import {
   resolveMuscleTargetKeys,
   type MuscleKey,
 } from '@/src/utils/muscleTaxonomy';
-import { getBodyweightMovementFactor, isBodyweightExercise } from '@/src/utils/workoutVolume';
 
 const WEEKLY_SERIES_WEEKS = 12;
 const EXPOSURE_LOOKBACK_DAYS = 42;
-const KG_TO_LBS = 2.20462;
-const LBS_TO_KG = 1 / KG_TO_LBS;
 
 type WeeklyVolumeRow = {
   week_start: string;
@@ -55,8 +52,6 @@ type WorkoutSetRecapRow = {
   session_id: string;
   exercise_id: string;
   reps: number | null;
-  weight: number | null;
-  weight_unit: string | null;
   is_warmup: boolean | null;
   exercise_name_snapshot?: string | null;
   primary_muscles_snapshot?: string[] | null;
@@ -66,7 +61,6 @@ type WorkoutSetRecapRow = {
 type ExerciseMetaRow = {
   id: string;
   name: string | null;
-  equipment: string | null;
   primary_muscles: string[] | null;
   secondary_muscles: string[] | null;
 };
@@ -86,37 +80,6 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 const isWorkoutRecapType = (type: TrainingInsight['type']): boolean =>
   type === 'WORKOUT_RECAP_V1';
-
-const normalizeWeight = (
-  weight: number,
-  weightUnit: string | null | undefined,
-  preferredUnits: 'imperial' | 'metric'
-): number => {
-  if (preferredUnits === 'metric') {
-    return weightUnit === 'lbs' ? weight * LBS_TO_KG : weight;
-  }
-  return weightUnit === 'kg' ? weight * KG_TO_LBS : weight;
-};
-
-const normalizeBodyweight = (
-  weight: number,
-  unit: string | null | undefined,
-  preferredUnits: 'imperial' | 'metric'
-): number | null => {
-  if (!weight || weight <= 0) return null;
-  const normalizedUnit = (unit ?? '').toLowerCase();
-  if (normalizedUnit === 'kg') {
-    return preferredUnits === 'metric' ? weight : weight * KG_TO_LBS;
-  }
-  if (normalizedUnit === 'lb' || normalizedUnit === 'lbs') {
-    return preferredUnits === 'imperial' ? weight : weight * LBS_TO_KG;
-  }
-  return null;
-};
-
-const resolvePreferredUnits = (volumeUnit?: string): 'imperial' | 'metric' => {
-  return volumeUnit === 'kg' ? 'metric' : 'imperial';
-};
 
 const normalizeWeekSeries = <T extends { week_start: string }>(
   rows: T[],
@@ -358,34 +321,6 @@ export async function fetchInsightChartSeries(
       return series;
     }
 
-    const volumeUnit =
-      insight.evidence.find((item) => item.key === 'total_volume')?.unit ??
-      getVolumeUnit(insight) ??
-      'lbs';
-    const preferredUnits = resolvePreferredUnits(volumeUnit);
-    const { data: bodyweightRows } = await supabase
-      .from('user_body_metrics')
-      .select('weight, unit')
-      .eq('user_id', user.id)
-      .order('recorded_at', { ascending: false })
-      .limit(1);
-    const { data: profileRow } = await supabase
-      .from('profiles')
-      .select('weight_kg')
-      .eq('id', user.id)
-      .maybeSingle();
-    const bodyweightRow = bodyweightRows?.[0];
-    const bodyweightPreferred = bodyweightRow
-      ? normalizeBodyweight(bodyweightRow.weight, bodyweightRow.unit, preferredUnits)
-      : null;
-    const profileWeightPreferred =
-      profileRow?.weight_kg && profileRow.weight_kg > 0
-        ? preferredUnits === 'metric'
-          ? profileRow.weight_kg
-          : profileRow.weight_kg * KG_TO_LBS
-        : null;
-    const resolvedBodyweightPreferred = bodyweightPreferred ?? profileWeightPreferred ?? null;
-
     const resolvedSessionIds = new Set<string>();
     if (UUID_REGEX.test(sessionRef)) {
       resolvedSessionIds.add(sessionRef);
@@ -428,7 +363,7 @@ export async function fetchInsightChartSeries(
     const { data, error } = await supabase
       .from('workout_sets')
       .select(
-        'session_id, exercise_id, reps, weight, weight_unit, is_warmup, exercise_name_snapshot, primary_muscles_snapshot, secondary_muscles_snapshot'
+        'session_id, exercise_id, reps, is_warmup, exercise_name_snapshot, primary_muscles_snapshot, secondary_muscles_snapshot'
       )
       .in('session_id', sessionIds);
 
@@ -446,7 +381,7 @@ export async function fetchInsightChartSeries(
     if (exerciseIds.length > 0) {
       const { data: exerciseRows } = await supabase
         .from('exercises')
-        .select('id, name, equipment, primary_muscles, secondary_muscles')
+        .select('id, name, primary_muscles, secondary_muscles')
         .in('id', exerciseIds);
       (exerciseRows as ExerciseMetaRow[] | null | undefined)?.forEach((row) => {
         if (row?.id) {
@@ -455,29 +390,15 @@ export async function fetchInsightChartSeries(
       });
     }
 
-    const muscleVolume = new Map<MuscleKey, number>();
+    // Recap muscle profile uses weighted set attribution (not volume load)
+    // to avoid heavy lifts disproportionately dominating the chart.
+    const muscleSetScore = new Map<MuscleKey, number>();
 
     setRows.forEach((row) => {
       const exerciseMeta = exerciseMetaById.get(row.exercise_id);
       if (!row.reps || row.reps <= 0) return;
       if (row.is_warmup) return;
-
-      let setVolume = 0;
-      if (row.weight && row.weight > 0) {
-        const normalizedWeight = normalizeWeight(row.weight, row.weight_unit, preferredUnits);
-        setVolume += normalizedWeight * row.reps;
-      }
-
       const exerciseName = row.exercise_name_snapshot ?? exerciseMeta?.name ?? '';
-      if (isBodyweightExercise(exerciseMeta?.equipment ?? null, exerciseName)) {
-        const movementFactor = getBodyweightMovementFactor(
-          row.primary_muscles_snapshot ?? exerciseMeta?.primary_muscles ?? null
-        );
-        if (resolvedBodyweightPreferred && movementFactor > 0) {
-          setVolume += resolvedBodyweightPreferred * movementFactor * row.reps;
-        }
-      }
-      if (setVolume <= 0) return;
 
       const primaryMuscles = normalizeMuscleArray(
         row.primary_muscles_snapshot ?? exerciseMeta?.primary_muscles ?? []
@@ -492,30 +413,30 @@ export async function fetchInsightChartSeries(
 
       const resolvedPrimary = primaryMuscles.length > 0 ? primaryMuscles : fallbackMuscles;
       if (resolvedPrimary.length > 0) {
-        const primaryShare = setVolume / resolvedPrimary.length;
+        const primaryShare = 1 / resolvedPrimary.length;
         resolvedPrimary.forEach((muscle) => {
-          muscleVolume.set(muscle, (muscleVolume.get(muscle) ?? 0) + primaryShare);
+          muscleSetScore.set(muscle, (muscleSetScore.get(muscle) ?? 0) + primaryShare);
         });
       }
 
       if (secondaryMuscles.length > 0) {
-        const secondaryShare = (setVolume * 0.5) / secondaryMuscles.length;
+        const secondaryShare = 0.5 / secondaryMuscles.length;
         secondaryMuscles.forEach((muscle) => {
-          muscleVolume.set(muscle, (muscleVolume.get(muscle) ?? 0) + secondaryShare);
+          muscleSetScore.set(muscle, (muscleSetScore.get(muscle) ?? 0) + secondaryShare);
         });
       }
     });
 
-    const points: InsightBarPoint[] = Array.from(muscleVolume.entries())
-      .filter(([, volume]) => volume > 0)
+    const points: InsightBarPoint[] = Array.from(muscleSetScore.entries())
+      .filter(([, setScore]) => setScore > 0)
       .sort((a, b) => b[1] - a[1])
-      .map(([muscle, volume]) => ({
+      .map(([muscle, setScore]) => ({
         label: getMuscleDisplayName(muscle),
-        value: Number(volume.toFixed(2)),
+        value: Number(setScore.toFixed(2)),
       }));
 
     series.breakdown = points;
-    series.breakdownUnit = volumeUnit;
+    series.breakdownUnit = 'sets';
     return series;
   }
 

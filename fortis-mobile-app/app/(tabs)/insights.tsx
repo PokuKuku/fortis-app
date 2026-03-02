@@ -371,11 +371,13 @@ function InsightCard({
         <Text style={[styles.insightTitle, { color: colors.textPrimary }]}>{insight.title}</Text>
       </View>
 
-      <View style={[styles.summaryPanel, summaryTheme]}>
-        <Text style={[styles.insightSummary, { color: readableText.secondary }]}>
-          {insight.summary}
-        </Text>
-      </View>
+      {!isWorkoutRecap && (
+        <View style={[styles.summaryPanel, summaryTheme]}>
+          <Text style={[styles.insightSummary, { color: readableText.secondary }]}>
+            {insight.summary}
+          </Text>
+        </View>
+      )}
 
       {isWorkoutRecap ? (
         <View style={[styles.sparklineShell, sparklineTheme]}>
@@ -385,7 +387,7 @@ function InsightCard({
               maxFontSizeMultiplier={1}
               style={[styles.sparklineLabel, { color: readableText.tertiary }]}
             >
-              Muscle volume profile
+              Muscle set profile
             </Text>
           </View>
           <View style={styles.recapRadarShell}>
@@ -1229,9 +1231,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   watchlistTitle: {
-    ...Typography.h3,
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(17),
     lineHeight: moderateScale(22),
+    letterSpacing: 0.4,
   },
   watchlistSubtitle: {
     ...Typography.caption,
@@ -1356,9 +1359,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   insightTitle: {
-    ...Typography.h3,
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(17),
     lineHeight: moderateScale(22),
+    letterSpacing: 0.4,
   },
   weeklyInsightLabel: {
     fontSize: moderateScale(12),

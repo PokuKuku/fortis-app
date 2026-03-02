@@ -270,6 +270,15 @@ function ThemedAppContent({
             }}
           />
           <Stack.Screen
+            name="insights/share"
+            options={{
+              animation: 'slide_from_right',
+              animationDuration: 220,
+              gestureEnabled: true,
+              gestureDirection: 'horizontal',
+            }}
+          />
+          <Stack.Screen
             name="workouts/[id]"
             options={{
               animation: 'slide_from_right',
