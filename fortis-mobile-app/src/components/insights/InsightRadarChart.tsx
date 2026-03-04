@@ -230,14 +230,25 @@ export function InsightRadarChart({ data, compact = false }: InsightRadarChartPr
               {selectedPoint.label}
             </SvgText>
             <SvgText
-              x={tooltipX + TOOLTIP_WIDTH / 2}
+              x={tooltipX + TOOLTIP_WIDTH / 2 - 2}
+              y={tooltipY + 25}
+              fill={colors.textPrimary}
+              fontSize={10}
+              fontWeight="700"
+              textAnchor="end"
+              alignmentBaseline="middle"
+            >
+              {formatRadarValue(selectedPoint.value)}
+            </SvgText>
+            <SvgText
+              x={tooltipX + TOOLTIP_WIDTH / 2 + 2}
               y={tooltipY + 25}
               fill={colors.textTertiary}
               fontSize={10}
-              textAnchor="middle"
+              textAnchor="start"
               alignmentBaseline="middle"
             >
-              {formatRadarValue(selectedPoint.value)} sets
+              sets
             </SvgText>
           </>
         )}
