@@ -638,10 +638,20 @@ function WatchlistRow({
           <Text style={[styles.watchlistName, { color: colors.textPrimary }]}>
             {exerciseName}
           </Text>
-        <Text style={[styles.watchlistStatus, { color: statusColor }]}>
-          Plateau risk
-        </Text>
+          <Text style={[styles.watchlistStatus, { color: statusColor }]}>
+            Plateau risk
+          </Text>
         </View>
+        <TouchableOpacity
+          onPress={() => onDismiss(insight)}
+          style={styles.watchlistDismissButton}
+          activeOpacity={0.8}
+          hitSlop={8}
+        >
+          <Text style={[styles.watchlistDismiss, { color: readableText.tertiary }]}>
+            Dismiss
+          </Text>
+        </TouchableOpacity>
       </View>
       {sparkline && (
         <View style={[styles.watchlistSparklineCard, sparklineTheme]}>
@@ -743,17 +753,6 @@ function WatchlistRow({
             activeOpacity={0.8}
           >
             <Text style={[styles.viewChartText, { color: readableText.secondary }]}>View chart</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.watchlistDismissRow}>
-          <TouchableOpacity
-            onPress={() => onDismiss(insight)}
-            style={styles.watchlistDismissButton}
-            activeOpacity={0.8}
-          >
-            <Text style={[styles.watchlistDismiss, { color: readableText.tertiary }]}>
-              Dismiss
-            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -1265,7 +1264,7 @@ const styles = StyleSheet.create({
   },
   watchlistHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
   watchlistInfo: {
@@ -1320,10 +1319,6 @@ const styles = StyleSheet.create({
   },
   watchlistChartButton: {
     marginLeft: 'auto',
-  },
-  watchlistDismissRow: {
-    alignItems: 'flex-end',
-    marginTop: scale(Spacing.sm),
   },
   watchlistDismissButton: {
     paddingHorizontal: scale(Spacing.xs),
