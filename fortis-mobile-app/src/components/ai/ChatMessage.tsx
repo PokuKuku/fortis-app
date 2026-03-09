@@ -7,7 +7,7 @@
  * - Animated sparkles icon when loading
  */
 
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -30,12 +30,18 @@ interface ChatMessageProps {
   delay?: number;
   /** Callback when user taps a clarification option */
   onClarificationSelect?: (option: string) => void;
+  /** Animate the latest assistant response as it appears */
+  enableTypewriter?: boolean;
+  /** Called after the typewriter animation has finished */
+  onTypewriterComplete?: () => void;
 }
 
 export function ChatMessage({
   message,
   delay = 0,
   onClarificationSelect,
+  enableTypewriter = false,
+  onTypewriterComplete,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
@@ -43,7 +49,55 @@ export function ChatMessage({
   const { mainContent, tldr } = !isUser
     ? splitTldrFromContent(message.content, allowTldr)
     : { mainContent: message.content, tldr: null };
-  const shouldShowTldr = allowTldr && !isUser && tldr && shouldDisplayTldr(mainContent);
+  const [displayedMainContent, setDisplayedMainContent] = useState(mainContent);
+  const onTypewriterCompleteRef = useRef(onTypewriterComplete);
+  const clarificationOptions = message.clarification?.options ?? [];
+
+  useEffect(() => {
+    onTypewriterCompleteRef.current = onTypewriterComplete;
+  }, [onTypewriterComplete]);
+
+  useEffect(() => {
+    if (isUser || !enableTypewriter || !mainContent) {
+      setDisplayedMainContent(mainContent);
+      return;
+    }
+
+    let isCancelled = false;
+    let currentIndex = 0;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    setDisplayedMainContent('');
+
+    const typeNextChunk = () => {
+      if (isCancelled) {
+        return;
+      }
+
+      currentIndex = getNextTypewriterIndex(mainContent, currentIndex);
+      setDisplayedMainContent(mainContent.slice(0, currentIndex));
+
+      if (currentIndex >= mainContent.length) {
+        onTypewriterCompleteRef.current?.();
+        return;
+      }
+
+      timeoutId = setTimeout(typeNextChunk, getTypewriterDelay(mainContent, currentIndex));
+    };
+
+    timeoutId = setTimeout(typeNextChunk, TYPEWRITER_INITIAL_DELAY_MS);
+
+    return () => {
+      isCancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [enableTypewriter, isUser, mainContent]);
+
+  const isTyping = !isUser && enableTypewriter && displayedMainContent.length < mainContent.length;
+  const shouldShowTldr = allowTldr && !isUser && tldr && shouldDisplayTldr(mainContent) && !isTyping;
+  const shouldShowClarificationOptions = clarificationOptions.length > 0 && !isTyping;
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -194,6 +248,8 @@ export function ChatMessage({
     },
   };
 
+  const displayedMarkdownContent = useMemo(() => displayedMainContent || ' ', [displayedMainContent]);
+
   return (
     <ReAnimated.View
       entering={FadeIn.duration(300).delay(delay)}
@@ -203,7 +259,7 @@ export function ChatMessage({
         {isUser ? (
           <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
         ) : (
-          <Markdown style={markdownStyles}>{mainContent}</Markdown>
+          <Markdown style={markdownStyles}>{displayedMarkdownContent}</Markdown>
         )}
 
         {shouldShowTldr && (
@@ -213,7 +269,7 @@ export function ChatMessage({
           </View>
         )}
 
-        {!isUser && mainContent.length > 0 && (
+        {!isUser && displayedMainContent.length > 0 && (
           <Text style={[styles.timestamp, themedStyles.timestamp]}>
             {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
           </Text>
@@ -225,9 +281,9 @@ export function ChatMessage({
           </Text>
         )}
 
-        {message.clarification?.options && message.clarification.options.length > 0 && (
+        {shouldShowClarificationOptions && (
           <View style={styles.clarificationOptions}>
-            {message.clarification.options.map((option) => (
+            {clarificationOptions.map((option) => (
               <TouchableOpacity
                 key={option}
                 style={[styles.clarificationOption, themedStyles.clarificationOption]}
@@ -259,6 +315,36 @@ const TLDR_REGEX = /(^|\n)TLDR:\s*([^\n\r]+)\s*$/i;
 const TLDR_MIN_WORDS = 40;
 const TLDR_MIN_ACCEPTABLE_WORDS = 6;
 const TLDR_MAX_SENTENCES = 2;
+const TYPEWRITER_INITIAL_DELAY_MS = 120;
+const TYPEWRITER_BASE_DELAY_MS = 32;
+const TYPEWRITER_PUNCTUATION_DELAY_MS = 110;
+
+function getNextTypewriterIndex(content: string, currentIndex: number): number {
+  const baseStep = content.length > 900 ? 12 : content.length > 500 ? 8 : content.length > 250 ? 5 : 3;
+  let nextIndex = Math.min(content.length, currentIndex + baseStep);
+
+  if (nextIndex >= content.length) {
+    return content.length;
+  }
+
+  const nextWhitespaceIndex = content.indexOf(' ', nextIndex);
+  if (nextWhitespaceIndex !== -1 && nextWhitespaceIndex - nextIndex <= 6) {
+    nextIndex = nextWhitespaceIndex + 1;
+  }
+
+  return nextIndex;
+}
+
+function getTypewriterDelay(content: string, currentIndex: number): number {
+  const lastCharacter = content[currentIndex - 1] ?? '';
+  if (/[.!?]/.test(lastCharacter)) {
+    return TYPEWRITER_PUNCTUATION_DELAY_MS;
+  }
+  if (/[,:;]/.test(lastCharacter)) {
+    return TYPEWRITER_BASE_DELAY_MS * 2;
+  }
+  return TYPEWRITER_BASE_DELAY_MS;
+}
 
 function splitTldrFromContent(content: string, allowFallback: boolean) {
   const match = content.match(TLDR_REGEX);
