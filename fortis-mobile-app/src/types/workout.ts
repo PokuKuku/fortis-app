@@ -359,6 +359,15 @@ export interface ProgramProgress {
   completedAt: string | null;
   lastWorkoutId: string | null;
   lastWorkoutAt: string | null;
+  completedDayNumbers?: number[];
+  history?: ProgramProgressHistoryEntry[];
+  updatedAt?: string | null;
+}
+
+export interface ProgramProgressHistoryEntry {
+  cycle: number;
+  completedDayNumbers: number[];
+  completedAt: string;
 }
 
 /**
@@ -374,4 +383,7 @@ export interface ProgramProgressDTO {
   completed_at: string | null;
   last_workout_id: string | null;
   last_workout_at: string | null;
+  completed_day_numbers?: number[] | null;
+  history?: ProgramProgressHistoryEntry[] | null;
+  updated_at?: string | null;
 }

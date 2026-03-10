@@ -16,7 +16,7 @@ import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { type AccentColorName } from '@/src/utils/accentColors';
-import { DELETED_DEFAULT_PROGRAM_IDS_KEY } from '@/src/constants/storageKeys';
+import { DELETED_DEFAULT_PROGRAM_IDS_KEY, PROGRAM_PROGRESS_KEY } from '@/src/constants/storageKeys';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
@@ -608,8 +608,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Clear user-scoped local storage to prevent data leakage between users
     if (currentUserId) {
       try {
-        // Preserve hidden built-in template/program deletions across sign-out for the same account.
-        await clearUserScopedStorage(currentUserId, [DELETED_DEFAULT_PROGRAM_IDS_KEY]);
+        // Preserve account-scoped defaults/program progress so they can reconcile back to cloud on next sign-in.
+        await clearUserScopedStorage(currentUserId, [
+          DELETED_DEFAULT_PROGRAM_IDS_KEY,
+          PROGRAM_PROGRESS_KEY,
+        ]);
       } catch (err) {
         console.warn('Failed to clear user-scoped storage:', err);
       }

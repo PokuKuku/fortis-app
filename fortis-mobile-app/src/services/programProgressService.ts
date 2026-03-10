@@ -1,258 +1,105 @@
-/**
- * Program Progress Service
- *
- * Handles tracking user's position within workout programs.
- * Syncs to user_program_progress table in Supabase.
- */
-
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
-import { ProgramProgress, ProgramProgressDTO } from '@/src/types/workout';
+import type { ProgramProgressDTO, ProgramProgressHistoryEntry } from '@/src/types/workout';
 
-/**
- * Map DTO to domain model
- */
-function mapProgressFromDTO(dto: ProgramProgressDTO): ProgramProgress {
-  return {
-    id: dto.id,
-    userId: dto.user_id,
-    programId: dto.program_id,
-    currentWorkoutIndex: dto.current_workout_index,
-    currentCycle: dto.current_cycle,
-    startedAt: dto.started_at,
-    completedAt: dto.completed_at,
-    lastWorkoutId: dto.last_workout_id,
-    lastWorkoutAt: dto.last_workout_at,
-  };
+export interface SyncedProgramProgressEntry {
+  programId: string;
+  currentCycle: number;
+  completedDayNumbers: number[];
+  history: ProgramProgressHistoryEntry[];
+  startedAt: string | null;
+  completedAt: string | null;
+  lastWorkoutId: string | null;
+  lastWorkoutAt: string | null;
+  updatedAt: string | null;
 }
 
-/**
- * Fetch user's progress for a specific program
- */
-export async function fetchProgramProgress(
-  programId: string
-): Promise<ProgramProgress | null> {
-  if (!isSupabaseConfigured()) {
-    return null;
-  }
+const isValidUUID = (value: string): boolean => (
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+);
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return null;
-  }
+const normalizeCompletedDayNumbers = (value: unknown): number[] => {
+  if (!Array.isArray(value)) return [];
+  return Array.from(
+    new Set(
+      value
+        .map((item) => Number(item))
+        .filter((item) => Number.isInteger(item) && item > 0)
+    )
+  ).sort((a, b) => a - b);
+};
 
-  try {
-    const { data, error } = await supabase
-      .from('user_program_progress')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('program_id', programId)
-      .single();
+const normalizeHistory = (value: unknown): ProgramProgressHistoryEntry[] => {
+  if (!Array.isArray(value)) return [];
 
-    if (error) {
-      // No progress found is not an error
-      if (error.code === 'PGRST116') {
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const rawCycle = Number((item as { cycle?: unknown }).cycle);
+      const completedAt = typeof (item as { completedAt?: unknown }).completedAt === 'string'
+        ? (item as { completedAt: string }).completedAt
+        : null;
+      if (!Number.isInteger(rawCycle) || rawCycle < 1 || !completedAt) {
         return null;
       }
-      console.error('Error fetching program progress:', error);
-      return null;
-    }
+      return {
+        cycle: rawCycle,
+        completedDayNumbers: normalizeCompletedDayNumbers(
+          (item as { completedDayNumbers?: unknown }).completedDayNumbers
+        ),
+        completedAt,
+      };
+    })
+    .filter((item): item is ProgramProgressHistoryEntry => Boolean(item))
+    .sort((a, b) => a.cycle - b.cycle);
+};
 
-    return mapProgressFromDTO(data as ProgramProgressDTO);
-  } catch (err) {
-    console.error('Error in fetchProgramProgress:', err);
-    return null;
-  }
-}
-
-/**
- * Start a program (initialize progress at workout index 0)
- */
-export async function startProgram(programId: string): Promise<ProgramProgress | null> {
-  if (!isSupabaseConfigured()) {
-    return null;
+const deriveCompletedDayNumbers = (dto: ProgramProgressDTO): number[] => {
+  if (Array.isArray(dto.completed_day_numbers)) {
+    return normalizeCompletedDayNumbers(dto.completed_day_numbers);
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return null;
-  }
-
-  try {
-    // Check if progress already exists
-    const existing = await fetchProgramProgress(programId);
-    if (existing) {
-      return existing;
-    }
-
-    // Create new progress record
-    const { data, error } = await supabase
-      .from('user_program_progress')
-      .insert({
-        user_id: user.id,
-        program_id: programId,
-        current_workout_index: 0,
-        current_cycle: 1,
-        started_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error starting program:', error);
-      return null;
-    }
-
-    return mapProgressFromDTO(data as ProgramProgressDTO);
-  } catch (err) {
-    console.error('Error in startProgram:', err);
-    return null;
-  }
-}
-
-/**
- * Advance progress after completing a workout
- * Increments workout index, wraps to next cycle if needed
- */
-export async function advanceProgress(
-  programId: string,
-  completedWorkoutSessionId: string,
-  totalWorkoutsInProgram: number
-): Promise<ProgramProgress | null> {
-  if (!isSupabaseConfigured()) {
-    return null;
-  }
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return null;
-  }
-
-  try {
-    // Get current progress
-    const current = await fetchProgramProgress(programId);
-    if (!current) {
-      // No progress exists, start the program first
-      return startProgram(programId);
-    }
-
-    // Calculate next index and cycle
-    let nextIndex = current.currentWorkoutIndex + 1;
-    let nextCycle = current.currentCycle;
-
-    // Wrap around if we've completed all workouts
-    if (nextIndex >= totalWorkoutsInProgram) {
-      nextIndex = 0;
-      nextCycle += 1;
-    }
-
-    // Update progress
-    const { data, error } = await supabase
-      .from('user_program_progress')
-      .update({
-        current_workout_index: nextIndex,
-        current_cycle: nextCycle,
-        last_workout_id: completedWorkoutSessionId,
-        last_workout_at: new Date().toISOString(),
-      })
-      .eq('id', current.id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error advancing progress:', error);
-      return null;
-    }
-
-    return mapProgressFromDTO(data as ProgramProgressDTO);
-  } catch (err) {
-    console.error('Error in advanceProgress:', err);
-    return null;
-  }
-}
-
-/**
- * Reset progress for a program (start over)
- */
-export async function resetProgress(programId: string): Promise<boolean> {
-  if (!isSupabaseConfigured()) {
-    return false;
-  }
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return false;
-  }
-
-  try {
-    const { error } = await supabase
-      .from('user_program_progress')
-      .update({
-        current_workout_index: 0,
-        current_cycle: 1,
-        started_at: new Date().toISOString(),
-        completed_at: null,
-        last_workout_id: null,
-        last_workout_at: null,
-      })
-      .eq('user_id', user.id)
-      .eq('program_id', programId);
-
-    if (error) {
-      console.error('Error resetting progress:', error);
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    console.error('Error in resetProgress:', err);
-    return false;
-  }
-}
-
-/**
- * Mark a program as completed
- */
-export async function markProgramCompleted(programId: string): Promise<boolean> {
-  if (!isSupabaseConfigured()) {
-    return false;
-  }
-
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return false;
-  }
-
-  try {
-    const { error } = await supabase
-      .from('user_program_progress')
-      .update({
-        completed_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id)
-      .eq('program_id', programId);
-
-    if (error) {
-      console.error('Error marking program completed:', error);
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    console.error('Error in markProgramCompleted:', err);
-    return false;
-  }
-}
-
-/**
- * Fetch all program progress for the current user
- */
-export async function fetchAllProgramProgress(): Promise<ProgramProgress[]> {
-  if (!isSupabaseConfigured()) {
+  if (!Number.isInteger(dto.current_workout_index) || dto.current_workout_index <= 0) {
     return [];
   }
 
+  return Array.from({ length: dto.current_workout_index }, (_, index) => index + 1);
+};
+
+const computeCurrentWorkoutIndex = (completedDayNumbers: number[]): number => {
+  const completed = new Set(normalizeCompletedDayNumbers(completedDayNumbers));
+  let dayNumber = 1;
+
+  while (completed.has(dayNumber)) {
+    dayNumber += 1;
+  }
+
+  return Math.max(0, dayNumber - 1);
+};
+
+const mapProgressFromDTO = (dto: ProgramProgressDTO): SyncedProgramProgressEntry => ({
+  programId: dto.program_id,
+  currentCycle: Math.max(1, Number(dto.current_cycle ?? 1)),
+  completedDayNumbers: deriveCompletedDayNumbers(dto),
+  history: normalizeHistory(dto.history),
+  startedAt: dto.started_at ?? null,
+  completedAt: dto.completed_at ?? null,
+  lastWorkoutId: dto.last_workout_id ?? null,
+  lastWorkoutAt: dto.last_workout_at ?? null,
+  updatedAt: dto.updated_at ?? null,
+});
+
+const getAuthenticatedUserId = async (): Promise<string | null> => {
+  if (!isSupabaseConfigured()) {
+    return null;
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  return user?.id ?? null;
+};
+
+export async function fetchAllProgramProgressEntries(): Promise<SyncedProgramProgressEntry[]> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId) {
     return [];
   }
 
@@ -260,30 +107,68 @@ export async function fetchAllProgramProgress(): Promise<ProgramProgress[]> {
     const { data, error } = await supabase
       .from('user_program_progress')
       .select('*')
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error) {
-      console.error('Error fetching all program progress:', error);
+      console.warn('Failed to fetch program progress:', error.message);
       return [];
     }
 
-    return (data || []).map(dto => mapProgressFromDTO(dto as ProgramProgressDTO));
-  } catch (err) {
-    console.error('Error in fetchAllProgramProgress:', err);
+    return (data ?? []).map((row) => mapProgressFromDTO(row as ProgramProgressDTO));
+  } catch (error) {
+    console.warn('Failed to fetch program progress:', error);
     return [];
   }
 }
 
-/**
- * Delete progress for a program
- */
-export async function deleteProgress(programId: string): Promise<boolean> {
-  if (!isSupabaseConfigured()) {
-    return false;
+export async function upsertProgramProgressEntry(
+  entry: SyncedProgramProgressEntry
+): Promise<SyncedProgramProgressEntry | null> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId || !isValidUUID(entry.programId)) {
+    return null;
   }
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const completedDayNumbers = normalizeCompletedDayNumbers(entry.completedDayNumbers);
+  const history = normalizeHistory(entry.history);
+  const startedAt = entry.startedAt ?? entry.lastWorkoutAt ?? new Date().toISOString();
+  const completedAt = entry.completedAt ?? history[history.length - 1]?.completedAt ?? null;
+
+  try {
+    const { data, error } = await supabase
+      .from('user_program_progress')
+      .upsert({
+        user_id: userId,
+        program_id: entry.programId,
+        current_workout_index: computeCurrentWorkoutIndex(completedDayNumbers),
+        current_cycle: Math.max(1, Number(entry.currentCycle ?? 1)),
+        started_at: startedAt,
+        completed_at: completedAt,
+        last_workout_id: entry.lastWorkoutId ?? null,
+        last_workout_at: entry.lastWorkoutAt ?? null,
+        completed_day_numbers: completedDayNumbers,
+        history,
+      }, {
+        onConflict: 'user_id,program_id',
+      })
+      .select('*')
+      .single();
+
+    if (error) {
+      console.warn('Failed to upsert program progress:', error.message);
+      return null;
+    }
+
+    return mapProgressFromDTO(data as ProgramProgressDTO);
+  } catch (error) {
+    console.warn('Failed to upsert program progress:', error);
+    return null;
+  }
+}
+
+export async function deleteProgramProgress(programId: string): Promise<boolean> {
+  const userId = await getAuthenticatedUserId();
+  if (!userId || !isValidUUID(programId)) {
     return false;
   }
 
@@ -291,17 +176,17 @@ export async function deleteProgress(programId: string): Promise<boolean> {
     const { error } = await supabase
       .from('user_program_progress')
       .delete()
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('program_id', programId);
 
     if (error) {
-      console.error('Error deleting progress:', error);
+      console.warn('Failed to delete program progress:', error.message);
       return false;
     }
 
     return true;
-  } catch (err) {
-    console.error('Error in deleteProgress:', err);
+  } catch (error) {
+    console.warn('Failed to delete program progress:', error);
     return false;
   }
 }

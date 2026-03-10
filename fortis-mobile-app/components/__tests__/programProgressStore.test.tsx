@@ -1,8 +1,17 @@
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
+import {
+  fetchAllProgramProgressEntries,
+  upsertProgramProgressEntry,
+} from '@/src/services/programProgressService';
 
 jest.mock('@/src/utils/scopedStorage', () => ({
   getScopedItem: jest.fn().mockResolvedValue(null),
   setScopedItem: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock('@/src/services/programProgressService', () => ({
+  fetchAllProgramProgressEntries: jest.fn().mockResolvedValue([]),
+  upsertProgramProgressEntry: jest.fn().mockResolvedValue(null),
 }));
 
 describe('programProgressStore', () => {
@@ -47,7 +56,11 @@ describe('programProgressStore', () => {
           currentCycle: 1,
           completedDayNumbers: [1, 3, 4],
           history: [],
+          lastWorkoutId: null,
           lastWorkoutAt: null,
+          startedAt: null,
+          completedAt: null,
+          updatedAt: null,
         },
       },
     });
@@ -55,5 +68,42 @@ describe('programProgressStore', () => {
     useProgramProgressStore.getState().trimCompletedDays('program-1', 3);
     const entry = useProgramProgressStore.getState().progressByProgram['program-1'];
     expect(entry.completedDayNumbers).toEqual([1, 3]);
+  });
+
+  it('merges newer local progress into remote state on load', async () => {
+    const { getScopedItem } = jest.requireMock('@/src/utils/scopedStorage');
+    getScopedItem.mockResolvedValueOnce(JSON.stringify({
+      'program-1': {
+        programId: 'program-1',
+        currentCycle: 2,
+        completedDayNumbers: [1],
+        history: [{ cycle: 1, completedDayNumbers: [1, 2], completedAt: '2024-01-03T00:00:00.000Z' }],
+        lastWorkoutId: null,
+        lastWorkoutAt: '2024-01-04T00:00:00.000Z',
+        startedAt: '2024-01-01T00:00:00.000Z',
+        completedAt: '2024-01-03T00:00:00.000Z',
+        updatedAt: '2024-01-04T00:00:00.000Z',
+      },
+    }));
+    (fetchAllProgramProgressEntries as jest.Mock).mockResolvedValueOnce([
+      {
+        programId: 'program-1',
+        currentCycle: 1,
+        completedDayNumbers: [1],
+        history: [],
+        lastWorkoutId: null,
+        lastWorkoutAt: '2024-01-02T00:00:00.000Z',
+        startedAt: '2024-01-01T00:00:00.000Z',
+        completedAt: null,
+        updatedAt: '2024-01-02T00:00:00.000Z',
+      },
+    ]);
+
+    await useProgramProgressStore.getState().loadProgress();
+
+    const entry = useProgramProgressStore.getState().progressByProgram['program-1'];
+    expect(entry.currentCycle).toBe(2);
+    expect(entry.history).toHaveLength(1);
+    expect(upsertProgramProgressEntry).toHaveBeenCalledTimes(1);
   });
 });

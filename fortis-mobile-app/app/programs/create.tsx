@@ -130,7 +130,7 @@ export default function CreateProgramScreen() {
   );
   const editingProgram = programs.find(p => p.id === programId && !p.isTemplate);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
-  const progressEntry = useProgramProgressStore(s => (programId ? s.progressByProgram[programId] : undefined));
+  const isProgramProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const restartProgram = useProgramProgressStore(s => s.restartProgram);
   const trimCompletedDays = useProgramProgressStore(s => s.trimCompletedDays);
 
@@ -411,15 +411,19 @@ export default function CreateProgramScreen() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!canSave) return;
 
-    if (isEditing && programId && progressEntry) {
+    if (!isProgramProgressLoaded) {
+      await useProgramProgressStore.getState().loadProgress();
+    }
+
+    if (isEditing && programId && useProgramProgressStore.getState().progressByProgram[programId]) {
       setShowEditIntentModal(true);
       return;
     }
 
-    performSave();
+    void performSave();
   };
 
   // Render workout card

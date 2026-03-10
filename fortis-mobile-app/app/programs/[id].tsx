@@ -169,6 +169,7 @@ export default function ProgramDetailScreen() {
   const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
   const bodyType = useWorkoutStore(s => s.bodyType);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
+  const isProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const progressEntry = useProgramProgressStore(
     s => (id ? s.progressByProgram[id] : undefined)
   );
@@ -215,24 +216,28 @@ export default function ProgramDetailScreen() {
     }
   };
 
-  const handleStartProgram = () => {
+  const handleStartProgram = async () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (!isProgressLoaded) {
+      await useProgramProgressStore.getState().loadProgress();
+    }
+
     const workouts = program?.workouts ? [...program.workouts] : [];
     workouts.sort((a, b) => a.dayNumber - b.dayNumber);
     const totalDays = workouts.length;
     const nextDayNumber = totalDays > 0 && id
-      ? getNextDayNumber(id, totalDays)
+      ? useProgramProgressStore.getState().getNextDayNumber(id, totalDays)
       : 1;
     const nextWorkout = workouts.find(w => w.dayNumber === nextDayNumber) || workouts[0];
 
     if (id && nextWorkout) {
-      startWorkoutFromProgram(id, nextWorkout.id).then((success) => {
-        if (success) {
-          router.push('/workout/active');
-        }
-      });
+      const success = await startWorkoutFromProgram(id, nextWorkout.id);
+      if (success) {
+        router.push('/workout/active');
+      }
     }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
@@ -436,15 +441,15 @@ export default function ProgramDetailScreen() {
   }
 
   const difficultyColors = DIFFICULTY_COLORS[program.difficulty] || DIFFICULTY_COLORS.beginner;
-  const completedDayNumbers = progressEntry?.completedDayNumbers || [];
+  const completedDayNumbers = isProgressLoaded ? (progressEntry?.completedDayNumbers || []) : [];
   const completedIds = orderedWorkouts
     .filter(workout => completedDayNumbers.includes(workout.dayNumber))
     .map(workout => workout.id);
-  const nextDayNumber = id
+  const nextDayNumber = isProgressLoaded && id
     ? getNextDayNumber(id, orderedWorkouts.length)
     : 1;
-  const currentCycle = progressEntry?.currentCycle || 1;
-  const completedCycles = progressEntry?.history.length || 0;
+  const currentCycle = isProgressLoaded ? (progressEntry?.currentCycle || 1) : 1;
+  const completedCycles = isProgressLoaded ? (progressEntry?.history.length || 0) : 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -521,6 +526,7 @@ export default function ProgramDetailScreen() {
           <GlassButton
             style={styles.startButton}
             onPress={handleStartProgram}
+            disabled={!isProgressLoaded}
           >
             <View style={styles.startButtonContent}>
               <PlayIcon color={colors.white} size={IconSizes.lg} strokeWidth={2.5} />

@@ -691,6 +691,7 @@ export default function ProgramsScreen() {
   const appendTemplateToProgram = useProgramsStore(s => s.appendTemplateToProgram);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
+  const isProgramProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const progressByProgram = useProgramProgressStore(s => s.progressByProgram);
   const restartProgram = useProgramProgressStore(s => s.restartProgram);
   const trimCompletedDays = useProgramProgressStore(s => s.trimCompletedDays);
@@ -895,10 +896,14 @@ export default function ProgramsScreen() {
     setShowToast(true);
   }, [appendTemplateToProgram, restartProgram, storePrograms, trimCompletedDays]);
 
-  const handleWorkoutDropOnProgram = useCallback((sourceItemId: string, targetDropZoneId: string) => {
+  const handleWorkoutDropOnProgram = useCallback(async (sourceItemId: string, targetDropZoneId: string) => {
     const templateId = sourceItemId.replace(/^workout-/, '');
     const programId = targetDropZoneId.replace(/^program-/, '');
     if (!templateId || !programId) return;
+
+    if (!isProgramProgressLoaded) {
+      await useProgramProgressStore.getState().loadProgress();
+    }
 
     const program = storePrograms.find((p) => p.id === programId && !p.isTemplate);
     if (!program) return;
@@ -909,14 +914,14 @@ export default function ProgramsScreen() {
       return;
     }
 
-    if (progressByProgram[programId]) {
+    if (useProgramProgressStore.getState().progressByProgram[programId]) {
       setPendingProgramDrop({ programId, templateId });
       setEditIntentModalVisible(true);
       return;
     }
 
     applyProgramAppend(programId, templateId);
-  }, [applyProgramAppend, progressByProgram, storePrograms]);
+  }, [applyProgramAppend, isProgramProgressLoaded, storePrograms]);
 
   const handleDelete = () => {
     if (openKebab.type === 'program' && openKebab.id !== null) {

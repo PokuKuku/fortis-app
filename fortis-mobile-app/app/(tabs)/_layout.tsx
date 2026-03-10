@@ -85,6 +85,7 @@ export default function TabLayout() {
   const { programs, fetchPrograms, isLoading: isProgramsLoading } = useProgramsStore();
   const getNextDayNumber = useProgramProgressStore(s => s.getNextDayNumber);
   const loadProgramProgress = useProgramProgressStore(s => s.loadProgress);
+  const isProgramProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const startPreset = useStartPresetStore(s => s.preset);
   const loadStartPreset = useStartPresetStore(s => s.loadPreset);
   const setStartPreset = useStartPresetStore(s => s.setPreset);
@@ -408,12 +409,15 @@ export default function TabLayout() {
       }
 
       if (preset.type === 'program') {
+        if (!isProgramProgressLoaded) {
+          await useProgramProgressStore.getState().loadProgress();
+        }
         const program = programs.find((item) => item.id === preset.programId);
         const workouts = program?.workouts ? [...program.workouts] : [];
         workouts.sort((a, b) => a.dayNumber - b.dayNumber);
         const totalDays = workouts.length;
         const nextDayNumber = program && totalDays > 0
-          ? getNextDayNumber(program.id, totalDays)
+          ? useProgramProgressStore.getState().getNextDayNumber(program.id, totalDays)
           : 1;
         const nextWorkout = workouts.find((w) => w.dayNumber === nextDayNumber) || workouts[0];
 
