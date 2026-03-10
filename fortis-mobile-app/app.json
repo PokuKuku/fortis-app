@@ -4,9 +4,9 @@
     "slug": "fortis",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/fortis_final_icon.png",
+    "icon": "./assets/fortis_final_2.png",
     "notification": {
-      "icon": "./assets/fortis_final_icon.png",
+      "icon": "./assets/fortis_final_2.png",
       "color": "#121214"
     },
     "scheme": "fortis",
@@ -20,7 +20,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fortisfitness.app",
       "usesAppleSignIn": true,
-      "icon": "./assets/fortis_final_icon.png",
+      "icon": "./assets/fortis_final_2.png",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Turning on Photo access will allow us to display your chosen photo for your profile.",
         "UIApplicationShortcutItems": [
@@ -38,7 +38,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fortis_final_icon.png",
+        "foregroundImage": "./assets/fortis_final_2.png",
         "backgroundColor": "#121214"
       },
       "package": "com.fortis.app",
@@ -46,7 +46,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/fortis_final_icon.png",
+      "favicon": "./assets/fortis_final_2.png",
       "bundler": "metro"
     },
     "plugins": [
