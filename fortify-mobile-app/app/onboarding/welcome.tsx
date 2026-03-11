@@ -16,7 +16,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { Typography } from '@/constants/Typography';
 
-const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal33.mov');
+const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal69.mov');
 const WELCOME_TITLE_LINE_ONE = 'Workout Insights';
 const WELCOME_TITLE_LINE_TWO = 'made Simple';
 const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;

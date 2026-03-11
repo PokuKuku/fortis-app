@@ -174,11 +174,8 @@ export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const isNavigating = useRef(false);
-  const hasObservedInitialMessagesRef = useRef(false);
-  const previousLastMessageIdRef = useRef<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
-  const [activeTypewriterMessageId, setActiveTypewriterMessageId] = useState<string | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
 
@@ -225,25 +222,6 @@ export default function AIChatScreen() {
     loadConversation,
     checkRateLimits,
   ]);
-
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    const lastMessageId = lastMessage?.id ?? null;
-
-    if (!hasObservedInitialMessagesRef.current) {
-      if (conversation !== null) {
-        hasObservedInitialMessagesRef.current = true;
-        previousLastMessageIdRef.current = lastMessageId;
-      }
-      return;
-    }
-
-    if (lastMessage?.role === 'assistant' && lastMessageId !== previousLastMessageIdRef.current) {
-      setActiveTypewriterMessageId(lastMessageId);
-    }
-
-    previousLastMessageIdRef.current = lastMessageId;
-  }, [conversation, messages]);
 
   // Auto-scroll to bottom
   const scrollToBottom = useCallback((animated = true) => {
@@ -303,9 +281,7 @@ export default function AIChatScreen() {
     clearConversation();
     clearError();
     setInputText('');
-    setActiveTypewriterMessageId(null);
     shouldAutoScrollRef.current = true;
-    previousLastMessageIdRef.current = null;
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: false });
     }, 50);
@@ -408,12 +384,6 @@ export default function AIChatScreen() {
                 <ChatMessage
                   key={message.id}
                   message={message}
-                  enableTypewriter={message.id === activeTypewriterMessageId}
-                  onTypewriterComplete={() => {
-                    setActiveTypewriterMessageId((currentId) => (
-                      currentId === message.id ? null : currentId
-                    ));
-                  }}
                   onClarificationSelect={(option) => {
                     setInputText(option);
                   }}

@@ -308,15 +308,6 @@ export default function AuthWelcomeScreen() {
     }
   };
 
-  const handleEmailPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (onboardingValue === 'complete') {
-      router.replace({ pathname: '/auth/email', params: { source: 'onboarding-complete', mode: 'signup' } });
-      return;
-    }
-    router.push({ pathname: '/auth/email', params: { mode: 'signup' } });
-  };
-
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if ((navigation as { canGoBack?: () => boolean }).canGoBack?.()) {
@@ -392,11 +383,9 @@ export default function AuthWelcomeScreen() {
               <AuthProviderButtons
                 onGoogle={handleGoogleSignIn}
                 onApple={handleAppleSignIn}
-                onEmail={handleEmailPress}
                 isLoadingGoogle={isLoadingGoogle}
                 isLoadingApple={isLoadingApple}
                 isAppleAvailable={isAppleAvailable}
-                showDivider
               />
 
               {/* Error Message */}

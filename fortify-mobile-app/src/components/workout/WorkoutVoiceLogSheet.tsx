@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { Audio } from 'expo-av';
@@ -59,6 +62,20 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   caf: 'audio/x-caf',
   wav: 'audio/wav',
   webm: 'audio/webm',
+};
+
+const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
+  ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+  ios: {
+    ...Audio.RecordingOptionsPresets.HIGH_QUALITY.ios,
+    numberOfChannels: 1,
+    bitRate: 96000,
+  },
+  android: {
+    ...Audio.RecordingOptionsPresets.HIGH_QUALITY.android,
+    numberOfChannels: 1,
+    bitRate: 96000,
+  },
 };
 
 const getMimeTypeFromUri = (uri: string | null) => {
@@ -130,6 +147,7 @@ export function WorkoutVoiceLogSheet({
 }: WorkoutVoiceLogSheetProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const session = useWorkoutStore((state) => state.activeSession);
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const registerWorkoutOverlay = useWorkoutStore((state) => state.registerWorkoutOverlay);
@@ -143,7 +161,8 @@ export function WorkoutVoiceLogSheet({
   const [interpretation, setInterpretation] = useState<WorkoutVoiceInterpretation | null>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const overlayOpenRef = useRef(false);
-  const autoStartedExerciseRef = useRef<string | null>(null);
+  const isStartingRef = useRef(false);
+  const isStoppingRef = useRef(false);
   const requestVersionRef = useRef(0);
 
   const exercise = useMemo(
@@ -152,6 +171,10 @@ export function WorkoutVoiceLogSheet({
   );
   const defaultWeightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
   const accentGradient = colors.accentGradient as unknown as [string, string, ...string[]];
+  const maxModalHeight = Math.max(
+    scale(320),
+    windowHeight - insets.top - Math.max(insets.bottom, scale(24)) - scale(48)
+  );
 
   const themedStyles = {
     container: {
@@ -242,10 +265,11 @@ export function WorkoutVoiceLogSheet({
 
   useEffect(() => {
     if (!visible) {
-      autoStartedExerciseRef.current = null;
       resetSheet();
       void discardRecording();
+      return;
     }
+    resetSheet();
   }, [visible]);
 
   useEffect(() => {
@@ -268,13 +292,16 @@ export function WorkoutVoiceLogSheet({
   }, [phase]);
 
   const startListening = async () => {
-    if (!exercise) return;
+    if (!exercise || isStartingRef.current || phase === 'processing') return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setErrorMessage(null);
     setInterpretation(null);
+    setMeterLevel(0.08);
+    isStartingRef.current = true;
 
     try {
+      await discardRecording();
       const permission = await Audio.requestPermissionsAsync();
       if (!permission.granted) {
         setErrorMessage('Microphone access is required for voice logging.');
@@ -286,42 +313,49 @@ export function WorkoutVoiceLogSheet({
         playsInSilentModeIOS: true,
       });
 
-      const recording = new Audio.Recording();
-      recording.setProgressUpdateInterval(70);
-      recording.setOnRecordingStatusUpdate((status) => {
-        if (!status.isRecording) return;
-        const metering = typeof status.metering === 'number' ? status.metering : -60;
-        const normalized = Math.max(0.08, Math.min(1, (metering + 60) / 60));
-        setMeterLevel(normalized);
-      });
-      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      await recording.startAsync();
+      const { recording } = await Audio.Recording.createAsync(
+        VOICE_RECORDING_OPTIONS,
+        (status) => {
+          if (!status.isRecording) return;
+          const metering = typeof status.metering === 'number' ? status.metering : -60;
+          const normalized = Math.max(0.08, Math.min(1, (metering + 60) / 60));
+          setMeterLevel(normalized);
+        },
+        70
+      );
+
+      if (!visible) {
+        recordingRef.current = recording;
+        await discardRecording();
+        return;
+      }
+
       recordingRef.current = recording;
       setPhase('listening');
     } catch (error) {
       await discardRecording();
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to start recording.');
+      const message = error instanceof Error ? error.message : 'Unable to start recording.';
+      const normalizedMessage = message.toLowerCase();
+      if (
+        Platform.OS === 'ios'
+        && (
+          normalizedMessage.includes('recorder not prepared')
+          || normalizedMessage.includes('not ready to record')
+          || normalizedMessage.includes('audio converter')
+        )
+      ) {
+        setErrorMessage('Voice recording is not supported in the iOS Simulator. Test this on a physical iPhone.');
+      } else {
+        setErrorMessage(message);
+      }
+    } finally {
+      isStartingRef.current = false;
     }
   };
 
-  useEffect(() => {
-    if (!visible || !exerciseLocalId || !exercise) {
-      return;
-    }
-    if (autoStartedExerciseRef.current === exerciseLocalId) {
-      return;
-    }
-    if (phase !== 'idle' || errorMessage || interpretation || recordingRef.current) {
-      return;
-    }
-
-    autoStartedExerciseRef.current = exerciseLocalId;
-    void startListening();
-  }, [errorMessage, exercise, exerciseLocalId, interpretation, phase, visible]);
-
   const stopListening = async () => {
     const recording = recordingRef.current;
-    if (!recording || !exercise) return;
+    if (!recording || !exercise || isStoppingRef.current || isStartingRef.current) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setPhase('processing');
@@ -329,6 +363,7 @@ export function WorkoutVoiceLogSheet({
     setMeterLevel(0.12);
     const requestVersion = requestVersionRef.current + 1;
     requestVersionRef.current = requestVersion;
+    isStoppingRef.current = true;
 
     try {
       await recording.stopAndUnloadAsync();
@@ -369,6 +404,8 @@ export function WorkoutVoiceLogSheet({
       }
       setErrorMessage(error instanceof Error ? error.message : 'Unable to process that recording.');
       setPhase('idle');
+    } finally {
+      isStoppingRef.current = false;
     }
   };
 
@@ -448,93 +485,109 @@ export function WorkoutVoiceLogSheet({
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Animated.View
-          entering={SlideInDown.duration(320).easing(Easing.out(Easing.cubic))}
-          exiting={SlideOutDown.duration(240).easing(Easing.in(Easing.cubic))}
+          style={[
+            styles.shell,
+            {
+              marginBottom: Math.max(insets.bottom, scale(24)),
+            },
+          ]}
+          entering={SlideInDown.duration(350).easing(Easing.out(Easing.cubic))}
+          exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
         >
           <Pressable
             style={[
               styles.container,
               themedStyles.container,
-              { marginBottom: Math.max(insets.bottom, scale(24)) },
+              {
+                maxHeight: maxModalHeight,
+              },
             ]}
             onPress={(event) => event.stopPropagation()}
           >
             <StainlessSteelPattern />
-
-            <View style={styles.header}>
-              <View style={styles.headerTitleWrap}>
-                <View style={[styles.headerIconWrap, themedStyles.headerIconWrap]}>
-                  <MicrophoneIcon size={HEADER_ICON_SIZE} color={colors.accent} strokeWidth={2.2} />
-                </View>
-                <View style={styles.headerCopy}>
-                  <Text style={[styles.title, { color: colors.textPrimary }]}>Voice Log</Text>
-                  <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                    {exercise.exerciseName}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={[styles.waveformTrack, themedStyles.waveformTrack]}>
-              <View style={styles.waveform}>
-                {waveformHeights.map((height, index) => (
-                  <VoiceWaveBar
-                    key={`wave-${index}`}
-                    height={height}
-                    color={colors.accent}
-                  />
-                ))}
-              </View>
-              <Text style={[styles.waveformCaption, { color: colors.textSecondary }]}>
-                {phase === 'processing'
-                  ? 'Transcribing and interpreting...'
-                  : phase === 'listening'
-                  ? 'Listening... tap stop when you finish'
-                  : 'Say something like “3 sets of 225 for 5 reps”'}
-              </Text>
-            </View>
-
-            {errorMessage && (
-              <View style={[styles.messageCard, themedStyles.card]}>
-                <Text style={[styles.messageTitle, { color: Colors.error }]}>Could not use that recording</Text>
-                <Text style={[styles.messageBody, { color: colors.textSecondary }]}>{errorMessage}</Text>
-              </View>
-            )}
-
-            {interpretation && (
-              <View style={[styles.transcriptCard, themedStyles.card]}>
-                <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Transcript</Text>
-                <Text style={[styles.transcriptText, { color: colors.textPrimary }]}>
-                  “{interpretation.transcript}”
-                </Text>
-
-                <View style={styles.badges}>
-                  {summaryBadges.map((badge) => (
-                    <View key={badge} style={[styles.badge, themedStyles.card]}>
-                      <Text style={[styles.badgeText, { color: colors.textPrimary }]}>{badge}</Text>
+            <View style={styles.contentSection}>
+              <ScrollView
+                bounces={false}
+                showsVerticalScrollIndicator={false}
+                style={styles.contentScroll}
+                contentContainerStyle={styles.contentScrollInner}
+              >
+                <View style={styles.header}>
+                  <View style={styles.headerTitleWrap}>
+                    <View style={[styles.headerIconWrap, themedStyles.headerIconWrap]}>
+                      <MicrophoneIcon size={HEADER_ICON_SIZE} color={colors.accent} strokeWidth={2.2} />
                     </View>
-                  ))}
+                    <View style={styles.headerCopy}>
+                      <Text style={[styles.title, { color: colors.textPrimary }]}>Voice Log</Text>
+                      <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+                        {exercise.exerciseName}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
 
-                {(interpretation.inferredSets || interpretation.inferredWeightUnit || interpretation.inferredSetType) && (
-                  <Text style={[styles.inferenceText, { color: colors.textSecondary }]}>
-                    {getInferenceCopy(interpretation)}
+                <View style={[styles.waveformTrack, themedStyles.waveformTrack]}>
+                  <View style={styles.waveform}>
+                    {waveformHeights.map((height, index) => (
+                      <VoiceWaveBar
+                        key={`wave-${index}`}
+                        height={height}
+                        color={colors.accent}
+                      />
+                    ))}
+                  </View>
+                  <Text style={[styles.waveformCaption, { color: colors.textSecondary }]}>
+                    {phase === 'processing'
+                      ? 'Transcribing and interpreting...'
+                      : phase === 'listening'
+                      ? 'Listening... tap stop when you finish'
+                      : 'Say something like “3 sets of 225 for 5 reps”'}
                   </Text>
+                </View>
+
+                {errorMessage && (
+                  <View style={[styles.messageCard, themedStyles.card]}>
+                    <Text style={[styles.messageTitle, { color: Colors.error }]}>Could not use that recording</Text>
+                    <Text style={[styles.messageBody, { color: colors.textSecondary }]}>{errorMessage}</Text>
+                  </View>
                 )}
 
-                {missingLabel && (
-                  <Text style={[styles.missingText, { color: Colors.warning }]}>
-                    {missingLabel}
-                  </Text>
-                )}
+                {interpretation && (
+                  <View style={[styles.transcriptCard, themedStyles.card]}>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Transcript</Text>
+                    <Text style={[styles.transcriptText, { color: colors.textPrimary }]}>
+                      “{interpretation.transcript}”
+                    </Text>
 
-                {canApply && (
-                  <Text style={[styles.confirmHint, { color: colors.textSecondary }]}>
-                    Apply will add the sets to this exercise.
-                  </Text>
+                    <View style={styles.badges}>
+                      {summaryBadges.map((badge) => (
+                        <View key={badge} style={[styles.badge, themedStyles.card]}>
+                          <Text style={[styles.badgeText, { color: colors.textPrimary }]}>{badge}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {(interpretation.inferredSets || interpretation.inferredWeightUnit || interpretation.inferredSetType) && (
+                      <Text style={[styles.inferenceText, { color: colors.textSecondary }]}>
+                        {getInferenceCopy(interpretation)}
+                      </Text>
+                    )}
+
+                    {missingLabel && (
+                      <Text style={[styles.missingText, { color: Colors.warning }]}>
+                        {missingLabel}
+                      </Text>
+                    )}
+
+                    {canApply && (
+                      <Text style={[styles.confirmHint, { color: colors.textSecondary }]}>
+                        Apply will add the sets to this exercise.
+                      </Text>
+                    )}
+                  </View>
                 )}
-              </View>
-            )}
+              </ScrollView>
+            </View>
 
             <View style={styles.controlRow}>
               <View style={styles.sideControlSpacer} />
@@ -645,6 +698,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: scale(Spacing.lg),
   },
+  shell: {
+    width: '100%',
+    alignItems: 'center',
+  },
   container: {
     width: '100%',
     maxWidth: PANEL_WIDTH,
@@ -655,13 +712,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: scale(Spacing.lg),
     paddingTop: scale(Spacing.lg),
     paddingBottom: scale(Spacing.lg),
-    gap: scale(Spacing.md),
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 12,
+  },
+  contentSection: {
+    flexShrink: 1,
+    minHeight: 0,
+    marginBottom: scale(Spacing.md),
+  },
+  contentScroll: {
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  contentScrollInner: {
+    gap: scale(Spacing.md),
+    paddingBottom: scale(Spacing.xs),
   },
   header: {
     flexDirection: 'row',

@@ -11,6 +11,9 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { responsiveValue, moderateScale } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetRow } from './SetRow';
 import { ExerciseKebabPopover } from './ExerciseKebabPopover';
@@ -49,6 +52,7 @@ interface ExerciseCardProps {
   onViewDetails?: (exerciseId: string) => void;
   onVoiceLog?: (exerciseLocalId: string) => void;
   completedSetTint?: 'accent' | 'success';
+  shouldAnchorVoiceButton?: boolean;
 }
 
 export function ExerciseCard({
@@ -60,8 +64,10 @@ export function ExerciseCard({
   onViewDetails,
   onVoiceLog,
   completedSetTint = 'accent',
+  shouldAnchorVoiceButton = false,
 }: ExerciseCardProps) {
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId } = useInAppTour();
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -260,6 +266,20 @@ export function ExerciseCard({
     addSet(exerciseLocalId);
   };
 
+  const shouldAnchorVoiceLog = isTourActive && activeStepId === 'voice_log' && shouldAnchorVoiceButton;
+  const renderVoiceButton = () => (
+    <Pressable
+      onPress={handleVoiceLog}
+      style={({ pressed }) => [
+        styles.voiceButton,
+        themedStyles.voiceButton,
+        pressed && styles.pressed,
+      ]}
+    >
+      <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2.1} />
+    </Pressable>
+  );
+
   return (
     <Animated.View
       style={[styles.container, themedStyles.container]}
@@ -273,16 +293,13 @@ export function ExerciseCard({
           <Text style={[styles.exerciseName, themedStyles.exerciseName]}>{exercise.exerciseName}</Text>
           <View style={styles.headerActions}>
             {!useEditor && onVoiceLog && (
-              <Pressable
-                onPress={handleVoiceLog}
-                style={({ pressed }) => [
-                  styles.voiceButton,
-                  themedStyles.voiceButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2.1} />
-              </Pressable>
+              shouldAnchorVoiceLog
+                ? (
+                  <TourAnchor id={TOUR_ANCHOR_IDS.voiceLog}>
+                    {renderVoiceButton()}
+                  </TourAnchor>
+                )
+                : renderVoiceButton()
             )}
 
             <View ref={kebabRef} collapsable={false}>

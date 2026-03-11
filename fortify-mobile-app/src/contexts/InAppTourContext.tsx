@@ -26,6 +26,7 @@ type TourStepId =
   | 'quick_start'
   | 'launch_workout'
   | 'rest_timer'
+  | 'voice_log'
   | 'rest_timer_settings'
   | 'go_insights'
   | 'insights_overview';
@@ -116,6 +117,15 @@ const TOUR_STEPS: TourStep[] = [
     showArrow: true,
   },
   {
+    id: 'voice_log',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.voiceLog,
+    body: 'Tap the mic on an exercise to log sets with your voice. You can say things like “3 warm-up sets of 225 for 5 reps” and Fortify will capture the set type too.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: true,
+  },
+  {
     id: 'rest_timer_settings',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.restTimerSettings,
@@ -151,6 +161,7 @@ const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'ai_chat_overview',
   'quick_start',
   'rest_timer',
+  'voice_log',
   'rest_timer_settings',
   'insights_overview',
 ]);

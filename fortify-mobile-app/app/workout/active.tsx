@@ -579,13 +579,14 @@ export default function ActiveWorkoutScreen() {
   );
 
   // Exercise card renderer
-  const renderExerciseCard = ({ item }: any) => (
+  const renderExerciseCard = ({ item, index }: any) => (
     <ExerciseCard
       exerciseLocalId={item.localId}
       onReplace={handleReplaceExercise}
       onViewDetails={handleViewExerciseDetails}
       onVoiceLog={setVoiceExerciseLocalId}
       completedSetTint="success"
+      shouldAnchorVoiceButton={index === 0}
     />
   );
 

@@ -1,30 +1,24 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { AppleLogo, GoogleLogo } from './AuthLogos';
 
 interface AuthProviderButtonsProps {
   onGoogle: () => void;
   onApple: () => void;
-  onEmail: () => void;
   isLoadingGoogle?: boolean;
   isLoadingApple?: boolean;
   isAppleAvailable?: boolean;
-  showDivider?: boolean;
 }
 
 export function AuthProviderButtons({
   onGoogle,
   onApple,
-  onEmail,
   isLoadingGoogle = false,
   isLoadingApple = false,
   isAppleAvailable = false,
-  showDivider = false,
 }: AuthProviderButtonsProps) {
   const { colors, isDark } = useTheme();
 
@@ -34,8 +28,6 @@ export function AuthProviderButtons({
       borderColor: isDark ? 'rgba(63, 63, 70, 0.8)' : 'rgba(0, 0, 0, 0.1)',
     },
     oauthButtonText: { color: isDark ? colors.white : colors.textPrimary },
-    dividerText: { color: colors.textSecondary },
-    emailButtonText: { color: colors.white },
   };
 
   return (
@@ -79,37 +71,6 @@ export function AuthProviderButtons({
           </TouchableOpacity>
         )}
       </View>
-
-      {showDivider && (
-        <View style={styles.divider}>
-          <LinearGradient
-            colors={isDark
-              ? ['transparent', 'rgba(113,113,122,0.5)', 'transparent']
-              : ['transparent', 'rgba(0,0,0,0.15)', 'transparent']
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.dividerGradient}
-          />
-          <Text style={[styles.dividerText, themedStyles.dividerText]}>or</Text>
-          <LinearGradient
-            colors={isDark
-              ? ['transparent', 'rgba(113,113,122,0.5)', 'transparent']
-              : ['transparent', 'rgba(0,0,0,0.15)', 'transparent']
-            }
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.dividerGradient}
-          />
-        </View>
-      )}
-
-      <GlassButton
-        style={styles.emailButton}
-        onPress={onEmail}
-      >
-        <Text style={[styles.emailButtonText, themedStyles.emailButtonText]}>Continue with Email</Text>
-      </GlassButton>
     </View>
   );
 }
@@ -136,30 +97,6 @@ const styles = StyleSheet.create({
     left: Spacing.lg,
   },
   oauthButtonText: {
-    ...Typography.button,
-    color: Colors.white,
-    fontSize: 15,
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: Spacing.xl,
-    gap: Spacing.lg,
-  },
-  dividerGradient: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    fontSize: 14,
-  },
-  emailButton: {
-    height: 44,
-    borderRadius: 22,
-  },
-  emailButtonText: {
     ...Typography.button,
     color: Colors.white,
     fontSize: 15,

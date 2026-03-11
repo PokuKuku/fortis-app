@@ -1,4 +1,4 @@
-export const IN_APP_TOUR_VERSION = 7 as const;
+export const IN_APP_TOUR_VERSION = 8 as const;
 
 export const TOUR_QUICK_START_TEMPLATE_ID = 'default-template-upper' as const;
 
@@ -7,6 +7,7 @@ export const TOUR_ANCHOR_IDS = {
   quickStartFab: 'tour.tabs.quickStartFab',
   workoutsSection: 'tour.programs.workoutsSection',
   restTimer: 'tour.workout.restTimer',
+  voiceLog: 'tour.workout.voiceLog',
   restTimerSettings: 'tour.workout.restTimerSettings',
   insightsTab: 'tour.tabs.insightsTab',
 } as const;
