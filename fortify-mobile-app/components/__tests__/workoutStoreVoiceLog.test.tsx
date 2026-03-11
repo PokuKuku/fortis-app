@@ -60,8 +60,10 @@ describe('workout voice log apply', () => {
       weight: 225,
       reps: 5,
       weightUnit: 'lbs',
+      setType: 'normal',
       inferredSets: false,
       inferredWeightUnit: true,
+      inferredSetType: true,
       missingFields: [],
       confidence: 'high',
     };
@@ -107,6 +109,69 @@ describe('workout voice log apply', () => {
     });
   });
 
+  it('applies the spoken set type to every targeted set', () => {
+    useWorkoutStore.setState({
+      activeSession: {
+        localId: 'session-3',
+        name: 'Push Day',
+        notes: '',
+        startedAt: new Date('2026-03-10T12:00:00.000Z'),
+        completedAt: null,
+        exercises: [
+          {
+            localId: 'exercise-3',
+            exerciseId: 'ex-bench',
+            exerciseName: 'Bench Press',
+            orderIndex: 0,
+            notes: '',
+            sets: [
+              {
+                localId: 'set-1',
+                setNumber: 1,
+                setType: 'normal',
+                weight: null,
+                weightUnit: 'lbs',
+                reps: null,
+                rpe: null,
+                restSeconds: null,
+                notes: '',
+                isCompleted: false,
+                orderIndex: 0,
+              },
+            ],
+          },
+        ],
+        isSynced: false,
+      },
+      isWorkoutActive: true,
+      weightUnits: { 'ex-bench': 'lbs' },
+    });
+
+    const result = useWorkoutStore.getState().applyVoiceLog('exercise-3', {
+      transcript: '3 warm up sets of 225 for 5 reps',
+      sets: 3,
+      weight: 225,
+      reps: 5,
+      weightUnit: 'lbs',
+      setType: 'warmup',
+      inferredSets: false,
+      inferredWeightUnit: true,
+      inferredSetType: false,
+      missingFields: [],
+      confidence: 'high',
+    });
+
+    const updatedSets = useWorkoutStore.getState().activeSession?.exercises[0].sets ?? [];
+
+    expect(result).toEqual({
+      appliedSetLocalIds: expect.any(Array),
+      addedSetCount: 2,
+    });
+    expect(updatedSets).toHaveLength(3);
+    expect(updatedSets.every((set) => set.setType === 'warmup')).toBe(true);
+    expect(updatedSets.every((set) => set.isCompleted)).toBe(true);
+  });
+
   it('returns null when required voice fields are missing', () => {
     useWorkoutStore.setState({
       activeSession: {
@@ -137,8 +202,10 @@ describe('workout voice log apply', () => {
       weight: 225,
       reps: null,
       weightUnit: 'lbs',
+      setType: 'normal',
       inferredSets: false,
       inferredWeightUnit: true,
+      inferredSetType: true,
       missingFields: ['reps'],
       confidence: 'low',
     });

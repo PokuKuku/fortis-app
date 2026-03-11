@@ -78,6 +78,29 @@ const getMissingFieldsLabel = (interpretation: WorkoutVoiceInterpretation | null
   return `I still need ${allButLast}, and ${last}.`;
 };
 
+const SET_TYPE_LABELS = {
+  normal: 'Normal',
+  warmup: 'Warm-up',
+  dropset: 'Drop Set',
+  failure: 'Failure',
+} as const;
+
+const getInferenceCopy = (interpretation: WorkoutVoiceInterpretation) => {
+  const parts: string[] = [];
+
+  if (interpretation.inferredSets) {
+    parts.push('Set count was inferred.');
+  }
+  if (interpretation.inferredWeightUnit) {
+    parts.push(`Weight unit defaulted to ${interpretation.weightUnit}.`);
+  }
+  if (interpretation.inferredSetType) {
+    parts.push(`Set type defaulted to ${SET_TYPE_LABELS[interpretation.setType].toLowerCase()}.`);
+  }
+
+  return parts.join(' ');
+};
+
 function VoiceWaveBar({
   height,
   color,
@@ -348,6 +371,7 @@ export function WorkoutVoiceLogSheet({
         `${interpretation.sets ?? '—'} set${interpretation.sets === 1 ? '' : 's'}`,
         `${interpretation.weight ?? '—'} ${interpretation.weightUnit ?? defaultWeightUnit}`,
         `${interpretation.reps ?? '—'} reps`,
+        SET_TYPE_LABELS[interpretation.setType],
       ]
     : [];
   const canApply = !!(
@@ -472,10 +496,9 @@ export function WorkoutVoiceLogSheet({
                   ))}
                 </View>
 
-                {(interpretation.inferredSets || interpretation.inferredWeightUnit) && (
+                {(interpretation.inferredSets || interpretation.inferredWeightUnit || interpretation.inferredSetType) && (
                   <Text style={[styles.inferenceText, { color: colors.textSecondary }]}>
-                    {interpretation.inferredSets ? 'Set count was inferred. ' : ''}
-                    {interpretation.inferredWeightUnit ? `Weight unit defaulted to ${interpretation.weightUnit}.` : ''}
+                    {getInferenceCopy(interpretation)}
                   </Text>
                 )}
 

@@ -17,8 +17,10 @@ const isInterpretation = (value: unknown): value is WorkoutVoiceInterpretation =
     && (typeof record.weight === 'number' || record.weight === null)
     && (typeof record.reps === 'number' || record.reps === null)
     && (record.weightUnit === 'lbs' || record.weightUnit === 'kg' || record.weightUnit === null)
+    && (record.setType === 'normal' || record.setType === 'warmup' || record.setType === 'dropset' || record.setType === 'failure')
     && typeof record.inferredSets === 'boolean'
     && typeof record.inferredWeightUnit === 'boolean'
+    && typeof record.inferredSetType === 'boolean'
     && Array.isArray(record.missingFields)
     && (record.confidence === 'high' || record.confidence === 'medium' || record.confidence === 'low')
   );

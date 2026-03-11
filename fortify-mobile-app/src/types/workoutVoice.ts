@@ -1,4 +1,4 @@
-import type { WeightUnit } from './workout';
+import type { SetType, WeightUnit } from './workout';
 
 export type WorkoutVoiceMissingField = 'sets' | 'weight' | 'reps';
 
@@ -10,8 +10,10 @@ export interface WorkoutVoiceInterpretation {
   weight: number | null;
   reps: number | null;
   weightUnit: WeightUnit | null;
+  setType: SetType;
   inferredSets: boolean;
   inferredWeightUnit: boolean;
+  inferredSetType: boolean;
   missingFields: WorkoutVoiceMissingField[];
   confidence: WorkoutVoiceConfidence;
 }

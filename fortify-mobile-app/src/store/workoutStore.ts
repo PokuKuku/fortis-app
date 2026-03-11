@@ -1074,6 +1074,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         || interpretation.weight === null
         || interpretation.reps === null
         || !interpretation.weightUnit
+        || !interpretation.setType
       ) {
         return null;
       }
@@ -1117,6 +1118,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             weight: interpretation.weight,
             weightUnit: interpretation.weightUnit,
             reps: interpretation.reps,
+            setType: interpretation.setType,
             isCompleted: true,
           };
           nextSets[targetIndex] = updatedSet;

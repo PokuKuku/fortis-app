@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 
 type WeightUnit = 'lbs' | 'kg';
+type SetType = 'normal' | 'warmup' | 'dropset' | 'failure';
 type MissingField = 'sets' | 'weight' | 'reps';
 type Confidence = 'high' | 'medium' | 'low';
 
@@ -19,14 +20,19 @@ interface WorkoutVoiceInterpretation {
   weight: number | null;
   reps: number | null;
   weightUnit: WeightUnit | null;
+  setType: SetType;
   inferredSets: boolean;
   inferredWeightUnit: boolean;
+  inferredSetType: boolean;
   missingFields: MissingField[];
   confidence: Confidence;
 }
 
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const UNIT_REGEX = /\b(kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)\b/i;
+const WARMUP_REGEX = /\bwarm(?:[\s-]?up)?\b/i;
+const DROPSET_REGEX = /\bdrop(?:[\s-]?set)?\b/i;
+const FAILURE_REGEX = /\bto failure\b|\bfaili?ure\b/i;
 
 function validateRequest(value: unknown): string | null {
   if (!value || typeof value !== 'object') return 'Request body must be an object.';
@@ -71,6 +77,16 @@ function normalizeUnit(value: string | null | undefined): WeightUnit | null {
   return null;
 }
 
+function normalizeSetType(value: string | null | undefined): SetType | null {
+  if (!value) return null;
+  const lower = value.toLowerCase().trim();
+  if (lower === 'normal') return 'normal';
+  if (lower === 'warm' || lower === 'warmup' || lower === 'warm-up' || lower === 'warm up') return 'warmup';
+  if (lower === 'drop' || lower === 'dropset' || lower === 'drop-set' || lower === 'drop set') return 'dropset';
+  if (lower === 'failure' || lower === 'to failure' || lower === 'failiure') return 'failure';
+  return null;
+}
+
 function toPositiveInt(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   const rounded = Math.round(value);
@@ -93,6 +109,7 @@ function buildInterpretation(
   const reps = toPositiveInt(candidate.reps);
   let inferredSets = candidate.inferredSets ?? false;
   const candidateWeightUnit = normalizeUnit(candidate.weightUnit ?? null);
+  const candidateSetType = normalizeSetType(candidate.setType ?? null);
 
   if (sets === null && weight !== null && reps !== null) {
     sets = 1;
@@ -101,6 +118,8 @@ function buildInterpretation(
 
   const inferredWeightUnit = candidate.inferredWeightUnit ?? !candidateWeightUnit;
   const weightUnit = candidateWeightUnit ?? defaultWeightUnit;
+  const inferredSetType = candidate.inferredSetType ?? !candidateSetType;
+  const setType = candidateSetType ?? 'normal';
 
   const missingFields: MissingField[] = [];
   if (sets === null) missingFields.push('sets');
@@ -111,7 +130,7 @@ function buildInterpretation(
     ? candidate.confidence
     : missingFields.length > 0
     ? 'low'
-    : inferredSets || inferredWeightUnit
+    : inferredSets || inferredWeightUnit || inferredSetType
     ? 'medium'
     : 'high';
 
@@ -121,8 +140,10 @@ function buildInterpretation(
     weight,
     reps,
     weightUnit,
+    setType,
     inferredSets,
     inferredWeightUnit,
+    inferredSetType,
     missingFields,
     confidence,
   };
@@ -134,6 +155,12 @@ function fallbackInterpretTranscript(
 ): WorkoutVoiceInterpretation {
   const normalized = transcript.toLowerCase().replace(/[×]/g, 'x');
   const explicitUnit = normalizeUnit(normalized.match(UNIT_REGEX)?.[0] ?? null);
+  const explicitSetType = normalizeSetType(
+    normalized.match(FAILURE_REGEX)?.[0]
+    ?? normalized.match(DROPSET_REGEX)?.[0]
+    ?? normalized.match(WARMUP_REGEX)?.[0]
+    ?? null
+  );
 
   let sets: number | null = null;
   let reps: number | null = null;
@@ -181,7 +208,9 @@ function fallbackInterpretTranscript(
       weight,
       reps,
       weightUnit: explicitUnit ?? defaultWeightUnit,
+      setType: explicitSetType ?? 'normal',
       inferredWeightUnit: !explicitUnit,
+      inferredSetType: !explicitSetType,
     },
     defaultWeightUnit
   );
@@ -263,10 +292,14 @@ async function interpretTranscriptWithModel(
             'You extract a single exercise workout log from a speech transcript.',
             'Return JSON only. No markdown, no prose.',
             'Use this shape exactly:',
-            '{"sets":number|null,"weight":number|null,"reps":number|null,"weightUnit":"lbs"|"kg"|null,"inferredSets":boolean,"inferredWeightUnit":boolean,"confidence":"high"|"medium"|"low"}',
+            '{"sets":number|null,"weight":number|null,"reps":number|null,"weightUnit":"lbs"|"kg"|null,"setType":"normal"|"warmup"|"dropset"|"failure","inferredSets":boolean,"inferredWeightUnit":boolean,"inferredSetType":boolean,"confidence":"high"|"medium"|"low"}',
             'Rules:',
             '- If the set count is omitted but weight and reps are present, infer sets=1 and inferredSets=true.',
             '- If weight unit is omitted, use the provided default weight unit and inferredWeightUnit=true.',
+            '- If set type is omitted, use setType="normal" and inferredSetType=true.',
+            '- Map "warm", "warm up", and "warmup" to setType="warmup".',
+            '- Map "drop", "drop set", and "dropset" to setType="dropset".',
+            '- Map "failure", "to failure", and close misspellings like "failiure" to setType="failure".',
             '- If the transcript is ambiguous, leave uncertain numeric fields null and set confidence="low".',
             '- Do not invent values for missing reps or missing weight.',
           ].join('\n'),
@@ -307,8 +340,10 @@ async function interpretTranscriptWithModel(
       weight: typeof parsed.weight === 'number' ? parsed.weight : null,
       reps: typeof parsed.reps === 'number' ? parsed.reps : null,
       weightUnit: normalizeUnit(typeof parsed.weightUnit === 'string' ? parsed.weightUnit : null),
+      setType: normalizeSetType(typeof parsed.setType === 'string' ? parsed.setType : null) ?? 'normal',
       inferredSets: parsed.inferredSets === true,
       inferredWeightUnit: parsed.inferredWeightUnit === true,
+      inferredSetType: parsed.inferredSetType === true,
       confidence:
         parsed.confidence === 'high' || parsed.confidence === 'medium' || parsed.confidence === 'low'
           ? parsed.confidence
