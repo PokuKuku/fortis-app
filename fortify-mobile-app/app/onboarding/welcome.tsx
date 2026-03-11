@@ -364,6 +364,7 @@ export default function OnboardingWelcomeScreen() {
               isLoadingGoogle={isLoadingGoogle}
               isLoadingApple={isLoadingApple}
               isAppleAvailable={isAppleAvailable}
+              showEmailButton
             />
             {signInError ? (
               <Text style={[styles.sheetError, { color: colors.error }]}>{signInError}</Text>

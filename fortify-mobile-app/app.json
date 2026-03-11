@@ -22,7 +22,7 @@
       "usesAppleSignIn": true,
       "icon": "./assets/fortis_ai_icon.png",
       "infoPlist": {
-        "CFBundleDisplayName": "FortifyAI",
+        "CFBundleDisplayName": "Fortify AI",
         "CFBundleName": "FortifyAI",
         "NSMicrophoneUsageDescription": "Fortify uses your microphone so you can dictate workout sets, weights, and reps during an active session.",
         "NSPhotoLibraryUsageDescription": "Turning on Photo access will allow us to display your chosen photo for your profile.",
