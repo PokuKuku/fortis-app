@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
   StyleSheet,
@@ -139,11 +138,12 @@ export function WorkoutVoiceLogSheet({
 
   const [phase, setPhase] = useState<VoiceSheetPhase>('idle');
   const [meterLevel, setMeterLevel] = useState(0.08);
+  const [processingFrame, setProcessingFrame] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [interpretation, setInterpretation] = useState<WorkoutVoiceInterpretation | null>(null);
-  const [isConfirmed, setIsConfirmed] = useState(false);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const overlayOpenRef = useRef(false);
+  const autoStartedExerciseRef = useRef<string | null>(null);
   const requestVersionRef = useRef(0);
 
   const exercise = useMemo(
@@ -205,7 +205,6 @@ export function WorkoutVoiceLogSheet({
     setMeterLevel(0.08);
     setErrorMessage(null);
     setInterpretation(null);
-    setIsConfirmed(false);
   };
 
   const restoreAudioMode = async () => {
@@ -243,6 +242,7 @@ export function WorkoutVoiceLogSheet({
 
   useEffect(() => {
     if (!visible) {
+      autoStartedExerciseRef.current = null;
       resetSheet();
       void discardRecording();
     }
@@ -254,13 +254,25 @@ export function WorkoutVoiceLogSheet({
     };
   }, []);
 
+  useEffect(() => {
+    if (phase !== 'processing') {
+      setProcessingFrame(0);
+      return;
+    }
+
+    const interval = setInterval(() => {
+      setProcessingFrame((frame) => frame + 1);
+    }, 90);
+
+    return () => clearInterval(interval);
+  }, [phase]);
+
   const startListening = async () => {
     if (!exercise) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setErrorMessage(null);
     setInterpretation(null);
-    setIsConfirmed(false);
 
     try {
       const permission = await Audio.requestPermissionsAsync();
@@ -291,6 +303,21 @@ export function WorkoutVoiceLogSheet({
       setErrorMessage(error instanceof Error ? error.message : 'Unable to start recording.');
     }
   };
+
+  useEffect(() => {
+    if (!visible || !exerciseLocalId || !exercise) {
+      return;
+    }
+    if (autoStartedExerciseRef.current === exerciseLocalId) {
+      return;
+    }
+    if (phase !== 'idle' || errorMessage || interpretation || recordingRef.current) {
+      return;
+    }
+
+    autoStartedExerciseRef.current = exerciseLocalId;
+    void startListening();
+  }, [errorMessage, exercise, exerciseLocalId, interpretation, phase, visible]);
 
   const stopListening = async () => {
     const recording = recordingRef.current;
@@ -334,7 +361,6 @@ export function WorkoutVoiceLogSheet({
       }
 
       setInterpretation(response.interpretation);
-      setIsConfirmed(false);
       setPhase('review');
     } catch (error) {
       await discardRecording();
@@ -344,12 +370,6 @@ export function WorkoutVoiceLogSheet({
       setErrorMessage(error instanceof Error ? error.message : 'Unable to process that recording.');
       setPhase('idle');
     }
-  };
-
-  const handleConfirm = () => {
-    if (!canApply) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setIsConfirmed(true);
   };
 
   const handleApply = () => {
@@ -382,7 +402,7 @@ export function WorkoutVoiceLogSheet({
     && interpretation.weightUnit
     && interpretation.missingFields.length === 0
   );
-  const applyEnabled = canApply && isConfirmed && phase === 'review';
+  const applyEnabled = canApply && phase === 'review';
   const missingLabel = getMissingFieldsLabel(interpretation);
 
   const waveformHeights = useMemo(() => (
@@ -391,18 +411,27 @@ export function WorkoutVoiceLogSheet({
       const distance = Math.abs(index - center) / Math.max(center, 1);
       const weight = 1 - (distance * 0.8);
       const pulse = 0.18 + (((index % 4) + 1) * 0.06);
-      const level = phase === 'listening'
-        ? Math.min(1, meterLevel * (weight + pulse))
-        : 0.14 + (weight * 0.16);
+
+      let level: number;
+      if (phase === 'listening') {
+        level = Math.min(1, meterLevel * (weight + pulse));
+      } else if (phase === 'processing') {
+        const sweep = (processingFrame * 0.55) - (index * 0.42);
+        const animatedPulse = (Math.sin(sweep) + 1) / 2;
+        level = 0.22 + (animatedPulse * 0.5) + (weight * 0.12);
+      } else {
+        level = 0.14 + (weight * 0.16);
+      }
+
       return MIN_BAR_HEIGHT + ((MAX_BAR_HEIGHT - MIN_BAR_HEIGHT) * level);
     })
-  ), [meterLevel, phase]);
+  ), [meterLevel, phase, processingFrame]);
 
-  const showRetryControl = phase === 'review' || !!errorMessage;
+  const hasRetryState = phase === 'review' || !!errorMessage;
   const heroLabel = phase === 'listening'
     ? 'Stop'
-    : phase === 'review'
-    ? (isConfirmed ? 'Confirmed' : 'Confirm')
+    : hasRetryState
+    ? 'Retry'
     : 'Listen';
 
   if (!visible || !exercise) {
@@ -465,15 +494,6 @@ export function WorkoutVoiceLogSheet({
               </Text>
             </View>
 
-            {phase === 'processing' && (
-              <View style={styles.processingRow}>
-                <ActivityIndicator color={colors.accent} />
-                <Text style={[styles.processingText, { color: colors.textSecondary }]}>
-                  Working on it...
-                </Text>
-              </View>
-            )}
-
             {errorMessage && (
               <View style={[styles.messageCard, themedStyles.card]}>
                 <Text style={[styles.messageTitle, { color: Colors.error }]}>Could not use that recording</Text>
@@ -509,31 +529,15 @@ export function WorkoutVoiceLogSheet({
                 )}
 
                 {canApply && (
-                  <Text style={[styles.confirmHint, { color: isConfirmed ? colors.accent : colors.textSecondary }]}>
-                    {isConfirmed ? 'Confirmed. Apply will add the sets to this exercise.' : 'Confirm the interpretation before applying it.'}
+                  <Text style={[styles.confirmHint, { color: colors.textSecondary }]}>
+                    Apply will add the sets to this exercise.
                   </Text>
                 )}
               </View>
             )}
 
             <View style={styles.controlRow}>
-              {showRetryControl ? (
-                <Pressable
-                  onPress={startListening}
-                  disabled={phase === 'processing'}
-                  style={({ pressed }) => [
-                    styles.sideControl,
-                    themedStyles.sideControl,
-                    phase === 'processing' && styles.disabledButton,
-                    pressed && phase !== 'processing' && themedStyles.sideControlPressed,
-                  ]}
-                >
-                  <ArrowPathIcon size={18} color={colors.textSecondary} strokeWidth={2.1} />
-                  <Text style={[styles.sideControlText, { color: colors.textPrimary }]}>Retry</Text>
-                </Pressable>
-              ) : (
-                <View style={styles.sideControlSpacer} />
-              )}
+              <View style={styles.sideControlSpacer} />
 
               <View style={styles.grooveDivider}>
                 <View style={styles.grooveLight} />
@@ -559,24 +563,22 @@ export function WorkoutVoiceLogSheet({
                       />
                       <MicrophoneIcon size={24} color={Colors.white} strokeWidth={2.4} />
                     </Pressable>
-                  ) : phase === 'review' ? (
+                  ) : hasRetryState ? (
                     <Pressable
-                      onPress={handleConfirm}
-                      disabled={!canApply}
+                      onPress={startListening}
                       style={({ pressed }) => [
                         styles.heroButton,
                         themedStyles.heroShadow,
-                        !canApply && styles.disabledButton,
-                        pressed && canApply && styles.heroPressed,
+                        pressed && styles.heroPressed,
                       ]}
                     >
                       <LinearGradient
-                        colors={isConfirmed ? ['#16a34a', '#15803d'] : accentGradient}
+                        colors={accentGradient}
                         start={{ x: 0, y: 0.15 }}
                         end={{ x: 1, y: 1 }}
                         style={StyleSheet.absoluteFillObject}
                       />
-                      <CheckIcon size={24} color={Colors.white} strokeWidth={2.6} />
+                      <ArrowPathIcon size={24} color={Colors.white} strokeWidth={2.4} />
                     </Pressable>
                   ) : (
                     <Pressable
@@ -716,17 +718,6 @@ const styles = StyleSheet.create({
   waveformCaption: {
     fontSize: moderateScale(13),
     textAlign: 'center',
-    fontWeight: '600',
-  },
-  processingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: scale(Spacing.sm),
-    paddingVertical: scale(Spacing.xs),
-  },
-  processingText: {
-    fontSize: moderateScale(13),
     fontWeight: '600',
   },
   transcriptCard: {
