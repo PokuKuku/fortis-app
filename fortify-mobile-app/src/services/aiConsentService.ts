@@ -10,11 +10,12 @@ interface AIDataSharingConsentRecord {
   updatedAt: string;
 }
 
-const AI_DATA_SHARING_CONSENT_VERSION = 1;
+const AI_DATA_SHARING_CONSENT_VERSION = 2;
 
 export const AI_DATA_SHARING_DISCLOSURE =
   'Fortify can share your data with OpenAI to generate AI coaching responses.\n\n'
   + 'Data shared may include:\n'
+  + '- voice recordings used for workout dictation\n'
   + '- prompts and chat history\n'
   + '- goals and training preferences\n'
   + '- workout, analytics, and insight context tied to your account';

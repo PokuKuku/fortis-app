@@ -141,7 +141,7 @@ const APP_VERSION = '1.0.0';
     if (aiDataSharingAllowed) {
       Alert.alert(
         'Disable AI data sharing?',
-        'Fortify will stop sending your data to OpenAI for AI responses until you re-enable this setting.',
+        'Fortify will stop sending your prompts, workout context, and voice dictation audio to OpenAI until you re-enable this setting.',
         [
           { text: 'Cancel', style: 'cancel' },
           {

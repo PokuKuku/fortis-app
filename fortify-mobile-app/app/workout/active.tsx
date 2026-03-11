@@ -30,6 +30,7 @@ import { useElapsedTime } from '@/src/hooks/useElapsedTime';
 import { WorkoutHeaderDetails, WorkoutHeaderTopBar } from '@/src/components/workout/WorkoutHeader';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
 import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
+import { WorkoutVoiceLogSheet } from '@/src/components/workout/WorkoutVoiceLogSheet';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
 import { RestTimerControls } from '@/src/components/workout/modals/RestTimerControls';
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
@@ -175,6 +176,7 @@ export default function ActiveWorkoutScreen() {
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
   const [showRestTimerBanner, setShowRestTimerBanner] = useState(false);
   const [restTimerCompleteVisible, setRestTimerCompleteVisible] = useState(false);
+  const [voiceExerciseLocalId, setVoiceExerciseLocalId] = useState<string | null>(null);
   const [finishSnapshot, setFinishSnapshot] = useState<{
     durationSeconds: number;
     completedExercises: number;
@@ -582,6 +584,7 @@ export default function ActiveWorkoutScreen() {
       exerciseLocalId={item.localId}
       onReplace={handleReplaceExercise}
       onViewDetails={handleViewExerciseDetails}
+      onVoiceLog={setVoiceExerciseLocalId}
       completedSetTint="success"
     />
   );
@@ -679,6 +682,12 @@ export default function ActiveWorkoutScreen() {
         showRestTimerBanner={showRestTimerBanner}
         onDismissRestTimerBanner={() => setShowRestTimerBanner(false)}
         onOpenExerciseDetails={handleModalExerciseDetails}
+      />
+
+      <WorkoutVoiceLogSheet
+        visible={voiceExerciseLocalId !== null}
+        exerciseLocalId={voiceExerciseLocalId}
+        onClose={() => setVoiceExerciseLocalId(null)}
       />
 
       {/* Rest Timer Controls */}

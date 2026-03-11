@@ -18,6 +18,7 @@ import {
   WeightUnit,
   RpeValue,
 } from '../types/workout';
+import { WorkoutVoiceInterpretation } from '../types/workoutVoice';
 import {
   ACTIVE_WORKOUT_KEY,
   COMPLETED_WORKOUTS_KEY,
@@ -87,6 +88,41 @@ function getSetTypeFromHistory(
   const previousSet = orderedSets[setIndex];
 
   return previousSet?.setType || 'normal';
+}
+
+function buildNewActiveSet(
+  exercise: WorkoutExercise,
+  activeSession: WorkoutSession,
+  weightUnits: Record<string, WeightUnit>,
+  completedSessions: WorkoutSession[],
+  setIndex: number
+): WorkoutSet {
+  const context = {
+    programWorkoutId: activeSession.programWorkoutId,
+    programId: activeSession.programId,
+    workoutName: activeSession.name,
+  };
+
+  const inheritedSetType = getSetTypeFromHistory(
+    completedSessions,
+    exercise.exerciseId,
+    setIndex,
+    context
+  );
+
+  return {
+    localId: generateId(),
+    setNumber: setIndex + 1,
+    setType: inheritedSetType,
+    weight: null,
+    weightUnit: weightUnits[exercise.exerciseId] || 'lbs',
+    reps: null,
+    rpe: null,
+    restSeconds: null,
+    notes: '',
+    isCompleted: false,
+    orderIndex: setIndex,
+  };
 }
 
 const loadProgramsStore = async () => {
@@ -198,6 +234,10 @@ interface WorkoutState {
     setLocalId: string,
     setType: SetType
   ) => void;
+  applyVoiceLog: (
+    exerciseLocalId: string,
+    interpretation: WorkoutVoiceInterpretation
+  ) => { appliedSetLocalIds: string[]; addedSetCount: number } | null;
 
   // Actions - Rest Timer
   startRestTimer: (setType: SetType) => void;
@@ -1001,32 +1041,15 @@ export const useWorkoutStore = create<WorkoutState>()(
       const { activeSession, weightUnits, completedSessions } = get();
       if (!activeSession) return;
 
-      // Build context for history lookup
-      const context = {
-        programWorkoutId: activeSession.programWorkoutId,
-        programId: activeSession.programId,
-        workoutName: activeSession.name,
-      };
-
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
-
-        const newSetIndex = ex.sets.length; // Index of the new set being added
-        const inheritedSetType = getSetTypeFromHistory(completedSessions, ex.exerciseId, newSetIndex, context);
-
-        const newSet: WorkoutSet = {
-          localId: generateId(),
-          setNumber: ex.sets.length + 1,
-          setType: inheritedSetType,
-          weight: null,
-          weightUnit: weightUnits[ex.exerciseId] || 'lbs',
-          reps: null,
-          rpe: null,
-          restSeconds: null,
-          notes: '',
-          isCompleted: false,
-          orderIndex: ex.sets.length,
-        };
+        const newSet = buildNewActiveSet(
+          ex,
+          activeSession,
+          weightUnits,
+          completedSessions,
+          ex.sets.length
+        );
 
         return { ...ex, sets: [...ex.sets, newSet] };
       });
@@ -1038,6 +1061,108 @@ export const useWorkoutStore = create<WorkoutState>()(
         },
       });
       get().persistSession();
+    },
+
+    applyVoiceLog: (exerciseLocalId, interpretation) => {
+      const { activeSession, completedSessions, weightUnits } = get();
+      if (!activeSession) return null;
+
+      const targetSetCount = interpretation.sets;
+      if (
+        !targetSetCount
+        || targetSetCount < 1
+        || interpretation.weight === null
+        || interpretation.reps === null
+        || !interpretation.weightUnit
+      ) {
+        return null;
+      }
+
+      let appliedSetLocalIds: string[] = [];
+      let addedSetCount = 0;
+      let lastAppliedSetType: SetType = 'normal';
+      let nextWeightUnits = weightUnits;
+
+      const exercises = activeSession.exercises.map((ex) => {
+        if (ex.localId !== exerciseLocalId) return ex;
+
+        const incompleteIndices = ex.sets.reduce<number[]>((indices, set, index) => {
+          if (!set.isCompleted) {
+            indices.push(index);
+          }
+          return indices;
+        }, []);
+
+        let nextSets = [...ex.sets];
+
+        for (let i = 0; i < targetSetCount; i += 1) {
+          let targetIndex = incompleteIndices[i];
+
+          if (targetIndex === undefined) {
+            const newSet = buildNewActiveSet(
+              ex,
+              activeSession,
+              weightUnits,
+              completedSessions,
+              nextSets.length
+            );
+            nextSets = [...nextSets, newSet];
+            targetIndex = nextSets.length - 1;
+            addedSetCount += 1;
+          }
+
+          const targetSet = nextSets[targetIndex];
+          const updatedSet: WorkoutSet = {
+            ...targetSet,
+            weight: interpretation.weight,
+            weightUnit: interpretation.weightUnit,
+            reps: interpretation.reps,
+            isCompleted: true,
+          };
+          nextSets[targetIndex] = updatedSet;
+          appliedSetLocalIds.push(updatedSet.localId);
+          lastAppliedSetType = updatedSet.setType;
+        }
+
+        nextWeightUnits = {
+          ...nextWeightUnits,
+          [ex.exerciseId]: interpretation.weightUnit!,
+        };
+
+        return {
+          ...ex,
+          sets: nextSets.map((set, index) => ({
+            ...set,
+            setNumber: index + 1,
+            orderIndex: index,
+          })),
+        };
+      });
+
+      if (appliedSetLocalIds.length === 0) {
+        return null;
+      }
+
+      set({
+        activeSession: {
+          ...activeSession,
+          exercises,
+        },
+        activeNumberPad: null,
+        validationErrorsBySet: {},
+        weightUnits: nextWeightUnits,
+      });
+
+      void setScopedItem(EXERCISE_WEIGHT_UNITS_KEY, JSON.stringify(nextWeightUnits)).catch((error) => {
+        console.warn('Failed to save weight units:', error);
+      });
+      get().persistSession();
+      get().startRestTimer(lastAppliedSetType);
+
+      return {
+        appliedSetLocalIds,
+        addedSetCount,
+      };
     },
 
     removeSet: (exerciseLocalId, setLocalId) => {

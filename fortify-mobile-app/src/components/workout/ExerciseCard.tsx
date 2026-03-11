@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
-import { EllipsisVerticalIcon, DocumentTextIcon, XMarkIcon } from 'react-native-heroicons/outline';
+import {
+  EllipsisVerticalIcon,
+  DocumentTextIcon,
+  MicrophoneIcon,
+  XMarkIcon,
+} from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
@@ -42,6 +47,7 @@ interface ExerciseCardProps {
   showCheckboxes?: boolean;
   onReplace?: (exerciseLocalId: string) => void;
   onViewDetails?: (exerciseId: string) => void;
+  onVoiceLog?: (exerciseLocalId: string) => void;
   completedSetTint?: 'accent' | 'success';
 }
 
@@ -52,6 +58,7 @@ export function ExerciseCard({
   showCheckboxes,
   onReplace,
   onViewDetails,
+  onVoiceLog,
   completedSetTint = 'accent',
 }: ExerciseCardProps) {
   const { colors, isDark } = useTheme();
@@ -61,6 +68,10 @@ export function ExerciseCard({
     container: {
       backgroundColor: isDark ? colors.surfaceOverlay : 'rgba(255, 255, 255, 0.85)',
       borderColor: isDark ? colors.borderLight : 'rgba(0, 0, 0, 0.08)',
+    },
+    voiceButton: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
     },
     exerciseName: { color: colors.textPrimary },
     notesInput: { color: colors.textPrimary },
@@ -191,6 +202,11 @@ export function ExerciseCard({
     onViewDetails?.(exercise.exerciseId);
   };
 
+  const handleVoiceLog = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onVoiceLog?.(exerciseLocalId);
+  };
+
   const handleOpenStickyNote = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStickyNoteValue(stickyNote || '');
@@ -255,16 +271,31 @@ export function ExerciseCard({
         {/* Exercise Header */}
         <View style={styles.header}>
           <Text style={[styles.exerciseName, themedStyles.exerciseName]}>{exercise.exerciseName}</Text>
-          <View ref={kebabRef} collapsable={false}>
-            <Pressable
-              onPress={handleKebabPress}
-              style={({ pressed }) => [
-                styles.kebabButton,
-                pressed && styles.pressed
-              ]}
-            >
-              <EllipsisVerticalIcon size={20} color={colors.textSecondary} strokeWidth={2} />
-            </Pressable>
+          <View style={styles.headerActions}>
+            {!useEditor && onVoiceLog && (
+              <Pressable
+                onPress={handleVoiceLog}
+                style={({ pressed }) => [
+                  styles.voiceButton,
+                  themedStyles.voiceButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2.1} />
+              </Pressable>
+            )}
+
+            <View ref={kebabRef} collapsable={false}>
+              <Pressable
+                onPress={handleKebabPress}
+                style={({ pressed }) => [
+                  styles.kebabButton,
+                  pressed && styles.pressed
+                ]}
+              >
+                <EllipsisVerticalIcon size={20} color={colors.textSecondary} strokeWidth={2} />
+              </Pressable>
+            </View>
           </View>
         </View>
 
@@ -449,7 +480,19 @@ const styles = StyleSheet.create({
   },
   kebabButton: {
     padding: Spacing.sm,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginLeft: Spacing.sm,
+  },
+  voiceButton: {
+    width: responsiveValue(34, 36, 38),
+    height: responsiveValue(34, 36, 38),
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pressed: {
     opacity: 0.7,
