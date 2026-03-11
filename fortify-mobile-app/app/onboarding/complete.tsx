@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, ActivityIndicator, Easing } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Animated,
+  ActivityIndicator,
+  Easing,
+  PanResponder,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { CheckIcon } from 'react-native-heroicons/solid';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,6 +32,10 @@ const TYPEWRITER_INTERVAL_MS = 36;
 const LOADING_TITLE_TYPEWRITER_MS = 50;
 const TYPEWRITER_HAPTIC_EVERY_N_CHARS = 3;
 const NUMBER_HAPTIC_STEP_PCT = 5;
+const SUMMARY_MAX_TILT_DEG = 16;
+const SUMMARY_MAX_SHIFT_PX = 34;
+const SUMMARY_MAX_TRANSLATE_PX = 4;
+const SUMMARY_REST_SCALE = 0.985;
 
 type Phase = 'loading' | 'ready';
 
@@ -128,6 +141,14 @@ export default function OnboardingCompleteScreen() {
   const statusTypewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const readyTypeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const didTypeLoadingTitleRef = useRef(false);
+  const summaryTiltX = useRef(new Animated.Value(0)).current;
+  const summaryTiltY = useRef(new Animated.Value(0)).current;
+  const summaryScale = useRef(new Animated.Value(SUMMARY_REST_SCALE)).current;
+  const summaryTranslateX = useRef(new Animated.Value(0)).current;
+  const summaryTranslateY = useRef(new Animated.Value(0)).current;
+  const summaryShineX = useRef(new Animated.Value(0)).current;
+  const summaryShineY = useRef(new Animated.Value(0)).current;
+  const summaryCardSizeRef = useRef({ width: 320, height: 240 });
 
   const activeStepIndex = useMemo(() => {
     const index = LOADING_STEPS.findIndex((step) => progressPct < step.completeAt);
@@ -144,7 +165,151 @@ export default function OnboardingCompleteScreen() {
     ? 'Starting…'
     : isAuthenticated
       ? 'Finishing up…'
-      : 'Fortify AI is customized for you.';
+      : 'Your custom training profile is ready.';
+
+  const animateSummaryRestState = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(summaryTiltX, {
+        toValue: 0,
+        damping: 18,
+        stiffness: 190,
+        mass: 0.9,
+        useNativeDriver: true,
+      }),
+      Animated.spring(summaryTiltY, {
+        toValue: 0,
+        damping: 18,
+        stiffness: 190,
+        mass: 0.9,
+        useNativeDriver: true,
+      }),
+      Animated.spring(summaryScale, {
+        toValue: SUMMARY_REST_SCALE,
+        damping: 16,
+        stiffness: 220,
+        mass: 0.8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(summaryTranslateX, {
+        toValue: 0,
+        damping: 17,
+        stiffness: 210,
+        mass: 0.85,
+        useNativeDriver: true,
+      }),
+      Animated.spring(summaryTranslateY, {
+        toValue: 0,
+        damping: 17,
+        stiffness: 210,
+        mass: 0.85,
+        useNativeDriver: true,
+      }),
+      Animated.spring(summaryShineX, {
+        toValue: 0,
+        damping: 16,
+        stiffness: 180,
+        mass: 0.85,
+        useNativeDriver: true,
+      }),
+      Animated.spring(summaryShineY, {
+        toValue: 0,
+        damping: 16,
+        stiffness: 180,
+        mass: 0.85,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [summaryScale, summaryShineX, summaryShineY, summaryTiltX, summaryTiltY, summaryTranslateX, summaryTranslateY]);
+
+  const handleSummaryCardLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    if (width > 0 && height > 0) {
+      summaryCardSizeRef.current = { width, height };
+    }
+  }, []);
+
+  const summaryPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => phase === 'ready' && showSummary,
+    onStartShouldSetPanResponderCapture: () => phase === 'ready' && showSummary,
+    onMoveShouldSetPanResponder: (_event, gestureState) =>
+      phase === 'ready'
+      && showSummary
+      && (Math.abs(gestureState.dx) > 3 || Math.abs(gestureState.dy) > 3),
+    onMoveShouldSetPanResponderCapture: (_event, gestureState) =>
+      phase === 'ready'
+      && showSummary
+      && (Math.abs(gestureState.dx) > 2 || Math.abs(gestureState.dy) > 2),
+    onPanResponderGrant: () => {
+      void Haptics.selectionAsync();
+    },
+    onPanResponderMove: (_event, gestureState) => {
+      const { width, height } = summaryCardSizeRef.current;
+      const maxHorizontal = Math.max(width * 0.38, 1);
+      const maxVertical = Math.max(height * 0.32, 1);
+      const normalizedX = clamp01((gestureState.dx + maxHorizontal) / (maxHorizontal * 2));
+      const normalizedY = clamp01((gestureState.dy + maxVertical) / (maxVertical * 2));
+      const tiltYValue = ((normalizedX * 2) - 1) * SUMMARY_MAX_TILT_DEG;
+      const tiltXValue = (((normalizedY * 2) - 1) * SUMMARY_MAX_TILT_DEG) * -1;
+      const shineXValue = ((normalizedX * 2) - 1) * SUMMARY_MAX_SHIFT_PX;
+      const shineYValue = ((normalizedY * 2) - 1) * SUMMARY_MAX_SHIFT_PX;
+      const translateXValue = ((normalizedX * 2) - 1) * SUMMARY_MAX_TRANSLATE_PX;
+      const translateYValue = ((normalizedY * 2) - 1) * SUMMARY_MAX_TRANSLATE_PX;
+
+      summaryTiltX.setValue(tiltXValue);
+      summaryTiltY.setValue(tiltYValue);
+      summaryTranslateX.setValue(translateXValue);
+      summaryTranslateY.setValue(translateYValue);
+      summaryShineX.setValue(shineXValue);
+      summaryShineY.setValue(shineYValue);
+    },
+    onPanResponderRelease: () => {
+      animateSummaryRestState();
+    },
+    onPanResponderTerminate: () => {
+      animateSummaryRestState();
+    },
+    onPanResponderTerminationRequest: () => false,
+  }), [
+    animateSummaryRestState,
+    phase,
+    showSummary,
+    summaryScale,
+    summaryShineX,
+    summaryShineY,
+    summaryTiltX,
+    summaryTiltY,
+    summaryTranslateX,
+    summaryTranslateY,
+  ]);
+
+  const summaryCardAnimatedStyle = useMemo(() => ({
+    transform: [
+      { perspective: 1200 },
+      { translateX: summaryTranslateX },
+      { translateY: summaryTranslateY },
+      {
+        rotateX: summaryTiltX.interpolate({
+          inputRange: [-SUMMARY_MAX_TILT_DEG, SUMMARY_MAX_TILT_DEG],
+          outputRange: [`-${SUMMARY_MAX_TILT_DEG}deg`, `${SUMMARY_MAX_TILT_DEG}deg`],
+        }),
+      },
+      {
+        rotateY: summaryTiltY.interpolate({
+          inputRange: [-SUMMARY_MAX_TILT_DEG, SUMMARY_MAX_TILT_DEG],
+          outputRange: [`-${SUMMARY_MAX_TILT_DEG}deg`, `${SUMMARY_MAX_TILT_DEG}deg`],
+        }),
+      },
+      { scale: summaryScale },
+    ],
+  }), [summaryScale, summaryTiltX, summaryTiltY, summaryTranslateX, summaryTranslateY]);
+
+  const summaryShineAnimatedStyle = useMemo(() => ({
+    transform: [
+      { translateX: summaryShineX },
+      { translateY: summaryShineY },
+      { rotate: '18deg' },
+    ],
+  }), [summaryShineX, summaryShineY]);
 
   useEffect(() => {
     if (statusTypewriterTimeoutRef.current) {
@@ -284,6 +449,8 @@ export default function OnboardingCompleteScreen() {
     }
     return `${name}'s training profile`;
   }, [onboardingState?.full_name]);
+
+  const summaryActiveStreak = '0 days';
 
   const summaryItems = useMemo<SummaryItem[]>(() => {
     if (!onboardingState) return [];
@@ -634,7 +801,7 @@ export default function OnboardingCompleteScreen() {
       subtitle={undefined}
       hideTitle
       useScrollView
-      scrollEnabled
+      scrollEnabled={false}
       bodyAlign="center"
       contentGap={Spacing.lg}
       footer={
@@ -675,77 +842,95 @@ export default function OnboardingCompleteScreen() {
           <Animated.View
             style={{
               opacity: summaryAnim,
+              overflow: 'visible',
             }}
           >
-            <LinearGradient
-              colors={[colors.surfaceElevated, colors.glassBackground, colors.surfaceElevated]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.summaryCard, { borderColor: colors.glassBorder }]}
+            <Animated.View
+              style={[styles.summaryCardShell, summaryCardAnimatedStyle]}
+              onLayout={handleSummaryCardLayout}
+              {...summaryPanResponder.panHandlers}
             >
-              <View
-                style={[
-                  styles.summaryGlow,
-                  { backgroundColor: colors.accent, opacity: isDark ? 0.18 : 0.12 },
-                ]}
-              />
-              <View style={styles.summaryHeader}>
-                <Text style={[styles.summaryBrand, { color: colors.accent }]}>FORTIFY</Text>
-                <View
+              <LinearGradient
+                colors={[colors.surfaceElevated, colors.glassBackground, colors.surfaceElevated]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[styles.summaryCard, { borderColor: colors.glassBorder }]}
+              >
+                <Animated.View
+                  pointerEvents="none"
                   style={[
-                    styles.summaryBadge,
-                    { backgroundColor: colors.accentOverlay, borderColor: colors.accent },
+                    styles.summaryShine,
+                    summaryShineAnimatedStyle,
                   ]}
                 >
-                  <Text style={[styles.summaryBadgeText, { color: colors.accent }]}>
-                    Setup recap
+                  <LinearGradient
+                    colors={[
+                      'rgba(255,255,255,0)',
+                      isDark ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.34)',
+                      'rgba(255,255,255,0)',
+                    ]}
+                    start={{ x: 0, y: 0.1 }}
+                    end={{ x: 1, y: 0.9 }}
+                    style={StyleSheet.absoluteFillObject}
+                  />
+                </Animated.View>
+                <View
+                  style={[
+                    styles.summaryGlow,
+                    { backgroundColor: colors.accent, opacity: isDark ? 0.18 : 0.12 },
+                  ]}
+                />
+                <View style={styles.summaryHeader}>
+                  <Text style={[styles.summaryBrand, { color: colors.accent }]}>FORTIFY AI</Text>
+                </View>
+                <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>
+                  {summaryName ?? 'Your training profile'}
+                </Text>
+                <View style={[styles.summaryStreakCard, { borderColor: colors.glassBorder }]}>
+                  <Text style={[styles.summaryStreakLabel, { color: colors.textSecondary }]}>
+                    Active streak
+                  </Text>
+                  <Text style={[styles.summaryStreakValue, { color: colors.textPrimary }]}>
+                    {summaryActiveStreak}
                   </Text>
                 </View>
-              </View>
-              <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>
-                {summaryName ?? 'Your training profile'}
-              </Text>
-            {summaryItems.length > 0 ? (
-              <View style={styles.summaryGrid}>
-                  {summaryItems.map((item) => (
-                    <View
-                      key={item.label}
-                      style={[
-                        styles.summaryTile,
-                        { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
-                      ]}
-                    >
-                    <Text style={[styles.summaryLabel, { color: colors.textPrimary }]}>
-                      {item.label}
-                    </Text>
-                      <Text
-                        style={[styles.summaryValue, { color: colors.textPrimary }]}
-                        numberOfLines={2}
+                {summaryItems.length > 0 ? (
+                  <View style={styles.summaryGrid}>
+                    {summaryItems.map((item) => (
+                      <View
+                        key={item.label}
+                        style={[
+                          styles.summaryTile,
+                          { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
+                        ]}
                       >
-                        {item.value}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <View style={styles.summaryLoading}>
-                  <ActivityIndicator size="small" color={colors.accent} />
-                  <Text style={[styles.summaryLoadingText, { color: colors.textSecondary }]}>
-                    Gathering your setup…
-                  </Text>
-                </View>
-              )}
-            <View style={styles.summaryFooter}>
-              <Text style={[styles.summaryHandle, { color: colors.textTertiary }]}>
-                fortis.app
-              </Text>
-            </View>
-          </LinearGradient>
-          <Text style={[styles.summaryNote, { color: colors.textPrimary }]}>
-            You can edit your information at any time.
-          </Text>
-        </Animated.View>
-      ) : null}
+                        <Text style={[styles.summaryLabel, { color: colors.textPrimary }]}>
+                          {item.label}
+                        </Text>
+                        <Text
+                          style={[styles.summaryValue, { color: colors.textPrimary }]}
+                          numberOfLines={2}
+                        >
+                          {item.value}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                ) : (
+                  <View style={styles.summaryLoading}>
+                    <ActivityIndicator size="small" color={colors.accent} />
+                    <Text style={[styles.summaryLoadingText, { color: colors.textSecondary }]}>
+                      Gathering your setup…
+                    </Text>
+                  </View>
+                )}
+              </LinearGradient>
+            </Animated.View>
+            <Text style={[styles.summaryNote, { color: colors.textPrimary }]}>
+              You can edit your information at any time.
+            </Text>
+          </Animated.View>
+        ) : null}
 
         {showSteps ? (
           <Animated.View
@@ -805,6 +990,18 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     overflow: 'hidden',
   },
+  summaryCardShell: {
+    width: '100%',
+    overflow: 'visible',
+  },
+  summaryShine: {
+    position: 'absolute',
+    top: -28,
+    left: '18%',
+    width: '34%',
+    height: '140%',
+    opacity: 0.95,
+  },
   summaryGlow: {
     position: 'absolute',
     top: -36,
@@ -824,23 +1021,27 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontSize: 12,
   },
-  summaryBadge: {
-    alignSelf: 'flex-start',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: Spacing.xs,
-  },
-  summaryBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
   summaryTitle: {
     ...Typography.h3,
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 20,
+  },
+  summaryStreakCard: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: Spacing.md,
+    gap: Spacing.xs,
+  },
+  summaryStreakLabel: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  summaryStreakValue: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 28,
+    letterSpacing: 0.2,
   },
   summarySubtitle: {
     ...Typography.bodySmall,
@@ -881,14 +1082,6 @@ const styles = StyleSheet.create({
   },
   summaryLoadingText: {
     ...Typography.bodySmall,
-  },
-  summaryFooter: {
-    marginTop: Spacing.xs,
-  },
-  summaryHandle: {
-    fontSize: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
   },
   loadingRow: {
     flexDirection: 'row',

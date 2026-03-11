@@ -10,6 +10,7 @@ const WORKOUT_REMINDER_KIND = 'workout-reminder';
 const REMINDER_START_MINUTES = 60;
 const REMINDER_REPEAT_MINUTES = 20;
 const REMINDER_MAX_HOURS = 12;
+const REMINDER_MAX_COUNT = 4;
 
 const ensureWorkoutReminderChannel = async () => {
   if (Platform.OS !== 'android') return;
@@ -107,7 +108,11 @@ const scheduleReminderNotifications = async (sessionStartMs: number): Promise<st
   if (firstMs > endLimitMs) return [];
 
   const ids: string[] = [];
-  for (let timestamp = firstMs; timestamp <= endLimitMs; timestamp += intervalMs) {
+  for (
+    let timestamp = firstMs, reminderCount = 0;
+    timestamp <= endLimitMs && reminderCount < REMINDER_MAX_COUNT;
+    timestamp += intervalMs
+  ) {
     // Stop if we try to schedule in the past due to clock shifts.
     if (timestamp <= Date.now()) continue;
     try {
@@ -125,6 +130,7 @@ const scheduleReminderNotifications = async (sessionStartMs: number): Promise<st
         },
       });
       ids.push(id);
+      reminderCount += 1;
     } catch {
       // Best effort: keep scheduling subsequent reminders.
     }
