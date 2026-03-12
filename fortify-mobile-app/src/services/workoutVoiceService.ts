@@ -1,6 +1,5 @@
 import * as Crypto from 'expo-crypto';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { requestAIDataSharingConsent } from './aiConsentService';
 import type {
   WorkoutVoiceInterpretation,
   WorkoutVoiceRequest,
@@ -62,18 +61,6 @@ const normalizeResponse = (data: unknown): WorkoutVoiceResponse => {
 export async function interpretWorkoutVoiceLog(
   request: WorkoutVoiceRequest
 ): Promise<WorkoutVoiceResponse> {
-  const allowed = await requestAIDataSharingConsent();
-  if (!allowed) {
-    return {
-      type: 'error',
-      error: {
-        code: 'CONSENT_REQUIRED',
-        message: 'Allow AI data sharing to use voice workout logging.',
-        retryable: false,
-      },
-    };
-  }
-
   if (!isSupabaseConfigured()) {
     return {
       type: 'error',

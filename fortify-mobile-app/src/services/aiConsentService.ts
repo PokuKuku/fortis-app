@@ -1,6 +1,7 @@
 import { Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AI_DATA_SHARING_CONSENT_KEY } from '@/src/constants/storageKeys';
-import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { getScopedItem } from '@/src/utils/scopedStorage';
 
 type AIDataSharingConsentDecision = 'granted' | 'declined';
 
@@ -15,7 +16,6 @@ const AI_DATA_SHARING_CONSENT_VERSION = 2;
 export const AI_DATA_SHARING_DISCLOSURE =
   'Fortify can share your data with OpenAI to generate AI coaching responses.\n\n'
   + 'Data shared may include:\n'
-  + '- voice recordings used for workout dictation\n'
   + '- prompts and chat history\n'
   + '- goals and training preferences\n'
   + '- workout, analytics, and insight context tied to your account';
@@ -39,9 +39,20 @@ const parseConsentRecord = (raw: string | null): AIDataSharingConsentRecord | nu
 };
 
 export const getAIDataSharingConsentDecision = async (): Promise<AIDataSharingConsentDecision | null> => {
-  const raw = await getScopedItem(AI_DATA_SHARING_CONSENT_KEY);
-  const record = parseConsentRecord(raw);
-  return record?.decision ?? null;
+  const deviceRaw = await AsyncStorage.getItem(AI_DATA_SHARING_CONSENT_KEY);
+  const deviceRecord = parseConsentRecord(deviceRaw);
+  if (deviceRecord) {
+    return deviceRecord.decision;
+  }
+
+  const legacyRaw = await getScopedItem(AI_DATA_SHARING_CONSENT_KEY);
+  const legacyRecord = parseConsentRecord(legacyRaw);
+  if (legacyRecord) {
+    await AsyncStorage.setItem(AI_DATA_SHARING_CONSENT_KEY, JSON.stringify(legacyRecord));
+    return legacyRecord.decision;
+  }
+
+  return null;
 };
 
 export const hasAIDataSharingConsent = async (): Promise<boolean> => {
@@ -55,7 +66,7 @@ export const setAIDataSharingConsent = async (granted: boolean): Promise<void> =
     version: AI_DATA_SHARING_CONSENT_VERSION,
     updatedAt: new Date().toISOString(),
   };
-  await setScopedItem(AI_DATA_SHARING_CONSENT_KEY, JSON.stringify(record));
+  await AsyncStorage.setItem(AI_DATA_SHARING_CONSENT_KEY, JSON.stringify(record));
 };
 
 export const requestAIDataSharingConsent = async (): Promise<boolean> => {
