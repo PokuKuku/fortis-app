@@ -45,6 +45,7 @@ import { WorkoutSession } from '@/src/types/workout';
 import type { Exercise } from '@/src/types/exercise';
 import { GlassButton } from '@/components/GlassButton';
 import { getExerciseById } from '@/src/services/exerciseService';
+import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
 import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -579,12 +580,38 @@ export default function ActiveWorkoutScreen() {
   );
 
   // Exercise card renderer
+  const handleVoiceLog = async (exerciseLocalId: string) => {
+    const permission = await ensureMicrophonePermission();
+    if (permission.granted) {
+      setVoiceExerciseLocalId(exerciseLocalId);
+      return;
+    }
+
+    Alert.alert(
+      'Microphone access required',
+      permission.status === 'undetermined'
+        ? 'Microphone access is required to use voice logging.'
+        : 'Microphone access is off. Enable it in Settings to use voice logging.',
+      permission.status === 'undetermined'
+        ? [{ text: 'OK' }]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                void openMicrophoneSettings();
+              },
+            },
+          ]
+    );
+  };
+
   const renderExerciseCard = ({ item, index }: any) => (
     <ExerciseCard
       exerciseLocalId={item.localId}
       onReplace={handleReplaceExercise}
       onViewDetails={handleViewExerciseDetails}
-      onVoiceLog={setVoiceExerciseLocalId}
+      onVoiceLog={handleVoiceLog}
       completedSetTint="success"
       shouldAnchorVoiceButton={index === 0}
     />

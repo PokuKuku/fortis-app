@@ -15,7 +15,6 @@ import { ChevronLeftIcon, TrophyIcon } from 'react-native-heroicons/outline';
 import type { RefObject } from 'react';
 import { addDays, endOfDay, format, startOfDay, startOfWeek, subDays } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
@@ -38,7 +37,6 @@ type ShareType = 'activity' | 'monthly' | 'signature' | 'personal_records';
 type SignatureSummary = {
   title: string;
   subtitle: string;
-  stats: Array<{ label: string; value: string }>;
   isLoading: boolean;
 };
 
@@ -190,7 +188,6 @@ export default function ProfileShareScreen() {
   const [signatureSummary, setSignatureSummary] = useState<SignatureSummary>({
     title: 'Building momentum',
     subtitle: 'Log a few more sessions to reveal your signature.',
-    stats: [],
     isLoading: true,
   });
 
@@ -202,7 +199,6 @@ export default function ProfileShareScreen() {
     return first || null;
   }, [profile?.full_name]);
   const allTimeTitle = firstName ? `${firstName}'s all-time stats` : 'Your all-time stats';
-  const signatureStatsLoading = signatureSummary.isLoading;
   const signatureHeatmapReady = !weeklyMuscleLoading;
   const activityIntensityThresholds = useMemo<HeatmapThresholds | null>(() => {
     const volumes = weeks.flatMap((week) =>
@@ -251,7 +247,6 @@ export default function ProfileShareScreen() {
       setSignatureSummary({
         title: 'Building momentum',
         subtitle: 'Log a few more sessions to reveal your signature.',
-        stats: [],
         isLoading: false,
       });
       return;
@@ -328,12 +323,6 @@ export default function ProfileShareScreen() {
       setSignatureSummary({
         title,
         subtitle,
-        stats: [
-          { label: 'Push sets', value: Math.round(pushSets).toString() },
-          { label: 'Pull sets', value: Math.round(pullSets).toString() },
-          { label: 'Leg sets', value: Math.round(legSets).toString() },
-          { label: 'Core sets', value: Math.round(coreSets).toString() },
-        ],
         isLoading: false,
       });
     };
@@ -345,9 +334,6 @@ export default function ProfileShareScreen() {
     };
   }, [weeklyMuscleLoading, weeklyMuscleSessions]);
 
-  const gradientColors = isDark
-    ? ['#0c1413', '#131c1b', '#0f1918']
-    : ['#f4f7f6', '#eef1f1', '#f6f8f8'];
   const accentBase = colors.accent;
 
   const ViewShotComponent = isCaptureReady
@@ -456,24 +442,17 @@ export default function ProfileShareScreen() {
           <View style={styles.previewSection}>
             {isCaptureReady && ViewShotComponent ? (
               <ViewShotComponent ref={viewShotRef} options={{ format: 'png', quality: 1 }}>
-                <LinearGradient
-                  colors={gradientColors}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                <View
                   style={[
                     styles.shareCard,
                     {
+                      backgroundColor: colors.patternBase,
                       borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
                     },
                   ]}
                   collapsable={false}
                 >
-                  <View
-                    style={[
-                      styles.shareGlow,
-                      { backgroundColor: colors.accent, opacity: isDark ? 0.16 : 0.12 },
-                    ]}
-                  />
+                  <StainlessSteelPattern />
                   <View style={styles.shareHeader}>
                     <Text style={[styles.brand, { color: colors.accent }]}>FORTIFY AI</Text>
                     <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>
@@ -611,24 +590,6 @@ export default function ProfileShareScreen() {
                           </Text>
                         )}
                       </>
-                      {signatureStatsLoading ? (
-                        <View style={styles.loadingContainer}>
-                          <ActivityIndicator color={colors.accent} size="small" />
-                        </View>
-                      ) : (
-                        <View style={styles.signatureRow}>
-                          {signatureSummary.stats.map((stat) => (
-                            <View key={stat.label} style={styles.signatureTile}>
-                              <Text style={[styles.signatureValue, { color: colors.textPrimary }]}>
-                                {stat.value}
-                              </Text>
-                              <Text style={[styles.signatureLabel, { color: colors.textSecondary }]}>
-                                {stat.label}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
                     </View>
                   )}
 
@@ -681,25 +642,24 @@ export default function ProfileShareScreen() {
                       )}
                     </View>
                   )}
-                </LinearGradient>
+                </View>
               </ViewShotComponent>
             ) : (
-              <LinearGradient
-                colors={gradientColors}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
+              <View
                 style={[
                   styles.shareCard,
                   {
+                    backgroundColor: colors.patternBase,
                     borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
                   },
                 ]}
                 collapsable={false}
               >
+                <StainlessSteelPattern />
                 <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>
                   Share preview requires a dev client rebuild.
                 </Text>
-              </LinearGradient>
+              </View>
             )}
           </View>
 
@@ -785,14 +745,6 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.md),
     overflow: 'hidden',
   },
-  shareGlow: {
-    position: 'absolute',
-    top: -scale(60),
-    right: -scale(40),
-    width: scale(160),
-    height: scale(160),
-    borderRadius: scale(80),
-  },
   shareHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -845,19 +797,23 @@ const styles = StyleSheet.create({
   },
   activityStatsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: scale(Spacing.sm),
+    alignSelf: 'center',
   },
   activityStat: {
-    flex: 1,
+    width: scale(72),
     gap: scale(Spacing.xs),
+    alignItems: 'center',
   },
   activityStatValue: {
     fontSize: moderateScale(14),
     fontWeight: '700',
+    textAlign: 'center',
   },
   activityStatLabel: {
     fontSize: moderateScale(10),
+    textAlign: 'center',
   },
   statsGrid: {
     flexDirection: 'row',

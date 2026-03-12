@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  AppState,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -26,6 +27,7 @@ import {
   MagnifyingGlassIcon,
   TrashIcon,
   DocumentTextIcon,
+  MicrophoneIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -42,6 +44,11 @@ import {
   requestAIDataSharingConsent,
   setAIDataSharingConsent,
 } from '@/src/services/aiConsentService';
+import {
+  ensureMicrophonePermission,
+  getMicrophonePermissionStatus,
+  openMicrophoneSettings,
+} from '@/src/services/microphonePermissionService';
 
 interface SettingsRowProps {
   icon: React.ReactNode;
@@ -95,6 +102,7 @@ export default function SettingsScreen() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
   const [aiDataSharingAllowed, setAIDataSharingAllowed] = useState<boolean>(false);
+  const [microphoneAllowed, setMicrophoneAllowed] = useState<boolean>(false);
 
   const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
   const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
@@ -125,14 +133,30 @@ export default function SettingsScreen() {
 
   useEffect(() => {
     let isMounted = true;
+    const refreshMicrophonePermission = async () => {
+      const permission = await getMicrophonePermissionStatus();
+      if (isMounted) {
+        setMicrophoneAllowed(permission.granted);
+      }
+    };
+
     void (async () => {
       const allowed = await hasAIDataSharingConsent();
       if (isMounted) {
         setAIDataSharingAllowed(allowed);
       }
+      await refreshMicrophonePermission();
     })();
+
+    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        void refreshMicrophonePermission();
+      }
+    });
+
     return () => {
       isMounted = false;
+      appStateSubscription.remove();
     };
   }, []);
 
@@ -142,7 +166,7 @@ export default function SettingsScreen() {
     if (aiDataSharingAllowed) {
       Alert.alert(
         'Disable AI data sharing?',
-        'Fortify will stop sending your prompts, workout context, and voice dictation audio to OpenAI until you re-enable this setting.',
+        'Fortify will stop sending your prompts and workout context to OpenAI until you re-enable this setting.',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -162,6 +186,50 @@ export default function SettingsScreen() {
 
     const allowed = await requestAIDataSharingConsent();
     setAIDataSharingAllowed(allowed);
+  };
+
+  const handleMicrophoneAccessPress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const currentPermission = await getMicrophonePermissionStatus();
+    if (currentPermission.granted || currentPermission.status !== 'undetermined') {
+      setMicrophoneAllowed(currentPermission.granted);
+      Alert.alert(
+        'Microphone access',
+        'Microphone access is controlled by your device settings. Open Settings to allow or disable it for Fortify.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => {
+              void openMicrophoneSettings();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    const permission = await ensureMicrophonePermission();
+    setMicrophoneAllowed(permission.granted);
+
+    if (permission.granted) {
+      return;
+    }
+
+    Alert.alert(
+      'Microphone access',
+      'Microphone access is controlled by your device settings. Open Settings to allow it for Fortify.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open Settings',
+          onPress: () => {
+            void openMicrophoneSettings();
+          },
+        },
+      ]
+    );
   };
 
   const handleToggleTheme = async () => {
@@ -488,6 +556,17 @@ export default function SettingsScreen() {
             <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Legal & Security</Text>
 
             <View style={[styles.settingsCard, cardStyle]}>
+              <SettingsRow
+                icon={<MicrophoneIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Microphone"
+                value={microphoneAllowed ? 'Allowed' : 'Not allowed'}
+                onPress={handleMicrophoneAccessPress}
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
               <SettingsRow
                 icon={<DocumentTextIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="AI Data Sharing"

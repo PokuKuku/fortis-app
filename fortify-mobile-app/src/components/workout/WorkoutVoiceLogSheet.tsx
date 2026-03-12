@@ -31,6 +31,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { getMicrophonePermissionStatus } from '@/src/services/microphonePermissionService';
 import { createVoiceLogFileName, interpretWorkoutVoiceLog } from '@/src/services/workoutVoiceService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import type { WorkoutVoiceInterpretation } from '@/src/types/workoutVoice';
@@ -302,9 +303,9 @@ export function WorkoutVoiceLogSheet({
 
     try {
       await discardRecording();
-      const permission = await Audio.requestPermissionsAsync();
+      const permission = await getMicrophonePermissionStatus();
       if (!permission.granted) {
-        setErrorMessage('Microphone access is required for voice logging.');
+        setErrorMessage('Microphone access is off. Enable it in Settings to use voice logging.');
         return;
       }
 

@@ -15,7 +15,6 @@ import { ChevronLeftIcon } from 'react-native-heroicons/outline';
 import type { RefObject } from 'react';
 import { addDays, format } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
@@ -256,9 +255,6 @@ export default function InsightShareScreen() {
   const comparisonMax = comparisonBars
     ? Math.max(...comparisonBars.map((item) => item.value), 1)
     : 1;
-  const gradientColors = isDark
-    ? ['#0c1413', '#131c1b', '#0f1918']
-    : ['#f4f7f6', '#eef1f1', '#f6f8f8'];
   const ViewShotComponent = isCaptureReady
     ? (require('react-native-view-shot').default as any)
     : null;
@@ -353,25 +349,18 @@ export default function InsightShareScreen() {
   };
 
   const shareCard = insight ? (
-    <LinearGradient
-      colors={gradientColors}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
+    <View
       style={[
         styles.shareCard,
         styles.templateCard,
         {
+          backgroundColor: colors.patternBase,
           borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
         },
       ]}
       collapsable={false}
     >
-      <View
-        style={[
-          styles.shareGlow,
-          { backgroundColor: colors.accent, opacity: isDark ? 0.16 : 0.12 },
-        ]}
-      />
+      <StainlessSteelPattern />
       <View style={styles.shareHeader}>
         <Text style={[styles.brand, { color: colors.accent }]}>FORTIFY AI</Text>
         <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>{weekLabel}</Text>
@@ -552,13 +541,7 @@ export default function InsightShareScreen() {
           </View>
         </View>
       )}
-
-      <View style={styles.shareFooter}>
-        <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
-          fortisai.app
-        </Text>
-      </View>
-    </LinearGradient>
+    </View>
   ) : null;
 
   if (!insight || !isShareable) {
@@ -700,14 +683,6 @@ const styles = StyleSheet.create({
   },
   templateCard: {
     gap: scale(Spacing.md),
-  },
-  shareGlow: {
-    position: 'absolute',
-    top: -scale(60),
-    right: -scale(40),
-    width: scale(160),
-    height: scale(160),
-    borderRadius: scale(80),
   },
   shareHeader: {
     flexDirection: 'row',
@@ -880,17 +855,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: scale(Spacing.sm),
   },
-  shareFooter: {
-    marginTop: scale(Spacing.xs),
-    gap: scale(Spacing.xs),
-  },
   privacyHint: {
     fontSize: moderateScale(10),
-  },
-  shareHandle: {
-    fontSize: moderateScale(10),
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
   },
   controlsSection: {
     gap: scale(Spacing.sm),
