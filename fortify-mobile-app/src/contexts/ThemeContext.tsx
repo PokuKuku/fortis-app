@@ -334,7 +334,7 @@ function resolveAccentColor(value: string | null): AccentColorName | null {
  */
 export function ThemeProvider({ children, forceTheme }: ThemeProviderProps) {
   const systemColorScheme = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>('system');
+  const [mode, setModeState] = useState<ThemeMode>('light');
   const [accentColor, setAccentColorState] = useState<AccentColorName>('green');
   const [isLoading, setIsLoading] = useState(true);
 

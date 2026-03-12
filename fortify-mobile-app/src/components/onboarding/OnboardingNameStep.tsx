@@ -120,7 +120,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   input: {
-    fontSize: 20,
+    fontSize: 18,
+    lineHeight: 24,
+    paddingVertical: 0,
     fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.5,
   },

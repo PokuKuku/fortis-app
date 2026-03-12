@@ -78,6 +78,7 @@ const styles = StyleSheet.create({
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: Spacing.md,
   },
   shareRow: {
@@ -90,6 +91,7 @@ const styles = StyleSheet.create({
     fontFamily: 'BankGothicBT-Medium',
     textTransform: 'uppercase',
     letterSpacing: 1,
+    textAlign: 'center',
   },
   loadingContainer: {
     height: 140,
