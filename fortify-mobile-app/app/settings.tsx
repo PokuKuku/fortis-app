@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import * as Haptics from 'expo-haptics';
+import Constants from 'expo-constants';
 import {
   ChevronLeftIcon,
   ArrowRightOnRectangleIcon,
@@ -82,7 +83,7 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
 }
 
 export default function SettingsScreen() {
-const APP_VERSION = '1.0.0';
+  const APP_VERSION = Constants.expoConfig?.version ?? '1.1.0';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { profile, signOut } = useAuth();

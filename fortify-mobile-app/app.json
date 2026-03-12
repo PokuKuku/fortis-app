@@ -2,11 +2,11 @@
   "expo": {
     "name": "Fortify AI",
     "slug": "fortis",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/fortifyAI_icon2.png",
+    "icon": "./assets/fortify_ai_new_icon.png",
     "notification": {
-      "icon": "./assets/fortifyAI_icon2.png",
+      "icon": "./assets/fortify_ai_new_icon.png",
       "color": "#121214"
     },
     "scheme": "fortis",
@@ -19,8 +19,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fortisfitness.app",
+      "buildNumber": "2",
       "usesAppleSignIn": true,
-      "icon": "./assets/fortifyAI_icon2.png",
+      "icon": "./assets/fortify_ai_new_icon.png",
       "infoPlist": {
         "CFBundleDisplayName": "Fortify AI",
         "CFBundleName": "FortifyAI",
@@ -41,7 +42,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fortifyAI_icon2.png",
+        "foregroundImage": "./assets/fortify_ai_new_icon.png",
         "backgroundColor": "#121214"
       },
       "package": "com.fortis.app",
@@ -52,7 +53,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/fortifyAI_icon2.png",
+      "favicon": "./assets/fortify_ai_new_icon.png",
       "bundler": "metro"
     },
     "plugins": [
