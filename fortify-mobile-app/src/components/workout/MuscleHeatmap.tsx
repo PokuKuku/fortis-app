@@ -1,6 +1,13 @@
 import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
-import Body, { Slug } from 'react-native-body-highlighter';
+import { type Slug } from 'react-native-body-highlighter';
+import { Path } from 'react-native-svg';
+import { bodyFront } from 'react-native-body-highlighter/assets/bodyFront';
+import { bodyBack } from 'react-native-body-highlighter/assets/bodyBack';
+import { bodyFemaleFront } from 'react-native-body-highlighter/assets/bodyFemaleFront';
+import { bodyFemaleBack } from 'react-native-body-highlighter/assets/bodyFemaleBack';
+import { SvgMaleWrapper } from 'react-native-body-highlighter/components/SvgMaleWrapper';
+import { SvgFemaleWrapper } from 'react-native-body-highlighter/components/SvgFemaleWrapper';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing } from '@/constants/Sizes';
 import {
@@ -29,6 +36,16 @@ interface BodyPartData {
   intensity: number;
   side?: 'left' | 'right';
 }
+
+type LocalBodyPart = {
+  slug?: Slug;
+  color?: string;
+  path?: {
+    common?: string[];
+    left?: string[];
+    right?: string[];
+  };
+};
 
 const hexToRgb = (hex: string) => {
   const sanitized = hex.replace('#', '');
@@ -59,11 +76,64 @@ const buildHeatmapPalette = (light: string, base: string, dark: string) => ([
   dark,
 ]);
 
+function AccentBody({
+  data,
+  colors,
+  baseColor,
+  scale,
+  side,
+  gender,
+  border,
+}: {
+  data: ReadonlyArray<BodyPartData>;
+  colors: ReadonlyArray<string>;
+  baseColor: string;
+  scale: number;
+  side: 'front' | 'back';
+  gender: 'male' | 'female';
+  border: string | 'none';
+}) {
+  const SvgWrapper = gender === 'male' ? SvgMaleWrapper : SvgFemaleWrapper;
+  const bodySource =
+    gender === 'female'
+      ? side === 'front'
+        ? bodyFemaleFront
+        : bodyFemaleBack
+      : side === 'front'
+      ? bodyFront
+      : bodyBack;
+
+  const getFillFor = (bodyPart: LocalBodyPart) => {
+    const match = data.find((item) => item.slug === bodyPart.slug);
+    if (!match || match.intensity <= 0) return baseColor;
+    return colors[match.intensity - 1] ?? colors[0] ?? baseColor;
+  };
+
+  return (
+    <SvgWrapper side={side} scale={scale} border={border}>
+      {bodySource.flatMap((bodyPart) => {
+        const fill = getFillFor(bodyPart as LocalBodyPart);
+        const commonPaths = (bodyPart.path?.common || []).map((path) => (
+          <Path key={`${bodyPart.slug}-common-${path}`} id={bodyPart.slug} fill={fill} d={path} />
+        ));
+        const leftPaths = (bodyPart.path?.left || []).map((path) => (
+          <Path key={`${bodyPart.slug}-left-${path}`} id={bodyPart.slug} fill={fill} d={path} />
+        ));
+        const rightPaths = (bodyPart.path?.right || []).map((path) => (
+          <Path key={`${bodyPart.slug}-right-${path}`} id={bodyPart.slug} fill={fill} d={path} />
+        ));
+        return [...commonPaths, ...leftPaths, ...rightPaths];
+      })}
+    </SvgWrapper>
+  );
+}
+
 export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
   const { colors, isDark } = useTheme();
 
   // 5-level palette from accent colors (low -> high intensity)
   const heatmapColors = buildHeatmapPalette(colors.accentLight, colors.accent, colors.accentDark);
+  const baseBodyFill = isDark ? '#5B626D' : '#8C949E';
 
   const { frontData, backData } = useMemo(() => {
     const frontIntensity: Record<string, number> = {};
@@ -112,22 +182,24 @@ export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale 
     <View style={[styles.container, compact && styles.containerCompact]}>
       <View style={styles.bodiesContainer}>
         <View style={styles.bodyWrapper}>
-          <Body
+          <AccentBody
             data={frontData}
             side="front"
             gender={gender}
             scale={scale}
             colors={heatmapColors}
+            baseColor={baseBodyFill}
             border={isDark ? '#333333' : '#cccccc'}
           />
         </View>
         <View style={styles.bodyWrapper}>
-          <Body
+          <AccentBody
             data={backData}
             side="back"
             gender={gender}
             scale={scale}
             colors={heatmapColors}
+            baseColor={baseBodyFill}
             border={isDark ? '#333333' : '#cccccc'}
           />
         </View>

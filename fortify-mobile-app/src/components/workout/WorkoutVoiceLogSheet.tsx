@@ -693,7 +693,7 @@ export function WorkoutVoiceLogSheet({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.28)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: scale(Spacing.lg),

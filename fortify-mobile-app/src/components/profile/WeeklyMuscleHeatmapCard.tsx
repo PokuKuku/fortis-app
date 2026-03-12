@@ -2,7 +2,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { WeeklyTierMuscleHeatmap } from '@/src/components/profile/WeeklyTierMuscleHeatmap';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
@@ -43,7 +43,7 @@ export function WeeklyMuscleHeatmapCard() {
         </View>
       ) : (
         <View style={styles.heatmapContent}>
-          <MuscleHeatmap
+          <WeeklyTierMuscleHeatmap
             muscleLevels={hasWorkouts ? muscleLevels : {}}
             gender={bodyType}
             scale={0.45}

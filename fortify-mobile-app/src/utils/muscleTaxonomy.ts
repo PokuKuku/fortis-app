@@ -29,6 +29,8 @@ export type HeatmapRegion = {
   side?: HeatmapSide;
 };
 
+export type MuscleTier = 'D' | 'C' | 'B' | 'A' | 'S';
+
 export const MUSCLE_KEYS: MuscleKey[] = [
   'chest',
   'front_delts',
@@ -307,7 +309,7 @@ export function resolveMuscleTargetKeys(input: string): MuscleKey[] {
     return ['abs', 'obliques'];
   }
   if (normalized === 'legs' || normalized === 'lower body') {
-    return ['quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors']
+    return (['quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] as MuscleKey[])
       .filter((key) => ACTIVE_MUSCLE_KEYS.includes(key));
   }
   const key = normalizeMuscle(input);
@@ -321,12 +323,45 @@ type AttributionOptions = {
   weightUnitByExercise?: Record<string, WeightUnit>;
 };
 
+export const WEEKLY_MUSCLE_TIER_THRESHOLDS = {
+  d: 0.5,
+  c: 5,
+  b: 9,
+  a: 13,
+  s: 18,
+} as const;
+
+export const WEEKLY_MUSCLE_TIER_COLORS: Record<MuscleTier, string> = {
+  S: '#F67B7D',
+  A: '#F0B777',
+  B: '#EFD77B',
+  C: '#E6EC76',
+  D: '#AFE76D',
+};
+
+const resolveExerciseMuscles = (
+  exercise: Exercise,
+  exerciseName: string
+): { primary: MuscleKey[]; secondary: MuscleKey[] } => {
+  const primary = normalizeMuscleArray(exercise.primaryMuscles || []);
+  const secondary = normalizeMuscleArray(exercise.secondaryMuscles || []);
+  const fallbackMuscles: MuscleKey[] =
+    primary.length === 0 && secondary.length === 0
+      ? normalizeMuscleArray([exerciseName || exercise.name || ''])
+      : [];
+
+  return {
+    primary: primary.length > 0 ? primary : fallbackMuscles,
+    secondary,
+  };
+};
+
 export function attributeSessionToMuscles(
   session: WorkoutSession,
   exercisesById: Map<string, Exercise>,
   options: AttributionOptions = {}
 ): Record<MuscleKey, number> {
-  const scores: Record<MuscleKey, number> = {};
+  const scores = {} as Record<MuscleKey, number>;
   const preferredUnits = options.preferredUnits ?? 'imperial';
   const volumeContext: VolumeContext = {
     preferredUnits,
@@ -365,8 +400,45 @@ export function attributeSessionToMuscles(
   return scores;
 }
 
+export function attributeSessionSetsToMuscles(
+  session: WorkoutSession,
+  exercisesById: Map<string, Exercise>
+): Record<MuscleKey, number> {
+  const scores = {} as Record<MuscleKey, number>;
+
+  session.exercises.forEach((workoutExercise) => {
+    const exercise = exercisesById.get(workoutExercise.exerciseId);
+    if (!exercise) return;
+
+    const { primary, secondary } = resolveExerciseMuscles(exercise, workoutExercise.exerciseName);
+    if (primary.length === 0 && secondary.length === 0) return;
+
+    workoutExercise.sets.forEach((set) => {
+      if (!set.isCompleted) return;
+      if (set.setType === 'warmup') return;
+      if ((set.reps ?? 0) <= 0) return;
+
+      if (primary.length > 0) {
+        const primaryShare = 1 / primary.length;
+        primary.forEach((muscle) => {
+          scores[muscle] = (scores[muscle] ?? 0) + primaryShare;
+        });
+      }
+
+      if (secondary.length > 0) {
+        const secondaryShare = 0.5 / secondary.length;
+        secondary.forEach((muscle) => {
+          scores[muscle] = (scores[muscle] ?? 0) + secondaryShare;
+        });
+      }
+    });
+  });
+
+  return scores;
+}
+
 export function attributeExercisesToMuscles(exercises: Exercise[]): Record<MuscleKey, number> {
-  const scores: Record<MuscleKey, number> = {};
+  const scores = {} as Record<MuscleKey, number>;
 
   exercises.forEach((exercise) => {
     const primary = normalizeMuscleArray(exercise.primaryMuscles || []);
@@ -388,14 +460,14 @@ export function bucketIntensity(scores: Record<MuscleKey, number>): Record<Muscl
   const maxScore = entries.reduce((max, [, value]) => Math.max(max, value), 0);
 
   if (maxScore <= 0) {
-    const empty: Record<MuscleKey, number> = {};
+    const empty = {} as Record<MuscleKey, number>;
     entries.forEach(([key]) => {
       empty[key] = 0;
     });
     return empty;
   }
 
-  const levels: Record<MuscleKey, number> = {};
+  const levels = {} as Record<MuscleKey, number>;
   entries.forEach(([muscle, value]) => {
     const norm = value / maxScore;
     let level = 0;
@@ -407,5 +479,26 @@ export function bucketIntensity(scores: Record<MuscleKey, number>): Record<Muscl
     else level = 5;
     levels[muscle] = level;
   });
+  return levels;
+}
+
+export function bucketWeeklyTierIntensity(
+  scores: Record<MuscleKey, number>
+): Record<MuscleKey, number> {
+  const levels = {} as Record<MuscleKey, number>;
+
+  ACTIVE_MUSCLE_KEYS.forEach((muscle) => {
+    const value = scores[muscle] ?? 0;
+    let level = 0;
+
+    if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.s) level = 5;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.a) level = 4;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.b) level = 3;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.c) level = 2;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.d) level = 1;
+
+    levels[muscle] = level;
+  });
+
   return levels;
 }

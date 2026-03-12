@@ -2,16 +2,14 @@ import { useState, useEffect, useMemo } from 'react';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getExerciseById } from '@/src/services/exerciseService';
 import { startOfDay, startOfWeek, endOfDay } from 'date-fns';
-import { attributeSessionToMuscles, bucketIntensity, type MuscleKey } from '@/src/utils/muscleTaxonomy';
-import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
+import { attributeSessionSetsToMuscles, bucketWeeklyTierIntensity, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { useWorkoutHistoryRange } from '@/src/hooks/useWorkoutHistoryRange';
-import { useAuth } from '@/src/contexts/AuthContext';
 import type { Exercise } from '@/src/types/exercise';
 import type { WorkoutSession } from '@/src/types/workout';
 
 /**
- * Aggregates volume-based muscle intensity for the current week.
- * Resets every Monday and returns intensity levels for MuscleHeatmap.
+ * Aggregates weighted set-based weekly muscle tiers for the profile heatmap.
+ * Resets every Monday and returns absolute tier levels for the profile/share cards.
  */
 export function useWeeklyMuscles(): {
   muscleLevels: Record<MuscleKey, number>;
@@ -20,10 +18,9 @@ export function useWeeklyMuscles(): {
   sessions: WorkoutSession[];
 } {
   const completedSessions = useWorkoutStore((state) => state.completedSessions);
-  const weightUnits = useWorkoutStore((state) => state.weightUnits);
-  const { bodyweightKg } = useLatestBodyweight();
-  const { profile } = useAuth();
-  const [muscleLevels, setMuscleLevels] = useState<Record<MuscleKey, number>>({});
+  const [muscleLevels, setMuscleLevels] = useState<Record<MuscleKey, number>>(
+    {} as Record<MuscleKey, number>
+  );
   const [isComputing, setIsComputing] = useState(true);
 
   const todayKey = startOfDay(new Date()).getTime();
@@ -40,7 +37,9 @@ export function useWeeklyMuscles(): {
     const ids = new Set<string>();
     sourceSessions.forEach((session) => {
       session.exercises.forEach((exercise) => {
-        const hasCompletedSets = exercise.sets.some(set => set.isCompleted);
+        const hasCompletedSets = exercise.sets.some(
+          (set) => set.isCompleted && set.setType !== 'warmup' && (set.reps ?? 0) > 0
+        );
         if (hasCompletedSets) ids.add(exercise.exerciseId);
       });
     });
@@ -52,7 +51,7 @@ export function useWeeklyMuscles(): {
     let isMounted = true;
     async function fetchMuscleData() {
       if (weeklyExerciseIds.length === 0) {
-        setMuscleLevels({});
+        setMuscleLevels({} as Record<MuscleKey, number>);
         setIsComputing(false);
         return;
       }
@@ -77,24 +76,18 @@ export function useWeeklyMuscles(): {
           }
         });
 
-        const scores: Record<MuscleKey, number> = {};
-        const preferredUnits = profile?.preferred_units ?? 'imperial';
+        const scores = {} as Record<MuscleKey, number>;
         sourceSessions.forEach((session) => {
-          const sessionScores = attributeSessionToMuscles(session, exerciseMap, {
-            bodyweightKg,
-            profileWeightKg: profile?.weight_kg ?? null,
-            preferredUnits,
-            weightUnitByExercise: weightUnits,
-          });
+          const sessionScores = attributeSessionSetsToMuscles(session, exerciseMap);
           Object.entries(sessionScores).forEach(([key, value]) => {
             scores[key as MuscleKey] = (scores[key as MuscleKey] ?? 0) + value;
           });
         });
 
-        setMuscleLevels(bucketIntensity(scores));
+        setMuscleLevels(bucketWeeklyTierIntensity(scores));
       } catch (error) {
         console.error('Error fetching muscle data:', error);
-        setMuscleLevels({});
+        setMuscleLevels({} as Record<MuscleKey, number>);
       } finally {
         if (isMounted) {
           setIsComputing(false);
@@ -106,7 +99,7 @@ export function useWeeklyMuscles(): {
     return () => {
       isMounted = false;
     };
-  }, [weeklyExerciseIds, sourceSessions, bodyweightKg, weightUnits, profile?.preferred_units, profile?.weight_kg]);
+  }, [weeklyExerciseIds, sourceSessions]);
 
   return {
     muscleLevels,

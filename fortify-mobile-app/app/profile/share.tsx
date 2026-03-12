@@ -26,7 +26,7 @@ import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useTopPersonalRecords } from '@/src/hooks/useTopPersonalRecords';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getMuscleCategory, normalizeMuscle, type MuscleKey } from '@/src/utils/muscleTaxonomy';
-import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { WeeklyTierMuscleHeatmap } from '@/src/components/profile/WeeklyTierMuscleHeatmap';
 import { getExerciseById } from '@/src/services/exerciseService';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -596,6 +596,21 @@ export default function ProfileShareScreen() {
                       <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
                         {signatureSummary.subtitle}
                       </Text>
+                      <>
+                        <View style={styles.signatureHeatmap}>
+                          <WeeklyTierMuscleHeatmap
+                            muscleLevels={weeklyHasWorkouts && signatureHeatmapReady ? weeklyMuscleLevels : {}}
+                            gender={bodyType}
+                            scale={0.45}
+                            compact
+                          />
+                        </View>
+                        {!weeklyHasWorkouts && signatureHeatmapReady && (
+                          <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
+                            Log a workout to reveal your muscle map.
+                          </Text>
+                        )}
+                      </>
                       {signatureStatsLoading ? (
                         <View style={styles.loadingContainer}>
                           <ActivityIndicator color={colors.accent} size="small" />
@@ -614,21 +629,6 @@ export default function ProfileShareScreen() {
                           ))}
                         </View>
                       )}
-                      <>
-                        <View style={styles.signatureHeatmap}>
-                          <MuscleHeatmap
-                            muscleLevels={weeklyHasWorkouts && signatureHeatmapReady ? weeklyMuscleLevels : {}}
-                            gender={bodyType}
-                            scale={0.45}
-                            compact
-                          />
-                        </View>
-                        {!weeklyHasWorkouts && signatureHeatmapReady && (
-                          <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
-                            Log a workout to reveal your muscle map.
-                          </Text>
-                        )}
-                      </>
                     </View>
                   )}
 
@@ -681,12 +681,6 @@ export default function ProfileShareScreen() {
                       )}
                     </View>
                   )}
-
-                  <View style={styles.shareFooter}>
-                    <Text style={[styles.shareHandle, { color: colors.textTertiary }]}>
-                      fortisai.app
-                    </Text>
-                  </View>
                 </LinearGradient>
               </ViewShotComponent>
             ) : (
@@ -822,14 +816,6 @@ const styles = StyleSheet.create({
   shareSubtitle: {
     fontSize: moderateScale(14),
     lineHeight: moderateScale(20),
-  },
-  shareFooter: {
-    marginTop: 'auto',
-  },
-  shareHandle: {
-    fontSize: moderateScale(10),
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
   },
   activityHeadline: {
     alignItems: 'center',

@@ -4,9 +4,9 @@
     "slug": "fortis",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/fortis_ai_icon.png",
+    "icon": "./assets/FortifyAI_icon.png",
     "notification": {
-      "icon": "./assets/fortis_ai_icon.png",
+      "icon": "./assets/FortifyAI_icon.png",
       "color": "#121214"
     },
     "scheme": "fortis",
@@ -20,7 +20,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fortisfitness.app",
       "usesAppleSignIn": true,
-      "icon": "./assets/fortis_ai_icon.png",
+      "icon": "./assets/FortifyAI_icon.png",
       "infoPlist": {
         "CFBundleDisplayName": "Fortify AI",
         "CFBundleName": "FortifyAI",
@@ -41,7 +41,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fortis_ai_icon.png",
+        "foregroundImage": "./assets/FortifyAI_icon.png",
         "backgroundColor": "#121214"
       },
       "package": "com.fortis.app",
@@ -52,7 +52,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/fortis_ai_icon.png",
+      "favicon": "./assets/FortifyAI_icon.png",
       "bundler": "metro"
     },
     "plugins": [

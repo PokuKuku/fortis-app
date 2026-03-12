@@ -1,4 +1,9 @@
-import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
+import {
+  attributeSessionToMuscles,
+  attributeSessionSetsToMuscles,
+  bucketIntensity,
+  bucketWeeklyTierIntensity,
+} from '@/src/utils/muscleTaxonomy';
 import type { Exercise } from '@/src/types/exercise';
 import type { WorkoutSession } from '@/src/types/workout';
 
@@ -111,5 +116,114 @@ describe('muscleTaxonomy attribution', () => {
     expect(levels.chest).toBe(5);
     expect(levels.lats).toBe(3);
     expect(levels.triceps).toBe(3);
+  });
+
+  it('attributes weighted working sets into weekly tiers and ignores warmups', () => {
+    const benchPress: Exercise = {
+      id: 'ex-bench',
+      name: 'Bench Press',
+      primaryMuscles: ['chest'],
+      secondaryMuscles: ['triceps', 'front delts'],
+      equipment: 'barbell',
+      category: 'strength',
+      instructions: [],
+      images: [],
+    };
+
+    const row: Exercise = {
+      id: 'ex-row',
+      name: 'Seated Cable Row',
+      primaryMuscles: ['lats', 'upper back'],
+      secondaryMuscles: ['biceps'],
+      equipment: 'cable',
+      category: 'strength',
+      instructions: [],
+      images: [],
+    };
+
+    const session: WorkoutSession = {
+      localId: 'session-2',
+      name: 'Tier Session',
+      notes: '',
+      startedAt: new Date('2025-01-08T10:00:00Z'),
+      completedAt: new Date('2025-01-08T11:00:00Z'),
+      exercises: [
+        {
+          localId: 'we-bench',
+          exerciseId: benchPress.id,
+          exerciseName: benchPress.name,
+          notes: '',
+          orderIndex: 0,
+          sets: [
+            {
+              localId: 'warmup',
+              setNumber: 1,
+              setType: 'warmup',
+              weight: 95,
+              weightUnit: 'lbs',
+              reps: 10,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: true,
+              orderIndex: 0,
+            },
+            ...Array.from({ length: 13 }, (_, index) => ({
+              localId: `bench-${index + 1}`,
+              setNumber: index + 2,
+              setType: 'normal' as const,
+              weight: 135,
+              weightUnit: 'lbs' as const,
+              reps: 8,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: true,
+              orderIndex: index + 1,
+            })),
+          ],
+        },
+        {
+          localId: 'we-row',
+          exerciseId: row.id,
+          exerciseName: row.name,
+          notes: '',
+          orderIndex: 1,
+          sets: Array.from({ length: 8 }, (_, index) => ({
+            localId: `row-${index + 1}`,
+            setNumber: index + 1,
+            setType: 'normal' as const,
+            weight: 120,
+            weightUnit: 'lbs' as const,
+            reps: 10,
+            rpe: null,
+            restSeconds: null,
+            notes: '',
+            isCompleted: true,
+            orderIndex: index,
+          })),
+        },
+      ],
+      isSynced: false,
+    };
+
+    const exercisesById = new Map<string, Exercise>([
+      [benchPress.id, benchPress],
+      [row.id, row],
+    ]);
+
+    const scores = attributeSessionSetsToMuscles(session, exercisesById);
+    const levels = bucketWeeklyTierIntensity(scores);
+
+    expect(scores.chest).toBe(13);
+    expect(scores.triceps).toBe(3.25);
+    expect(scores.front_delts).toBe(3.25);
+    expect(scores.lats).toBe(4);
+    expect(scores.upper_back).toBe(4);
+    expect(scores.biceps).toBe(4);
+    expect(levels.chest).toBe(4);
+    expect(levels.lats).toBe(1);
+    expect(levels.upper_back).toBe(1);
+    expect(levels.biceps).toBe(1);
   });
 });

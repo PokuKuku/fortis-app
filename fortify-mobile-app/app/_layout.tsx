@@ -412,7 +412,7 @@ export default function RootLayout() {
     <ThemeProvider
       forceTheme={
         shouldForceTheme
-          ? { resolvedTheme: 'light', accentColor: 'green' }
+          ? { resolvedTheme: 'light', accentColor: 'midnight' }
           : undefined
       }
     >
