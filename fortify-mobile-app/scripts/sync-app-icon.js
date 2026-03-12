@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const repoRoot = path.join(__dirname, '..');
-const sourceIcon = path.join(repoRoot, 'assets', 'fortify_icon.png');
+const sourceIcon = path.join(repoRoot, 'assets', 'fortifyAI_icon2.png');
 
 const iosTargets = [
   path.join(
@@ -37,7 +37,7 @@ if (copied.length === 0) {
   process.exit(1);
 }
 
-console.log('Updated iOS AppIcon assets from fortify_icon.png:');
+console.log('Updated iOS AppIcon assets from fortifyAI_icon2.png:');
 for (const target of copied) {
   console.log(`- ${path.relative(repoRoot, target)}`);
 }

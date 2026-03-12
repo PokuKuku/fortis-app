@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type ComponentType } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
@@ -8,6 +8,90 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const SUCCESS_ANIMATION = require('../../assets/lottie/success.json');
+
+type LottieColor = [number, number, number, number];
+
+const SUCCESS_GREEN_FILL: LottieColor = [0.229886716955, 0.739552696078, 0.369435897528, 1];
+const SUCCESS_GREEN_STROKE: LottieColor = [0.23137254902, 0.741176470588, 0.36862745098, 1];
+
+const isLottieColor = (value: unknown): value is LottieColor =>
+  Array.isArray(value) &&
+  value.length === 4 &&
+  value.every((channel) => typeof channel === 'number');
+
+const colorsClose = (a: LottieColor, b: LottieColor, epsilon = 0.001): boolean =>
+  a.every((value, index) => Math.abs(value - b[index]) <= epsilon);
+
+const parseHexChannel = (value: string): number | null => {
+  const parsed = Number.parseInt(value, 16);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const parseColorToRgb01 = (value: string): [number, number, number] | null => {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('#')) {
+    const hex = trimmed.slice(1);
+    if (hex.length === 3) {
+      const r = parseHexChannel(hex[0] + hex[0]);
+      const g = parseHexChannel(hex[1] + hex[1]);
+      const b = parseHexChannel(hex[2] + hex[2]);
+      if (r === null || g === null || b === null) return null;
+      return [r / 255, g / 255, b / 255];
+    }
+    if (hex.length === 6) {
+      const r = parseHexChannel(hex.slice(0, 2));
+      const g = parseHexChannel(hex.slice(2, 4));
+      const b = parseHexChannel(hex.slice(4, 6));
+      if (r === null || g === null || b === null) return null;
+      return [r / 255, g / 255, b / 255];
+    }
+    return null;
+  }
+
+  const rgbMatch = trimmed.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgbMatch) {
+    const r = Number(rgbMatch[1]);
+    const g = Number(rgbMatch[2]);
+    const b = Number(rgbMatch[3]);
+    if ([r, g, b].some((channel) => !Number.isFinite(channel))) return null;
+    return [Math.min(255, Math.max(0, r)) / 255, Math.min(255, Math.max(0, g)) / 255, Math.min(255, Math.max(0, b)) / 255];
+  }
+
+  return null;
+};
+
+const recolorLottieJson = (node: unknown, from: LottieColor, to: LottieColor) => {
+  if (!node || typeof node !== 'object') return;
+
+  const record = node as Record<string, unknown>;
+  const nodeType = record.ty;
+
+  if ((nodeType === 'fl' || nodeType === 'st') && record.c && typeof record.c === 'object') {
+    const colorRecord = record.c as Record<string, unknown>;
+    const current = colorRecord.k;
+    if (isLottieColor(current) && colorsClose(current, from)) {
+      colorRecord.k = [...to] as LottieColor;
+    }
+    if (Array.isArray(current)) {
+      current.forEach((frame) => {
+        if (!frame || typeof frame !== 'object') return;
+        const frameRecord = frame as Record<string, unknown>;
+        const start = frameRecord.s;
+        if (isLottieColor(start) && colorsClose(start, from)) {
+          frameRecord.s = [...to] as LottieColor;
+        }
+      });
+    }
+  }
+
+  for (const value of Object.values(record)) {
+    if (Array.isArray(value)) {
+      value.forEach((item) => recolorLottieJson(item, from, to));
+    } else if (value && typeof value === 'object') {
+      recolorLottieJson(value, from, to);
+    }
+  }
+};
 
 const isLottieViewManagerAvailable = (): boolean => {
   const getConfig = (UIManager as { getViewManagerConfig?: (name: string) => unknown }).getViewManagerConfig;
@@ -38,6 +122,17 @@ export default function OnboardingFitnessBackgroundScreen() {
   const canRenderLottie = Boolean(LottieView) && isLottieViewManagerAvailable();
   const didNavigateRef = useRef(false);
   const autoContinueTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animationSource = useMemo(() => {
+    if (!SUCCESS_ANIMATION || typeof SUCCESS_ANIMATION !== 'object') return SUCCESS_ANIMATION;
+    const accentRgb01 = parseColorToRgb01(colors.accent);
+    if (!accentRgb01) return SUCCESS_ANIMATION;
+
+    const recolored = JSON.parse(JSON.stringify(SUCCESS_ANIMATION)) as unknown;
+    const accentColor: LottieColor = [accentRgb01[0], accentRgb01[1], accentRgb01[2], 1];
+    recolorLottieJson(recolored, SUCCESS_GREEN_FILL, accentColor);
+    recolorLottieJson(recolored, SUCCESS_GREEN_STROKE, accentColor);
+    return recolored;
+  }, [colors.accent]);
 
   const handleContinue = useCallback(() => {
     if (didNavigateRef.current) return;
@@ -104,7 +199,7 @@ export default function OnboardingFitnessBackgroundScreen() {
         >
           {canRenderLottie && LottieView ? (
             <LottieView
-              source={SUCCESS_ANIMATION}
+              source={animationSource}
               autoPlay
               loop={false}
               onAnimationFinish={handleAnimationFinish}
