@@ -221,9 +221,9 @@ describe('muscleTaxonomy attribution', () => {
     expect(scores.lats).toBe(4);
     expect(scores.upper_back).toBe(4);
     expect(scores.biceps).toBe(4);
-    expect(levels.chest).toBe(4);
-    expect(levels.lats).toBe(1);
-    expect(levels.upper_back).toBe(1);
-    expect(levels.biceps).toBe(1);
+    expect(levels.chest).toBe(5);
+    expect(levels.lats).toBe(2);
+    expect(levels.upper_back).toBe(2);
+    expect(levels.biceps).toBe(2);
   });
 });

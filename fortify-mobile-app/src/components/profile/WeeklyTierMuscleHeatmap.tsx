@@ -50,9 +50,9 @@ type TierBodyProps = {
   border: string | 'none';
 };
 
-const LEGEND_ORDER: MuscleTier[] = ['S', 'A', 'B', 'C', 'D'];
+const LEGEND_ORDER: MuscleTier[] = ['S', 'A', 'B', 'C', 'D', 'E'];
 const HEATMAP_COLORS = LEGEND_ORDER.slice().reverse().map((tier) => WEEKLY_MUSCLE_TIER_COLORS[tier]);
-const LEGEND_HEIGHT = 142;
+const LEGEND_HEIGHT = 170;
 
 function TierBody({
   data,
@@ -152,7 +152,7 @@ export function WeeklyTierMuscleHeatmap({
         {LEGEND_ORDER.map((tier) => (
           <View key={tier} style={styles.legendRow}>
             <View style={[styles.legendSwatch, { backgroundColor: WEEKLY_MUSCLE_TIER_COLORS[tier] }]} />
-            <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>{tier}</Text>
+            <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>{tier} tier</Text>
           </View>
         ))}
       </View>
@@ -199,8 +199,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     height: LEGEND_HEIGHT,
     justifyContent: 'space-between',
-    marginRight: Spacing.lg,
-    gap: 6,
+    marginLeft: -Spacing.lg,
+    marginRight: Spacing.md,
+    gap: 4,
   },
   legendCompact: {
     alignSelf: 'center',
@@ -218,7 +219,7 @@ const styles = StyleSheet.create({
   legendLabel: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 10,
-    letterSpacing: 0.8,
+    letterSpacing: 0.5,
   },
   bodiesContainer: {
     flexDirection: 'row',

@@ -29,7 +29,7 @@ export type HeatmapRegion = {
   side?: HeatmapSide;
 };
 
-export type MuscleTier = 'D' | 'C' | 'B' | 'A' | 'S';
+export type MuscleTier = 'E' | 'D' | 'C' | 'B' | 'A' | 'S';
 
 export const MUSCLE_KEYS: MuscleKey[] = [
   'chest',
@@ -324,7 +324,8 @@ type AttributionOptions = {
 };
 
 export const WEEKLY_MUSCLE_TIER_THRESHOLDS = {
-  d: 0.5,
+  e: 0.5,
+  d: 3,
   c: 5,
   b: 9,
   a: 13,
@@ -333,10 +334,11 @@ export const WEEKLY_MUSCLE_TIER_THRESHOLDS = {
 
 export const WEEKLY_MUSCLE_TIER_COLORS: Record<MuscleTier, string> = {
   S: '#F67B7D',
-  A: '#F0B777',
-  B: '#EFD77B',
-  C: '#E6EC76',
-  D: '#AFE76D',
+  A: '#F6C07A',
+  B: '#F2E57A',
+  C: '#9AF06C',
+  D: '#7DBBFF',
+  E: '#8B7CFF',
 };
 
 const resolveExerciseMuscles = (
@@ -491,11 +493,12 @@ export function bucketWeeklyTierIntensity(
     const value = scores[muscle] ?? 0;
     let level = 0;
 
-    if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.s) level = 5;
-    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.a) level = 4;
-    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.b) level = 3;
-    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.c) level = 2;
-    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.d) level = 1;
+    if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.s) level = 6;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.a) level = 5;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.b) level = 4;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.c) level = 3;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.d) level = 2;
+    else if (value >= WEEKLY_MUSCLE_TIER_THRESHOLDS.e) level = 1;
 
     levels[muscle] = level;
   });
