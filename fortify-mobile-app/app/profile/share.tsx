@@ -198,6 +198,11 @@ export default function ProfileShareScreen() {
     const [first] = name.split(/\s+/);
     return first || null;
   }, [profile?.full_name]);
+  const signatureWeekLabel = useMemo(() => {
+    if (!firstName) return 'Your week';
+    const possessive = firstName.endsWith('s') ? `${firstName}' week` : `${firstName}'s week`;
+    return possessive;
+  }, [firstName]);
   const allTimeTitle = firstName ? `${firstName}'s all-time stats` : 'Your all-time stats';
   const signatureHeatmapReady = !weeklyMuscleLoading;
   const activityIntensityThresholds = useMemo<HeatmapThresholds | null>(() => {
@@ -445,6 +450,7 @@ export default function ProfileShareScreen() {
                 <View
                   style={[
                     styles.shareCard,
+                    shareType === 'signature' && styles.shareCardSignature,
                     {
                       backgroundColor: colors.patternBase,
                       borderColor: isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)',
@@ -453,12 +459,24 @@ export default function ProfileShareScreen() {
                   collapsable={false}
                 >
                   <StainlessSteelPattern />
-                  <View style={styles.shareHeader}>
+                  <View
+                    style={[
+                      styles.shareHeader,
+                      shareType === 'signature' && styles.shareHeaderSignature,
+                    ]}
+                  >
                     <Text style={[styles.brand, { color: colors.accent }]}>FORTIFY AI</Text>
-                    <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>
-                      {resolveShareTitle(shareType)}
-                    </Text>
+                    {shareType !== 'signature' && (
+                      <Text style={[styles.weekLabel, { color: colors.textTertiary }]}>
+                        {resolveShareTitle(shareType)}
+                      </Text>
+                    )}
                   </View>
+                  {shareType === 'signature' && (
+                    <Text style={[styles.signatureWeekLabel, { color: colors.textSecondary }]}>
+                      {signatureWeekLabel}
+                    </Text>
+                  )}
 
                   {shareType === 'activity' && (
                     <View style={styles.shareBlock}>
@@ -568,13 +586,7 @@ export default function ProfileShareScreen() {
                   )}
 
                   {shareType === 'signature' && (
-                    <View style={styles.shareBlock}>
-                      <Text style={[styles.shareTitle, { color: colors.textPrimary }]}>
-                        {signatureSummary.title}
-                      </Text>
-                      <Text style={[styles.shareSubtitle, { color: colors.textSecondary }]}>
-                        {signatureSummary.subtitle}
-                      </Text>
+                    <View style={[styles.shareBlock, styles.signatureShareBlock]}>
                       <>
                         <View style={styles.signatureHeatmap}>
                           <WeeklyTierMuscleHeatmap
@@ -745,21 +757,43 @@ const styles = StyleSheet.create({
     gap: scale(Spacing.md),
     overflow: 'hidden',
   },
+  shareCardSignature: {
+    width: scale(300),
+    minHeight: scale(300),
+    paddingTop: scale(Spacing.md),
+    paddingBottom: scale(Spacing.md),
+  },
   shareHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  shareHeaderSignature: {
+    justifyContent: 'flex-start',
   },
   brand: {
     fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 2,
     fontSize: moderateScale(13),
   },
+  signatureWeekLabel: {
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 1,
+    fontSize: moderateScale(17),
+    marginTop: scale(Spacing.sm),
+    marginBottom: scale(Spacing.xs),
+    textAlign: 'center',
+  },
   weekLabel: {
     fontSize: moderateScale(11),
   },
   shareBlock: {
     gap: scale(Spacing.sm),
+  },
+  signatureShareBlock: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   shareTitle: {
     ...Typography.h3,
@@ -845,6 +879,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   signatureHeatmap: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: scale(Spacing.sm),
