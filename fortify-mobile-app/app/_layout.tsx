@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { InteractionManager } from 'react-native';
+import { InteractionManager, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -422,10 +422,13 @@ export default function RootLayout() {
     </ThemeProvider>
   );
 
-  const shouldBypassAppTransactionCheck = false;
+  const shouldBypassAppTransactionCheck =
+    Platform.OS === 'ios' &&
+    __DEV__ &&
+    process.env.EXPO_PUBLIC_BYPASS_APP_TRANSACTION_CHECK === 'true';
 
   const superwallOptions = {
-    // Keep app transaction verification enabled in all environments.
+    // Enable this only for local iOS StoreKit testing in development.
     shouldBypassAppTransactionCheck,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,
