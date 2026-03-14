@@ -5,10 +5,10 @@ import { Asset } from 'expo-asset';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate';
-const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortisDemoFinal33.mov');
+const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortisDemoFinal888.mov');
 
 const resolveStartupRoute = ({
   isAuthenticated,
@@ -119,7 +119,7 @@ export default function SplashScreen() {
       <StainlessSteelPattern />
       {/* FORTIS Text */}
       <View style={styles.logoContainer}>
-        <AnimatedLogo size="large" centered shineDurationMs={1300} />
+        <AnimatedFortifyLogo size="large" centered shineDurationMs={1300} />
       </View>
     </View>
   );

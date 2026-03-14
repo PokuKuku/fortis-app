@@ -13,10 +13,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { AuthProviderButtons } from '@/src/components/auth/AuthProviderButtons';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { Typography } from '@/constants/Typography';
 
-const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal696.mov');
+const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal888.mov');
 const WELCOME_TITLE_LINE_ONE = 'Gym Progress';
 const WELCOME_TITLE_LINE_TWO = 'made Simple';
 const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;
@@ -379,7 +379,7 @@ export default function OnboardingWelcomeScreen() {
         animationType="fade"
       >
         <View style={[styles.loadingOverlay, themedStyles.loadingOverlay]}>
-          <AnimatedLogo size="large" centered introDurationMs={0} shineDurationMs={2600} />
+          <AnimatedFortifyLogo size="large" centered introDurationMs={0} shineDurationMs={2600} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
             Getting things ready...
           </Text>

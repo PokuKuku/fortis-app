@@ -7,7 +7,7 @@ import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/superwallGuards';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 
@@ -277,7 +277,7 @@ export default function PaywallGateScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
       <View style={styles.logoContainer}>
-        <AnimatedLogo size="large" centered animate />
+        <AnimatedFortifyLogo size="large" centered animate />
       </View>
     </View>
   );

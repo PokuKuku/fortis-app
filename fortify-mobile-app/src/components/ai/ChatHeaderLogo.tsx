@@ -1,7 +1,7 @@
 /**
  * ChatHeaderLogo Component
  *
- * Sparkles icon + FORTIFY animated logo for chat header.
+ * Sparkles icon + FORTIFY AI animated logo for chat header.
  * Logo shines with animated gradient when AI is loading.
  */
 
@@ -33,7 +33,7 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const sparkleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  const logoWidth = Math.round(108 * fontScale);
+  const logoWidth = Math.round(176 * fontScale);
   const logoHeight = Math.round(24 * fontScale);
   const iconSize = Math.round(22 * fontScale);
   const logoFontSize = Math.round(18 * fontScale);
@@ -108,7 +108,7 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
         </Animated.View>
       </View>
 
-      {/* FORTIFY animated logo */}
+      {/* FORTIFY AI animated logo */}
       <Svg height={logoHeight} width={logoWidth} viewBox={`0 0 ${logoWidth} ${logoHeight}`}>
         <Defs>
           {isLoading ? (
@@ -143,7 +143,7 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
             y={logoBaseline}
             fontFamily="BankGothicBT-Medium"
           >
-            FORTIFY
+            FORTIFY AI
           </SvgText>
         </G>
       </Svg>
