@@ -196,6 +196,24 @@ function ThemedAppContent({
               }}
             />
             <Stack.Screen
+              name="onboarding/social-proof"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/rating"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/notifications"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
               name="onboarding/challenge"
               options={{
                 ...ONBOARDING_TRANSITION,

@@ -2,11 +2,6 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import { usePathname, useRouter, useSegments } from 'expo-router';
 import {
-  HAS_REQUESTED_REVIEW_DEVICE_KEY,
-  HAS_REQUESTED_REVIEW_KEY,
-} from '@/src/constants/storageKeys';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import {
   IN_APP_TOUR_VERSION,
   TOUR_ANCHOR_IDS,
   type TourAnchorId,
@@ -14,9 +9,7 @@ import {
 import { useAuth, type Profile } from '@/src/contexts/AuthContext';
 import { clearInAppTourState, loadInAppTourState, saveInAppTourState, type PersistedInAppTourState } from '@/src/services/inAppTourService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
-import { getScopedItem } from '@/src/utils/scopedStorage';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
-import * as StoreReview from 'expo-store-review';
 
 type TourStepId =
   | 'welcome'
@@ -412,27 +405,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, updateProfile]);
 
-  const requestAppReviewIfNeeded = useCallback(async () => {
-    try {
-      const deviceRequested = await AsyncStorage.getItem(HAS_REQUESTED_REVIEW_DEVICE_KEY);
-      if (deviceRequested === 'true') return;
-
-      const legacyRequested = await getScopedItem(HAS_REQUESTED_REVIEW_KEY);
-      if (legacyRequested === 'true') {
-        await AsyncStorage.setItem(HAS_REQUESTED_REVIEW_DEVICE_KEY, 'true');
-        return;
-      }
-      const isAvailable = await StoreReview.isAvailableAsync();
-      if (!isAvailable) return;
-      await StoreReview.requestReview();
-      await AsyncStorage.setItem(HAS_REQUESTED_REVIEW_DEVICE_KEY, 'true');
-    } catch {
-      // Ignore review prompt failures; avoid blocking the tour completion.
-    }
-  }, []);
-
   const lastCompletedCountRef = useRef<number>(workoutCompletedSessions.length);
-  const pendingFirstWorkoutReviewRef = useRef(false);
 
   const startTour = useCallback(async (): Promise<boolean> => {
     if (!tourLoaded) return false;
@@ -466,32 +439,12 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     void markTourSeenOnServer({ status, completedAt: now });
   }, [markTourSeenOnServer, setTourStateAndPersist, tourLoaded]);
 
-  // Ask for a review after the first completed workout if we haven't already.
   useEffect(() => {
     const prevCount = lastCompletedCountRef.current;
     const nextCount = workoutCompletedSessions.length;
     if (prevCount === nextCount) return;
     lastCompletedCountRef.current = nextCount;
-
-    if (prevCount === 0 && nextCount > 0) {
-      if (isTourActive) {
-        pendingFirstWorkoutReviewRef.current = true;
-        return;
-      }
-      setTimeout(() => {
-        void requestAppReviewIfNeeded();
-      }, 600);
-    }
-  }, [isTourActive, requestAppReviewIfNeeded, workoutCompletedSessions.length]);
-
-  useEffect(() => {
-    if (isTourActive) return;
-    if (!pendingFirstWorkoutReviewRef.current) return;
-    pendingFirstWorkoutReviewRef.current = false;
-    setTimeout(() => {
-      void requestAppReviewIfNeeded();
-    }, 600);
-  }, [isTourActive, requestAppReviewIfNeeded]);
+  }, [workoutCompletedSessions.length]);
 
   const advanceStep = useCallback(async () => {
     if (!tourLoaded) return;

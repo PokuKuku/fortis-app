@@ -8,9 +8,6 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
-import * as Notifications from 'expo-notifications';
-import { HAS_REQUESTED_NOTIFICATIONS_KEY } from '@/src/constants/storageKeys';
-import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const THANK_YOU_ANIMATION = require('../../assets/lottie/Lock Animation.json');
@@ -135,29 +132,9 @@ export default function OnboardingThankYouScreen() {
     return cloned;
   }, [colors.textPrimary]);
 
-  const handleContinue = async () => {
+  const handleContinue = () => {
     trackOnboardingStepCompleted('privacy_thank_you');
-    try {
-      const alreadyRequested = await getScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY);
-      if (alreadyRequested !== 'true') {
-        if (typeof Notifications.getPermissionsAsync !== 'function') {
-          await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
-          return;
-        }
-
-        const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
-        if (!granted && status !== 'granted' && canAskAgain) {
-          if (typeof Notifications.requestPermissionsAsync === 'function') {
-            await Notifications.requestPermissionsAsync();
-          }
-        }
-        await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
-      }
-    } catch {
-      // Ignore permission errors to avoid blocking onboarding.
-    } finally {
-      router.push('/onboarding/complete');
-    }
+    router.push('/onboarding/social-proof');
   };
 
   return (
@@ -207,9 +184,6 @@ export default function OnboardingThankYouScreen() {
           <Text style={[styles.titleText, { color: colors.textPrimary }]}>
             Thank you for trusting us.
           </Text>
-          <Text style={[styles.subtitleText, { color: colors.textSecondary }]}>
-            Now let’s tailor Fortify to you.
-          </Text>
         </View>
 
         <View style={[styles.infoCard, { borderColor: colors.glassBorder, backgroundColor: colors.surfaceElevated }]}>
@@ -247,14 +221,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
   },
   titleText: {
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: 30,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    textAlign: 'center',
-  },
-  subtitleText: {
-    ...Typography.bodyLarge,
+    fontSize: 46,
+    lineHeight: 52,
+    fontWeight: '800',
     textAlign: 'center',
   },
   infoCard: {

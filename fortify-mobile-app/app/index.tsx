@@ -62,11 +62,7 @@ export default function SplashScreen() {
 
     const warmOnboardingRoute = async () => {
       try {
-        await Promise.allSettled([
-          Promise.resolve(router.prefetch('/onboarding/welcome')),
-          Promise.resolve(router.prefetch('/onboarding')),
-          Asset.fromModule(ONBOARDING_DEMO_VIDEO).downloadAsync(),
-        ]);
+        await Asset.fromModule(ONBOARDING_DEMO_VIDEO).downloadAsync();
       } finally {
         if (isActive) {
           setOnboardingWarmupReady(true);
