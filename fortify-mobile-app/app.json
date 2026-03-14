@@ -4,9 +4,9 @@
     "slug": "fortis",
     "version": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/fortify_ai_new_icon.png",
+    "icon": "./assets/fortify_ai.png",
     "notification": {
-      "icon": "./assets/fortify_ai_new_icon.png",
+      "icon": "./assets/fortify_ai.png",
       "color": "#121214"
     },
     "scheme": "fortis",
@@ -42,7 +42,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fortify_ai_new_icon.png",
+        "foregroundImage": "./assets/fortify_ai.png",
         "backgroundColor": "#121214"
       },
       "package": "com.fortis.app",
@@ -53,7 +53,7 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/fortify_ai_new_icon.png",
+      "favicon": "./assets/fortify_ai.png",
       "bundler": "metro"
     },
     "plugins": [

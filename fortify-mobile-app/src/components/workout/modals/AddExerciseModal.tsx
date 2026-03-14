@@ -11,7 +11,9 @@ import {
   Image,
   InteractionManager,
 } from 'react-native';
-import { XMarkIcon, MagnifyingGlassIcon, PlusIcon, CheckIcon } from 'react-native-heroicons/outline';
+import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
+import { XMarkIcon, MagnifyingGlassIcon, PlusIcon, CheckIcon, MicrophoneIcon, ArrowPathIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius, Sizes } from '@/constants/Sizes';
@@ -27,6 +29,9 @@ import {
   getCachedExerciseImageSource,
   prefetchExerciseImagesFromExercises,
 } from '@/src/utils/exerciseImageCache';
+import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
+import { createExerciseVoiceFileName, interpretExerciseVoiceAdd } from '@/src/services/exerciseVoiceService';
+import type { ExerciseVoiceEntry } from '@/src/types/exerciseVoice';
 
 interface AddExerciseModalProps {
   visible: boolean;
@@ -37,7 +42,7 @@ interface AddExerciseModalProps {
   replaceExerciseIdToAllow?: string | null;
   onReplaceExerciseCallback?: (exerciseId: string, exerciseName: string) => void;
   // Callback mode for template creation (doesn't use workoutStore)
-  onAddExercisesCallback?: (exercises: Array<{ id: string; name: string }>) => void;
+  onAddExercisesCallback?: (exercises: Array<{ id: string; name: string; initialSetCount?: number | null }>) => void;
   existingExerciseIds?: string[];
   showRestTimerBanner?: boolean;
   onDismissRestTimerBanner?: () => void;
@@ -52,6 +57,51 @@ const EXERCISE_ROW_HEIGHT = EXERCISE_PREVIEW_SIZE
   + (EXERCISE_ROW_PADDING_Y * 2)
   + (EXERCISE_ROW_BORDER_WIDTH * 2)
   + EXERCISE_ROW_MARGIN_BOTTOM;
+const VOICE_WAVE_BAR_COUNT = 16;
+const MIN_WAVE_HEIGHT = 8;
+const MAX_WAVE_HEIGHT = 30;
+
+type SelectedExerciseDraft = {
+  id: string;
+  name: string;
+  initialSetCount?: number | null;
+  source: 'manual' | 'voice';
+  sourceKey?: string;
+};
+
+type VoicePhase = 'hidden' | 'listening' | 'processing' | 'review';
+
+type VoiceExerciseCandidate = {
+  key: string;
+  exerciseQuery: string;
+  setCount: number | null;
+  confidence: ExerciseVoiceEntry['confidence'];
+  matches: Exercise[];
+  selectedMatchId: string | null;
+  included: boolean;
+};
+
+const MIME_BY_EXTENSION: Record<string, string> = {
+  m4a: 'audio/m4a',
+  mp4: 'audio/mp4',
+  caf: 'audio/x-caf',
+  wav: 'audio/wav',
+  webm: 'audio/webm',
+};
+
+const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
+  ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
+  ios: {
+    ...Audio.RecordingOptionsPresets.HIGH_QUALITY.ios,
+    numberOfChannels: 1,
+    bitRate: 96000,
+  },
+  android: {
+    ...Audio.RecordingOptionsPresets.HIGH_QUALITY.android,
+    numberOfChannels: 1,
+    bitRate: 96000,
+  },
+};
 
 export function AddExerciseModal({
   visible,
@@ -123,8 +173,18 @@ export function AddExerciseModal({
   const { exercises: allExercises, loading } = useExercises();
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedExercises, setSelectedExercises] = useState<string[]>([]);
+  const [selectedExercises, setSelectedExercises] = useState<SelectedExerciseDraft[]>([]);
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>('hidden');
+  const [voiceMeterLevel, setVoiceMeterLevel] = useState(0.08);
+  const [voiceProcessingFrame, setVoiceProcessingFrame] = useState(0);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [voiceCandidates, setVoiceCandidates] = useState<VoiceExerciseCandidate[]>([]);
   const isProcessing = useRef(false);
+  const voiceRecordingRef = useRef<Audio.Recording | null>(null);
+  const voiceRequestVersionRef = useRef(0);
+  const isVoiceStartingRef = useRef(false);
+  const isVoiceStoppingRef = useRef(false);
   const listRef = useRef<FlatList<Exercise>>(null);
   const lastScrollOffset = useRef(0);
   const isRestoringScroll = useRef(false);
@@ -143,6 +203,12 @@ export function AddExerciseModal({
     if (!visible) {
       setSearchQuery('');
       setSelectedExercises([]);
+      setVoicePhase('hidden');
+      setVoiceMeterLevel(0.08);
+      setVoiceProcessingFrame(0);
+      setVoiceError(null);
+      setVoiceTranscript('');
+      setVoiceCandidates([]);
       isProcessing.current = false;
     }
   }, [visible]);
@@ -194,6 +260,252 @@ export function AddExerciseModal({
     filteredExercisesRef.current = filteredExercises;
   }, [filteredExercises]);
 
+  const getMimeTypeFromUri = useCallback((uri: string | null) => {
+    if (!uri) return 'audio/m4a';
+    const extension = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
+    return MIME_BY_EXTENSION[extension] || 'audio/m4a';
+  }, []);
+
+  const syncVoiceSelections = useCallback((candidates: VoiceExerciseCandidate[]) => {
+    setSelectedExercises((prev) => {
+      const manualSelections = prev.filter((selection) => selection.source === 'manual');
+      const voiceSelections: SelectedExerciseDraft[] = [];
+      candidates.forEach((candidate) => {
+        if (!candidate.included || !candidate.selectedMatchId) return;
+        const selectedMatch = candidate.matches.find((match) => match.id === candidate.selectedMatchId);
+        if (!selectedMatch) return;
+        voiceSelections.push({
+          id: selectedMatch.id,
+          name: selectedMatch.name,
+          initialSetCount: candidate.setCount,
+          source: 'voice',
+          sourceKey: candidate.key,
+        });
+      });
+
+      const merged = new Map<string, SelectedExerciseDraft>();
+      [...manualSelections, ...voiceSelections].forEach((selection) => {
+        merged.set(selection.id, selection);
+      });
+      return Array.from(merged.values());
+    });
+  }, []);
+
+  const clearVoiceState = useCallback(async () => {
+    voiceRequestVersionRef.current += 1;
+    const recording = voiceRecordingRef.current;
+    voiceRecordingRef.current = null;
+    if (recording) {
+      try {
+        const status = await recording.getStatusAsync();
+        if (status.isRecording || status.canRecord) {
+          await recording.stopAndUnloadAsync();
+        }
+      } catch {
+        // Ignore cleanup failures.
+      }
+      recording.setOnRecordingStatusUpdate(null);
+    }
+    try {
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+      });
+    } catch {
+      // Ignore cleanup failures.
+    }
+    setVoicePhase('hidden');
+    setVoiceMeterLevel(0.08);
+    setVoiceProcessingFrame(0);
+    setVoiceError(null);
+    setVoiceTranscript('');
+    setVoiceCandidates([]);
+    setSelectedExercises((prev) => prev.filter((selection) => selection.source !== 'voice'));
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      void clearVoiceState();
+    };
+  }, [clearVoiceState]);
+
+  useEffect(() => {
+    if (voicePhase !== 'processing') {
+      setVoiceProcessingFrame(0);
+      return undefined;
+    }
+    const interval = setInterval(() => {
+      setVoiceProcessingFrame((prev) => (prev + 1) % VOICE_WAVE_BAR_COUNT);
+    }, 120);
+    return () => clearInterval(interval);
+  }, [voicePhase]);
+
+  const buildVoiceCandidates = useCallback((entries: ExerciseVoiceEntry[]) => {
+    const seenQueries = new Set<string>();
+    const built: VoiceExerciseCandidate[] = [];
+    entries.forEach((entry, index) => {
+      const query = entry.exerciseQuery.trim();
+      if (!query) return;
+      const key = `${query.toLowerCase()}-${index}`;
+      if (seenQueries.has(key)) return;
+      seenQueries.add(key);
+
+      const matches = searchExercises(query, searchIndex)
+        .filter((exercise) => !existingExerciseIds.includes(exercise.id))
+        .slice(0, 3) as Exercise[];
+
+      built.push({
+        key,
+        exerciseQuery: query,
+        setCount: entry.setCount,
+        confidence: entry.confidence,
+        matches,
+        selectedMatchId: matches[0]?.id ?? null,
+        included: matches.length > 0,
+      });
+    });
+    return built;
+  }, [existingExerciseIds, searchIndex]);
+
+  const startVoiceCapture = useCallback(async () => {
+    if (replaceMode || isVoiceStartingRef.current || isVoiceStoppingRef.current) return;
+    isVoiceStartingRef.current = true;
+    setVoiceError(null);
+
+    try {
+      const permission = await ensureMicrophonePermission();
+      if (!permission.granted) {
+        setVoicePhase('review');
+        setVoiceError(
+          permission.status === 'denied'
+            ? 'Microphone access is off. Enable it in Settings to add exercises by voice.'
+            : 'Microphone permission is required to use voice add.'
+        );
+        return;
+      }
+
+      await clearVoiceState();
+      setVoicePhase('listening');
+      setVoiceMeterLevel(0.08);
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+      });
+
+      const { recording } = await Audio.Recording.createAsync(
+        VOICE_RECORDING_OPTIONS,
+        (status) => {
+          if (!status.isRecording) return;
+          const meter = typeof status.metering === 'number'
+            ? Math.min(1, Math.max(0.08, (status.metering + 60) / 60))
+            : 0.2;
+          setVoiceMeterLevel(meter);
+        },
+        80
+      );
+      voiceRecordingRef.current = recording;
+      await recording.setProgressUpdateInterval(80);
+    } catch (error) {
+      setVoicePhase('review');
+      setVoiceError(error instanceof Error ? error.message : 'Voice recording could not start.');
+    } finally {
+      isVoiceStartingRef.current = false;
+    }
+  }, [clearVoiceState, replaceMode]);
+
+  const stopVoiceCapture = useCallback(async () => {
+    if (isVoiceStoppingRef.current) return;
+    const recording = voiceRecordingRef.current;
+    if (!recording) return;
+    isVoiceStoppingRef.current = true;
+    const requestVersion = ++voiceRequestVersionRef.current;
+
+    try {
+      setVoicePhase('processing');
+      setVoiceError(null);
+      await recording.stopAndUnloadAsync();
+      voiceRecordingRef.current = null;
+      recording.setOnRecordingStatusUpdate(null);
+
+      const uri = recording.getURI();
+      if (!uri) {
+        throw new Error('No recording was captured.');
+      }
+
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const response = await interpretExerciseVoiceAdd({
+        audioBase64: base64,
+        mimeType: getMimeTypeFromUri(uri),
+        fileName: createExerciseVoiceFileName(uri.split('.').pop() || 'm4a'),
+      });
+
+      if (requestVersion !== voiceRequestVersionRef.current) return;
+
+      if (response.type === 'error') {
+        setVoicePhase('review');
+        setVoiceError(response.error.message);
+        setVoiceCandidates([]);
+        setVoiceTranscript('');
+        return;
+      }
+
+      const candidates = buildVoiceCandidates(response.interpretation.entries);
+      setVoiceTranscript(response.interpretation.transcript);
+      setVoiceCandidates(candidates);
+      syncVoiceSelections(candidates);
+      setVoicePhase('review');
+      setVoiceError(candidates.length === 0 ? 'I could not match those exercises. Try speaking the exercise names again.' : null);
+    } catch (error) {
+      if (requestVersion !== voiceRequestVersionRef.current) return;
+      setVoicePhase('review');
+      setVoiceError(error instanceof Error ? error.message : 'Unable to process that recording.');
+      setVoiceCandidates([]);
+    } finally {
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+        });
+      } catch {
+        // Ignore cleanup failures.
+      }
+      isVoiceStoppingRef.current = false;
+    }
+  }, [buildVoiceCandidates, getMimeTypeFromUri, syncVoiceSelections]);
+
+  const updateVoiceCandidate = useCallback((candidateKey: string, updater: (candidate: VoiceExerciseCandidate) => VoiceExerciseCandidate | null) => {
+    setVoiceCandidates((prev) => {
+      const next = prev
+        .map((candidate) => candidate.key === candidateKey ? updater(candidate) : candidate)
+        .filter((candidate): candidate is VoiceExerciseCandidate => candidate !== null);
+      syncVoiceSelections(next);
+      return next;
+    });
+  }, [syncVoiceSelections]);
+
+  const removeVoiceCandidate = useCallback((candidateKey: string) => {
+    updateVoiceCandidate(candidateKey, () => null);
+  }, [updateVoiceCandidate]);
+
+  const toggleVoiceCandidateIncluded = useCallback((candidateKey: string) => {
+    updateVoiceCandidate(candidateKey, (candidate) => ({
+      ...candidate,
+      included: !candidate.included && Boolean(candidate.selectedMatchId),
+    }));
+  }, [updateVoiceCandidate]);
+
+  const selectVoiceCandidateMatch = useCallback((candidateKey: string, exerciseId: string) => {
+    updateVoiceCandidate(candidateKey, (candidate) => ({
+      ...candidate,
+      selectedMatchId: exerciseId,
+      included: true,
+    }));
+  }, [updateVoiceCandidate]);
+
   useEffect(() => {
     if (!isModalVisible) return;
     prefetchExerciseImagesFromExercises(filteredExercises, 0, 12);
@@ -227,9 +539,16 @@ export function AddExerciseModal({
     } else {
       // Normal mode: toggle selection
       setSelectedExercises(prev =>
-        prev.includes(exerciseId)
-          ? prev.filter(id => id !== exerciseId)
-          : [...prev, exerciseId]
+        prev.some(selection => selection.id === exerciseId)
+          ? prev.filter(selection => selection.id !== exerciseId)
+          : [
+              ...prev,
+              {
+                id: exerciseId,
+                name: allExercises.find(ex => ex.id === exerciseId)?.name || '',
+                source: 'manual',
+              },
+            ]
       );
     }
   };
@@ -237,7 +556,15 @@ export function AddExerciseModal({
   // Remove exercise from selection
   const removeFromSelection = (exerciseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedExercises(prev => prev.filter(id => id !== exerciseId));
+    setSelectedExercises(prev => prev.filter(selection => selection.id !== exerciseId));
+    setVoiceCandidates(prev => {
+      const next = prev.map((candidate) =>
+        candidate.selectedMatchId === exerciseId
+          ? { ...candidate, included: false }
+          : candidate
+      );
+      return next;
+    });
   };
 
   // Add all selected exercises in one atomic operation
@@ -249,11 +576,11 @@ export function AddExerciseModal({
 
     // Build array of exercises to add
     const exercisesToAdd = selectedExercises
-      .map(exerciseId => {
-        const exercise = allExercises.find(ex => ex.id === exerciseId);
-        return exercise ? { id: exerciseId, name: exercise.name } : null;
-      })
-      .filter((ex): ex is { id: string; name: string } => ex !== null);
+      .map((selection) => ({
+        id: selection.id,
+        name: selection.name,
+        initialSetCount: selection.initialSetCount ?? undefined,
+      }));
 
     // Use callback if provided (template mode), otherwise use store action
     if (exercisesToAdd.length > 0) {
@@ -269,11 +596,13 @@ export function AddExerciseModal({
 
   // Get exercise name by ID
   const getExerciseName = (exerciseId: string) => {
-    return allExercises.find(ex => ex.id === exerciseId)?.name || '';
+    return selectedExercises.find((selection) => selection.id === exerciseId)?.name
+      || allExercises.find(ex => ex.id === exerciseId)?.name
+      || '';
   };
 
   // Check if exercise is selected
-  const isSelected = (exerciseId: string) => selectedExercises.includes(exerciseId);
+  const isSelected = (exerciseId: string) => selectedExercises.some((selection) => selection.id === exerciseId);
 
   const handleExercisePress = (exerciseId: string) => {
     if (onOpenExerciseDetails) {
@@ -508,13 +837,13 @@ export function AddExerciseModal({
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.selectedScrollContent}
               >
-                {selectedExercises.map(exerciseId => (
-                  <View key={exerciseId} style={[styles.chip, themedStyles.chip]}>
+                {selectedExercises.map(selection => (
+                  <View key={`${selection.source}-${selection.sourceKey ?? selection.id}`} style={[styles.chip, themedStyles.chip]}>
                     <Text style={[styles.chipText, themedStyles.chipText]} numberOfLines={1}>
-                      {getExerciseName(exerciseId)}
+                      {selection.name}{selection.initialSetCount ? ` • ${selection.initialSetCount} sets` : ''}
                     </Text>
                     <Pressable
-                      onPress={() => removeFromSelection(exerciseId)}
+                      onPress={() => removeFromSelection(selection.id)}
                       hitSlop={8}
                     >
                       <XMarkIcon size={14} color={colors.textSecondary} strokeWidth={2} />
@@ -538,11 +867,161 @@ export function AddExerciseModal({
               autoCapitalize="none"
             />
             {searchQuery.length > 0 && (
-              <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
+              <Pressable onPress={() => setSearchQuery('')} hitSlop={8} style={styles.searchActionIcon}>
                 <XMarkIcon size={16} color={colors.textSecondary} strokeWidth={2} />
               </Pressable>
             )}
           </View>
+
+          {!replaceMode && voicePhase !== 'hidden' && (
+            <View style={[styles.voicePanel, themedStyles.exerciseItem]}>
+              <View style={styles.voiceHeader}>
+                <View>
+                  <Text style={[styles.voiceTitle, themedStyles.title]}>Voice Add</Text>
+                  <Text style={[styles.voiceSubtitle, themedStyles.searchInput]}>
+                    {voicePhase === 'listening'
+                      ? 'Listening... tap stop when you finish'
+                      : voicePhase === 'processing'
+                      ? 'Finding exercises from your recording...'
+                      : 'Review the detected exercises before adding them'}
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => { void clearVoiceState(); }}
+                  hitSlop={8}
+                  style={styles.voiceCloseButton}
+                >
+                  <XMarkIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+              </View>
+
+              <View style={[styles.voiceWaveTrack, themedStyles.searchContainer]}>
+                {Array.from({ length: VOICE_WAVE_BAR_COUNT }, (_, index) => {
+                  const isProcessing = voicePhase === 'processing';
+                  const baseHeight = isProcessing
+                    ? MIN_WAVE_HEIGHT + ((voiceProcessingFrame + index) % 6) * 3
+                    : MIN_WAVE_HEIGHT + Math.max(0, voiceMeterLevel * MAX_WAVE_HEIGHT - index % 3);
+                  return (
+                    <View
+                      key={`voice-wave-${index}`}
+                      style={[
+                        styles.voiceWaveBar,
+                        {
+                          height: Math.min(MAX_WAVE_HEIGHT, Math.max(MIN_WAVE_HEIGHT, baseHeight)),
+                          backgroundColor: colors.accent,
+                          opacity: isProcessing ? (index === voiceProcessingFrame ? 1 : 0.55) : 0.95,
+                        },
+                      ]}
+                    />
+                  );
+                })}
+              </View>
+
+              {voiceTranscript.length > 0 && (
+                <Text style={[styles.voiceTranscript, themedStyles.exerciseName]}>
+                  “{voiceTranscript}”
+                </Text>
+              )}
+
+              {voiceError && (
+                <View style={styles.voiceErrorWrap}>
+                  <Text style={[styles.voiceErrorTitle, { color: colors.error }]}>Could not use that recording</Text>
+                  <Text style={[styles.voiceErrorText, { color: colors.textSecondary }]}>{voiceError}</Text>
+                  {voiceError.includes('Settings') && (
+                    <Pressable onPress={() => { void openMicrophoneSettings(); }} style={styles.voiceSettingsButton}>
+                      <Text style={[styles.voiceSettingsButtonText, { color: colors.accent }]}>Open Settings</Text>
+                    </Pressable>
+                  )}
+                </View>
+              )}
+
+              {voiceCandidates.length > 0 && (
+                <View style={styles.voiceCandidateList}>
+                  {voiceCandidates.map((candidate) => (
+                    <View key={candidate.key} style={[styles.voiceCandidateCard, themedStyles.exerciseItem]}>
+                      <View style={styles.voiceCandidateHeader}>
+                        <View style={styles.voiceCandidateCopy}>
+                          <Text style={[styles.voiceCandidateQuery, themedStyles.exerciseName]}>
+                            {candidate.exerciseQuery}
+                          </Text>
+                          <Text style={[styles.voiceCandidateMeta, { color: colors.textSecondary }]}>
+                            {candidate.setCount ? `${candidate.setCount} sets` : 'Default set count'} • {candidate.confidence}
+                          </Text>
+                        </View>
+                        <View style={styles.voiceCandidateActions}>
+                          <Pressable
+                            onPress={() => toggleVoiceCandidateIncluded(candidate.key)}
+                            style={[
+                              styles.voiceCandidateIcon,
+                              candidate.included && styles.voiceCandidateIconActive,
+                              candidate.included && { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+                            ]}
+                          >
+                            <CheckIcon
+                              size={16}
+                              color={candidate.included ? colors.accent : colors.textSecondary}
+                              strokeWidth={2.2}
+                            />
+                          </Pressable>
+                          <Pressable
+                            onPress={() => removeVoiceCandidate(candidate.key)}
+                            style={styles.voiceCandidateIcon}
+                          >
+                            <XMarkIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+                          </Pressable>
+                        </View>
+                      </View>
+                      {candidate.matches.length > 0 ? (
+                        <View style={styles.voiceMatchesRow}>
+                          {candidate.matches.map((match) => {
+                            const selected = candidate.selectedMatchId === match.id;
+                            return (
+                              <Pressable
+                                key={`${candidate.key}-${match.id}`}
+                                onPress={() => selectVoiceCandidateMatch(candidate.key, match.id)}
+                                style={[
+                                  styles.voiceMatchChip,
+                                  themedStyles.chip,
+                                  selected && { backgroundColor: colors.accentOverlayMedium, borderColor: colors.accentBorder },
+                                ]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.voiceMatchChipText,
+                                    { color: selected ? colors.accent : colors.textSecondary },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {match.name}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      ) : (
+                        <Text style={[styles.voiceNoMatchText, { color: colors.textSecondary }]}>
+                          No strong matches found.
+                        </Text>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={styles.voiceFooter}>
+                {voicePhase === 'listening' ? (
+                  <GlassButton style={styles.voiceActionButton} onPress={() => { void stopVoiceCapture(); }}>
+                    <Text style={styles.addButtonText}>Stop</Text>
+                  </GlassButton>
+                ) : (
+                  <GlassButton style={styles.voiceActionButton} onPress={() => { void startVoiceCapture(); }}>
+                    <ArrowPathIcon size={18} color="#fff" strokeWidth={2} />
+                    <Text style={styles.addButtonText}>Redo</Text>
+                  </GlassButton>
+                )}
+              </View>
+            </View>
+          )}
 
           {/* Exercise List */}
           <FlatList
@@ -689,6 +1168,154 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
+  },
+  searchActionIcon: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  voicePanel: {
+    marginHorizontal: Spacing['2xl'],
+    marginBottom: Spacing.lg,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    gap: Spacing.md,
+    zIndex: 1,
+  },
+  voiceHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  voiceTitle: {
+    fontSize: FontSizes.lg,
+    fontFamily: 'BankGothicBT-Medium',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  voiceSubtitle: {
+    marginTop: Spacing.xs,
+    fontSize: FontSizes.sm,
+    lineHeight: FontSizes.sm * 1.4,
+  },
+  voiceCloseButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
+  voiceWaveTrack: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 4,
+    minHeight: 72,
+    marginBottom: Spacing.xs,
+  },
+  voiceWaveBar: {
+    width: 8,
+    borderRadius: 999,
+  },
+  voiceTranscript: {
+    fontSize: FontSizes.base,
+    lineHeight: FontSizes.base * 1.4,
+  },
+  voiceErrorWrap: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    gap: Spacing.xs,
+  },
+  voiceErrorTitle: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+  },
+  voiceErrorText: {
+    fontSize: FontSizes.sm,
+    lineHeight: FontSizes.sm * 1.45,
+  },
+  voiceSettingsButton: {
+    alignSelf: 'flex-start',
+    marginTop: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  voiceSettingsButtonText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+  },
+  voiceCandidateList: {
+    gap: Spacing.sm,
+  },
+  voiceCandidateCard: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: 0,
+  },
+  voiceCandidateHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  voiceCandidateCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  voiceCandidateQuery: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+  },
+  voiceCandidateMeta: {
+    fontSize: FontSizes.sm,
+  },
+  voiceCandidateActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  voiceCandidateIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  voiceCandidateIconActive: {},
+  voiceMatchesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  voiceMatchChip: {
+    maxWidth: '100%',
+  },
+  voiceMatchChipText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  voiceNoMatchText: {
+    marginTop: Spacing.sm,
+    fontSize: FontSizes.sm,
+  },
+  voiceFooter: {
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+  },
+  voiceActionButton: {
+    minWidth: 140,
+    height: 46,
+    borderRadius: BorderRadius.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
   },
   listContent: {
     paddingHorizontal: Spacing['2xl'],

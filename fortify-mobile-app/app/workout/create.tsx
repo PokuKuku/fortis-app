@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { XMarkIcon, CalendarDaysIcon, PencilIcon, ClockIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, CalendarDaysIcon, PencilIcon, ClockIcon, MicrophoneIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -23,6 +23,7 @@ import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
+import { ExerciseVoiceAddSheet } from '@/src/components/workout/ExerciseVoiceAddSheet';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
 import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { DateSelector } from '@/src/components/ui/DateSelector';
@@ -34,7 +35,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import type { Exercise } from '@/src/types/exercise';
 import { responsiveValue, scale } from '@/src/utils/responsive';
 import { format } from 'date-fns';
-import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
+import { runOnJS } from 'react-native-reanimated';
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
@@ -114,6 +115,7 @@ export default function CreateWorkoutScreen() {
   const { profile } = useAuth();
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [showVoiceAddSheet, setShowVoiceAddSheet] = useState(false);
   const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
   const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -237,12 +239,18 @@ export default function CreateWorkoutScreen() {
     });
 
   // Handle adding exercises from the exercise modal
-  const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string }>) => {
+  const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string; initialSetCount?: number | null }>) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addEditorExercises(exercisesToAdd);
     setReplaceExerciseLocalId(null);
     setShowAddExerciseModal(false);
     setAddExerciseSuspended(false);
+  }, [addEditorExercises]);
+
+  const handleVoiceAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string; initialSetCount?: number | null }>) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    addEditorExercises(exercisesToAdd);
+    setShowVoiceAddSheet(false);
   }, [addEditorExercises]);
 
   const handleReplaceExercise = useCallback((exerciseLocalId: string) => {
@@ -548,20 +556,56 @@ export default function CreateWorkoutScreen() {
           ListEmptyComponent={renderEmptyState}
           ListFooterComponent={(
             <View style={styles.bottomActions}>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setReplaceExerciseLocalId(null);
-                  setShowAddExerciseModal(true);
-                }}
-                style={({ pressed }) => [
-                  styles.addExercisesButton,
-                  themedStyles.addExercisesButton,
-                  pressed && styles.addExercisesButtonPressed,
-                ]}
-              >
-                <Text style={[styles.addExercisesText, themedStyles.addExercisesText]}>+ Add Exercises</Text>
-              </Pressable>
+              <View style={styles.secondaryActionsRow}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setReplaceExerciseLocalId(null);
+                    setShowAddExerciseModal(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.addExercisesButton,
+                    styles.secondaryActionButton,
+                    themedStyles.addExercisesButton,
+                    pressed && styles.addExercisesButtonPressed,
+                  ]}
+                >
+                  <Text
+                    style={[styles.secondaryActionText, themedStyles.addExercisesText]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                  >
+                    + Add Exercises
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowVoiceAddSheet(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.addExercisesButton,
+                    styles.secondaryActionButton,
+                    themedStyles.addExercisesButton,
+                    styles.voiceAddButton,
+                    pressed && styles.addExercisesButtonPressed,
+                  ]}
+                >
+                  <View style={styles.voiceAddButtonContent}>
+                    <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2} />
+                    <Text
+                      style={[styles.secondaryActionText, themedStyles.addExercisesText]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.72}
+                    >
+                      Add with Voice
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
 
               <GlassButton
                 style={styles.primaryActionButton}
@@ -607,6 +651,13 @@ export default function CreateWorkoutScreen() {
         onAddExercisesCallback={handleAddExercises}
         existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
         onOpenExerciseDetails={handleModalExerciseDetails}
+      />
+
+      <ExerciseVoiceAddSheet
+        visible={showVoiceAddSheet}
+        existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
+        onAddExercises={handleVoiceAddExercises}
+        onClose={() => setShowVoiceAddSheet(false)}
       />
 
       {/* Number Pad Modal */}
@@ -836,6 +887,11 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing['6xl'],
     gap: Spacing.lg,
   },
+  secondaryActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: Spacing.md,
+  },
   addExercisesButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -847,6 +903,28 @@ const styles = StyleSheet.create({
   },
   addExercisesButtonPressed: {
     opacity: 0.75,
+  },
+  secondaryActionButton: {
+    flex: 1,
+    width: undefined,
+    minHeight: ButtonHeights.xl,
+    paddingHorizontal: Spacing.md,
+  },
+  voiceAddButton: {
+    gap: Spacing.xs,
+  },
+  voiceAddButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    width: '100%',
+  },
+  secondaryActionText: {
+    flexShrink: 1,
+    textAlign: 'center',
+    fontSize: FontSizes.sm,
+    letterSpacing: 0.6,
   },
   addExercisesText: {
     fontSize: FontSizes.base,

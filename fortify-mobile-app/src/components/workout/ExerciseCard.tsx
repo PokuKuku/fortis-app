@@ -22,6 +22,8 @@ import Animated, {
   FadeIn,
   FadeOut,
   Easing,
+  LinearTransition,
+  SlideOutLeft,
 } from 'react-native-reanimated';
 
 // Responsive sizing to match SetRow
@@ -283,9 +285,10 @@ export function ExerciseCard({
   return (
     <Animated.View
       style={[styles.container, themedStyles.container]}
+      layout={LinearTransition.duration(250).easing(Easing.inOut(Easing.cubic))}
       entering={FadeIn.duration(300).easing(Easing.out(Easing.cubic))
         .delay(50)}
-      exiting={FadeOut.duration(250).easing(Easing.in(Easing.cubic))}
+      exiting={SlideOutLeft.duration(220).easing(Easing.inOut(Easing.cubic))}
     >
       <View style={styles.content}>
         {/* Exercise Header */}

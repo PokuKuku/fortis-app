@@ -26,7 +26,7 @@ interface AnimatedLogoProps {
   pulseDurationMs?: number;
 }
 
-const LOGO_TEXT = 'FORTIFY';
+const LOGO_TEXT = 'FORTIFY AI';
 const LETTER_SPACING_RATIO = 3 / 18;
 
 export function AnimatedLogo({
@@ -57,8 +57,8 @@ export function AnimatedLogo({
 
   // Size configurations
   const baseConfig = size === 'large'
-    ? { width: 326, height: 60, fontSize: 42, y: 48 }
-    : { width: 186, height: 32, fontSize: 20, y: 24 };
+    ? { width: 468, height: 60, fontSize: 42, y: 48 }
+    : { width: 270, height: 32, fontSize: 20, y: 24 };
   const scaledConfig = {
     width: Math.round(baseConfig.width * fontScale),
     height: Math.round(baseConfig.height * fontScale),

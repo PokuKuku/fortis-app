@@ -163,14 +163,14 @@ export function CreateWorkoutModal({
   }, []);
 
   // Handle adding exercises from the exercise modal
-  const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string }>) => {
+  const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string; initialSetCount?: number | null }>) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     const newExercises: TemplateExercise[] = exercisesToAdd.map((ex, index) => ({
       localId: generateLocalId(),
       exerciseId: ex.id,
       exerciseName: ex.name,
-      sets: 3,
+      sets: Math.max(1, Math.min(12, Math.round(ex.initialSetCount ?? 3))),
       reps: '8-12',
       restSeconds: 120,
       orderIndex: exercises.length + index,

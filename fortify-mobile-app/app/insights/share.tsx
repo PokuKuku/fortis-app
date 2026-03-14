@@ -706,8 +706,9 @@ const styles = StyleSheet.create({
   },
   shareBadgeText: {
     fontSize: moderateScale(10),
-    fontWeight: '600',
+    fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   shareTitle: {
     fontFamily: 'BankGothicBT-Medium',

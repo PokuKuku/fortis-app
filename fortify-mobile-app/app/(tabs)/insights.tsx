@@ -1361,7 +1361,7 @@ const styles = StyleSheet.create({
   },
   weeklyInsightLabel: {
     fontSize: moderateScale(12),
-    fontWeight: '600',
+    fontFamily: 'BankGothicBT-Medium',
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     marginBottom: scale(Spacing.xs),

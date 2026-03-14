@@ -4,8 +4,11 @@ import { getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy
 type ExerciseSearchEntry = {
   exercise: ExerciseWithSource;
   nameText: string;
+  nameTokens: string[];
+  stemmedNameText: string;
   nameTokenSet: Set<string>;
   aliasTexts: string[];
+  aliasTokenTexts: string[];
   aliasTokenSet: Set<string>;
   instructionText: string;
   muscleText: string;
@@ -145,6 +148,7 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
   const entries = exercises.map((exercise) => {
     const nameText = normalizeText(exercise.name);
     const nameTokens = tokenize(nameText);
+    const stemmedNameText = nameTokens.join(' ');
     const nameTokenSet = new Set(nameTokens);
 
     const aliasTexts = new Set<string>();
@@ -165,9 +169,10 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
       extractInstructionAliases(instructionTokens, phrases).forEach((alias) => aliasTexts.add(alias));
     }
 
-    const aliasTokenSet = new Set(
-      Array.from(aliasTexts).flatMap((text) => tokenize(text))
-    );
+    const aliasTokenTexts = Array.from(aliasTexts)
+      .map((text) => tokenize(text).join(' '))
+      .filter(Boolean);
+    const aliasTokenSet = new Set(aliasTokenTexts.flatMap((text) => text.split(' ')));
 
     const muscleTokens = [
       ...(exercise.primaryMuscles ?? []),
@@ -184,8 +189,11 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
     return {
       exercise,
       nameText,
+      nameTokens,
+      stemmedNameText,
       nameTokenSet,
       aliasTexts: Array.from(aliasTexts),
+      aliasTokenTexts,
       aliasTokenSet,
       instructionText,
       muscleText,
@@ -215,6 +223,7 @@ export function searchExercisesWithScores(
   }
 
   const queryTokens = tokenize(normalizedQuery);
+  const stemmedQuery = queryTokens.join(' ');
   if (queryTokens.length === 0) {
     return index.entries.map((entry) => ({ exercise: entry.exercise, score: 0 }));
   }
@@ -230,8 +239,23 @@ export function searchExercisesWithScores(
 
     const nameTokenMatch = hasAllTokens(queryTokens, entry.nameTokenSet);
     const aliasTokenMatch = hasAllTokens(queryTokens, entry.aliasTokenSet);
+    const nameExtraTokenCount = Math.max(0, entry.nameTokens.length - queryTokens.length);
+    const aliasExactStemmedMatch = entry.aliasTokenTexts.some((text) => text === stemmedQuery);
+    const aliasPrefixStemmedMatch = entry.aliasTokenTexts.some((text) => text.startsWith(`${stemmedQuery} `));
 
-    if (nameTokenMatch) score = 100;
+    if (entry.stemmedNameText === stemmedQuery) {
+      score = 140;
+    } else if (aliasExactStemmedMatch) {
+      score = 132;
+    } else if (entry.stemmedNameText.startsWith(`${stemmedQuery} `)) {
+      score = 116;
+    } else if (aliasPrefixStemmedMatch) {
+      score = 108;
+    }
+
+    if (nameTokenMatch) {
+      score = Math.max(score, 100 - Math.min(nameExtraTokenCount, 8) * 3);
+    }
     if (aliasTokenMatch) score = Math.max(score, 90);
 
     if (entry.nameText.includes(normalizedQuery)) {

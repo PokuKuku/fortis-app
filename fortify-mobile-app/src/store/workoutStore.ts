@@ -125,6 +125,17 @@ function buildNewActiveSet(
   };
 }
 
+type ExerciseAddPayload = {
+  id: string;
+  name: string;
+  initialSetCount?: number | null;
+};
+
+function clampInitialSetCount(value: number | null | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
+  return Math.max(1, Math.min(12, Math.round(value)));
+}
+
 const loadProgramsStore = async () => {
   try {
     return await import('./programsStore');
@@ -214,7 +225,7 @@ interface WorkoutState {
 
   // Actions - Exercises
   addExercise: (exerciseId: string, exerciseName: string) => void;
-  addExercises: (exercises: Array<{ id: string; name: string }>) => void;
+  addExercises: (exercises: ExerciseAddPayload[]) => void;
   removeExercise: (localId: string) => void;
   replaceExercise: (localId: string, newExerciseId: string, newExerciseName: string) => void;
   reorderExercises: (fromIndex: number, toIndex: number) => void;
@@ -315,7 +326,7 @@ interface WorkoutState {
   setEditorMode: (mode: 'template' | 'log') => void;
   setEditorDate: (date: Date) => void;
   setEditorWorkoutName: (name: string) => void;
-  addEditorExercises: (exercises: Array<{ id: string; name: string }>) => void;
+  addEditorExercises: (exercises: ExerciseAddPayload[]) => void;
   replaceEditorExercise: (localId: string, newExerciseId: string, newExerciseName: string) => void;
   removeEditorExercise: (localId: string) => void;
   addEditorSet: (exerciseLocalId: string) => void;
@@ -900,28 +911,37 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       const startIndex = activeSession.exercises.length;
       const newExercises: WorkoutExercise[] = exercises.map((ex, i) => {
-        // Get inherited set type for first set
-        const inheritedSetType = getSetTypeFromHistory(completedSessions, ex.id, 0, context);
+        const initialSetCount = clampInitialSetCount(ex.initialSetCount);
+        const exerciseWeightUnit = weightUnits[ex.id] || 'lbs';
+        const localId = generateId();
+        const sets: WorkoutSet[] = Array.from({ length: initialSetCount }, (_, setIndex) => {
+          const inheritedSetType = getSetTypeFromHistory(
+            completedSessions,
+            ex.id,
+            setIndex,
+            context
+          );
+
+          return {
+            localId: generateId(),
+            setNumber: setIndex + 1,
+            setType: inheritedSetType,
+            weight: null,
+            weightUnit: exerciseWeightUnit,
+            reps: null,
+            rpe: null,
+            restSeconds: null,
+            notes: '',
+            isCompleted: false,
+            orderIndex: setIndex,
+          };
+        });
 
         return {
-          localId: generateId(),
+          localId,
           exerciseId: ex.id,
           exerciseName: ex.name,
-          sets: [
-            {
-              localId: generateId(),
-              setNumber: 1,
-              setType: inheritedSetType,
-              weight: null,
-              weightUnit: weightUnits[ex.id] || 'lbs',
-              reps: null,
-              rpe: null,
-              restSeconds: null,
-              notes: '',
-              isCompleted: false,
-              orderIndex: 0,
-            },
-          ],
+          sets,
           notes: '',
           orderIndex: startIndex + i,
         };
@@ -2315,28 +2335,31 @@ export const useWorkoutStore = create<WorkoutState>()(
       if (!editorSession) return;
 
       const startIndex = editorSession.exercises.length;
-      const newExercises: WorkoutExercise[] = exercises.map((ex, i) => ({
-        localId: generateId(),
-        exerciseId: ex.id,
-        exerciseName: ex.name,
-        sets: [
-          {
+      const newExercises: WorkoutExercise[] = exercises.map((ex, i) => {
+        const initialSetCount = clampInitialSetCount(ex.initialSetCount);
+        const exerciseWeightUnit = weightUnits[ex.id] || 'lbs';
+
+        return {
+          localId: generateId(),
+          exerciseId: ex.id,
+          exerciseName: ex.name,
+          sets: Array.from({ length: initialSetCount }, (_, setIndex) => ({
             localId: generateId(),
-            setNumber: 1,
+            setNumber: setIndex + 1,
             setType: 'normal',
             weight: null,
-            weightUnit: weightUnits[ex.id] || 'lbs',
+            weightUnit: exerciseWeightUnit,
             reps: null,
             rpe: null,
             restSeconds: null,
             notes: '',
             isCompleted: false,
-            orderIndex: 0,
-          },
-        ],
-        notes: '',
-        orderIndex: startIndex + i,
-      }));
+            orderIndex: setIndex,
+          })),
+          notes: '',
+          orderIndex: startIndex + i,
+        };
+      });
 
       set({
         editorSession: {

@@ -31,6 +31,7 @@ import { WorkoutHeaderDetails, WorkoutHeaderTopBar } from '@/src/components/work
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
 import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { WorkoutVoiceLogSheet } from '@/src/components/workout/WorkoutVoiceLogSheet';
+import { ExerciseVoiceAddSheet } from '@/src/components/workout/ExerciseVoiceAddSheet';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
 import { RestTimerControls } from '@/src/components/workout/modals/RestTimerControls';
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
@@ -50,6 +51,7 @@ import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTa
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { useAuth } from '@/src/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
+import { MicrophoneIcon } from 'react-native-heroicons/outline';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const LIST_PADDING_TOP = Math.max(0, scale(Spacing.lg) - scale(6));
@@ -60,6 +62,7 @@ const EMPTY_DESCRIPTION_SIZE = moderateScale(14);
 const BOTTOM_ACTIONS_PADDING_TOP = scale(Spacing.lg);
 const BOTTOM_ACTIONS_PADDING_BOTTOM = scale(140);
 const BOTTOM_ACTIONS_GAP = scale(Spacing.lg);
+const SECONDARY_ACTIONS_GAP = scale(Spacing.sm);
 const ADD_BUTTON_PADDING_Y = scale(Spacing.lg);
 const ADD_BUTTON_TEXT_SIZE = moderateScale(14);
 const FINISH_BUTTON_HEIGHT = scale(44);
@@ -74,6 +77,7 @@ export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const activeSession = useWorkoutStore(s => s.activeSession);
+  const addExercises = useWorkoutStore(s => s.addExercises);
   const workoutStartTime = useWorkoutStore(s => s.workoutStartTime);
   const pausedElapsedSeconds = useWorkoutStore(s => s.pausedElapsedSeconds);
 
@@ -171,6 +175,7 @@ export default function ActiveWorkoutScreen() {
   const [showTimerSettingsModal, setShowTimerSettingsModal] = useState(false);
   const [showRestTimerControls, setShowRestTimerControls] = useState(false);
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [showVoiceAddSheet, setShowVoiceAddSheet] = useState(false);
   const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
@@ -191,6 +196,7 @@ export default function ActiveWorkoutScreen() {
   const restTimerCompleteTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isBlockingModalOpen = showAddExerciseModal
+    || showVoiceAddSheet
     || showTimerSettingsModal
     || showRestTimerControls
     || showCancelModal
@@ -327,6 +333,11 @@ export default function ActiveWorkoutScreen() {
     setShowAddExerciseModal(true);
   };
 
+  const handleOpenVoiceAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowVoiceAddSheet(true);
+  };
+
   // Handle replace exercise (opens AddExerciseModal in replace mode)
   const handleReplaceExercise = (exerciseLocalId: string) => {
     // Check if exercise has any completed sets
@@ -379,6 +390,12 @@ export default function ActiveWorkoutScreen() {
     setReplaceExerciseLocalId(null);
     setShowRestTimerBanner(false);
     setAddExerciseSuspended(false);
+  };
+
+  const handleVoiceAddExercises = (exercisesToAdd: Array<{ id: string; name: string; initialSetCount?: number | null }>) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    addExercises(exercisesToAdd);
+    setShowVoiceAddSheet(false);
   };
 
   // Handle finish workout
@@ -620,16 +637,48 @@ export default function ActiveWorkoutScreen() {
   // Footer with action buttons
   const renderFooter = () => (
     <View style={styles.bottomActions}>
-      <Pressable
-        onPress={handleAddExercise}
-        style={({ pressed }) => [
-          styles.addButton,
-          themedStyles.addButton,
-          pressed && styles.pressed
-        ]}
-      >
-        <Text style={[styles.addButtonText, themedStyles.addButtonText]}>+ Add Exercise</Text>
-      </Pressable>
+      <View style={styles.secondaryActionsRow}>
+        <Pressable
+          onPress={handleAddExercise}
+          style={({ pressed }) => [
+            styles.addButton,
+            styles.secondaryActionButton,
+            themedStyles.addButton,
+            pressed && styles.pressed
+          ]}
+        >
+          <Text
+            style={[styles.addButtonText, styles.secondaryActionText, themedStyles.addButtonText]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.72}
+          >
+            + Add Exercise
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={handleOpenVoiceAdd}
+          style={({ pressed }) => [
+            styles.addButton,
+            styles.secondaryActionButton,
+            themedStyles.addButton,
+            pressed && styles.pressed
+          ]}
+        >
+          <View style={styles.voiceAddButtonContent}>
+            <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2} />
+            <Text
+              style={[styles.addButtonText, styles.secondaryActionText, themedStyles.addButtonText]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.72}
+            >
+              Add with Voice
+            </Text>
+          </View>
+        </Pressable>
+      </View>
 
       <GlassButton style={[styles.finishButton, themedStyles.finishButtonShadow]} onPress={handleFinishWorkout}>
         <Text style={styles.finishButtonText}>Finish Workout</Text>
@@ -710,6 +759,13 @@ export default function ActiveWorkoutScreen() {
         showRestTimerBanner={showRestTimerBanner}
         onDismissRestTimerBanner={() => setShowRestTimerBanner(false)}
         onOpenExerciseDetails={handleModalExerciseDetails}
+      />
+
+      <ExerciseVoiceAddSheet
+        visible={showVoiceAddSheet}
+        existingExerciseIds={activeSession?.exercises.map((exercise) => exercise.exerciseId) || []}
+        onClose={() => setShowVoiceAddSheet(false)}
+        onAddExercises={handleVoiceAddExercises}
       />
 
       <WorkoutVoiceLogSheet
@@ -873,6 +929,13 @@ const styles = StyleSheet.create({
     paddingBottom: BOTTOM_ACTIONS_PADDING_BOTTOM,
     gap: BOTTOM_ACTIONS_GAP,
   },
+  secondaryActionsRow: {
+    flexDirection: 'row',
+    gap: SECONDARY_ACTIONS_GAP,
+  },
+  secondaryActionButton: {
+    flex: 1,
+  },
   addButton: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -887,6 +950,19 @@ const styles = StyleSheet.create({
     color: Colors.success,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
+  },
+  secondaryActionText: {
+    fontSize: moderateScale(12),
+    letterSpacing: 0.7,
+    textAlign: 'center',
+    flexShrink: 1,
+  },
+  voiceAddButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: scale(Spacing.xs),
+    paddingHorizontal: scale(Spacing.xs),
   },
   finishButton: {
     height: FINISH_BUTTON_HEIGHT,
