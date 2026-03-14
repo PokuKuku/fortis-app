@@ -146,7 +146,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'insights_overview',
     route: '/(tabs)/insights',
-    body: 'Insights power Fortify AI—tap "Ask Fortify" on any insight to get a breakdown and next steps. Welcome to smarter training!',
+    body: 'Insights power Fortify AI—tap "Ask Fortify" on any insight to get a breakdown and next steps.\n\nFortify has many more features waiting for you once you begin tracking.\n\nWelcome to smarter training!',
     mode: 'blocking',
     primaryActionLabel: 'Done',
     showArrow: false,

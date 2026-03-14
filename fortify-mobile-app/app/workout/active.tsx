@@ -457,6 +457,20 @@ export default function ActiveWorkoutScreen() {
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
 
+  const finishWorkoutAndNavigate = async () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    await finishWorkout();
+    setShowFinishModal(false);
+    setFinishSnapshot(null);
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  };
+
   // Handle save as template
   const handleSaveAsTemplate = () => {
     setShowFinishModal(false);
@@ -470,6 +484,8 @@ export default function ActiveWorkoutScreen() {
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+    const templateId = templateForSession.id;
+    const templateName = templateForSession.name;
     const exercisesForTemplate = activeSession.exercises.map((exercise) => ({
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exerciseName,
@@ -483,19 +499,18 @@ export default function ActiveWorkoutScreen() {
       })),
     }));
 
-    const updatedId = await updateWorkoutTemplate(
-      templateForSession.id,
-      templateForSession.name,
-      exercisesForTemplate
-    );
+    await updateActiveSessionName(templateName);
+    await finishWorkoutAndNavigate();
 
-    if (!updatedId) {
-      Alert.alert('Update failed', 'Unable to update this template right now.');
-      return;
-    }
-
-    await updateActiveSessionName(templateForSession.name);
-    await handleConfirmFinish();
+    void updateWorkoutTemplate(templateId, templateName, exercisesForTemplate)
+      .then((updatedId) => {
+        if (!updatedId) {
+          console.warn('[ActiveWorkout] Background template update failed');
+        }
+      })
+      .catch((error) => {
+        console.warn('[ActiveWorkout] Background template update threw', error);
+      });
   };
 
   // Handle template save success
@@ -508,18 +523,7 @@ export default function ActiveWorkoutScreen() {
     }
 
     // Finish the workout (this moves session to completedSessions with the updated name)
-    if (isNavigating.current) return;
-    isNavigating.current = true;
-    await finishWorkout();
-
-    setShowFinishModal(false);
-    setFinishSnapshot(null);
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)');
-    }
-    setTimeout(() => { isNavigating.current = false; }, 500);
+    await finishWorkoutAndNavigate();
   };
 
   // Handle number pad confirm - implements perpetuating keyboard flow with autofill

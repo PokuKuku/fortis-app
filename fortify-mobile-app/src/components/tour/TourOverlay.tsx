@@ -483,7 +483,7 @@ export function TourOverlay({
               )}
             </View>
 
-            <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
+            <Text style={[styles.bodyText, themedStyles.bodyText, centerTooltip && styles.bodyTextCentered]}>{body}</Text>
 
             {primaryAction ? (
               <GlassButton
@@ -543,6 +543,9 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(15),
     lineHeight: moderateScale(22),
     fontWeight: FontWeights.medium,
+  },
+  bodyTextCentered: {
+    textAlign: 'center',
   },
   primaryButton: {
     marginTop: Spacing.lg,

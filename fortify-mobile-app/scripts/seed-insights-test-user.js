@@ -768,70 +768,104 @@ const run = async () => {
   let sessionCount = 0;
   let setCount = 0;
 
-  const selectedConfigs = firstOnly
-    ? [weekConfigs[weekConfigs.length - 1]]
-    : positiveOnly
-    ? positiveWeekConfigs
-    : benchPlateauFatigueOnly
-    ? benchPlateauFatigueWeekConfigs
-    : weekConfigs;
+  const insertSession = async ({
+    sessionDate,
+    template,
+    config,
+    localId,
+    name,
+  }) => {
+    const completedAt = new Date(sessionDate.getTime() + 60 * 60 * 1000);
 
-  for (const config of selectedConfigs) {
-    const weekBase = addDays(weekStart, config.offset * 7);
-    const sessionDays = firstOnly ? [config.days[0]] : config.days;
-    const sessionTypes = firstOnly ? [config.types[0]] : config.types;
+    const sessionPayload = {
+      user_id: userId,
+      name,
+      started_at: sessionDate.toISOString(),
+      completed_at: completedAt.toISOString(),
+      duration_seconds: 3600,
+      is_synced: true,
+      local_id: localId,
+    };
 
-    for (let index = 0; index < sessionDays.length; index += 1) {
-      const dayOffset = sessionDays[index];
-      const template = sessionTypes[index];
-      const sessionDate = addDays(weekBase, dayOffset);
-      sessionDate.setUTCHours(18, 0, 0, 0);
-      const completedAt = new Date(sessionDate.getTime() + 60 * 60 * 1000);
+    const { data: session, error: sessionError } = await supabase
+      .from('workout_sessions')
+      .insert(sessionPayload)
+      .select('id')
+      .single();
 
-      const sessionPayload = {
-        user_id: userId,
-        name: `Seed Session (${toIsoDate(sessionDate)})`,
-        started_at: sessionDate.toISOString(),
-        completed_at: completedAt.toISOString(),
-        duration_seconds: 3600,
-        is_synced: true,
-        local_id: firstOnly ? 'seed-first' : `seed-${config.offset}-${index}`,
-      };
-
-      const { data: session, error: sessionError } = await supabase
-        .from('workout_sessions')
-        .insert(sessionPayload)
-        .select('id')
-        .single();
-
-      if (sessionError || !session?.id) {
-        throw new Error(`Failed to insert session: ${sessionError?.message ?? 'unknown error'}`);
-      }
-
-      const sets = buildSessionSets(template, exerciseMap, config).map((set) => ({
-        ...set,
-        session_id: session.id,
-        created_at: sessionPayload.started_at,
-        updated_at: sessionPayload.started_at,
-      }));
-
-      if (sets.length > 0) {
-        const { error: setError } = await supabase.from('workout_sets').insert(sets);
-        if (setError) {
-          throw new Error(`Failed to insert sets: ${setError.message}`);
-        }
-      }
-
-      sessionCount += 1;
-      setCount += sets.length;
+    if (sessionError || !session?.id) {
+      throw new Error(`Failed to insert session: ${sessionError?.message ?? 'unknown error'}`);
     }
 
-    if (firstOnly) {
-      break;
+    const sets = buildSessionSets(template, exerciseMap, config).map((set) => ({
+      ...set,
+      session_id: session.id,
+      created_at: sessionPayload.started_at,
+      updated_at: sessionPayload.started_at,
+    }));
+
+    if (sets.length > 0) {
+      const { error: setError } = await supabase.from('workout_sets').insert(sets);
+      if (setError) {
+        throw new Error(`Failed to insert sets: ${setError.message}`);
+      }
     }
+
+    sessionCount += 1;
+    setCount += sets.length;
+  };
+
+  if (eliteDisciplineOnly) {
+    const elitePlan = buildEliteSessionPlan(timezone, weekStart);
+
+    for (const [index, sessionPlan] of elitePlan.sessions.entries()) {
+      await insertSession({
+        sessionDate: sessionPlan.sessionDate,
+        template: sessionPlan.template,
+        config: sessionPlan.config,
+        localId: `seed-elite-${index}`,
+        name: `Elite Session (${toIsoDate(sessionPlan.sessionDate)})`,
+      });
+    }
+
+    console.log(`Seeded ${sessionCount} sessions and ${setCount} sets.`);
+    reportEliteDiscipline(elitePlan);
+  } else {
+    const selectedConfigs = firstOnly
+      ? [weekConfigs[weekConfigs.length - 1]]
+      : positiveOnly
+      ? positiveWeekConfigs
+      : benchPlateauFatigueOnly
+      ? benchPlateauFatigueWeekConfigs
+      : weekConfigs;
+
+    for (const config of selectedConfigs) {
+      const weekBase = addDays(weekStart, config.offset * 7);
+      const sessionDays = firstOnly ? [config.days[0]] : config.days;
+      const sessionTypes = firstOnly ? [config.types[0]] : config.types;
+
+      for (let index = 0; index < sessionDays.length; index += 1) {
+        const dayOffset = sessionDays[index];
+        const template = sessionTypes[index];
+        const sessionDate = addDays(weekBase, dayOffset);
+        sessionDate.setUTCHours(18, 0, 0, 0);
+
+        await insertSession({
+          sessionDate,
+          template,
+          config,
+          localId: firstOnly ? 'seed-first' : `seed-${config.offset}-${index}`,
+          name: `Seed Session (${toIsoDate(sessionDate)})`,
+        });
+      }
+
+      if (firstOnly) {
+        break;
+      }
+    }
+
+    console.log(`Seeded ${sessionCount} sessions and ${setCount} sets.`);
   }
-
-  console.log(`Seeded ${sessionCount} sessions and ${setCount} sets.`);
 
   if (benchPlateauFatigueOnly && exerciseMap.bench?.id) {
     await reportBenchPlateauFatigue({
