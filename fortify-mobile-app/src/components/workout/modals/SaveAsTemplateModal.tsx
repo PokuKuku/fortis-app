@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
 import { XMarkIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, FontSizes, BorderRadius, Sizes } from '@/constants/Sizes';
@@ -128,103 +128,97 @@ export function SaveAsTemplateModal({
   };
 
   return (
-    <Modal
-      transparent
-      visible={visible}
-      animationType="none"
-      onRequestClose={handleClose}
-      statusBarTranslucent
-    >
-      <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
-        <Pressable style={styles.centeredView} onPress={handleClose} activeOpacity={1}>
-          <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
-            <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
-              <StainlessSteelPattern />
+    <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
+      <Pressable style={styles.centeredView} onPress={handleClose}>
+        <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
+          <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
+            <StainlessSteelPattern />
 
-              {showSuccess ? (
-                // Success State
-                <View style={styles.successContainer}>
-                  <View style={[styles.successIcon, themedStyles.successIcon]}>
-                    <CheckIcon size={32} color={colors.accent} strokeWidth={3} />
-                  </View>
-                  <Text style={[styles.successText, themedStyles.successText]}>Template Saved!</Text>
+            {showSuccess ? (
+              // Success State
+              <View style={styles.successContainer}>
+                <View style={[styles.successIcon, themedStyles.successIcon]}>
+                  <CheckIcon size={32} color={colors.accent} strokeWidth={3} />
                 </View>
-              ) : (
-                <>
-                  {/* Header */}
-                  <View style={styles.header}>
-                    <Text style={[styles.title, themedStyles.title]}>Save as Template</Text>
-                    <Pressable
-                      onPress={handleClose}
-                      style={({ pressed }) => [
-                        styles.closeButton,
-                        themedStyles.closeButton,
-                        pressed && styles.closeButtonPressed,
-                      ]}
-                    >
-                      <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
-                    </Pressable>
+                <Text style={[styles.successText, themedStyles.successText]}>Template Saved!</Text>
+              </View>
+            ) : (
+              <>
+                {/* Header */}
+                <View style={styles.header}>
+                  <Text style={[styles.title, themedStyles.title]}>Save as Template</Text>
+                  <Pressable
+                    onPress={handleClose}
+                    style={({ pressed }) => [
+                      styles.closeButton,
+                      themedStyles.closeButton,
+                      pressed && styles.closeButtonPressed,
+                    ]}
+                  >
+                    <XMarkIcon size={20} color={Colors.error} strokeWidth={2} />
+                  </Pressable>
+                </View>
+
+                {/* Content */}
+                <View style={styles.content}>
+                  {/* Name Input */}
+                  <View style={styles.inputGroup}>
+                    <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Template Name</Text>
+                    <TextInput
+                      style={[styles.textInput, themedStyles.textInput]}
+                      value={templateName}
+                      onChangeText={setTemplateName}
+                      placeholder="e.g., Push Day, Upper Body"
+                      placeholderTextColor={colors.textTertiary}
+                      autoFocus
+                    />
                   </View>
 
-                  {/* Content */}
-                  <View style={styles.content}>
-                    {/* Name Input */}
-                    <View style={styles.inputGroup}>
-                      <Text style={[styles.inputLabel, themedStyles.inputLabel]}>Template Name</Text>
-                      <TextInput
-                        style={[styles.textInput, themedStyles.textInput]}
-                        value={templateName}
-                        onChangeText={setTemplateName}
-                        placeholder="e.g., Push Day, Upper Body"
-                        placeholderTextColor={colors.textTertiary}
-                        autoFocus
-                      />
-                    </View>
-
-                    {/* Exercise Summary */}
-                    <View style={styles.summarySection}>
-                      <Text style={[styles.summaryLabel, themedStyles.summaryLabel]}>
-                        {exercisesForTemplate.length} Exercise{exercisesForTemplate.length !== 1 ? 's' : ''}
-                      </Text>
-                      <ScrollView style={[styles.exerciseList, themedStyles.exerciseList]} showsVerticalScrollIndicator={false}>
-                        {exercisesForTemplate.map((ex, index) => (
-                          <View key={ex.exerciseId + index} style={[styles.exerciseItem, themedStyles.exerciseItem]}>
-                            <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
-                              {ex.exerciseName}
-                            </Text>
-                            <Text style={[styles.exerciseSets, themedStyles.exerciseSets]}>{ex.sets} sets</Text>
-                          </View>
-                        ))}
-                      </ScrollView>
-                    </View>
-
-                    {/* Save Button */}
-                    <GlassButton
-                      style={styles.saveButton}
-                      onPress={handleSave}
-                      disabled={isSaving || !templateName.trim()}
-                    >
-                      <Text style={styles.saveButtonText}>
-                        {isSaving ? 'Saving...' : 'Save Template'}
-                      </Text>
-                    </GlassButton>
+                  {/* Exercise Summary */}
+                  <View style={styles.summarySection}>
+                    <Text style={[styles.summaryLabel, themedStyles.summaryLabel]}>
+                      {exercisesForTemplate.length} Exercise{exercisesForTemplate.length !== 1 ? 's' : ''}
+                    </Text>
+                    <ScrollView style={[styles.exerciseList, themedStyles.exerciseList]} showsVerticalScrollIndicator={false}>
+                      {exercisesForTemplate.map((ex, index) => (
+                        <View key={ex.exerciseId + index} style={[styles.exerciseItem, themedStyles.exerciseItem]}>
+                          <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
+                            {ex.exerciseName}
+                          </Text>
+                          <Text style={[styles.exerciseSets, themedStyles.exerciseSets]}>{ex.sets} sets</Text>
+                        </View>
+                      ))}
+                    </ScrollView>
                   </View>
-                </>
-              )}
-            </Pressable>
-          </Animated.View>
-        </Pressable>
-      </Animated.View>
-    </Modal>
+
+                  {/* Save Button */}
+                  <GlassButton
+                    style={styles.saveButton}
+                    onPress={handleSave}
+                    disabled={isSaving || !templateName.trim()}
+                  >
+                    <Text style={styles.saveButtonText}>
+                      {isSaving ? 'Saving...' : 'Save Template'}
+                    </Text>
+                  </GlassButton>
+                </View>
+              </>
+            )}
+          </Pressable>
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1000,
+    elevation: 1000,
   },
   centeredView: {
     flex: 1,

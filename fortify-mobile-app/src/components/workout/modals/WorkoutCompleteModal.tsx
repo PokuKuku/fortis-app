@@ -110,7 +110,7 @@ export function WorkoutCompleteModal({
       statusBarTranslucent
     >
       <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(150)} style={styles.backdrop}>
-        <Pressable style={styles.centeredView} onPress={onClose} activeOpacity={1}>
+        <Pressable style={styles.centeredView} onPress={onClose}>
           <Animated.View entering={ZoomIn.duration(250)} exiting={ZoomOut.duration(200)}>
             <Pressable style={[styles.container, themedStyles.container]} onPress={(e) => e.stopPropagation()}>
               <StainlessSteelPattern />

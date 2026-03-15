@@ -180,6 +180,7 @@ export default function ActiveWorkoutScreen() {
   const [showFinishConfirmModal, setShowFinishConfirmModal] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false);
+  const [pendingSaveTemplateModalOpen, setPendingSaveTemplateModalOpen] = useState(false);
   const [showRestTimerBanner, setShowRestTimerBanner] = useState(false);
   const [restTimerCompleteVisible, setRestTimerCompleteVisible] = useState(false);
   const [voiceExerciseLocalId, setVoiceExerciseLocalId] = useState<string | null>(null);
@@ -213,6 +214,21 @@ export default function ActiveWorkoutScreen() {
       dismissRestTimerComplete();
     }
   }, [showRestTimerComplete, showAddExerciseModal, dismissRestTimerComplete]);
+
+  useEffect(() => {
+    if (!pendingSaveTemplateModalOpen || showFinishModal) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setPendingSaveTemplateModalOpen(false);
+      setShowSaveTemplateModal(true);
+    }, 80);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [pendingSaveTemplateModalOpen, showFinishModal]);
 
   useEffect(() => {
     if (restTimerCompleteTimeoutRef.current) {
@@ -495,10 +511,8 @@ export default function ActiveWorkoutScreen() {
 
   // Handle save as template
   const handleSaveAsTemplate = () => {
+    setPendingSaveTemplateModalOpen(true);
     setShowFinishModal(false);
-    setTimeout(() => {
-      setShowSaveTemplateModal(true);
-    }, 150);
   };
 
   const handleUpdateTemplate = async () => {
