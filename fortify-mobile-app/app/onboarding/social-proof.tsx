@@ -19,19 +19,19 @@ const TESTIMONIALS = [
     body: 'Had my wedding coming up this April, this app helps me tone up and look amazing in my wedding dress. I have recommended this app to all of my friends and family. So helpful, informational, and has improved my overall health and physique!',
   },
   {
+    initials: 'KB',
+    name: 'Kwaku',
+    color: '#71C95A',
+    image: require('../../assets/onboarding/kwaku_review4.png'),
+    title: 'Took my progress to the next level!',
+    body: 'I wanted to build a better physique and this app helped me stay consistent enough to finally see it happen. I feel stronger, have more confidence, and I’m in the best shape I’ve ever been!',
+  },
+  {
     initials: 'C5',
     name: 'clmt5',
     color: '#7F8AA3',
     title: 'Best workout tracker!',
     body: 'Simple to use and yet the most comprehensive workout tracker with AI integration out there. I highly recommend this app for your gym workout tracking!',
-  },
-  {
-    initials: 'KB',
-    name: 'Kwaku B',
-    color: '#71C95A',
-    image: require('../../assets/onboarding/kwaku_review4.png'),
-    title: 'Took my progress to the next level',
-    body: 'This app gave me way more than basic logging. The voice tracking, insights, charts, and workout flow make it feel far ahead of every other tracker I have used.',
   },
 ];
 
