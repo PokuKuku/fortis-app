@@ -84,10 +84,10 @@ export const ACCENT_COLORS: Record<AccentColorName, AccentColorPalette> = {
     rgb: [239, 68, 68],
   },
   slate: {
-    base: '#64748b',
-    light: '#94a3b8',
-    dark: '#475569',
-    rgb: [100, 116, 139],
+    base: '#cbd5e1',
+    light: '#e2e8f0',
+    dark: '#94a3b8',
+    rgb: [203, 213, 225],
   },
   cyan: {
     base: '#0ea5e9',
@@ -111,7 +111,7 @@ export const ACCENT_COLOR_LABELS: Record<AccentColorName, string> = {
   copper: 'Copper',
   indigo: 'Indigo',
   red: 'Red',
-  slate: 'Slate',
+  slate: 'Frost',
   cyan: 'Cyan',
 };
 
