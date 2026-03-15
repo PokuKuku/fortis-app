@@ -75,7 +75,7 @@ export default function OnboardingNotificationsScreen() {
       scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.xl}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={finish} hapticFeedback="impactMedium">
           <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
             Next
@@ -138,6 +138,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingBottom: Spacing['6xl'],
   },
   titleText: {
     fontSize: 40,

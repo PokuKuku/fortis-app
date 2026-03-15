@@ -149,7 +149,7 @@ export default function OnboardingThankYouScreen() {
       scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.lg}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
             Continue
@@ -212,6 +212,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.md,
     marginTop: -Spacing['2xl'],
+    paddingBottom: Spacing['6xl'],
   },
   animationWrap: {
     width: '100%',

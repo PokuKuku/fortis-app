@@ -59,7 +59,7 @@ export default function OnboardingRatingScreen() {
       scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.xl}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={() => void handleContinue()} hapticFeedback="impactMedium">
           <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
             {reviewRequested ? 'Continue' : 'Next'}
@@ -112,6 +112,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingBottom: Spacing['6xl'],
   },
   titleText: {
     fontSize: 46,

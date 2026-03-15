@@ -804,7 +804,7 @@ export default function OnboardingCompleteScreen() {
       scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.lg}
-      footer={
+      floatingFooter={
         phase === 'ready' && !isAuthenticated ? (
           <GlassButton
             style={styles.continueButton}
@@ -812,7 +812,7 @@ export default function OnboardingCompleteScreen() {
             disabled={isSaving}
             hapticFeedback="impactMedium"
           >
-            <Text style={[styles.continueButtonText, { color: colors.white }]}>
+            <Text allowFontScaling={false} style={[styles.continueButtonText, { color: colors.white }]}>
               {isSaving ? 'Starting…' : "I'm ready!"}
             </Text>
           </GlassButton>
@@ -959,7 +959,7 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'flex-start',
     gap: Spacing['2xl'],
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing['6xl'],
   },
   headerBlock: {
     gap: Spacing.xs,
