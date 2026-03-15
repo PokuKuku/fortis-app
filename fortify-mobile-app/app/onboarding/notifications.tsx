@@ -71,17 +71,20 @@ export default function OnboardingNotificationsScreen() {
       title=""
       hideTitle
       onBack={() => router.back()}
-      useScrollView={false}
+      useScrollView
+      scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.xl}
       footer={
         <GlassButton style={styles.button} onPress={finish} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
+            Next
+          </Text>
         </GlassButton>
       }
     >
       <View style={styles.content}>
-        <Text style={[styles.titleText, { color: colors.textPrimary }]}>
+        <Text allowFontScaling={false} style={[styles.titleText, { color: colors.textPrimary }]}>
           Allow notifications{'\n'}to reach your goals.
         </Text>
 
@@ -91,7 +94,7 @@ export default function OnboardingNotificationsScreen() {
         >
           <View style={styles.promptHeader}>
             <BellAlertIcon size={22} color={colors.textPrimary} />
-            <Text style={[styles.promptTitle, { color: colors.textPrimary }]}>
+            <Text allowFontScaling={false} style={[styles.promptTitle, { color: colors.textPrimary }]}>
               Fortify would like to send you notifications
             </Text>
           </View>
@@ -101,13 +104,17 @@ export default function OnboardingNotificationsScreen() {
               onPress={() => void handleDontAllow()}
               style={[styles.promptButton, { borderColor: colors.glassBorder }]}
             >
-              <Text style={[styles.promptButtonText, { color: colors.textSecondary }]}>Don't Allow</Text>
+              <Text allowFontScaling={false} style={[styles.promptButtonText, { color: colors.textSecondary }]}>
+                Don't Allow
+              </Text>
             </Pressable>
             <Pressable
               onPress={() => void handleAllow()}
               style={[styles.promptButton, styles.promptButtonPrimary, { backgroundColor: colors.accent }]}
             >
-              <Text style={[styles.promptButtonText, { color: colors.white }]}>Allow</Text>
+              <Text allowFontScaling={false} style={[styles.promptButtonText, { color: colors.white }]}>
+                Allow
+              </Text>
             </Pressable>
           </View>
         </GlassCard>
@@ -117,7 +124,7 @@ export default function OnboardingNotificationsScreen() {
             <Text style={styles.handEmoji}>👆</Text>
           </View>
         </View>
-        <Text style={[styles.caption, { color: colors.textPrimary }]}>
+        <Text allowFontScaling={false} style={[styles.caption, { color: colors.textPrimary }]}>
           Notifications help Fortify keep you on track.
         </Text>
       </View>

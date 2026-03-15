@@ -145,12 +145,15 @@ export default function OnboardingThankYouScreen() {
       subtitle={undefined}
       hideTitle
       onBack={() => router.back()}
-      useScrollView={false}
+      useScrollView
+      scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.lg}
       footer={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
+            Continue
+          </Text>
         </GlassButton>
       }
     >
@@ -181,7 +184,7 @@ export default function OnboardingThankYouScreen() {
         </View>
 
         <View style={styles.textBlock}>
-          <Text style={[styles.titleText, { color: colors.textPrimary }]}>
+          <Text allowFontScaling={false} style={[styles.titleText, { color: colors.textPrimary }]}>
             Thank you for trusting us.
           </Text>
         </View>
@@ -189,9 +192,11 @@ export default function OnboardingThankYouScreen() {
         <View style={[styles.infoCard, { borderColor: colors.glassBorder, backgroundColor: colors.surfaceElevated }]}>
           <View style={styles.infoHeader}>
             <LockClosedIcon size={18} color={colors.textPrimary} strokeWidth={2} />
-            <Text style={[styles.infoTitle, { color: colors.textPrimary }]}>Privacy-first</Text>
+            <Text allowFontScaling={false} style={[styles.infoTitle, { color: colors.textPrimary }]}>
+              Privacy-first
+            </Text>
           </View>
-          <Text style={[styles.infoBody, { color: colors.textPrimary }]}>
+          <Text allowFontScaling={false} style={[styles.infoBody, { color: colors.textPrimary }]}>
             Your preferences and workout data stay under your control.
           </Text>
         </View>

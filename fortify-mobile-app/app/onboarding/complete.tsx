@@ -801,7 +801,7 @@ export default function OnboardingCompleteScreen() {
       subtitle={undefined}
       hideTitle
       useScrollView
-      scrollEnabled={false}
+      scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.lg}
       footer={

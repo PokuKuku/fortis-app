@@ -55,26 +55,29 @@ export default function OnboardingRatingScreen() {
       title=""
       hideTitle
       onBack={() => router.back()}
-      useScrollView={false}
+      useScrollView
+      scrollEnabled
       bodyAlign="center"
       contentGap={Spacing.xl}
       footer={
         <GlassButton style={styles.button} onPress={() => void handleContinue()} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>
+          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
             {reviewRequested ? 'Continue' : 'Next'}
           </Text>
         </GlassButton>
       }
     >
       <View style={styles.content}>
-        <Text style={[styles.titleText, { color: colors.textPrimary }]}>Give us a rating</Text>
+        <Text allowFontScaling={false} style={[styles.titleText, { color: colors.textPrimary }]}>
+          Give us a rating
+        </Text>
 
         <View style={styles.ratingCard}>
           <RatingStars size={36} gap={8} />
         </View>
 
         <View style={styles.socialBlock}>
-          <Text style={[styles.headline, { color: colors.textPrimary }]}>
+          <Text allowFontScaling={false} style={[styles.headline, { color: colors.textPrimary }]}>
             Fortify AI was built to serve people like you.
           </Text>
 
@@ -94,7 +97,7 @@ export default function OnboardingRatingScreen() {
             ))}
           </View>
 
-          <Text style={[styles.socialProofText, { color: colors.textSecondary }]}>
+          <Text allowFontScaling={false} style={[styles.socialProofText, { color: colors.textSecondary }]}>
             Join our growing user base
           </Text>
         </View>

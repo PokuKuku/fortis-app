@@ -14,6 +14,8 @@ interface AnimatedFortifyLogoProps {
   size?: 'small' | 'large';
   centered?: boolean;
   animate?: boolean;
+  useDynamicSizing?: boolean;
+  sizeScale?: number;
   introDurationMs?: number;
   shineDurationMs?: number;
   pulseWhileLoading?: boolean;
@@ -27,6 +29,8 @@ export function AnimatedFortifyLogo({
   size = 'small',
   centered = false,
   animate = true,
+  useDynamicSizing = true,
+  sizeScale = 1,
   introDurationMs,
   shineDurationMs,
   pulseWhileLoading = false,
@@ -51,11 +55,12 @@ export function AnimatedFortifyLogo({
   const baseConfig = size === 'large'
     ? { width: 330, height: 60, fontSize: 42, y: 48 }
     : { width: 200, height: 32, fontSize: 20, y: 24 };
+  const effectiveFontScale = useDynamicSizing ? fontScale : 1;
   const scaledConfig = {
-    width: Math.round(baseConfig.width * fontScale),
-    height: Math.round(baseConfig.height * fontScale),
-    fontSize: Math.round(baseConfig.fontSize * fontScale),
-    y: Math.round(baseConfig.y * fontScale),
+    width: Math.round(baseConfig.width * effectiveFontScale * sizeScale),
+    height: Math.round(baseConfig.height * effectiveFontScale * sizeScale),
+    fontSize: Math.round(baseConfig.fontSize * effectiveFontScale * sizeScale),
+    y: Math.round(baseConfig.y * effectiveFontScale * sizeScale),
   };
   const letterSpacing = Math.round(scaledConfig.fontSize * LETTER_SPACING_RATIO * 10) / 10;
   const config = { ...scaledConfig, letterSpacing };

@@ -16,7 +16,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { AuthProviderButtons } from '@/src/components/auth/AuthProviderButtons';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -28,6 +28,7 @@ import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboarding
 const ONBOARDING_STATE_LOAD_TIMEOUT_MS = 4_000;
 const PROFILE_FINALIZATION_TIMEOUT_MS = 8_000;
 const ONBOARDING_STATE_CLEAR_TIMEOUT_MS = 3_000;
+const AUTH_LOGO_SCALE = 0.68;
 
 const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
   return new Promise((resolve, reject) => {
@@ -358,7 +359,13 @@ export default function AuthWelcomeScreen() {
         <View style={[styles.content, showBack && styles.contentWithHeader]}>
           {/* Logo */}
           <View style={styles.logoContainer}>
-            <AnimatedLogo size="large" centered animate={false} />
+            <AnimatedFortifyLogo
+              size="large"
+              centered
+              animate={false}
+              useDynamicSizing={false}
+              sizeScale={AUTH_LOGO_SCALE}
+            />
             <Text style={[styles.tagline, themedStyles.tagline]}>
               Start tracking your strength journey
             </Text>
@@ -422,7 +429,14 @@ export default function AuthWelcomeScreen() {
 
       {isAuthProcessing && (
         <View style={[styles.loadingOverlay, themedStyles.loadingOverlay]} pointerEvents="none">
-          <AnimatedLogo size="large" centered introDurationMs={0} shineDurationMs={2600} />
+          <AnimatedFortifyLogo
+            size="large"
+            centered
+            useDynamicSizing={false}
+            sizeScale={AUTH_LOGO_SCALE}
+            introDurationMs={0}
+            shineDurationMs={2600}
+          />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
             Getting things ready...
           </Text>
