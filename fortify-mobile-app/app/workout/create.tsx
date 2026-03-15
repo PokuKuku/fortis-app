@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator,
   DeviceEventEmitter,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -37,6 +38,7 @@ import { responsiveValue, scale } from '@/src/utils/responsive';
 import { format } from 'date-fns';
 import { runOnJS } from 'react-native-reanimated';
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
+import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 const HEADER_COLLAPSE_THRESHOLD = scale(48);
@@ -127,6 +129,33 @@ export default function CreateWorkoutScreen() {
   const [showHeaderDetails, setShowHeaderDetails] = useState(true);
   const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
+
+  const handleOpenVoiceAdd = useCallback(async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const permission = await ensureMicrophonePermission();
+    if (permission.granted) {
+      setShowVoiceAddSheet(true);
+      return;
+    }
+
+    Alert.alert(
+      'Microphone access required',
+      permission.status === 'undetermined'
+        ? 'Microphone access is required to add exercises by voice.'
+        : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
+      permission.status === 'undetermined'
+        ? [{ text: 'OK' }]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                void openMicrophoneSettings();
+              },
+            },
+          ]
+    );
+  }, []);
 
   // Get exercise IDs and fetch muscle data for heatmap
   const exerciseIds = useMemo(
@@ -582,8 +611,7 @@ export default function CreateWorkoutScreen() {
 
                 <Pressable
                   onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowVoiceAddSheet(true);
+                    void handleOpenVoiceAdd();
                   }}
                   style={({ pressed }) => [
                     styles.addExercisesButton,

@@ -94,14 +94,12 @@ export function SaveAsTemplateModal({
       );
 
       if (result) {
-        if (!session?.programId) {
-          const createdTemplate = useProgramsStore
-            .getState()
-            .programs
-            .find((program) => program.id === result);
-          const createdWorkoutId = createdTemplate?.workouts?.[0]?.id;
-          setActiveSessionProgramContext(result, createdWorkoutId);
-        }
+        const createdTemplate = useProgramsStore
+          .getState()
+          .programs
+          .find((program) => program.id === result);
+        const createdWorkoutId = createdTemplate?.workouts?.[0]?.id ?? `${result}-workout`;
+        setActiveSessionProgramContext(result, createdWorkoutId);
         setShowSuccess(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 

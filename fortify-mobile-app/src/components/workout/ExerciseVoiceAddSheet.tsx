@@ -35,7 +35,7 @@ import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useExercises } from '@/src/hooks/useExercises';
 import { createExerciseVoiceFileName, interpretExerciseVoiceAdd } from '@/src/services/exerciseVoiceService';
-import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
+import { getMicrophonePermissionStatus, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
 import type { Exercise } from '@/src/types/exercise';
 import type { ExerciseVoiceEntry } from '@/src/types/exerciseVoice';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
@@ -81,6 +81,32 @@ const MIME_BY_EXTENSION: Record<string, string> = {
   wav: 'audio/wav',
   webm: 'audio/webm',
 };
+
+function getVoiceAddStartErrorMessage(error: unknown): string {
+  const message = error instanceof Error ? error.message : 'Voice add could not start.';
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    Platform.OS === 'ios'
+    && (
+      normalizedMessage.includes('recorder not prepared')
+      || normalizedMessage.includes('not ready to record')
+      || normalizedMessage.includes('audio converter')
+    )
+  ) {
+    return 'Voice recording is not supported in the iOS Simulator. Test this on a physical iPhone.';
+  }
+
+  if (
+    normalizedMessage.includes('currently in the background')
+    || normalizedMessage.includes('audio session could not be activated')
+    || normalizedMessage.includes('could not activate')
+  ) {
+    return 'Voice add could not start. Close any permission prompt and try again.';
+  }
+
+  return 'Voice add could not start. Please try again.';
+}
 
 const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
   ...Audio.RecordingOptionsPresets.HIGH_QUALITY,
@@ -314,7 +340,7 @@ export function ExerciseVoiceAddSheet({
 
     try {
       await discardRecording();
-      const permission = await ensureMicrophonePermission();
+      const permission = await getMicrophonePermissionStatus();
       if (!permission.granted) {
         setPhase('review');
         setErrorMessage(
@@ -352,20 +378,7 @@ export function ExerciseVoiceAddSheet({
     } catch (error) {
       await discardRecording();
       setPhase('review');
-      const message = error instanceof Error ? error.message : 'Voice recording could not start.';
-      const normalizedMessage = message.toLowerCase();
-      if (
-        Platform.OS === 'ios'
-        && (
-          normalizedMessage.includes('recorder not prepared')
-          || normalizedMessage.includes('not ready to record')
-          || normalizedMessage.includes('audio converter')
-        )
-      ) {
-        setErrorMessage('Voice recording is not supported in the iOS Simulator. Test this on a physical iPhone.');
-      } else {
-        setErrorMessage(message);
-      }
+      setErrorMessage(getVoiceAddStartErrorMessage(error));
     } finally {
       isStartingRef.current = false;
     }

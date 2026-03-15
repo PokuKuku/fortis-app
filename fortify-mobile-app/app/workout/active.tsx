@@ -333,9 +333,31 @@ export default function ActiveWorkoutScreen() {
     setShowAddExerciseModal(true);
   };
 
-  const handleOpenVoiceAdd = () => {
+  const handleOpenVoiceAdd = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowVoiceAddSheet(true);
+    const permission = await ensureMicrophonePermission();
+    if (permission.granted) {
+      setShowVoiceAddSheet(true);
+      return;
+    }
+
+    Alert.alert(
+      'Microphone access required',
+      permission.status === 'undetermined'
+        ? 'Microphone access is required to add exercises by voice.'
+        : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
+      permission.status === 'undetermined'
+        ? [{ text: 'OK' }]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                void openMicrophoneSettings();
+              },
+            },
+          ]
+    );
   };
 
   // Handle replace exercise (opens AddExerciseModal in replace mode)
@@ -662,7 +684,9 @@ export default function ActiveWorkoutScreen() {
         </Pressable>
 
         <Pressable
-          onPress={handleOpenVoiceAdd}
+          onPress={() => {
+            void handleOpenVoiceAdd();
+          }}
           style={({ pressed }) => [
             styles.addButton,
             styles.secondaryActionButton,
