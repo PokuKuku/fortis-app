@@ -105,7 +105,15 @@ function getVoiceAddStartErrorMessage(error: unknown): string {
     return 'Voice add could not start. Close any permission prompt and try again.';
   }
 
-  return 'Voice add could not start. Please try again.';
+  return 'Did not get that recording. Try again.';
+}
+
+function getVoiceAddInterpretErrorMessage(message?: string | null): string {
+  const normalizedMessage = (message || '').toLowerCase();
+  if (normalizedMessage.includes('settings')) {
+    return 'Microphone access is off. Enable it in Settings to add exercises by voice.';
+  }
+  return 'Did not get that recording. Try again.';
 }
 
 const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
@@ -417,7 +425,7 @@ export function ExerciseVoiceAddSheet({
       if (requestVersion !== requestVersionRef.current) return;
 
       if (response.type === 'error') {
-        setErrorMessage(response.error.message || 'Unable to interpret that exercise request.');
+        setErrorMessage(getVoiceAddInterpretErrorMessage(response.error.message));
         setPhase('review');
         return;
       }
@@ -430,7 +438,7 @@ export function ExerciseVoiceAddSheet({
     } catch (error) {
       await discardRecording();
       if (requestVersion !== requestVersionRef.current) return;
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to process that recording.');
+      setErrorMessage(getVoiceAddInterpretErrorMessage(error instanceof Error ? error.message : null));
       setPhase('review');
     } finally {
       isStoppingRef.current = false;

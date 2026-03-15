@@ -118,6 +118,14 @@ const getInferenceCopy = (interpretation: WorkoutVoiceInterpretation) => {
   return parts.join(' ');
 };
 
+function getVoiceLogInterpretErrorMessage(message?: string | null): string {
+  const normalizedMessage = (message || '').toLowerCase();
+  if (normalizedMessage.includes('settings')) {
+    return 'Microphone access is off. Enable it in Settings to use voice logging.';
+  }
+  return 'Did not get that recording. Try again.';
+}
+
 function VoiceWaveBar({
   height,
   color,
@@ -391,7 +399,7 @@ export function WorkoutVoiceLogSheet({
       }
 
       if (response.type === 'error' || !response.interpretation) {
-        setErrorMessage(response.error?.message || 'Unable to interpret that workout entry.');
+        setErrorMessage(getVoiceLogInterpretErrorMessage(response.error?.message));
         setPhase('idle');
         return;
       }
@@ -403,7 +411,7 @@ export function WorkoutVoiceLogSheet({
       if (requestVersion !== requestVersionRef.current) {
         return;
       }
-      setErrorMessage(error instanceof Error ? error.message : 'Unable to process that recording.');
+      setErrorMessage(getVoiceLogInterpretErrorMessage(error instanceof Error ? error.message : null));
       setPhase('idle');
     } finally {
       isStoppingRef.current = false;

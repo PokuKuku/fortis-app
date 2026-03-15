@@ -5,7 +5,7 @@
  * Uses SVG LinearGradient animation to create a continuous sweeping shine.
  */
 import { useEffect, useRef, useState } from 'react';
-import { View, Animated, Easing, ViewStyle, InteractionManager, useWindowDimensions } from 'react-native';
+import { View, Animated, Easing, ViewStyle, InteractionManager } from 'react-native';
 import Svg, {
   Defs,
   LinearGradient as SvgLinearGradient,
@@ -39,7 +39,6 @@ export function AnimatedLogo({
   pulseDurationMs,
 }: AnimatedLogoProps) {
   const { colors } = useTheme();
-  const { fontScale } = useWindowDimensions();
   const shouldAnimate = animate;
   const introDuration = Math.max(0, introDurationMs ?? 800);
   const shineDuration = Math.max(0, shineDurationMs ?? 3500);
@@ -59,14 +58,8 @@ export function AnimatedLogo({
   const baseConfig = size === 'large'
     ? { width: 468, height: 60, fontSize: 42, y: 48 }
     : { width: 270, height: 32, fontSize: 20, y: 24 };
-  const scaledConfig = {
-    width: Math.round(baseConfig.width * fontScale),
-    height: Math.round(baseConfig.height * fontScale),
-    fontSize: Math.round(baseConfig.fontSize * fontScale),
-    y: Math.round(baseConfig.y * fontScale),
-  };
-  const letterSpacing = Math.round(scaledConfig.fontSize * LETTER_SPACING_RATIO * 10) / 10;
-  const config = { ...scaledConfig, letterSpacing };
+  const letterSpacing = Math.round(baseConfig.fontSize * LETTER_SPACING_RATIO * 10) / 10;
+  const config = { ...baseConfig, letterSpacing };
   const totalSpacing = config.letterSpacing * (LOGO_TEXT.length - 1);
   const letterOffsets = LOGO_TEXT.split('').map((_, index) => {
     if (index === 0) {
