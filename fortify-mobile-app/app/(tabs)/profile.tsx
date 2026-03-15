@@ -28,6 +28,7 @@ const HEADER_PADDING_TOP = scale(Spacing.lg);
 const HEADER_PADDING_BOTTOM = scale(Spacing.md);
 const SETTINGS_BUTTON_SIZE = scale(40);
 const SETTINGS_ICON_SIZE = scale(24);
+const HEADER_MIN_HEIGHT = SETTINGS_BUTTON_SIZE;
 const TITLE_PADDING_BOTTOM = scale(Spacing.md);
 const SECTION_TITLE_SIZE = moderateScale(24);
 const STREAK_BADGE_PADDING_X = scale(Spacing.sm);
@@ -95,7 +96,9 @@ export default function ProfileScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {/* Header */}
         <View style={styles.header}>
-          <AnimatedLogo />
+          <View style={styles.logoContainer}>
+            <AnimatedLogo />
+          </View>
           {isAuthenticated && (
             <TouchableOpacity
               style={styles.settingsButton}
@@ -182,14 +185,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    position: 'relative',
+    justifyContent: 'center',
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: HEADER_PADDING_TOP,
     paddingBottom: HEADER_PADDING_BOTTOM,
+    minHeight: HEADER_MIN_HEIGHT + HEADER_PADDING_TOP + HEADER_PADDING_BOTTOM,
+  },
+  logoContainer: {
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
   },
   settingsButton: {
+    position: 'absolute',
+    right: HORIZONTAL_PADDING,
+    top: HEADER_PADDING_TOP,
     width: SETTINGS_BUTTON_SIZE,
     height: SETTINGS_BUTTON_SIZE,
     alignItems: 'center',
