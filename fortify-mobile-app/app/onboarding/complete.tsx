@@ -881,16 +881,18 @@ export default function OnboardingCompleteScreen() {
                   ]}
                 />
                 <View style={styles.summaryHeader}>
-                  <Text style={[styles.summaryBrand, { color: colors.accent }]}>FORTIFY AI</Text>
+                  <Text allowFontScaling={false} style={[styles.summaryBrand, { color: colors.accent }]}>
+                    FORTIFY AI
+                  </Text>
                 </View>
-                <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>
+                <Text allowFontScaling={false} style={[styles.summaryTitle, { color: colors.textPrimary }]}>
                   {summaryName ?? 'Your training profile'}
                 </Text>
                 <View style={[styles.summaryStreakCard, { borderColor: colors.glassBorder }]}>
-                  <Text style={[styles.summaryStreakLabel, { color: colors.textSecondary }]}>
+                  <Text allowFontScaling={false} style={[styles.summaryStreakLabel, { color: colors.textSecondary }]}>
                     Active streak
                   </Text>
-                  <Text style={[styles.summaryStreakValue, { color: colors.textPrimary }]}>
+                  <Text allowFontScaling={false} style={[styles.summaryStreakValue, { color: colors.textPrimary }]}>
                     {summaryActiveStreak}
                   </Text>
                 </View>
@@ -904,10 +906,11 @@ export default function OnboardingCompleteScreen() {
                           { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
                         ]}
                       >
-                        <Text style={[styles.summaryLabel, { color: colors.textPrimary }]}>
+                        <Text allowFontScaling={false} style={[styles.summaryLabel, { color: colors.textPrimary }]}>
                           {item.label}
                         </Text>
                         <Text
+                          allowFontScaling={false}
                           style={[styles.summaryValue, { color: colors.textPrimary }]}
                           numberOfLines={2}
                         >
@@ -919,14 +922,14 @@ export default function OnboardingCompleteScreen() {
                 ) : (
                   <View style={styles.summaryLoading}>
                     <ActivityIndicator size="small" color={colors.accent} />
-                    <Text style={[styles.summaryLoadingText, { color: colors.textSecondary }]}>
+                    <Text allowFontScaling={false} style={[styles.summaryLoadingText, { color: colors.textSecondary }]}>
                       Gathering your setup…
                     </Text>
                   </View>
                 )}
               </LinearGradient>
             </Animated.View>
-            <Text style={[styles.summaryNote, { color: colors.textPrimary }]}>
+            <Text allowFontScaling={false} style={[styles.summaryNote, { color: colors.textPrimary }]}>
               You can edit your information at any time.
             </Text>
           </Animated.View>
