@@ -21,6 +21,7 @@ import {
   SparklesIcon,
   PlusIcon,
   ExclamationTriangleIcon,
+  CloudIcon,
 } from 'react-native-heroicons/outline';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
 import Reanimated, { FadeInDown, useAnimatedStyle } from 'react-native-reanimated';
@@ -42,6 +43,7 @@ import { MAX_WORKOUTS_PER_PROGRAM } from '../../src/constants/programs';
 import { BaseModal, useModalStyles } from '../../src/components/ui/BaseModal';
 import { useDropZone } from '../../src/hooks/useDropZone';
 import { responsiveValue, scale, moderateScale } from '@/src/utils/responsive';
+import { isLocalProgramId } from '@/src/utils/localIds';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -59,6 +61,8 @@ type WorkoutItem = {
   exercises: number;
   lastPerformed: string;
   isAiCreated?: boolean;
+  isDefault?: boolean;
+  syncStatus?: 'pending' | 'syncing' | 'synced' | null;
 };
 
 const PROGRAM_CARD_HEIGHT = responsiveValue(64, 70, 78);
@@ -131,6 +135,12 @@ const TOAST_HEIGHT = scale(48);
 const TOAST_RADIUS = scale(8);
 const TOAST_PADDING_X = scale(24);
 const TOAST_TEXT_SIZE = moderateScale(16);
+const TEMPLATE_SYNC_CLOUD_SIZE = scale(14);
+const TEMPLATE_SYNC_PILL_PADDING_X = scale(8);
+const TEMPLATE_SYNC_PILL_PADDING_Y = scale(3);
+const TEMPLATE_SYNC_PILL_TEXT_SIZE = moderateScale(9);
+const TEMPLATE_SYNC_PILL_GAP = scale(4);
+const TEMPLATE_SYNC_ROW_MARGIN_TOP = scale(4);
 
 // Helper to format relative time
 function formatRelativeTime(dateString: string | null): string {
@@ -683,8 +693,11 @@ export default function ProgramsScreen() {
 
   // Programs store
   const storePrograms = useProgramsStore(s => s.programs);
+  const pendingProgramSyncIds = useProgramsStore(s => s.pendingProgramSyncIds);
+  const syncingProgramSyncIds = useProgramsStore(s => s.syncingProgramSyncIds);
   const isLoadingPrograms = useProgramsStore(s => s.isLoading);
   const fetchPrograms = useProgramsStore(s => s.fetchPrograms);
+  const refreshPendingProgramSyncIds = useProgramsStore(s => s.refreshPendingProgramSyncIds);
   const deleteProgramFromStore = useProgramsStore(s => s.deleteProgram);
   const duplicateProgramInStore = useProgramsStore(s => s.duplicateProgram);
   const duplicateWorkoutInStore = useProgramsStore(s => s.duplicateWorkoutTemplate);
@@ -698,6 +711,10 @@ export default function ProgramsScreen() {
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
+
+  useEffect(() => {
+    void refreshPendingProgramSyncIds();
+  }, [refreshPendingProgramSyncIds]);
 
   useEffect(() => {
     if (!highlightWorkoutId || typeof highlightWorkoutId !== 'string') {
@@ -723,6 +740,9 @@ export default function ProgramsScreen() {
     }));
 
   // Templates (programs marked as isTemplate)
+  const pendingProgramSyncIdSet = new Set(pendingProgramSyncIds);
+  const syncingProgramSyncIdSet = new Set(syncingProgramSyncIds);
+
   const templates: (WorkoutItem & { programId: string })[] = storePrograms
     .filter(p => p.isTemplate)
     .map(p => ({
@@ -732,6 +752,14 @@ export default function ProgramsScreen() {
       exercises: p.workouts[0]?.exercises.length || 0,
       lastPerformed: formatRelativeTime(p.lastPerformedAt),
       isAiCreated: p.isAiCreated,
+      isDefault: p.isDefault,
+      syncStatus: p.isDefault
+        ? null
+        : syncingProgramSyncIdSet.has(p.id)
+          ? 'syncing'
+          : (pendingProgramSyncIdSet.has(p.id) || isLocalProgramId(p.id))
+            ? 'pending'
+            : 'synced',
     }));
 
   // Keep original workouts for backward compatibility
@@ -1048,12 +1076,31 @@ export default function ProgramsScreen() {
               ]}
             >
               <View style={styles.cardHeader}>
-                <View style={styles.cardTitleRow}>
-                  <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
-                    {item.name}
-                  </Text>
-                  {item.isAiCreated && (
-          <SparklesIcon color={colors.accent} size={AI_BADGE_SIZE} strokeWidth={2} style={styles.aiBadge} />
+                <View style={styles.cardTitleColumn}>
+                  <View style={styles.cardTitleRow}>
+                    <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+                      {item.name}
+                    </Text>
+                    {item.isAiCreated && (
+                      <SparklesIcon color={colors.accent} size={AI_BADGE_SIZE} strokeWidth={2} style={styles.aiBadge} />
+                    )}
+                    {item.syncStatus === 'synced' && (
+                      <CloudIcon color={colors.accent} size={TEMPLATE_SYNC_CLOUD_SIZE} strokeWidth={2} />
+                    )}
+                  </View>
+                  {(item.syncStatus === 'pending' || item.syncStatus === 'syncing') && (
+                    <View style={[styles.templateSyncPill, { borderColor: colors.accentBorder }]}>
+                      {item.syncStatus === 'syncing' && (
+                        <ActivityIndicator
+                          size="small"
+                          color={colors.accent}
+                          style={styles.templateSyncSpinner}
+                        />
+                      )}
+                      <Text style={[styles.templateSyncPillText, { color: colors.accent }]}>
+                        {item.syncStatus === 'syncing' ? 'Syncing...' : 'Pending sync'}
+                      </Text>
+                    </View>
                   )}
                 </View>
                 <TouchableOpacity
@@ -1461,11 +1508,34 @@ const styles = StyleSheet.create({
     padding: CARD_Kebab_PADDING,
     marginLeft: CARD_Kebab_MARGIN_LEFT,
   },
+  cardTitleColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
   cardTitleRow: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: CARD_TITLE_GAP,
+  },
+  templateSyncPill: {
+    alignSelf: 'flex-start',
+    marginTop: TEMPLATE_SYNC_ROW_MARGIN_TOP,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: TEMPLATE_SYNC_PILL_PADDING_X,
+    paddingVertical: TEMPLATE_SYNC_PILL_PADDING_Y,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  templateSyncSpinner: {
+    marginRight: TEMPLATE_SYNC_PILL_GAP,
+  },
+  templateSyncPillText: {
+    fontSize: TEMPLATE_SYNC_PILL_TEXT_SIZE,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   aiBadge: {
     marginLeft: AI_BADGE_MARGIN_LEFT,

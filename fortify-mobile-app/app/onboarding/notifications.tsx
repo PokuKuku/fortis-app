@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { BellAlertIcon, HandRaisedIcon } from 'react-native-heroicons/solid';
+import { BellAlertIcon } from 'react-native-heroicons/solid';
 import { GlassButton } from '@/components/GlassButton';
 import { GlassCard } from '@/components/GlassCard';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
@@ -111,11 +111,14 @@ export default function OnboardingNotificationsScreen() {
             </Pressable>
           </View>
         </GlassCard>
-
-        <HandRaisedIcon size={36} color="#f5c451" />
-
+        <View style={styles.handRow}>
+          <View style={styles.handSpacer} />
+          <View style={styles.handSlot}>
+            <Text style={styles.handEmoji}>👆</Text>
+          </View>
+        </View>
         <Text style={[styles.caption, { color: colors.textPrimary }]}>
-          Fortify relies on notifications to keep you on track.
+          Notifications help Fortify keep you on track.
         </Text>
       </View>
     </OnboardingScreen>
@@ -130,8 +133,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   titleText: {
-    fontSize: 46,
-    lineHeight: 52,
+    fontSize: 40,
+    lineHeight: 46,
     fontWeight: '800',
     textAlign: 'center',
   },
@@ -154,6 +157,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: Spacing.sm,
   },
+  handRow: {
+    width: '100%',
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  handSpacer: {
+    flex: 1,
+  },
+  handSlot: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  handEmoji: {
+    fontSize: 34,
+    lineHeight: 38,
+  },
   promptButton: {
     flex: 1,
     minHeight: 54,
@@ -172,8 +191,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   caption: {
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 22,
+    lineHeight: 28,
     fontWeight: '800',
     textAlign: 'center',
   },

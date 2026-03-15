@@ -181,8 +181,8 @@ export async function removeFromPendingQueue(programId: string): Promise<void> {
 }
 
 /**
- * Upload a program to Supabase
- * Returns the server-assigned UUID on success
+ * Create a new program in Supabase from a local-only program.
+ * Returns the server-assigned UUID on success.
  */
 async function uploadProgram(
   program: Program,
@@ -286,15 +286,173 @@ async function uploadProgram(
 }
 
 /**
- * Sync a local program to Supabase
- * If offline or not authenticated, queues for later sync
+ * Update an existing synced program/template in Supabase.
+ * Uses program_id to find/update workouts so it does not depend on locally
+ * cached workout IDs matching the real server IDs.
+ */
+async function updateExistingProgram(
+  program: Program,
+  userId: string
+): Promise<{ success: boolean; serverId?: string; error?: string }> {
+  try {
+    const { error: programError } = await supabase
+      .from('workout_programs')
+      .update({
+        name: program.name,
+        description: program.description,
+        difficulty: program.difficulty,
+        goal: program.goal,
+        duration_weeks: program.durationWeeks,
+        is_public: program.isPublic,
+        is_default: false,
+        is_ai_created: program.isAiCreated,
+        ai_payload_version: program.aiPayloadVersion ?? null,
+        ai_source_chat_id: program.aiSourceChatId ?? null,
+        is_template: program.isTemplate,
+        updated_at: program.updatedAt ?? new Date().toISOString(),
+      })
+      .eq('id', program.id)
+      .eq('created_by', userId);
+
+    if (programError) {
+      throw programError;
+    }
+
+    const { data: existingWorkouts, error: existingWorkoutsError } = await supabase
+      .from('program_workouts')
+      .select('id, day_number')
+      .eq('program_id', program.id)
+      .order('day_number', { ascending: true });
+
+    if (existingWorkoutsError) {
+      throw existingWorkoutsError;
+    }
+
+    const sortedWorkouts = [...program.workouts].sort((a, b) => a.dayNumber - b.dayNumber);
+    const existingWorkoutIds = new Set((existingWorkouts || []).map((workout) => workout.id));
+    const retainedWorkoutIds = new Set<string>();
+
+    for (const [index, workout] of sortedWorkouts.entries()) {
+      let serverWorkoutId =
+        (workout.id && isValidUUID(workout.id) ? workout.id : null) ||
+        existingWorkouts?.[index]?.id ||
+        null;
+
+      if (serverWorkoutId && existingWorkoutIds.has(serverWorkoutId)) {
+        const { error: workoutUpdateError } = await supabase
+          .from('program_workouts')
+          .update({
+            name: workout.name,
+            day_number: workout.dayNumber,
+          })
+          .eq('id', serverWorkoutId);
+
+        if (workoutUpdateError) {
+          throw workoutUpdateError;
+        }
+      } else {
+        const { data: insertedWorkout, error: workoutInsertError } = await supabase
+          .from('program_workouts')
+          .insert({
+            program_id: program.id,
+            name: workout.name,
+            day_number: workout.dayNumber,
+          })
+          .select('id')
+          .single();
+
+        if (workoutInsertError || !insertedWorkout?.id) {
+          throw workoutInsertError ?? new Error('No workout ID returned from insert');
+        }
+
+        serverWorkoutId = insertedWorkout.id;
+      }
+
+      retainedWorkoutIds.add(serverWorkoutId);
+
+      const { error: deleteExercisesError } = await supabase
+        .from('program_exercises')
+        .delete()
+        .eq('program_workout_id', serverWorkoutId);
+
+      if (deleteExercisesError) {
+        throw deleteExercisesError;
+      }
+
+      if (workout.exercises.length > 0) {
+        const exerciseIdMap = await resolveExerciseIdMap(workout.exercises);
+        const exercisesToInsert = workout.exercises.map((ex, exerciseIndex) => {
+          const resolvedId = isValidUUID(ex.exerciseId)
+            ? ex.exerciseId
+            : exerciseIdMap.get(ex.exerciseId) ||
+              (ex.exerciseName ? exerciseIdMap.get(normalizeExerciseKey(ex.exerciseName)) : null);
+
+          if (!resolvedId) {
+            throw new Error(`Unable to resolve exercise: ${ex.exerciseName || ex.exerciseId}`);
+          }
+
+          return {
+            program_workout_id: serverWorkoutId,
+            exercise_id: resolvedId,
+            exercise_name_snapshot: ex.exerciseName ?? null,
+            sets: ex.sets,
+            reps: ex.reps,
+            rest_seconds: ex.restSeconds || 120,
+            notes: ex.notes,
+            order_index: ex.orderIndex ?? exerciseIndex,
+          };
+        });
+
+        const { error: exercisesError } = await supabase
+          .from('program_exercises')
+          .insert(exercisesToInsert);
+
+        if (exercisesError) {
+          throw exercisesError;
+        }
+      }
+    }
+
+    const workoutIdsToDelete = (existingWorkouts || [])
+      .map((workout) => workout.id)
+      .filter((id) => !retainedWorkoutIds.has(id));
+
+    if (workoutIdsToDelete.length > 0) {
+      const { error: deleteWorkoutsError } = await supabase
+        .from('program_workouts')
+        .delete()
+        .in('id', workoutIdsToDelete);
+
+      if (deleteWorkoutsError) {
+        throw deleteWorkoutsError;
+      }
+    }
+
+    return { success: true, serverId: program.id };
+  } catch (error) {
+    console.error('Failed to update program:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+async function syncProgramToSupabase(
+  program: Program,
+  userId: string
+): Promise<{ success: boolean; serverId?: string; error?: string }> {
+  return program.id.startsWith('local-')
+    ? uploadProgram(program, userId)
+    : updateExistingProgram(program, userId);
+}
+
+/**
+ * Sync a program/template to Supabase.
+ * Local programs are created remotely, existing server-backed programs are updated.
+ * If offline or not authenticated, queues for later sync.
  */
 export async function syncLocalProgram(program: Program): Promise<SyncResult> {
-  // Only sync programs with local- prefix
-  if (!program.id.startsWith('local-')) {
-    return { success: true }; // Already synced or server-created
-  }
-
   // Check if Supabase is configured
   if (!isSupabaseConfigured()) {
     return { success: false, error: 'Supabase not configured' };
@@ -320,7 +478,7 @@ export async function syncLocalProgram(program: Program): Promise<SyncResult> {
   }
 
   // Upload to Supabase
-  const result = await uploadProgram(program, user.id);
+  const result = await syncProgramToSupabase(program, user.id);
 
   if (!result.success) {
     await addToPendingQueue(program);
@@ -377,22 +535,21 @@ export async function processPendingProgramQueue(): Promise<{
       continue;
     }
 
-    const result = await uploadProgram(item.program, user.id);
+    const result = await syncProgramToSupabase(item.program, user.id);
 
     if (result.success) {
       processed++;
-      if (result.serverId) {
+      if (result.serverId && item.program.id !== result.serverId) {
         idMappings.set(item.program.id, result.serverId);
       }
     } else {
       failed++;
-      // Keep in queue if under retry limit
-      if (item.retryCount < 3) {
-        remainingQueue.push({
-          ...item,
-          retryCount: item.retryCount + 1,
-        });
-      }
+      // Keep retrying until success. We still track retryCount for diagnostics,
+      // but we do not discard queued templates/programs after a fixed limit.
+      remainingQueue.push({
+        ...item,
+        retryCount: item.retryCount + 1,
+      });
     }
   }
 
@@ -407,6 +564,11 @@ export async function processPendingProgramQueue(): Promise<{
 export async function getPendingProgramSyncCount(): Promise<number> {
   const queue = await loadPendingQueue();
   return queue.length;
+}
+
+export async function getPendingProgramSyncIds(): Promise<string[]> {
+  const queue = await loadPendingQueue();
+  return queue.map((item) => item.program.id);
 }
 
 /**

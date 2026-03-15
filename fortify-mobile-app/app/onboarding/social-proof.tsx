@@ -31,7 +31,7 @@ const TESTIMONIALS = [
     color: '#71C95A',
     image: require('../../assets/onboarding/kwaku_review4.png'),
     title: 'Took my progress to the next level',
-    body: 'Fortify gave me way more than basic logging. The voice tracking, insights, charts, and workout flow make it feel far ahead of every other tracker I have used.',
+    body: 'This app gave me way more than basic logging. The voice tracking, insights, charts, and workout flow make it feel far ahead of every other tracker I have used.',
   },
 ];
 

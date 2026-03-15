@@ -237,6 +237,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const syncPendingPrograms = useCallback(async () => {
+    try {
+      await useProgramsStore.getState().syncPendingPrograms();
+    } catch (error) {
+      console.warn('Failed to process pending program sync queue:', error);
+    }
+  }, []);
+
   // Initialize auth state
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -285,6 +293,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const profileData = await fetchProfile(sessionToUse.user.id);
         setProfile(profileData);
         setProfileResolved(true);
+        syncPendingWorkouts();
+        syncPendingPrograms();
       } else {
         setProfile(null);
         setProfileResolved(false);
@@ -319,9 +329,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             syncPendingWorkouts();
 
             // Sync pending programs/templates
-            useProgramsStore.getState().syncPendingPrograms().catch(error => {
-              console.warn('Failed to process pending program sync queue:', error);
-            });
+            syncPendingPrograms();
 
             // Sync pending sticky notes
             processPendingStickyNotesQueue().catch(error => {
@@ -375,13 +383,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [FORCE_DEV_SIGN_OUT_ON_LAUNCH, fetchProfile, hydrateUserData, syncPendingWorkouts]);
+  }, [FORCE_DEV_SIGN_OUT_ON_LAUNCH, fetchProfile, hydrateUserData, syncPendingPrograms, syncPendingWorkouts]);
 
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
       appStateRef.current = nextState;
       if (nextState !== 'active' || !user) return;
       syncPendingWorkouts();
+      syncPendingPrograms();
     };
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
@@ -389,7 +398,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       subscription.remove();
     };
-  }, [syncPendingWorkouts, user]);
+  }, [syncPendingPrograms, syncPendingWorkouts, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -397,12 +406,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const intervalId = setInterval(() => {
       if (appStateRef.current !== 'active') return;
       syncPendingWorkouts();
+      syncPendingPrograms();
     }, 30000);
 
     return () => {
       clearInterval(intervalId);
     };
-  }, [syncPendingWorkouts, user]);
+  }, [syncPendingPrograms, syncPendingWorkouts, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -411,12 +421,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!state.isConnected || !state.isInternetReachable) return;
       if (appStateRef.current !== 'active') return;
       syncPendingWorkouts();
+      syncPendingPrograms();
     });
 
     return () => {
       unsubscribe();
     };
-  }, [syncPendingWorkouts, user]);
+  }, [syncPendingPrograms, syncPendingWorkouts, user]);
 
   // Email sign in
   const signInWithEmail = useCallback(async (email: string, password: string) => {

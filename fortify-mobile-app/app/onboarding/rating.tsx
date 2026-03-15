@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as StoreReview from 'expo-store-review';
@@ -13,9 +13,9 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
 
 const USERS = [
-  { initials: 'A', color: '#A7B7FF' },
-  { initials: 'M', color: '#FFD2B0' },
-  { initials: 'J', color: '#D7C6FF' },
+  { image: require('@/assets/onboarding/user5.png') },
+  { image: require('@/assets/onboarding/user6.png') },
+  { image: require('@/assets/onboarding/user7.png') },
 ];
 
 export default function OnboardingRatingScreen() {
@@ -80,21 +80,23 @@ export default function OnboardingRatingScreen() {
 
           <View style={styles.avatarRow}>
             {USERS.map((user, index) => (
-              <View
-                key={`${user.initials}-${index}`}
+              <Image
+                key={`user-${index}`}
+                source={user.image}
                 style={[
                   styles.avatar,
                   {
-                    backgroundColor: user.color,
                     marginLeft: index === 0 ? 0 : -12,
                     borderColor: colors.background,
                   },
                 ]}
-              >
-                <Text style={styles.avatarText}>{user.initials}</Text>
-              </View>
+              />
             ))}
           </View>
+
+          <Text style={[styles.socialProofText, { color: colors.textSecondary }]}>
+            Join our growing user base
+          </Text>
         </View>
       </View>
     </OnboardingScreen>
@@ -135,18 +137,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  socialProofText: {
+    fontSize: 18,
+    lineHeight: 24,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   avatar: {
     width: 68,
     height: 68,
     borderRadius: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 3,
-  },
-  avatarText: {
-    color: '#121214',
-    fontSize: 24,
-    fontWeight: '800',
   },
   button: {
     height: 54,

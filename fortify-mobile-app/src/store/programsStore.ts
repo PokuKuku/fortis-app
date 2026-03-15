@@ -8,7 +8,12 @@
 import { create } from 'zustand';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
-import { syncLocalProgram, processPendingProgramQueue, removeFromPendingQueue } from '../services/programSyncService';
+import {
+  syncLocalProgram,
+  processPendingProgramQueue,
+  removeFromPendingQueue,
+  getPendingProgramSyncIds,
+} from '../services/programSyncService';
 import { getDefaultPrograms, getDefaultTemplates } from '../data/defaultPrograms';
 import { isLocalProgramId } from '../utils/localIds';
 import { generateUniqueName } from '../utils/nameUtils';
@@ -57,6 +62,8 @@ const isSeededDefaultProgram = (program: Program | undefined): program is Progra
 interface ProgramsState {
   // Data
   programs: Program[];
+  pendingProgramSyncIds: string[];
+  syncingProgramSyncIds: string[];
 
   // Loading states
   isLoading: boolean;
@@ -150,6 +157,8 @@ interface ProgramsState {
   // Cloud sync
   syncPendingPrograms: () => Promise<void>;
   replaceLocalIdWithServerId: (localId: string, serverId: string) => void;
+  refreshPendingProgramSyncIds: () => Promise<void>;
+  markProgramSyncing: (programId: string, syncing: boolean) => void;
 }
 
 // ============================================
@@ -336,6 +345,8 @@ const buildProgramWorkoutFromTemplate = (
 export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Initial state
   programs: [],
+  pendingProgramSyncIds: [],
+  syncingProgramSyncIds: [],
   isLoading: false,
   isDeleting: false,
   hasFetchedPrograms: false,
@@ -824,172 +835,49 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         programs: [localProgram, ...state.programs],
       }));
       get().persistLocalPrograms();
+      get().markProgramSyncing(localId, true);
 
       // Attempt cloud sync in background (don't await, don't block)
-      syncLocalProgram(localProgram).then((result) => {
-        if (result.success && result.serverId) {
-          // Check if program still exists (wasn't deleted during sync)
-          const stillExists = get().programs.some(p => p.id === localId);
-          if (stillExists) {
-            // Replace local ID with server ID
-            get().replaceLocalIdWithServerId(localId, result.serverId);
-          } else {
-            // Program was deleted during sync - clean up from Supabase
-            supabase
-              .from('workout_programs')
-              .delete()
-              .eq('id', result.serverId)
-              .then(() => console.log('Cleaned up orphaned synced program'))
-              .catch(err => console.warn('Failed to clean up orphaned program:', err));
+      void (async () => {
+        try {
+          const result = await syncLocalProgram(localProgram);
+          if (result.success && result.serverId) {
+            // Check if program still exists (wasn't deleted during sync)
+            const stillExists = get().programs.some((p) => p.id === localId);
+            if (stillExists) {
+              // Replace local ID with server ID
+              get().replaceLocalIdWithServerId(localId, result.serverId);
+            } else {
+              // Program was deleted during sync - clean up from Supabase
+              void (async () => {
+                try {
+                  await supabase
+                    .from('workout_programs')
+                    .delete()
+                    .eq('id', result.serverId);
+                  console.log('Cleaned up orphaned synced program');
+                } catch (err) {
+                  console.warn('Failed to clean up orphaned program:', err);
+                }
+              })();
+            }
           }
+        } catch (err) {
+          console.warn('Background program sync failed:', err);
+        } finally {
+          get().markProgramSyncing(localId, false);
+          void get().refreshPendingProgramSyncIds();
         }
-      }).catch((err) => {
-        console.warn('Background program sync failed:', err);
-      });
+      })();
 
       return localId;
     };
 
-    // Check if any exercises have non-UUID IDs (local exercises)
-    const hasLocalExercises = hasLocalExerciseIds(exercises);
-
-    // Try Supabase first if configured
-    if (!isSupabaseConfigured()) {
-      // Save locally when Supabase is not configured
-      return await saveLocally();
-    }
-
-    // If exercises have local (non-UUID) IDs, save locally
-    if (hasLocalExercises) {
-      return await saveLocally();
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        // Save locally when not authenticated
-        return await saveLocally();
-      }
-
-      // Create program container for the template
-      const { data: program, error: programError } = await supabase
-        .from('workout_programs')
-        .insert({
-          name: uniqueName,
-          description: templateDescription,
-          difficulty: 'intermediate',
-          is_public: false,
-          is_default: false,
-          is_ai_created: isAiCreated,
-          ai_payload_version: aiPayloadVersion,
-          ai_source_chat_id: aiSourceChatId,
-          is_template: true,
-          last_performed_at: lastPerformedAtISO,
-          created_by: session.user.id,
-        })
-        .select()
-        .single();
-
-      if (programError || !program) {
-        set({ error: programError?.message || 'Failed to create template' });
-        return null;
-      }
-
-      // Create single workout entry
-      const { data: workout, error: workoutError } = await supabase
-        .from('program_workouts')
-        .insert({
-          program_id: program.id,
-          name: uniqueName,
-          day_number: 1,
-        })
-        .select()
-        .single();
-
-      if (workoutError || !workout) {
-        // Cleanup: delete the program if workout creation fails
-        await supabase.from('workout_programs').delete().eq('id', program.id);
-        set({ error: workoutError?.message || 'Failed to create workout' });
-        return null;
-      }
-
-      // Insert exercises
-      if (exercises.length > 0) {
-        const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
-        const exercisesToInsert = resolvedExercises.map((ex, index) => ({
-          program_workout_id: workout.id,
-          exercise_id: ex.resolvedExerciseId,
-          exercise_name_snapshot: ex.exerciseName ?? null,
-          sets: ex.sets,
-          reps: ex.reps,
-          rest_seconds: ex.restSeconds || 120,
-          order_index: index,
-          notes: ex.notes,
-          set_details: ex.setDetails || null,
-        }));
-
-        const { error: exercisesError } = await supabase
-          .from('program_exercises')
-          .insert(exercisesToInsert);
-
-        if (exercisesError) {
-          console.error('Error inserting exercises:', exercisesError);
-          // Don't fail completely - template is still created
-        }
-      }
-
-      const createdTemplate: Program = {
-        id: program.id,
-        name: program.name,
-        description: program.description ?? undefined,
-        difficulty: program.difficulty,
-        goal: program.goal ?? undefined,
-        durationWeeks: program.duration_weeks ?? undefined,
-        isPublic: program.is_public,
-        isDefault: program.is_default,
-        isAiCreated: program.is_ai_created ?? false,
-        isTemplate: program.is_template ?? true,
-        aiSourceChatId: program.ai_source_chat_id ?? null,
-        aiPayloadVersion: program.ai_payload_version ?? null,
-        lastPerformedAt: program.last_performed_at,
-        createdBy: program.created_by,
-        createdAt: program.created_at,
-        updatedAt: program.updated_at,
-        workouts: [{
-          id: workout.id,
-          name: workout.name,
-          dayNumber: workout.day_number,
-          exercises: exercises.map((ex, index) => ({
-            id: `${workout.id}-ex-${index + 1}`,
-            exerciseId: ex.exerciseId,
-            exerciseName: ex.exerciseName || 'Unknown Exercise',
-            sets: ex.sets,
-            reps: ex.reps,
-            restSeconds: ex.restSeconds || 120,
-            notes: ex.notes,
-            orderIndex: index,
-            setDetails: ex.setDetails,
-          })),
-        }],
-      };
-
-      set((state) => {
-        if (state.programs.some((p) => p.id === program.id)) {
-          return state;
-        }
-        return { programs: [createdTemplate, ...state.programs] };
-      });
-
-      // Refresh programs list to include the new template
-      get().fetchPrograms({ force: true });
-
-      return program.id;
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to create template',
-      });
-      return null;
-    }
+    // Save immediately to local state and let syncLocalProgram push it to the
+    // backend in the background. The previous synchronous Supabase path scaled
+    // with exercise count and made "Save as Template" appear frozen for larger
+    // workouts.
+    return await saveLocally();
   },
 
   // Create a new program from existing workout templates
@@ -1715,106 +1603,40 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
     const hasLocalExercises = hasLocalExerciseIds(exercises);
 
-    if (isLocalProgramId(templateId) || hasLocalExercises || !isSupabaseConfigured()) {
-      const updatedProgram = applyLocalUpdate();
+    const updatedProgram = applyLocalUpdate();
 
-      if (isLocalProgramId(templateId)) {
-        get().persistLocalPrograms();
-        await removeFromPendingQueue(templateId);
+    if (isLocalProgramId(templateId)) {
+      get().persistLocalPrograms();
+      await removeFromPendingQueue(templateId);
+      await get().refreshPendingProgramSyncIds();
+    }
 
-        // Attempt cloud sync in background (don't await, don't block)
-        syncLocalProgram(updatedProgram).then((result) => {
-          if (result.success && result.serverId) {
-            const stillExists = get().programs.some(p => p.id === templateId);
-            if (stillExists) {
-              get().replaceLocalIdWithServerId(templateId, result.serverId);
-            }
+    if (hasLocalExercises || !isSupabaseConfigured()) {
+      return templateId;
+    }
+
+    get().markProgramSyncing(templateId, true);
+    syncLocalProgram(updatedProgram)
+      .then((result) => {
+        if (isLocalProgramId(templateId) && result.success && result.serverId) {
+          const stillExists = get().programs.some((p) => p.id === templateId);
+          if (stillExists) {
+            get().replaceLocalIdWithServerId(templateId, result.serverId);
           }
-        }).catch((err) => {
-          console.warn('Background program sync failed:', err);
-        });
-      }
-
-      return templateId;
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        applyLocalUpdate();
-        return templateId;
-      }
-
-      const { error: programError } = await supabase
-        .from('workout_programs')
-        .update({ name, updated_at: now })
-        .eq('id', templateId);
-
-      if (programError) {
-        set({ error: programError.message });
-        return null;
-      }
-
-      const { error: workoutError } = await supabase
-        .from('program_workouts')
-        .update({ name, day_number: workout.dayNumber ?? 1 })
-        .eq('id', workoutId);
-
-      if (workoutError) {
-        set({ error: workoutError.message });
-        return null;
-      }
-
-      const { error: deleteError } = await supabase
-        .from('program_exercises')
-        .delete()
-        .eq('program_workout_id', workoutId);
-
-      if (deleteError) {
-        set({ error: deleteError.message });
-        return null;
-      }
-
-      let idsByOrder: Map<number, string> | undefined;
-      if (exercises.length > 0) {
-        const resolvedExercises = await resolveExerciseIdsForSupabase(exercises);
-        const exercisesToInsert = resolvedExercises.map((ex, index) => ({
-          program_workout_id: workoutId,
-          exercise_id: ex.resolvedExerciseId,
-          exercise_name_snapshot: ex.exerciseName ?? null,
-          sets: ex.sets,
-          reps: ex.reps,
-          rest_seconds: ex.restSeconds ?? 120,
-          order_index: index,
-          notes: ex.notes,
-        }));
-
-        const { data: inserted, error: insertError } = await supabase
-          .from('program_exercises')
-          .insert(exercisesToInsert)
-          .select();
-
-        if (insertError) {
-          console.error('Error inserting exercises:', insertError);
-          set({ error: insertError.message });
-          return null;
         }
-
-        if (inserted) {
-          idsByOrder = new Map(
-            inserted.map((ex: { id: string; order_index: number }) => [ex.order_index, ex.id])
-          );
+        if (!result.success && !result.queued) {
+          console.warn('[ProgramsStore] Background template update failed:', result.error);
         }
-      }
-
-      applyLocalUpdate(idsByOrder);
-      return templateId;
-    } catch (err) {
-      set({
-        error: err instanceof Error ? err.message : 'Failed to update template',
+      })
+      .catch((err) => {
+        console.warn('[ProgramsStore] Background template update failed:', err);
+      })
+      .finally(() => {
+        get().markProgramSyncing(templateId, false);
+        void get().refreshPendingProgramSyncIds();
       });
-      return null;
-    }
+
+    return templateId;
   },
 
   // Update last performed timestamp
@@ -1846,6 +1668,23 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Clear error
   clearError: () => {
     set({ error: null });
+  },
+
+  refreshPendingProgramSyncIds: async () => {
+    try {
+      const pendingIds = await getPendingProgramSyncIds();
+      set({ pendingProgramSyncIds: pendingIds });
+    } catch (err) {
+      console.warn('Failed to refresh pending program sync IDs:', err);
+    }
+  },
+
+  markProgramSyncing: (programId, syncing) => {
+    set((state) => ({
+      syncingProgramSyncIds: syncing
+        ? Array.from(new Set([...state.syncingProgramSyncIds, programId]))
+        : state.syncingProgramSyncIds.filter((id) => id !== programId),
+    }));
   },
 
   // Load local programs from AsyncStorage
@@ -1885,6 +1724,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const nonLocalPrograms = state.programs.filter((p) => !isLocalProgramId(p.id));
         return { programs: [...nonLocalPrograms, ...localPrograms] };
       });
+      await get().refreshPendingProgramSyncIds();
     } catch (err) {
       console.warn('Failed to load local programs:', err);
     }
@@ -1904,6 +1744,13 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   // Process pending program sync queue (called on sign-in or when coming online)
   syncPendingPrograms: async () => {
+    const pendingIds = await getPendingProgramSyncIds();
+    if (pendingIds.length > 0) {
+      set((state) => ({
+        syncingProgramSyncIds: Array.from(new Set([...state.syncingProgramSyncIds, ...pendingIds])),
+      }));
+    }
+
     try {
       const result = await processPendingProgramQueue();
 
@@ -1914,9 +1761,15 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       if (result.processed > 0) {
         console.log(`Synced ${result.processed} programs to cloud`);
+        void get().fetchPrograms({ force: true });
       }
     } catch (err) {
       console.warn('Failed to sync pending programs:', err);
+    } finally {
+      set((state) => ({
+        syncingProgramSyncIds: state.syncingProgramSyncIds.filter((id) => !pendingIds.includes(id)),
+      }));
+      await get().refreshPendingProgramSyncIds();
     }
   },
 
@@ -1942,6 +1795,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         }
         return p;
       }),
+      pendingProgramSyncIds: state.pendingProgramSyncIds.filter((id) => id !== localId),
+      syncingProgramSyncIds: state.syncingProgramSyncIds.filter((id) => id !== localId),
     }));
     // Re-persist to remove from local storage (no longer has local- prefix)
     get().persistLocalPrograms();
@@ -1952,6 +1807,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   resetStore: () => {
     set({
       programs: [],
+      pendingProgramSyncIds: [],
+      syncingProgramSyncIds: [],
       isLoading: false,
       isDeleting: false,
       hasFetchedPrograms: false,
