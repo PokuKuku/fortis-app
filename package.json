@@ -15,6 +15,7 @@
   "version": "1.0.0",
   "scripts": {
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "marketing:memes": "node marketing-meme-studio/server.mjs"
   }
 }

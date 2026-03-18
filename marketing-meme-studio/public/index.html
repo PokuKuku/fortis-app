@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fortify Meme Studio</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <section class="top-layout">
+        <aside class="controls-panel">
+          <div class="panel-header">
+            <p class="eyebrow">Manual Editor</p>
+            <h1>Fortify Meme Studio</h1>
+            <p class="panel-copy">
+              Edit one meme card directly, preview it live, and export a PNG when the composition looks right.
+            </p>
+          </div>
+
+          <section class="editor-section">
+            <div class="inline-fields">
+              <label>
+                <span>Canvas</span>
+                <select id="canvas-size">
+                  <option value="portrait">1080 x 1350</option>
+                  <option value="square">1080 x 1080</option>
+                </select>
+              </label>
+
+              <label>
+                <span>Layout</span>
+                <select id="layout-select">
+                  <option value="single_body">Single body</option>
+                  <option value="dual_body">Dual body</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              <span>Headline</span>
+              <textarea id="headline-input" rows="2" placeholder="Write the main meme line"></textarea>
+            </label>
+
+            <label>
+              <span>Subtitle</span>
+              <input id="subtitle-input" type="text" placeholder="Write the smaller sub-line" />
+            </label>
+
+            <div class="inline-fields">
+              <label>
+                <span>Headline Size</span>
+                <input id="headline-size-input" type="number" min="24" max="96" step="1" />
+              </label>
+
+              <label>
+                <span>Subtitle Size</span>
+                <input id="subtitle-size-input" type="number" min="18" max="72" step="1" />
+              </label>
+            </div>
+
+            <div class="inline-fields">
+              <label>
+                <span>Label A</span>
+                <input id="label-a-input" type="text" placeholder="Text above first heatmap" />
+              </label>
+
+              <label id="label-b-wrapper">
+                <span>Label B</span>
+                <input id="label-b-input" type="text" placeholder="Text above second heatmap" />
+              </label>
+            </div>
+
+            <label>
+              <span>Label Size</span>
+              <input id="label-size-input" type="number" min="16" max="56" step="1" />
+            </label>
+
+            <div class="inline-fields">
+              <label>
+                <span>Gender A</span>
+                <select id="gender-a-select">
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </label>
+
+              <label id="gender-b-wrapper">
+                <span>Gender B</span>
+                <select id="gender-b-select">
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="inline-fields">
+              <label>
+                <span>View A</span>
+                <select id="pose-a-select">
+                  <option value="front">Front</option>
+                  <option value="back">Back</option>
+                </select>
+              </label>
+
+              <label id="pose-b-wrapper">
+                <span>View B</span>
+                <select id="pose-b-select">
+                  <option value="front">Front</option>
+                  <option value="back">Back</option>
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <div class="button-row sticky-actions">
+            <button type="button" id="reset-button" class="secondary">Reset</button>
+            <button type="button" id="download-button">Download PNG</button>
+          </div>
+
+          <p id="status" class="status idle">Ready.</p>
+        </aside>
+
+        <main class="preview-panel">
+          <div class="preview-toolbar">
+            <div>
+              <p class="eyebrow">Live Preview</p>
+              <h2>Current meme</h2>
+            </div>
+          </div>
+
+          <div class="preview-stage">
+            <img id="preview-image" class="preview-image" alt="Fortify meme preview" />
+          </div>
+        </main>
+      </section>
+
+      <section class="tier-panels">
+        <section class="editor-section tier-section">
+          <div class="tier-header">
+            <h2>Body A Tiers</h2>
+            <p>Set each muscle from S to E.</p>
+          </div>
+          <div id="body-a-muscles" class="muscle-grid"></div>
+        </section>
+
+        <section id="body-b-section" class="editor-section tier-section">
+          <div class="tier-header">
+            <h2>Body B Tiers</h2>
+            <p>Shown only in dual-body layout.</p>
+          </div>
+          <div id="body-b-muscles" class="muscle-grid"></div>
+        </section>
+      </section>
+
+      <section class="batch-section">
+        <div class="editor-section batch-input-panel">
+          <div class="tier-header">
+            <h2>Batch JSON</h2>
+            <p>Paste one meme object, an array of memes, or { "defaults": ..., "memes": [...] }.</p>
+          </div>
+
+          <textarea
+            id="batch-json-input"
+            class="batch-json-input"
+            rows="12"
+            placeholder='[
+  {
+    "layout": "single_body",
+    "headline": "Skipped leg day? Tell me more.",
+    "subtitle": "Top-heavy since 18",
+    "genderA": "male",
+    "poseA": "front",
+    "bodyATiers": { "chest": 1, "quads": 6 }
+  }
+]'
+          ></textarea>
+
+          <div class="button-row">
+            <button type="button" id="load-batch-button">Load Batch</button>
+            <button type="button" id="download-batch-button">Download All PNGs</button>
+            <button type="button" id="clear-batch-button" class="secondary">Clear Batch</button>
+          </div>
+        </div>
+
+        <div class="editor-section batch-preview-panel">
+          <div class="batch-preview-header">
+            <div class="tier-header">
+              <h2>Batch Preview</h2>
+              <p id="batch-summary">No batch loaded</p>
+            </div>
+          </div>
+          <div id="batch-grid" class="batch-grid"></div>
+        </div>
+      </section>
+    </div>
+
+    <template id="muscle-row-template">
+      <label class="muscle-row">
+        <span class="muscle-label"></span>
+        <select class="muscle-select">
+          <option value="1">S Tier</option>
+          <option value="2">A Tier</option>
+          <option value="3">B Tier</option>
+          <option value="4">C Tier</option>
+          <option value="5">D Tier</option>
+          <option value="6">E Tier</option>
+        </select>
+      </label>
+    </template>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

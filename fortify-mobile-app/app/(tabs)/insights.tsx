@@ -634,8 +634,11 @@ function WatchlistRow({
   return (
     <View style={styles.watchlistRow}>
       <View style={styles.watchlistHeaderRow}>
-        <View>
-          <Text style={[styles.watchlistName, { color: colors.textPrimary }]}>
+        <View style={styles.watchlistTitleBlock}>
+          <Text
+            style={[styles.watchlistName, { color: colors.textPrimary }]}
+            numberOfLines={2}
+          >
             {exerciseName}
           </Text>
           <Text style={[styles.watchlistStatus, { color: statusColor }]}>
@@ -1267,12 +1270,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
   },
+  watchlistTitleBlock: {
+    flex: 1,
+    minWidth: 0,
+    paddingRight: scale(Spacing.sm),
+  },
   watchlistInfo: {
     gap: scale(Spacing.xs),
   },
   watchlistName: {
     fontSize: moderateScale(15),
     lineHeight: moderateScale(20),
+    flexShrink: 1,
   },
   watchlistStatus: {
     fontSize: moderateScale(13),
@@ -1321,6 +1330,7 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
   },
   watchlistDismissButton: {
+    flexShrink: 0,
     paddingHorizontal: scale(Spacing.xs),
     paddingVertical: scale(2),
   },
