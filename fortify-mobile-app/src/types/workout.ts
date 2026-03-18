@@ -69,6 +69,7 @@ export interface WorkoutSession {
   name: string;
   notes: string;
   startedAt: Date;
+  lastEditedAt?: Date;
   completedAt: Date | null;
   durationSeconds?: number | null;
   programName?: string;

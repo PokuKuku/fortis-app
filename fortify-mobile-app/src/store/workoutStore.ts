@@ -125,6 +125,13 @@ function buildNewActiveSet(
   };
 }
 
+function touchWorkoutSession(session: WorkoutSession, editedAt: Date = new Date()): WorkoutSession {
+  return {
+    ...session,
+    lastEditedAt: editedAt,
+  };
+}
+
 type ExerciseAddPayload = {
   id: string;
   name: string;
@@ -351,7 +358,27 @@ interface WorkoutState {
 }
 
 export const useWorkoutStore = create<WorkoutState>()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector((set, get) => {
+    const setActiveSessionState = (
+      session: WorkoutSession,
+      options?: {
+        extraState?: Partial<WorkoutState>;
+        persist?: boolean;
+        touch?: boolean;
+      }
+    ) => {
+      const nextSession = options?.touch === false ? session : touchWorkoutSession(session);
+      set({
+        activeSession: nextSession,
+        ...(options?.extraState ?? {}),
+      });
+      if (options?.persist !== false) {
+        void get().persistSession();
+      }
+      return nextSession;
+    };
+
+    return ({
     activeSession: null,
     isWorkoutActive: false,
     completedSessions: [],
@@ -408,6 +435,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         })(),
         notes: '',
         startedAt: workoutDate,
+        lastEditedAt: new Date(),
         completedAt: null,
         exercises: [],
         isSynced: false,
@@ -513,6 +541,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           name: template.name,
           notes: '',
           startedAt: new Date(),
+          lastEditedAt: new Date(),
           completedAt: null,
           exercises,
           isSynced: false,
@@ -615,6 +644,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           programName: program.name,
           notes: '',
           startedAt: new Date(),
+          lastEditedAt: new Date(),
           completedAt: null,
           exercises,
           isSynced: false,
@@ -784,20 +814,14 @@ export const useWorkoutStore = create<WorkoutState>()(
       const { activeSession } = get();
       if (!activeSession) return;
 
-      set({
-        activeSession: { ...activeSession, name },
-      });
-      get().persistSession();
+      setActiveSessionState({ ...activeSession, name });
     },
 
     updateWorkoutNotes: (notes) => {
       const { activeSession } = get();
       if (!activeSession) return;
 
-      set({
-        activeSession: { ...activeSession, notes },
-      });
-      get().persistSession();
+      setActiveSessionState({ ...activeSession, notes });
     },
 
     setActiveSessionProgramContext: (programId, programWorkoutId) => {
@@ -810,10 +834,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         return;
       }
 
-      set({
-        activeSession: { ...activeSession, programId, programWorkoutId },
-      });
-      get().persistSession();
+      setActiveSessionState({ ...activeSession, programId, programWorkoutId });
     },
 
     pauseWorkoutTimer: () => {
@@ -889,13 +910,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         orderIndex: activeSession.exercises.length,
       };
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises: [...activeSession.exercises, newExercise],
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises: [...activeSession.exercises, newExercise],
       });
-      get().persistSession();
     },
 
     addExercises: (exercises) => {
@@ -947,13 +965,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         };
       });
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises: [...activeSession.exercises, ...newExercises],
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises: [...activeSession.exercises, ...newExercises],
       });
-      get().persistSession();
     },
 
     removeExercise: (localId) => {
@@ -966,13 +981,10 @@ export const useWorkoutStore = create<WorkoutState>()(
       // Reindex remaining exercises
       const reindexed = filtered.map((ex, i) => ({ ...ex, orderIndex: i }));
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises: reindexed,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises: reindexed,
       });
-      get().persistSession();
     },
 
     replaceExercise: (localId, newExerciseId, newExerciseName) => {
@@ -1007,13 +1019,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         };
       });
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises,
       });
-      get().persistSession();
     },
 
     reorderExercises: (fromIndex, toIndex) => {
@@ -1027,13 +1036,10 @@ export const useWorkoutStore = create<WorkoutState>()(
       // Reindex
       const reindexed = exercises.map((ex, i) => ({ ...ex, orderIndex: i }));
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises: reindexed,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises: reindexed,
       });
-      get().persistSession();
     },
 
     updateExerciseNotes: (localId, notes) => {
@@ -1044,13 +1050,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         ex.localId === localId ? { ...ex, notes } : ex
       );
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises,
       });
-      get().persistSession();
     },
 
     // ========================================
@@ -1074,13 +1077,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         return { ...ex, sets: [...ex.sets, newSet] };
       });
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises,
       });
-      get().persistSession();
     },
 
     applyVoiceLog: (exerciseLocalId, interpretation) => {
@@ -1165,20 +1165,23 @@ export const useWorkoutStore = create<WorkoutState>()(
         return null;
       }
 
-      set({
-        activeSession: {
+      setActiveSessionState(
+        {
           ...activeSession,
           exercises,
         },
-        activeNumberPad: null,
-        validationErrorsBySet: {},
-        weightUnits: nextWeightUnits,
-      });
+        {
+          extraState: {
+            activeNumberPad: null,
+            validationErrorsBySet: {},
+            weightUnits: nextWeightUnits,
+          },
+        }
+      );
 
       void setScopedItem(EXERCISE_WEIGHT_UNITS_KEY, JSON.stringify(nextWeightUnits)).catch((error) => {
         console.warn('Failed to save weight units:', error);
       });
-      get().persistSession();
       get().startRestTimer(lastAppliedSetType);
 
       return {
@@ -1205,13 +1208,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         return { ...ex, sets: reindexed };
       });
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises,
       });
-      get().persistSession();
     },
 
     updateSet: (exerciseLocalId, setLocalId, updates) => {
@@ -1235,13 +1235,10 @@ export const useWorkoutStore = create<WorkoutState>()(
         return { ...ex, sets };
       });
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises,
       });
-      get().persistSession();
     },
 
     completeSet: (exerciseLocalId, setLocalId) => {
@@ -1286,11 +1283,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         return { ...ex, sets };
       });
 
-      set({
-        activeSession: {
-          ...activeSession,
-          exercises,
-        },
+      setActiveSessionState({
+        ...activeSession,
+        exercises,
       });
 
       // Find the set to check if it was completed (toggled on)
@@ -1301,8 +1296,6 @@ export const useWorkoutStore = create<WorkoutState>()(
       if (completedSet?.isCompleted) {
         get().startRestTimer(completedSetType);
       }
-
-      get().persistSession();
     },
 
     updateSetType: (exerciseLocalId, setLocalId, setType) => {
@@ -1501,6 +1494,9 @@ export const useWorkoutStore = create<WorkoutState>()(
           const session: WorkoutSession = {
             ...parsed,
             startedAt: new Date(parsed.startedAt),
+            lastEditedAt: parsed.lastEditedAt
+              ? new Date(parsed.lastEditedAt)
+              : new Date(parsed.startedAt),
             completedAt: parsed.completedAt
               ? new Date(parsed.completedAt)
               : null,
@@ -1750,16 +1746,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       const { activeSession } = get();
       if (!activeSession || activeSession.name === newName) return;
 
-      // Update active session name
-      const updatedSession = { ...activeSession, name: newName };
-      set({ activeSession: updatedSession });
-
-      // Persist to AsyncStorage
-      try {
-        await setScopedItem(ACTIVE_WORKOUT_KEY, JSON.stringify(updatedSession));
-      } catch (error) {
-        console.warn('Failed to persist updated active session name:', error);
-      }
+      setActiveSessionState({ ...activeSession, name: newName });
     },
 
     // ========================================
@@ -1968,13 +1955,16 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       const convertedActiveSession = convertSession(activeSession);
       const convertedEditorSession = convertSession(editorSession);
+      const touchedActiveSession = convertedActiveSession
+        ? touchWorkoutSession(convertedActiveSession)
+        : null;
 
       set({
-        ...(convertedActiveSession && { activeSession: convertedActiveSession }),
+        ...(touchedActiveSession && { activeSession: touchedActiveSession }),
         ...(convertedEditorSession && { editorSession: convertedEditorSession }),
       });
 
-      if (convertedActiveSession) {
+      if (touchedActiveSession) {
         get().persistSession();
       }
 
@@ -2188,11 +2178,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         return { ...ex, sets };
       });
 
-      set({
-        activeSession: { ...activeSession, exercises },
-      });
-
-      get().persistSession();
+      setActiveSessionState({ ...activeSession, exercises });
     },
 
     openRpeHelp: () => {
@@ -2213,6 +2199,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         name: '',
         notes: '',
         startedAt: new Date(),
+        lastEditedAt: new Date(),
         completedAt: null,
         exercises: [],
         isSynced: false,
@@ -2773,7 +2760,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         console.warn('Failed to clear completed sessions from storage:', error);
       }
     },
-  }))
+  })})
 );
 
 // ========================================

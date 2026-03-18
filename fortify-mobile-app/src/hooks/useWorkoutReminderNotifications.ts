@@ -78,7 +78,7 @@ const getScheduledWorkoutReminderIds = async (): Promise<string[]> => {
   }
 };
 
-const scheduleReminderNotifications = async (sessionStartMs: number): Promise<string[]> => {
+const scheduleReminderNotifications = async (lastEditedMs: number): Promise<string[]> => {
   let permissions: { status: string; granted: boolean } | null = null;
   try {
     permissions = await Notifications.getPermissionsAsync();
@@ -94,9 +94,9 @@ const scheduleReminderNotifications = async (sessionStartMs: number): Promise<st
   }
 
   const now = Date.now();
-  const startMs = sessionStartMs + REMINDER_START_MINUTES * 60 * 1000;
+  const startMs = lastEditedMs + REMINDER_START_MINUTES * 60 * 1000;
   const intervalMs = REMINDER_REPEAT_MINUTES * 60 * 1000;
-  const endLimitMs = sessionStartMs + REMINDER_MAX_HOURS * 60 * 60 * 1000;
+  const endLimitMs = lastEditedMs + REMINDER_MAX_HOURS * 60 * 60 * 1000;
 
   let firstMs = startMs;
   if (now >= startMs) {
@@ -142,7 +142,7 @@ const scheduleReminderNotifications = async (sessionStartMs: number): Promise<st
 export function useWorkoutReminderNotifications() {
   const activeSession = useWorkoutStore((s) => s.activeSession);
   const isWorkoutActive = useWorkoutStore((s) => s.isWorkoutActive);
-  const sessionStartMs = activeSession?.startedAt?.getTime() ?? null;
+  const lastEditedMs = activeSession?.lastEditedAt?.getTime() ?? activeSession?.startedAt?.getTime() ?? null;
   const appState = useRef(AppState.currentState);
   const [isBackgrounded, setIsBackgrounded] = useState(
     AppState.currentState.match(/inactive|background/) !== null
@@ -170,8 +170,8 @@ export function useWorkoutReminderNotifications() {
         await persistReminderIds([]);
         reminderIdsRef.current = [];
 
-        if (!isWorkoutActive || !sessionStartMs || !isBackgrounded) return;
-        const ids = await scheduleReminderNotifications(sessionStartMs);
+        if (!isWorkoutActive || !lastEditedMs || !isBackgrounded) return;
+        const ids = await scheduleReminderNotifications(lastEditedMs);
         if (isCancelled) {
           await cancelReminderNotifications(ids);
           return;
@@ -188,7 +188,7 @@ export function useWorkoutReminderNotifications() {
     return () => {
       isCancelled = true;
     };
-  }, [isBackgrounded, isWorkoutActive, sessionStartMs]);
+  }, [isBackgrounded, isWorkoutActive, lastEditedMs]);
 
   useEffect(() => {
     return () => {

@@ -45,6 +45,10 @@ const SECTION_GAP = scale(Spacing.lg);
 const CARD_RADIUS = scale(BorderRadius.xl);
 const HEATMAP_CELL = 12;
 const HEATMAP_GAP = 4;
+const SHARE_CARD_WIDTH = 320;
+const SHARE_CARD_HEIGHT = 360;
+const SIGNATURE_SHARE_CARD_WIDTH = 300;
+const SIGNATURE_SHARE_CARD_HEIGHT = 300;
 
 const formatVolume = (volume: number, units: 'imperial' | 'metric'): string => {
   const unit = units === 'metric' ? 'kg' : 'lbs';
@@ -749,8 +753,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   shareCard: {
-    width: scale(320),
-    minHeight: scale(360),
+    width: SHARE_CARD_WIDTH,
+    minHeight: SHARE_CARD_HEIGHT,
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
     padding: scale(Spacing.lg),
@@ -758,8 +762,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   shareCardSignature: {
-    width: scale(300),
-    minHeight: scale(300),
+    width: SIGNATURE_SHARE_CARD_WIDTH,
+    minHeight: SIGNATURE_SHARE_CARD_HEIGHT,
     paddingTop: scale(Spacing.md),
     paddingBottom: scale(Spacing.md),
   },

@@ -151,8 +151,22 @@ export function WeeklyTierMuscleHeatmap({
       <View style={[styles.legend, compact && styles.legendCompact]}>
         {LEGEND_ORDER.map((tier) => (
           <View key={tier} style={styles.legendRow}>
-            <View style={[styles.legendSwatch, { backgroundColor: WEEKLY_MUSCLE_TIER_COLORS[tier] }]} />
-            <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>{tier} tier</Text>
+            <View
+              style={[
+                styles.legendSwatch,
+                compact && styles.legendSwatchCompact,
+                { backgroundColor: WEEKLY_MUSCLE_TIER_COLORS[tier] },
+              ]}
+            />
+            <Text
+              style={[
+                styles.legendLabel,
+                compact && styles.legendLabelCompact,
+                { color: colors.textSecondary },
+              ]}
+            >
+              {tier} tier
+            </Text>
           </View>
         ))}
       </View>
@@ -199,12 +213,12 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     height: LEGEND_HEIGHT,
     justifyContent: 'space-between',
-    marginLeft: -Spacing.lg,
     marginRight: Spacing.md,
     gap: 4,
   },
   legendCompact: {
     alignSelf: 'center',
+    marginRight: Spacing.sm,
   },
   legendRow: {
     flexDirection: 'row',
@@ -216,17 +230,27 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: BorderRadius.sm,
   },
+  legendSwatchCompact: {
+    width: 10,
+    height: 10,
+  },
   legendLabel: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 10,
     letterSpacing: 0.5,
   },
+  legendLabelCompact: {
+    fontSize: 9,
+    letterSpacing: 0.35,
+  },
   bodiesContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 1,
   },
   bodyWrapper: {
     alignItems: 'center',
+    flexShrink: 1,
   },
 });
