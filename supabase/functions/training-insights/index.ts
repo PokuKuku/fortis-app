@@ -29,6 +29,15 @@ type WeeklyExerciseAggRow = {
   total_volume: number | null;
 };
 
+type ExerciseMetadataRow = {
+  id: string;
+  name: string | null;
+  equipment: string | null;
+  category: string | null;
+  primary_muscles: string[] | null;
+  secondary_muscles: string[] | null;
+};
+
 type MuscleGroupRow = {
   muscle_group: string;
   week_start: string;
@@ -81,6 +90,15 @@ type VerdictOutput = {
   title: string;
   summary: string;
   severity: 'low' | 'medium' | 'high';
+};
+
+type StallSignalClass = 'high_signal' | 'medium_signal' | 'low_signal';
+
+type ExistingStallRiskRow = {
+  subject_key: string;
+  anchor_date: string;
+  status: 'active' | 'dismissed';
+  recommendation: unknown;
 };
 
 const INSIGHT_TYPE = 'WEEKLY_VERDICT_V1';
@@ -623,6 +641,60 @@ const STALL_THRESHOLDS: Record<'chill' | 'standard' | 'aggressive', number> = {
   aggressive: 1.0,
 };
 
+const STALL_PENDING_RATIONALE_KEY = 'STALL_PENDING_GATE';
+const STALL_SIGNAL_PROFILES: Record<
+  StallSignalClass,
+  { minExposures: number; thresholdAdjustment: number; consecutiveDetections: number }
+> = {
+  high_signal: { minExposures: 3, thresholdAdjustment: 0, consecutiveDetections: 2 },
+  medium_signal: { minExposures: 4, thresholdAdjustment: -0.5, consecutiveDetections: 2 },
+  low_signal: { minExposures: 5, thresholdAdjustment: -1.5, consecutiveDetections: 2 },
+};
+const HIGH_SIGNAL_EQUIPMENT = new Set([
+  'barbell',
+  'olympic barbell',
+  'trap bar',
+  'dumbbell',
+  'body only',
+  'bodyweight',
+  'body weight',
+  'weighted',
+]);
+const MEDIUM_SIGNAL_EQUIPMENT = new Set([
+  'machine',
+  'leverage machine',
+  'smith machine',
+  'cable',
+  'assisted',
+  'suspension',
+]);
+const HIGH_SIGNAL_PRIMARY_MUSCLES = new Set([
+  'chest',
+  'lats',
+  'upper_back',
+  'lower_back',
+  'glutes',
+  'quads',
+  'hamstrings',
+]);
+const LOW_SIGNAL_PRIMARY_MUSCLES = new Set([
+  'front_delts',
+  'side_delts',
+  'rear_delts',
+  'biceps',
+  'triceps',
+  'forearms',
+  'calves',
+  'abs',
+  'obliques',
+  'adductors',
+  'abductors',
+]);
+const HIGH_SIGNAL_NAME_PATTERN =
+  /\b(squat|deadlift|romanian deadlift|rdl|bench press|chest press|overhead press|shoulder press|push press|row|pull[- ]?up|chin[- ]?up|dip|hip thrust|leg press|hack squat|split squat|lunge|lat pull[- ]?down)\b/i;
+const LOW_SIGNAL_NAME_PATTERN =
+  /\b(lateral raise|front raise|rear raise|reverse fly|flye?|curl|pushdown|pressdown|kickback|shrug|calf raise|calf press|wrist curl|extension|leg extension|leg curl|adduction|abduction|crunch|face pull)\b/i;
+
 const FATIGUE_THRESHOLDS: Record<
   'chill' | 'standard' | 'aggressive',
   { volumeSpikeWoW: number; e1rmDropForFatigue: number; minSessions: number }
@@ -847,6 +919,91 @@ const normalizeMuscleList = (muscles?: string[] | null): string[] => {
     if (!normalized.includes(key)) normalized.push(key);
   });
   return normalized;
+};
+
+const buildPendingStallRecommendation = (
+  signalClass: StallSignalClass
+): Array<{ type: string; payload: Record<string, unknown>; rationaleKey: string }> => [
+  {
+    type: 'SYSTEM_META',
+    payload: {
+      gate: 'pending',
+      signalClass,
+      consecutiveRequired: STALL_SIGNAL_PROFILES[signalClass].consecutiveDetections,
+    },
+    rationaleKey: STALL_PENDING_RATIONALE_KEY,
+  },
+];
+
+const hasPendingStallGate = (recommendation: unknown): boolean => {
+  if (!Array.isArray(recommendation)) {
+    return false;
+  }
+
+  return recommendation.some((item) => {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+    return (item as { rationaleKey?: unknown }).rationaleKey === STALL_PENDING_RATIONALE_KEY;
+  });
+};
+
+const resolveStallSignalClass = ({
+  name,
+  equipment,
+  category,
+  primaryMuscles,
+  secondaryMuscles,
+}: {
+  name?: string | null;
+  equipment?: string | null;
+  category?: string | null;
+  primaryMuscles?: string[] | null;
+  secondaryMuscles?: string[] | null;
+}): StallSignalClass => {
+  const normalizedName = normalizeInput(name ?? '');
+  const normalizedEquipment = normalizeInput(equipment ?? '');
+  const normalizedCategory = normalizeInput(category ?? '');
+  const normalizedPrimary = normalizeMuscleList(primaryMuscles);
+  const normalizedSecondary = normalizeMuscleList(secondaryMuscles);
+  const distinctMuscles = new Set([...normalizedPrimary, ...normalizedSecondary]);
+  const hasLargePrimary = normalizedPrimary.some((muscle) => HIGH_SIGNAL_PRIMARY_MUSCLES.has(muscle));
+  const hasSmallPrimaryOnly =
+    normalizedPrimary.length > 0
+    && normalizedPrimary.every((muscle) => LOW_SIGNAL_PRIMARY_MUSCLES.has(muscle));
+
+  if (
+    normalizedCategory
+    && !['strength', 'powerlifting', 'strongman', 'olympic weightlifting'].includes(normalizedCategory)
+  ) {
+    return 'low_signal';
+  }
+
+  if (normalizedName && LOW_SIGNAL_NAME_PATTERN.test(normalizedName)) {
+    return 'low_signal';
+  }
+
+  if (normalizedName && HIGH_SIGNAL_NAME_PATTERN.test(normalizedName)) {
+    return HIGH_SIGNAL_EQUIPMENT.has(normalizedEquipment) ? 'high_signal' : 'medium_signal';
+  }
+
+  if (hasSmallPrimaryOnly && distinctMuscles.size <= 2) {
+    return 'low_signal';
+  }
+
+  if (hasLargePrimary && HIGH_SIGNAL_EQUIPMENT.has(normalizedEquipment)) {
+    return 'high_signal';
+  }
+
+  if (hasLargePrimary && (MEDIUM_SIGNAL_EQUIPMENT.has(normalizedEquipment) || distinctMuscles.size >= 2)) {
+    return 'medium_signal';
+  }
+
+  if (hasLargePrimary) {
+    return 'medium_signal';
+  }
+
+  return distinctMuscles.size >= 2 ? 'medium_signal' : 'low_signal';
 };
 
 const getBodyweightMovementFactor = (
@@ -1695,7 +1852,7 @@ const buildStallRiskInsights = async ({
         severity: 'low',
         status: 'active',
         title: 'Not enough data yet',
-        summary: 'Repeat a lift 3 times in the last 6 weeks to unlock stall alerts.',
+        summary: 'Repeat a lift 3 to 5 times in the last 6 weeks to unlock stall alerts. Accessory lifts need more history.',
         evidence: [
           {
             key: 'eligible_exercises',
@@ -1740,11 +1897,39 @@ const buildStallRiskInsights = async ({
         lastExposureAt,
       };
     })
-    .sort(sortByExposure)
-    .slice(0, 5);
+    .sort(sortByExposure);
 
-  const candidateIds = ranked.map((item) => item.exerciseId);
-  if (candidateIds.length === 0) {
+  const rankedIds = ranked.map((item) => item.exerciseId);
+  const { data: exerciseMetadataRows, error: exerciseMetadataError } = await adminClient
+    .from('exercises')
+    .select('id, name, equipment, category, primary_muscles, secondary_muscles')
+    .in('id', rankedIds);
+
+  if (exerciseMetadataError) {
+    console.warn('[Insights] Failed to fetch exercise metadata for stall risk:', exerciseMetadataError.message);
+  }
+
+  const exerciseMetadataById = new Map<string, ExerciseMetadataRow>();
+  (exerciseMetadataRows ?? []).forEach((row: ExerciseMetadataRow) => {
+    if (row?.id) {
+      exerciseMetadataById.set(row.id, row);
+    }
+  });
+
+  const eligibleCandidates = ranked.filter((candidate) => {
+    const exerciseMeta = exerciseMetadataById.get(candidate.exerciseId);
+    const signalClass = resolveStallSignalClass({
+      name: exerciseMeta?.name,
+      equipment: exerciseMeta?.equipment,
+      category: exerciseMeta?.category,
+      primaryMuscles: exerciseMeta?.primary_muscles,
+      secondaryMuscles: exerciseMeta?.secondary_muscles,
+    });
+    const profile = STALL_SIGNAL_PROFILES[signalClass];
+    return candidate.exposures >= profile.minExposures;
+  });
+
+  if (eligibleCandidates.length === 0) {
     return [
       {
         user_id: userId,
@@ -1755,7 +1940,7 @@ const buildStallRiskInsights = async ({
         severity: 'low',
         status: 'active',
         title: 'Not enough data yet',
-        summary: 'Repeat a lift 3 times in the last 6 weeks to unlock stall alerts.',
+        summary: 'Repeat a lift 3 to 5 times in the last 6 weeks to unlock stall alerts. Accessory lifts need more history.',
         evidence: [
           {
             key: 'eligible_exercises',
@@ -1780,27 +1965,41 @@ const buildStallRiskInsights = async ({
     ];
   }
 
+  const candidateIds = eligibleCandidates.map((item) => item.exerciseId);
   const volumeLookbackStart = addDays(weekStart, -21);
 
-  const [{ data: weeklyAggs }, { data: exerciseNames }] = await Promise.all([
+  const currentAnchorDate = toIsoDate(weekStart);
+  const previousAnchorDate = toIsoDate(addDays(weekStart, -7));
+  const [{ data: weeklyAggs }, { data: existingStallRowsRaw }] = await Promise.all([
     adminClient
       .from('exercise_weekly_agg')
       .select('exercise_id, week_start, total_volume')
       .eq('user_id', userId)
       .in('exercise_id', candidateIds)
       .gte('week_start', toIsoDate(volumeLookbackStart))
-      .lte('week_start', toIsoDate(weekStart)),
+      .lte('week_start', currentAnchorDate),
     adminClient
-      .from('exercises')
-      .select('id, name')
-      .in('id', candidateIds),
+      .from('training_insights')
+      .select('subject_key, anchor_date, status, recommendation')
+      .eq('user_id', userId)
+      .eq('type', STALL_RISK_TYPE)
+      .in('subject_key', candidateIds.map((id) => `exercise:${id}`))
+      .in('anchor_date', [previousAnchorDate, currentAnchorDate]),
   ]);
 
   const exerciseNameById = new Map<string, string>();
-  (exerciseNames ?? []).forEach((row: { id: string; name: string }) => {
+  (exerciseMetadataRows ?? []).forEach((row: ExerciseMetadataRow) => {
     if (row?.id) {
-      exerciseNameById.set(row.id, row.name);
+      exerciseNameById.set(row.id, row.name ?? 'this lift');
     }
+  });
+
+  const existingStallRowsBySubject = new Map<string, ExistingStallRiskRow[]>();
+  (existingStallRowsRaw ?? []).forEach((row: ExistingStallRiskRow) => {
+    if (!row?.subject_key) return;
+    const list = existingStallRowsBySubject.get(row.subject_key) ?? [];
+    list.push(row);
+    existingStallRowsBySubject.set(row.subject_key, list);
   });
 
   const weeklyByExercise = new Map<string, Map<string, number>>();
@@ -1821,11 +2020,19 @@ const buildStallRiskInsights = async ({
   const unit = preferredUnits === 'metric' ? 'kg' : 'lbs';
   const insights: Record<string, unknown>[] = [];
   let flaggedCount = 0;
+  let pendingCount = 0;
 
-  ranked.forEach((candidate) => {
+  eligibleCandidates.forEach((candidate) => {
     const items = exposuresByExercise.get(candidate.exerciseId) ?? [];
-    if (items.length < 3) return;
-
+    const exerciseMeta = exerciseMetadataById.get(candidate.exerciseId);
+    const signalClass = resolveStallSignalClass({
+      name: exerciseMeta?.name,
+      equipment: exerciseMeta?.equipment,
+      category: exerciseMeta?.category,
+      primaryMuscles: exerciseMeta?.primary_muscles,
+      secondaryMuscles: exerciseMeta?.secondary_muscles,
+    });
+    const signalProfile = STALL_SIGNAL_PROFILES[signalClass];
     const sorted = [...items].sort((a, b) => {
       return new Date(a.exposure_at).getTime() - new Date(b.exposure_at).getTime();
     });
@@ -1845,8 +2052,9 @@ const buildStallRiskInsights = async ({
       (weeklyMap.get(weekKeyMinus2) ?? 0) + (weeklyMap.get(weekKeyMinus3) ?? 0);
     const volumeDeltaPct =
       previousVolume > 0 ? ((recentVolume - previousVolume) / previousVolume) * 100 : 100;
+    const adjustedThreshold = threshold + signalProfile.thresholdAdjustment;
 
-    if (!(e1rmDeltaPct <= threshold && volumeDeltaPct <= 5)) {
+    if (!(e1rmDeltaPct <= adjustedThreshold && volumeDeltaPct <= 5)) {
       return;
     }
 
@@ -1855,6 +2063,14 @@ const buildStallRiskInsights = async ({
       e1rmDeltaPct < 0 && volumeDeltaPct > 0 ? 'high' : 'medium';
     const recommendation = buildStallRecommendation({ e1rmDeltaPct, volumeDeltaPct });
     const rpeNote = rpeSpike ? ' Average RPE was higher this week, which can mask progress.' : '';
+    const subjectKey = `exercise:${candidate.exerciseId}`;
+    const existingRows = existingStallRowsBySubject.get(subjectKey) ?? [];
+    const hasCurrentUserDismissal = existingRows.some((row) => {
+      return row.anchor_date === currentAnchorDate && row.status === 'dismissed' && !hasPendingStallGate(row.recommendation);
+    });
+    const hasPreviousDetection = existingRows.some((row) => {
+      return row.status === 'active' || hasPendingStallGate(row.recommendation);
+    });
 
     const evidence: EvidenceItem[] = [
       {
@@ -1887,13 +2103,52 @@ const buildStallRiskInsights = async ({
       },
     ];
 
+    if (hasCurrentUserDismissal) {
+      insights.push({
+        user_id: userId,
+        type: STALL_RISK_TYPE,
+        window: STALL_WINDOW,
+        anchor_date: currentAnchorDate,
+        subject_key: subjectKey,
+        severity,
+        status: 'dismissed',
+        title: `Stall risk: ${exerciseName}`,
+        summary: `Recent ${exerciseName} progress has flattened. A small adjustment could help restart momentum.${rpeNote}`,
+        evidence,
+        recommendation: [recommendation],
+        schema_version: SCHEMA_VERSION,
+        exercise_id: candidate.exerciseId,
+      });
+      return;
+    }
+
+    if (!hasPreviousDetection) {
+      pendingCount += 1;
+      insights.push({
+        user_id: userId,
+        type: STALL_RISK_TYPE,
+        window: STALL_WINDOW,
+        anchor_date: currentAnchorDate,
+        subject_key: subjectKey,
+        severity: 'low',
+        status: 'dismissed',
+        title: `Stall risk: ${exerciseName}`,
+        summary: `Monitoring ${exerciseName} for another refresh before surfacing a stall risk.`,
+        evidence,
+        recommendation: buildPendingStallRecommendation(signalClass),
+        schema_version: SCHEMA_VERSION,
+        exercise_id: candidate.exerciseId,
+      });
+      return;
+    }
+
     flaggedCount += 1;
     insights.push({
       user_id: userId,
       type: STALL_RISK_TYPE,
       window: STALL_WINDOW,
-      anchor_date: toIsoDate(weekStart),
-      subject_key: `exercise:${candidate.exerciseId}`,
+      anchor_date: currentAnchorDate,
+      subject_key: subjectKey,
       severity,
       status: 'active',
       title: `Stall risk: ${exerciseName}`,
@@ -1905,21 +2160,22 @@ const buildStallRiskInsights = async ({
     });
   });
 
-  const eligibleCount = ranked.filter((candidate) => {
-    const items = exposuresByExercise.get(candidate.exerciseId) ?? [];
-    return items.length >= 3;
-  }).length;
+  const eligibleCount = eligibleCandidates.length;
 
   const summaryTitle = eligibleCount === 0
     ? 'Not enough data yet'
     : flaggedCount === 0
-    ? 'All clear this week'
+    ? pendingCount > 0
+      ? 'No high-confidence stall risks'
+      : 'All clear this week'
     : 'Watchlist updated';
   const summaryText = eligibleCount === 0
-    ? 'Repeat a lift 3 times in the last 6 weeks to unlock stall alerts.'
+    ? 'Repeat a lift 3 to 5 times in the last 6 weeks to unlock stall alerts. Accessory lifts need more history.'
     : flaggedCount === 0
-    ? 'Your top lifts are steady this week. Keep building consistency.'
-    : 'Stall risks detected for your top lifts. Tap a lift to see why.';
+    ? pendingCount > 0
+      ? 'Some lifts are being monitored, but nothing is strong enough to flag yet.'
+      : 'Your eligible lifts look steady this week. Keep building consistency.'
+    : 'Stall risks detected on your watchlist. Tap a lift to see why.';
 
   insights.push({
     user_id: userId,
@@ -1948,6 +2204,18 @@ const buildStallRiskInsights = async ({
         source: 'training_insights',
         period: 'this_week',
       },
+      ...(pendingCount > 0
+        ? [
+            {
+              key: 'monitored_exercises',
+              label: 'Monitored lifts',
+              value: pendingCount,
+              unit: 'lifts',
+              source: 'training_insights',
+              period: 'this_week',
+            } satisfies EvidenceItem,
+          ]
+        : []),
       ...(rpeDelta !== null
         ? [
             {
@@ -1968,6 +2236,51 @@ const buildStallRiskInsights = async ({
   });
 
   return insights;
+};
+
+const dismissStaleStallRiskInsights = async ({
+  adminClient,
+  userId,
+  weekStart,
+  activeSubjectKeys,
+}: {
+  adminClient: SupabaseClient;
+  userId: string;
+  weekStart: Date;
+  activeSubjectKeys: Set<string>;
+}) => {
+  const anchorDate = toIsoDate(weekStart);
+  const { data: activeRows, error } = await adminClient
+    .from('training_insights')
+    .select('id, anchor_date, subject_key')
+    .eq('user_id', userId)
+    .eq('type', STALL_RISK_TYPE)
+    .eq('status', 'active');
+
+  if (error) {
+    console.warn('[Insights] Failed to fetch active stall risks for cleanup:', error.message);
+    return;
+  }
+
+  const staleIds = (activeRows ?? [])
+    .filter((row: { id: string; anchor_date: string; subject_key: string }) => {
+      return row.anchor_date !== anchorDate || !activeSubjectKeys.has(row.subject_key);
+    })
+    .map((row: { id: string }) => row.id)
+    .filter(Boolean);
+
+  if (staleIds.length === 0) {
+    return;
+  }
+
+  const { error: dismissError } = await adminClient
+    .from('training_insights')
+    .update({ status: 'dismissed' })
+    .in('id', staleIds);
+
+  if (dismissError) {
+    console.warn('[Insights] Failed to dismiss stale stall risks:', dismissError.message);
+  }
 };
 
 Deno.serve(async (req) => {
@@ -2164,6 +2477,17 @@ Deno.serve(async (req) => {
       thisWeekRpe,
       lastWeekRpe,
     });
+    await dismissStaleStallRiskInsights({
+      adminClient,
+      userId: user.id,
+      weekStart,
+      activeSubjectKeys: new Set(
+        stallInsights
+          .filter((insight) => String(insight.status ?? 'active') === 'active')
+          .map((insight) => String(insight.subject_key ?? ''))
+          .filter(Boolean)
+      ),
+    });
     insightsToUpsert.push(...stallInsights);
   }
 
@@ -2354,7 +2678,7 @@ Deno.serve(async (req) => {
   if (types.length > 0 && windows.length > 0 && anchorDates.length > 0 && subjectKeys.length > 0) {
     const { data: dismissedRows, error: dismissedError } = await adminClient
       .from('training_insights')
-      .select('type, window, anchor_date, subject_key, status')
+      .select('type, window, anchor_date, subject_key, status, recommendation')
       .eq('user_id', user.id)
       .in('type', types)
       .in('window', windows)
@@ -2366,7 +2690,9 @@ Deno.serve(async (req) => {
       console.warn('[Insights] Failed to fetch dismissed insights:', dismissedError.message);
     } else {
       const dismissedKeys = new Set(
-        (dismissedRows ?? []).map((row) =>
+        (dismissedRows ?? [])
+          .filter((row) => !(row.type === STALL_RISK_TYPE && hasPendingStallGate(row.recommendation)))
+          .map((row) =>
           `${row.type}|${row.window}|${row.anchor_date}|${row.subject_key}`
         )
       );

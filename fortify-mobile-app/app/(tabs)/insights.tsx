@@ -831,11 +831,17 @@ export default function InsightsScreen() {
       medium: 1,
       low: 0,
     };
+    const getExposureCount = (insight: TrainingInsight) => {
+      const evidence = insight.evidence.find((item) => item.key === 'exposures');
+      return evidence ? Number(evidence.value) : 0;
+    };
     return [...stallRisks]
       .filter((insight) => Boolean(insight.exerciseId))
       .sort((a, b) => {
         const bySeverity = severityRank[b.severity] - severityRank[a.severity];
         if (bySeverity !== 0) return bySeverity;
+        const byExposure = getExposureCount(b) - getExposureCount(a);
+        if (byExposure !== 0) return byExposure;
         return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
       })
       .slice(0, 5);
