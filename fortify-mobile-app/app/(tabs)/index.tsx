@@ -1256,11 +1256,11 @@ export default function ProgramsScreen() {
           {/* Workouts Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <TourAnchor id={TOUR_ANCHOR_IDS.workoutsSection}>
-                <TouchableOpacity
-                  onPress={() => setShowWorkouts(!showWorkouts)}
-                  style={styles.sectionHeaderButton}
-                >
+              <TouchableOpacity
+                onPress={() => setShowWorkouts(!showWorkouts)}
+              >
+                <TourAnchor id={TOUR_ANCHOR_IDS.workoutsSection}>
+                  <View style={styles.sectionHeaderButton}>
                   <GlassButton circular size={SECTION_CHEVRON_BUTTON_SIZE} onPress={() => setShowWorkouts(!showWorkouts)}>
                     <ChevronRightIcon
                       color="#fff"
@@ -1272,8 +1272,9 @@ export default function ProgramsScreen() {
                     />
                   </GlassButton>
                   <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
-                </TouchableOpacity>
-              </TourAnchor>
+                  </View>
+                </TourAnchor>
+              </TouchableOpacity>
               {shouldAnchorAddWorkout ? (
                 <TourAnchor id={TOUR_ANCHOR_IDS.addWorkoutRoutine}>
                   <TouchableOpacity
