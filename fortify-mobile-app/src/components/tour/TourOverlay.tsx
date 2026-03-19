@@ -206,10 +206,8 @@ export function TourOverlay({
       borderColor: colors.glassBorder,
     },
     bodyText: { color: colors.textPrimary },
-    stepText: { color: colors.textSecondary },
     highlightBorder: { borderColor: colors.accent },
     primaryText: { color: colors.white },
-    skipText: { color: colors.textSecondary },
     arrow: { borderTopColor: '#FFFFFF' },
     arrowLine: { backgroundColor: '#FFFFFF' },
   };
@@ -480,33 +478,6 @@ export function TourOverlay({
               }
             }}
           >
-            {(stepLabel || secondaryAction) ? (
-              <View style={styles.tooltipHeader}>
-                {stepLabel ? (
-                  <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel}</Text>
-                ) : (
-                  <View style={styles.headerSpacer} />
-                )}
-                {secondaryAction ? (
-                  <Pressable
-                    style={styles.skipButton}
-                    onPress={secondaryAction.onPress}
-                    disabled={Boolean(secondaryAction.disabled)}
-                  >
-                    <Text
-                      style={[
-                        styles.skipText,
-                        themedStyles.skipText,
-                        secondaryAction.disabled && styles.skipDisabled,
-                      ]}
-                    >
-                      skip
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            ) : null}
-
             <Text style={[styles.bodyText, themedStyles.bodyText, centerTooltip && styles.bodyTextCentered]}>{body}</Text>
 
             {primaryAction ? (
@@ -549,19 +520,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
     elevation: 10,
   },
-  tooltipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
-  },
-  headerSpacer: {
-    flex: 1,
-  },
-  stepText: {
-    fontSize: moderateScale(12),
-    fontWeight: FontWeights.bold,
-  },
   bodyText: {
     fontSize: moderateScale(15),
     lineHeight: moderateScale(22),
@@ -569,17 +527,6 @@ const styles = StyleSheet.create({
   },
   bodyTextCentered: {
     textAlign: 'center',
-  },
-  skipButton: {
-    paddingHorizontal: Spacing.xs,
-    paddingVertical: Spacing.xs,
-  },
-  skipText: {
-    fontSize: moderateScale(13),
-    fontWeight: FontWeights.medium,
-  },
-  skipDisabled: {
-    opacity: 0.45,
   },
   primaryButton: {
     marginTop: Spacing.lg,

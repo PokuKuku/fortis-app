@@ -169,7 +169,7 @@ export function WorkoutVoiceLogSheet({
   onClose,
 }: WorkoutVoiceLogSheetProps) {
   const { colors, isDark } = useTheme();
-  const { isTourActive, activeStepId, advanceStep, skipTour, currentStepNumber, totalSteps } = useInAppTour();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const session = useWorkoutStore((state) => state.activeSession);
@@ -964,14 +964,6 @@ export function WorkoutVoiceLogSheet({
                   }
                 }}
               >
-                <View style={styles.localTooltipHeader}>
-                  <Text style={[styles.localTooltipStep, { color: colors.textSecondary }]}>
-                    Step {currentStepNumber ?? 1} of {totalSteps}
-                  </Text>
-                  <Pressable onPress={skipTour} hitSlop={8}>
-                    <Text style={[styles.localTooltipSkip, { color: colors.textSecondary }]}>skip</Text>
-                  </Pressable>
-                </View>
                 <Text style={[styles.localTooltipBody, { color: colors.textPrimary }]}>
                   {localTooltipBody}
                 </Text>
@@ -1066,21 +1058,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 20,
     elevation: 12,
-  },
-  localTooltipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: scale(Spacing.sm),
-  },
-  localTooltipStep: {
-    fontSize: moderateScale(13),
-    fontWeight: '700',
-  },
-  localTooltipSkip: {
-    fontSize: moderateScale(13),
-    fontWeight: '700',
-    textTransform: 'lowercase',
   },
   localTooltipBody: {
     fontSize: moderateScale(15),

@@ -118,7 +118,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'voice_add_multiple',
     route: '/workout/create',
     anchorId: TOUR_ANCHOR_IDS.workoutExerciseCard,
-    body: 'You can voice add multiple exercises at once. Say each exercise with its set count, like "3 sets of barbell bench press, 4 sets of lat pulldown."',
+    body: 'You can voice add multiple exercises at once if needed.',
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: false,

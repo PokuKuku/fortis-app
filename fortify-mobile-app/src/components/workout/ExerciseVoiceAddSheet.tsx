@@ -182,7 +182,7 @@ export function ExerciseVoiceAddSheet({
   onAddExercises,
 }: ExerciseVoiceAddSheetProps) {
   const { colors, isDark } = useTheme();
-  const { isTourActive, activeStepId, currentStepNumber, totalSteps, skipTour, advanceStep } = useInAppTour();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const { exercises } = useExercises();
@@ -1165,14 +1165,6 @@ export function ExerciseVoiceAddSheet({
                   },
                 ]}
               >
-                <View style={styles.tourTooltipHeader}>
-                  <Text style={[styles.tourTooltipStep, { color: colors.textSecondary }]}>
-                    {currentStepNumber ? `Step ${currentStepNumber} of ${totalSteps}` : null}
-                  </Text>
-                  <Pressable onPress={skipTour} hitSlop={8}>
-                    <Text style={[styles.tourTooltipSkip, { color: colors.textSecondary }]}>skip</Text>
-                  </Pressable>
-                </View>
                 <Text style={[styles.tourTooltipBody, { color: colors.textPrimary }]}>
                   {localTooltipBody}
                 </Text>
@@ -1282,20 +1274,6 @@ const styles = StyleSheet.create({
     borderTopWidth: scale(14),
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-  },
-  tourTooltipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: scale(Spacing.sm),
-  },
-  tourTooltipStep: {
-    fontSize: moderateScale(14),
-    fontWeight: '700',
-  },
-  tourTooltipSkip: {
-    fontSize: moderateScale(14),
-    fontWeight: '700',
   },
   tourTooltipBody: {
     fontSize: moderateScale(16),
