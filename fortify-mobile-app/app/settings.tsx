@@ -39,6 +39,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { supabase } from '@/src/lib/supabase';
+import { clearInAppTourState } from '@/src/services/inAppTourService';
 import {
   hasAIDataSharingConsent,
   requestAIDataSharingConsent,
@@ -93,13 +94,14 @@ export default function SettingsScreen() {
   const APP_VERSION = Constants.expoConfig?.version ?? '1.1.0';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, updateProfile } = useAuth();
   const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: Boolean(profile?.id),
   });
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [isResettingTour, setIsResettingTour] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
   const [aiDataSharingAllowed, setAIDataSharingAllowed] = useState<boolean>(false);
   const [microphoneAllowed, setMicrophoneAllowed] = useState<boolean>(false);
@@ -411,6 +413,46 @@ export default function SettingsScreen() {
     router.push('/exercises');
   };
 
+  const handleResetTour = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    Alert.alert(
+      'Reset in-app tour?',
+      'This will clear your local tour progress and reset tour completion state for your profile so you can run the tour again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            setIsResettingTour(true);
+            try {
+              await clearInAppTourState();
+              if (profile) {
+                const { error } = await updateProfile({
+                  has_seen_in_app_tour: false,
+                  in_app_tour_completed_at: null,
+                  in_app_tour_version: 0,
+                });
+
+                if (error) {
+                  throw error;
+                }
+              }
+
+              Alert.alert('Tour reset', 'Your in-app tour has been reset. Open the app again to see it.');
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Unable to reset in-app tour right now.';
+              Alert.alert('Reset failed', message);
+            } finally {
+              setIsResettingTour(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Theme-aware card styles
   const cardStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
@@ -602,12 +644,25 @@ export default function SettingsScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>App</Text>
 
-            <View style={[styles.settingsCard, cardStyle]}>
-              <TouchableOpacity
-                style={styles.signOutButton}
-                onPress={handleSignOut}
-                disabled={isSigningOut}
-                activeOpacity={0.7}
+          <View style={[styles.settingsCard, cardStyle]}>
+            <TouchableOpacity
+              style={styles.signOutButton}
+              onPress={handleResetTour}
+              disabled={isResettingTour}
+              activeOpacity={0.7}
+            >
+              <BugAntIcon color={colors.textTertiary} size={20} strokeWidth={2} />
+              <Text style={[styles.signOutText, { color: colors.textPrimary }]}>Reset In-App Tour (temporary)</Text>
+              {isResettingTour ? <ActivityIndicator size="small" color={colors.textPrimary} /> : null}
+            </TouchableOpacity>
+
+            <View style={[styles.settingsDivider, dividerStyle]} />
+
+            <TouchableOpacity
+              style={styles.signOutButton}
+              onPress={handleSignOut}
+              disabled={isSigningOut}
+              activeOpacity={0.7}
               >
                 <ArrowRightOnRectangleIcon color={colors.error} size={20} strokeWidth={2} />
                 <Text style={[styles.signOutText, { color: colors.error }]}>

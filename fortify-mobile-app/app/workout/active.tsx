@@ -41,6 +41,9 @@ import { FinishConfirmationModal } from '@/src/components/workout/modals/FinishC
 import { ReplaceExerciseConfirmModal } from '@/src/components/workout/modals/ReplaceExerciseConfirmModal';
 import { RestTimerCompleteModal } from '@/src/components/workout/modals/RestTimerCompleteModal';
 import { SaveAsTemplateModal } from '@/src/components/workout/modals/SaveAsTemplateModal';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { WorkoutSession } from '@/src/types/workout';
 import type { Exercise } from '@/src/types/exercise';
@@ -76,6 +79,7 @@ const HEADER_COLLAPSE_THRESHOLD = scale(48);
 export default function ActiveWorkoutScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const activeSession = useWorkoutStore(s => s.activeSession);
   const addExercises = useWorkoutStore(s => s.addExercises);
   const workoutStartTime = useWorkoutStore(s => s.workoutStartTime);
@@ -641,6 +645,9 @@ export default function ActiveWorkoutScreen() {
     const permission = await ensureMicrophonePermission();
     if (permission.granted) {
       setVoiceExerciseLocalId(exerciseLocalId);
+      if (isTourActive && activeStepId === 'open_voice_log') {
+        advanceStep();
+      }
       return;
     }
 
@@ -663,16 +670,33 @@ export default function ActiveWorkoutScreen() {
     );
   };
 
-  const renderExerciseCard = ({ item, index }: any) => (
-    <ExerciseCard
-      exerciseLocalId={item.localId}
-      onReplace={handleReplaceExercise}
-      onViewDetails={handleViewExerciseDetails}
-      onVoiceLog={handleVoiceLog}
-      completedSetTint="success"
-      shouldAnchorVoiceButton={index === 0}
-    />
-  );
+  const renderExerciseCard = ({ item, index }: any) => {
+    const card = (
+      <ExerciseCard
+        exerciseLocalId={item.localId}
+        onReplace={handleReplaceExercise}
+        onViewDetails={handleViewExerciseDetails}
+        onVoiceLog={handleVoiceLog}
+        completedSetTint="success"
+        shouldAnchorVoiceButton={index === 0}
+      />
+    );
+
+    const shouldAnchorExerciseCard =
+      index === 0 &&
+      isTourActive &&
+      activeStepId === 'voice_log_result';
+
+    if (!shouldAnchorExerciseCard) {
+      return card;
+    }
+
+    return (
+      <TourAnchor id={TOUR_ANCHOR_IDS.activeWorkoutExerciseCard}>
+        {card}
+      </TourAnchor>
+    );
+  };
 
   // Footer with action buttons
   const renderFooter = () => (

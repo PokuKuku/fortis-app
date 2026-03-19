@@ -24,14 +24,20 @@ import Animated, {
   Easing,
   SlideInDown,
   SlideOutDown,
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useExercises } from '@/src/hooks/useExercises';
 import { createExerciseVoiceFileName, interpretExerciseVoiceAdd } from '@/src/services/exerciseVoiceService';
@@ -73,6 +79,8 @@ const MIN_BAR_HEIGHT = scale(10);
 const MAX_BAR_HEIGHT = scale(42);
 const HEADER_ICON_SIZE = scale(18);
 const PILL_RADIUS = scale(999);
+const TOUR_DIM_BACKGROUND = 'rgba(15, 23, 42, 0.55)';
+const TOUR_DIM_BACKGROUND_SUBTLE = 'rgba(15, 23, 42, 0.42)';
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   m4a: 'audio/m4a',
@@ -174,9 +182,15 @@ export function ExerciseVoiceAddSheet({
   onAddExercises,
 }: ExerciseVoiceAddSheetProps) {
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId, currentStepNumber, totalSteps, skipTour, advanceStep } = useInAppTour();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const { exercises } = useExercises();
+  const shouldAnchorListenButton = isTourActive && activeStepId === 'add_with_voice';
+  const shouldShowVoiceTourTooltip = visible && isTourActive && (
+    activeStepId === 'add_with_voice' || activeStepId === 'confirm_add_with_voice'
+  );
+  const shouldDimVoiceModalContent = shouldShowVoiceTourTooltip && activeStepId === 'confirm_add_with_voice';
 
   const [phase, setPhase] = useState<VoicePhase>('idle');
   const [meterLevel, setMeterLevel] = useState(0.08);
@@ -189,6 +203,16 @@ export function ExerciseVoiceAddSheet({
   const isStartingRef = useRef(false);
   const isStoppingRef = useRef(false);
   const requestVersionRef = useRef(0);
+  const backdropRef = useRef<View>(null);
+  const containerRef = useRef<View>(null);
+  const listenButtonRef = useRef<View>(null);
+  const addButtonRef = useRef<View>(null);
+  const [tourTooltipHeight, setTourTooltipHeight] = useState(0);
+  const [listenButtonMetrics, setListenButtonMetrics] = useState<{ centerX: number; centerY: number } | null>(null);
+  const [addButtonMetrics, setAddButtonMetrics] = useState<{ centerX: number; centerY: number } | null>(null);
+  const [containerMetrics, setContainerMetrics] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [addButtonRectInContainer, setAddButtonRectInContainer] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const arrowNudge = useSharedValue(0);
 
   const searchIndex = useMemo(
     () => buildExerciseSearchIndex([...exercises].sort((a, b) => a.name.localeCompare(b.name))),
@@ -200,6 +224,202 @@ export function ExerciseVoiceAddSheet({
     scale(320),
     windowHeight - insets.top - Math.max(insets.bottom, scale(24)) - scale(48)
   );
+  const tooltipWidth = Math.min(scale(360), windowWidth - scale(32));
+
+  const measureListenButton = useCallback(() => {
+    const backdrop = backdropRef.current;
+    const listenButton = listenButtonRef.current;
+    if (!backdrop || !listenButton) return;
+
+    requestAnimationFrame(() => {
+      backdrop.measureInWindow((backdropX, backdropY) => {
+        listenButton.measureInWindow((x, y, width, height) => {
+          if (width <= 0 || height <= 0) return;
+          setListenButtonMetrics({
+            centerX: x - backdropX + width / 2,
+            centerY: y - backdropY + height / 2,
+          });
+        });
+      });
+    });
+  }, []);
+
+  const measureAddButton = useCallback(() => {
+    const backdrop = backdropRef.current;
+    const container = containerRef.current;
+    const addButton = addButtonRef.current;
+    if (!backdrop || !container || !addButton) return;
+
+    requestAnimationFrame(() => {
+      backdrop.measureInWindow((backdropX, backdropY) => {
+        container.measureInWindow((containerX, containerY) => {
+          addButton.measureInWindow((x, y, width, height) => {
+            if (width <= 0 || height <= 0) return;
+            setAddButtonMetrics({
+              centerX: x - backdropX + width / 2,
+              centerY: y - backdropY + height / 2,
+            });
+            setAddButtonRectInContainer({
+              x: x - containerX,
+              y: y - containerY,
+              width,
+              height,
+            });
+          });
+        });
+      });
+    });
+  }, []);
+
+  const measureContainer = useCallback(() => {
+    const backdrop = backdropRef.current;
+    const container = containerRef.current;
+    if (!backdrop || !container) return;
+
+    requestAnimationFrame(() => {
+      backdrop.measureInWindow((backdropX, backdropY) => {
+        container.measureInWindow((x, y, width, height) => {
+          if (width <= 0 || height <= 0) return;
+          setContainerMetrics({
+            x: x - backdropX,
+            y: y - backdropY,
+            width,
+            height,
+          });
+        });
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!shouldShowVoiceTourTooltip) return;
+    measureListenButton();
+    measureAddButton();
+    measureContainer();
+  }, [measureAddButton, measureContainer, measureListenButton, shouldShowVoiceTourTooltip, phase, candidates.length]);
+
+  const normalizeTutorialText = useCallback((value: string) => (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  ), []);
+
+  const hasTutorialVoiceMatch = useMemo(() => (
+    candidates.some((candidate) => {
+      const normalized = normalizeTutorialText(candidate.exerciseQuery);
+      return (
+        candidate.setCount === 3 &&
+        normalized.includes('barbell') &&
+        normalized.includes('bench') &&
+        normalized.includes('press')
+      );
+    })
+  ), [candidates, normalizeTutorialText]);
+
+  const hasTutorialSelectedMatch = useMemo(() => (
+    candidates.some((candidate) => {
+      if (!candidate.included || !candidate.selectedMatchId || candidate.setCount !== 3) {
+        return false;
+      }
+
+      const selectedMatch = candidate.matches.find((entry) => entry.id === candidate.selectedMatchId);
+      if (!selectedMatch) {
+        return false;
+      }
+
+      const normalized = normalizeTutorialText(selectedMatch.name);
+      return (
+        normalized.includes('barbell') &&
+        normalized.includes('bench') &&
+        normalized.includes('press')
+      );
+    })
+  ), [candidates, normalizeTutorialText]);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (!isTourActive) return;
+    if (activeStepId !== 'add_with_voice') return;
+    if (phase !== 'review') return;
+    if (!hasTutorialVoiceMatch) return;
+    void advanceStep();
+  }, [activeStepId, advanceStep, hasTutorialVoiceMatch, isTourActive, phase, visible]);
+
+  useEffect(() => {
+    if (!shouldShowVoiceTourTooltip) {
+      cancelAnimation(arrowNudge);
+      arrowNudge.value = 0;
+      return;
+    }
+
+    arrowNudge.value = withRepeat(
+      withSequence(
+        withTiming(1, {
+          duration: 650,
+          easing: Easing.inOut(Easing.cubic),
+        }),
+        withTiming(0, {
+          duration: 650,
+          easing: Easing.inOut(Easing.cubic),
+        })
+      ),
+      -1,
+      false
+    );
+
+    return () => {
+      cancelAnimation(arrowNudge);
+      arrowNudge.value = 0;
+    };
+  }, [arrowNudge, shouldShowVoiceTourTooltip]);
+
+  const tooltipHorizontalInset = scale(16);
+  const tooltipAnchorCenterX = containerMetrics
+    ? containerMetrics.x + containerMetrics.width / 2
+    : listenButtonMetrics?.centerX;
+  const tooltipLeft = tooltipAnchorCenterX
+    ? Math.min(
+        Math.max(tooltipAnchorCenterX - tooltipWidth / 2, tooltipHorizontalInset),
+        windowWidth - tooltipWidth - tooltipHorizontalInset
+      )
+    : tooltipHorizontalInset;
+  const effectiveTooltipHeight = Math.max(tourTooltipHeight, scale(120));
+  const tooltipSafeTop = insets.top + scale(18);
+  const tooltipSafeBottom = windowHeight - Math.max(insets.bottom, scale(18)) - effectiveTooltipHeight;
+  const tooltipTopBase = containerMetrics
+    ? containerMetrics.y - effectiveTooltipHeight - scale(18)
+    : Math.max(insets.top + windowHeight * 0.065, scale(68));
+  const tooltipTop = Math.min(Math.max(tooltipSafeTop, tooltipTopBase), tooltipSafeBottom);
+  const tooltipTargetMetrics = activeStepId === 'confirm_add_with_voice' ? addButtonMetrics : listenButtonMetrics;
+  const buttonCenterXRelative = tooltipTargetMetrics ? tooltipTargetMetrics.centerX - tooltipLeft : tooltipWidth / 2;
+  const buttonCenterYRelative = tooltipTargetMetrics ? tooltipTargetMetrics.centerY - tooltipTop : scale(260);
+  const horizontalArrowLength = scale(58);
+  const horizontalArrowHeadWidth = scale(14);
+  const horizontalArrowNudgeDistance = scale(8);
+  const verticalArrowNudgeDistance = scale(6);
+  const arrowLeft = Math.max(scale(0), buttonCenterXRelative - horizontalArrowLength - horizontalArrowHeadWidth - scale(46));
+  const arrowTop = Math.max(effectiveTooltipHeight + scale(8), buttonCenterYRelative - scale(16));
+  const verticalArrowHeadHeight = scale(14);
+  const preferredVerticalArrowReach = scale(84);
+  const verticalArrowTop = Math.max(
+    effectiveTooltipHeight - scale(64),
+    buttonCenterYRelative - preferredVerticalArrowReach
+  );
+  const verticalArrowLineHeight = Math.max(
+    scale(18),
+    buttonCenterYRelative - verticalArrowTop - verticalArrowHeadHeight - scale(10)
+  );
+  const horizontalArrowAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: arrowNudge.value * horizontalArrowNudgeDistance }],
+  }), [horizontalArrowNudgeDistance]);
+  const verticalArrowAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: arrowNudge.value * verticalArrowNudgeDistance }],
+  }), [verticalArrowNudgeDistance]);
+  const localTooltipBody = activeStepId === 'confirm_add_with_voice'
+    ? 'Tap Add to insert "barbell bench press" into your workout.'
+    : 'Tap the button and then say "3 sets of barbell bench press." Tap again to finish the recording.';
 
   const themedStyles = {
     container: {
@@ -536,6 +756,16 @@ export function ExerciseVoiceAddSheet({
       return;
     }
 
+    const isVoiceAddTutorialStep =
+      isTourActive &&
+      (activeStepId === 'add_with_voice' || activeStepId === 'confirm_add_with_voice');
+
+    if (isVoiceAddTutorialStep && !hasTutorialSelectedMatch) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setErrorMessage('For this tour step, add "3 sets of barbell bench press." Tap Redo and try again.');
+      return;
+    }
+
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onAddExercises(exercisesToAdd);
     onClose();
@@ -551,8 +781,17 @@ export function ExerciseVoiceAddSheet({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <View style={styles.backdrop}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+      <View
+        ref={backdropRef}
+        style={[
+          styles.backdrop,
+          shouldShowVoiceTourTooltip && styles.tourBackdropDimmed,
+        ]}
+      >
+        <Pressable
+          style={StyleSheet.absoluteFillObject}
+          onPress={shouldShowVoiceTourTooltip ? undefined : onClose}
+        />
         <Animated.View
           style={[
             styles.shell,
@@ -564,6 +803,7 @@ export function ExerciseVoiceAddSheet({
           exiting={SlideOutDown.duration(300).easing(Easing.in(Easing.cubic))}
         >
           <View
+            ref={containerRef}
             style={[
               styles.container,
               themedStyles.container,
@@ -571,6 +811,11 @@ export function ExerciseVoiceAddSheet({
                 maxHeight: maxModalHeight,
               },
             ]}
+            onLayout={() => {
+              if (shouldShowVoiceTourTooltip) {
+                measureContainer();
+              }
+            }}
           >
             <StainlessSteelPattern />
 
@@ -595,20 +840,22 @@ export function ExerciseVoiceAddSheet({
                 </View>
               </View>
 
-              <View style={[styles.waveformTrack, themedStyles.waveformTrack]}>
-                <View style={styles.waveform}>
-                  {waveformHeights.map((height, index) => (
-                    <VoiceWaveBar key={`wave-${index}`} height={height} color={colors.accent} />
-                  ))}
+              {transcript.length === 0 && candidates.length === 0 && (
+                <View style={[styles.waveformTrack, themedStyles.waveformTrack]}>
+                  <View style={styles.waveform}>
+                    {waveformHeights.map((height, index) => (
+                      <VoiceWaveBar key={`wave-${index}`} height={height} color={colors.accent} />
+                    ))}
+                  </View>
+                  <Text style={[styles.waveformCaption, { color: colors.textSecondary }]}>
+                    {phase === 'processing'
+                      ? 'Transcribing and finding exercises...'
+                      : phase === 'listening'
+                      ? 'Listening... tap stop when you finish'
+                      : 'Try “3 sets of barbell bench press”'}
+                  </Text>
                 </View>
-                <Text style={[styles.waveformCaption, { color: colors.textSecondary }]}>
-                  {phase === 'processing'
-                    ? 'Transcribing and finding exercises...'
-                    : phase === 'listening'
-                    ? 'Listening... tap stop when you finish'
-                    : 'Try “3 sets of barbell bench press and squats for 3 sets”'}
-                </Text>
-              </View>
+              )}
 
               {transcript.length > 0 && (
                 <View style={[styles.messageCard, themedStyles.card]}>
@@ -739,6 +986,54 @@ export function ExerciseVoiceAddSheet({
               )}
               </ScrollView>
             </View>
+            {shouldDimVoiceModalContent && addButtonRectInContainer ? (
+              <View pointerEvents="none" style={styles.modalSpotlightLayer}>
+                <View
+                  style={[
+                    styles.modalSpotlightBlock,
+                    {
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      height: addButtonRectInContainer.y,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.modalSpotlightBlock,
+                    {
+                      left: 0,
+                      top: addButtonRectInContainer.y + addButtonRectInContainer.height,
+                      right: 0,
+                      bottom: 0,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.modalSpotlightBlock,
+                    {
+                      left: 0,
+                      top: addButtonRectInContainer.y,
+                      width: addButtonRectInContainer.x,
+                      height: addButtonRectInContainer.height,
+                    },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.modalSpotlightBlock,
+                    {
+                      left: addButtonRectInContainer.x + addButtonRectInContainer.width,
+                      top: addButtonRectInContainer.y,
+                      right: 0,
+                      height: addButtonRectInContainer.height,
+                    },
+                  ]}
+                />
+              </View>
+            ) : null}
 
             <View style={styles.controlRow}>
               <View style={styles.sideControlSpacer} />
@@ -748,47 +1043,57 @@ export function ExerciseVoiceAddSheet({
                 <View style={styles.grooveDark} />
               </View>
 
-              <View style={styles.heroButtonContainer}>
+              <View
+                ref={listenButtonRef}
+                style={styles.heroButtonContainer}
+                onLayout={() => {
+                  if (shouldShowVoiceTourTooltip) {
+                    measureListenButton();
+                  }
+                }}
+              >
                 <View style={styles.heroButtonRing}>
-                  {phase === 'listening' ? (
-                    <Pressable
-                      onPress={stopListening}
-                      style={({ pressed }) => [
-                        styles.heroButton,
-                        pressed && styles.heroPressed,
-                      ]}
-                    >
-                      <LinearGradient
-                        colors={['#f97316', '#dc2626']}
-                        start={{ x: 0, y: 0.2 }}
-                        end={{ x: 1, y: 1 }}
-                        style={StyleSheet.absoluteFillObject}
-                      />
-                      <MicrophoneIcon size={24} color={Colors.white} strokeWidth={2.4} />
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      onPress={startListening}
-                      disabled={phase === 'processing'}
-                      style={({ pressed }) => [
-                        styles.heroButton,
-                        phase === 'processing' && styles.disabledButton,
-                        pressed && phase !== 'processing' && styles.heroPressed,
-                      ]}
-                    >
-                      <LinearGradient
-                        colors={accentGradient}
-                        start={{ x: 0, y: 0.15 }}
-                        end={{ x: 1, y: 1 }}
-                        style={StyleSheet.absoluteFillObject}
-                      />
-                      {hasRetryState ? (
-                        <ArrowPathIcon size={24} color={Colors.white} strokeWidth={2.4} />
-                      ) : (
+                  <TourAnchor id={TOUR_ANCHOR_IDS.voiceAddListenButton} disabled={!shouldAnchorListenButton}>
+                    {phase === 'listening' ? (
+                      <Pressable
+                        onPress={stopListening}
+                        style={({ pressed }) => [
+                          styles.heroButton,
+                          pressed && styles.heroPressed,
+                        ]}
+                      >
+                        <LinearGradient
+                          colors={['#f97316', '#dc2626']}
+                          start={{ x: 0, y: 0.2 }}
+                          end={{ x: 1, y: 1 }}
+                          style={StyleSheet.absoluteFillObject}
+                        />
                         <MicrophoneIcon size={24} color={Colors.white} strokeWidth={2.4} />
-                      )}
-                    </Pressable>
-                  )}
+                      </Pressable>
+                    ) : (
+                      <Pressable
+                        onPress={startListening}
+                        disabled={phase === 'processing'}
+                        style={({ pressed }) => [
+                          styles.heroButton,
+                          phase === 'processing' && styles.disabledButton,
+                          pressed && phase !== 'processing' && styles.heroPressed,
+                        ]}
+                      >
+                        <LinearGradient
+                          colors={accentGradient}
+                          start={{ x: 0, y: 0.15 }}
+                          end={{ x: 1, y: 1 }}
+                          style={StyleSheet.absoluteFillObject}
+                        />
+                        {hasRetryState ? (
+                          <ArrowPathIcon size={24} color={Colors.white} strokeWidth={2.4} />
+                        ) : (
+                          <MicrophoneIcon size={24} color={Colors.white} strokeWidth={2.4} />
+                        )}
+                      </Pressable>
+                    )}
+                  </TourAnchor>
                 </View>
                 <Text style={[styles.heroLabel, { color: colors.textPrimary }]}>{heroLabel}</Text>
               </View>
@@ -798,29 +1103,110 @@ export function ExerciseVoiceAddSheet({
                 <View style={styles.grooveDark} />
               </View>
 
-              <Pressable
-                onPress={handleApply}
-                disabled={!canApply}
-                style={({ pressed }) => [
-                  styles.sideControl,
-                  themedStyles.sideControl,
-                  !canApply && styles.disabledButton,
-                  pressed && canApply && themedStyles.sideControlPressed,
-                ]}
-              >
-                <CheckIcon size={18} color={canApply ? colors.accent : colors.textTertiary} strokeWidth={2.1} />
-                <Text
-                  style={[
-                    styles.sideControlText,
-                    { color: canApply ? colors.accent : colors.textTertiary },
-                  ]}
+              <TourAnchor id={TOUR_ANCHOR_IDS.voiceAddConfirmButton} disabled={activeStepId !== 'confirm_add_with_voice'}>
+                <View
+                  ref={addButtonRef}
+                  style={shouldDimVoiceModalContent ? styles.confirmAddButtonFocus : undefined}
+                  onLayout={() => {
+                    if (shouldShowVoiceTourTooltip) {
+                      measureAddButton();
+                    }
+                  }}
                 >
-                  Add
-                </Text>
-              </Pressable>
+                  <Pressable
+                    onPress={handleApply}
+                    disabled={!canApply}
+                    style={({ pressed }) => [
+                      styles.sideControl,
+                      themedStyles.sideControl,
+                      !canApply && styles.disabledButton,
+                      pressed && canApply && themedStyles.sideControlPressed,
+                    ]}
+                  >
+                    <CheckIcon size={18} color={canApply ? colors.accent : colors.textTertiary} strokeWidth={2.1} />
+                    <Text
+                      style={[
+                        styles.sideControlText,
+                        { color: canApply ? colors.accent : colors.textTertiary },
+                      ]}
+                    >
+                      Add
+                    </Text>
+                  </Pressable>
+                </View>
+              </TourAnchor>
             </View>
           </View>
         </Animated.View>
+        {shouldShowVoiceTourTooltip ? (
+          <View pointerEvents="box-none" style={styles.tourTooltipLayer}>
+            <View
+              style={[
+                styles.tourTooltipCluster,
+                {
+                  width: tooltipWidth,
+                  left: tooltipLeft,
+                  top: tooltipTop,
+                },
+              ]}
+            >
+              <View
+                onLayout={(event) => {
+                  const nextHeight = event.nativeEvent.layout.height;
+                  if (nextHeight !== tourTooltipHeight) {
+                    setTourTooltipHeight(nextHeight);
+                  }
+                }}
+                style={[
+                  styles.tourTooltipCard,
+                  {
+                    backgroundColor: isDark ? 'rgba(20, 20, 20, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+                    borderColor: isDark ? colors.glassBorder : 'rgba(0, 0, 0, 0.08)',
+                  },
+                ]}
+              >
+                <View style={styles.tourTooltipHeader}>
+                  <Text style={[styles.tourTooltipStep, { color: colors.textSecondary }]}>
+                    {currentStepNumber ? `Step ${currentStepNumber} of ${totalSteps}` : null}
+                  </Text>
+                  <Pressable onPress={skipTour} hitSlop={8}>
+                    <Text style={[styles.tourTooltipSkip, { color: colors.textSecondary }]}>skip</Text>
+                  </Pressable>
+                </View>
+                <Text style={[styles.tourTooltipBody, { color: colors.textPrimary }]}>
+                  {localTooltipBody}
+                </Text>
+              </View>
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.tourTooltipArrowWrap,
+                  activeStepId === 'confirm_add_with_voice'
+                    ? {
+                        left: buttonCenterXRelative - scale(1.5),
+                        top: verticalArrowTop,
+                      }
+                    : {
+                        left: arrowLeft,
+                        top: arrowTop,
+                      },
+                ]}
+              >
+                {activeStepId === 'confirm_add_with_voice' ? (
+                  <Animated.View style={[styles.tourTooltipVerticalArrow, verticalArrowAnimatedStyle]}>
+                    <View style={[styles.tourTooltipVerticalArrowLine, { backgroundColor: Colors.white, height: verticalArrowLineHeight }]} />
+                    <View style={[styles.tourTooltipVerticalArrowHead, { borderTopColor: Colors.white }]} />
+                  </Animated.View>
+                ) : (
+                  <Animated.View style={[styles.tourTooltipArrowRow, horizontalArrowAnimatedStyle]}>
+                    <View style={[styles.tourTooltipArrowLine, { backgroundColor: colors.accent, width: horizontalArrowLength }]} />
+                    <View style={[styles.tourTooltipArrowHead, { borderLeftColor: colors.accent }]} />
+                  </Animated.View>
+                )}
+              </View>
+            </View>
+          </View>
+        ) : null}
       </View>
     </Modal>
   );
@@ -834,6 +1220,88 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: scale(Spacing.lg),
     paddingBottom: scale(4),
+  },
+  tourBackdropDimmed: {
+    backgroundColor: TOUR_DIM_BACKGROUND,
+  },
+  tourTooltipLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  tourTooltipCluster: {
+    position: 'absolute',
+  },
+  tourTooltipCard: {
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    paddingHorizontal: scale(Spacing.lg),
+    paddingTop: scale(Spacing.md),
+    paddingBottom: scale(Spacing.md),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 10,
+  },
+  tourTooltipArrowWrap: {
+    position: 'absolute',
+    justifyContent: 'center',
+  },
+  tourTooltipArrowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  tourTooltipArrowLine: {
+    height: scale(3),
+    borderRadius: 999,
+  },
+  tourTooltipArrowHead: {
+    marginLeft: scale(-1),
+    width: 0,
+    height: 0,
+    borderTopWidth: scale(10),
+    borderBottomWidth: scale(10),
+    borderLeftWidth: scale(14),
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+  },
+  tourTooltipVerticalArrow: {
+    alignItems: 'center',
+  },
+  tourTooltipVerticalArrowLine: {
+    width: scale(3),
+    borderRadius: 999,
+  },
+  tourTooltipVerticalArrowHead: {
+    marginTop: scale(-1),
+    width: 0,
+    height: 0,
+    borderLeftWidth: scale(10),
+    borderRightWidth: scale(10),
+    borderTopWidth: scale(14),
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  tourTooltipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: scale(Spacing.sm),
+  },
+  tourTooltipStep: {
+    fontSize: moderateScale(14),
+    fontWeight: '700',
+  },
+  tourTooltipSkip: {
+    fontSize: moderateScale(14),
+    fontWeight: '700',
+  },
+  tourTooltipBody: {
+    fontSize: moderateScale(16),
+    lineHeight: moderateScale(24),
+    fontWeight: '600',
+    textAlign: 'center',
   },
   shell: {
     width: '100%',
@@ -855,6 +1323,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 12,
+  },
+  modalSpotlightLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 2,
+  },
+  modalSpotlightBlock: {
+    position: 'absolute',
+    backgroundColor: TOUR_DIM_BACKGROUND_SUBTLE,
   },
   contentSection: {
     flexShrink: 1,
@@ -1063,6 +1539,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  confirmAddButtonFocus: {
+    position: 'relative',
+    zIndex: 3,
+    elevation: 14,
   },
   sideControlSpacer: {
     width: scale(92),

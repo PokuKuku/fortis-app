@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  LayoutChangeEvent,
   Modal,
   Platform,
   Pressable,
@@ -22,14 +23,18 @@ import Animated, {
   Easing,
   SlideInDown,
   SlideOutDown,
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
+  withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getMicrophonePermissionStatus } from '@/src/services/microphonePermissionService';
 import { createVoiceLogFileName, interpretWorkoutVoiceLog } from '@/src/services/workoutVoiceService';
@@ -56,6 +61,15 @@ const HERO_BUTTON_SIZE = scale(66);
 const GROOVE_HEIGHT = scale(34);
 const GROOVE_WIDTH = scale(2);
 const GROOVE_MARGIN = scale(Spacing.xs);
+const LOCAL_TOOLTIP_WIDTH = scale(320);
+const LOCAL_TOOLTIP_HEIGHT_ESTIMATE = scale(118);
+const LOCAL_TOOLTIP_TOP_OFFSET = scale(26);
+const LOCAL_ARROW_SIZE = scale(14);
+const LOCAL_ARROW_STEM = scale(36);
+const LOCAL_HORIZONTAL_ARROW_LENGTH = scale(38);
+const LOCAL_ARROW_BOB_DISTANCE = scale(8);
+const TOUR_DIM_BACKGROUND = 'rgba(15, 23, 42, 0.55)';
+const MIDNIGHT_ARROW = '#1e293b';
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   m4a: 'audio/m4a',
@@ -155,8 +169,9 @@ export function WorkoutVoiceLogSheet({
   onClose,
 }: WorkoutVoiceLogSheetProps) {
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId, advanceStep, skipTour, currentStepNumber, totalSteps } = useInAppTour();
   const insets = useSafeAreaInsets();
-  const { height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const session = useWorkoutStore((state) => state.activeSession);
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const registerWorkoutOverlay = useWorkoutStore((state) => state.registerWorkoutOverlay);
@@ -168,11 +183,19 @@ export function WorkoutVoiceLogSheet({
   const [processingFrame, setProcessingFrame] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [interpretation, setInterpretation] = useState<WorkoutVoiceInterpretation | null>(null);
+  const [containerLayout, setContainerLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [localTooltipHeight, setLocalTooltipHeight] = useState(0);
+  const [heroButtonLayout, setHeroButtonLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [applyButtonLayout, setApplyButtonLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const shellRef = useRef<View>(null);
+  const heroButtonRef = useRef<View>(null);
+  const applyButtonRef = useRef<View>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
   const overlayOpenRef = useRef(false);
   const isStartingRef = useRef(false);
   const isStoppingRef = useRef(false);
   const requestVersionRef = useRef(0);
+  const localArrowAnim = useSharedValue(0);
 
   const exercise = useMemo(
     () => session?.exercises.find((entry) => entry.localId === exerciseLocalId) ?? null,
@@ -421,6 +444,23 @@ export function WorkoutVoiceLogSheet({
   const handleApply = () => {
     if (!exerciseLocalId || !interpretation) return;
 
+    const isVoiceLogTutorialStep =
+      isTourActive && (activeStepId === 'log_with_voice' || activeStepId === 'confirm_voice_log');
+
+    const isTutorialVoiceLogMatch = (
+      interpretation.sets === 3
+      && interpretation.weight === 225
+      && interpretation.reps === 5
+      && interpretation.setType === 'normal'
+      && interpretation.missingFields.length === 0
+    );
+
+    if (isVoiceLogTutorialStep && !isTutorialVoiceLogMatch) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      setErrorMessage('For this tour step, say "3 sets of 225 for 5 reps." Tap Retry and try again.');
+      return;
+    }
+
     const result = applyVoiceLog(exerciseLocalId, interpretation);
     if (!result) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -430,6 +470,11 @@ export function WorkoutVoiceLogSheet({
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onClose();
+    if (isTourActive && activeStepId === 'confirm_voice_log') {
+      setTimeout(() => {
+        advanceStep();
+      }, 150);
+    }
   };
 
   const summaryBadges = interpretation
@@ -448,8 +493,199 @@ export function WorkoutVoiceLogSheet({
     && interpretation.weightUnit
     && interpretation.missingFields.length === 0
   );
+  const isTutorialVoiceLogMatch = !!(
+    interpretation
+    && interpretation.sets === 3
+    && interpretation.weight === 225
+    && interpretation.reps === 5
+    && interpretation.setType === 'normal'
+    && interpretation.missingFields.length === 0
+  );
   const applyEnabled = canApply && phase === 'review';
   const missingLabel = getMissingFieldsLabel(interpretation);
+  const localTooltipStepId =
+    activeStepId === 'log_with_voice' || activeStepId === 'confirm_voice_log'
+      ? activeStepId
+      : null;
+  const shouldShowLocalTooltip = visible && isTourActive && !!localTooltipStepId;
+  const isRecordVoiceTooltipStep = localTooltipStepId === 'log_with_voice';
+  const localTooltipTarget = localTooltipStepId === 'confirm_voice_log' ? applyButtonLayout : heroButtonLayout;
+  const localTooltipBody = localTooltipStepId === 'confirm_voice_log'
+    ? 'Tap Apply to log those sets to this exercise.'
+    : 'Tap the button and say "3 sets of 225 for 5 reps." Tap again to finish the recording.';
+
+  const handleContainerLayout = (event: LayoutChangeEvent) => {
+    const { x, y, width, height } = event.nativeEvent.layout;
+    setContainerLayout({ x, y, width, height });
+  };
+
+  const measureHeroButton = (fallbackLayout?: { x: number; y: number; width: number; height: number }) => {
+    const shell = shellRef.current;
+    const heroButton = heroButtonRef.current;
+    if (!shell || !heroButton) {
+      if (fallbackLayout) {
+        setHeroButtonLayout(fallbackLayout);
+      }
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      shell.measureInWindow((shellX, shellY) => {
+        heroButton.measureInWindow((x, y, width, height) => {
+          if (width <= 0 || height <= 0) return;
+          setHeroButtonLayout({
+            x: x - shellX,
+            y: y - shellY,
+            width,
+            height,
+          });
+        });
+      });
+    });
+  };
+
+  const handleHeroButtonLayout = (event: LayoutChangeEvent) => {
+    measureHeroButton(event.nativeEvent.layout);
+  };
+
+  const measureApplyButton = (fallbackLayout?: { x: number; y: number; width: number; height: number }) => {
+    const shell = shellRef.current;
+    const applyButton = applyButtonRef.current;
+    if (!shell || !applyButton) {
+      if (fallbackLayout) {
+        setApplyButtonLayout(fallbackLayout);
+      }
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      shell.measureInWindow((shellX, shellY) => {
+        applyButton.measureInWindow((x, y, width, height) => {
+          if (width <= 0 || height <= 0) return;
+          setApplyButtonLayout({
+            x: x - shellX,
+            y: y - shellY,
+            width,
+            height,
+          });
+        });
+      });
+    });
+  };
+
+  const handleApplyButtonLayout = (event: LayoutChangeEvent) => {
+    measureApplyButton(event.nativeEvent.layout);
+  };
+
+  useEffect(() => {
+    if (!shouldShowLocalTooltip) return;
+
+    requestAnimationFrame(() => {
+      measureHeroButton(heroButtonLayout ?? undefined);
+      measureApplyButton(applyButtonLayout ?? undefined);
+    });
+  }, [
+    errorMessage,
+    interpretation,
+    phase,
+    shouldShowLocalTooltip,
+  ]);
+
+  const localTooltipWidth = useMemo(() => {
+    if (!containerLayout) return LOCAL_TOOLTIP_WIDTH;
+    return Math.min(LOCAL_TOOLTIP_WIDTH, Math.max(scale(220), containerLayout.width - scale(24)));
+  }, [containerLayout]);
+
+  const localTooltipLeft = useMemo(() => {
+    if (!containerLayout) {
+      return Math.max(scale(12), (windowWidth - localTooltipWidth) / 2);
+    }
+    return Math.max(scale(12), containerLayout.x + ((containerLayout.width - localTooltipWidth) / 2));
+  }, [containerLayout, localTooltipWidth, windowWidth]);
+
+  const localTooltipTop = useMemo(() => {
+    const effectiveTooltipHeight = Math.max(localTooltipHeight, LOCAL_TOOLTIP_HEIGHT_ESTIMATE);
+    if (isRecordVoiceTooltipStep) {
+      return -effectiveTooltipHeight - scale(18);
+    }
+    if (localTooltipStepId === 'confirm_voice_log') {
+      return -effectiveTooltipHeight - scale(18);
+    }
+    if (!containerLayout || !localTooltipTarget) {
+      return LOCAL_TOOLTIP_TOP_OFFSET;
+    }
+
+    const maxTop = Math.max(scale(16), localTooltipTarget.y - effectiveTooltipHeight - scale(12));
+    return Math.min(LOCAL_TOOLTIP_TOP_OFFSET, maxTop);
+  }, [containerLayout, isRecordVoiceTooltipStep, localTooltipHeight, localTooltipStepId, localTooltipTarget]);
+
+  const localArrowLeft = useMemo(() => {
+    if (!localTooltipTarget) return scale(150);
+    if (isRecordVoiceTooltipStep) {
+      return localTooltipTarget.x - LOCAL_HORIZONTAL_ARROW_LENGTH - scale(22);
+    }
+    return localTooltipTarget.x + (localTooltipTarget.width / 2) - (LOCAL_ARROW_SIZE / 2);
+  }, [isRecordVoiceTooltipStep, localTooltipTarget]);
+
+  const localArrowTop = useMemo(() => {
+    if (!localTooltipTarget) return scale(160);
+    if (isRecordVoiceTooltipStep) {
+      return localTooltipTarget.y + (localTooltipTarget.height / 2) - scale(12);
+    }
+    return Math.max(
+      localTooltipTop + Math.max(localTooltipHeight, LOCAL_TOOLTIP_HEIGHT_ESTIMATE) + scale(8),
+      localTooltipTarget.y - LOCAL_ARROW_STEM - scale(20)
+    );
+  }, [isRecordVoiceTooltipStep, localTooltipHeight, localTooltipTarget, localTooltipTop]);
+
+  useEffect(() => {
+    if (!shouldShowLocalTooltip) {
+      cancelAnimation(localArrowAnim);
+      localArrowAnim.value = 0;
+      return;
+    }
+
+    localArrowAnim.value = withRepeat(
+      withSequence(
+        withTiming(1, {
+          duration: 600,
+          easing: Easing.inOut(Easing.cubic),
+        }),
+        withTiming(0, {
+          duration: 600,
+          easing: Easing.inOut(Easing.cubic),
+        })
+      ),
+      -1,
+      false
+    );
+
+    return () => {
+      cancelAnimation(localArrowAnim);
+    };
+  }, [localArrowAnim, shouldShowLocalTooltip]);
+
+  const localHorizontalArrowAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: localArrowAnim.value * LOCAL_ARROW_BOB_DISTANCE }],
+  }));
+
+  const localVerticalArrowAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: localArrowAnim.value * (LOCAL_ARROW_BOB_DISTANCE * 0.7) }],
+  }));
+
+  useEffect(() => {
+    if (
+      !visible ||
+      !isTourActive ||
+      activeStepId !== 'log_with_voice' ||
+      phase !== 'review' ||
+      !isTutorialVoiceLogMatch
+    ) {
+      return;
+    }
+
+    advanceStep();
+  }, [activeStepId, advanceStep, isTourActive, isTutorialVoiceLogMatch, phase, visible]);
 
   const waveformHeights = useMemo(() => (
     Array.from({ length: WAVE_BAR_COUNT }, (_, index) => {
@@ -492,8 +728,15 @@ export function WorkoutVoiceLogSheet({
       onRequestClose={onClose}
       statusBarTranslucent
     >
-      <Pressable style={styles.backdrop} onPress={onClose}>
+      <Pressable
+        style={[
+          styles.backdrop,
+          shouldShowLocalTooltip && styles.guidedBackdrop,
+        ]}
+        onPress={shouldShowLocalTooltip ? undefined : onClose}
+      >
         <Animated.View
+          ref={shellRef}
           style={[
             styles.shell,
             {
@@ -511,6 +754,7 @@ export function WorkoutVoiceLogSheet({
                 maxHeight: maxModalHeight,
               },
             ]}
+            onLayout={handleContainerLayout}
             onPress={(event) => event.stopPropagation()}
           >
             <StainlessSteelPattern />
@@ -535,24 +779,26 @@ export function WorkoutVoiceLogSheet({
                   </View>
                 </View>
 
-                <View style={[styles.waveformTrack, themedStyles.waveformTrack]}>
-                  <View style={styles.waveform}>
-                    {waveformHeights.map((height, index) => (
-                      <VoiceWaveBar
-                        key={`wave-${index}`}
-                        height={height}
-                        color={colors.accent}
-                      />
-                    ))}
+                {!interpretation && (
+                  <View style={[styles.waveformTrack, themedStyles.waveformTrack]}>
+                    <View style={styles.waveform}>
+                      {waveformHeights.map((height, index) => (
+                        <VoiceWaveBar
+                          key={`wave-${index}`}
+                          height={height}
+                          color={colors.accent}
+                        />
+                      ))}
+                    </View>
+                    <Text style={[styles.waveformCaption, { color: colors.textSecondary }]}>
+                      {phase === 'processing'
+                        ? 'Transcribing and interpreting...'
+                        : phase === 'listening'
+                        ? 'Listening... tap stop when you finish'
+                        : 'Say something like “3 sets of 225 for 5 reps”'}
+                    </Text>
                   </View>
-                  <Text style={[styles.waveformCaption, { color: colors.textSecondary }]}>
-                    {phase === 'processing'
-                      ? 'Transcribing and interpreting...'
-                      : phase === 'listening'
-                      ? 'Listening... tap stop when you finish'
-                      : 'Say something like “3 sets of 225 for 5 reps”'}
-                  </Text>
-                </View>
+                )}
 
                 {errorMessage && (
                   <View style={[styles.messageCard, themedStyles.card]}>
@@ -606,8 +852,11 @@ export function WorkoutVoiceLogSheet({
                 <View style={styles.grooveDark} />
               </View>
 
-              <View style={styles.heroButtonContainer}>
-                <View style={styles.heroButtonRing}>
+              <View
+                style={styles.heroButtonContainer}
+                onLayout={handleHeroButtonLayout}
+              >
+                <View ref={heroButtonRef} style={styles.heroButtonRing}>
                   {phase === 'listening' ? (
                     <Pressable
                       onPress={stopListening}
@@ -671,28 +920,98 @@ export function WorkoutVoiceLogSheet({
                 <View style={styles.grooveDark} />
               </View>
 
-              <Pressable
-                onPress={handleApply}
-                disabled={!applyEnabled}
-                style={({ pressed }) => [
-                  styles.sideControl,
-                  themedStyles.sideControl,
-                  !applyEnabled && styles.disabledButton,
-                  pressed && applyEnabled && themedStyles.sideControlPressed,
-                ]}
-              >
-                <CheckIcon size={18} color={applyEnabled ? colors.accent : colors.textTertiary} strokeWidth={2.1} />
-                <Text
-                  style={[
-                    styles.sideControlText,
-                    { color: applyEnabled ? colors.accent : colors.textTertiary },
+              <View ref={applyButtonRef} onLayout={handleApplyButtonLayout}>
+                <Pressable
+                  onPress={handleApply}
+                  disabled={!applyEnabled}
+                  style={({ pressed }) => [
+                    styles.sideControl,
+                    themedStyles.sideControl,
+                    !applyEnabled && styles.disabledButton,
+                    pressed && applyEnabled && themedStyles.sideControlPressed,
                   ]}
                 >
-                  Apply
-                </Text>
-              </Pressable>
+                  <CheckIcon size={18} color={applyEnabled ? colors.accent : colors.textTertiary} strokeWidth={2.1} />
+                  <Text
+                    style={[
+                      styles.sideControlText,
+                      { color: applyEnabled ? colors.accent : colors.textTertiary },
+                    ]}
+                  >
+                    Apply
+                  </Text>
+                </Pressable>
+              </View>
             </View>
+
           </Pressable>
+
+          {shouldShowLocalTooltip && (
+            <View pointerEvents="box-none" style={styles.localTooltipLayer}>
+              <View
+                style={[
+                  styles.localTooltipCard,
+                  {
+                    top: localTooltipTop,
+                    left: localTooltipLeft,
+                    width: localTooltipWidth,
+                  },
+                ]}
+                onLayout={(event) => {
+                  const nextHeight = event.nativeEvent.layout.height;
+                  if (nextHeight !== localTooltipHeight) {
+                    setLocalTooltipHeight(nextHeight);
+                  }
+                }}
+              >
+                <View style={styles.localTooltipHeader}>
+                  <Text style={[styles.localTooltipStep, { color: colors.textSecondary }]}>
+                    Step {currentStepNumber ?? 1} of {totalSteps}
+                  </Text>
+                  <Pressable onPress={skipTour} hitSlop={8}>
+                    <Text style={[styles.localTooltipSkip, { color: colors.textSecondary }]}>skip</Text>
+                  </Pressable>
+                </View>
+                <Text style={[styles.localTooltipBody, { color: colors.textPrimary }]}>
+                  {localTooltipBody}
+                </Text>
+              </View>
+
+              {localTooltipTarget ? (
+                isRecordVoiceTooltipStep ? (
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.localHorizontalArrowWrap,
+                      {
+                        top: localArrowTop,
+                        left: localArrowLeft,
+                      },
+                      localHorizontalArrowAnimatedStyle,
+                    ]}
+                  >
+                    <View style={styles.localHorizontalArrowLine} />
+                    <View style={styles.localHorizontalArrowHead} />
+                  </Animated.View>
+                ) : (
+                  <Animated.View
+                    pointerEvents="none"
+                    style={[
+                      styles.localArrowWrap,
+                      {
+                        top: localArrowTop,
+                        left: localArrowLeft,
+                      },
+                      localVerticalArrowAnimatedStyle,
+                    ]}
+                  >
+                    <View style={styles.localArrowStem} />
+                    <View style={styles.localArrowHead} />
+                  </Animated.View>
+                )
+              ) : null}
+            </View>
+          )}
         </Animated.View>
       </Pressable>
     </Modal>
@@ -706,6 +1025,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: scale(Spacing.lg),
+  },
+  guidedBackdrop: {
+    backgroundColor: TOUR_DIM_BACKGROUND,
   },
   shell: {
     width: '100%',
@@ -727,6 +1049,87 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 20,
     elevation: 12,
+  },
+  localTooltipLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
+  localTooltipCard: {
+    position: 'absolute',
+    width: LOCAL_TOOLTIP_WIDTH,
+    backgroundColor: Colors.white,
+    borderRadius: scale(16),
+    paddingHorizontal: scale(Spacing.md),
+    paddingVertical: scale(Spacing.md),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  localTooltipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: scale(Spacing.sm),
+  },
+  localTooltipStep: {
+    fontSize: moderateScale(13),
+    fontWeight: '700',
+  },
+  localTooltipSkip: {
+    fontSize: moderateScale(13),
+    fontWeight: '700',
+    textTransform: 'lowercase',
+  },
+  localTooltipBody: {
+    fontSize: moderateScale(15),
+    lineHeight: moderateScale(22),
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  localArrowWrap: {
+    position: 'absolute',
+    alignItems: 'center',
+  },
+  localHorizontalArrowWrap: {
+    position: 'absolute',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  localHorizontalArrowLine: {
+    width: LOCAL_HORIZONTAL_ARROW_LENGTH,
+    height: scale(3),
+    borderRadius: scale(999),
+    backgroundColor: MIDNIGHT_ARROW,
+  },
+  localHorizontalArrowHead: {
+    marginLeft: scale(-1),
+    width: 0,
+    height: 0,
+    borderTopWidth: LOCAL_ARROW_SIZE,
+    borderBottomWidth: LOCAL_ARROW_SIZE,
+    borderLeftWidth: LOCAL_ARROW_SIZE * 1.2,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: MIDNIGHT_ARROW,
+  },
+  localArrowStem: {
+    width: scale(3),
+    height: LOCAL_ARROW_STEM,
+    borderRadius: scale(999),
+    backgroundColor: MIDNIGHT_ARROW,
+  },
+  localArrowHead: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: LOCAL_ARROW_SIZE,
+    borderRightWidth: LOCAL_ARROW_SIZE,
+    borderTopWidth: LOCAL_ARROW_SIZE * 1.2,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+    borderTopColor: MIDNIGHT_ARROW,
+    marginTop: scale(-1),
   },
   contentSection: {
     flexShrink: 1,

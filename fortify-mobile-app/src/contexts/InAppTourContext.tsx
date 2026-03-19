@@ -14,17 +14,26 @@ import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPla
 type TourStepId =
   | 'welcome'
   | 'workouts_intro'
+  | 'add_workout_routine'
+  | 'open_add_with_voice'
+  | 'add_with_voice'
+  | 'confirm_add_with_voice'
+  | 'voice_add_multiple'
+  | 'close_workout_builder'
   | 'ai_chat_open'
   | 'ai_chat_overview'
   | 'quick_start'
   | 'launch_workout'
   | 'rest_timer'
-  | 'voice_log'
+  | 'open_voice_log'
+  | 'log_with_voice'
+  | 'confirm_voice_log'
+  | 'voice_log_result'
   | 'rest_timer_settings'
   | 'go_insights'
   | 'insights_overview';
 
-type TourRoute = '/(tabs)' | '/(tabs)/insights' | '/workout/active' | '/ai/chat';
+type TourRoute = '/(tabs)' | '/(tabs)/insights' | '/workout/active' | '/ai/chat' | '/workout/create';
 
 type TourStep = {
   id: TourStepId;
@@ -41,6 +50,9 @@ type TourStep = {
   pinTooltipToTop?: boolean;
   tooltipTopOffset?: number;
   placement?: TourOverlayPlacement;
+  renderOverlay?: boolean;
+  holePadding?: number;
+  holePaddingBottom?: number;
 };
 
 const TOUR_STEPS: TourStep[] = [
@@ -64,23 +76,66 @@ const TOUR_STEPS: TourStep[] = [
     showArrow: true,
   },
   {
-    id: 'ai_chat_open',
+    id: 'add_workout_routine',
     route: '/(tabs)',
-    anchorId: TOUR_ANCHOR_IDS.aiChatButton,
-    body: 'Tap to open the Fortify AI chat.',
+    anchorId: TOUR_ANCHOR_IDS.addWorkoutRoutine,
+    body: 'Tap + beside Workouts to add a custom routine you can use for future sessions.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
   },
   {
-    id: 'ai_chat_overview',
-    route: '/ai/chat',
-    body: 'Fortify helps with training analysis and insights on your data—weekly progress, trends, and what to do next. Ask about your training insights, weekly progress, trends, and what to focus on next.',
-    mode: 'blocking',
+    id: 'open_add_with_voice',
+    route: '/workout/create',
+    anchorId: TOUR_ANCHOR_IDS.addWithVoice,
+    body: 'Tap Add with Voice to add an exercise by speaking.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    holePadding: 0,
+  },
+  {
+    id: 'add_with_voice',
+    route: '/workout/create',
+    anchorId: TOUR_ANCHOR_IDS.voiceAddListenButton,
+    body: 'Say 3 sets of barbell bench press and then tap to finish the recording.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    renderOverlay: false,
+  },
+  {
+    id: 'confirm_add_with_voice',
+    route: '/workout/create',
+    anchorId: TOUR_ANCHOR_IDS.voiceAddConfirmButton,
+    body: 'Tap Add to insert the exercise into your workout.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    renderOverlay: false,
+  },
+  {
+    id: 'voice_add_multiple',
+    route: '/workout/create',
+    anchorId: TOUR_ANCHOR_IDS.workoutExerciseCard,
+    body: 'You can voice add multiple exercises at once. Say each exercise with its set count, like "3 sets of barbell bench press, 4 sets of lat pulldown."',
+    mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: false,
-    centerTooltip: true,
-    showHighlight: false,
+    showHighlight: true,
+    placement: 'below',
+    holePadding: 0,
+    holePaddingBottom: -22,
+  },
+  {
+    id: 'close_workout_builder',
+    route: '/workout/create',
+    anchorId: TOUR_ANCHOR_IDS.workoutBuilderCloseButton,
+    body: 'Tap X to close the workout editor.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: false,
+    holePadding: 0,
   },
   {
     id: 'quick_start',
@@ -101,19 +156,51 @@ const TOUR_STEPS: TourStep[] = [
     showArrow: true,
   },
   {
+    id: 'open_voice_log',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.voiceLog,
+    body: 'Tap the mic on this exercise to log 3 sets with your voice.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'log_with_voice',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.workoutVoiceLogListenButton,
+    body: 'Tap the button and say "3 sets of 225 for 5 reps." Tap again to finish the recording.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    renderOverlay: false,
+  },
+  {
+    id: 'confirm_voice_log',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.workoutVoiceLogApplyButton,
+    body: 'Tap Apply to log those sets to this exercise.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    renderOverlay: false,
+  },
+  {
+    id: 'voice_log_result',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
+    body: 'Voice Log can fill multiple sets at once and capture the set type too.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: true,
+    placement: 'below',
+    holePadding: 0,
+    holePaddingBottom: -22,
+  },
+  {
     id: 'rest_timer',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.restTimer,
     body: 'Rest Timer keeps you on pace between sets. Tap to start/pause and adjust anytime.',
-    mode: 'spotlight',
-    primaryActionLabel: 'Next',
-    showArrow: true,
-  },
-  {
-    id: 'voice_log',
-    route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.voiceLog,
-    body: 'Tap the mic on an exercise to log sets with your voice. You can say things like “3 warm-up sets of 225 for 5 reps” and Fortify will capture the set type too.',
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: true,
@@ -126,6 +213,25 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: false,
+  },
+  {
+    id: 'ai_chat_open',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.aiChatButton,
+    body: 'Tap to open the Fortify AI chat.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'ai_chat_overview',
+    route: '/ai/chat',
+    body: 'Fortify helps with training analysis and insights on your data—weekly progress, trends, and what to do next. Ask about your training insights, weekly progress, trends, and what to focus on next.',
+    mode: 'blocking',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
   },
   {
     id: 'go_insights',
@@ -154,9 +260,21 @@ const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'ai_chat_overview',
   'quick_start',
   'rest_timer',
-  'voice_log',
+  'open_voice_log',
   'rest_timer_settings',
   'insights_overview',
+]);
+
+const USER_DRIVEN_NAV_STEP_IDS: ReadonlySet<TourStepId> = new Set([
+  'add_workout_routine',
+  'open_add_with_voice',
+  'add_with_voice',
+  'confirm_add_with_voice',
+  'voice_add_multiple',
+  'close_workout_builder',
+  'open_voice_log',
+  'log_with_voice',
+  'confirm_voice_log',
 ]);
 const ANCHOR_RECT_JITTER_PX = 2;
 
@@ -171,6 +289,9 @@ type InAppTourContextValue = {
   isTourActive: boolean;
   activeStepId: TourStepId | null;
   advanceStep: () => void;
+  skipTour: () => void;
+  currentStepNumber: number | null;
+  totalSteps: number;
   queueTourStartAfterPaywallClose: () => void;
 };
 
@@ -314,7 +435,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
 
     const currentRenderStep = getStepById(renderStepId);
-    const canAnimateCurrentStepOut = isStepReady(currentRenderStep);
+    const canAnimateCurrentStepOut =
+      isStepReady(currentRenderStep) &&
+      currentRenderStep?.renderOverlay !== false;
     if (!canAnimateCurrentStepOut) {
       setRenderStepId(pendingStep.id);
       setPendingStepId(null);
@@ -479,6 +602,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     if (!isTourActive || !logicalStep) return;
     if (autoNavStepRef.current === logicalStep.id) return;
     autoNavStepRef.current = logicalStep.id;
+
+    if (USER_DRIVEN_NAV_STEP_IDS.has(logicalStep.id)) {
+      return;
+    }
 
     if (!isOnStepRoute(logicalStep.route)) {
       router.navigate(logicalStep.route);
@@ -654,7 +781,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   // Advance when a workout is launched from Quick Start.
   useEffect(() => {
-    if (!isTourActive || logicalStep?.id !== 'launch_workout') return;
+  if (!isTourActive || logicalStep?.id !== 'launch_workout') return;
     if (isOnStepRoute('/workout/active')) {
       void advanceStep();
     }
@@ -664,6 +791,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isTourActive || logicalStep?.id !== 'ai_chat_open') return;
     if (isOnStepRoute('/ai/chat')) {
+      void advanceStep();
+    }
+  }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
+
+  // Advance after the user closes the workout builder.
+  useEffect(() => {
+    if (!isTourActive || logicalStep?.id !== 'close_workout_builder') return;
+    if (isOnStepRoute('/(tabs)')) {
       void advanceStep();
     }
   }, [advanceStep, isOnStepRoute, isTourActive, logicalStep?.id]);
@@ -682,8 +817,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     isTourActive,
     activeStepId: logicalStep?.id ?? null,
     advanceStep: () => void advanceStep(),
+    skipTour: () => void finishTour('skipped'),
+    currentStepNumber: logicalStep ? getStepIndexById(logicalStep.id) + 1 : null,
+    totalSteps: TOUR_STEPS.length,
     queueTourStartAfterPaywallClose,
-  }), [advanceStep, isTourActive, logicalStep?.id, queueTourStartAfterPaywallClose, registerAnchorRect, unregisterAnchor]);
+  }), [advanceStep, finishTour, isTourActive, logicalStep, queueTourStartAfterPaywallClose, registerAnchorRect, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {
     if (!isTourActive || !overlayStep || !overlayStep.primaryActionLabel) return null;
@@ -701,6 +839,22 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
   }, [advanceStep, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
 
+  const skipAction = useMemo(() => {
+    if (!isTourActive || !overlayStep) return null;
+    const canSkip =
+      !isExitingTooltip &&
+      !pendingStepId &&
+      logicalStep?.id === overlayStep.id;
+    return {
+      label: 'Skip',
+      onPress: () => {
+        if (!canSkip) return;
+        void finishTour('skipped');
+      },
+      disabled: !canSkip,
+    };
+  }, [finishTour, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
+
   const stepLabel = useMemo(() => {
     if (!isTourActive || !overlayStep) return null;
     return `Step ${getStepIndexById(overlayStep.id) + 1} of ${TOUR_STEPS.length}`;
@@ -709,9 +863,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const showOverlay = Boolean(
     isTourActive &&
     overlayStep &&
+    overlayStep.renderOverlay !== false &&
     isAuthenticated &&
     isMainAppRoute &&
-    (!shouldRouteLockOverlayStep || isOverlayStepOnRoute)
+    isOverlayStepOnRoute
   );
 
   return (
@@ -724,6 +879,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         body={overlayStep?.body ?? ''}
         stepLabel={stepLabel}
         primaryAction={primaryAction}
+        secondaryAction={skipAction}
         showArrow={Boolean(overlayStep?.showArrow) && isTooltipVisible && Boolean(currentAnchorRect)}
         centerTooltip={
           Boolean(overlayStep?.centerTooltip) ||
@@ -735,6 +891,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         pinTooltipToTop={overlayStep?.pinTooltipToTop ?? false}
         tooltipTopOffset={overlayStep?.tooltipTopOffset ?? 0}
         placement={overlayStep?.placement}
+        holePadding={overlayStep?.holePadding}
+        holePaddingBottom={overlayStep?.holePaddingBottom}
         onTooltipHideComplete={handleTooltipHideComplete}
       />
     </InAppTourContext.Provider>

@@ -29,10 +29,13 @@ import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
 import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { DateSelector } from '@/src/components/ui/DateSelector';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import type { Exercise } from '@/src/types/exercise';
 import { responsiveValue, scale } from '@/src/utils/responsive';
 import { format } from 'date-fns';
@@ -58,6 +61,31 @@ export default function CreateWorkoutScreen() {
   const templateId = Array.isArray(templateIdParam) ? templateIdParam[0] : templateIdParam;
   const dateValue = Array.isArray(date) ? date[0] : date;
   const isEditingTemplate = mode !== 'log' && !!templateId;
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
+  const shouldAnchorAddWithVoice = isTourActive && activeStepId === 'open_add_with_voice';
+  const shouldAdvanceVoiceTutorial =
+    isTourActive &&
+    (activeStepId === 'add_with_voice' || activeStepId === 'confirm_add_with_voice');
+  const shouldAnchorWorkoutBuilderClose = isTourActive && activeStepId === 'close_workout_builder';
+  const shouldAnchorVoiceAddMultiple = isTourActive && activeStepId === 'voice_add_multiple';
+
+  const normalizeText = useCallback((value: string) => (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+  ), []);
+
+  const isTutorialVoiceExercise = useCallback((name: string, setCount: number | null | undefined) => {
+    const normalizedName = normalizeText(name);
+    return (
+      setCount === 3 &&
+      normalizedName.includes(normalizeText('barbell')) &&
+      normalizedName.includes(normalizeText('bench')) &&
+      normalizedName.includes(normalizeText('press'))
+    );
+  }, [normalizeText]);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -155,7 +183,13 @@ export default function CreateWorkoutScreen() {
             },
           ]
     );
-  }, []);
+  }, [openMicrophoneSettings]);
+
+  useEffect(() => {
+    if (!shouldAnchorAddWithVoice) return;
+    if (!showVoiceAddSheet) return;
+    void advanceStep();
+  }, [advanceStep, shouldAnchorAddWithVoice, showVoiceAddSheet]);
 
   // Get exercise IDs and fetch muscle data for heatmap
   const exerciseIds = useMemo(
@@ -225,6 +259,12 @@ export default function CreateWorkoutScreen() {
 
   // Set date from URL parameter when logging past workout
   useEffect(() => {
+    if (!isTourActive) return;
+    if (activeStepId !== 'add_workout_routine') return;
+    void advanceStep();
+  }, [activeStepId, advanceStep, isTourActive]);
+
+  useEffect(() => {
     if (mode === 'log' && dateValue) {
       setEditorDate(new Date(dateValue));
     }
@@ -280,7 +320,17 @@ export default function CreateWorkoutScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addEditorExercises(exercisesToAdd);
     setShowVoiceAddSheet(false);
-  }, [addEditorExercises]);
+
+    if (shouldAdvanceVoiceTutorial) {
+      const didAddTargetExercise = exercisesToAdd.some((exercise) => (
+        isTutorialVoiceExercise(exercise.name, exercise.initialSetCount)
+      ));
+
+      if (didAddTargetExercise) {
+        void advanceStep();
+      }
+    }
+  }, [addEditorExercises, advanceStep, isTutorialVoiceExercise, shouldAdvanceVoiceTutorial]);
 
   const handleReplaceExercise = useCallback((exerciseLocalId: string) => {
     setReplaceExerciseLocalId(exerciseLocalId);
@@ -399,16 +449,30 @@ export default function CreateWorkoutScreen() {
   }, [replaceEditorExercise, replaceExerciseLocalId]);
 
   // Render exercise card
-  const renderExerciseCard = useCallback(({ item }: { item: { localId: string } }) => (
-    <ExerciseCard
-      exerciseLocalId={item.localId}
-      onReplace={handleReplaceExercise}
-      onViewDetails={handleViewExerciseDetails}
-      useEditor={true}
-      deferStickyNoteSave={mode !== 'log'}
-      showCheckboxes={mode === 'log'}
-    />
-  ), [handleReplaceExercise, handleViewExerciseDetails, mode]);
+  const firstExerciseLocalId = editorSession?.exercises[0]?.localId ?? null;
+
+  const renderExerciseCard = useCallback(({ item }: { item: { localId: string } }) => {
+    const card = (
+      <ExerciseCard
+        exerciseLocalId={item.localId}
+        onReplace={handleReplaceExercise}
+        onViewDetails={handleViewExerciseDetails}
+        useEditor={true}
+        deferStickyNoteSave={mode !== 'log'}
+        showCheckboxes={mode === 'log'}
+      />
+    );
+
+    if (shouldAnchorVoiceAddMultiple && item.localId === firstExerciseLocalId) {
+      return (
+        <TourAnchor id={TOUR_ANCHOR_IDS.workoutExerciseCard}>
+          {card}
+        </TourAnchor>
+      );
+    }
+
+    return card;
+  }, [firstExerciseLocalId, handleReplaceExercise, handleViewExerciseDetails, mode, shouldAnchorVoiceAddMultiple]);
 
   // Render empty state
   const renderEmptyState = () => (
@@ -526,16 +590,31 @@ export default function CreateWorkoutScreen() {
                     </View>
                   )}
                 </View>
-                <Pressable
-                  onPress={handleClose}
-                  style={({ pressed }) => [
-                    styles.iconButton,
-                    themedStyles.closeButton,
-                    pressed && styles.iconButtonPressed,
-                  ]}
-                >
-                  <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
-                </Pressable>
+                {shouldAnchorWorkoutBuilderClose ? (
+                  <TourAnchor id={TOUR_ANCHOR_IDS.workoutBuilderCloseButton}>
+                    <Pressable
+                      onPress={handleClose}
+                      style={({ pressed }) => [
+                        styles.iconButton,
+                        themedStyles.closeButton,
+                        pressed && styles.iconButtonPressed,
+                      ]}
+                    >
+                      <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
+                    </Pressable>
+                  </TourAnchor>
+                ) : (
+                  <Pressable
+                    onPress={handleClose}
+                    style={({ pressed }) => [
+                      styles.iconButton,
+                      themedStyles.closeButton,
+                      pressed && styles.iconButtonPressed,
+                    ]}
+                  >
+                    <XMarkIcon size={20} color={colors.error} strokeWidth={2} />
+                  </Pressable>
+                )}
               </View>
               {!useScrollableHeaderDetails && showHeaderDetails && (
                 <>
@@ -609,30 +688,59 @@ export default function CreateWorkoutScreen() {
                   </Text>
                 </Pressable>
 
-                <Pressable
-                  onPress={() => {
-                    void handleOpenVoiceAdd();
-                  }}
-                  style={({ pressed }) => [
-                    styles.addExercisesButton,
-                    styles.secondaryActionButton,
-                    themedStyles.addExercisesButton,
-                    styles.voiceAddButton,
-                    pressed && styles.addExercisesButtonPressed,
-                  ]}
-                >
-                  <View style={styles.voiceAddButtonContent}>
-                    <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2} />
-                    <Text
-                      style={[styles.secondaryActionText, themedStyles.addExercisesText]}
-                      numberOfLines={1}
-                      adjustsFontSizeToFit
-                      minimumFontScale={0.72}
+                {shouldAnchorAddWithVoice ? (
+                  <TourAnchor id={TOUR_ANCHOR_IDS.addWithVoice}>
+                    <Pressable
+                      onPress={() => {
+                        void handleOpenVoiceAdd();
+                      }}
+                      style={({ pressed }) => [
+                        styles.addExercisesButton,
+                        styles.secondaryActionButton,
+                        themedStyles.addExercisesButton,
+                        styles.voiceAddButton,
+                        pressed && styles.addExercisesButtonPressed,
+                      ]}
                     >
-                      Add with Voice
-                    </Text>
-                  </View>
-                </Pressable>
+                      <View style={styles.voiceAddButtonContent}>
+                        <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2} />
+                        <Text
+                          style={[styles.secondaryActionText, themedStyles.addExercisesText]}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.72}
+                        >
+                          Add with Voice
+                        </Text>
+                      </View>
+                    </Pressable>
+                  </TourAnchor>
+                ) : (
+                  <Pressable
+                    onPress={() => {
+                      void handleOpenVoiceAdd();
+                    }}
+                    style={({ pressed }) => [
+                      styles.addExercisesButton,
+                      styles.secondaryActionButton,
+                      themedStyles.addExercisesButton,
+                      styles.voiceAddButton,
+                      pressed && styles.addExercisesButtonPressed,
+                    ]}
+                  >
+                    <View style={styles.voiceAddButtonContent}>
+                      <MicrophoneIcon size={18} color={colors.accent} strokeWidth={2} />
+                      <Text
+                        style={[styles.secondaryActionText, themedStyles.addExercisesText]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                      >
+                        Add with Voice
+                      </Text>
+                    </View>
+                  </Pressable>
+                )}
               </View>
 
               <GlassButton

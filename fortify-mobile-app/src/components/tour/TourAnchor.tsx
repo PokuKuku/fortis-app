@@ -4,14 +4,19 @@ import { useInAppTour } from '@/src/contexts/InAppTourContext';
 
 type TourAnchorProps = PropsWithChildren<{
   id: string;
+  disabled?: boolean;
   onLayout?: (event: LayoutChangeEvent) => void;
 } & Omit<ViewProps, 'onLayout'>>;
 
-export function TourAnchor({ id, onLayout, children, ...viewProps }: TourAnchorProps) {
+export function TourAnchor({ id, disabled = false, onLayout, children, ...viewProps }: TourAnchorProps) {
   const ref = useRef<View>(null);
   const { registerAnchorRect, unregisterAnchor } = useInAppTour();
 
   const measure = useCallback(() => {
+    if (disabled) {
+      unregisterAnchor(id);
+      return;
+    }
     const node = ref.current;
     if (!node) return;
     node.measureInWindow((x, y, width, height) => {
@@ -24,7 +29,13 @@ export function TourAnchor({ id, onLayout, children, ...viewProps }: TourAnchorP
         height: Math.round(height),
       });
     });
-  }, [id, registerAnchorRect]);
+  }, [disabled, id, registerAnchorRect, unregisterAnchor]);
+
+  useEffect(() => {
+    if (disabled) {
+      unregisterAnchor(id);
+    }
+  }, [disabled, id, unregisterAnchor]);
 
   useEffect(() => {
     return () => {

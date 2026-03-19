@@ -238,9 +238,9 @@ async function transcribeAudio(request: WorkoutVoiceRequest): Promise<string> {
   if (bytes.byteLength > MAX_AUDIO_BYTES) {
     throw new Error('Recording is too large. Please keep it shorter.');
   }
-
+  const file = new Blob([bytes], { type: request.mimeType });
   const formData = new FormData();
-  formData.append('file', new Blob([bytes], { type: request.mimeType }), request.fileName);
+  formData.append('file', file, request.fileName);
   formData.append(
     'model',
     Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe'

@@ -456,7 +456,6 @@ export default function TabLayout() {
 
   const handleStartLongPress = () => {
     if (isWorkoutActive) return;
-    if (isTourActive) return;
     openStartConfig();
   };
 

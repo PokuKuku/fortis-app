@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -34,6 +34,7 @@ type TourOverlayProps = {
   body: string;
   stepLabel?: string | null;
   primaryAction?: Action | null;
+  secondaryAction?: Action | null;
   showArrow?: boolean;
   centerTooltip?: boolean;
   showHighlight?: boolean;
@@ -42,10 +43,11 @@ type TourOverlayProps = {
   pinTooltipToTop?: boolean;
   tooltipTopOffset?: number;
   placement?: TourOverlayPlacement;
+  holePadding?: number;
+  holePaddingBottom?: number;
   onTooltipHideComplete?: (() => void) | null;
 };
 
-const SCREEN = Dimensions.get('window');
 const TOOLTIP_MAX_WIDTH = scale(340);
 const TOOLTIP_SIDE_MARGIN = scale(18);
 const TOOLTIP_GAP = scale(12);
@@ -63,7 +65,7 @@ const TOOLTIP_EXIT_DURATION_MS = 140;
 const TOOLTIP_POSITION_DURATION_MS = 180;
 const TOOLTIP_POSITION_JITTER_PX = 2;
 const TOOLTIP_POSITION_DIRECT_SET_THRESHOLD_PX = 40;
-
+const TOUR_DIM_BACKGROUND = 'rgba(15, 23, 42, 0.55)';
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
 export function TourOverlay({
@@ -73,6 +75,7 @@ export function TourOverlay({
   body,
   stepLabel = null,
   primaryAction,
+  secondaryAction,
   showArrow = false,
   centerTooltip = false,
   showHighlight = true,
@@ -81,10 +84,13 @@ export function TourOverlay({
   pinTooltipToTop = false,
   tooltipTopOffset = 0,
   placement = 'auto',
+  holePadding = HOLE_PADDING,
+  holePaddingBottom = holePadding,
   onTooltipHideComplete = null,
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
   const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [tooltipHeight, setTooltipHeight] = useState<number | null>(null);
   const arrowAnim = useSharedValue(0);
   const tooltipOpacity = useSharedValue(0);
@@ -108,32 +114,32 @@ export function TourOverlay({
     notifyTooltipHideComplete();
   }, [notifyTooltipHideComplete]);
 
-  const tooltipWidth = Math.min(TOOLTIP_MAX_WIDTH, SCREEN.width - TOOLTIP_SIDE_MARGIN * 2);
+  const tooltipWidth = Math.min(TOOLTIP_MAX_WIDTH, screenWidth - TOOLTIP_SIDE_MARGIN * 2);
 
   const paddedRect = useMemo(() => {
     if (!anchorRect) return null;
-    const x = Math.max(0, anchorRect.x - HOLE_PADDING);
-    const y = Math.max(0, anchorRect.y - HOLE_PADDING);
-    const width = Math.min(SCREEN.width, anchorRect.width + HOLE_PADDING * 2);
-    const height = Math.min(SCREEN.height, anchorRect.height + HOLE_PADDING * 2);
+    const x = Math.max(0, anchorRect.x - holePadding);
+    const y = Math.max(0, anchorRect.y - holePadding);
+    const width = Math.min(screenWidth, anchorRect.width + holePadding * 2);
+    const height = Math.min(screenHeight, anchorRect.height + holePadding + holePaddingBottom);
     return { x, y, width, height };
-  }, [anchorRect]);
+  }, [anchorRect, holePadding, holePaddingBottom, screenHeight, screenWidth]);
 
   const tooltipPos = useMemo(() => {
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
-    const safeBottom = SCREEN.height - insets.bottom - TOOLTIP_SIDE_MARGIN;
+    const safeBottom = screenHeight - insets.bottom - TOOLTIP_SIDE_MARGIN;
     const tooltipMaxTop = Math.max(safeTop, safeBottom - (tooltipHeight ?? 0));
 
     if (centerTooltip) {
       return {
-        left: (SCREEN.width - tooltipWidth) / 2,
-        top: clamp((SCREEN.height - (tooltipHeight ?? 0)) / 2 + tooltipOffsetY, safeTop, tooltipMaxTop),
+        left: (screenWidth - tooltipWidth) / 2,
+        top: clamp((screenHeight - (tooltipHeight ?? 0)) / 2 + tooltipOffsetY, safeTop, tooltipMaxTop),
       };
     }
 
     if (pinTooltipToTop) {
       return {
-        left: (SCREEN.width - tooltipWidth) / 2,
+        left: (screenWidth - tooltipWidth) / 2,
         top: clamp(safeTop + tooltipTopOffset, safeTop, tooltipMaxTop),
       };
     }
@@ -147,7 +153,7 @@ export function TourOverlay({
       }
 
       const centerX = paddedRect.x + paddedRect.width / 2;
-      const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, SCREEN.width - TOOLTIP_SIDE_MARGIN - tooltipWidth);
+      const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - tooltipWidth);
       const arrowOffset = showArrow ? ARROW_HEIGHT + ARROW_GAP : 0;
       const topCandidate = placement === 'below'
         ? paddedRect.y + paddedRect.height + TOOLTIP_GAP + arrowOffset
@@ -160,7 +166,7 @@ export function TourOverlay({
     }
 
     const centerX = paddedRect.x + paddedRect.width / 2;
-    const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, SCREEN.width - TOOLTIP_SIDE_MARGIN - tooltipWidth);
+    const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - tooltipWidth);
 
     const arrowOffset = showArrow ? ARROW_HEIGHT + ARROW_GAP : 0;
     const aboveTop = paddedRect.y - TOOLTIP_GAP - arrowOffset - tooltipHeight;
@@ -188,11 +194,13 @@ export function TourOverlay({
     tooltipTopOffset,
     tooltipWidth,
     showArrow,
+    screenHeight,
+    screenWidth,
   ]);
   const shouldShowTooltip = visible && !hideTooltip;
 
   const themedStyles = {
-    overlay: { backgroundColor: colors.overlayHeavy },
+    overlay: { backgroundColor: TOUR_DIM_BACKGROUND },
     tooltip: {
       backgroundColor: isDark ? 'rgba(20, 20, 20, 0.92)' : 'rgba(255, 255, 255, 0.92)',
       borderColor: colors.glassBorder,
@@ -201,8 +209,9 @@ export function TourOverlay({
     stepText: { color: colors.textSecondary },
     highlightBorder: { borderColor: colors.accent },
     primaryText: { color: colors.white },
-    arrow: { borderTopColor: colors.accent },
-    arrowLine: { backgroundColor: colors.accent },
+    skipText: { color: colors.textSecondary },
+    arrow: { borderTopColor: '#FFFFFF' },
+    arrowLine: { backgroundColor: '#FFFFFF' },
   };
 
   useEffect(() => {
@@ -374,10 +383,10 @@ export function TourOverlay({
 
     const topHeight = paddedRect.y;
     const bottomTop = paddedRect.y + paddedRect.height;
-    const bottomHeight = Math.max(0, SCREEN.height - bottomTop);
+    const bottomHeight = Math.max(0, screenHeight - bottomTop);
     const leftWidth = paddedRect.x;
     const rightLeft = paddedRect.x + paddedRect.width;
-    const rightWidth = Math.max(0, SCREEN.width - rightLeft);
+    const rightWidth = Math.max(0, screenWidth - rightLeft);
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -427,9 +436,9 @@ export function TourOverlay({
     if (!showArrow || !paddedRect) return null;
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
     const centerX = paddedRect.x + paddedRect.width / 2;
-    const left = clamp(centerX - ARROW_WIDTH / 2, TOOLTIP_SIDE_MARGIN, SCREEN.width - TOOLTIP_SIDE_MARGIN - ARROW_WIDTH);
+    const left = clamp(centerX - ARROW_WIDTH / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - ARROW_WIDTH);
     const topCandidate = paddedRect.y - ARROW_GAP - ARROW_HEIGHT;
-    const top = clamp(topCandidate, safeTop, SCREEN.height - insets.bottom - ARROW_HEIGHT);
+    const top = clamp(topCandidate, safeTop, screenHeight - insets.bottom - ARROW_HEIGHT);
 
     return (
       <Animated.View style={[styles.arrow, { left, top }, arrowAnimatedStyle]} pointerEvents="none">
@@ -471,9 +480,30 @@ export function TourOverlay({
               }
             }}
           >
-            {stepLabel ? (
+            {(stepLabel || secondaryAction) ? (
               <View style={styles.tooltipHeader}>
-                <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel}</Text>
+                {stepLabel ? (
+                  <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel}</Text>
+                ) : (
+                  <View style={styles.headerSpacer} />
+                )}
+                {secondaryAction ? (
+                  <Pressable
+                    style={styles.skipButton}
+                    onPress={secondaryAction.onPress}
+                    disabled={Boolean(secondaryAction.disabled)}
+                  >
+                    <Text
+                      style={[
+                        styles.skipText,
+                        themedStyles.skipText,
+                        secondaryAction.disabled && styles.skipDisabled,
+                      ]}
+                    >
+                      skip
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : null}
 
@@ -525,6 +555,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.sm,
   },
+  headerSpacer: {
+    flex: 1,
+  },
   stepText: {
     fontSize: moderateScale(12),
     fontWeight: FontWeights.bold,
@@ -536,6 +569,17 @@ const styles = StyleSheet.create({
   },
   bodyTextCentered: {
     textAlign: 'center',
+  },
+  skipButton: {
+    paddingHorizontal: Spacing.xs,
+    paddingVertical: Spacing.xs,
+  },
+  skipText: {
+    fontSize: moderateScale(13),
+    fontWeight: FontWeights.medium,
+  },
+  skipDisabled: {
+    opacity: 0.45,
   },
   primaryButton: {
     marginTop: Spacing.lg,
@@ -555,6 +599,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: scale(2) },
+    shadowOpacity: 0.35,
+    shadowRadius: scale(4),
+    elevation: 8,
   },
   arrowLine: {
     width: scale(2),

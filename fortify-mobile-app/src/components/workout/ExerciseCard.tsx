@@ -268,7 +268,7 @@ export function ExerciseCard({
     addSet(exerciseLocalId);
   };
 
-  const shouldAnchorVoiceLog = isTourActive && activeStepId === 'voice_log' && shouldAnchorVoiceButton;
+  const shouldAnchorVoiceLog = isTourActive && activeStepId === 'open_voice_log' && shouldAnchorVoiceButton;
   const renderVoiceButton = () => (
     <Pressable
       onPress={handleVoiceLog}

@@ -193,7 +193,6 @@ async function transcribeAudio(request: ExerciseVoiceRequest): Promise<string> {
   if (bytes.byteLength > MAX_AUDIO_BYTES) {
     throw new Error('Recording is too large. Please keep it shorter.');
   }
-
   const file = new File([bytes], request.fileName, { type: request.mimeType });
   const formData = new FormData();
   formData.append('file', file);

@@ -44,6 +44,7 @@ import { BaseModal, useModalStyles } from '../../src/components/ui/BaseModal';
 import { useDropZone } from '../../src/hooks/useDropZone';
 import { responsiveValue, scale, moderateScale } from '@/src/utils/responsive';
 import { isLocalProgramId } from '@/src/utils/localIds';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -685,6 +686,7 @@ export default function ProgramsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const readableSubtext = getReadableSubtextColors(isDark);
+  const { isTourActive, activeStepId } = useInAppTour();
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
   const [highlightedWorkoutId, setHighlightedWorkoutId] = useState<string | null>(null);
   const modalStyles = useModalStyles();
@@ -711,6 +713,7 @@ export default function ProgramsScreen() {
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
+  const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
 
   useEffect(() => {
     void refreshPendingProgramSyncIds();
@@ -1271,13 +1274,25 @@ export default function ProgramsScreen() {
                   <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Workouts</Text>
                 </TouchableOpacity>
               </TourAnchor>
-              <TouchableOpacity
-                onPress={handleAddWorkoutPress}
-                style={styles.sectionKebabButton}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <PlusIcon color={colors.accent} size={KEBAB_ICON_SIZE} strokeWidth={2} />
-              </TouchableOpacity>
+              {shouldAnchorAddWorkout ? (
+                <TourAnchor id={TOUR_ANCHOR_IDS.addWorkoutRoutine}>
+                  <TouchableOpacity
+                    onPress={handleAddWorkoutPress}
+                    style={styles.sectionKebabButton}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <PlusIcon color={colors.accent} size={KEBAB_ICON_SIZE} strokeWidth={2} />
+                  </TouchableOpacity>
+                </TourAnchor>
+              ) : (
+                <TouchableOpacity
+                  onPress={handleAddWorkoutPress}
+                  style={styles.sectionKebabButton}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <PlusIcon color={colors.accent} size={KEBAB_ICON_SIZE} strokeWidth={2} />
+                </TouchableOpacity>
+              )}
             </View>
 
             <CollapsibleSection isOpen={showWorkouts}>
