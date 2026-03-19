@@ -25,6 +25,23 @@ export type ExerciseSearchOptions = {
   minFuzzyScore?: number;
 };
 
+const CANONICAL_QUERY_BOOSTS: Array<{
+  query: string;
+  preferredNames: string[];
+  preferredScore: number;
+}> = [
+  {
+    query: 'deadlift',
+    preferredNames: ['barbell deadlift'],
+    preferredScore: 142,
+  },
+  {
+    query: 'squat',
+    preferredNames: ['barbell full squat'],
+    preferredScore: 142,
+  },
+];
+
 const STOP_WORDS = new Set([
   'a',
   'an',
@@ -140,6 +157,20 @@ function diceCoefficient(a: string, b: string): number {
 function hasAllTokens(tokens: string[], tokenSet: Set<string>): boolean {
   if (tokens.length === 0) return false;
   return tokens.every((token) => tokenSet.has(token));
+}
+
+function getCanonicalIntentScore(queryTokens: string[], entry: ExerciseSearchEntry): number {
+  if (queryTokens.length !== 1) return 0;
+
+  const [queryToken] = queryTokens;
+  const matchingBoost = CANONICAL_QUERY_BOOSTS.find((candidate) => candidate.query === queryToken);
+  if (!matchingBoost) return 0;
+
+  if (matchingBoost.preferredNames.some((preferredName) => entry.stemmedNameText.startsWith(preferredName))) {
+    return matchingBoost.preferredScore;
+  }
+
+  return 0;
 }
 
 export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): ExerciseSearchIndex {
@@ -277,6 +308,8 @@ export function searchExercisesWithScores(
     if (entry.equipmentText.includes(normalizedQuery)) {
       score = Math.max(score, 55);
     }
+
+    score = Math.max(score, getCanonicalIntentScore(queryTokens, entry));
 
     if (enableFuzzy && normalizedQuery.length >= 3 && score < 90) {
       let bestSimilarity = diceCoefficient(normalizedQuery, entry.nameText);

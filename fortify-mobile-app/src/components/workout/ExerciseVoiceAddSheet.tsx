@@ -402,15 +402,15 @@ export function ExerciseVoiceAddSheet({
   const arrowLeft = Math.max(scale(0), buttonCenterXRelative - horizontalArrowLength - horizontalArrowHeadWidth - scale(46));
   const arrowTop = Math.max(effectiveTooltipHeight + scale(8), buttonCenterYRelative - scale(16));
   const verticalArrowHeadHeight = scale(14);
-  const preferredVerticalArrowReach = scale(84);
-  const verticalArrowTop = Math.max(
-    effectiveTooltipHeight - scale(64),
-    buttonCenterYRelative - preferredVerticalArrowReach
-  );
+  const verticalArrowHeadTargetTop = buttonCenterYRelative - scale(40);
   const verticalArrowLineHeight = Math.max(
     scale(18),
-    buttonCenterYRelative - verticalArrowTop - verticalArrowHeadHeight - scale(10)
+    Math.min(
+      scale(72),
+      verticalArrowHeadTargetTop - (effectiveTooltipHeight - scale(64))
+    )
   );
+  const verticalArrowTop = verticalArrowHeadTargetTop - verticalArrowLineHeight;
   const horizontalArrowAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: arrowNudge.value * horizontalArrowNudgeDistance }],
   }), [horizontalArrowNudgeDistance]);
