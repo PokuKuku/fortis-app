@@ -220,14 +220,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const pendingStep = useMemo(() => getStepById(pendingStepId), [getStepById, pendingStepId]);
   const overlayStep = renderStep ?? pendingStep ?? logicalStep;
 
-  const overlayStepIndex = useMemo(() => {
-    if (!overlayStep) return -1;
-    return getStepIndexById(overlayStep.id);
-  }, [overlayStep]);
-  const stepLabel = overlayStepIndex >= 0
-    ? `${overlayStepIndex + 1} of ${TOUR_STEPS.length}`
-    : undefined;
-
   const currentAnchorRect = overlayStep?.anchorId ? anchorRects[overlayStep.anchorId] ?? null : null;
   const normalizedPathname = useMemo(
     () => (pathname ? pathname.replace('/(tabs)', '') : ''),
@@ -709,6 +701,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
   }, [advanceStep, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
 
+  const stepLabel = useMemo(() => {
+    if (!isTourActive || !overlayStep) return null;
+    return `Step ${getStepIndexById(overlayStep.id) + 1} of ${TOUR_STEPS.length}`;
+  }, [isTourActive, overlayStep]);
+
   const showOverlay = Boolean(
     isTourActive &&
     overlayStep &&
@@ -727,7 +724,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         body={overlayStep?.body ?? ''}
         stepLabel={stepLabel}
         primaryAction={primaryAction}
-        onSkip={isTourActive ? () => void finishTour('skipped') : null}
         showArrow={Boolean(overlayStep?.showArrow) && isTooltipVisible && Boolean(currentAnchorRect)}
         centerTooltip={
           Boolean(overlayStep?.centerTooltip) ||

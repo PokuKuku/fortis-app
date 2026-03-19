@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Dimensions, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Dimensions, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -32,9 +32,8 @@ type TourOverlayProps = {
   mode: TourOverlayMode;
   anchorRect: AnchorRect | null;
   body: string;
-  stepLabel?: string;
+  stepLabel?: string | null;
   primaryAction?: Action | null;
-  onSkip?: (() => void) | null;
   showArrow?: boolean;
   centerTooltip?: boolean;
   showHighlight?: boolean;
@@ -72,9 +71,8 @@ export function TourOverlay({
   mode,
   anchorRect,
   body,
-  stepLabel,
+  stepLabel = null,
   primaryAction,
-  onSkip,
   showArrow = false,
   centerTooltip = false,
   showHighlight = true,
@@ -201,7 +199,6 @@ export function TourOverlay({
     },
     bodyText: { color: colors.textPrimary },
     stepText: { color: colors.textSecondary },
-    skipText: { color: colors.textSecondary },
     highlightBorder: { borderColor: colors.accent },
     primaryText: { color: colors.white },
     arrow: { borderTopColor: colors.accent },
@@ -474,14 +471,11 @@ export function TourOverlay({
               }
             }}
           >
-            <View style={styles.tooltipHeader}>
-              <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel ?? ''}</Text>
-              {onSkip && (
-                <Pressable onPress={onSkip} hitSlop={8}>
-                  <Text style={[styles.skipText, themedStyles.skipText]}>Skip</Text>
-                </Pressable>
-              )}
-            </View>
+            {stepLabel ? (
+              <View style={styles.tooltipHeader}>
+                <Text style={[styles.stepText, themedStyles.stepText]}>{stepLabel}</Text>
+              </View>
+            ) : null}
 
             <Text style={[styles.bodyText, themedStyles.bodyText, centerTooltip && styles.bodyTextCentered]}>{body}</Text>
 
@@ -534,10 +528,6 @@ const styles = StyleSheet.create({
   stepText: {
     fontSize: moderateScale(12),
     fontWeight: FontWeights.bold,
-  },
-  skipText: {
-    fontSize: moderateScale(12),
-    fontWeight: FontWeights.semibold,
   },
   bodyText: {
     fontSize: moderateScale(15),
