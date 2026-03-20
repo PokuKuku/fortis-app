@@ -288,6 +288,7 @@ type InAppTourContextValue = {
   unregisterAnchor: (id: string) => void;
   isTourActive: boolean;
   activeStepId: TourStepId | null;
+  activeAnchorId: TourAnchorId | null;
   advanceStep: () => void;
   skipTour: () => void;
   currentStepNumber: number | null;
@@ -816,6 +817,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     unregisterAnchor,
     isTourActive,
     activeStepId: logicalStep?.id ?? null,
+    activeAnchorId: logicalStep?.anchorId ?? null,
     advanceStep: () => void advanceStep(),
     skipTour: () => void finishTour('skipped'),
     currentStepNumber: logicalStep ? getStepIndexById(logicalStep.id) + 1 : null,

@@ -13,7 +13,7 @@ export function TourAnchor({ id, disabled = false, onLayout, children, ...viewPr
   const interactionTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lateSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { registerAnchorRect, unregisterAnchor } = useInAppTour();
+  const { registerAnchorRect, unregisterAnchor, activeAnchorId } = useInAppTour();
 
   const measure = useCallback(() => {
     if (disabled) {
@@ -48,6 +48,26 @@ export function TourAnchor({ id, disabled = false, onLayout, children, ...viewPr
       unregisterAnchor(id);
     };
   }, [id, unregisterAnchor]);
+
+  useEffect(() => {
+    if (disabled || activeAnchorId !== id) return;
+
+    requestAnimationFrame(measure);
+
+    interactionTaskRef.current?.cancel();
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    if (lateSettleTimerRef.current) clearTimeout(lateSettleTimerRef.current);
+
+    interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(measure);
+    });
+    settleTimerRef.current = setTimeout(() => {
+      requestAnimationFrame(measure);
+    }, 120);
+    lateSettleTimerRef.current = setTimeout(() => {
+      requestAnimationFrame(measure);
+    }, 320);
+  }, [activeAnchorId, disabled, id, measure]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     onLayout?.(event);
