@@ -1,5 +1,5 @@
 import { PropsWithChildren, useCallback, useEffect, useRef } from 'react';
-import { LayoutChangeEvent, View, type ViewProps } from 'react-native';
+import { InteractionManager, LayoutChangeEvent, View, type ViewProps } from 'react-native';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 
 type TourAnchorProps = PropsWithChildren<{
@@ -10,6 +10,9 @@ type TourAnchorProps = PropsWithChildren<{
 
 export function TourAnchor({ id, disabled = false, onLayout, children, ...viewProps }: TourAnchorProps) {
   const ref = useRef<View>(null);
+  const interactionTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lateSettleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { registerAnchorRect, unregisterAnchor } = useInAppTour();
 
   const measure = useCallback(() => {
@@ -39,14 +42,31 @@ export function TourAnchor({ id, disabled = false, onLayout, children, ...viewPr
 
   useEffect(() => {
     return () => {
+      interactionTaskRef.current?.cancel();
+      if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+      if (lateSettleTimerRef.current) clearTimeout(lateSettleTimerRef.current);
       unregisterAnchor(id);
     };
   }, [id, unregisterAnchor]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     onLayout?.(event);
-    // Defer measurement until after layout settles.
+    // Measure immediately, then re-measure after interactions/fonts/layout settle on device.
     requestAnimationFrame(measure);
+
+    interactionTaskRef.current?.cancel();
+    if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
+    if (lateSettleTimerRef.current) clearTimeout(lateSettleTimerRef.current);
+
+    interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
+      requestAnimationFrame(measure);
+    });
+    settleTimerRef.current = setTimeout(() => {
+      requestAnimationFrame(measure);
+    }, 180);
+    lateSettleTimerRef.current = setTimeout(() => {
+      requestAnimationFrame(measure);
+    }, 420);
   }, [measure, onLayout]);
 
   return (
