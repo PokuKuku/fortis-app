@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadBodyAssets, loadBrandAssets, MUSCLE_KEYS, MUSCLE_TO_HEATMAP_REGIONS, TIER_COLORS, TIER_LABELS } from './lib/heatmap-data.mjs';
+import { generateConcepts } from './lib/generation.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +23,29 @@ const contentTypes = {
 function send(response, statusCode, body, headers = {}) {
   response.writeHead(statusCode, headers);
   response.end(body);
+}
+
+async function readJsonBody(request) {
+  const chunks = [];
+
+  for await (const chunk of request) {
+    chunks.push(chunk);
+  }
+
+  if (!chunks.length) {
+    return {};
+  }
+
+  const raw = Buffer.concat(chunks).toString('utf8');
+  if (!raw.trim()) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error('Request body must be valid JSON.');
+  }
 }
 
 async function buildBootstrapPayload() {
@@ -73,6 +97,39 @@ const server = http.createServer(async (request, response) => {
     send(response, 200, JSON.stringify({ ok: true }), {
       'Content-Type': 'application/json; charset=utf-8',
     });
+    return;
+  }
+
+  if (request.method === 'POST' && url.pathname === '/api/generate-concepts') {
+    try {
+      const body = await readJsonBody(request);
+      const concepts = await generateConcepts({
+        apiKey: process.env.OPENAI_API_KEY,
+        brief: body.brief,
+        audience: body.audience,
+        tone: body.tone,
+        avoid: body.avoid,
+        layouts: body.layouts,
+        count: body.count,
+        guidance: body.guidance,
+      });
+
+      send(response, 200, JSON.stringify({ concepts }), {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+    } catch (error) {
+      const statusCode = error.message === 'Missing OPENAI_API_KEY.' ? 500 : 400;
+      send(
+        response,
+        statusCode,
+        JSON.stringify({ error: error.message || 'Could not generate concepts.' }),
+        {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        }
+      );
+    }
     return;
   }
 

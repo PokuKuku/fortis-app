@@ -11,7 +11,7 @@ const canvasPresets = {
   square: { width: 1080, height: 1080, previewAspect: 1 },
 };
 
-const TOP_SECTION_RATIO = 0.25;
+const TOP_SECTION_RATIO = 0.22;
 const fontStacks = {
   impact: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif',
   arial_black: '"Arial Black", Arial, sans-serif',
@@ -50,6 +50,17 @@ const elements = {
   downloadBatchButton: document.querySelector('#download-batch-button'),
   batchSummary: document.querySelector('#batch-summary'),
   batchGrid: document.querySelector('#batch-grid'),
+  generatorBriefInput: document.querySelector('#generator-brief-input'),
+  generatorAudienceInput: document.querySelector('#generator-audience-input'),
+  generatorToneInput: document.querySelector('#generator-tone-input'),
+  generatorAvoidInput: document.querySelector('#generator-avoid-input'),
+  generatorGuidanceInput: document.querySelector('#generator-guidance-input'),
+  generatorLayoutSelect: document.querySelector('#generator-layout-select'),
+  generatorCountInput: document.querySelector('#generator-count-input'),
+  generatorHeadlineSizeInput: document.querySelector('#generator-headline-size-input'),
+  generatorSubtitleSizeInput: document.querySelector('#generator-subtitle-size-input'),
+  generatorLabelSizeInput: document.querySelector('#generator-label-size-input'),
+  generateConceptsButton: document.querySelector('#generate-concepts-button'),
   status: document.querySelector('#status'),
   muscleRowTemplate: document.querySelector('#muscle-row-template'),
 };
@@ -74,6 +85,7 @@ function createBaseConcept(useSampleCopy = false, defaultTier = 1) {
   return {
     title: useSampleCopy ? 'Skipped leg day? Tell me more.' : '',
     subtitle: useSampleCopy ? 'Top-heavy since 18' : '',
+    rationale: '',
     layout: 'single_body',
     labelA: '',
     labelB: '',
@@ -278,6 +290,7 @@ function normalizeConcept(input = {}, index = 0) {
   concept.layout = layout;
   concept.title = String(source.title ?? source.headline ?? concept.title);
   concept.subtitle = String(source.subtitle ?? source.subheadline ?? concept.subtitle);
+  concept.rationale = String(source.rationale ?? '');
   concept.labelA = String(source.labelA ?? source.leftLabel ?? source.bodyALabel ?? '');
   concept.labelB = String(source.labelB ?? source.rightLabel ?? source.bodyBLabel ?? '');
   concept.typography = normalizeTypography(source.typography, concept.typography);
@@ -434,12 +447,14 @@ function renderTopText(concept, width, topSectionHeight) {
 function renderHeatmapStage(concept, width, height) {
   const stageY = getTopSectionHeight(height);
   const stageHeight = height - stageY;
-  const brandBlockY = stageY - 8;
-  const logoBadgeWidth = 1078;
+  const brandTopPadding = -58;
+  const brandBottomGap = 4;
+  const logoBadgeWidth = 1380;
   const logoBadgeHeight = (238 / 980) * logoBadgeWidth;
+  const brandBlockY = stageY + brandTopPadding;
   const logoBadgeX = (width - logoBadgeWidth) / 2;
   const { brandAssets, tierLabels } = state.bootstrap;
-  const bodiesY = stageY + 170;
+  const bodiesY = brandBlockY + logoBadgeHeight + brandBottomGap;
   const singleBodyBaseScale = 1.68;
   const dualBodyBaseScale = 1.34;
   const dualBodyCenterGap = 150;
@@ -559,6 +574,9 @@ function renderBatchGrid() {
     const previewSrc = svgToDataUrl(renderMemeSvg(item.concept, item.sizePreset));
     const title = escapeHtml(item.concept.title || `Meme ${index + 1}`);
     const meta = item.concept.layout === 'dual_body' ? 'Dual body' : 'Single body';
+    const rationale = item.concept.rationale
+      ? `<p class="batch-card-rationale">${escapeHtml(item.concept.rationale)}</p>`
+      : '';
     const selectedClass = index === state.selectedBatchIndex ? ' selected' : '';
 
     return `
@@ -567,6 +585,7 @@ function renderBatchGrid() {
         <div class="batch-card-meta">
           <strong>${title}</strong>
           <span>${meta} · ${item.sizePreset === 'square' ? '1080 x 1080' : '1080 x 1350'}</span>
+          ${rationale}
         </div>
         <div class="batch-card-actions">
           <button type="button" class="secondary batch-action-button" data-action="load" data-index="${index}">Load Into Editor</button>
@@ -737,6 +756,99 @@ function loadBatchFromTextarea() {
   state.selectedBatchIndex = state.batchItems.length ? 0 : null;
   elements.batchJsonInput.value = sanitizedText;
   renderBatchGrid();
+}
+
+function getRequestedLayouts() {
+  if (elements.generatorLayoutSelect.value === 'single_body') {
+    return ['single_body'];
+  }
+
+  if (elements.generatorLayoutSelect.value === 'dual_body') {
+    return ['dual_body'];
+  }
+
+  return ['single_body', 'dual_body'];
+}
+
+function buildGeneratorPayload() {
+  return {
+    brief: elements.generatorBriefInput.value.trim(),
+    audience: elements.generatorAudienceInput.value.trim(),
+    tone: elements.generatorToneInput.value.trim(),
+    avoid: elements.generatorAvoidInput.value.trim(),
+    guidance: elements.generatorGuidanceInput.value.trim(),
+    layouts: getRequestedLayouts(),
+    count: clampNumber(elements.generatorCountInput.value, 1, 12, 6),
+  };
+}
+
+function getGeneratorTypographyDefaults() {
+  return {
+    headlineFont: 'impact',
+    subtitleFont: 'impact',
+    labelFont: 'impact',
+    headlineSize: clampNumber(elements.generatorHeadlineSizeInput.value, 24, 96, 50),
+    subtitleSize: clampNumber(elements.generatorSubtitleSizeInput.value, 18, 72, 36),
+    labelSize: clampNumber(elements.generatorLabelSizeInput.value, 16, 56, 26),
+  };
+}
+
+function applyGenerationDefaultsToConcepts(concepts) {
+  const typography = getGeneratorTypographyDefaults();
+
+  return concepts.map((concept) => ({
+    ...concept,
+    typography: {
+      ...typography,
+      ...(concept.typography || {}),
+    },
+  }));
+}
+
+function conceptsToBatchJson(concepts) {
+  return JSON.stringify(
+    concepts.map((concept) => ({
+      title: concept.title,
+      subtitle: concept.subtitle,
+      rationale: concept.rationale,
+      layout: concept.layout,
+      labelA: concept.labelA,
+      labelB: concept.labelB,
+      bodyA: concept.bodyA,
+      bodyB: concept.bodyB,
+    })),
+    null,
+    2
+  );
+}
+
+async function generateConceptBatch() {
+  const payload = buildGeneratorPayload();
+  const response = await fetch('/api/generate-concepts', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || 'Could not generate concepts.');
+  }
+
+  const concepts = Array.isArray(data.concepts) ? data.concepts : [];
+  if (!concepts.length) {
+    throw new Error('The generator returned no concepts.');
+  }
+
+  const conceptsWithDefaults = applyGenerationDefaultsToConcepts(concepts);
+
+  state.batchItems = conceptsWithDefaults.map((concept, index) => normalizeConcept(concept, index));
+  state.selectedBatchIndex = 0;
+  elements.batchJsonInput.value = conceptsToBatchJson(conceptsWithDefaults);
+  renderBatchGrid();
+  loadBatchItemIntoEditor(0);
 }
 
 async function downloadBatchPngs() {
@@ -914,6 +1026,19 @@ function bindEvents() {
       } catch (error) {
         setStatus(error.message, 'error');
       }
+    }
+  });
+
+  elements.generateConceptsButton.addEventListener('click', async () => {
+    elements.generateConceptsButton.disabled = true;
+    setStatus('Generating concepts...', 'busy');
+    try {
+      await generateConceptBatch();
+      setStatus(`Generated ${state.batchItems.length} concept${state.batchItems.length === 1 ? '' : 's'} and loaded the first one.`);
+    } catch (error) {
+      setStatus(error.message, 'error');
+    } finally {
+      elements.generateConceptsButton.disabled = false;
     }
   });
 }

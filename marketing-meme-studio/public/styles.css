@@ -1,13 +1,16 @@
 :root {
-  color-scheme: light;
-  --bg: #ece9e2;
-  --panel: rgba(255, 255, 255, 0.76);
-  --panel-border: rgba(0, 0, 0, 0.08);
-  --text: #121212;
-  --muted: #5b5b5b;
-  --accent: #0e61ff;
-  --accent-strong: #003fb2;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.14);
+  color-scheme: dark;
+  --bg: #1e2229;
+  --panel: rgba(47, 53, 63, 0.82);
+  --panel-strong: rgba(56, 63, 74, 0.9);
+  --panel-border: rgba(255, 255, 255, 0.1);
+  --text: #f2efe8;
+  --muted: #b8c0ca;
+  --accent: #78a9ff;
+  --accent-strong: #b8d0ff;
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --button-secondary-bg: rgba(255, 255, 255, 0.08);
+  --shadow: 0 20px 54px rgba(0, 0, 0, 0.28);
   --radius-xl: 28px;
   --radius-lg: 18px;
   --radius-md: 12px;
@@ -21,8 +24,9 @@ body {
   margin: 0;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.85), transparent 35%),
-    linear-gradient(135deg, #f5f0e7 0%, #ddd7cf 55%, #d5d9de 100%);
+    radial-gradient(circle at top left, rgba(130, 154, 196, 0.18), transparent 32%),
+    radial-gradient(circle at top right, rgba(221, 190, 141, 0.1), transparent 28%),
+    linear-gradient(135deg, #232830 0%, #2c313a 45%, #262b32 100%);
   color: var(--text);
 }
 
@@ -139,11 +143,16 @@ input,
 textarea,
 select {
   width: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--input-bg);
   border-radius: var(--radius-md);
   padding: 11px 12px;
   color: var(--text);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(242, 239, 232, 0.48);
 }
 
 textarea {
@@ -166,16 +175,16 @@ button {
   border: 0;
   border-radius: 999px;
   background: var(--accent);
-  color: white;
+  color: #102038;
   padding: 12px 18px;
   font-weight: 700;
   cursor: pointer;
 }
 
 button.secondary {
-  background: rgba(255, 255, 255, 0.72);
+  background: var(--button-secondary-bg);
   color: var(--text);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 button:disabled {
@@ -188,7 +197,7 @@ button:disabled {
   bottom: 0;
   padding: 18px 0 8px;
   margin-top: 8px;
-  background: linear-gradient(to top, rgba(245, 241, 235, 0.96), rgba(245, 241, 235, 0));
+  background: linear-gradient(to top, rgba(34, 39, 47, 0.98), rgba(34, 39, 47, 0));
 }
 
 .status {
@@ -197,7 +206,7 @@ button:disabled {
 }
 
 .status.error {
-  color: #b42318;
+  color: #ff8f86;
 }
 
 .preview-toolbar {
@@ -217,7 +226,7 @@ button:disabled {
   display: block;
   border-radius: 24px;
   background: #101012;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 26px 54px rgba(0, 0, 0, 0.28);
 }
 
 .tier-section {
@@ -250,13 +259,13 @@ button:disabled {
   gap: 12px;
   padding: 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.72);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--panel-strong);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .batch-card.selected {
-  border-color: rgba(14, 97, 255, 0.4);
-  box-shadow: 0 0 0 2px rgba(14, 97, 255, 0.14);
+  border-color: rgba(120, 169, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(120, 169, 255, 0.14);
 }
 
 .batch-card-image {
@@ -280,6 +289,13 @@ button:disabled {
   font-size: 0.82rem;
 }
 
+.batch-card-rationale {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
 .batch-card-actions {
   display: flex;
   gap: 8px;
@@ -293,6 +309,10 @@ button:disabled {
 .tier-header p {
   margin: 0;
   font-size: 0.88rem;
+}
+
+.generator-subsection {
+  margin-top: 18px;
 }
 
 .muscle-grid {
