@@ -18,184 +18,186 @@
             </p>
           </div>
 
-          <section class="editor-section">
-            <div class="inline-fields">
+          <div class="controls-grid">
+            <section class="editor-section generator-section">
+              <div class="tier-header">
+                <h2>Concept Generator</h2>
+                <p>Use GPT to draft meme concepts, then load them into batch preview for editing.</p>
+              </div>
+
               <label>
-                <span>Canvas</span>
-                <select id="canvas-size">
-                  <option value="portrait">1080 x 1350</option>
-                  <option value="square">1080 x 1080</option>
-                </select>
+                <span>Campaign Brief</span>
+                <textarea
+                  id="generator-brief-input"
+                  rows="4"
+                  placeholder="Examples: Promote Fortify to lifters who track every rep. Make the jokes specific, gym-native, and swipe-stopping."
+                ></textarea>
               </label>
 
+              <div class="inline-fields">
+                <label>
+                  <span>Audience</span>
+                  <input id="generator-audience-input" type="text" placeholder="Gym-goers who love lifting memes" />
+                </label>
+
+                <label>
+                  <span>Tone</span>
+                  <input id="generator-tone-input" type="text" placeholder="Sharp, funny, slightly unhinged" />
+                </label>
+              </div>
+
               <label>
-                <span>Layout</span>
-                <select id="layout-select">
-                  <option value="single_body">Single body</option>
-                  <option value="dual_body">Dual body</option>
-                </select>
-              </label>
-            </div>
-
-            <label>
-              <span>Headline</span>
-              <textarea id="headline-input" rows="2" placeholder="Write the main meme line"></textarea>
-            </label>
-
-            <label>
-              <span>Subtitle</span>
-              <input id="subtitle-input" type="text" placeholder="Write the smaller sub-line" />
-            </label>
-
-            <div class="inline-fields">
-              <label>
-                <span>Headline Size</span>
-                <input id="headline-size-input" type="number" min="24" max="96" step="1" />
+                <span>Avoid</span>
+                <input id="generator-avoid-input" type="text" placeholder="Generic motivation, cringe hustle copy, nutrition jokes" />
               </label>
 
               <label>
-                <span>Subtitle Size</span>
-                <input id="subtitle-size-input" type="number" min="18" max="72" step="1" />
+                <span>Extra Guidance</span>
+                <textarea
+                  id="generator-guidance-input"
+                  rows="3"
+                  placeholder="Optional: bias toward dual-body contrasts, emphasize upper/lower imbalances, include one female concept."
+                ></textarea>
               </label>
-            </div>
 
-            <div class="inline-fields">
+              <div class="inline-fields">
+                <label>
+                  <span>Layouts</span>
+                  <select id="generator-layout-select">
+                    <option value="both">Single + dual</option>
+                    <option value="single_body">Single body only</option>
+                    <option value="dual_body">Dual body only</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Count</span>
+                  <input id="generator-count-input" type="number" min="1" max="12" step="1" value="6" />
+                </label>
+              </div>
+
+              <div class="tier-header generator-subsection">
+                <h2>Generation Typography</h2>
+                <p>These defaults will be applied to every generated meme before it lands in batch preview.</p>
+              </div>
+
+              <div class="inline-fields">
+                <label>
+                  <span>Headline Size</span>
+                  <input id="generator-headline-size-input" type="number" min="24" max="96" step="1" value="52" />
+                </label>
+
+                <label>
+                  <span>Subtitle Size</span>
+                  <input id="generator-subtitle-size-input" type="number" min="18" max="72" step="1" value="42" />
+                </label>
+
+                <label>
+                  <span>Label Size</span>
+                  <input id="generator-label-size-input" type="number" min="16" max="56" step="1" value="26" />
+                </label>
+              </div>
+
+              <div class="button-row">
+                <button type="button" id="generate-concepts-button">Generate Concepts</button>
+              </div>
+            </section>
+
+            <section class="editor-section manual-editor-section">
+              <div class="inline-fields">
+                <label>
+                  <span>Canvas</span>
+                  <select id="canvas-size">
+                    <option value="portrait">1080 x 1350</option>
+                    <option value="square">1080 x 1080</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Layout</span>
+                  <select id="layout-select">
+                    <option value="single_body">Single body</option>
+                    <option value="dual_body">Dual body</option>
+                  </select>
+                </label>
+              </div>
+
               <label>
-                <span>Label A</span>
-                <input id="label-a-input" type="text" placeholder="Text above first heatmap" />
-              </label>
-
-              <label id="label-b-wrapper">
-                <span>Label B</span>
-                <input id="label-b-input" type="text" placeholder="Text above second heatmap" />
-              </label>
-            </div>
-
-            <label>
-              <span>Label Size</span>
-              <input id="label-size-input" type="number" min="16" max="56" step="1" />
-            </label>
-
-            <div class="inline-fields">
-              <label>
-                <span>Gender A</span>
-                <select id="gender-a-select">
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </label>
-
-              <label id="gender-b-wrapper">
-                <span>Gender B</span>
-                <select id="gender-b-select">
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </label>
-            </div>
-
-            <div class="inline-fields">
-              <label>
-                <span>View A</span>
-                <select id="pose-a-select">
-                  <option value="front">Front</option>
-                  <option value="back">Back</option>
-                </select>
-              </label>
-
-              <label id="pose-b-wrapper">
-                <span>View B</span>
-                <select id="pose-b-select">
-                  <option value="front">Front</option>
-                  <option value="back">Back</option>
-                </select>
-              </label>
-            </div>
-          </section>
-
-          <section class="editor-section generator-section">
-            <div class="tier-header">
-              <h2>Concept Generator</h2>
-              <p>Use GPT to draft meme concepts, then load them into batch preview for editing.</p>
-            </div>
-
-            <label>
-              <span>Campaign Brief</span>
-              <textarea
-                id="generator-brief-input"
-                rows="4"
-                placeholder="Examples: Promote Fortify to lifters who track every rep. Make the jokes specific, gym-native, and swipe-stopping."
-              ></textarea>
-            </label>
-
-            <div class="inline-fields">
-              <label>
-                <span>Audience</span>
-                <input id="generator-audience-input" type="text" placeholder="Gym-goers who love lifting memes" />
+                <span>Headline</span>
+                <textarea id="headline-input" rows="2" placeholder="Write the main meme line"></textarea>
               </label>
 
               <label>
-                <span>Tone</span>
-                <input id="generator-tone-input" type="text" placeholder="Sharp, funny, slightly unhinged" />
-              </label>
-            </div>
-
-            <label>
-              <span>Avoid</span>
-              <input id="generator-avoid-input" type="text" placeholder="Generic motivation, cringe hustle copy, nutrition jokes" />
-            </label>
-
-            <label>
-              <span>Extra Guidance</span>
-              <textarea
-                id="generator-guidance-input"
-                rows="3"
-                placeholder="Optional: bias toward dual-body contrasts, emphasize upper/lower imbalances, include one female concept."
-              ></textarea>
-            </label>
-
-            <div class="inline-fields">
-              <label>
-                <span>Layouts</span>
-                <select id="generator-layout-select">
-                  <option value="both">Single + dual</option>
-                  <option value="single_body">Single body only</option>
-                  <option value="dual_body">Dual body only</option>
-                </select>
+                <span>Subtitle</span>
+                <input id="subtitle-input" type="text" placeholder="Write the smaller sub-line" />
               </label>
 
-              <label>
-                <span>Count</span>
-                <input id="generator-count-input" type="number" min="1" max="12" step="1" value="6" />
-              </label>
-            </div>
+              <div class="inline-fields">
+                <label>
+                  <span>Headline Size</span>
+                  <input id="headline-size-input" type="number" min="24" max="96" step="1" />
+                </label>
 
-            <div class="tier-header generator-subsection">
-              <h2>Generation Typography</h2>
-              <p>These defaults will be applied to every generated meme before it lands in batch preview.</p>
-            </div>
+                <label>
+                  <span>Subtitle Size</span>
+                  <input id="subtitle-size-input" type="number" min="18" max="72" step="1" />
+                </label>
+              </div>
 
-            <div class="inline-fields">
-              <label>
-                <span>Headline Size</span>
-                <input id="generator-headline-size-input" type="number" min="24" max="96" step="1" value="50" />
-              </label>
+              <div class="inline-fields">
+                <label>
+                  <span>Label A</span>
+                  <input id="label-a-input" type="text" placeholder="Text above first heatmap" />
+                </label>
 
-              <label>
-                <span>Subtitle Size</span>
-                <input id="generator-subtitle-size-input" type="number" min="18" max="72" step="1" value="36" />
-              </label>
+                <label id="label-b-wrapper">
+                  <span>Label B</span>
+                  <input id="label-b-input" type="text" placeholder="Text above second heatmap" />
+                </label>
+              </div>
 
               <label>
                 <span>Label Size</span>
-                <input id="generator-label-size-input" type="number" min="16" max="56" step="1" value="26" />
+                <input id="label-size-input" type="number" min="16" max="56" step="1" />
               </label>
-            </div>
 
-            <div class="button-row">
-              <button type="button" id="generate-concepts-button">Generate Concepts</button>
-            </div>
-          </section>
+              <div class="inline-fields">
+                <label>
+                  <span>Gender A</span>
+                  <select id="gender-a-select">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
+
+                <label id="gender-b-wrapper">
+                  <span>Gender B</span>
+                  <select id="gender-b-select">
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="inline-fields">
+                <label>
+                  <span>View A</span>
+                  <select id="pose-a-select">
+                    <option value="front">Front</option>
+                    <option value="back">Back</option>
+                  </select>
+                </label>
+
+                <label id="pose-b-wrapper">
+                  <span>View B</span>
+                  <select id="pose-b-select">
+                    <option value="front">Front</option>
+                    <option value="back">Back</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+          </div>
 
           <div class="button-row sticky-actions">
             <button type="button" id="reset-button" class="secondary">Reset</button>
@@ -217,38 +219,38 @@
             <img id="preview-image" class="preview-image" alt="Fortify meme preview" />
           </div>
         </main>
-      </section>
 
-      <section class="tier-panels">
-        <section class="editor-section tier-section">
-          <div class="tier-header">
-            <h2>Body A Tiers</h2>
-            <p>Set each muscle from S to E.</p>
-          </div>
-          <div id="body-a-muscles" class="muscle-grid"></div>
-        </section>
+        <aside class="workspace-panel">
+          <section class="tier-panels">
+            <section class="editor-section tier-section">
+              <div class="tier-header">
+                <h2>Body A Tiers</h2>
+                <p>Set each muscle from S to E.</p>
+              </div>
+              <div id="body-a-muscles" class="muscle-grid"></div>
+            </section>
 
-        <section id="body-b-section" class="editor-section tier-section">
-          <div class="tier-header">
-            <h2>Body B Tiers</h2>
-            <p>Shown only in dual-body layout.</p>
-          </div>
-          <div id="body-b-muscles" class="muscle-grid"></div>
-        </section>
-      </section>
+            <section id="body-b-section" class="editor-section tier-section">
+              <div class="tier-header">
+                <h2>Body B Tiers</h2>
+                <p>Shown only in dual-body layout.</p>
+              </div>
+              <div id="body-b-muscles" class="muscle-grid"></div>
+            </section>
+          </section>
 
-      <section class="batch-section">
-        <div class="editor-section batch-input-panel">
-          <div class="tier-header">
-            <h2>Batch JSON</h2>
-            <p>Paste one meme object, an array of memes, or { "defaults": ..., "memes": [...] }.</p>
-          </div>
+          <section class="batch-section">
+            <div class="editor-section batch-input-panel">
+              <div class="tier-header">
+                <h2>Batch JSON</h2>
+                <p>Paste one meme object, an array of memes, or { "defaults": ..., "memes": [...] }.</p>
+              </div>
 
-          <textarea
-            id="batch-json-input"
-            class="batch-json-input"
-            rows="12"
-            placeholder='[
+              <textarea
+                id="batch-json-input"
+                class="batch-json-input"
+                rows="12"
+                placeholder='[
   {
     "layout": "single_body",
     "headline": "Skipped leg day? Tell me more.",
@@ -258,24 +260,26 @@
     "bodyATiers": { "chest": 1, "quads": 6 }
   }
 ]'
-          ></textarea>
+              ></textarea>
 
-          <div class="button-row">
-            <button type="button" id="load-batch-button">Load Batch</button>
-            <button type="button" id="download-batch-button">Download All PNGs</button>
-            <button type="button" id="clear-batch-button" class="secondary">Clear Batch</button>
-          </div>
-        </div>
-
-        <div class="editor-section batch-preview-panel">
-          <div class="batch-preview-header">
-            <div class="tier-header">
-              <h2>Batch Preview</h2>
-              <p id="batch-summary">No batch loaded</p>
+              <div class="button-row">
+                <button type="button" id="load-batch-button">Load Batch</button>
+                <button type="button" id="download-batch-button">Download All PNGs</button>
+                <button type="button" id="clear-batch-button" class="secondary">Clear Batch</button>
+              </div>
             </div>
-          </div>
-          <div id="batch-grid" class="batch-grid"></div>
-        </div>
+
+            <div class="editor-section batch-preview-panel">
+              <div class="batch-preview-header">
+                <div class="tier-header">
+                  <h2>Batch Preview</h2>
+                  <p id="batch-summary">No batch loaded</p>
+                </div>
+              </div>
+              <div id="batch-grid" class="batch-grid"></div>
+            </div>
+          </section>
+        </aside>
       </section>
     </div>
 

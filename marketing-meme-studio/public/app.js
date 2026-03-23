@@ -12,6 +12,7 @@ const canvasPresets = {
 };
 
 const TOP_SECTION_RATIO = 0.22;
+const NEUTRAL_BODY_SLUGS = new Set(['head', 'hair', 'hands', 'feet']);
 const fontStacks = {
   impact: 'Impact, Haettenschweiler, "Arial Narrow Bold", sans-serif',
   arial_black: '"Arial Black", Arial, sans-serif',
@@ -93,8 +94,8 @@ function createBaseConcept(useSampleCopy = false, defaultTier = 1) {
       headlineFont: 'impact',
       subtitleFont: 'impact',
       labelFont: 'impact',
-      headlineSize: 50,
-      subtitleSize: 36,
+      headlineSize: 52,
+      subtitleSize: 42,
       labelSize: 26,
     },
     bodyA: {
@@ -188,6 +189,11 @@ function slugifyFilename(value, index) {
     .slice(0, 60);
 
   return slug || `fortify-meme-${String(index + 1).padStart(2, '0')}`;
+}
+
+function getConceptFilename(concept = state.concept) {
+  const parts = [concept?.title, concept?.subtitle].filter((value) => String(value || '').trim().length > 0);
+  return slugifyFilename(parts.join(' '), 0);
 }
 
 function normalizeMuscleLevels(muscleLevels = {}, defaults = buildDefaultMuscleLevels(6)) {
@@ -379,7 +385,9 @@ function renderBodySvg(body, x, y, scale, label = '', labelFont = 'impact', labe
 
   const viewBox = body.pose === 'front' ? '0 0 724 1448' : '724 0 724 1448';
   const paths = source.map((part) => {
-    const fill = tierColors[slugLevels[part.slug] || 6] || tierColors[6];
+    const fill = NEUTRAL_BODY_SLUGS.has(part.slug)
+      ? tierColors[0]
+      : (tierColors[slugLevels[part.slug] || 6] || tierColors[6]);
     const allPaths = [
       ...(part.path?.common || []),
       ...(part.path?.left || []),
@@ -409,11 +417,19 @@ function getTopSectionHeight(height) {
 function renderTopText(concept, width, topSectionHeight) {
   const titleLines = wrapText(concept.title, 28);
   const subtitleLines = wrapText(concept.subtitle, 30);
-  const titleY = Math.max(82, topSectionHeight * 0.24);
   const headlineSize = clampNumber(concept.typography?.headlineSize, 24, 96, 50);
   const subtitleSize = clampNumber(concept.typography?.subtitleSize, 18, 72, 36);
-  const lineHeight = Math.min(headlineSize + 4, topSectionHeight * 0.18);
-  const subtitleStart = titleY + titleLines.length * lineHeight + 8;
+  const lineHeight = Math.min(headlineSize + 4, topSectionHeight * 0.2);
+  const subtitleLineHeight = subtitleSize + 6;
+  const subtitleGap = subtitleLines.length ? 14 : 0;
+  const titleBlockHeight = titleLines.length * lineHeight;
+  const subtitleBlockHeight = subtitleLines.length * subtitleLineHeight;
+  const textBlockHeight = titleBlockHeight + subtitleGap + subtitleBlockHeight;
+  const titleY = Math.max(
+    headlineSize + 12,
+    ((topSectionHeight - textBlockHeight) / 2) + headlineSize
+  );
+  const subtitleStart = titleY + titleLines.length * lineHeight + subtitleGap;
   const headlineFontFamily = escapeHtml(getFontFamily(concept.typography?.headlineFont));
   const subtitleFontFamily = escapeHtml(getFontFamily(concept.typography?.subtitleFont));
 
@@ -433,7 +449,7 @@ function renderTopText(concept, width, topSectionHeight) {
     ${subtitleLines.map((line, index) => `
       <text
         x="${width / 2}"
-        y="${subtitleStart + index * (subtitleSize + 6)}"
+        y="${subtitleStart + index * subtitleLineHeight}"
         text-anchor="middle"
         fill="#202020"
         font-size="${subtitleSize}"
@@ -787,8 +803,8 @@ function getGeneratorTypographyDefaults() {
     headlineFont: 'impact',
     subtitleFont: 'impact',
     labelFont: 'impact',
-    headlineSize: clampNumber(elements.generatorHeadlineSizeInput.value, 24, 96, 50),
-    subtitleSize: clampNumber(elements.generatorSubtitleSizeInput.value, 18, 72, 36),
+    headlineSize: clampNumber(elements.generatorHeadlineSizeInput.value, 24, 96, 52),
+    subtitleSize: clampNumber(elements.generatorSubtitleSizeInput.value, 18, 72, 42),
     labelSize: clampNumber(elements.generatorLabelSizeInput.value, 16, 56, 26),
   };
 }
@@ -966,7 +982,7 @@ function bindEvents() {
     elements.downloadButton.disabled = true;
     setStatus('Rendering PNG...', 'busy');
     try {
-      await downloadPng(state.concept, state.sizePreset, 'fortify-meme');
+      await downloadPng(state.concept, state.sizePreset, getConceptFilename(state.concept));
       setStatus('PNG downloaded.');
     } catch (error) {
       setStatus(error.message, 'error');

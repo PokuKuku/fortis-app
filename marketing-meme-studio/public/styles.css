@@ -32,23 +32,24 @@ body {
 
 .app-shell {
   min-height: 100vh;
-  max-width: 1280px;
+  max-width: 1940px;
   margin: 0 auto;
   display: grid;
   gap: 18px;
+  padding: 24px;
 }
 
 .top-layout {
   display: grid;
-  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
+  grid-template-columns: minmax(660px, 840px) minmax(640px, 760px) minmax(520px, 1fr);
   gap: 18px;
   align-items: start;
 }
 
 .controls-panel,
 .preview-panel,
-.tier-panels {
-  padding: 28px;
+.workspace-panel {
+  padding: 0;
 }
 
 .controls-panel {
@@ -56,21 +57,32 @@ body {
   padding-top: 0;
 }
 
+.controls-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
 .preview-panel {
   width: 100%;
   padding-bottom: 12px;
 }
 
+.workspace-panel {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
 .tier-panels {
   display: grid;
   gap: 18px;
-  padding-top: 0;
 }
 
 .batch-section {
   display: grid;
   gap: 18px;
-  padding: 0 28px 28px;
 }
 
 .panel-header h1,
@@ -114,10 +126,6 @@ body {
 
 .editor-section {
   padding: 18px;
-}
-
-.controls-panel .editor-section {
-  margin-top: 18px;
 }
 
 label {
@@ -219,10 +227,11 @@ button:disabled {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+  min-height: 100%;
 }
 
 .preview-image {
-  width: min(100%, 620px);
+  width: min(100%, 720px);
   display: block;
   border-radius: 24px;
   background: #101012;
@@ -245,8 +254,8 @@ button:disabled {
 
 .batch-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
 }
 
 .batch-empty {
@@ -315,9 +324,14 @@ button:disabled {
   margin-top: 18px;
 }
 
+.manual-editor-section,
+.generator-section {
+  min-height: 100%;
+}
+
 .muscle-grid {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px 12px;
 }
 
@@ -330,13 +344,27 @@ button:disabled {
   margin-bottom: 6px;
 }
 
+@media (max-width: 1580px) {
+  .top-layout {
+    grid-template-columns: minmax(580px, 760px) minmax(0, 1fr);
+  }
+
+  .workspace-panel {
+    grid-column: 1 / -1;
+  }
+
+  .muscle-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 1080px) {
   .top-layout {
     grid-template-columns: 1fr;
   }
 
-  .controls-panel {
-    padding-top: 0;
+  .controls-grid {
+    grid-template-columns: 1fr;
   }
 
   .muscle-grid {
@@ -345,10 +373,7 @@ button:disabled {
 }
 
 @media (max-width: 640px) {
-  .controls-panel,
-  .preview-panel,
-  .tier-panels,
-  .batch-section {
+  .app-shell {
     padding: 18px;
   }
 
