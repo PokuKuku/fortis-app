@@ -361,10 +361,10 @@ function getSingleBodyVisualXOffset(body) {
 }
 
 function getDualBodyVisualYOffset(body) {
-  return 0;
+  return body.gender === 'female' ? -45 : 0;
 }
 
-function renderBodySvg(body, x, y, scale, label = '', labelFont = 'impact', labelSize = 26) {
+function renderBodySvg(body, x, y, scale, label = '', labelFont = 'impact', labelSize = 26, labelYOverride = null) {
   const { bodyAssets, heatmapRegions, tierColors } = state.bootstrap;
   const sourceKey = `${body.gender}${body.pose === 'front' ? 'Front' : 'Back'}`;
   const source = bodyAssets[sourceKey];
@@ -397,7 +397,7 @@ function renderBodySvg(body, x, y, scale, label = '', labelFont = 'impact', labe
   }).join('');
 
   const labelMarkup = label
-    ? `<text x="${x + (200 * scale) / 2}" y="${y - 24}" text-anchor="middle" fill="#f6f6f7" font-size="${labelSize}" font-weight="700" font-family="${escapeHtml(getFontFamily(labelFont))}">${escapeHtml(label)}</text>`
+    ? `<text x="${x + (200 * scale) / 2}" y="${labelYOverride ?? (y - 24)}" text-anchor="middle" fill="#f6f6f7" font-size="${labelSize}" font-weight="700" font-family="${escapeHtml(getFontFamily(labelFont))}">${escapeHtml(label)}</text>`
     : '';
 
   return `
@@ -500,10 +500,11 @@ function renderHeatmapStage(concept, width, height) {
     const dualBaselineY = bodiesY + (400 * legendReferenceScale);
     const bodyAY = dualBaselineY - (400 * bodyAScale) + getDualBodyVisualYOffset(bodyA);
     const bodyBY = dualBaselineY - (400 * bodyBScale) + getDualBodyVisualYOffset(bodyB);
+    const sharedLabelY = Math.min(bodyAY, bodyBY) - 24;
 
     bodiesMarkup = `
-      ${renderBodySvg(bodyA, dualLeftX, bodyAY, bodyAScale, concept.labelA || '', concept.typography?.labelFont, clampNumber(concept.typography?.labelSize, 16, 56, 26))}
-      ${renderBodySvg(bodyB, dualRightX, bodyBY, bodyBScale, concept.labelB || '', concept.typography?.labelFont, clampNumber(concept.typography?.labelSize, 16, 56, 26))}
+      ${renderBodySvg(bodyA, dualLeftX, bodyAY, bodyAScale, concept.labelA || '', concept.typography?.labelFont, clampNumber(concept.typography?.labelSize, 16, 56, 26), sharedLabelY)}
+      ${renderBodySvg(bodyB, dualRightX, bodyBY, bodyBScale, concept.labelB || '', concept.typography?.labelFont, clampNumber(concept.typography?.labelSize, 16, 56, 26), sharedLabelY)}
     `;
   } else {
     const singleBodyScale = getSingleBodyScale(bodyA, singleBodyBaseScale);
@@ -690,12 +691,49 @@ async function renderPngBlob(concept, sizePreset) {
 
 async function downloadPng(concept = state.concept, sizePreset = state.sizePreset, filename = 'fortify-meme') {
   const blob = await renderPngBlob(concept, sizePreset);
-  const url = URL.createObjectURL(blob);
+  if (!blob) {
+    throw new Error('Could not render PNG file.');
+  }
+
+  const safeFilename = `${slugifyFilename(filename, 0)}.png`;
+
+  if ('showSaveFilePicker' in window) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: safeFilename,
+        types: [
+          {
+            description: 'PNG Image',
+            accept: {
+              'image/png': ['.png'],
+            },
+          },
+        ],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(blob);
+      await writable.close();
+      return;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        return;
+      }
+    }
+  }
+
+  const file = new File([blob], safeFilename, { type: 'image/png' });
+  const url = URL.createObjectURL(file);
   const anchor = document.createElement('a');
   anchor.href = url;
-  anchor.download = `${filename}.png`;
+  anchor.download = safeFilename;
+  anchor.rel = 'noopener';
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+    anchor.remove();
+  }, 1000);
 }
 
 function loadBatchItemIntoEditor(index) {
