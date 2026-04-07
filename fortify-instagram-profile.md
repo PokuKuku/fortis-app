@@ -1,0 +1,257 @@
+- generic [ref=e11]:
+  - generic [ref=e13]:
+    - link "Instagram" [ref=e16] [cursor=pointer]:
+      - /url: /
+      - img "Instagram" [ref=e19]
+    - generic [ref=e24]:
+      - link "Log In" [ref=e26] [cursor=pointer]:
+        - /url: /accounts/login/?next=%2Ffortifyai.app%2F&source=desktop_nav
+      - link "Sign Up" [ref=e28] [cursor=pointer]:
+        - /url: /accounts/emailsignup/
+  - main [ref=e29]:
+    - generic [ref=e31]:
+      - generic [ref=e32]:
+        - button "fortifyai.app's profile picture" [disabled] [ref=e34]:
+          - link "fortifyai.app's profile picture" [disabled] [ref=e36]:
+            - img "fortifyai.app's profile picture" [ref=e37]
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - heading "fortifyai.app" [level=2] [ref=e41]
+            - button "Options" [ref=e43] [cursor=pointer]:
+              - img "Options" [ref=e45]
+          - generic [ref=e50]: Fortify AI
+          - list [ref=e52]:
+            - listitem [ref=e53]:
+              - link "23 posts" [ref=e55] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e56]:
+                  - generic [ref=e57]: "23"
+                  - text: posts
+            - listitem [ref=e58]:
+              - link "4 followers" [ref=e60] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e61]:
+                  - generic "4" [ref=e62]
+                  - text: followers
+            - listitem [ref=e63]:
+              - link "11 following" [ref=e65] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e66]:
+                  - generic [ref=e67]: "11"
+                  - text: following
+          - generic [ref=e73]:
+            - text: 🎯 | The workout app that simplifies gym progress
+            - text: 📲 App Store link below 👇
+      - menu
+      - generic [ref=e74]:
+        - tablist [ref=e75]:
+          - link "Posts" [ref=e77] [cursor=pointer]:
+            - /url: /fortifyai.app/
+            - img "Posts" [ref=e79]
+          - link "Reels" [ref=e90] [cursor=pointer]:
+            - /url: /fortifyai.app/reels/
+            - img "Reels" [ref=e92]
+          - link "Tagged" [ref=e95] [cursor=pointer]:
+            - /url: "#"
+            - img "Tagged" [ref=e97]
+        - tabpanel
+      - article [ref=e101]:
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - 'link "Photo by Fortify AI on March 18, 2026. May be an image of microphone and text that says ''Track with Your Voice Type or just say it 6:33 ..… UPPE #1 Workout App 0:36|1:49 0:36| 1:49 공 WP BARBELL BENCH PRESS SET 0 … PREV LBS REPS 225''. Pinned post icon" [ref=e106] [cursor=pointer]':
+              - /url: /fortifyai.app/p/DWB-DAFAITi/
+              - 'img "Photo by Fortify AI on March 18, 2026. May be an image of microphone and text that says ''Track with Your Voice Type or just say it 6:33 ..… UPPE #1 Workout App 0:36|1:49 0:36| 1:49 공 WP BARBELL BENCH PRESS SET 0 … PREV LBS REPS 225''." [ref=e109]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Pinned post icon"
+            - 'link "Photo by Fortify AI on March 18, 2026. May be an image of card and text that says ''Personal Trainer In Your Pocket 2:43 ·… FORTIFY AI Clear Explain why Barbell Bench Press is at stall risk and suggest adjustments for the next two weeks. You less than a minute ago The Barbell Bench Press is at medium stall risk due to stagnant progress in your one-rep max and volume load. Evidence: Your best estimated one-rep max (e1RM) has remained at 228 lbs over the last three''. Pinned post icon" [ref=e112] [cursor=pointer]':
+              - /url: /fortifyai.app/p/DWB-G20gJzw/
+              - 'img "Photo by Fortify AI on March 18, 2026. May be an image of card and text that says ''Personal Trainer In Your Pocket 2:43 ·… FORTIFY AI Clear Explain why Barbell Bench Press is at stall risk and suggest adjustments for the next two weeks. You less than a minute ago The Barbell Bench Press is at medium stall risk due to stagnant progress in your one-rep max and volume load. Evidence: Your best estimated one-rep max (e1RM) has remained at 228 lbs over the last three''." [ref=e115]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Pinned post icon"
+            - link "Photo by Fortify AI on March 18, 2026. May be a graphic of screen, magazine, poster and text that says 'Get Tailored Insights 2:36 … FORTIFY AI WORKOUT RECAP MUSCLE SET PROFILE Side Delts Abs Glutes Triceps Quads Biceps Hamstrings Upper Back Lower Back Sets logged Total Totalvolume volume 21 21sets sets 17klbs 17k lbs'. Pinned post icon" [ref=e118] [cursor=pointer]:
+              - /url: /fortifyai.app/p/DWB-K80ACuF/
+              - img "Photo by Fortify AI on March 18, 2026. May be a graphic of screen, magazine, poster and text that says 'Get Tailored Insights 2:36 … FORTIFY AI WORKOUT RECAP MUSCLE SET PROFILE Side Delts Abs Glutes Triceps Quads Biceps Hamstrings Upper Back Lower Back Sets logged Total Totalvolume volume 21 21sets sets 17klbs 17k lbs'." [ref=e121]
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Pinned post icon"
+          - generic [ref=e123]:
+            - 'link "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e125] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWUzejvJ9LD/
+              - 'img "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e128]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+            - 'link "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e131] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWUpPPEJvsf/
+              - 'img "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e134]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+            - 'link "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e137] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWUe4_hp93G/
+              - 'img "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e140]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+          - generic [ref=e142]:
+            - 'link "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e144] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWURwHOgByx/
+              - 'img "Search “Fortify AI” on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e147]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+            - 'link "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e150] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWSf8C5JdYl/
+              - 'img "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e153]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+            - 'link "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e156] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWSVjpdJq7w/
+              - 'img "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e159]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+          - generic [ref=e161]:
+            - 'link "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e163] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWSLUDjJmmB/
+              - 'img "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e166]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+            - 'link "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e169] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWSA3PPAOsp/
+              - 'img "Search Fortify AI on the App Store to level up your gym progress 💪 #gym #workout #gymtok #gymhumor #workoutapp" [ref=e172]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+            - 'link "Search Fortify AI on the App Store to level up your gym progress #gym #workout #gymtok #gymhumor #workoutapp Clip" [ref=e175] [cursor=pointer]':
+              - /url: /fortifyai.app/reel/DWPp_muhlh2/
+              - 'img "Search Fortify AI on the App Store to level up your gym progress #gym #workout #gymtok #gymhumor #workoutapp" [ref=e178]'
+              - generic:
+                - generic:
+                  - generic:
+                    - img "Clip"
+        - progressbar [ref=e181]:
+          - img "Loading..." [ref=e182]
+  - contentinfo [ref=e195]:
+    - generic [ref=e196]:
+      - generic [ref=e198]:
+        - link "Meta" [ref=e200] [cursor=pointer]:
+          - /url: https://about.meta.com/
+          - generic [ref=e201]: Meta
+        - link "About" [ref=e203] [cursor=pointer]:
+          - /url: https://about.instagram.com/
+          - generic [ref=e204]: About
+        - link "Blog" [ref=e206] [cursor=pointer]:
+          - /url: https://about.instagram.com/blog/
+          - generic [ref=e207]: Blog
+        - link "Jobs" [ref=e209] [cursor=pointer]:
+          - /url: https://about.instagram.com/about-us/careers
+          - generic [ref=e210]: Jobs
+        - link "Help" [ref=e212] [cursor=pointer]:
+          - /url: https://help.instagram.com/
+          - generic [ref=e213]: Help
+        - link "API" [ref=e215] [cursor=pointer]:
+          - /url: https://developers.facebook.com/docs/instagram
+          - generic [ref=e216]: API
+        - link "Privacy" [ref=e218] [cursor=pointer]:
+          - /url: /legal/privacy/
+          - generic [ref=e219]: Privacy
+        - link "Consumer Health Privacy" [ref=e221] [cursor=pointer]:
+          - /url: /legal/privacy/health_privacy_policy/
+          - generic [ref=e222]: Consumer Health Privacy
+        - link "Terms" [ref=e224] [cursor=pointer]:
+          - /url: /legal/terms/
+          - generic [ref=e225]: Terms
+        - link "Locations" [ref=e227] [cursor=pointer]:
+          - /url: /explore/locations/
+          - generic [ref=e228]: Locations
+        - link "Instagram Lite" [ref=e230] [cursor=pointer]:
+          - /url: /web/lite/
+          - generic [ref=e231]: Instagram Lite
+        - link "Meta AI" [ref=e233] [cursor=pointer]:
+          - /url: https://www.meta.ai/?utm_source=foa_web_footer
+          - generic [ref=e234]: Meta AI
+        - link "Threads" [ref=e236] [cursor=pointer]:
+          - /url: https://www.threads.com/
+          - generic [ref=e237]: Threads
+        - link "Contact Uploading & Non-Users" [ref=e239] [cursor=pointer]:
+          - /url: https://www.facebook.com/help/instagram/261704639352628
+          - generic [ref=e240]: Contact Uploading & Non-Users
+        - link "Meta Verified" [ref=e242] [cursor=pointer]:
+          - /url: /accounts/meta_verified/?entrypoint=web_footer
+          - generic [ref=e243]: Meta Verified
+      - generic [ref=e244]:
+        - generic [ref=e245] [cursor=pointer]:
+          - generic [ref=e246]:
+            - generic [ref=e247]: English
+            - img "Down chevron icon" [ref=e250]
+          - combobox "Switch Display Language" [ref=e252]:
+            - option "Afrikaans"
+            - option "العربية"
+            - option "Čeština"
+            - option "Dansk"
+            - option "Deutsch"
+            - option "Ελληνικά"
+            - option "English" [selected]
+            - option "English (UK)"
+            - option "Español (España)"
+            - option "Español"
+            - option "فارسی"
+            - option "Suomi"
+            - option "Français"
+            - option "עברית"
+            - option "Bahasa Indonesia"
+            - option "Italiano"
+            - option "日本語"
+            - option "한국어"
+            - option "Bahasa Melayu"
+            - option "Norsk"
+            - option "Nederlands"
+            - option "Polski"
+            - option "Português (Brasil)"
+            - option "Português (Portugal)"
+            - option "Русский"
+            - option "Svenska"
+            - option "ภาษาไทย"
+            - option "Filipino"
+            - option "Türkçe"
+            - option "中文(简体)"
+            - option "中文(台灣)"
+            - option "বাংলা"
+            - option "ગુજરાતી"
+            - option "हिन्दी"
+            - option "Hrvatski"
+            - option "Magyar"
+            - option "ಕನ್ನಡ"
+            - option "മലയാളം"
+            - option "मराठी"
+            - option "नेपाली"
+            - option "ਪੰਜਾਬੀ"
+            - option "සිංහල"
+            - option "Slovenčina"
+            - option "தமிழ்"
+            - option "తెలుగు"
+            - option "اردو"
+            - option "Tiếng Việt"
+            - option "中文(香港)"
+            - option "Български"
+            - option "Français (Canada)"
+            - option "Română"
+            - option "Српски"
+            - option "Українська"
+        - generic [ref=e254]: © 2026 Instagram from Meta
