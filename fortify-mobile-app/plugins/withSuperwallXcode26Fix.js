@@ -1,0 +1,84 @@
+const { withDangerousMod } = require("@expo/config-plugins");
+const fs = require("fs");
+const path = require("path");
+
+const PATCH_MARKER =
+  "# Xcode 26 surfaces an overload ambiguity in older SuperwallKit builds.";
+
+const PATCH_SNIPPET = `
+    # Xcode 26 surfaces an overload ambiguity in older SuperwallKit builds.
+    # Patch the generated pod source to call through a private Swift helper.
+    superwall_file = File.join(
+      __dir__,
+      'Pods',
+      'SuperwallKit',
+      'Sources',
+      'SuperwallKit',
+      'Paywall',
+      'Presentation',
+      'Get Presentation Result',
+      'PublicGetPresentationResult.swift'
+    )
+
+    if File.exist?(superwall_file)
+      superwall_source = File.read(superwall_file)
+
+      unless superwall_source.include?('_swiftGetPresentationResult')
+        helper = <<~SWIFT
+          
+            // Private helper to disambiguate overloads for Objective-C wrappers
+            private func _swiftGetPresentationResult(
+              forPlacement placement: String,
+              params: [String: Any]? = nil
+            ) async -> PresentationResult {
+              return await self.getPresentationResult(forPlacement: placement, params: params)
+            }
+        SWIFT
+
+        marker = "  /// Preemptively gets the result of registering an placement.\\n"
+        superwall_source.sub!(marker, helper + "\\n" + marker)
+      end
+
+      superwall_source.gsub!(
+        "    let result = await getPresentationResult(forPlacement: placement, params: params)",
+        "    let result: PresentationResult = await _swiftGetPresentationResult(forPlacement: placement, params: params)"
+      )
+      superwall_source.gsub!(
+        "    let result = await getPresentationResult(forPlacement: placement, params: nil)",
+        "    let result: PresentationResult = await _swiftGetPresentationResult(forPlacement: placement, params: nil)"
+      )
+
+      File.chmod(0644, superwall_file)
+      File.write(superwall_file, superwall_source)
+    end
+`;
+
+function patchPodfile(contents) {
+  if (contents.includes(PATCH_MARKER)) {
+    return contents;
+  }
+
+  const anchor = "    )\n  end";
+  if (!contents.includes(anchor)) {
+    throw new Error("Unable to find the React Native post_install block in ios/Podfile.");
+  }
+
+  return contents.replace(anchor, `    )\n${PATCH_SNIPPET}\n  end`);
+}
+
+module.exports = function withSuperwallXcode26Fix(config) {
+  return withDangerousMod(config, [
+    "ios",
+    async (modConfig) => {
+      const podfilePath = path.join(modConfig.modRequest.platformProjectRoot, "Podfile");
+      const contents = fs.readFileSync(podfilePath, "utf8");
+      const nextContents = patchPodfile(contents);
+
+      if (contents !== nextContents) {
+        fs.writeFileSync(podfilePath, nextContents);
+      }
+
+      return modConfig;
+    },
+  ]);
+};

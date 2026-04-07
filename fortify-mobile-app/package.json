@@ -46,7 +46,7 @@
     "expo-splash-screen": "~31.0.12",
     "expo-status-bar": "~3.0.8",
     "expo-store-review": "~9.0.9",
-    "expo-superwall": "^1.0.1",
+    "expo-superwall": "^1.0.2",
     "expo-video": "~3.0.15",
     "expo-web-browser": "~15.0.10",
     "lottie-react-native": "^7.2.0",
