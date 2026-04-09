@@ -35,8 +35,28 @@ describe('MixpanelRouteTracker', () => {
       'onboarding_screen_viewed',
       expect.objectContaining({
         screen_id: 'gender',
-        screen_index: 3,
+        screen_index: 4,
         step_id: 'gender',
+      })
+    );
+  });
+
+  it('tracks the onboarding index screen as profile_name', () => {
+    const usePathnameMock = ExpoRouter.usePathname as jest.Mock;
+    const useSegmentsMock = ExpoRouter.useSegments as jest.Mock;
+
+    usePathnameMock.mockReturnValue('/onboarding');
+    useSegmentsMock.mockReturnValue(['onboarding']);
+
+    render(<MixpanelRouteTracker />);
+
+    expect(trackMixpanelEvent).toHaveBeenCalledWith(
+      'onboarding_screen_viewed',
+      expect.objectContaining({
+        screen_id: 'profile_name',
+        screen_index: 2,
+        step_id: 'profile_name',
+        pathname: '/onboarding',
       })
     );
   });

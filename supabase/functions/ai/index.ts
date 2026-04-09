@@ -566,6 +566,10 @@ function shouldGenerateWorkoutTemplate(message: string): boolean {
   return WORKOUT_REQUEST_REGEXES.some((regex) => regex.test(normalized));
 }
 
+function shouldHandleWorkoutTemplateRequest(request: AIRequest): boolean {
+  return shouldGenerateWorkoutTemplate(request.message) || !!request.context?.currentWorkoutTemplateDraft;
+}
+
 function extractWorkoutTargetMuscles(message: string): string[] {
   const muscles = new Set<string>();
   for (const entry of WORKOUT_TARGET_MUSCLE_MAP) {
@@ -669,7 +673,7 @@ async function assembleContext(
 
   await Promise.all(fetchPromises);
 
-  if (shouldGenerateWorkoutTemplate(request.message) || request.context?.currentWorkoutTemplateDraft) {
+  if (shouldHandleWorkoutTemplateRequest(request)) {
     context.exerciseCatalog = await withContextCache(
       buildCacheKey(
         'workout-catalog',
@@ -1871,7 +1875,7 @@ function sanitizeWorkoutTemplateResponse(
     context.exerciseCatalog
   );
 
-  if (!sanitizedTemplate && shouldGenerateWorkoutTemplate(request.message)) {
+  if (!sanitizedTemplate && shouldHandleWorkoutTemplateRequest(request)) {
     const fallbackTemplate = buildFallbackWorkoutTemplate(request.message, context);
     if (fallbackTemplate) {
       return {
@@ -1915,6 +1919,142 @@ function toWorkoutTitleCase(value: string): string {
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
+}
+
+function normalizeFreeText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function extractMeaningfulTokens(value: string): string[] {
+  return normalizeFreeText(value)
+    .split(/\s+/)
+    .filter((token) => token.length >= 3)
+    .filter((token) => !new Set(['the', 'with', 'from', 'into', 'your', 'workout', 'exercise', 'take', 'out']).has(token));
+}
+
+function isRemovalRequest(message: string): boolean {
+  return /\b(remove|take out|exclude|drop|delete|without|skip)\b/i.test(message);
+}
+
+function isReplacementRequest(message: string): boolean {
+  return /\b(replace|swap|switch)\b/i.test(message);
+}
+
+function findDraftExerciseMatches(
+  message: string,
+  draft: AIWorkoutTemplate
+): AIWorkoutTemplateExercise[] {
+  const normalizedMessage = normalizeFreeText(message);
+  const tokens = extractMeaningfulTokens(message);
+
+  return draft.exercises.filter((exercise) => {
+    const normalizedName = normalizeFreeText(exercise.exerciseName);
+    if (normalizedName && normalizedMessage.includes(normalizedName)) {
+      return true;
+    }
+
+    const matchingTokens = extractMeaningfulTokens(exercise.exerciseName)
+      .filter((token) => tokens.includes(token));
+
+    return matchingTokens.length >= Math.min(2, extractMeaningfulTokens(exercise.exerciseName).length);
+  });
+}
+
+function findCatalogMatchFromMessage(
+  message: string,
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  excludedIds: Set<string>
+): WorkoutGenerationExerciseCatalogEntry | null {
+  const normalizedMessage = normalizeFreeText(message);
+  const tokens = extractMeaningfulTokens(message);
+  let best: { entry: WorkoutGenerationExerciseCatalogEntry; score: number } | null = null;
+
+  catalog.forEach((entry) => {
+    if (excludedIds.has(entry.id)) {
+      return;
+    }
+
+    const normalizedName = normalizeFreeText(entry.name);
+    let score = 0;
+
+    if (normalizedName && normalizedMessage.includes(normalizedName)) {
+      score += 10;
+    }
+
+    const nameTokens = extractMeaningfulTokens(entry.name);
+    const matchingTokens = nameTokens.filter((token) => tokens.includes(token));
+    score += matchingTokens.length * 2;
+
+    entry.aliases?.forEach((alias) => {
+      const normalizedAlias = normalizeFreeText(alias);
+      if (normalizedAlias && normalizedMessage.includes(normalizedAlias)) {
+        score += 8;
+      }
+    });
+
+    if (!best || score > best.score) {
+      best = { entry, score };
+    }
+  });
+
+  return best && best.score >= 4 ? best.entry : null;
+}
+
+function reviseWorkoutTemplateDraft(
+  message: string,
+  draft: AIWorkoutTemplate,
+  catalog: WorkoutGenerationExerciseCatalogEntry[]
+): AIWorkoutTemplate | null {
+  const matchedExercises = findDraftExerciseMatches(message, draft);
+  if (matchedExercises.length === 0) {
+    return draft;
+  }
+
+  const exercises = [...draft.exercises];
+
+  if (isRemovalRequest(message)) {
+    const nextExercises = exercises.filter(
+      (exercise) => !matchedExercises.some((matched) => matched.exerciseId === exercise.exerciseId)
+    );
+
+    if (nextExercises.length >= 3) {
+      return {
+        ...draft,
+        estimatedDurationMinutes: Math.max(20, (draft.estimatedDurationMinutes ?? 45) - 10),
+        exercises: nextExercises,
+      };
+    }
+  }
+
+  if (isReplacementRequest(message)) {
+    const excludedIds = new Set(exercises.map((exercise) => exercise.exerciseId));
+    matchedExercises.forEach((exercise) => excludedIds.delete(exercise.exerciseId));
+    const replacement = findCatalogMatchFromMessage(message, catalog, excludedIds);
+    if (replacement) {
+      const target = matchedExercises[0];
+      return {
+        ...draft,
+        exercises: exercises.map((exercise) => (
+          exercise.exerciseId === target.exerciseId
+            ? {
+                ...exercise,
+                exerciseId: replacement.id,
+                exerciseName: toWorkoutTitleCase(replacement.name),
+              }
+            : exercise
+        )),
+      };
+    }
+  }
+
+  if (isRemovalRequest(message) && exercises.length > 3) {
+    return {
+      ...draft,
+      exercises: exercises.filter((exercise) => exercise.exerciseId !== matchedExercises[0].exerciseId),
+    };
+  }
+
+  return draft;
 }
 
 function inferWorkoutFocusLabel(message: string): string {
@@ -1973,6 +2113,14 @@ function buildFallbackWorkoutTemplate(
   const catalog = context.exerciseCatalog ?? [];
   if (catalog.length === 0) {
     return null;
+  }
+
+  if (context.currentWorkoutTemplateDraft) {
+    return reviseWorkoutTemplateDraft(
+      message,
+      context.currentWorkoutTemplateDraft,
+      catalog
+    );
   }
 
   const targetMuscles = extractWorkoutTargetMuscles(message);
