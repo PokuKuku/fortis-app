@@ -1882,6 +1882,41 @@ function sanitizeWorkoutTemplate(
   };
 }
 
+function areWorkoutTemplatesEquivalent(
+  left: AIWorkoutTemplate | null | undefined,
+  right: AIWorkoutTemplate | null | undefined
+): boolean {
+  if (!left || !right) {
+    return false;
+  }
+
+  if (
+    left.name !== right.name
+    || left.description !== right.description
+    || left.focus !== right.focus
+    || (left.estimatedDurationMinutes ?? null) !== (right.estimatedDurationMinutes ?? null)
+    || left.exercises.length !== right.exercises.length
+  ) {
+    return false;
+  }
+
+  return left.exercises.every((exercise, index) => {
+    const candidate = right.exercises[index];
+    return !!candidate
+      && exercise.exerciseId === candidate.exerciseId
+      && exercise.exerciseName === candidate.exerciseName
+      && exercise.sets === candidate.sets
+      && exercise.reps === candidate.reps
+      && exercise.restSeconds === candidate.restSeconds;
+  });
+}
+
+function buildWorkoutTemplateReplyText(request: AIRequest): string {
+  return request.context?.currentWorkoutTemplateDraft
+    ? "Here's your updated workout template."
+    : "Here's a workout template built from your exercise library.";
+}
+
 function sanitizeWorkoutTemplateResponse(
   response: unknown,
   request: AIRequest,
@@ -1908,6 +1943,19 @@ function sanitizeWorkoutTemplateResponse(
   const fallbackTemplate = shouldHandleWorkoutTemplateRequest(request)
     ? buildFallbackWorkoutTemplate(request.message, context)
     : null;
+  const currentDraft = sanitizeWorkoutTemplate(
+    context.currentWorkoutTemplateDraft,
+    context.exerciseCatalog
+  );
+  const parsedEditRequest = currentDraft ? parseWorkoutEditRequest(request.message) : null;
+  const deterministicRevision = currentDraft && parsedEditRequest && parsedEditRequest.action !== 'unknown'
+    ? reviseWorkoutTemplateDraft(request.message, currentDraft, context.exerciseCatalog)
+    : null;
+  const shouldPreferDeterministicRevision = !!(
+    currentDraft
+    && deterministicRevision
+    && !areWorkoutTemplatesEquivalent(deterministicRevision, currentDraft)
+  );
 
   if (record.type !== 'answer' || !record.answer) {
     if (fallbackTemplate) {
@@ -1915,9 +1963,7 @@ function sanitizeWorkoutTemplateResponse(
         type: 'answer',
         requestId: (record as { requestId?: string }).requestId ?? crypto.randomUUID(),
         answer: {
-          text: typeof record.error?.message === 'string'
-            ? record.error.message
-            : 'Updated workout ready.',
+          text: buildWorkoutTemplateReplyText(request),
           citations: [],
           workoutTemplate: fallbackTemplate,
         },
@@ -1930,6 +1976,20 @@ function sanitizeWorkoutTemplateResponse(
     record.answer.workoutTemplate,
     context.exerciseCatalog
   );
+
+  if (
+    shouldPreferDeterministicRevision
+    && (!sanitizedTemplate || areWorkoutTemplatesEquivalent(sanitizedTemplate, currentDraft))
+  ) {
+    return {
+      ...record,
+      answer: {
+        ...record.answer,
+        text: buildWorkoutTemplateReplyText(request),
+        workoutTemplate: deterministicRevision,
+      },
+    };
+  }
 
   if (!sanitizedTemplate && fallbackTemplate) {
     if (fallbackTemplate) {
@@ -2075,12 +2135,33 @@ function parseWorkoutEditRequest(message: string): ParsedWorkoutEditRequest {
 function scoreCandidatePhrase(
   phrase: string,
   candidateName: string,
-  candidateAliases?: string[]
+  candidateAliases?: string[],
+  candidateEquipment?: string
 ): number {
   const normalizedPhrase = normalizeFreeText(phrase);
   const phraseTokens = extractMeaningfulTokens(phrase);
   if (!normalizedPhrase || phraseTokens.length === 0) {
     return 0;
+  }
+
+  const requestedEquipment = extractWorkoutEquipment(phrase).map((value) => value.toLowerCase());
+  const candidateEquipmentTokens = new Set<string>();
+
+  if (candidateEquipment) {
+    candidateEquipmentTokens.add(candidateEquipment.toLowerCase());
+  }
+
+  [candidateName, ...(candidateAliases ?? [])].forEach((value) => {
+    extractWorkoutEquipment(value).forEach((equipment) => {
+      candidateEquipmentTokens.add(equipment.toLowerCase());
+    });
+  });
+
+  if (requestedEquipment.length > 0) {
+    const hasRequestedEquipment = requestedEquipment.some((equipment) => candidateEquipmentTokens.has(equipment));
+    if (!hasRequestedEquipment) {
+      return 0;
+    }
   }
 
   const variants = [candidateName, ...(candidateAliases ?? [])]
@@ -2105,6 +2186,10 @@ function scoreCandidatePhrase(
       score += (matchingTokens.length / Math.max(variantTokens.length, phraseTokens.length)) * 20;
     }
 
+    if (requestedEquipment.length > 0) {
+      score += requestedEquipment.filter((equipment) => candidateEquipmentTokens.has(equipment)).length * 20;
+    }
+
     const firstPhraseToken = phraseTokens[0];
     const lastPhraseToken = phraseTokens[phraseTokens.length - 1];
     if (firstPhraseToken && variantTokens.includes(firstPhraseToken)) {
@@ -2122,10 +2207,15 @@ function scoreCandidatePhrase(
   return bestScore;
 }
 
+type DraftExerciseMatch = {
+  exercise: AIWorkoutTemplateExercise;
+  score: number;
+};
+
 function findDraftExerciseMatches(
   phrase: string | undefined,
   draft: AIWorkoutTemplate
-): AIWorkoutTemplateExercise[] {
+): DraftExerciseMatch[] {
   if (!phrase) return [];
 
   return draft.exercises
@@ -2135,7 +2225,6 @@ function findDraftExerciseMatches(
     }))
     .filter((entry) => entry.score >= 20)
     .sort((a, b) => b.score - a.score)
-    .map((entry) => entry.exercise);
 }
 
 function findCatalogMatchFromPhrase(
@@ -2152,7 +2241,7 @@ function findCatalogMatchFromPhrase(
       return;
     }
 
-    const score = scoreCandidatePhrase(phrase, entry.name, entry.aliases);
+    const score = scoreCandidatePhrase(phrase, entry.name, entry.aliases, entry.equipment);
     if (!best || score > best.score) {
       best = { entry, score };
     }
@@ -2198,8 +2287,13 @@ function reviseWorkoutTemplateDraft(
   }
 
   if (request.action === 'remove') {
+    const targetExercise = matchedExercises[0]?.exercise;
+    if (!targetExercise) {
+      return draft;
+    }
+
     const nextExercises = exercises.filter(
-      (exercise) => !matchedExercises.some((matched) => matched.exerciseId === exercise.exerciseId)
+      (exercise) => exercise.exerciseId !== targetExercise.exerciseId
     );
 
     if (nextExercises.length >= 3) {
@@ -2213,10 +2307,13 @@ function reviseWorkoutTemplateDraft(
 
   if (request.action === 'replace') {
     const excludedIds = new Set(exercises.map((exercise) => exercise.exerciseId));
-    matchedExercises.forEach((exercise) => excludedIds.delete(exercise.exerciseId));
+    matchedExercises.forEach((entry) => excludedIds.delete(entry.exercise.exerciseId));
     const replacement = findCatalogMatchFromPhrase(request.targetPhrase, catalog, excludedIds);
     if (replacement) {
-      const target = matchedExercises[0];
+      const target = matchedExercises[0]?.exercise;
+      if (!target) {
+        return draft;
+      }
       return {
         ...draft,
         exercises: exercises.map((exercise) => (
@@ -2293,10 +2390,15 @@ function buildFallbackWorkoutTemplate(
     return null;
   }
 
-  if (context.currentWorkoutTemplateDraft) {
+  const sanitizedDraft = sanitizeWorkoutTemplate(
+    context.currentWorkoutTemplateDraft,
+    catalog
+  );
+
+  if (sanitizedDraft) {
     return reviseWorkoutTemplateDraft(
       message,
-      context.currentWorkoutTemplateDraft,
+      sanitizedDraft,
       catalog
     );
   }
@@ -2354,9 +2456,6 @@ function buildFallbackWorkoutTemplate(
       sets,
       reps,
       restSeconds,
-      notes: compoundCount >= 2 && !compound && isIsolationExerciseName(entry.name)
-        ? 'Control the eccentric and avoid rushing the reps.'
-        : undefined,
     };
   });
 
