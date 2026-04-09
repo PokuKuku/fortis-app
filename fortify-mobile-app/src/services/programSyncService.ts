@@ -442,9 +442,9 @@ async function syncProgramToSupabase(
   program: Program,
   userId: string
 ): Promise<{ success: boolean; serverId?: string; error?: string }> {
-  return program.id.startsWith('local-')
-    ? uploadProgram(program, userId)
-    : updateExistingProgram(program, userId);
+  return isValidUUID(program.id)
+    ? updateExistingProgram(program, userId)
+    : uploadProgram(program, userId);
 }
 
 /**

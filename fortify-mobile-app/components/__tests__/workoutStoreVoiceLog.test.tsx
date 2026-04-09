@@ -172,6 +172,200 @@ describe('workout voice log apply', () => {
     expect(updatedSets.every((set) => set.isCompleted)).toBe(true);
   });
 
+  it('reuses an entered weight when only reps are spoken', () => {
+    useWorkoutStore.setState({
+      activeSession: {
+        localId: 'session-4',
+        name: 'Push Day',
+        notes: '',
+        startedAt: new Date('2026-03-10T12:00:00.000Z'),
+        completedAt: null,
+        exercises: [
+          {
+            localId: 'exercise-4',
+            exerciseId: 'ex-bench',
+            exerciseName: 'Bench Press',
+            orderIndex: 0,
+            notes: '',
+            sets: [
+              {
+                localId: 'set-1',
+                setNumber: 1,
+                setType: 'normal',
+                weight: 225,
+                weightUnit: 'lbs',
+                reps: null,
+                rpe: null,
+                restSeconds: null,
+                notes: '',
+                isCompleted: false,
+                orderIndex: 0,
+              },
+            ],
+          },
+        ],
+        isSynced: false,
+      },
+      isWorkoutActive: true,
+      weightUnits: { 'ex-bench': 'lbs' },
+    });
+
+    const result = useWorkoutStore.getState().applyVoiceLog('exercise-4', {
+      transcript: '3 sets of 5 reps',
+      sets: 3,
+      weight: null,
+      reps: 5,
+      weightUnit: 'lbs',
+      setType: 'normal',
+      inferredSets: false,
+      inferredWeightUnit: true,
+      inferredSetType: true,
+      missingFields: ['weight'],
+      confidence: 'medium',
+    });
+
+    const updatedSets = useWorkoutStore.getState().activeSession?.exercises[0].sets ?? [];
+
+    expect(result).toEqual({
+      appliedSetLocalIds: expect.any(Array),
+      addedSetCount: 2,
+    });
+    expect(updatedSets).toHaveLength(3);
+    expect(updatedSets.every((set) => set.weight === 225)).toBe(true);
+    expect(updatedSets.every((set) => set.reps === 5)).toBe(true);
+    expect(updatedSets.every((set) => set.isCompleted)).toBe(true);
+  });
+
+  it('reuses entered reps when only weight is spoken', () => {
+    useWorkoutStore.setState({
+      activeSession: {
+        localId: 'session-5',
+        name: 'Push Day',
+        notes: '',
+        startedAt: new Date('2026-03-10T12:00:00.000Z'),
+        completedAt: null,
+        exercises: [
+          {
+            localId: 'exercise-5',
+            exerciseId: 'ex-bench',
+            exerciseName: 'Bench Press',
+            orderIndex: 0,
+            notes: '',
+            sets: [
+              {
+                localId: 'set-1',
+                setNumber: 1,
+                setType: 'normal',
+                weight: null,
+                weightUnit: 'lbs',
+                reps: 8,
+                rpe: null,
+                restSeconds: null,
+                notes: '',
+                isCompleted: false,
+                orderIndex: 0,
+              },
+            ],
+          },
+        ],
+        isSynced: false,
+      },
+      isWorkoutActive: true,
+      weightUnits: { 'ex-bench': 'lbs' },
+    });
+
+    const result = useWorkoutStore.getState().applyVoiceLog('exercise-5', {
+      transcript: '3 sets of 185',
+      sets: 3,
+      weight: 185,
+      reps: null,
+      weightUnit: 'lbs',
+      setType: 'normal',
+      inferredSets: false,
+      inferredWeightUnit: true,
+      inferredSetType: true,
+      missingFields: ['reps'],
+      confidence: 'medium',
+    });
+
+    const updatedSets = useWorkoutStore.getState().activeSession?.exercises[0].sets ?? [];
+
+    expect(result).toEqual({
+      appliedSetLocalIds: expect.any(Array),
+      addedSetCount: 2,
+    });
+    expect(updatedSets).toHaveLength(3);
+    expect(updatedSets.every((set) => set.weight === 185)).toBe(true);
+    expect(updatedSets.every((set) => set.reps === 8)).toBe(true);
+    expect(updatedSets.every((set) => set.isCompleted)).toBe(true);
+  });
+
+  it('infers a single set when the current set already provides the missing field', () => {
+    useWorkoutStore.setState({
+      activeSession: {
+        localId: 'session-6',
+        name: 'Push Day',
+        notes: '',
+        startedAt: new Date('2026-03-10T12:00:00.000Z'),
+        completedAt: null,
+        exercises: [
+          {
+            localId: 'exercise-6',
+            exerciseId: 'ex-bench',
+            exerciseName: 'Bench Press',
+            orderIndex: 0,
+            notes: '',
+            sets: [
+              {
+                localId: 'set-1',
+                setNumber: 1,
+                setType: 'normal',
+                weight: 225,
+                weightUnit: 'lbs',
+                reps: null,
+                rpe: null,
+                restSeconds: null,
+                notes: '',
+                isCompleted: false,
+                orderIndex: 0,
+              },
+            ],
+          },
+        ],
+        isSynced: false,
+      },
+      isWorkoutActive: true,
+      weightUnits: { 'ex-bench': 'lbs' },
+    });
+
+    const result = useWorkoutStore.getState().applyVoiceLog('exercise-6', {
+      transcript: '5 reps',
+      sets: null,
+      weight: null,
+      reps: 5,
+      weightUnit: 'lbs',
+      setType: 'normal',
+      inferredSets: false,
+      inferredWeightUnit: true,
+      inferredSetType: true,
+      missingFields: ['sets', 'weight'],
+      confidence: 'low',
+    });
+
+    const updatedSets = useWorkoutStore.getState().activeSession?.exercises[0].sets ?? [];
+
+    expect(result).toEqual({
+      appliedSetLocalIds: expect.any(Array),
+      addedSetCount: 0,
+    });
+    expect(updatedSets).toHaveLength(1);
+    expect(updatedSets[0]).toMatchObject({
+      weight: 225,
+      reps: 5,
+      isCompleted: true,
+    });
+  });
+
   it('returns null when required voice fields are missing', () => {
     useWorkoutStore.setState({
       activeSession: {

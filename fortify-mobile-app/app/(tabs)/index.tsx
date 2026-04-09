@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -45,6 +45,9 @@ import { useDropZone } from '../../src/hooks/useDropZone';
 import { responsiveValue, scale, moderateScale } from '@/src/utils/responsive';
 import { isLocalProgramId } from '@/src/utils/localIds';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
+import { useAuth } from '@/src/contexts/AuthContext';
+import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { HOME_CARD_ORDER_KEY } from '@/src/constants/storageKeys';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -64,6 +67,11 @@ type WorkoutItem = {
   isAiCreated?: boolean;
   isDefault?: boolean;
   syncStatus?: 'pending' | 'syncing' | 'synced' | null;
+};
+
+type HomeCardOrderState = {
+  programIds: string[];
+  workoutIds: string[];
 };
 
 const PROGRAM_CARD_HEIGHT = responsiveValue(64, 70, 78);
@@ -682,9 +690,43 @@ const buildDropIn = (index: number) =>
     .stiffness(160)
     .mass(0.6);
 
+const EMPTY_HOME_CARD_ORDER: HomeCardOrderState = {
+  programIds: [],
+  workoutIds: [],
+};
+
+function arraysEqual(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((value, index) => value === b[index]);
+}
+
+function normalizeSavedOrder(currentIds: string[], savedIds: string[]): string[] {
+  const currentSet = new Set(currentIds);
+  const missingIds = currentIds.filter((id) => !savedIds.includes(id));
+  const retainedSavedIds = savedIds.filter((id) => currentSet.has(id));
+  return [...missingIds, ...retainedSavedIds];
+}
+
+function sortItemsBySavedOrder<T extends { id: string }>(items: T[], savedIds: string[]): T[] {
+  if (savedIds.length === 0) return items;
+
+  const normalizedOrder = normalizeSavedOrder(
+    items.map((item) => item.id),
+    savedIds
+  );
+  const indexById = new Map(normalizedOrder.map((id, index) => [id, index]));
+
+  return [...items].sort((a, b) => {
+    const aIndex = indexById.get(a.id) ?? Number.MAX_SAFE_INTEGER;
+    const bIndex = indexById.get(b.id) ?? Number.MAX_SAFE_INTEGER;
+    return aIndex - bIndex;
+  });
+}
+
 export default function ProgramsScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { user, isAuthResolved } = useAuth();
   const readableSubtext = getReadableSubtextColors(isDark);
   const { isTourActive, activeStepId } = useInAppTour();
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
@@ -713,7 +755,59 @@ export default function ProgramsScreen() {
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
+  const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
+  const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
+
+  const persistHomeCardOrder = useCallback(async (nextOrder: HomeCardOrderState) => {
+    try {
+      await setScopedItem(HOME_CARD_ORDER_KEY, JSON.stringify(nextOrder));
+    } catch (error) {
+      console.warn('Failed to persist home card order:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthResolved) {
+      setIsHomeCardOrderLoaded(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsHomeCardOrderLoaded(false);
+
+    const loadHomeCardOrder = async () => {
+      try {
+        const raw = await getScopedItem(HOME_CARD_ORDER_KEY);
+        if (!isMounted) return;
+        if (!raw) {
+          setHomeCardOrder(EMPTY_HOME_CARD_ORDER);
+          return;
+        }
+        const parsed = JSON.parse(raw) as Partial<HomeCardOrderState>;
+        setHomeCardOrder({
+          programIds: Array.isArray(parsed.programIds)
+            ? parsed.programIds.filter((id): id is string => typeof id === 'string')
+            : [],
+          workoutIds: Array.isArray(parsed.workoutIds)
+            ? parsed.workoutIds.filter((id): id is string => typeof id === 'string')
+            : [],
+        });
+      } catch (error) {
+        console.warn('Failed to load home card order:', error);
+      } finally {
+        if (isMounted) {
+          setIsHomeCardOrderLoaded(true);
+        }
+      }
+    };
+
+    void loadHomeCardOrder();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthResolved, user?.id]);
 
   useEffect(() => {
     void refreshPendingProgramSyncIds();
@@ -731,7 +825,7 @@ export default function ProgramsScreen() {
   }, [highlightWorkoutId]);
 
   // Transform store programs to UI format (exclude templates)
-  const programs: ProgramItem[] = storePrograms
+  const basePrograms: ProgramItem[] = storePrograms
     .filter(p => !p.isTemplate)
     .map(p => ({
       id: p.id,
@@ -746,7 +840,7 @@ export default function ProgramsScreen() {
   const pendingProgramSyncIdSet = new Set(pendingProgramSyncIds);
   const syncingProgramSyncIdSet = new Set(syncingProgramSyncIds);
 
-  const templates: (WorkoutItem & { programId: string })[] = storePrograms
+  const baseTemplates: (WorkoutItem & { programId: string })[] = storePrograms
     .filter(p => p.isTemplate)
     .map(p => ({
       id: p.id,
@@ -765,8 +859,54 @@ export default function ProgramsScreen() {
             : 'synced',
     }));
 
+  const programs = useMemo(
+    () => sortItemsBySavedOrder(basePrograms, homeCardOrder.programIds),
+    [basePrograms, homeCardOrder.programIds]
+  );
+
+  const templates = useMemo(
+    () => sortItemsBySavedOrder(baseTemplates, homeCardOrder.workoutIds),
+    [baseTemplates, homeCardOrder.workoutIds]
+  );
+
   // Keep original workouts for backward compatibility
   const workouts: WorkoutItem[] = templates;
+
+  useEffect(() => {
+    if (!isHomeCardOrderLoaded) {
+      return;
+    }
+
+    const nextProgramIds = normalizeSavedOrder(
+      basePrograms.map((program) => program.id),
+      homeCardOrder.programIds
+    );
+    const nextWorkoutIds = normalizeSavedOrder(
+      baseTemplates.map((template) => template.id),
+      homeCardOrder.workoutIds
+    );
+
+    if (
+      arraysEqual(nextProgramIds, homeCardOrder.programIds) &&
+      arraysEqual(nextWorkoutIds, homeCardOrder.workoutIds)
+    ) {
+      return;
+    }
+
+    const nextOrder = {
+      programIds: nextProgramIds,
+      workoutIds: nextWorkoutIds,
+    };
+    setHomeCardOrder(nextOrder);
+    void persistHomeCardOrder(nextOrder);
+  }, [
+    basePrograms,
+    baseTemplates,
+    homeCardOrder.programIds,
+    homeCardOrder.workoutIds,
+    isHomeCardOrderLoaded,
+    persistHomeCardOrder,
+  ]);
 
   const getProgramsUsingTemplate = useCallback((templateId: string) => {
     const template = storePrograms.find((program) => program.id === templateId && program.isTemplate);
@@ -953,6 +1093,24 @@ export default function ProgramsScreen() {
 
     applyProgramAppend(programId, templateId);
   }, [applyProgramAppend, isProgramProgressLoaded, storePrograms]);
+
+  const handleProgramReorder = useCallback((items: ProgramItem[]) => {
+    const nextOrder = {
+      ...homeCardOrder,
+      programIds: items.map((item) => item.id),
+    };
+    setHomeCardOrder(nextOrder);
+    void persistHomeCardOrder(nextOrder);
+  }, [homeCardOrder, persistHomeCardOrder]);
+
+  const handleWorkoutReorder = useCallback((items: WorkoutItem[]) => {
+    const nextOrder = {
+      ...homeCardOrder,
+      workoutIds: items.map((item) => item.id),
+    };
+    setHomeCardOrder(nextOrder);
+    void persistHomeCardOrder(nextOrder);
+  }, [homeCardOrder, persistHomeCardOrder]);
 
   const handleDelete = () => {
     if (openKebab.type === 'program' && openKebab.id !== null) {
@@ -1241,9 +1399,7 @@ export default function ProgramsScreen() {
                     data={programs}
                     keyExtractor={(item) => `program-${item.id}`}
                     renderItem={renderProgramGridItem}
-                    onReorder={() => {
-                      // Reordering currently not persisted to database
-                    }}
+                    onReorder={handleProgramReorder}
                     numColumns={1}
                     itemHeight={PROGRAM_CARD_HEIGHT}
                     gap={GRID_GAP}
@@ -1306,9 +1462,7 @@ export default function ProgramsScreen() {
                     enableCrossContainerDrag={true}
                     dragType="workout"
                     onCrossContainerDrop={handleWorkoutDropOnProgram}
-                    onReorder={() => {
-                      // Reordering currently not persisted to database
-                    }}
+                    onReorder={handleWorkoutReorder}
                     numColumns={2}
                     itemHeight={WORKOUT_CARD_HEIGHT}
                     gap={GRID_GAP}

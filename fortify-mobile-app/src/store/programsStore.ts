@@ -6,6 +6,7 @@
  * Supports offline-first local template saving with cloud sync.
  */
 import { create } from 'zustand';
+import { DeviceEventEmitter } from 'react-native';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
@@ -1602,6 +1603,104 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     };
 
     const hasLocalExercises = hasLocalExerciseIds(exercises);
+    const isSeededDefaultTemplate = isSeededDefaultProgram(template);
+
+    if (isSeededDefaultTemplate) {
+      const localId = `local-${Date.now()}`;
+      const copiedTemplate: Program = {
+        ...template,
+        id: localId,
+        name,
+        isDefault: false,
+        isPublic: false,
+        createdBy: 'local',
+        createdAt: now,
+        updatedAt: now,
+        workouts: [{
+          ...workout,
+          id: `${localId}-workout`,
+          name,
+          exercises: exercises.map((ex, index) => ({
+            id: `${localId}-ex-${index}`,
+            exerciseId: ex.exerciseId,
+            exerciseName: ex.exerciseName || 'Unknown Exercise',
+            sets: ex.sets,
+            reps: ex.reps,
+            restSeconds: ex.restSeconds ?? 120,
+            notes: ex.notes,
+            orderIndex: index,
+            setDetails: ex.setDetails,
+          })),
+        }],
+      };
+
+      const replaceSeededTemplate = (nextTemplate: Program) => {
+        set((state) => ({
+          programs: state.programs.map((p) => (p.id === templateId ? nextTemplate : p)),
+          pendingProgramSyncIds: state.pendingProgramSyncIds.filter((id) => id !== templateId),
+          syncingProgramSyncIds: state.syncingProgramSyncIds.filter(
+            (id) => id !== templateId && id !== localId
+          ),
+        }));
+      };
+
+      const persistForkLocally = async () => {
+        replaceSeededTemplate(copiedTemplate);
+        get().persistLocalPrograms();
+        await removeFromPendingQueue(templateId);
+        await get().refreshPendingProgramSyncIds();
+        return localId;
+      };
+
+      try {
+        const deletedDefaultIds = await loadDeletedDefaultProgramIds();
+        deletedDefaultIds.add(templateId);
+        await persistDeletedDefaultProgramIds(deletedDefaultIds);
+      } catch (err) {
+        console.warn('Failed to persist deleted default program IDs:', err);
+      }
+
+      if (hasLocalExercises || !isSupabaseConfigured()) {
+        return await persistForkLocally();
+      }
+
+      get().markProgramSyncing(localId, true);
+      try {
+        const result = await syncLocalProgram(copiedTemplate);
+
+        if (result.success && result.serverId) {
+          const syncedTemplate: Program = {
+            ...copiedTemplate,
+            id: result.serverId,
+            workouts: copiedTemplate.workouts.map((w) => ({
+              ...w,
+              id: w.id.replace(localId, result.serverId),
+              exercises: w.exercises.map((ex) => ({
+                ...ex,
+                id: ex.id.replace(localId, result.serverId),
+              })),
+            })),
+          };
+
+          replaceSeededTemplate(syncedTemplate);
+          await removeFromPendingQueue(localId);
+          await get().refreshPendingProgramSyncIds();
+          return result.serverId;
+        }
+
+        if (!result.success && !result.queued) {
+          console.warn('[ProgramsStore] Template copy sync failed:', result.error);
+        }
+
+        return await persistForkLocally();
+      } catch (err) {
+        console.warn('[ProgramsStore] Template copy sync failed:', err);
+        return await persistForkLocally();
+      } finally {
+        get().markProgramSyncing(localId, false);
+        await get().refreshPendingProgramSyncIds();
+      }
+    }
 
     const updatedProgram = applyLocalUpdate();
 
@@ -1775,8 +1874,8 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
   // Replace a local program ID with server-assigned ID after successful sync
   replaceLocalIdWithServerId: (localId: string, serverId: string) => {
-    set((state) => ({
-      programs: state.programs.map((p) => {
+    set((state) => {
+      const nextPrograms = state.programs.map((p) => {
         if (p.id === localId) {
           // Create new program with server ID
           return {
@@ -1794,12 +1893,26 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           };
         }
         return p;
-      }),
-      pendingProgramSyncIds: state.pendingProgramSyncIds.filter((id) => id !== localId),
-      syncingProgramSyncIds: state.syncingProgramSyncIds.filter((id) => id !== localId),
-    }));
+      });
+
+      // A server fetch can land before this remap finishes, which would leave
+      // both the fetched server row and the remapped local row in state.
+      const dedupedPrograms = Array.from(
+        new Map(nextPrograms.map((program) => [program.id, program])).values()
+      );
+
+      return {
+        programs: dedupedPrograms,
+        pendingProgramSyncIds: state.pendingProgramSyncIds.filter((id) => id !== localId),
+        syncingProgramSyncIds: state.syncingProgramSyncIds.filter((id) => id !== localId),
+      };
+    });
     // Re-persist to remove from local storage (no longer has local- prefix)
     get().persistLocalPrograms();
+    DeviceEventEmitter.emit('workout-template-replaced', {
+      fromId: localId,
+      toId: serverId,
+    });
     useProgramProgressStore.getState().migrateProgramId(localId, serverId);
     useStartPresetStore.getState().migrateLocalId(localId, serverId);
   },

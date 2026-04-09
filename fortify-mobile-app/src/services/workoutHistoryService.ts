@@ -154,11 +154,13 @@ async function removeFromPendingQueue(localId: string): Promise<void> {
 async function syncCustomExercisesToSupabase(
   exerciseIds: string[],
   userId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; remoteIdMap: Map<string, string>; error?: string }> {
+  const remoteIdMap = new Map<string, string>();
+
   // Filter to only custom exercise IDs
   const customIds = exerciseIds.filter(isCustomExercise);
   if (customIds.length === 0) {
-    return { success: true };
+    return { success: true, remoteIdMap };
   }
 
   try {
@@ -168,13 +170,12 @@ async function syncCustomExercisesToSupabase(
 
     if (exercisesToSync.length === 0) {
       console.warn('Custom exercise IDs found but no matching exercises in local storage:', customIds);
-      return { success: false, error: 'Custom exercises not found in local storage' };
+      return { success: false, remoteIdMap, error: 'Custom exercises not found in local storage' };
     }
 
     // Upsert custom exercises to Supabase
     for (const exercise of exercisesToSync) {
-      // Generate slug from name if not provided
-      const slug = exercise.slug || exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      const slug = exercise.slug || exercise.id || exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
       const normalizedName = exercise.normalizedName || exercise.name
         .toLowerCase()
         .replace(/[_/]+/g, ' ')
@@ -183,13 +184,12 @@ async function syncCustomExercisesToSupabase(
         .replace(/\s+/g, ' ')
         .trim();
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('exercises')
         .upsert({
-          id: exercise.id,
           name: exercise.name,
-          slug: slug,
-          level: 'intermediate', // Default level for custom exercises
+          slug,
+          level: 'intermediate',
           equipment: exercise.equipment || 'body only',
           category: exercise.category || 'strength',
           primary_muscles: exercise.primaryMuscles || ['unknown'],
@@ -201,21 +201,28 @@ async function syncCustomExercisesToSupabase(
           created_by: userId,
           based_on_exercise_id: exercise.basedOnExerciseId ?? null,
         }, {
-          onConflict: 'id',
-        });
+          onConflict: 'created_by,slug',
+        })
+        .select('id')
+        .single();
 
       if (error) {
         console.error('Failed to sync custom exercise:', exercise.name, error);
-        return { success: false, error: `Failed to sync custom exercise: ${exercise.name}` };
+        return { success: false, remoteIdMap, error: `Failed to sync custom exercise: ${exercise.name}` };
+      }
+
+      if (data?.id) {
+        remoteIdMap.set(exercise.id, data.id);
       }
     }
 
     console.log(`Synced ${exercisesToSync.length} custom exercises to Supabase`);
-    return { success: true };
+    return { success: true, remoteIdMap };
   } catch (error) {
     console.error('Error syncing custom exercises:', error);
     return {
       success: false,
+      remoteIdMap,
       error: error instanceof Error ? error.message : 'Unknown error syncing custom exercises'
     };
   }
@@ -228,24 +235,25 @@ async function syncCustomExercisesToSupabase(
  * 1. First tries to match by exercise NAME (case-insensitive)
  * 2. Falls back to matching by SLUG (which stores the RapidAPI ID like "72BC5Za")
  *
- * For custom exercises, we use the local ID directly since they're synced to Supabase
- * with the same ID format.
+ * Custom exercises keep a local `custom-*` ID in app state, but their synced workout sets
+ * must point at the backing Supabase UUID for that user-owned exercise row.
  */
 async function resolveExerciseIds(
-  exercises: WorkoutExercise[]
+  exercises: WorkoutExercise[],
+  customRemoteIdMap?: Map<string, string>
 ): Promise<Map<string, string>> {
   const idMap = new Map<string, string>();
 
   // Collect exercise names and IDs for non-custom exercises
   const exerciseNames: string[] = [];
   const exerciseLocalIds: string[] = [];
-  const customExerciseIds: string[] = [];
 
   for (const exercise of exercises) {
     if (isCustomExercise(exercise.exerciseId)) {
-      // Custom exercises use their local ID directly in Supabase
-      customExerciseIds.push(exercise.exerciseId);
-      idMap.set(exercise.exerciseId, exercise.exerciseId);
+      const remoteId = customRemoteIdMap?.get(exercise.exerciseId);
+      if (remoteId) {
+        idMap.set(exercise.exerciseId, remoteId);
+      }
     } else if (isUuid(exercise.exerciseId)) {
       // Base exercises already use the Supabase UUID in local state
       idMap.set(exercise.exerciseId, exercise.exerciseId);
@@ -452,13 +460,16 @@ async function uploadSession(
     }
 
     // Resolve exercise IDs to Supabase UUIDs (handles RapidAPI ID → UUID mapping)
-    const exerciseIdMap = await resolveExerciseIds(session.exercises);
+    const exerciseIdMap = await resolveExerciseIds(session.exercises, customSyncResult.remoteIdMap);
     const exerciseMeta = await getAllExercises();
     const exerciseMetaById = new Map<string, ExerciseWithSource>();
     exerciseMeta.forEach((exercise) => {
       exerciseMetaById.set(exercise.id, exercise);
       if (exercise.slug) {
         exerciseMetaById.set(exercise.slug, exercise);
+      }
+      if (exercise.remoteId) {
+        exerciseMetaById.set(exercise.remoteId, exercise);
       }
     });
 
@@ -723,10 +734,17 @@ export async function fetchWorkoutHistory(
   // Build exercise name lookup map
   const exercises = await getAllExercises();
   const exerciseNameById = new Map<string, string>();
+  const customRemoteIdToLocalId = new Map<string, string>();
   exercises.forEach(ex => {
     exerciseNameById.set(ex.id, ex.name);
     if (ex.slug) {
       exerciseNameById.set(ex.slug, ex.name);
+    }
+    if (ex.remoteId) {
+      exerciseNameById.set(ex.remoteId, ex.name);
+      if (ex.isCustom && ex.remoteId !== ex.id) {
+        customRemoteIdToLocalId.set(ex.remoteId, ex.id);
+      }
     }
   });
 
@@ -800,7 +818,7 @@ export async function fetchWorkoutHistory(
       const exerciseNameSnapshots = new Map<string, string>();
 
       for (const set of session.workout_sets || []) {
-        const exerciseId = set.exercise_id;
+        const exerciseId = customRemoteIdToLocalId.get(set.exercise_id) || set.exercise_id;
         if (!exerciseMap.has(exerciseId)) {
           exerciseMap.set(exerciseId, []);
         }
@@ -1007,6 +1025,9 @@ export async function resyncMissingSets(
     if (exercise.slug) {
       exerciseMetaById.set(exercise.slug, exercise);
     }
+    if (exercise.remoteId) {
+      exerciseMetaById.set(exercise.remoteId, exercise);
+    }
   });
 
   console.log(`[ResyncSets] Starting resync for ${localSessions.length} local sessions`);
@@ -1065,7 +1086,7 @@ export async function resyncMissingSets(
       }
 
       // Resolve exercise IDs to Supabase UUIDs (handles RapidAPI ID → UUID mapping)
-      const exerciseIdMap = await resolveExerciseIds(session.exercises);
+      const exerciseIdMap = await resolveExerciseIds(session.exercises, customSyncResult.remoteIdMap);
 
       // Build sets to insert
       const setsToInsert: WorkoutSetInsert[] = [];

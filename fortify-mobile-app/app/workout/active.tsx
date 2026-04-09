@@ -827,18 +827,22 @@ export default function ActiveWorkoutScreen() {
         onOpenExerciseDetails={handleModalExerciseDetails}
       />
 
-      <ExerciseVoiceAddSheet
-        visible={showVoiceAddSheet}
-        existingExerciseIds={activeSession?.exercises.map((exercise) => exercise.exerciseId) || []}
-        onClose={() => setShowVoiceAddSheet(false)}
-        onAddExercises={handleVoiceAddExercises}
-      />
+      {showVoiceAddSheet ? (
+        <ExerciseVoiceAddSheet
+          visible
+          existingExerciseIds={activeSession?.exercises.map((exercise) => exercise.exerciseId) || []}
+          onClose={() => setShowVoiceAddSheet(false)}
+          onAddExercises={handleVoiceAddExercises}
+        />
+      ) : null}
 
-      <WorkoutVoiceLogSheet
-        visible={voiceExerciseLocalId !== null}
-        exerciseLocalId={voiceExerciseLocalId}
-        onClose={() => setVoiceExerciseLocalId(null)}
-      />
+      {voiceExerciseLocalId !== null ? (
+        <WorkoutVoiceLogSheet
+          visible
+          exerciseLocalId={voiceExerciseLocalId}
+          onClose={() => setVoiceExerciseLocalId(null)}
+        />
+      ) : null}
 
       {/* Rest Timer Controls */}
       <RestTimerControls

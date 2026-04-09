@@ -10,7 +10,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import {
+  Audio,
+  InterruptionModeAndroid,
+  InterruptionModeIOS,
+} from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -41,6 +45,7 @@ import { createVoiceLogFileName, interpretWorkoutVoiceLog } from '@/src/services
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import type { WorkoutVoiceInterpretation } from '@/src/types/workoutVoice';
 import { moderateScale, scale } from '@/src/utils/responsive';
+import { createWorkoutVoiceLogPlan } from '@/src/utils/workoutVoiceLog';
 
 type VoiceSheetPhase = 'idle' | 'listening' | 'processing' | 'review';
 
@@ -93,19 +98,39 @@ const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
   },
 };
 
+const VOICE_ACTIVE_AUDIO_MODE = {
+  allowsRecordingIOS: true,
+  interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+  playsInSilentModeIOS: false,
+  staysActiveInBackground: false,
+  interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+} as const;
+
+const VOICE_IDLE_AUDIO_MODE = {
+  allowsRecordingIOS: false,
+  interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+  playsInSilentModeIOS: false,
+  staysActiveInBackground: false,
+  interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+} as const;
+
 const getMimeTypeFromUri = (uri: string | null) => {
   if (!uri) return 'audio/m4a';
   const extension = uri.split('.').pop()?.toLowerCase() ?? 'm4a';
   return MIME_BY_EXTENSION[extension] || 'audio/m4a';
 };
 
-const getMissingFieldsLabel = (interpretation: WorkoutVoiceInterpretation | null) => {
-  if (!interpretation || interpretation.missingFields.length === 0) return null;
-  if (interpretation.missingFields.length === 1) {
-    return `I still need ${interpretation.missingFields[0]}.`;
+const getMissingFieldsLabel = (missingFields: string[]) => {
+  if (missingFields.length === 0) return null;
+  if (missingFields.length === 1) {
+    return `I still need ${missingFields[0]}.`;
   }
-  const allButLast = interpretation.missingFields.slice(0, -1).join(', ');
-  const last = interpretation.missingFields[interpretation.missingFields.length - 1];
+  const allButLast = missingFields.slice(0, -1).join(', ');
+  const last = missingFields[missingFields.length - 1];
   return `I still need ${allButLast}, and ${last}.`;
 };
 
@@ -116,10 +141,17 @@ const SET_TYPE_LABELS = {
   failure: 'Failure',
 } as const;
 
-const getInferenceCopy = (interpretation: WorkoutVoiceInterpretation) => {
+const getInferenceCopy = (
+  interpretation: WorkoutVoiceInterpretation,
+  options?: {
+    inferredSetsFromExercise?: boolean;
+    reusedWeightFromExisting?: boolean;
+    reusedRepsFromExisting?: boolean;
+  }
+) => {
   const parts: string[] = [];
 
-  if (interpretation.inferredSets) {
+  if (interpretation.inferredSets || options?.inferredSetsFromExercise) {
     parts.push('Set count was inferred.');
   }
   if (interpretation.inferredWeightUnit) {
@@ -127,6 +159,12 @@ const getInferenceCopy = (interpretation: WorkoutVoiceInterpretation) => {
   }
   if (interpretation.inferredSetType) {
     parts.push(`Set type defaulted to ${SET_TYPE_LABELS[interpretation.setType].toLowerCase()}.`);
+  }
+  if (options?.reusedWeightFromExisting) {
+    parts.push('Weight was reused from your current set entries.');
+  }
+  if (options?.reusedRepsFromExisting) {
+    parts.push('Reps were reused from your current set entries.');
   }
 
   return parts.join(' ');
@@ -202,6 +240,11 @@ export function WorkoutVoiceLogSheet({
     [exerciseLocalId, session?.exercises]
   );
   const defaultWeightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
+  const voiceLogPlan = useMemo(() => (
+    exercise && interpretation
+      ? createWorkoutVoiceLogPlan(exercise, interpretation, defaultWeightUnit)
+      : null
+  ), [defaultWeightUnit, exercise, interpretation]);
   const accentGradient = colors.accentGradient as unknown as [string, string, ...string[]];
   const maxModalHeight = Math.max(
     scale(320),
@@ -264,10 +307,7 @@ export function WorkoutVoiceLogSheet({
 
   const restoreAudioMode = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
+      await Audio.setAudioModeAsync(VOICE_IDLE_AUDIO_MODE);
     } catch {
       // Ignore cleanup failures.
     }
@@ -340,10 +380,7 @@ export function WorkoutVoiceLogSheet({
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      await Audio.setAudioModeAsync(VOICE_ACTIVE_AUDIO_MODE);
 
       const { recording } = await Audio.Recording.createAsync(
         VOICE_RECORDING_OPTIONS,
@@ -429,6 +466,7 @@ export function WorkoutVoiceLogSheet({
 
       setInterpretation(response.interpretation);
       setPhase('review');
+      void Haptics.selectionAsync();
     } catch (error) {
       await discardRecording();
       if (requestVersion !== requestVersionRef.current) {
@@ -452,7 +490,7 @@ export function WorkoutVoiceLogSheet({
       && interpretation.weight === 225
       && interpretation.reps === 5
       && interpretation.setType === 'normal'
-      && interpretation.missingFields.length === 0
+      && voiceLogPlan?.canApply
     );
 
     if (isVoiceLogTutorialStep && !isTutorialVoiceLogMatch) {
@@ -479,19 +517,23 @@ export function WorkoutVoiceLogSheet({
 
   const summaryBadges = interpretation
     ? [
-        `${interpretation.sets ?? '—'} set${interpretation.sets === 1 ? '' : 's'}`,
-        `${interpretation.weight ?? '—'} ${interpretation.weightUnit ?? defaultWeightUnit}`,
-        `${interpretation.reps ?? '—'} reps`,
+        `${voiceLogPlan?.targetSetCount ?? interpretation.sets ?? '—'} set${(voiceLogPlan?.targetSetCount ?? interpretation.sets) === 1 ? '' : 's'}`,
+        voiceLogPlan?.uniformWeight.isUniform && voiceLogPlan.uniformWeight.value !== null
+          ? `${voiceLogPlan.uniformWeight.value} ${voiceLogPlan.uniformWeightUnit.value ?? defaultWeightUnit}`
+          : voiceLogPlan?.inferredFields.weightFromExisting
+          ? 'Existing weight'
+          : `${interpretation.weight ?? '—'} ${interpretation.weightUnit ?? defaultWeightUnit}`,
+        voiceLogPlan?.uniformReps.isUniform && voiceLogPlan.uniformReps.value !== null
+          ? `${voiceLogPlan.uniformReps.value} reps`
+          : voiceLogPlan?.inferredFields.repsFromExisting
+          ? 'Existing reps'
+          : `${interpretation.reps ?? '—'} reps`,
         SET_TYPE_LABELS[interpretation.setType],
       ]
     : [];
   const canApply = !!(
     interpretation
-    && interpretation.sets
-    && interpretation.weight !== null
-    && interpretation.reps !== null
-    && interpretation.weightUnit
-    && interpretation.missingFields.length === 0
+    && voiceLogPlan?.canApply
   );
   const isTutorialVoiceLogMatch = !!(
     interpretation
@@ -499,10 +541,10 @@ export function WorkoutVoiceLogSheet({
     && interpretation.weight === 225
     && interpretation.reps === 5
     && interpretation.setType === 'normal'
-    && interpretation.missingFields.length === 0
+      && voiceLogPlan?.canApply
   );
   const applyEnabled = canApply && phase === 'review';
-  const missingLabel = getMissingFieldsLabel(interpretation);
+  const missingLabel = getMissingFieldsLabel(voiceLogPlan?.unresolvedFields ?? interpretation?.missingFields ?? []);
   const localTooltipStepId =
     activeStepId === 'log_with_voice' || activeStepId === 'confirm_voice_log'
       ? activeStepId
@@ -822,9 +864,20 @@ export function WorkoutVoiceLogSheet({
                       ))}
                     </View>
 
-                    {(interpretation.inferredSets || interpretation.inferredWeightUnit || interpretation.inferredSetType) && (
+                    {(
+                      interpretation.inferredSets
+                      || interpretation.inferredWeightUnit
+                      || interpretation.inferredSetType
+                      || voiceLogPlan?.inferredFields.sets
+                      || voiceLogPlan?.inferredFields.weightFromExisting
+                      || voiceLogPlan?.inferredFields.repsFromExisting
+                    ) && (
                       <Text style={[styles.inferenceText, { color: colors.textSecondary }]}>
-                        {getInferenceCopy(interpretation)}
+                        {getInferenceCopy(interpretation, {
+                          inferredSetsFromExercise: voiceLogPlan?.inferredFields.sets,
+                          reusedWeightFromExisting: voiceLogPlan?.inferredFields.weightFromExisting,
+                          reusedRepsFromExisting: voiceLogPlan?.inferredFields.repsFromExisting,
+                        })}
                       </Text>
                     )}
 

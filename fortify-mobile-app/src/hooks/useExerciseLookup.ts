@@ -19,6 +19,9 @@ export function useExerciseLookup(): ExerciseLookupResult {
       if (exercise.slug) {
         lookup.set(exercise.slug, exercise);
       }
+      if (exercise.remoteId) {
+        lookup.set(exercise.remoteId, exercise);
+      }
     });
     return lookup;
   }, [exercises]);

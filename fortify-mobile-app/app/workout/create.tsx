@@ -374,7 +374,17 @@ export default function CreateWorkoutScreen() {
           await commitEditorStickyNotesDraft();
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           DeviceEventEmitter.emit('workout-updated');
-          router.back();
+          if (isEditingTemplate && templateId && updatedTemplateId !== templateId) {
+            router.back();
+            setTimeout(() => {
+              DeviceEventEmitter.emit('workout-template-replaced', {
+                fromId: templateId,
+                toId: updatedTemplateId,
+              });
+            }, 0);
+          } else {
+            router.back();
+          }
         } else {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
           setIsSaving(false);
@@ -789,12 +799,14 @@ export default function CreateWorkoutScreen() {
         onOpenExerciseDetails={handleModalExerciseDetails}
       />
 
-      <ExerciseVoiceAddSheet
-        visible={showVoiceAddSheet}
-        existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
-        onAddExercises={handleVoiceAddExercises}
-        onClose={() => setShowVoiceAddSheet(false)}
-      />
+      {showVoiceAddSheet ? (
+        <ExerciseVoiceAddSheet
+          visible
+          existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
+          onAddExercises={handleVoiceAddExercises}
+          onClose={() => setShowVoiceAddSheet(false)}
+        />
+      ) : null}
 
       {/* Number Pad Modal */}
       <NumberPadModal

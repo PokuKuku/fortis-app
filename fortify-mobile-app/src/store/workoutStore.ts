@@ -36,6 +36,7 @@ import {
 import { isCustomExercise } from '../services/exerciseService';
 import { generateSecureUUID as generateId } from '../utils/uuid';
 import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
+import { createWorkoutVoiceLogPlan } from '../utils/workoutVoiceLog';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
@@ -1087,18 +1088,6 @@ export const useWorkoutStore = create<WorkoutState>()(
       const { activeSession, completedSessions, weightUnits } = get();
       if (!activeSession) return null;
 
-      const targetSetCount = interpretation.sets;
-      if (
-        !targetSetCount
-        || targetSetCount < 1
-        || interpretation.weight === null
-        || interpretation.reps === null
-        || !interpretation.weightUnit
-        || !interpretation.setType
-      ) {
-        return null;
-      }
-
       let appliedSetLocalIds: string[] = [];
       let addedSetCount = 0;
       let lastAppliedSetType: SetType = 'normal';
@@ -1106,50 +1095,68 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       const exercises = activeSession.exercises.map((ex) => {
         if (ex.localId !== exerciseLocalId) return ex;
-
-        const incompleteIndices = ex.sets.reduce<number[]>((indices, set, index) => {
-          if (!set.isCompleted) {
-            indices.push(index);
-          }
-          return indices;
-        }, []);
-
-        let nextSets = [...ex.sets];
-
-        for (let i = 0; i < targetSetCount; i += 1) {
-          let targetIndex = incompleteIndices[i];
-
-          if (targetIndex === undefined) {
-            const newSet = buildNewActiveSet(
-              ex,
-              activeSession,
-              weightUnits,
-              completedSessions,
-              nextSets.length
-            );
-            nextSets = [...nextSets, newSet];
-            targetIndex = nextSets.length - 1;
-            addedSetCount += 1;
-          }
-
-          const targetSet = nextSets[targetIndex];
-          const updatedSet: WorkoutSet = {
-            ...targetSet,
-            weight: interpretation.weight,
-            weightUnit: interpretation.weightUnit,
-            reps: interpretation.reps,
-            setType: interpretation.setType,
-            isCompleted: true,
-          };
-          nextSets[targetIndex] = updatedSet;
-          appliedSetLocalIds.push(updatedSet.localId);
-          lastAppliedSetType = updatedSet.setType;
+        const currentWeightUnit = weightUnits[ex.exerciseId] || 'lbs';
+        const plan = createWorkoutVoiceLogPlan(ex, interpretation, currentWeightUnit);
+        if (!plan.canApply || plan.targetSetCount === null) {
+          return ex;
         }
 
-        nextWeightUnits = {
-          ...nextWeightUnits,
-          [ex.exerciseId]: interpretation.weightUnit!,
-        };
+        const plannedExistingSets = new Map(
+          plan.targetSets
+            .filter((targetSet) => targetSet.sourceSetIndex !== null)
+            .map((targetSet) => [targetSet.sourceSetIndex as number, targetSet])
+        );
+        const plannedNewSets = plan.targetSets.filter((targetSet) => targetSet.sourceSetIndex === null);
+
+        let nextSets = ex.sets.map((set, index) => {
+          const targetSet = plannedExistingSets.get(index);
+          if (!targetSet) return set;
+
+          const updatedSet: WorkoutSet = {
+            ...set,
+            weight: targetSet.weight,
+            weightUnit: targetSet.weightUnit ?? currentWeightUnit,
+            reps: targetSet.reps,
+            setType: targetSet.setType,
+            isCompleted: true,
+          };
+          appliedSetLocalIds.push(updatedSet.localId);
+          lastAppliedSetType = updatedSet.setType;
+          return updatedSet;
+        });
+
+        plannedNewSets.forEach((targetSet) => {
+          const newSet = buildNewActiveSet(
+            ex,
+            activeSession,
+            weightUnits,
+            completedSessions,
+            nextSets.length
+          );
+          const completedSet: WorkoutSet = {
+            ...newSet,
+            weight: targetSet.weight,
+            weightUnit: targetSet.weightUnit ?? currentWeightUnit,
+            reps: targetSet.reps,
+            setType: targetSet.setType,
+            isCompleted: true,
+          };
+          nextSets = [...nextSets, completedSet];
+          appliedSetLocalIds.push(completedSet.localId);
+          lastAppliedSetType = completedSet.setType;
+          addedSetCount += 1;
+        });
+
+        const persistedWeightUnit = plan.uniformWeightUnit.value
+          ?? plan.targetSets.find((targetSet) => targetSet.weightUnit !== null)?.weightUnit
+          ?? currentWeightUnit;
+
+        if (persistedWeightUnit) {
+          nextWeightUnits = {
+            ...nextWeightUnits,
+            [ex.exerciseId]: persistedWeightUnit,
+          };
+        }
 
         return {
           ...ex,

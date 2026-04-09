@@ -1,8 +1,8 @@
-import { useRef, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { useRef, useState, useCallback, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, DeviceEventEmitter } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { PlayIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { ExclamationTriangleIcon, PlayIcon, TrashIcon } from 'react-native-heroicons/outline';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -17,6 +17,11 @@ import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
+import { getDefaultTemplates } from '@/src/data/defaultPrograms';
+
+const DEFAULT_TEMPLATE_NAME_BY_ID = new Map(
+  getDefaultTemplates().map((program) => [program.id, program.name])
+);
 
 export default function WorkoutDetailScreen() {
   const { id, source } = useLocalSearchParams<{ id: string; source?: string }>();
@@ -26,22 +31,45 @@ export default function WorkoutDetailScreen() {
   const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
   const isReadOnlyFromProgramEdit = source === 'program-edit';
+  const storePrograms = useProgramsStore(s => s.programs);
+  const [isRedirectingReplacement, setIsRedirectingReplacement] = useState(false);
 
   // Dynamic theme-aware styles
   const themedStyles = {
     container: { backgroundColor: colors.background },
     loadingText: { color: colors.textSecondary },
-    notFoundText: { color: colors.textSecondary },
-    backLinkText: { color: colors.accent },
+    notFoundCard: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    notFoundIconWrap: {
+      backgroundColor: isDark ? colors.accentOverlay : colors.accentOverlayMedium,
+      borderColor: colors.accentBorder,
+    },
+    notFoundText: { color: colors.textPrimary },
+    notFoundSubtext: { color: colors.textSecondary },
+    secondaryActionText: { color: colors.accent },
     description: { color: colors.textSecondary },
     metaText: { color: colors.textTertiary },
     sectionTitle: { color: colors.textPrimary },
     sectionCount: { color: colors.textSecondary },
   };
   const bodyType = useWorkoutStore((s) => s.bodyType);
-  const template = useProgramsStore(s => s.programs.find(p => p.id === id && p.isTemplate));
+  const template = storePrograms.find(p => p.id === id && p.isTemplate);
   const canEditTemplate = !!template && !isReadOnlyFromProgramEdit;
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
+
+  const replacementTemplateId = useMemo(() => {
+    if (!id || Array.isArray(id)) return null;
+    const defaultTemplateName = DEFAULT_TEMPLATE_NAME_BY_ID.get(id);
+    if (!defaultTemplateName) return null;
+
+    const matches = storePrograms.filter((program) => (
+      program.isTemplate && !program.isDefault && program.name === defaultTemplateName
+    ));
+
+    return matches.length === 1 ? matches[0].id : null;
+  }, [id, storePrograms]);
 
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -56,6 +84,47 @@ export default function WorkoutDetailScreen() {
     router.back();
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
+
+  const handleGoToPrograms = () => {
+    if (isNavigating.current) return;
+    isNavigating.current = true;
+    router.replace('/(tabs)');
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  };
+
+  const handleOpenReplacement = () => {
+    if (!replacementTemplateId || isNavigating.current) return;
+    isNavigating.current = true;
+    setIsRedirectingReplacement(true);
+    router.replace(`/workouts/${replacementTemplateId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  };
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      'workout-template-replaced',
+      (payload: { fromId?: string; toId?: string } | undefined) => {
+        if (!payload?.fromId || !payload?.toId) return;
+        if (payload.fromId !== id || isNavigating.current) return;
+        isNavigating.current = true;
+        setIsRedirectingReplacement(true);
+        router.replace(`/workouts/${payload.toId}`);
+        setTimeout(() => { isNavigating.current = false; }, 500);
+      }
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [id, router]);
+
+  useEffect(() => {
+    if (loading || workout || !replacementTemplateId || isNavigating.current) return;
+    isNavigating.current = true;
+    setIsRedirectingReplacement(true);
+    router.replace(`/workouts/${replacementTemplateId}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  }, [loading, replacementTemplateId, router, workout]);
 
   const handleEdit = () => {
     if (!id || !canEditTemplate || isNavigating.current) return;
@@ -113,12 +182,16 @@ export default function WorkoutDetailScreen() {
         setDetails: exercise.setDetails,
       }));
 
-    await updateWorkoutTemplate(template.id, template.name, updatedExercises);
+    const updatedTemplateId = await updateWorkoutTemplate(template.id, template.name, updatedExercises);
 
     // Close modal and refresh
     setDeleteModal({ ...deleteModal, visible: false });
+    if (updatedTemplateId && updatedTemplateId !== template.id) {
+      router.replace(`/workouts/${updatedTemplateId}`);
+      return;
+    }
     refreshWorkout();
-  }, [id, deleteModal, refreshWorkout, template, updateWorkoutTemplate]);
+  }, [id, deleteModal, refreshWorkout, router, template, updateWorkoutTemplate]);
 
   const handleCancelDelete = useCallback(() => {
     setDeleteModal({ ...deleteModal, visible: false });
@@ -126,7 +199,7 @@ export default function WorkoutDetailScreen() {
 
   // Not found state (avoid loading splash)
   if (!workout) {
-    if (loading) {
+    if (loading || isRedirectingReplacement) {
       return (
         <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
           <StainlessSteelPattern />
@@ -137,10 +210,33 @@ export default function WorkoutDetailScreen() {
       <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
         <StainlessSteelPattern />
         <View style={styles.notFoundContainer}>
-          <Text style={[styles.notFoundText, themedStyles.notFoundText]}>Workout not found</Text>
-          <Pressable onPress={handleBack} style={styles.backLink}>
-            <Text style={[styles.backLinkText, themedStyles.backLinkText]}>Go back</Text>
-          </Pressable>
+          <View style={[styles.notFoundCard, themedStyles.notFoundCard]}>
+            <View style={[styles.notFoundIconWrap, themedStyles.notFoundIconWrap]}>
+              <ExclamationTriangleIcon color={colors.accent} size={20} strokeWidth={2.2} />
+            </View>
+            <Text style={[styles.notFoundText, themedStyles.notFoundText]}>
+              {replacementTemplateId ? 'Workout moved' : 'Workout not found'}
+            </Text>
+            <Text style={[styles.notFoundSubtext, themedStyles.notFoundSubtext]}>
+              {replacementTemplateId
+                ? 'This default workout was turned into your personal copy after you edited it.'
+                : 'This workout is no longer available. You can return to your workouts and keep going.'}
+            </Text>
+            {replacementTemplateId ? (
+              <GlassButton style={styles.notFoundPrimaryButton} onPress={handleOpenReplacement}>
+                <Text style={styles.notFoundPrimaryButtonText}>Open updated workout</Text>
+              </GlassButton>
+            ) : (
+              <GlassButton style={styles.notFoundPrimaryButton} onPress={handleGoToPrograms}>
+                <Text style={styles.notFoundPrimaryButtonText}>Back to workouts</Text>
+              </GlassButton>
+            )}
+            <Pressable onPress={handleBack} style={styles.notFoundSecondaryAction}>
+              <Text style={[styles.notFoundSecondaryActionText, themedStyles.secondaryActionText]}>
+                Go back
+              </Text>
+            </Pressable>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -290,20 +386,56 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.lg,
+    paddingHorizontal: Spacing.xl,
+  },
+  notFoundCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing['2xl'],
+    alignItems: 'center',
+  },
+  notFoundIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
   },
   notFoundText: {
-    fontSize: FontSizes.xl,
+    fontSize: FontSizes['2xl'],
     fontWeight: '700',
-    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
   },
-  backLink: {
-    padding: Spacing.md,
+  notFoundSubtext: {
+    fontSize: FontSizes.base,
+    lineHeight: 22,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
   },
-  backLinkText: {
+  notFoundPrimaryButton: {
+    width: '100%',
+    height: ButtonHeights.xl,
+    borderRadius: BorderRadius.xl,
+  },
+  notFoundPrimaryButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  notFoundSecondaryAction: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  notFoundSecondaryActionText: {
     fontSize: FontSizes.base,
     fontWeight: '600',
-    color: Colors.success,
   },
   descriptionContainer: {
     marginBottom: Spacing.sm,

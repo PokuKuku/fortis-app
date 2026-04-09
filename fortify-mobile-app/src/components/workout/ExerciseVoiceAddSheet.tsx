@@ -10,7 +10,11 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import {
+  Audio,
+  InterruptionModeAndroid,
+  InterruptionModeIOS,
+} from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -137,6 +141,26 @@ const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
     bitRate: 96000,
   },
 };
+
+const VOICE_ACTIVE_AUDIO_MODE = {
+  allowsRecordingIOS: true,
+  interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+  playsInSilentModeIOS: false,
+  staysActiveInBackground: false,
+  interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+} as const;
+
+const VOICE_IDLE_AUDIO_MODE = {
+  allowsRecordingIOS: false,
+  interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+  playsInSilentModeIOS: false,
+  staysActiveInBackground: false,
+  interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+} as const;
 
 function VoiceWaveBar({
   height,
@@ -487,10 +511,7 @@ export function ExerciseVoiceAddSheet({
 
   const restoreAudioMode = useCallback(async () => {
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
+      await Audio.setAudioModeAsync(VOICE_IDLE_AUDIO_MODE);
     } catch {
       // Ignore cleanup failures.
     }
@@ -579,10 +600,7 @@ export function ExerciseVoiceAddSheet({
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      await Audio.setAudioModeAsync(VOICE_ACTIVE_AUDIO_MODE);
 
       const { recording } = await Audio.Recording.createAsync(
         VOICE_RECORDING_OPTIONS,

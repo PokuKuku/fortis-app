@@ -1,6 +1,7 @@
 export interface Exercise {
   id: string;
   slug?: string;
+  remoteId?: string;
   name: string;
   primaryMuscles: string[];
   secondaryMuscles: string[];

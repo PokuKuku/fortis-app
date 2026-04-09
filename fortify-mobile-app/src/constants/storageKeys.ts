@@ -9,6 +9,7 @@ export const PROGRAMS_KEY = 'fortis_programs_v1';
 export const LOCAL_TEMPLATES_KEY = 'fortis_local_templates_v5';
 export const DELETED_DEFAULT_PROGRAM_IDS_KEY = 'deleted_default_program_ids_v1';
 export const PROGRAM_PROGRESS_KEY = 'program_progress_v1';
+export const HOME_CARD_ORDER_KEY = 'home_card_order_v1';
 
 // Workout templates
 export const WORKOUTS_KEY = 'fortis_workouts_v1';
@@ -56,6 +57,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   LOCAL_TEMPLATES_KEY,
   DELETED_DEFAULT_PROGRAM_IDS_KEY,
   PROGRAM_PROGRESS_KEY,
+  HOME_CARD_ORDER_KEY,
   ACTIVE_WORKOUT_KEY,
   COMPLETED_WORKOUTS_KEY,
   PENDING_SYNC_QUEUE_KEY,

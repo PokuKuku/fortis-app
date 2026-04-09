@@ -236,16 +236,23 @@ async function fetchCustomExercisesFromSupabase(): Promise<Exercise[]> {
       ...exercise,
       id: slug ?? exercise.id,
       slug,
+      remoteId: exercise.id,
       isCustom: true,
     };
   });
 }
 
-async function upsertCustomExerciseToSupabase(exercise: Exercise): Promise<void> {
-  if (!isSupabaseConfigured()) return;
+async function upsertCustomExerciseToSupabase(
+  exercise: Exercise
+): Promise<{ remoteId: string; slug: string }> {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase not configured');
+  }
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  if (!user) {
+    throw new Error('Sign in required to save custom exercises');
+  }
 
   const slug = normalizeCustomExerciseSlug(exercise);
   const normalizedName = exercise.normalizedName || normalizeExerciseKey(exercise.name);
@@ -266,13 +273,20 @@ async function upsertCustomExerciseToSupabase(exercise: Exercise): Promise<void>
     based_on_exercise_id: exercise.basedOnExerciseId ?? null,
   };
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('exercises')
-    .upsert(payload, { onConflict: 'created_by,slug' });
+    .upsert(payload, { onConflict: 'created_by,slug' })
+    .select('id, slug')
+    .single();
 
   if (error) {
     throw new Error(error.message);
   }
+
+  return {
+    remoteId: data?.id ?? exercise.remoteId ?? slug,
+    slug: data?.slug ?? slug,
+  };
 }
 
 function isCuratedCanonical(exercise: ExerciseWithSource): boolean {
@@ -322,6 +336,9 @@ function upsertExerciseCaches(exercise: ExerciseWithSource): void {
   exerciseLookupCache.set(exercise.id, exercise);
   if (exercise.slug) {
     exerciseLookupCache.set(exercise.slug, exercise);
+  }
+  if (exercise.remoteId) {
+    exerciseLookupCache.set(exercise.remoteId, exercise);
   }
   exerciseLookupCache.set(normalizeExerciseKey(exercise.name), exercise);
 }
@@ -494,6 +511,9 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
       lookup.set(exercise.id, exercise);
       if (exercise.slug) {
         lookup.set(exercise.slug, exercise);
+      }
+      if (exercise.remoteId) {
+        lookup.set(exercise.remoteId, exercise);
       }
       lookup.set(normalizeExerciseKey(exercise.name), exercise);
     });
@@ -684,25 +704,45 @@ export async function getCustomExercises(): Promise<Exercise[]> {
     const remoteExercises = await fetchCustomExercisesFromSupabase();
 
     if (remoteExercises.length > 0) {
-      // Merge: local exercises take priority, add remote-only exercises
-      const localIds = new Set(normalizedLocal.map(e => e.id));
-      const localSlugs = new Set(normalizedLocal.map(e =>
-        e.slug || e.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-      ));
+      const remoteBySlug = new Map<string, Exercise>();
+      remoteExercises.forEach((remote) => {
+        const remoteSlug = remote.slug ?? normalizeCustomExerciseSlug(remote);
+        remoteBySlug.set(remoteSlug, remote);
+      });
 
-      const remoteOnly = remoteExercises.filter(remote => {
-        const remoteSlug = remote.slug || remote.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        // Include if not in local by ID or slug (handles ID mismatch)
+      const mergedLocal = normalizedLocal.map((local) => {
+        const localSlug = local.slug ?? normalizeCustomExerciseSlug(local);
+        const remote = remoteBySlug.get(localSlug);
+        if (!remote) {
+          return {
+            ...local,
+            slug: local.slug ?? localSlug,
+          };
+        }
+
+        return {
+          ...remote,
+          ...local,
+          id: local.id,
+          slug: local.slug ?? remote.slug ?? localSlug,
+          remoteId: remote.remoteId,
+          isCustom: true,
+          primaryMuscles: normalizeMuscleArray(local.primaryMuscles ?? remote.primaryMuscles ?? []),
+          secondaryMuscles: normalizeMuscleArray(local.secondaryMuscles ?? remote.secondaryMuscles ?? []),
+        };
+      });
+
+      const localIds = new Set(mergedLocal.map(e => e.id));
+      const localSlugs = new Set(mergedLocal.map(e => e.slug ?? normalizeCustomExerciseSlug(e)));
+      const remoteOnly = remoteExercises.filter((remote) => {
+        const remoteSlug = remote.slug ?? normalizeCustomExerciseSlug(remote);
         return !localIds.has(remote.id) && !localSlugs.has(remoteSlug);
       });
 
-      if (remoteOnly.length > 0) {
-        const merged = [...normalizedLocal, ...remoteOnly];
-        // Persist merged list to local storage
-        await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(merged));
-        customExerciseCache = merged;
-        return merged;
-      }
+      const merged = [...mergedLocal, ...remoteOnly];
+      await setScopedItem(CUSTOM_EXERCISES_KEY, JSON.stringify(merged));
+      customExerciseCache = merged;
+      return customExerciseCache;
     }
 
     customExerciseCache = normalizedLocal;
@@ -735,14 +775,19 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
   };
 
   // Server-first: ensure the exercise is persisted remotely before saving locally.
-  await upsertCustomExerciseToSupabase(exerciseWithMeta);
+  const remote = await upsertCustomExerciseToSupabase(exerciseWithMeta);
   const customs = await getCustomExercises();
   const existingIndex = customs.findIndex(e => e.id === exercise.id);
+  const nextExercise: Exercise = {
+    ...exerciseWithMeta,
+    slug: remote.slug,
+    remoteId: existingIndex >= 0 ? (customs[existingIndex].remoteId ?? remote.remoteId) : remote.remoteId,
+  };
 
   if (existingIndex >= 0) {
-    customs[existingIndex] = exerciseWithMeta;
+    customs[existingIndex] = nextExercise;
   } else {
-    customs.unshift(exerciseWithMeta);
+    customs.unshift(nextExercise);
   }
 
   // Save to local storage after a successful server upsert.
