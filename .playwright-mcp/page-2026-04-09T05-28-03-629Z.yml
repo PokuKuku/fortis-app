@@ -1,0 +1,235 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e5]:
+    - generic [ref=e11]:
+      - generic [ref=e18] [cursor=pointer]:
+        - img [ref=e20]
+        - generic "Fortify AI" [ref=e22]:
+          - generic [ref=e23]: Fortify AI
+          - generic [ref=e24]: All Project Data
+        - img [ref=e26]
+      - button "Create New" [ref=e32] [cursor=pointer]:
+        - generic [ref=e34]:
+          - img [ref=e36]
+          - generic "Create New" [ref=e39]:
+            - generic [ref=e43]: Create New
+            - img [ref=e45]
+      - generic [ref=e49]:
+        - list [ref=e51]:
+          - listitem "Search" [ref=e53]:
+            - img [ref=e56]
+            - generic "Search" [ref=e61]
+            - generic [ref=e62]: ⌘ + K
+          - listitem "Home" [ref=e64]:
+            - link "Home" [ref=e65] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/home
+              - img [ref=e68]
+              - generic "Home" [ref=e72]
+        - list [ref=e74]:
+          - listitem "Data" [ref=e76]:
+            - img [ref=e79]
+            - generic "Data" [ref=e86]
+            - img [ref=e89] [cursor=pointer]
+          - listitem "Events" [ref=e92] [cursor=pointer]:
+            - link "Events" [ref=e93]:
+              - /url: /project/3978222/view/4473888/app/events
+              - generic "Events" [ref=e96]
+          - listitem "Users" [ref=e98]:
+            - link "Users" [ref=e99] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/users
+              - generic "Users" [ref=e102]
+          - listitem "Lexicon" [ref=e104]:
+            - link "Lexicon" [ref=e105] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/lexicon
+              - generic "Lexicon" [ref=e108]
+        - list [ref=e110]:
+          - listitem "Session Replay" [ref=e112]:
+            - link "Session Replay" [ref=e113] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/session-replay
+              - img [ref=e116]
+              - generic "Session Replay" [ref=e122]
+      - generic [ref=e129]:
+        - generic [ref=e130]:
+          - img [ref=e132]
+          - generic [ref=e134]: PINNED
+        - list [ref=e135]:
+          - listitem "🌱 Starter Board" [ref=e136]:
+            - link "🌱 Starter Board" [ref=e140] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/boards#id=10890773
+              - generic [ref=e143]: 🌱 Starter Board
+      - generic [ref=e145]:
+        - button "Upgrade Plan" [ref=e146] [cursor=pointer]:
+          - generic [ref=e148]:
+            - img [ref=e150]
+            - generic [ref=e157]: Upgrade Plan
+        - generic [ref=e158]:
+          - generic [ref=e160]:
+            - button "brand-applications" [ref=e164] [cursor=pointer]:
+              - img [ref=e168]
+            - button "brand-help" [ref=e181] [cursor=pointer]:
+              - img [ref=e185]
+            - button "settings" [ref=e192] [cursor=pointer]:
+              - img [ref=e196]
+            - button "alert" [ref=e200]:
+              - button "alert" [ref=e201] [cursor=pointer]:
+                - img [ref=e205]
+          - button "push-left" [ref=e207] [cursor=pointer]:
+            - img [ref=e211]
+    - generic [ref=e510]:
+      - generic [ref=e515]:
+        - generic [ref=e521]:
+          - generic [ref=e523]: Fortify AI
+          - generic [ref=e524]: /
+          - generic [ref=e531]: Untitled
+        - generic [ref=e533]:
+          - generic [ref=e535]:
+            - button "link" [ref=e540] [cursor=pointer]:
+              - img [ref=e544]
+            - button "hor-ellipsis" [ref=e551] [cursor=pointer]:
+              - img [ref=e555]
+          - button "Save" [ref=e561]:
+            - generic [ref=e565]: Save
+      - generic [ref=e566]:
+        - generic [ref=e568]:
+          - generic [ref=e575]:
+            - tab "Query" [selected] [ref=e576] [cursor=pointer]:
+              - generic [ref=e577]: Query
+            - tab "Chart" [ref=e579] [cursor=pointer]:
+              - generic [ref=e580]: Chart
+            - tab "Annotations" [ref=e582] [cursor=pointer]:
+              - generic [ref=e583]: Annotations
+          - generic [ref=e593]:
+            - generic [ref=e595]:
+              - tab [ref=e596] [cursor=pointer]:
+                - img [ref=e600]
+              - tab [selected] [ref=e602] [cursor=pointer]:
+                - img [ref=e606]
+              - tab [ref=e608] [cursor=pointer]:
+                - img [ref=e612]
+              - tab [ref=e614] [cursor=pointer]:
+                - img [ref=e618]
+            - generic [ref=e626]:
+              - generic [ref=e628]: Metric
+              - generic [ref=e631]:
+                - generic [ref=e632]:
+                  - button "A" [ref=e633] [cursor=pointer]:
+                    - generic [ref=e636]:
+                      - generic [ref=e637]: A
+                      - img [ref=e639]
+                  - img [ref=e642]
+                  - button "New Definition" [ref=e650] [cursor=pointer]:
+                    - generic [ref=e654]: New Definition
+                - generic [ref=e655]:
+                  - generic [ref=e657]:
+                    - generic [ref=e660]:
+                      - button [ref=e661]:
+                        - img [ref=e663]
+                      - generic [ref=e665]:
+                        - img [ref=e667]
+                        - generic [ref=e669]: "1"
+                      - button "Select Step then" [ref=e675] [cursor=pointer]:
+                        - generic [ref=e679]: Select Step then
+                    - generic [ref=e682]:
+                      - button [ref=e683]:
+                        - img [ref=e685]
+                      - generic [ref=e687]:
+                        - img [ref=e689]
+                        - generic [ref=e691]: "2"
+                      - button "Select Step" [ref=e697] [cursor=pointer]:
+                        - generic [ref=e701]: Select Step
+                    - generic [ref=e702]:
+                      - generic [ref=e703]: Window
+                      - textbox [ref=e708]: "7"
+                      - button "days" [ref=e712] [cursor=pointer]:
+                        - generic "days" [ref=e717]:
+                          - generic [ref=e718]: days
+                          - img [ref=e720]
+                      - button "Advanced" [ref=e725] [cursor=pointer]:
+                        - generic "Advanced" [ref=e729]:
+                          - generic [ref=e730]: Advanced
+                          - img [ref=e732]
+                  - generic [ref=e735]:
+                    - button "%" [ref=e737] [cursor=pointer]:
+                      - generic [ref=e740]: "%"
+                    - button "User" [ref=e745] [cursor=pointer]:
+                      - generic "User" [ref=e749]:
+                        - generic [ref=e753]: User
+                        - img [ref=e755]
+                    - button "Conversion Rate" [ref=e761] [cursor=pointer]:
+                      - generic [ref=e764]:
+                        - generic [ref=e766]: Conversion Rate
+                        - img [ref=e768]
+                    - button "All Steps" [ref=e773] [cursor=pointer]:
+                      - generic "All Steps" [ref=e777]:
+                        - generic [ref=e778]: All Steps
+                        - img [ref=e780]
+            - button "Filter" [ref=e789] [cursor=pointer]:
+              - generic [ref=e792]:
+                - text: Filter
+                - img [ref=e795]
+            - button "Breakdown" [ref=e804] [cursor=pointer]:
+              - generic [ref=e807]:
+                - text: Breakdown
+                - img [ref=e810]
+          - generic [ref=e812]:
+            - button [ref=e813] [cursor=pointer]:
+              - img [ref=e818]
+            - button [ref=e820] [cursor=pointer]:
+              - img [ref=e825]
+        - generic [ref=e837]:
+          - generic [ref=e842]:
+            - generic [ref=e843]:
+              - radiogroup [ref=e847]:
+                - radio "Custom" [ref=e848]:
+                  - button "Custom" [ref=e849] [cursor=pointer]:
+                    - generic [ref=e851]:
+                      - img [ref=e853]
+                      - generic [ref=e857]: Custom
+                - radio "Today" [ref=e858]:
+                  - button "Today" [ref=e859] [cursor=pointer]:
+                    - generic [ref=e862]: Today
+                - radio "Yesterday" [ref=e863]:
+                  - button "Yesterday" [ref=e864] [cursor=pointer]:
+                    - generic [ref=e867]: Yesterday
+                - radio "7D" [ref=e868]:
+                  - button "7D" [ref=e869] [cursor=pointer]:
+                    - generic [ref=e872]: 7D
+                - radio "30D" [checked] [ref=e873]:
+                  - button "30D" [ref=e874] [cursor=pointer]:
+                    - generic [ref=e877]: 30D
+                - radio "3M" [ref=e878]:
+                  - button "3M" [ref=e879] [cursor=pointer]:
+                    - generic [ref=e882]: 3M
+                - radio "6M" [ref=e883]:
+                  - button "6M" [ref=e884] [cursor=pointer]:
+                    - generic [ref=e887]: 6M
+                - radio "12M" [ref=e888]:
+                  - button "12M" [ref=e889] [cursor=pointer]:
+                    - generic [ref=e892]: 12M
+              - button "Exclude" [ref=e896] [cursor=pointer]:
+                - generic "Exclude" [ref=e901]:
+                  - generic [ref=e905]: Exclude
+                  - img [ref=e907]
+              - button "Compare" [ref=e911] [cursor=pointer]:
+                - generic [ref=e916]:
+                  - generic [ref=e917]: Compare
+                  - img [ref=e919]
+            - generic [ref=e921]:
+              - button "settings" [ref=e926] [cursor=pointer]:
+                - img [ref=e931]
+              - button "Funnel Steps" [ref=e939] [cursor=pointer]:
+                - generic [ref=e942]:
+                  - img [ref=e944]
+                  - generic "Funnel Steps" [ref=e947]:
+                    - generic [ref=e948]: Funnel Steps
+                    - img [ref=e950]
+          - generic [ref=e960]:
+            - img [ref=e961]
+            - heading "Select two funnel steps to get started." [level=1] [ref=e962]
+            - generic [ref=e964]:
+              - text: Learn
+              - link "Funnels Basics" [ref=e965] [cursor=pointer]:
+                - /url: https://docs.mixpanel.com/docs/analysis/reports/funnels
+              - text: or explore
+              - link "Example Funnels Reports" [ref=e966] [cursor=pointer]:
+                - /url: https://mixpanel.com/p/PpNnEmndt8q4h893yFBrqn
+  - status [ref=e967]

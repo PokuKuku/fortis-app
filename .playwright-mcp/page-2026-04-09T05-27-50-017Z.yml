@@ -1,0 +1,203 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - generic [ref=e11]:
+      - generic [ref=e18] [cursor=pointer]:
+        - img [ref=e20]
+        - generic "Fortify AI" [ref=e22]:
+          - generic [ref=e23]: Fortify AI
+          - generic [ref=e24]: All Project Data
+        - img [ref=e26]
+      - button "Create New" [ref=e32] [cursor=pointer]:
+        - generic [ref=e34]:
+          - img [ref=e36]
+          - generic "Create New" [ref=e39]:
+            - generic [ref=e43]: Create New
+            - img [ref=e45]
+      - generic [ref=e49]:
+        - list [ref=e51]:
+          - listitem "Search" [ref=e53]:
+            - img [ref=e56]
+            - generic "Search" [ref=e61]
+            - generic [ref=e62]: ⌘ + K
+          - listitem "Home" [ref=e64]:
+            - link "Home" [ref=e65] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/home
+              - img [ref=e68]
+              - generic "Home" [ref=e72]
+        - list [ref=e74]:
+          - listitem "Data" [ref=e76]:
+            - img [ref=e79]
+            - generic "Data" [ref=e86]
+            - img [ref=e89] [cursor=pointer]
+          - listitem "Events" [ref=e92]:
+            - link "Events" [ref=e93] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/events
+              - generic "Events" [ref=e96]
+          - listitem "Users" [ref=e98]:
+            - link "Users" [ref=e99] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/users
+              - generic "Users" [ref=e102]
+          - listitem "Lexicon" [ref=e104]:
+            - link "Lexicon" [ref=e105] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/lexicon
+              - generic "Lexicon" [ref=e108]
+        - list [ref=e110]:
+          - listitem "Session Replay" [ref=e112]:
+            - link "Session Replay" [ref=e113] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/session-replay
+              - img [ref=e116]
+              - generic "Session Replay" [ref=e122]
+      - generic [ref=e129]:
+        - generic [ref=e130]:
+          - img [ref=e132]
+          - generic [ref=e134]: PINNED
+        - list [ref=e135]:
+          - listitem "🌱 Starter Board" [ref=e136]:
+            - link "🌱 Starter Board" [ref=e140] [cursor=pointer]:
+              - /url: /project/3978222/view/4473888/app/boards#id=10890773
+              - generic [ref=e143]: 🌱 Starter Board
+      - generic [ref=e145]:
+        - button "Upgrade Plan" [ref=e146] [cursor=pointer]:
+          - generic [ref=e148]:
+            - img [ref=e150]
+            - generic [ref=e157]: Upgrade Plan
+        - generic [ref=e158]:
+          - generic [ref=e160]:
+            - button "brand-applications" [ref=e164] [cursor=pointer]:
+              - img [ref=e168]
+            - button "brand-help" [ref=e181] [cursor=pointer]:
+              - img [ref=e185]
+            - button "settings" [ref=e192] [cursor=pointer]:
+              - img [ref=e196]
+            - button "alert" [ref=e200]:
+              - button "alert" [ref=e201] [cursor=pointer]:
+                - img [ref=e205]
+          - button "push-left" [ref=e207] [cursor=pointer]:
+            - img [ref=e211]
+    - generic [ref=e218]:
+      - generic [ref=e219]: Good Morning
+      - generic [ref=e222]:
+        - generic [ref=e224]: Your Product
+        - generic [ref=e225]:
+          - generic [ref=e228]:
+            - generic [ref=e230]:
+              - img [ref=e232]
+              - text: Add a report
+            - generic: Replace
+          - generic [ref=e237]:
+            - generic [ref=e239]:
+              - img [ref=e241]
+              - text: Add a report
+            - generic: Replace
+          - generic [ref=e246]:
+            - generic [ref=e248]:
+              - img [ref=e250]
+              - text: Add a report
+            - generic: Replace
+      - generic [ref=e253]:
+        - generic [ref=e254]:
+          - generic [ref=e256]: Top Boards
+          - generic [ref=e257]:
+            - list [ref=e262]:
+              - listitem "🌱 Starter Board" [ref=e264]:
+                - img [ref=e267]
+                - generic "🌱 Starter Board" [ref=e274]
+                - img [ref=e283]
+            - button "See All" [ref=e285] [cursor=pointer]:
+              - generic [ref=e289]: See All
+        - generic [ref=e290]:
+          - generic [ref=e292]: Suggested Creators
+          - generic [ref=e294]:
+            - img [ref=e297]
+            - generic [ref=e299]: No creators found. Invite your team.
+      - generic [ref=e300]:
+        - generic [ref=e301]:
+          - generic [ref=e303]: Recent Users
+          - generic [ref=e304]:
+            - generic [ref=e306]:
+              - img [ref=e309]
+              - generic [ref=e313]: No users seen in the last week
+            - button "View All Users" [ref=e314] [cursor=pointer]:
+              - generic [ref=e318]: View All Users
+        - generic [ref=e319]:
+          - generic [ref=e321]: New Events
+          - generic [ref=e322]:
+            - generic [ref=e325]:
+              - img [ref=e328]
+              - generic [ref=e331]: No events found. Finish implementing Mixpanel to see your events.
+            - button "View Events in Lexicon" [ref=e332] [cursor=pointer]:
+              - generic [ref=e336]: View Events in Lexicon
+      - generic [ref=e337]:
+        - generic [ref=e338]:
+          - generic [ref=e340]: Replays
+          - generic [ref=e343]:
+            - img [ref=e346]
+            - generic [ref=e350]:
+              - text: No replays found.
+              - link "Start sending replays" [ref=e351] [cursor=pointer]:
+                - /url: https://docs.mixpanel.com/docs/session-replay
+              - text: to see them here.
+        - generic [ref=e352]:
+          - generic [ref=e355]: Heat Maps
+          - generic [ref=e358]:
+            - img [ref=e361]
+            - generic [ref=e367]:
+              - text: No heatmaps or suggested heatmaps found.
+              - link "Start sending heatmaps" [ref=e368] [cursor=pointer]:
+                - /url: https://docs.mixpanel.com/docs/session-replay/heatmaps
+              - text: to see them here.
+      - generic [ref=e369]:
+        - generic [ref=e371]: Resources
+        - generic [ref=e372]:
+          - generic [ref=e373] [cursor=pointer]:
+            - img [ref=e376]
+            - generic [ref=e379]: Help Docs
+          - generic [ref=e380] [cursor=pointer]:
+            - img [ref=e383]
+            - generic [ref=e386]: Mixpanel Support
+          - generic [ref=e387] [cursor=pointer]:
+            - img [ref=e390]
+            - generic [ref=e395]: View Demo Project
+          - generic [ref=e396] [cursor=pointer]:
+            - img [ref=e399]
+            - generic [ref=e402]: Submit Feedback
+  - generic [ref=e408]:
+    - generic [ref=e409]:
+      - generic [ref=e411]: REPORT
+      - list [ref=e412]:
+        - listitem "Insights" [ref=e414] [cursor=pointer]:
+          - link "Insights" [ref=e415]:
+            - /url: /project/3978222/view/4473888/app/insights
+            - img [ref=e418]
+            - generic "Insights" [ref=e423]
+        - listitem "Funnels" [ref=e425]:
+          - link "Funnels" [ref=e426] [cursor=pointer]:
+            - /url: /project/3978222/view/4473888/app/funnels
+            - img [ref=e429]
+            - generic "Funnels" [ref=e435]
+        - listitem "Flows" [ref=e437]:
+          - link "Flows" [ref=e438] [cursor=pointer]:
+            - /url: /project/3978222/view/4473888/app/flows
+            - img [ref=e441]
+            - generic "Flows" [ref=e448]
+        - listitem "Retention" [ref=e450]:
+          - link "Retention" [ref=e451] [cursor=pointer]:
+            - /url: /project/3978222/view/4473888/app/retention
+            - img [ref=e454]
+            - generic "Retention" [ref=e463]
+    - generic [ref=e464]:
+      - generic [ref=e467]: ANALYSIS
+      - list [ref=e468]:
+        - listitem "Board" [ref=e470]:
+          - img [ref=e473]
+          - generic "Board" [ref=e480]
+        - listitem "Heatmap" [ref=e482]:
+          - link "Heatmap" [ref=e483] [cursor=pointer]:
+            - /url: /project/3978222/view/4473888/app/heatmaps
+            - img [ref=e486]
+            - generic "Heatmap" [ref=e492]
+        - listitem "Playlist" [ref=e494]:
+          - link "Playlist" [ref=e495] [cursor=pointer]:
+            - /url: /project/3978222/view/4473888/app/session-replay
+            - img [ref=e498]
+            - generic "Playlist" [ref=e504]

@@ -1,0 +1,19 @@
+- generic [active] [ref=e1]:
+  - link [ref=e3] [cursor=pointer]:
+    - /url: https://mixpanel.com
+    - img [ref=e4]
+  - img [ref=e5]
+  - generic [ref=e6]:
+    - heading "Page not found" [level=1] [ref=e7]
+    - heading "We’re thinking this isn’t the page you want..." [level=2] [ref=e8]
+    - paragraph [ref=e9]:
+      - text: "There is nothing at this URL. Try checking the address or go to:"
+      - generic [ref=e10]:
+        - link "Your Dashboard" [ref=e11] [cursor=pointer]:
+          - /url: /report
+        - text: ","
+      - link "Help Center" [ref=e12] [cursor=pointer]:
+        - /url: https://help.mixpanel.com
+      - text: ","
+      - link "Mixpanel Community" [ref=e13] [cursor=pointer]:
+        - /url: https://mixpanel.com/community-slack
