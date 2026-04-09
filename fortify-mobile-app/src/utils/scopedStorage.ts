@@ -8,7 +8,14 @@ export const getUserScopedKeySync = (baseKey: string, userId?: string | null): s
   return `${baseKey}:${userId ?? GUEST_USER_KEY}`;
 };
 
-export const getUserScopedKey = async (baseKey: string): Promise<string> => {
+export const getUserScopedKey = async (
+  baseKey: string,
+  userId?: string | null
+): Promise<string> => {
+  if (userId !== undefined) {
+    return getUserScopedKeySync(baseKey, userId);
+  }
+
   if (!isSupabaseConfigured()) {
     return getUserScopedKeySync(baseKey, null);
   }
@@ -28,8 +35,11 @@ export const getUserScopedKey = async (baseKey: string): Promise<string> => {
   }
 };
 
-export const getScopedItem = async (baseKey: string): Promise<string | null> => {
-  const scopedKey = await getUserScopedKey(baseKey);
+export const getScopedItem = async (
+  baseKey: string,
+  userId?: string | null
+): Promise<string | null> => {
+  const scopedKey = await getUserScopedKey(baseKey, userId);
   const entries = await AsyncStorage.multiGet([scopedKey, baseKey]);
   const scopedValue = entries[0]?.[1] ?? null;
   const legacyValue = entries[1]?.[1] ?? null;
@@ -45,13 +55,20 @@ export const getScopedItem = async (baseKey: string): Promise<string | null> => 
   return scopedValue ?? legacyValue;
 };
 
-export const setScopedItem = async (baseKey: string, value: string): Promise<void> => {
-  const scopedKey = await getUserScopedKey(baseKey);
+export const setScopedItem = async (
+  baseKey: string,
+  value: string,
+  userId?: string | null
+): Promise<void> => {
+  const scopedKey = await getUserScopedKey(baseKey, userId);
   await AsyncStorage.setItem(scopedKey, value);
 };
 
-export const removeScopedItem = async (baseKey: string): Promise<void> => {
-  const scopedKey = await getUserScopedKey(baseKey);
+export const removeScopedItem = async (
+  baseKey: string,
+  userId?: string | null
+): Promise<void> => {
+  const scopedKey = await getUserScopedKey(baseKey, userId);
   await AsyncStorage.multiRemove([scopedKey, baseKey]);
 };
 

@@ -16,6 +16,8 @@ import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
+import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
+import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTracker';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -58,6 +60,8 @@ function ThemedAppContent({
     <AuthProvider>
       <SuperwallAuthSync />
       <SuperwallPurchaseRecovery />
+      <MixpanelAuthSync />
+      <MixpanelRouteTracker />
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
         <DragDropProvider>

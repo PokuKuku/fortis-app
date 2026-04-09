@@ -7,7 +7,7 @@
  * - Refined input experience
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -39,7 +39,9 @@ import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
+import { AIWorkoutPreviewModal } from '@/src/components/ai/AIWorkoutPreviewModal';
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
+import { useProgramsStore } from '@/src/store/programsStore';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -202,8 +204,26 @@ export default function AIChatScreen() {
   const retryLastMessage = useAIStore((state) => state.retryLastMessage);
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
   const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
+  const markWorkoutTemplateSaved = useAIStore((state) => state.markWorkoutTemplateSaved);
+  const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
 
   const messages = conversation?.messages || [];
+  const [previewMessageId, setPreviewMessageId] = useState<string | null>(null);
+  const [savingWorkoutMessageId, setSavingWorkoutMessageId] = useState<string | null>(null);
+  const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
+
+  const previewMessage = useMemo(
+    () => messages.find((message) => message.id === previewMessageId) ?? null,
+    [messages, previewMessageId]
+  );
+  const currentWorkoutTemplateDraft = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.workoutTemplate) {
+        return messages[i].workoutTemplate;
+      }
+    }
+    return undefined;
+  }, [messages]);
 
   // Calculate remaining requests (most restrictive limit) for inline warning
   const remaining = rateLimitStatus
@@ -280,6 +300,8 @@ export default function AIChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     clearConversation();
     clearError();
+    setTemplateSaveError(null);
+    setPreviewMessageId(null);
     setInputText('');
     shouldAutoScrollRef.current = true;
     setTimeout(() => {
@@ -287,7 +309,7 @@ export default function AIChatScreen() {
     }, 50);
   };
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
     if (!inputText.trim() || isSendingMessage) return;
 
     const allowed = await requestAIDataSharingConsent();
@@ -299,10 +321,14 @@ export default function AIChatScreen() {
     const lastIntent = getLastIntent(messages);
     const intent =
       inferredIntent === 'GENERAL_CHAT' && lastIntent ? lastIntent : inferredIntent;
+    const requestContext = currentWorkoutTemplateDraft
+      ? { currentWorkoutTemplateDraft }
+      : undefined;
 
+    setTemplateSaveError(null);
     setInputText('');
-    await sendMessage(intent, message);
-  };
+    await sendMessage(intent, message, requestContext);
+  }, [currentWorkoutTemplateDraft, inputText, isSendingMessage, messages, sendMessage]);
 
   const handleQuickAction = (_intent: AIIntent, prompt: string) => {
     // Intent is always FORTIS_ANALYST now, but we keep the parameter
@@ -324,6 +350,60 @@ export default function AIChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await retryLastMessage();
   }, [retryLastMessage]);
+
+  const handleViewWorkoutTemplate = useCallback((message: AIConversationMessage) => {
+    if (!message.workoutTemplate) {
+      return;
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTemplateSaveError(null);
+    setPreviewMessageId(message.id);
+  }, []);
+
+  const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
+    if (!message.workoutTemplate || message.savedWorkoutTemplateId || savingWorkoutMessageId) {
+      return;
+    }
+
+    setTemplateSaveError(null);
+    setSavingWorkoutMessageId(message.id);
+
+    try {
+      const createdTemplateId = await createWorkoutTemplate(
+        message.workoutTemplate.name,
+        message.workoutTemplate.exercises.map((exercise) => ({
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          restSeconds: exercise.restSeconds,
+        })),
+        {
+          description: message.workoutTemplate.description,
+          isAiCreated: true,
+          aiSourceChatId: conversation?.id ?? null,
+          aiPayloadVersion: 'ai_workout_template_v1',
+        }
+      );
+
+      if (!createdTemplateId) {
+        throw new Error('Failed to add workout to your templates.');
+      }
+
+      await markWorkoutTemplateSaved(message.id, createdTemplateId);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (saveError) {
+      console.warn('Failed to save AI workout template:', saveError);
+      setTemplateSaveError(
+        saveError instanceof Error
+          ? saveError.message
+          : 'Failed to add workout to your templates.'
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setSavingWorkoutMessageId(null);
+    }
+  }, [conversation?.id, createWorkoutTemplate, markWorkoutTemplateSaved, savingWorkoutMessageId]);
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -384,9 +464,12 @@ export default function AIChatScreen() {
                 <ChatMessage
                   key={message.id}
                   message={message}
+                  isSavingWorkoutTemplate={savingWorkoutMessageId === message.id}
                   onClarificationSelect={(option) => {
                     setInputText(option);
                   }}
+                  onViewWorkoutTemplate={handleViewWorkoutTemplate}
+                  onAddWorkoutTemplate={handleAddWorkoutTemplate}
                 />
               ))}
 
@@ -433,6 +516,19 @@ export default function AIChatScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          {templateSaveError && (
+            <TouchableOpacity
+              style={styles.errorContainer}
+              onPress={() => setTemplateSaveError(null)}
+              activeOpacity={0.8}
+              accessibilityLabel="Dismiss workout save error"
+              accessibilityRole="button"
+            >
+              <Text style={styles.errorText}>{templateSaveError}</Text>
+              <Text style={[styles.errorHint, themedStyles.errorHint]}>Tap to dismiss</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
 
         {/* Input */}
@@ -443,6 +539,19 @@ export default function AIChatScreen() {
           disabled={isSendingMessage}
         />
       </KeyboardAvoidingView>
+
+      <AIWorkoutPreviewModal
+        visible={Boolean(previewMessage?.workoutTemplate)}
+        template={previewMessage?.workoutTemplate ?? null}
+        onClose={() => setPreviewMessageId(null)}
+        onAdd={() => {
+          if (previewMessage) {
+            void handleAddWorkoutTemplate(previewMessage);
+          }
+        }}
+        isAdding={previewMessage?.id === savingWorkoutMessageId}
+        isAdded={Boolean(previewMessage?.savedWorkoutTemplateId)}
+      />
       </SafeAreaView>
     </View>
   );

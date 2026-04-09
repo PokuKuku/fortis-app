@@ -740,6 +740,7 @@ export default function ProgramsScreen() {
   const pendingProgramSyncIds = useProgramsStore(s => s.pendingProgramSyncIds);
   const syncingProgramSyncIds = useProgramsStore(s => s.syncingProgramSyncIds);
   const isLoadingPrograms = useProgramsStore(s => s.isLoading);
+  const hasFetchedPrograms = useProgramsStore(s => s.hasFetchedPrograms);
   const fetchPrograms = useProgramsStore(s => s.fetchPrograms);
   const refreshPendingProgramSyncIds = useProgramsStore(s => s.refreshPendingProgramSyncIds);
   const deleteProgramFromStore = useProgramsStore(s => s.deleteProgram);
@@ -761,11 +762,11 @@ export default function ProgramsScreen() {
 
   const persistHomeCardOrder = useCallback(async (nextOrder: HomeCardOrderState) => {
     try {
-      await setScopedItem(HOME_CARD_ORDER_KEY, JSON.stringify(nextOrder));
+      await setScopedItem(HOME_CARD_ORDER_KEY, JSON.stringify(nextOrder), user?.id ?? null);
     } catch (error) {
       console.warn('Failed to persist home card order:', error);
     }
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!isAuthResolved) {
@@ -778,7 +779,7 @@ export default function ProgramsScreen() {
 
     const loadHomeCardOrder = async () => {
       try {
-        const raw = await getScopedItem(HOME_CARD_ORDER_KEY);
+        const raw = await getScopedItem(HOME_CARD_ORDER_KEY, user?.id ?? null);
         if (!isMounted) return;
         if (!raw) {
           setHomeCardOrder(EMPTY_HOME_CARD_ORDER);
@@ -873,7 +874,7 @@ export default function ProgramsScreen() {
   const workouts: WorkoutItem[] = templates;
 
   useEffect(() => {
-    if (!isHomeCardOrderLoaded) {
+    if (!isHomeCardOrderLoaded || !hasFetchedPrograms) {
       return;
     }
 
@@ -904,6 +905,7 @@ export default function ProgramsScreen() {
     baseTemplates,
     homeCardOrder.programIds,
     homeCardOrder.workoutIds,
+    hasFetchedPrograms,
     isHomeCardOrderLoaded,
     persistHomeCardOrder,
   ]);

@@ -15,7 +15,7 @@ import {
   Pressable,
   LayoutChangeEvent,
 } from 'react-native';
-import { EllipsisVerticalIcon, TrashIcon } from 'react-native-heroicons/outline';
+import { EllipsisVerticalIcon, InformationCircleIcon, TrashIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -24,12 +24,15 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 interface DeleteKebabMenuProps {
   /** Label shown on the delete option (e.g., "Delete Workout", "Delete Exercise") */
   deleteLabel?: string;
+  /** Optional handler for opening the details view */
+  onViewDetails?: () => void;
   /** Called when delete is confirmed */
   onDelete: () => void;
 }
 
 export function DeleteKebabMenu({
   deleteLabel = 'Delete',
+  onViewDetails,
   onDelete,
 }: DeleteKebabMenuProps) {
   const { colors, isDark } = useTheme();
@@ -44,6 +47,8 @@ export function DeleteKebabMenu({
       backgroundColor: isDark ? 'rgba(36, 36, 36, 0.95)' : 'rgba(255, 255, 255, 0.95)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
     },
+    optionText: { color: colors.textPrimary },
+    divider: { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)' },
   };
 
   const popoverScale = useRef(new Animated.Value(0)).current;
@@ -103,6 +108,12 @@ export function DeleteKebabMenu({
     handleClose();
   }, [onDelete, handleClose]);
 
+  const handleViewDetails = useCallback(() => {
+    if (!onViewDetails) return;
+    onViewDetails();
+    handleClose();
+  }, [handleClose, onViewDetails]);
+
   return (
     <>
       {/* Kebab Button */}
@@ -147,6 +158,15 @@ export function DeleteKebabMenu({
             },
           ]}
         >
+          {onViewDetails ? (
+            <>
+              <TouchableOpacity style={styles.option} onPress={handleViewDetails}>
+                <InformationCircleIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+                <Text style={[styles.optionText, themedStyles.optionText]}>View Details</Text>
+              </TouchableOpacity>
+              <View style={[styles.divider, themedStyles.divider]} />
+            </>
+          ) : null}
           <TouchableOpacity style={styles.option} onPress={handleDelete}>
             <TrashIcon color={Colors.error} size={18} strokeWidth={2} />
             <Text style={styles.deleteText}>{deleteLabel}</Text>
@@ -191,9 +211,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.md,
   },
+  optionText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
   deleteText: {
     fontSize: 14,
     fontWeight: '600',
     color: Colors.error,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginVertical: Spacing.xs,
   },
 });

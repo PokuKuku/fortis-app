@@ -107,12 +107,39 @@ interface AIRequest {
   context?: {
     insightId?: string;
     periodWeeks?: number;
+    currentWorkoutTemplateDraft?: AIWorkoutTemplate;
   };
   history?: Array<{
     role: 'user' | 'assistant';
     content: string;
   }>;
   image?: AIImage;
+}
+
+interface AIWorkoutTemplateExercise {
+  exerciseId: string;
+  exerciseName: string;
+  sets: number;
+  reps: string;
+  restSeconds?: number;
+  notes?: string;
+}
+
+interface AIWorkoutTemplate {
+  name: string;
+  description?: string;
+  focus?: string;
+  estimatedDurationMinutes?: number;
+  exercises: AIWorkoutTemplateExercise[];
+}
+
+interface WorkoutGenerationExerciseCatalogEntry {
+  id: string;
+  name: string;
+  primaryMuscles: string[];
+  equipment: string;
+  category: string;
+  aliases?: string[];
 }
 
 interface IntentConfig {
@@ -358,6 +385,11 @@ function validateRequest(body: unknown): string | null {
         return 'periodWeeks must be between 1 and 104';
       }
     }
+    if (ctx.currentWorkoutTemplateDraft !== undefined) {
+      if (!ctx.currentWorkoutTemplateDraft || typeof ctx.currentWorkoutTemplateDraft !== 'object' || Array.isArray(ctx.currentWorkoutTemplateDraft)) {
+        return 'currentWorkoutTemplateDraft must be an object';
+      }
+    }
   }
 
   // Validate image if present
@@ -489,6 +521,69 @@ interface AIContext {
   };
   history?: unknown;
   analytics?: unknown;
+  exerciseCatalog?: WorkoutGenerationExerciseCatalogEntry[];
+  currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+}
+
+const WORKOUT_REQUEST_REGEXES = [
+  /\b(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i,
+  /\b(give me|need|want|show me)\b[\s\S]{0,40}\b(workout|routine|session|template)\b/i,
+  /\b(full body|upper body|lower body|push|pull|legs|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40}\b(workout|routine|session)\b/i,
+];
+
+const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
+  { regex: /\bupper body\b/i, muscles: ['chest', 'lats', 'middle back', 'traps', 'shoulders', 'biceps', 'triceps'] },
+  { regex: /\blower body\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] },
+  { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'triceps'] },
+  { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'traps', 'biceps', 'forearms'] },
+  { regex: /\blegs?\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves'] },
+  { regex: /\bchest\b/i, muscles: ['chest'] },
+  { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'lower back', 'traps'] },
+  { regex: /\bshoulder(s)?\b/i, muscles: ['shoulders'] },
+  { regex: /\bbicep(s)?\b/i, muscles: ['biceps'] },
+  { regex: /\btricep(s)?\b/i, muscles: ['triceps'] },
+  { regex: /\barm(s)?\b/i, muscles: ['biceps', 'triceps', 'forearms'] },
+  { regex: /\bglute(s)?\b/i, muscles: ['glutes'] },
+  { regex: /\bhamstring(s)?\b/i, muscles: ['hamstrings'] },
+  { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps'] },
+  { regex: /\bcal(f|ves)\b/i, muscles: ['calves'] },
+  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'obliques'] },
+  { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'shoulders', 'quadriceps', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
+];
+
+const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
+  { regex: /\bdumbbell(s)?\b/i, equipment: 'dumbbell' },
+  { regex: /\bbarbell(s)?\b/i, equipment: 'barbell' },
+  { regex: /\bcable(s)?\b/i, equipment: 'cable' },
+  { regex: /\bmachine(s)?\b/i, equipment: 'machine' },
+  { regex: /\bkettlebell(s)?\b/i, equipment: 'kettlebell' },
+  { regex: /\bband(s)?\b|\bresistance band(s)?\b/i, equipment: 'band' },
+  { regex: /\bbodyweight\b|\bbody weight\b|\bno equipment\b/i, equipment: 'body weight' },
+];
+
+function shouldGenerateWorkoutTemplate(message: string): boolean {
+  const normalized = message.trim();
+  return WORKOUT_REQUEST_REGEXES.some((regex) => regex.test(normalized));
+}
+
+function extractWorkoutTargetMuscles(message: string): string[] {
+  const muscles = new Set<string>();
+  for (const entry of WORKOUT_TARGET_MUSCLE_MAP) {
+    if (entry.regex.test(message)) {
+      entry.muscles.forEach((muscle) => muscles.add(muscle));
+    }
+  }
+  return Array.from(muscles);
+}
+
+function extractWorkoutEquipment(message: string): string[] {
+  const equipment = new Set<string>();
+  for (const entry of WORKOUT_EQUIPMENT_MAP) {
+    if (entry.regex.test(message)) {
+      equipment.add(entry.equipment);
+    }
+  }
+  return Array.from(equipment);
 }
 
 async function assembleContext(
@@ -529,6 +624,7 @@ async function assembleContext(
       trainingExperience: typeof prefs.lifting_experience === 'string' ? prefs.lifting_experience : null,
       latestBodyWeight: latestWeight,
     },
+    currentWorkoutTemplateDraft: request.context?.currentWorkoutTemplateDraft,
   };
 
   if (request.context?.insightId) {
@@ -573,7 +669,105 @@ async function assembleContext(
 
   await Promise.all(fetchPromises);
 
+  if (shouldGenerateWorkoutTemplate(request.message) || request.context?.currentWorkoutTemplateDraft) {
+    context.exerciseCatalog = await withContextCache(
+      buildCacheKey(
+        'workout-catalog',
+        extractWorkoutTargetMuscles(request.message).join(','),
+        extractWorkoutEquipment(request.message).join(','),
+        request.context?.currentWorkoutTemplateDraft?.focus ?? 'none'
+      ),
+      () => fetchWorkoutExerciseCatalog(supabase, request.message)
+    );
+  }
+
   return context;
+}
+
+type WorkoutExerciseCatalogRow = {
+  id: string;
+  name: string;
+  primary_muscles: string[] | null;
+  equipment: string | null;
+  category: string | null;
+  aliases: string[] | null;
+  is_curated?: boolean | null;
+};
+
+async function fetchWorkoutExerciseCatalog(
+  supabase: SupabaseClient,
+  message: string
+): Promise<WorkoutGenerationExerciseCatalogEntry[]> {
+  const targetMuscles = extractWorkoutTargetMuscles(message);
+  const equipmentPreferences = extractWorkoutEquipment(message);
+  const catalog = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
+
+  const addRows = (rows: WorkoutExerciseCatalogRow[] | null | undefined) => {
+    rows?.forEach((row) => {
+      if (!row?.id || !row?.name || catalog.has(row.id)) {
+        return;
+      }
+      catalog.set(row.id, {
+        id: row.id,
+        name: row.name,
+        primaryMuscles: Array.isArray(row.primary_muscles) ? row.primary_muscles : [],
+        equipment: row.equipment || 'body weight',
+        category: row.category || 'strength',
+        aliases: Array.isArray(row.aliases) ? row.aliases : [],
+      });
+    });
+  };
+
+  const loadRows = async (options: {
+    muscles?: string[];
+    equipment?: string[];
+    limit: number;
+  }) => {
+    let query = supabase
+      .from('exercises')
+      .select('id, name, primary_muscles, equipment, category, aliases, is_curated')
+      .neq('is_hidden', true)
+      .neq('is_custom', true)
+      .order('is_curated', { ascending: false })
+      .order('name', { ascending: true })
+      .limit(options.limit);
+
+    if (options.muscles && options.muscles.length > 0) {
+      query = query.overlaps('primary_muscles', options.muscles);
+    }
+
+    if (options.equipment && options.equipment.length === 1) {
+      query = query.eq('equipment', options.equipment[0]);
+    } else if (options.equipment && options.equipment.length > 1) {
+      query = query.in('equipment', options.equipment);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn('[AI] Failed to fetch workout exercise catalog:', error.message);
+      return;
+    }
+
+    addRows(data as WorkoutExerciseCatalogRow[]);
+  };
+
+  if (targetMuscles.length > 0 && equipmentPreferences.length > 0) {
+    await loadRows({ muscles: targetMuscles, equipment: equipmentPreferences, limit: 80 });
+  }
+
+  if (catalog.size < 18 && targetMuscles.length > 0) {
+    await loadRows({ muscles: targetMuscles, limit: 80 });
+  }
+
+  if (catalog.size < 18 && equipmentPreferences.length > 0) {
+    await loadRows({ equipment: equipmentPreferences, limit: 80 });
+  }
+
+  if (catalog.size < 36) {
+    await loadRows({ limit: 100 });
+  }
+
+  return Array.from(catalog.values()).slice(0, 80);
 }
 
 async function fetchHistorySummary(
@@ -792,7 +986,11 @@ async function callAIProvider(
     temperature: 0.2,
   });
 
-  const parsed = parseModelResponse(responseText, requestId, request.intent);
+  const parsed = sanitizeWorkoutTemplateResponse(
+    parseModelResponse(responseText, requestId, request.intent),
+    request,
+    context
+  );
   if (shouldRetryInsightResponse(parsed, request.intent, context)) {
     console.warn('[AI] Insight response too short or missing sections; retrying with strict format', {
       requestId,
@@ -802,7 +1000,11 @@ async function callAIProvider(
       maxTokens: AI_MAX_TOKENS,
       temperature: 0.2,
     });
-    return parseModelResponse(retryText, requestId, request.intent);
+    return sanitizeWorkoutTemplateResponse(
+      parseModelResponse(retryText, requestId, request.intent),
+      request,
+      context
+    );
   }
 
   return parsed;
@@ -1204,6 +1406,22 @@ function buildAnswerPrompt(
   intent: AIIntent,
   options: { strictInsight?: boolean } = {}
 ): string {
+  const workoutTemplateGuidance = context.exerciseCatalog?.length
+    ? `
+- If the user is asking for a workout, include an "answer.workoutTemplate" object.
+- Use only exercise IDs from the EXERCISE CATALOG provided in the context.
+- Build exactly one single-session workout template, not a multi-day program.
+- Make the workout coherent: compounds before isolations, 4-8 exercises, sensible set/rep schemes, and realistic rest times.
+- Prefer exercises that match the requested body part, equipment, and experience level.
+- Do not invent exercise IDs, names, or equipment.
+- Do not include exercise notes.
+- Keep "answer.text" concise and refer to the generated workout naturally.
+- If CURRENT WORKOUT DRAFT is provided and the user's message is feedback or a requested change, revise that same draft instead of starting over.
+- When revising an existing draft, preserve untouched exercises and only change what the user asked for.
+- If the user is clearly asking for a brand-new workout, you may replace the current draft entirely.`
+    : `
+- If the user asks for a workout, you may provide a text outline only.`;
+
   if (intent === 'GENERAL_CHAT') {
     const basePrompt = `You are Fortis AI, a conversational training assistant for a strength training workout app.
 
@@ -1213,6 +1431,7 @@ CORE PRINCIPLES:
 - If the user asks for training analysis, explain that you can analyze their training data and ask what timeframe or goal they want.
 - Keep responses concise but helpful. Provide actionable guidance when relevant.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
+${workoutTemplateGuidance}
 
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
@@ -1227,7 +1446,22 @@ Respond with a JSON object:
   "type": "answer",
   "answer": {
     "text": "Your response here",
-    "citations": []
+    "citations": [],
+    "workoutTemplate": {
+      "name": "Optional workout name",
+      "description": "Optional short description",
+      "focus": "Optional focus",
+      "estimatedDurationMinutes": 50,
+      "exercises": [
+        {
+          "exerciseId": "catalog-id",
+          "exerciseName": "Catalog Exercise Name",
+          "sets": 3,
+          "reps": "8-12",
+          "restSeconds": 90
+        }
+      ]
+    }
   }
 }`;
   }
@@ -1276,6 +1510,7 @@ CORE PRINCIPLES:
 - Ask at most two short questions only when required to build a reasonable outline. Prioritize: goal/body part and days per week.
 - If details are missing, ask the questions first instead of guessing.
 - If you ask a follow-up question, keep it short and focused.
+${workoutTemplateGuidance}
 - End every answer with a TLDR line: "TLDR: ..." (1-2 short sentences, max 24 words, no emojis, no new facts or numbers, at most one action, no ellipses).
 - TLDR must be a compressed paraphrase (not a repeat of any full sentence above). It should summarize the key takeaway and/or next step in fewer words.
 - When you cite numbers, include units and show simple math to build credibility.
@@ -1309,7 +1544,22 @@ Respond with a JSON object:
         "id": "id-if-available",
         "context": "Brief why this citation is relevant"
       }
-    ]
+    ],
+    "workoutTemplate": {
+      "name": "Optional workout name",
+      "description": "Optional short description",
+      "focus": "Optional focus",
+      "estimatedDurationMinutes": 50,
+      "exercises": [
+        {
+          "exerciseId": "catalog-id",
+          "exerciseName": "Catalog Exercise Name",
+          "sets": 3,
+          "reps": "8-12",
+          "restSeconds": 90
+        }
+      ]
+    }
   }
 }`;
 }
@@ -1342,6 +1592,14 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
     if (context.analytics && !insightOnly) {
       message += `\n\n--- ANALYTICS ---\n${compactJson(context.analytics)}`;
     }
+  }
+
+  if (context.exerciseCatalog && context.exerciseCatalog.length > 0) {
+    message += `\n\n--- EXERCISE CATALOG ---\n${compactJson(context.exerciseCatalog)}`;
+  }
+
+  if (context.currentWorkoutTemplateDraft) {
+    message += `\n\n--- CURRENT WORKOUT DRAFT ---\n${compactJson(context.currentWorkoutTemplateDraft)}`;
   }
 
   return message;
@@ -1469,6 +1727,325 @@ function parseModelResponse(
       },
     };
   }
+}
+
+function normalizeCatalogLookupValue(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+function clampInteger(value: unknown, min: number, max: number, fallback: number): number {
+  const parsed = typeof value === 'number'
+    ? value
+    : typeof value === 'string'
+      ? Number.parseInt(value, 10)
+      : Number.NaN;
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function sanitizeShortText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim().replace(/\s+/g, ' ');
+  if (!trimmed) return undefined;
+  return trimmed.slice(0, maxLength);
+}
+
+function sanitizeReps(value: unknown): string {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(Math.max(1, Math.round(value)));
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim().replace(/\s+/g, ' ');
+    if (trimmed) {
+      return trimmed.slice(0, 24);
+    }
+  }
+  return '8-12';
+}
+
+function sanitizeWorkoutTemplate(
+  rawTemplate: unknown,
+  catalog: WorkoutGenerationExerciseCatalogEntry[]
+): AIWorkoutTemplate | null {
+  if (!rawTemplate || typeof rawTemplate !== 'object') {
+    return null;
+  }
+
+  const template = rawTemplate as {
+    name?: unknown;
+    description?: unknown;
+    focus?: unknown;
+    estimatedDurationMinutes?: unknown;
+    exercises?: unknown;
+  };
+
+  const catalogById = new Map(catalog.map((entry) => [entry.id, entry]));
+  const catalogByName = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
+
+  catalog.forEach((entry) => {
+    catalogByName.set(normalizeCatalogLookupValue(entry.name), entry);
+    entry.aliases?.forEach((alias) => {
+      const normalized = normalizeCatalogLookupValue(alias);
+      if (normalized) {
+        catalogByName.set(normalized, entry);
+      }
+    });
+  });
+
+  const rawExercises = Array.isArray(template.exercises) ? template.exercises : [];
+  const seenExerciseIds = new Set<string>();
+  const sanitizedExercises: AIWorkoutTemplateExercise[] = [];
+
+  rawExercises.forEach((rawExercise) => {
+    if (!rawExercise || typeof rawExercise !== 'object') {
+      return;
+    }
+
+    const exercise = rawExercise as {
+      exerciseId?: unknown;
+      exerciseName?: unknown;
+      sets?: unknown;
+      reps?: unknown;
+      restSeconds?: unknown;
+      notes?: unknown;
+    };
+
+    const requestedId = typeof exercise.exerciseId === 'string' ? exercise.exerciseId : '';
+    const requestedName = typeof exercise.exerciseName === 'string' ? exercise.exerciseName : '';
+    const catalogEntry = catalogById.get(requestedId)
+      ?? catalogByName.get(normalizeCatalogLookupValue(requestedName));
+
+    if (!catalogEntry || seenExerciseIds.has(catalogEntry.id)) {
+      return;
+    }
+
+    seenExerciseIds.add(catalogEntry.id);
+    sanitizedExercises.push({
+      exerciseId: catalogEntry.id,
+      exerciseName: toWorkoutTitleCase(catalogEntry.name),
+      sets: clampInteger(exercise.sets, 2, 6, 3),
+      reps: sanitizeReps(exercise.reps),
+      restSeconds: clampInteger(exercise.restSeconds, 30, 240, 90),
+    });
+  });
+
+  if (sanitizedExercises.length < 3) {
+    return null;
+  }
+
+  return {
+    name: sanitizeShortText(template.name, 80) ?? 'AI Workout',
+    description: sanitizeShortText(template.description, 180),
+    focus: sanitizeShortText(template.focus, 80),
+    estimatedDurationMinutes: clampInteger(template.estimatedDurationMinutes, 15, 120, 45),
+    exercises: sanitizedExercises.slice(0, 8),
+  };
+}
+
+function sanitizeWorkoutTemplateResponse(
+  response: unknown,
+  request: AIRequest,
+  context: AIContext
+): unknown {
+  if (!context.exerciseCatalog?.length || !response || typeof response !== 'object') {
+    return response;
+  }
+
+  const record = response as {
+    type?: unknown;
+    answer?: {
+      text?: unknown;
+      citations?: unknown;
+      workoutTemplate?: unknown;
+    };
+  };
+
+  if (record.type !== 'answer' || !record.answer) {
+    return response;
+  }
+
+  const sanitizedTemplate = sanitizeWorkoutTemplate(
+    record.answer.workoutTemplate,
+    context.exerciseCatalog
+  );
+
+  if (!sanitizedTemplate && shouldGenerateWorkoutTemplate(request.message)) {
+    const fallbackTemplate = buildFallbackWorkoutTemplate(request.message, context);
+    if (fallbackTemplate) {
+      return {
+        ...record,
+        answer: {
+          ...record.answer,
+          workoutTemplate: fallbackTemplate,
+        },
+      };
+    }
+  }
+
+  if (!sanitizedTemplate) {
+    const { workoutTemplate: _ignored, ...restAnswer } = record.answer;
+    return {
+      ...record,
+      answer: restAnswer,
+    };
+  }
+
+  return {
+    ...record,
+    answer: {
+      ...record.answer,
+      workoutTemplate: sanitizedTemplate,
+    },
+  };
+}
+
+function isCompoundExerciseName(name: string): boolean {
+  return /\b(bench|press|row|pulldown|pull-up|chin-up|dip|squat|deadlift|rdl|lunge|leg press|hip thrust|hack squat)\b/i.test(name);
+}
+
+function isIsolationExerciseName(name: string): boolean {
+  return /\b(curl|extension|fly|raise|pushdown|kickback|pullover|crunch|calf)\b/i.test(name);
+}
+
+function toWorkoutTitleCase(value: string): string {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function inferWorkoutFocusLabel(message: string): string {
+  const normalized = message.toLowerCase();
+  if (/\bpush\b/.test(normalized)) return 'Push';
+  if (/\bpull\b/.test(normalized)) return 'Pull';
+  if (/\blegs?\b|\blower body\b/.test(normalized)) return 'Lower Body';
+  if (/\bupper body\b/.test(normalized)) return 'Upper Body';
+  if (/\bfull body\b/.test(normalized)) return 'Full Body';
+  if (/\bchest\b/.test(normalized)) return 'Chest';
+  if (/\bback\b/.test(normalized)) return 'Back';
+  if (/\bshoulder(s)?\b/.test(normalized)) return 'Shoulders';
+  if (/\barm(s)?\b/.test(normalized)) return 'Arms';
+  if (/\bglute(s)?\b/.test(normalized)) return 'Glutes';
+  return 'Strength';
+}
+
+function scoreCatalogExercise(
+  entry: WorkoutGenerationExerciseCatalogEntry,
+  targetMuscles: string[],
+  equipmentPreferences: string[]
+): number {
+  let score = 0;
+  const entryName = entry.name.toLowerCase();
+  const muscles = entry.primaryMuscles.map((muscle) => muscle.toLowerCase());
+
+  targetMuscles.forEach((muscle) => {
+    if (muscles.includes(muscle.toLowerCase())) {
+      score += 5;
+    }
+  });
+
+  if (equipmentPreferences.length > 0 && equipmentPreferences.includes(entry.equipment.toLowerCase())) {
+    score += 3;
+  }
+
+  if (isCompoundExerciseName(entry.name)) {
+    score += 2;
+  }
+
+  if (/\bmachine\b/.test(entry.equipment.toLowerCase())) {
+    score += 0.5;
+  }
+
+  if (/\bsmith\b/.test(entryName)) {
+    score -= 0.5;
+  }
+
+  return score;
+}
+
+function buildFallbackWorkoutTemplate(
+  message: string,
+  context: AIContext
+): AIWorkoutTemplate | null {
+  const catalog = context.exerciseCatalog ?? [];
+  if (catalog.length === 0) {
+    return null;
+  }
+
+  const targetMuscles = extractWorkoutTargetMuscles(message);
+  const equipmentPreferences = extractWorkoutEquipment(message).map((item) => item.toLowerCase());
+  const focus = inferWorkoutFocusLabel(message);
+  const ranked = [...catalog]
+    .map((entry) => ({
+      entry,
+      score: scoreCatalogExercise(entry, targetMuscles, equipmentPreferences),
+    }))
+    .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+
+  const selected: WorkoutGenerationExerciseCatalogEntry[] = [];
+  const seenIds = new Set<string>();
+  let compoundCount = 0;
+
+  for (const { entry } of ranked) {
+    if (seenIds.has(entry.id)) {
+      continue;
+    }
+
+    const compound = isCompoundExerciseName(entry.name);
+    if (selected.length < 2 && !compound && ranked.some((item) => isCompoundExerciseName(item.entry.name))) {
+      continue;
+    }
+
+    if (selected.length >= 6) {
+      break;
+    }
+
+    selected.push(entry);
+    seenIds.add(entry.id);
+    if (compound) {
+      compoundCount += 1;
+    }
+  }
+
+  if (selected.length < 4) {
+    return null;
+  }
+
+  const exercises = selected.map((entry, index) => {
+    const compound = isCompoundExerciseName(entry.name);
+    const sets = compound ? (index < 2 ? 4 : 3) : 3;
+    const reps = compound
+      ? (focus === 'Strength' ? '5-8' : '6-10')
+      : '10-15';
+    const restSeconds = compound ? 90 : 60;
+
+    return {
+      exerciseId: entry.id,
+      exerciseName: toWorkoutTitleCase(entry.name),
+      sets,
+      reps,
+      restSeconds,
+      notes: compoundCount >= 2 && !compound && isIsolationExerciseName(entry.name)
+        ? 'Control the eccentric and avoid rushing the reps.'
+        : undefined,
+    };
+  });
+
+  const name = `${toWorkoutTitleCase(focus)} Workout`;
+  const primaryMuscleSummary = targetMuscles.length > 0
+    ? targetMuscles.slice(0, 3).map((muscle) => toWorkoutTitleCase(muscle)).join(', ')
+    : 'balanced strength work';
+
+  return {
+    name,
+    description: `A ${focus.toLowerCase()} session built from your in-app exercise library, focused on ${primaryMuscleSummary}.`,
+    focus,
+    estimatedDurationMinutes: exercises.length >= 6 ? 60 : 45,
+    exercises,
+  };
 }
 
 function formatAnswerText(text: string, intent: AIIntent): string {

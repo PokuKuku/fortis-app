@@ -316,6 +316,7 @@ export default function WorkoutDetailScreen() {
                   canEditTemplate ? (
                     <DeleteKebabMenu
                       deleteLabel="Delete Exercise"
+                      onViewDetails={() => handleExercisePress(exercise.exerciseId)}
                       onDelete={() => handleDeleteExercise(exercise.id, exercise.exerciseName)}
                     />
                   ) : undefined

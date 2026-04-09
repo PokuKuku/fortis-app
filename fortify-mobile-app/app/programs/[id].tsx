@@ -141,10 +141,11 @@ function WorkoutSection({
               exerciseName={exercise.exerciseName}
               primaryMuscles={exercise.primaryMuscles}
               images={exercise.images}
-              onPress={() => onExercisePress(exercise.exerciseId)}
+                onPress={() => onExercisePress(exercise.exerciseId)}
                 rightAction={
                   <DeleteKebabMenu
                     deleteLabel="Delete Exercise"
+                    onViewDetails={() => onExercisePress(exercise.exerciseId)}
                     onDelete={() => onDeleteExercise(workout.id, exercise.id, exercise.exerciseName)}
                   />
                 }

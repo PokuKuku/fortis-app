@@ -29,6 +29,8 @@ const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
 const UPDATE_TIMEOUT_MS = 5000;
 const LOADING_FAILSAFE_MS = LOADING_DURATION_MS + 1000;
 const TYPEWRITER_INTERVAL_MS = 36;
+const READY_NAME_TYPEWRITER_MS = 165;
+const READY_TITLE_TYPEWRITER_MS = 72;
 const LOADING_TITLE_TYPEWRITER_MS = 50;
 const TYPEWRITER_HAPTIC_EVERY_N_CHARS = 3;
 const NUMBER_HAPTIC_STEP_PCT = 5;
@@ -114,6 +116,13 @@ const OTHER_APP_LABELS: Record<string, string> = {
   never: 'Never tried others',
 };
 
+const getPreferredFirstName = (fullName?: string | null) => {
+  const trimmed = fullName?.trim();
+  if (!trimmed) return null;
+  const [firstName] = trimmed.split(/\s+/);
+  return firstName || null;
+};
+
 export default function OnboardingCompleteScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
@@ -135,6 +144,7 @@ export default function OnboardingCompleteScreen() {
   const [showSummary, setShowSummary] = useState(false);
   const [typedStatusLine, setTypedStatusLine] = useState('');
   const [typedLoadingTitle, setTypedLoadingTitle] = useState('');
+  const [typedReadyName, setTypedReadyName] = useState('');
   const [typedReadyTitle, setTypedReadyTitle] = useState('');
   const [typedReadySubtitle, setTypedReadySubtitle] = useState('');
   const typewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -159,8 +169,14 @@ export default function OnboardingCompleteScreen() {
     return LOADING_STEPS[Math.min(activeStepIndex, LOADING_STEPS.length - 1)]?.label ?? 'Finalizing setup…';
   }, [activeStepIndex]);
 
+  const preferredFirstName = useMemo(
+    () => getPreferredFirstName(onboardingState?.full_name ?? profile?.full_name),
+    [onboardingState?.full_name, profile?.full_name]
+  );
+
   const loadingTitleLine = 'We’re setting everything up for you';
-  const readyTitleLine = 'You’re ready to go';
+  const readyNameLine = preferredFirstName ?? '';
+  const readyTitleLine = 'You’re ready to go...';
   const readySubtitleLine = isSaving
     ? 'Starting…'
     : isAuthenticated
@@ -397,14 +413,17 @@ export default function OnboardingCompleteScreen() {
     }
 
     if (phase !== 'ready') {
+      setTypedReadyName(readyNameLine);
       setTypedReadyTitle(readyTitleLine);
       setTypedReadySubtitle(readySubtitleLine);
       return;
     }
 
     let isCancelled = false;
+    let nameIndex = 0;
     let titleIndex = 0;
     let subtitleIndex = 0;
+    setTypedReadyName('');
     setTypedReadyTitle('');
     setTypedReadySubtitle('');
 
@@ -424,13 +443,28 @@ export default function OnboardingCompleteScreen() {
       setTypedReadyTitle(readyTitleLine.slice(0, titleIndex));
       triggerTypewriterHaptic(titleIndex, readyTitleLine);
       if (titleIndex < readyTitleLine.length) {
-        readyTypeTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
+        readyTypeTimeoutRef.current = setTimeout(typeTitle, READY_TITLE_TYPEWRITER_MS);
         return;
       }
       readyTypeTimeoutRef.current = setTimeout(typeSubtitle, TYPEWRITER_INTERVAL_MS);
     };
 
-    readyTypeTimeoutRef.current = setTimeout(typeTitle, TYPEWRITER_INTERVAL_MS);
+    const typeName = () => {
+      if (isCancelled) return;
+      nameIndex += 1;
+      setTypedReadyName(readyNameLine.slice(0, nameIndex));
+      triggerTypewriterHaptic(nameIndex, readyNameLine);
+      if (nameIndex < readyNameLine.length) {
+        readyTypeTimeoutRef.current = setTimeout(typeName, READY_NAME_TYPEWRITER_MS);
+        return;
+      }
+      readyTypeTimeoutRef.current = setTimeout(typeTitle, READY_TITLE_TYPEWRITER_MS);
+    };
+
+    readyTypeTimeoutRef.current = setTimeout(
+      readyNameLine ? typeName : typeTitle,
+      readyNameLine ? READY_NAME_TYPEWRITER_MS : READY_TITLE_TYPEWRITER_MS
+    );
 
     return () => {
       isCancelled = true;
@@ -439,7 +473,7 @@ export default function OnboardingCompleteScreen() {
         readyTypeTimeoutRef.current = null;
       }
     };
-  }, [phase, readySubtitleLine, readyTitleLine]);
+  }, [phase, readyNameLine, readySubtitleLine, readyTitleLine]);
 
   const summaryName = useMemo(() => {
     const name = onboardingState?.full_name?.trim();
@@ -821,13 +855,34 @@ export default function OnboardingCompleteScreen() {
     >
       <View style={styles.page}>
         <View style={styles.headerBlock}>
-          <Text style={[styles.percentText, { color: colors.textPrimary }]}>
+          <Text allowFontScaling={false} style={[styles.percentText, { color: colors.textPrimary }]}>
             {phase === 'loading' ? `${progressPct}%` : '100%'}
           </Text>
-          <Text style={[styles.titleText, { color: colors.textPrimary }]}>
+          {phase === 'ready' && typedReadyName ? (
+            <Text
+              allowFontScaling={false}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              numberOfLines={1}
+              style={[styles.nameText, { color: colors.textPrimary }]}
+            >
+              {typedReadyName}
+            </Text>
+          ) : null}
+          <Text
+            allowFontScaling={false}
+            adjustsFontSizeToFit
+            minimumFontScale={0.78}
+            numberOfLines={2}
+            style={[styles.titleText, { color: colors.textPrimary }]}
+          >
             {phase === 'loading' ? typedLoadingTitle : typedReadyTitle}
           </Text>
-          <Text style={[styles.statusText, { color: colors.textSecondary }]}>
+          <Text
+            allowFontScaling={false}
+            numberOfLines={2}
+            style={[styles.statusText, { color: colors.textSecondary }]}
+          >
             {phase === 'loading'
               ? typedStatusLine
               : isSaving
@@ -975,6 +1030,12 @@ const styles = StyleSheet.create({
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 22,
     letterSpacing: 0.2,
+    textAlign: 'center',
+  },
+  nameText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 28,
+    letterSpacing: 0.3,
     textAlign: 'center',
   },
   statusText: {

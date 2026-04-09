@@ -23,6 +23,7 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography, FontFamily } from '@/constants/Typography';
 import { AIConversationMessage } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
@@ -30,12 +31,18 @@ interface ChatMessageProps {
   delay?: number;
   /** Callback when user taps a clarification option */
   onClarificationSelect?: (option: string) => void;
+  onViewWorkoutTemplate?: (message: AIConversationMessage) => void;
+  onAddWorkoutTemplate?: (message: AIConversationMessage) => void;
+  isSavingWorkoutTemplate?: boolean;
 }
 
 export function ChatMessage({
   message,
   delay = 0,
   onClarificationSelect,
+  onViewWorkoutTemplate,
+  onAddWorkoutTemplate,
+  isSavingWorkoutTemplate = false,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
@@ -212,6 +219,16 @@ export function ChatMessage({
             <Text style={[styles.tldrLabel, themedStyles.tldrLabel]}>TLDR</Text>
             <Text style={[styles.tldrText, themedStyles.tldrText]}>{tldr}</Text>
           </View>
+        )}
+
+        {!isUser && message.workoutTemplate && (
+          <ChatWorkoutTemplateCard
+            template={message.workoutTemplate}
+            onView={() => onViewWorkoutTemplate?.(message)}
+            onAdd={() => onAddWorkoutTemplate?.(message)}
+            isAdding={isSavingWorkoutTemplate}
+            isAdded={Boolean(message.savedWorkoutTemplateId)}
+          />
         )}
 
         {!isUser && mainContent.length > 0 && (

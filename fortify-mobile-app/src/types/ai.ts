@@ -18,6 +18,7 @@ export type AIIntent = typeof ALL_INTENTS[number];
 export interface AIRequestContext {
   insightId?: string;
   periodWeeks?: number;
+  currentWorkoutTemplateDraft?: AIWorkoutTemplate;
 }
 
 export interface AIChatMessage {
@@ -43,6 +44,7 @@ export interface AIResponse {
 export interface AIAnswer {
   text: string;
   citations?: AICitation[];
+  workoutTemplate?: AIWorkoutTemplate;
 }
 
 export interface AICitation {
@@ -76,6 +78,23 @@ export interface AIClarification {
   options?: string[];
 }
 
+export interface AIWorkoutTemplateExercise {
+  exerciseId: string;
+  exerciseName: string;
+  sets: number;
+  reps: string;
+  restSeconds?: number;
+  notes?: string;
+}
+
+export interface AIWorkoutTemplate {
+  name: string;
+  description?: string;
+  focus?: string;
+  estimatedDurationMinutes?: number;
+  exercises: AIWorkoutTemplateExercise[];
+}
+
 // ============================================
 // Conversation Types
 // ============================================
@@ -87,6 +106,8 @@ export interface AIConversationMessage {
   intent?: AIIntent;
   createdAt: string;
   clarification?: AIClarification;
+  workoutTemplate?: AIWorkoutTemplate;
+  savedWorkoutTemplateId?: string | null;
 }
 
 export interface AIConversation {

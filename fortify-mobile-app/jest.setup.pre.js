@@ -52,5 +52,12 @@ jest.mock('mixpanel-react-native', () => ({
   Mixpanel: jest.fn().mockImplementation(() => ({
     init: jest.fn().mockResolvedValue(undefined),
     track: jest.fn(),
+    identify: jest.fn().mockResolvedValue(undefined),
+    clearSuperProperties: jest.fn(),
+    registerSuperProperties: jest.fn(),
+    reset: jest.fn(),
+    getPeople: jest.fn(() => ({
+      set: jest.fn(),
+    })),
   })),
 }));

@@ -87,6 +87,7 @@ interface AIState {
   checkRateLimits: () => Promise<void>;
   loadConversation: () => Promise<void>;
   persistConversation: () => Promise<void>;
+  markWorkoutTemplateSaved: (messageId: string, templateId: string) => Promise<void>;
   clearConversation: () => void;
   clearError: () => void;
   resetStore: () => void;
@@ -155,6 +156,8 @@ export const useAIStore = create<AIState>()(
           intent,
           createdAt: new Date().toISOString(),
           clarification: response.type === 'clarification' ? response.clarification : undefined,
+          workoutTemplate: response.type === 'answer' ? response.answer?.workoutTemplate : undefined,
+          savedWorkoutTemplateId: null,
         };
 
         const finalConversation: AIConversation = {
@@ -267,6 +270,25 @@ export const useAIStore = create<AIState>()(
           console.error('Error persisting conversation:', err);
         }
       }
+    },
+
+    markWorkoutTemplateSaved: async (messageId, templateId) => {
+      const { conversation, persistConversation } = get();
+      if (!conversation) {
+        return;
+      }
+
+      const nextConversation: AIConversation = {
+        ...conversation,
+        messages: conversation.messages.map((message) => (
+          message.id === messageId
+            ? { ...message, savedWorkoutTemplateId: templateId }
+            : message
+        )),
+      };
+
+      set({ conversation: nextConversation });
+      await persistConversation();
     },
 
     clearConversation: () => {
