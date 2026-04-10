@@ -73,9 +73,15 @@ export type AIErrorCode =
   | 'INTERNAL_ERROR'
   | 'ACTIVE_WORKOUT_BLOCKED';
 
+export interface AIClarificationOption {
+  label: string;
+  exerciseId?: string;
+}
+
 export interface AIClarification {
   question: string;
-  options?: string[];
+  options?: Array<string | AIClarificationOption>;
+  workoutTemplate?: AIWorkoutTemplate;
 }
 
 export interface AIWorkoutTemplateExercise {

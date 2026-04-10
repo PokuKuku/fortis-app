@@ -239,34 +239,41 @@ async function transcribeAudio(request: WorkoutVoiceRequest): Promise<string> {
     throw new Error('Recording is too large. Please keep it shorter.');
   }
   const file = new Blob([bytes], { type: request.mimeType });
-  const formData = new FormData();
-  formData.append('file', file, request.fileName);
-  formData.append(
-    'model',
-    Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe'
-  );
+  const configuredModel = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe';
+  const modelCandidates = Array.from(new Set([configuredModel, 'whisper-1']));
+  let lastError: Error | null = null;
 
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: formData,
-  });
+  for (const model of modelCandidates) {
+    const formData = new FormData();
+    formData.append('file', file, request.fileName);
+    formData.append('model', model);
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    console.error('[workout-voice-log] transcription failed', errorText);
-    throw new Error('Unable to transcribe that recording right now.');
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn('[workout-voice-log] transcription attempt failed', { model, errorText });
+      lastError = new Error('Unable to transcribe that recording right now.');
+      continue;
+    }
+
+    const data = await response.json();
+    const text = typeof data?.text === 'string' ? data.text.trim() : '';
+    if (!text) {
+      lastError = new Error('The recording did not contain a usable workout entry.');
+      continue;
+    }
+
+    return text;
   }
 
-  const data = await response.json();
-  const text = typeof data?.text === 'string' ? data.text.trim() : '';
-  if (!text) {
-    throw new Error('The recording did not contain a usable workout entry.');
-  }
-
-  return text;
+  throw lastError ?? new Error('Unable to transcribe that recording right now.');
 }
 
 async function interpretTranscriptWithModel(

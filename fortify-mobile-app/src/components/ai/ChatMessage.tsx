@@ -13,6 +13,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { formatDistanceToNow } from 'date-fns';
 import ReAnimated, { FadeIn } from 'react-native-reanimated';
@@ -21,19 +22,24 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography, FontFamily } from '@/constants/Typography';
-import { AIConversationMessage } from '@/src/types/ai';
+import { AIClarificationOption, AIConversationMessage } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
   /** Animation delay for staggered entrance */
   delay?: number;
   /** Callback when user taps a clarification option */
-  onClarificationSelect?: (option: string) => void;
+  onClarificationSelect?: (option: string | AIClarificationOption) => void;
   onViewWorkoutTemplate?: (message: AIConversationMessage) => void;
   onAddWorkoutTemplate?: (message: AIConversationMessage) => void;
+  onStartWorkoutTemplate?: (message: AIConversationMessage) => void;
   isSavingWorkoutTemplate?: boolean;
+  isStartingWorkoutTemplate?: boolean;
+  isStartWorkoutTemplateDisabled?: boolean;
 }
 
 export function ChatMessage({
@@ -42,14 +48,19 @@ export function ChatMessage({
   onClarificationSelect,
   onViewWorkoutTemplate,
   onAddWorkoutTemplate,
+  onStartWorkoutTemplate,
   isSavingWorkoutTemplate = false,
+  isStartingWorkoutTemplate = false,
+  isStartWorkoutTemplateDisabled = false,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
   const allowTldr = message.intent !== 'GENERAL_CHAT';
+  const { exercisesById } = useExerciseLookup();
   const { mainContent, tldr } = !isUser
     ? splitTldrFromContent(message.content, allowTldr)
     : { mainContent: message.content, tldr: null };
+  const clarificationQuestion = message.clarification?.question?.trim() || null;
   const clarificationOptions = message.clarification?.options ?? [];
   const shouldShowTldr = allowTldr && !isUser && tldr && shouldDisplayTldr(mainContent);
 
@@ -66,6 +77,17 @@ export function ChatMessage({
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
     },
     clarificationOptionText: { color: colors.textSecondary },
+    clarificationOptionMeta: { color: colors.textTertiary },
+    clarificationOptionImageFallback: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    clarificationOptionImageFallbackText: { color: colors.textPrimary },
+    clarificationCallout: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+    },
+    clarificationCalloutLabel: { color: colors.textSecondary },
+    clarificationCalloutText: { color: colors.textPrimary },
     tldrContainer: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.12)',
@@ -226,8 +248,11 @@ export function ChatMessage({
             template={message.workoutTemplate}
             onView={() => onViewWorkoutTemplate?.(message)}
             onAdd={() => onAddWorkoutTemplate?.(message)}
+            onStart={() => onStartWorkoutTemplate?.(message)}
             isAdding={isSavingWorkoutTemplate}
             isAdded={Boolean(message.savedWorkoutTemplateId)}
+            isStarting={isStartingWorkoutTemplate}
+            isStartDisabled={isStartWorkoutTemplateDisabled}
           />
         )}
 
@@ -245,20 +270,81 @@ export function ChatMessage({
 
         {clarificationOptions.length > 0 && (
           <View style={styles.clarificationOptions}>
+            <View style={[styles.clarificationCallout, themedStyles.clarificationCallout]}>
+              <Text style={[styles.clarificationCalloutText, themedStyles.clarificationCalloutText]}>
+                {clarificationQuestion ?? 'I need you to confirm which option you want before I update the workout.'}
+              </Text>
+            </View>
             {clarificationOptions.map((option) => (
-              <TouchableOpacity
-                key={option}
-                style={[styles.clarificationOption, themedStyles.clarificationOption]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  onClarificationSelect?.(option);
-                }}
-                activeOpacity={0.7}
-                accessibilityLabel={`Select option: ${option}`}
-                accessibilityRole="button"
-              >
-                <Text style={[styles.clarificationOptionText, themedStyles.clarificationOptionText]}>{option}</Text>
-              </TouchableOpacity>
+              (() => {
+                const optionLabel = typeof option === 'string' ? option : option.label;
+                const optionExerciseId = typeof option === 'string' ? undefined : option.exerciseId;
+                const optionExercise = optionExerciseId ? exercisesById.get(optionExerciseId) : undefined;
+                const optionExerciseImagePath =
+                  optionExercise && 'images' in optionExercise && Array.isArray(optionExercise.images)
+                    ? optionExercise.images[0]
+                    : undefined;
+                const imageSource = getCachedExerciseImageSource(optionExerciseImagePath);
+                const fallbackCharacter = optionExercise?.name?.charAt(0) ?? optionLabel.charAt(0);
+
+                return (
+                  <TouchableOpacity
+                    key={optionLabel}
+                    style={[styles.clarificationOption, themedStyles.clarificationOption]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      onClarificationSelect?.(option);
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityLabel={`Select option: ${optionLabel}`}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.clarificationOptionContent}>
+                      <View style={styles.clarificationOptionImageWrap}>
+                        {imageSource ? (
+                          <Image
+                            source={imageSource}
+                            style={styles.clarificationOptionImage}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              styles.clarificationOptionImageFallback,
+                              themedStyles.clarificationOptionImageFallback,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.clarificationOptionImageFallbackText,
+                                themedStyles.clarificationOptionImageFallbackText,
+                              ]}
+                            >
+                              {fallbackCharacter.toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.clarificationOptionCopy}>
+                        <Text
+                          style={[styles.clarificationOptionText, themedStyles.clarificationOptionText]}
+                          numberOfLines={2}
+                        >
+                          {optionLabel}
+                        </Text>
+                        {optionExercise ? (
+                          <Text
+                            style={[styles.clarificationOptionMeta, themedStyles.clarificationOptionMeta]}
+                            numberOfLines={1}
+                          >
+                            {optionExercise.name}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })()
             ))}
           </View>
         )}
@@ -546,22 +632,64 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
   },
   clarificationOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
+    gap: Spacing.sm,
     marginTop: Spacing.md,
+  },
+  clarificationCallout: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  clarificationCalloutText: {
+    ...Typography.body,
+    lineHeight: 20,
   },
   clarificationOption: {
     borderRadius: BorderRadius.md,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    padding: Spacing.sm,
+  },
+  clarificationOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  clarificationOptionImageWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  clarificationOptionImage: {
+    width: '100%',
+    height: '100%',
+  },
+  clarificationOptionImageFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clarificationOptionImageFallbackText: {
+    ...Typography.body,
+    fontFamily: FontFamily.semibold,
+    fontWeight: '600',
+  },
+  clarificationOptionCopy: {
+    flex: 1,
+    gap: 2,
   },
   clarificationOptionText: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
+  },
+  clarificationOptionMeta: {
+    ...Typography.caption,
+    fontSize: 11,
   },
   tldrContainer: {
     marginTop: Spacing.md,

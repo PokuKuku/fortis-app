@@ -194,30 +194,41 @@ async function transcribeAudio(request: ExerciseVoiceRequest): Promise<string> {
     throw new Error('Recording is too large. Please keep it shorter.');
   }
   const file = new File([bytes], request.fileName, { type: request.mimeType });
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('model', Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe');
+  const configuredModel = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe';
+  const modelCandidates = Array.from(new Set([configuredModel, 'whisper-1']));
+  let lastError: Error | null = null;
 
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: formData,
-  });
+  for (const model of modelCandidates) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('model', model);
 
-  if (!response.ok) {
-    const details = await response.text();
-    throw new Error(`Transcription failed: ${details}`);
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      lastError = new Error(`Transcription failed for ${model}: ${details}`);
+      console.warn('[exercise-voice-add] transcription attempt failed', { model, details });
+      continue;
+    }
+
+    const payload = await response.json() as { text?: string };
+    const transcript = payload.text?.trim();
+    if (!transcript) {
+      lastError = new Error('No speech was detected.');
+      continue;
+    }
+
+    return transcript;
   }
 
-  const payload = await response.json() as { text?: string };
-  const transcript = payload.text?.trim();
-  if (!transcript) {
-    throw new Error('No speech was detected.');
-  }
-
-  return transcript;
+  throw lastError ?? new Error('No speech was detected.');
 }
 
 async function parseExerciseTranscript(transcript: string): Promise<ExerciseVoiceInterpretation> {

@@ -11,7 +11,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getExerciseById } from '@/src/services/exerciseService';
 import type { Exercise } from '@/src/types/exercise';
 import type { AIWorkoutTemplate } from '@/src/types/ai';
-import { PlusIcon, CheckIcon } from 'react-native-heroicons/outline';
+import { PlusIcon, CheckIcon, PlayIcon } from 'react-native-heroicons/outline';
 
 const PREVIEW_MODAL_WIDTH = Math.min(Dimensions.get('window').width - 32, 390);
 
@@ -19,18 +19,24 @@ interface AIWorkoutPreviewModalProps {
   visible: boolean;
   template: AIWorkoutTemplate | null;
   onClose: () => void;
+  onStart: () => void;
   onAdd: () => void;
+  isStarting?: boolean;
   isAdding?: boolean;
   isAdded?: boolean;
+  isStartDisabled?: boolean;
 }
 
 export function AIWorkoutPreviewModal({
   visible,
   template,
   onClose,
+  onStart,
   onAdd,
+  isStarting = false,
   isAdding = false,
   isAdded = false,
+  isStartDisabled = false,
 }: AIWorkoutPreviewModalProps) {
   const { colors, isDark } = useTheme();
   const bodyType = useWorkoutStore((state) => state.bodyType);
@@ -86,6 +92,16 @@ export function AIWorkoutPreviewModal({
       borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
     },
     focusChipText: { color: colors.textPrimary },
+    startButton: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    },
+    startButtonText: { color: Colors.white },
+    addButton: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    },
+    addButtonText: { color: colors.textPrimary },
   };
 
   return (
@@ -94,7 +110,7 @@ export function AIWorkoutPreviewModal({
       onClose={onClose}
       title={template.name}
       width={PREVIEW_MODAL_WIDTH}
-      animation="slide_from_right"
+      animation="zoom"
     >
       <ScrollView
         style={styles.scrollView}
@@ -155,22 +171,42 @@ export function AIWorkoutPreviewModal({
         </View>
       </ScrollView>
 
-      <GlassButton
-        style={styles.addButton}
-        onPress={onAdd}
-        disabled={isAdding || isAdded}
-      >
-        <View style={styles.addButtonContent}>
-          {isAdded ? (
-            <CheckIcon color={Colors.white} size={IconSizes.md} strokeWidth={2.2} />
-          ) : (
-            <PlusIcon color={Colors.white} size={IconSizes.md} strokeWidth={2.2} />
-          )}
-          <Text style={styles.addButtonText}>
-            {isAdded ? 'Added to Workouts' : isAdding ? 'Adding to Workouts...' : 'Add to Workouts'}
-          </Text>
-        </View>
-      </GlassButton>
+      <View style={styles.footerActions}>
+        <GlassButton
+          style={StyleSheet.flatten([styles.startButton, themedStyles.startButton])}
+          onPress={onStart}
+          disabled={isStarting || isAdding || isStartDisabled}
+        >
+          <View style={styles.addButtonContent}>
+            <PlayIcon color={Colors.white} size={IconSizes.md} strokeWidth={2.2} />
+            <Text style={[styles.startButtonText, themedStyles.startButtonText]}>
+              {isStarting ? 'Starting Workout...' : isStartDisabled ? 'Workout Active' : 'Start Workout'}
+            </Text>
+          </View>
+        </GlassButton>
+
+        <GlassButton
+          style={StyleSheet.flatten([styles.addButton, themedStyles.addButton])}
+          gradientColors={
+            isDark
+              ? ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.04)']
+              : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.035)']
+          }
+          onPress={onAdd}
+          disabled={isAdding || isAdded || isStarting}
+        >
+          <View style={styles.addButtonContent}>
+            {isAdded ? (
+              <CheckIcon color={colors.textPrimary} size={IconSizes.md} strokeWidth={2.2} />
+            ) : (
+              <PlusIcon color={colors.textPrimary} size={IconSizes.md} strokeWidth={2.2} />
+            )}
+            <Text style={[styles.addButtonText, themedStyles.addButtonText]}>
+              {isAdded ? 'Added to Workouts' : isAdding ? 'Adding to Workouts...' : 'Add to Workouts'}
+            </Text>
+          </View>
+        </GlassButton>
+      </View>
     </BaseModal>
   );
 }
@@ -237,6 +273,14 @@ const styles = StyleSheet.create({
     height: 50,
     borderRadius: BorderRadius.xl,
   },
+  startButton: {
+    height: 50,
+    borderRadius: BorderRadius.xl,
+  },
+  footerActions: {
+    gap: Spacing.sm,
+    marginTop: Spacing.md,
+  },
   addButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -247,6 +291,10 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '700',
     color: Colors.white,
+  },
+  startButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
   },
 });
 

@@ -1998,6 +1998,18 @@ function sanitizeWorkoutTemplateResponse(
     : null;
   const shouldUseDeterministicEdit = !!deterministicEdit;
 
+  if (shouldUseDeterministicEdit && deterministicEdit?.clarification) {
+    return {
+      type: 'clarification',
+      requestId: (record as { requestId?: string }).requestId ?? crypto.randomUUID(),
+      clarification: {
+        question: deterministicEdit.clarification.question,
+        options: deterministicEdit.clarification.options,
+        workoutTemplate: deterministicEdit.template,
+      },
+    };
+  }
+
   if (record.type !== 'answer' || !record.answer) {
     if (fallbackTemplate) {
       return {
@@ -2192,10 +2204,19 @@ type CatalogExerciseMatch = {
   score: number;
 };
 
+type WorkoutClarificationOption = {
+  label: string;
+  exerciseId?: string;
+};
+
 type WorkoutEditResolution = {
   template: AIWorkoutTemplate;
   text: string;
   changed: boolean;
+  clarification?: {
+    question: string;
+    options: WorkoutClarificationOption[];
+  };
 };
 
 function cleanRequestedExercisePhrase(value: string | undefined): string | undefined {
@@ -2415,6 +2436,78 @@ function buildUnchangedWorkoutEditText(
   }
 }
 
+function shouldOfferExerciseClarification(scores: number[]): boolean {
+  const [best = 0] = scores;
+  return best >= 60;
+}
+
+function uniqueOptionList(options: WorkoutClarificationOption[]): WorkoutClarificationOption[] {
+  const deduped = new Map<string, WorkoutClarificationOption>();
+  options.forEach((option) => {
+    if (!option?.label) return;
+    if (!deduped.has(option.label)) {
+      deduped.set(option.label, option);
+    }
+  });
+  return Array.from(deduped.values());
+}
+
+function buildCatalogClarificationOptions(
+  request: ParsedWorkoutEditRequest,
+  matches: CatalogExerciseMatch[],
+  actionVerb: 'Add' | 'Replace',
+  sourceExerciseName?: string
+): WorkoutClarificationOption[] {
+  const topMatches = matches.slice(0, 3);
+
+  if (request.action === 'add') {
+    return uniqueOptionList(
+      topMatches.map((match) => ({
+        label: `${actionVerb} ${toWorkoutTitleCase(match.entry.name)}`,
+        exerciseId: match.entry.id,
+      }))
+    );
+  }
+
+  if (request.action === 'replace' && sourceExerciseName) {
+    return uniqueOptionList(
+      topMatches.map((match) => ({
+        label: `Replace ${sourceExerciseName} with ${toWorkoutTitleCase(match.entry.name)}`,
+        exerciseId: match.entry.id,
+      }))
+    );
+  }
+
+  return [];
+}
+
+function buildDraftClarificationOptions(
+  request: ParsedWorkoutEditRequest,
+  matches: DraftExerciseMatch[]
+): WorkoutClarificationOption[] {
+  const topMatches = matches.slice(0, 3);
+
+  if (request.action === 'remove') {
+    return uniqueOptionList(
+      topMatches.map((match) => ({
+        label: `Remove ${match.exercise.exerciseName}`,
+        exerciseId: match.exercise.exerciseId,
+      }))
+    );
+  }
+
+  if (request.action === 'replace' && request.targetPhrase) {
+    return uniqueOptionList(
+      topMatches.map((match) => ({
+        label: `Replace ${match.exercise.exerciseName} with ${request.targetPhrase}`,
+        exerciseId: match.exercise.exerciseId,
+      }))
+    );
+  }
+
+  return [];
+}
+
 function resolveWorkoutTemplateEdit(
   message: string,
   draft: AIWorkoutTemplate,
@@ -2435,6 +2528,17 @@ function resolveWorkoutTemplateEdit(
     const existingIds = new Set(exercises.map((exercise) => exercise.exerciseId));
     const rankedMatches = findCatalogMatchesFromPhrase(request.targetPhrase, catalog, existingIds);
     if (!isConfidentExerciseMatch(rankedMatches.map((entry) => entry.score))) {
+      if (shouldOfferExerciseClarification(rankedMatches.map((entry) => entry.score))) {
+        return {
+          template: draft,
+          text: `I found a few close matches for "${request.targetPhrase ?? 'that exercise'}" and need clarification before I update ${draft.name}.`,
+          changed: false,
+          clarification: {
+            question: `I found a few close exercise matches and need clarification before I update ${draft.name}. Which one should I add?`,
+            options: buildCatalogClarificationOptions(request, rankedMatches, 'Add'),
+          },
+        };
+      }
       return {
         template: draft,
         text: buildUnchangedWorkoutEditText(request, draft),
@@ -2473,6 +2577,19 @@ function resolveWorkoutTemplateEdit(
 
   const rankedDraftMatches = findDraftExerciseMatches(request.sourcePhrase, draft);
   if (!isConfidentExerciseMatch(rankedDraftMatches.map((entry) => entry.score))) {
+    if (shouldOfferExerciseClarification(rankedDraftMatches.map((entry) => entry.score))) {
+      return {
+        template: draft,
+        text: `I found a few close matches for "${request.sourcePhrase ?? 'that exercise'}" and need clarification before I update ${draft.name}.`,
+        changed: false,
+        clarification: {
+          question: request.action === 'remove'
+            ? `I found a few close exercise matches and need clarification before I update ${draft.name}. Which one should I remove?`
+            : `I found a few close exercise matches and need clarification before I update ${draft.name}. Which one should I replace?`,
+          options: buildDraftClarificationOptions(request, rankedDraftMatches),
+        },
+      };
+    }
     return {
       template: draft,
       text: buildUnchangedWorkoutEditText(request, draft),
@@ -2517,6 +2634,17 @@ function resolveWorkoutTemplateEdit(
   excludedIds.delete(sourceExercise.exerciseId);
   const rankedReplacementMatches = findCatalogMatchesFromPhrase(request.targetPhrase, catalog, excludedIds);
   if (!isConfidentExerciseMatch(rankedReplacementMatches.map((entry) => entry.score))) {
+    if (shouldOfferExerciseClarification(rankedReplacementMatches.map((entry) => entry.score))) {
+      return {
+        template: draft,
+        text: `I found a few close replacement matches for "${request.targetPhrase ?? 'that exercise'}" and need clarification before I update ${draft.name}.`,
+        changed: false,
+        clarification: {
+          question: `I found a few close replacement matches and need clarification before I update ${draft.name}. What should replace ${sourceExercise.exerciseName}?`,
+          options: buildCatalogClarificationOptions(request, rankedReplacementMatches, 'Replace', sourceExercise.exerciseName),
+        },
+      };
+    }
     return {
       template: draft,
       text: buildUnchangedWorkoutEditText(request, draft),

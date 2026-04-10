@@ -156,7 +156,12 @@ export const useAIStore = create<AIState>()(
           intent,
           createdAt: new Date().toISOString(),
           clarification: response.type === 'clarification' ? response.clarification : undefined,
-          workoutTemplate: response.type === 'answer' ? response.answer?.workoutTemplate : undefined,
+          workoutTemplate:
+            response.type === 'answer'
+              ? response.answer?.workoutTemplate
+              : response.type === 'clarification'
+                ? response.clarification?.workoutTemplate
+                : undefined,
           savedWorkoutTemplateId: null,
         };
 

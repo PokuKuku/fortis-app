@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { PlusIcon, EyeIcon, CheckIcon } from 'react-native-heroicons/outline';
+import { PlusIcon, EyeIcon, CheckIcon, PlayIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { Colors } from '@/constants/Colors';
@@ -10,18 +10,26 @@ interface ChatWorkoutTemplateCardProps {
   template: AIWorkoutTemplate;
   onView: () => void;
   onAdd: () => void;
+  onStart: () => void;
   isAdding?: boolean;
   isAdded?: boolean;
+  isStarting?: boolean;
+  isStartDisabled?: boolean;
 }
 
 export function ChatWorkoutTemplateCard({
   template,
   onView,
   onAdd,
+  onStart,
   isAdding = false,
   isAdded = false,
+  isStarting = false,
+  isStartDisabled = false,
 }: ChatWorkoutTemplateCardProps) {
   const { colors, isDark } = useTheme();
+  const isBusy = isAdding || isStarting;
+  const isStartBusy = isBusy || isStartDisabled;
 
   const themedStyles = {
     card: {
@@ -38,12 +46,16 @@ export function ChatWorkoutTemplateCard({
     primaryButton: {
       backgroundColor: isAdded ? Colors.success : colors.accent,
     },
+    startButton: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+    },
+    startButtonText: { color: colors.textPrimary },
   };
 
   const metaParts = [
     template.focus,
     `${template.exercises.length} exercises`,
-    template.estimatedDurationMinutes ? `${template.estimatedDurationMinutes} min` : null,
   ].filter(Boolean);
 
   return (
@@ -59,7 +71,7 @@ export function ChatWorkoutTemplateCard({
         )}
       </View>
 
-      <View style={styles.actions}>
+      <View style={styles.topActions}>
         <TouchableOpacity
           style={[styles.secondaryButton, themedStyles.secondaryButton]}
           onPress={onView}
@@ -70,21 +82,33 @@ export function ChatWorkoutTemplateCard({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.primaryButton, themedStyles.primaryButton, (isAdding || isAdded) && styles.buttonDisabled]}
-          onPress={onAdd}
+          style={[styles.startButton, themedStyles.startButton, isStartBusy && styles.buttonDisabled]}
+          onPress={onStart}
           activeOpacity={0.8}
-          disabled={isAdding || isAdded}
+          disabled={isStartBusy}
         >
-          {isAdded ? (
-            <CheckIcon size={16} color={Colors.white} strokeWidth={2.2} />
-          ) : (
-            <PlusIcon size={16} color={Colors.white} strokeWidth={2.2} />
-          )}
-          <Text style={styles.primaryButtonText}>
-            {isAdded ? 'Added' : isAdding ? 'Adding...' : 'Add to Workouts'}
+          <PlayIcon size={16} color={colors.textPrimary} strokeWidth={2.2} />
+          <Text style={[styles.startButtonText, themedStyles.startButtonText]}>
+            {isStarting ? 'Starting...' : isStartDisabled ? 'Workout Active' : 'Start'}
           </Text>
         </TouchableOpacity>
       </View>
+
+      <TouchableOpacity
+        style={[styles.primaryButton, themedStyles.primaryButton, (isBusy || isAdded) && styles.buttonDisabled]}
+        onPress={onAdd}
+        activeOpacity={0.8}
+        disabled={isBusy || isAdded}
+      >
+        {isAdded ? (
+          <CheckIcon size={16} color={Colors.white} strokeWidth={2.2} />
+        ) : (
+          <PlusIcon size={16} color={Colors.white} strokeWidth={2.2} />
+        )}
+        <Text style={styles.primaryButtonText}>
+          {isAdded ? 'Added' : isAdding ? 'Adding...' : 'Add to Workouts'}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -108,7 +132,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '500',
   },
-  actions: {
+  topActions: {
     flexDirection: 'row',
     gap: Spacing.sm,
   },
@@ -122,13 +146,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
+  startButton: {
+    flex: 0.95,
+    minHeight: 38,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
   secondaryButtonText: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
   },
+  startButtonText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+  },
   primaryButton: {
-    flex: 1.4,
-    minHeight: 38,
+    minHeight: 40,
     borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',

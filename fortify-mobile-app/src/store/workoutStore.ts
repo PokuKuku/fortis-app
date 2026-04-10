@@ -139,6 +139,15 @@ type ExerciseAddPayload = {
   initialSetCount?: number | null;
 };
 
+type WorkoutPlanExerciseInput = {
+  exerciseId: string;
+  exerciseName: string;
+  sets: number;
+  reps?: string | null;
+  restSeconds?: number | null;
+  notes?: string;
+};
+
 function clampInitialSetCount(value: number | null | undefined): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 1;
   return Math.max(1, Math.min(12, Math.round(value)));
@@ -220,6 +229,7 @@ interface WorkoutState {
 
   // Actions - Session
   startWorkout: (name?: string, programWorkoutId?: string, backdateToDate?: Date) => void;
+  startWorkoutFromPlan: (name: string, exercises: WorkoutPlanExerciseInput[]) => Promise<boolean>;
   startWorkoutFromTemplate: (templateId: string) => Promise<boolean>;
   startWorkoutFromProgram: (programId: string, programWorkoutId: string) => Promise<boolean>;
   finishWorkout: () => Promise<WorkoutSession | null>;
@@ -462,6 +472,100 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       get().persistSession();
 
+    },
+
+    startWorkoutFromPlan: async (name: string, planExercises: WorkoutPlanExerciseInput[]) => {
+      if (isStartingWorkout || get().isWorkoutActive) return false;
+      isStartingWorkout = true;
+
+      try {
+        if (!name.trim() || planExercises.length === 0) {
+          isStartingWorkout = false;
+          return false;
+        }
+
+        const { weightUnits, completedSessions } = get();
+
+        const exercises: WorkoutExercise[] = planExercises.map((planExercise, exIndex) => {
+          const exerciseWeightUnit = weightUnits[planExercise.exerciseId] || 'lbs';
+          const sets: WorkoutSet[] = [];
+          const numSets = Math.max(1, Math.min(12, Math.round(planExercise.sets || 1)));
+
+          for (let i = 0; i < numSets; i++) {
+            const inheritedSetType = getSetTypeFromHistory(completedSessions, planExercise.exerciseId, i, {
+              workoutName: name,
+            });
+
+            sets.push({
+              localId: generateId(),
+              setNumber: i + 1,
+              setType: inheritedSetType,
+              weight: null,
+              weightUnit: exerciseWeightUnit,
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: i,
+            });
+          }
+
+          return {
+            localId: generateId(),
+            exerciseId: planExercise.exerciseId,
+            exerciseName: planExercise.exerciseName,
+            sets,
+            notes: planExercise.notes || '',
+            orderIndex: exIndex,
+            baselinePerformance: {
+              sets: Array.from({ length: numSets }, () => ({
+                weight: null,
+                weightUnit: exerciseWeightUnit,
+                reps: null,
+                setType: 'normal' as SetType,
+              })),
+            },
+          };
+        });
+
+        const session: WorkoutSession = {
+          localId: generateId(),
+          name: name.trim(),
+          notes: '',
+          startedAt: new Date(),
+          lastEditedAt: new Date(),
+          completedAt: null,
+          exercises,
+          isSynced: false,
+          originalExerciseIds: exercises.map((ex) => ex.exerciseId),
+          originalSetCounts: exercises.map((ex) => ex.sets.length),
+        };
+
+        set({
+          activeSession: session,
+          isWorkoutActive: true,
+          workoutStartTime: Date.now(),
+          isWorkoutTimerPaused: false,
+          pausedElapsedSeconds: 0,
+          backdatedDate: null,
+          restTimer: {
+            isActive: false,
+            remainingSeconds: 0,
+            totalSeconds: 0,
+            setType: 'normal',
+            endTimestamp: null,
+          },
+          restTimerNextStartSeconds: null,
+        });
+
+        get().persistSession();
+        return true;
+      } catch (error) {
+        console.error('Failed to start workout from plan:', error);
+        isStartingWorkout = false;
+        return false;
+      }
     },
 
     startWorkoutFromTemplate: async (templateId: string) => {
