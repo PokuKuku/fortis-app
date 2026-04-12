@@ -72,18 +72,6 @@ export async function interpretWorkoutVoiceLog(
     };
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    return {
-      type: 'error',
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Please sign in to use voice workout logging.',
-        retryable: false,
-      },
-    };
-  }
-
   try {
     const { data, error, response } = await supabase.functions.invoke('workout-voice-log', {
       body: request,

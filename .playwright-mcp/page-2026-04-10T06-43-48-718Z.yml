@@ -1,0 +1,222 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - generic [ref=e11]:
+      - button "mixpanel-logo" [ref=e18] [cursor=pointer]:
+        - img [ref=e22]
+      - button "plus" [ref=e28] [cursor=pointer]:
+        - img [ref=e32]
+      - list [ref=e38]:
+        - listitem [ref=e40]:
+          - img [ref=e44]
+        - listitem [ref=e48]:
+          - link [ref=e50] [cursor=pointer]:
+            - /url: /project/3978222/view/4473888/app/home
+            - img [ref=e53]
+        - listitem [ref=e56]:
+          - img [ref=e59]
+        - listitem [ref=e65]:
+          - link [ref=e67] [cursor=pointer]:
+            - /url: /project/3978222/view/4473888/app/session-replay
+            - img [ref=e70]
+      - generic [ref=e77]:
+        - button "brand-applications" [ref=e81] [cursor=pointer]:
+          - img [ref=e85]
+        - button "brand-help" [ref=e98] [cursor=pointer]:
+          - img [ref=e102]
+        - button "settings" [ref=e109] [cursor=pointer]:
+          - img [ref=e113]
+        - button "alert" [ref=e117]:
+          - button "alert" [ref=e118] [cursor=pointer]:
+            - img [ref=e122]
+      - img [ref=e126]
+    - generic [ref=e129]:
+      - generic [ref=e130]:
+        - generic [ref=e131]: Lexicon
+        - generic [ref=e132]:
+          - generic [ref=e133]: Tracked Data
+          - generic [ref=e134]:
+            - button "Events" [ref=e135] [cursor=pointer]:
+              - generic [ref=e139]: Events
+            - button "Event Properties" [ref=e140] [cursor=pointer]:
+              - generic [ref=e144]: Event Properties
+            - button "Profile Properties" [ref=e145] [cursor=pointer]:
+              - generic [ref=e149]: Profile Properties
+        - generic [ref=e150]:
+          - generic [ref=e151]: Saved Definitions
+          - generic [ref=e152]:
+            - button "Cohorts" [ref=e153] [cursor=pointer]:
+              - generic [ref=e157]: Cohorts
+            - button "Custom Events" [ref=e158] [cursor=pointer]:
+              - generic [ref=e162]: Custom Events
+            - button "Custom Event Properties" [ref=e163] [cursor=pointer]:
+              - generic [ref=e167]: Custom Event Properties
+            - button "Custom Profile Properties" [ref=e168] [cursor=pointer]:
+              - generic [ref=e172]: Custom Profile Properties
+            - button "Lookup Tables" [ref=e173] [cursor=pointer]:
+              - generic [ref=e177]: Lookup Tables
+            - button "Metrics" [ref=e178] [cursor=pointer]:
+              - generic [ref=e182]: Metrics
+            - button "Behaviors" [ref=e183] [cursor=pointer]:
+              - generic [ref=e187]: Behaviors
+        - generic [ref=e188]:
+          - generic [ref=e189]: Data Governance
+          - button "Data Deletion" [ref=e191] [cursor=pointer]:
+            - generic [ref=e195]: Data Deletion
+        - generic [ref=e196]:
+          - generic [ref=e197]: Settings
+          - button "Manage Data Permissions" [ref=e199] [cursor=pointer]:
+            - link "Manage Data Permissions" [ref=e200]:
+              - /url: /settings/project/3978222/users
+              - generic [ref=e203]:
+                - text: Manage Data Permissions
+                - img [ref=e205]
+      - generic [ref=e208]:
+        - generic [ref=e209]:
+          - generic [ref=e210]:
+            - img [ref=e211]
+            - generic [ref=e212]:
+              - generic [ref=e213]: Custom Events
+              - generic [ref=e214]:
+                - generic [ref=e215]: Custom Events your team has created and saved.
+                - link "View Docs" [ref=e216] [cursor=pointer]:
+                  - /url: https://docs.mixpanel.com/docs/data-governance/lexicon#custom-events
+          - button "Create Custom Event" [ref=e218] [cursor=pointer]:
+            - generic [ref=e222]: Create Custom Event
+        - generic [ref=e224]:
+          - generic [ref=e225]:
+            - generic [ref=e226]: 0 results
+            - button "Filter" [ref=e233] [cursor=pointer]:
+              - generic [ref=e236]:
+                - img [ref=e238]
+                - generic "Filter" [ref=e241]:
+                  - generic [ref=e245]: Filter
+            - generic [ref=e246]:
+              - button "Edit Columns • 6" [ref=e250] [cursor=pointer]:
+                - generic "Edit Columns • 6" [ref=e255]:
+                  - generic [ref=e259]: Edit Columns • 6
+              - search [ref=e260]:
+                - generic [ref=e262]:
+                  - img [ref=e266]
+                  - textbox "Search" [ref=e270]
+          - generic [ref=e272]:
+            - generic [ref=e273]:
+              - checkbox [checked] [ref=e276]:
+                - img [ref=e280] [cursor=pointer]
+              - generic [ref=e284] [cursor=pointer]: Event Name
+              - button "Description" [ref=e287] [cursor=pointer]:
+                - generic [ref=e288]: Description
+              - button "Definition" [ref=e291] [cursor=pointer]:
+                - generic [ref=e292]: Definition
+              - button "30 day queries" [ref=e295] [cursor=pointer]:
+                - generic [ref=e296]: 30 day queries
+              - button "Last queried" [ref=e299] [cursor=pointer]:
+                - generic [ref=e300]: Last queried
+              - button "Created" [ref=e303] [cursor=pointer]:
+                - generic [ref=e304]: Created
+            - status [ref=e306]
+            - generic [ref=e309]: This table is empty. Let's make a fresh start.
+  - tooltip
+  - tooltip
+  - tooltip
+  - generic [ref=e313]:
+    - button "close modal" [ref=e314] [cursor=pointer]:
+      - img [ref=e318]
+    - generic [ref=e320]:
+      - generic [ref=e323]: Create Custom Event
+      - generic [ref=e327]:
+        - generic [ref=e332]:
+          - generic [ref=e333]: Name
+          - generic [ref=e334]: required
+        - textbox [ref=e337]
+      - generic [ref=e338]:
+        - generic [ref=e339]: Match my custom event when any of the following events happen
+        - generic [ref=e344]:
+          - generic [ref=e366]:
+            - button "Select Event" [ref=e368] [cursor=pointer]:
+              - generic [ref=e373]: Select Event
+            - generic [ref=e376]:
+              - generic [ref=e382]:
+                - img [ref=e386]
+                - 'textbox "Search Events, use # to filter to tags" [ref=e390]'
+              - generic [ref=e391]:
+                - generic [ref=e392]:
+                  - generic [ref=e397]:
+                    - list [ref=e399]:
+                      - listitem "All" [ref=e401] [cursor=pointer]:
+                        - img [ref=e404]
+                        - generic "All" [ref=e409]
+                    - list [ref=e412]:
+                      - listitem "Tags" [ref=e414]:
+                        - img [ref=e417]
+                        - generic "Tags" [ref=e422]
+                        - img [ref=e425] [cursor=pointer]
+                  - button [ref=e428] [cursor=pointer]:
+                    - img [ref=e433]
+                - generic [ref=e438]:
+                  - generic [ref=e439]:
+                    - generic [ref=e441]: Recents
+                    - list [ref=e442]:
+                      - listitem "screen_viewed" [ref=e444] [cursor=pointer]:
+                        - img [ref=e447]
+                        - generic "screen_viewed" [ref=e452]
+                      - listitem "onboarding_screen_viewed" [ref=e454]:
+                        - img [ref=e457]
+                        - generic "onboarding_screen_viewed" [ref=e462]
+                  - generic [ref=e463]:
+                    - generic [ref=e466]: All Events
+                    - list [ref=e467]:
+                      - listitem "screen_viewed" [ref=e469]:
+                        - img [ref=e472]
+                        - generic "screen_viewed" [ref=e477]
+                      - listitem "onboarding_screen_viewed" [ref=e479]:
+                        - img [ref=e482]
+                        - generic "onboarding_screen_viewed" [ref=e487]
+                      - listitem "app_session_started" [ref=e489]:
+                        - img [ref=e492]
+                        - generic "app_session_started" [ref=e497]
+                      - listitem "First App Open" [ref=e499]:
+                        - img [ref=e502]
+                        - generic "First App Open" [ref=e507]
+                      - listitem "onboarding_step_completed" [ref=e509]:
+                        - img [ref=e512]
+                        - generic "onboarding_step_completed" [ref=e517]
+                      - listitem "screen_view" [ref=e519]:
+                        - img [ref=e522]
+                        - generic "screen_view" [ref=e527]
+                  - list [ref=e530]:
+                    - listitem "Show Hidden Events (1)" [ref=e532]:
+                      - generic "Show Hidden Events (1)" [ref=e535]
+                      - img [ref=e538] [cursor=pointer]
+                - generic [ref=e542]:
+                  - generic [ref=e544]:
+                    - generic [ref=e545]:
+                      - img [ref=e548]
+                      - generic [ref=e552]: screen_viewed
+                    - generic [ref=e553]:
+                      - generic [ref=e559] [cursor=pointer]: + Add Description...
+                      - generic [ref=e560]:
+                        - generic [ref=e561]:
+                          - generic [ref=e562]: Used in
+                          - link "0 reports ↗" [ref=e564] [cursor=pointer]:
+                            - /url: /project/3978222/view/4473888/app/boards#discover&email=&q=&entity-type-filter=&event-name-filter=screen_viewed
+                        - generic [ref=e565]:
+                          - generic [ref=e566]: Recent Replay
+                          - generic [ref=e567]: screen_viewed
+                  - generic [ref=e568]:
+                    - generic [ref=e569]:
+                      - generic [ref=e570]:
+                        - img [ref=e573]
+                        - generic [ref=e576]: "10"
+                        - generic [ref=e582]: "# 1"
+                      - generic [ref=e583]:
+                        - img [ref=e586]
+                        - generic [ref=e588]: "26"
+                    - generic [ref=e597] [cursor=pointer]: KB
+                    - button "ellipsis" [ref=e602] [cursor=pointer]:
+                      - img [ref=e606]
+          - button "Add" [ref=e347]:
+            - generic [ref=e349]:
+              - img [ref=e351]
+              - generic [ref=e354]: Add
+      - button "Save" [ref=e356]:
+        - generic [ref=e359]: Save

@@ -14,11 +14,7 @@ interface AIDataSharingConsentRecord {
 const AI_DATA_SHARING_CONSENT_VERSION = 2;
 
 export const AI_DATA_SHARING_DISCLOSURE =
-  'Fortify can share your data with OpenAI to generate AI coaching responses.\n\n'
-  + 'Data shared may include:\n'
-  + '- prompts and chat history\n'
-  + '- goals and training preferences\n'
-  + '- workout, analytics, and insight context tied to your account';
+  'Fortify can use your workout info to personalize AI responses.';
 
 const parseConsentRecord = (raw: string | null): AIDataSharingConsentRecord | null => {
   if (!raw) return null;
@@ -77,7 +73,7 @@ export const requestAIDataSharingConsent = async (): Promise<boolean> => {
 
   return await new Promise<boolean>((resolve) => {
     Alert.alert(
-      'Allow AI data sharing?',
+      'Allow AI coaching?',
       `${AI_DATA_SHARING_DISCLOSURE}\n\nYou can change this anytime in Settings.`,
       [
         {

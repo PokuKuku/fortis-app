@@ -97,6 +97,12 @@ const ANALYST_KEYWORD_REGEXES = [
 ];
 
 const ANALYST_TIME_WINDOW_REGEX = /\b(last|past|previous|this|next)\s+(\d+\s+)?(day|week|month|year|session|workout)s?\b/i;
+const COACHING_QUESTION_REGEX =
+  /\b(how do i|how to|what('?s| is) the proper way to|show me how to|teach me how to|tips for|form for)\b/i;
+const WORKOUT_GENERATION_REGEX =
+  /\b(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i;
+const WORKOUT_EDIT_REGEX =
+  /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
 
 
 // Animated sparkles for loading indicator
@@ -153,6 +159,14 @@ const inferIntentFromMessage = (message: string): AIIntent => {
     return 'GENERAL_CHAT';
   }
 
+  if (COACHING_QUESTION_REGEX.test(normalized)) {
+    return 'GENERAL_CHAT';
+  }
+
+  if (WORKOUT_GENERATION_REGEX.test(normalized) || WORKOUT_EDIT_REGEX.test(normalized)) {
+    return 'GENERAL_CHAT';
+  }
+
   const hasAnalystKeyword = ANALYST_KEYWORD_REGEXES.some((regex) => regex.test(normalized));
   const hasTimeWindow = ANALYST_TIME_WINDOW_REGEX.test(normalized);
 
@@ -161,6 +175,19 @@ const inferIntentFromMessage = (message: string): AIIntent => {
   }
 
   return 'GENERAL_CHAT';
+};
+
+const shouldAttachWorkoutDraft = (message: string): boolean => {
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (COACHING_QUESTION_REGEX.test(normalized)) {
+    return false;
+  }
+
+  return WORKOUT_EDIT_REGEX.test(normalized);
 };
 
 const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
@@ -325,7 +352,7 @@ export default function AIChatScreen() {
     const lastIntent = getLastIntent(messages);
     const intent =
       inferredIntent === 'GENERAL_CHAT' && lastIntent ? lastIntent : inferredIntent;
-    const requestContext = currentWorkoutTemplateDraft
+    const requestContext = currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)
       ? { currentWorkoutTemplateDraft }
       : undefined;
 

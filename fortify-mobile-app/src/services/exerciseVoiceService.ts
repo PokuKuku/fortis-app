@@ -71,18 +71,6 @@ export async function interpretExerciseVoiceAdd(
     };
   }
 
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
-    return {
-      type: 'error',
-      error: {
-        code: 'UNAUTHORIZED',
-        message: 'Please sign in to use voice exercise add.',
-        retryable: false,
-      },
-    };
-  }
-
   try {
     const { data, error, response } = await supabase.functions.invoke('exercise-voice-add', {
       body: request,

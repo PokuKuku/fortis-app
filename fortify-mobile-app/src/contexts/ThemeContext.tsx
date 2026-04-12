@@ -263,7 +263,7 @@ export type ThemeColors = BaseThemeColors & AccentThemeColors;
 /**
  * Get theme colors based on resolved theme and accent color
  */
-export const getThemeColors = (isDark: boolean, accentColor: AccentColorName = 'green'): ThemeColors => {
+export const getThemeColors = (isDark: boolean, accentColor: AccentColorName = 'midnight'): ThemeColors => {
   const baseTheme = isDark ? DarkTheme : LightTheme;
   const accentColors = generateAccentThemeColors(accentColor, isDark);
 
@@ -335,7 +335,7 @@ function resolveAccentColor(value: string | null): AccentColorName | null {
 export function ThemeProvider({ children, forceTheme }: ThemeProviderProps) {
   const systemColorScheme = useColorScheme();
   const [mode, setModeState] = useState<ThemeMode>('light');
-  const [accentColor, setAccentColorState] = useState<AccentColorName>('green');
+  const [accentColor, setAccentColorState] = useState<AccentColorName>('midnight');
   const [isLoading, setIsLoading] = useState(true);
 
   // Resolve the actual theme based on mode and system preference

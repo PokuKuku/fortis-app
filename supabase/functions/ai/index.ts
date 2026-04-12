@@ -567,7 +567,15 @@ function shouldGenerateWorkoutTemplate(message: string): boolean {
 }
 
 function shouldHandleWorkoutTemplateRequest(request: AIRequest): boolean {
-  return shouldGenerateWorkoutTemplate(request.message) || !!request.context?.currentWorkoutTemplateDraft;
+  if (shouldGenerateWorkoutTemplate(request.message)) {
+    return true;
+  }
+
+  if (!request.context?.currentWorkoutTemplateDraft) {
+    return false;
+  }
+
+  return parseWorkoutEditRequest(request.message).action !== 'unknown';
 }
 
 function shouldUseBroadWorkoutEditCatalog(request: AIRequest): boolean {
@@ -1927,6 +1935,74 @@ function sanitizeWorkoutTemplate(
   };
 }
 
+function scoreWorkoutTemplateAlignment(
+  template: AIWorkoutTemplate | null | undefined,
+  message: string,
+  catalog: WorkoutGenerationExerciseCatalogEntry[]
+): number {
+  if (!template) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  const targetMuscles = extractWorkoutTargetMuscles(message).map((muscle) => muscle.toLowerCase());
+  const equipmentPreferences = extractWorkoutEquipment(message).map((item) => item.toLowerCase());
+  const catalogById = new Map(catalog.map((entry) => [entry.id, entry]));
+  let score = 0;
+
+  template.exercises.forEach((exercise, index) => {
+    const entry = catalogById.get(exercise.exerciseId);
+    if (!entry) {
+      score -= 6;
+      return;
+    }
+
+    score += scoreCatalogExercise(entry, targetMuscles, equipmentPreferences);
+
+    const muscles = entry.primaryMuscles.map((muscle) => muscle.toLowerCase());
+    const hasTargetOverlap =
+      targetMuscles.length === 0 || targetMuscles.some((muscle) => muscles.includes(muscle));
+
+    if (targetMuscles.length > 0) {
+      score += hasTargetOverlap ? 6 : -5;
+    }
+
+    if (index < 2 && !isCompoundExerciseName(entry.name)) {
+      score -= 2;
+    }
+  });
+
+  return score;
+}
+
+function choosePreferredWorkoutTemplate(
+  message: string,
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  primaryTemplate: AIWorkoutTemplate | null | undefined,
+  fallbackTemplate: AIWorkoutTemplate | null | undefined
+): AIWorkoutTemplate | null {
+  if (!primaryTemplate) {
+    return fallbackTemplate ?? null;
+  }
+
+  if (!fallbackTemplate) {
+    return primaryTemplate;
+  }
+
+  const primaryScore = scoreWorkoutTemplateAlignment(primaryTemplate, message, catalog);
+  const fallbackScore = scoreWorkoutTemplateAlignment(fallbackTemplate, message, catalog);
+
+  return fallbackScore > primaryScore ? fallbackTemplate : primaryTemplate;
+}
+
+function buildWorkoutTemplateAnswerText(template: AIWorkoutTemplate): string {
+  const focus = template.focus?.trim() || 'strength';
+  const duration = template.estimatedDurationMinutes
+    ? ` about ${template.estimatedDurationMinutes} minutes`
+    : '';
+
+  return `Here's a ${focus.toLowerCase()} workout with ${template.exercises.length} exercises over${duration}.`;
+}
+
 function areWorkoutTemplatesEquivalent(
   left: AIWorkoutTemplate | null | undefined,
   right: AIWorkoutTemplate | null | undefined
@@ -2061,11 +2137,23 @@ function sanitizeWorkoutTemplateResponse(
     };
   }
 
+  const finalTemplate = currentDraft
+    ? sanitizedTemplate
+    : choosePreferredWorkoutTemplate(
+        request.message,
+        context.exerciseCatalog,
+        sanitizedTemplate,
+        fallbackTemplate
+      );
+
   return {
     ...record,
     answer: {
       ...record.answer,
-      workoutTemplate: sanitizedTemplate,
+      text: currentDraft
+        ? record.answer.text
+        : buildWorkoutTemplateAnswerText(finalTemplate ?? sanitizedTemplate),
+      workoutTemplate: finalTemplate ?? sanitizedTemplate,
     },
   };
 }

@@ -101,7 +101,7 @@ const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
 const VOICE_ACTIVE_AUDIO_MODE = {
   allowsRecordingIOS: true,
   interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
-  playsInSilentModeIOS: false,
+  playsInSilentModeIOS: true,
   staysActiveInBackground: false,
   interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
   shouldDuckAndroid: true,
@@ -174,6 +174,9 @@ function getVoiceLogInterpretErrorMessage(message?: string | null): string {
   const normalizedMessage = (message || '').toLowerCase();
   if (normalizedMessage.includes('settings')) {
     return 'Microphone access is off. Enable it in Settings to use voice logging.';
+  }
+  if (normalizedMessage.includes('sign in') || normalizedMessage.includes('unauthorized')) {
+    return 'Sign in to use voice logging.';
   }
   return 'Did not get that recording. Try again.';
 }
