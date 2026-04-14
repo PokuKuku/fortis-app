@@ -693,6 +693,7 @@ async function assembleContext(
     context.exerciseCatalog = await withContextCache(
       buildCacheKey(
         'workout-catalog',
+        userId,
         useBroadCatalog ? 'broad' : 'targeted',
         extractWorkoutTargetMuscles(request.message).join(','),
         extractWorkoutEquipment(request.message).join(','),
@@ -754,7 +755,6 @@ async function fetchWorkoutExerciseCatalog(
       .from('exercises')
       .select('id, name, primary_muscles, equipment, category, aliases, is_curated')
       .neq('is_hidden', true)
-      .neq('is_custom', true)
       .order('is_curated', { ascending: false })
       .order('name', { ascending: true })
       .limit(options.limit);
@@ -784,7 +784,6 @@ async function fetchWorkoutExerciseCatalog(
         .from('exercises')
         .select('id, name, primary_muscles, equipment, category, aliases, is_curated')
         .neq('is_hidden', true)
-        .neq('is_custom', true)
         .order('is_curated', { ascending: false })
         .order('name', { ascending: true })
         .range(offset, offset + batchSize - 1);
