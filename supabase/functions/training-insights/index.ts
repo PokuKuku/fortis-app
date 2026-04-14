@@ -636,9 +636,9 @@ const fetchSnoozes = async (
 };
 
 const STALL_THRESHOLDS: Record<'chill' | 'standard' | 'aggressive', number> = {
-  chill: 0,
-  standard: 0.5,
-  aggressive: 1.0,
+  chill: -1.5,
+  standard: -1.0,
+  aggressive: -0.5,
 };
 
 const STALL_PENDING_RATIONALE_KEY = 'STALL_PENDING_GATE';
@@ -646,9 +646,9 @@ const STALL_SIGNAL_PROFILES: Record<
   StallSignalClass,
   { minExposures: number; thresholdAdjustment: number; consecutiveDetections: number }
 > = {
-  high_signal: { minExposures: 3, thresholdAdjustment: 0, consecutiveDetections: 2 },
-  medium_signal: { minExposures: 4, thresholdAdjustment: -0.5, consecutiveDetections: 2 },
-  low_signal: { minExposures: 5, thresholdAdjustment: -1.5, consecutiveDetections: 2 },
+  high_signal: { minExposures: 5, thresholdAdjustment: 0, consecutiveDetections: 2 },
+  medium_signal: { minExposures: 6, thresholdAdjustment: -0.5, consecutiveDetections: 2 },
+  low_signal: { minExposures: 8, thresholdAdjustment: -1.5, consecutiveDetections: 3 },
 };
 const HIGH_SIGNAL_EQUIPMENT = new Set([
   'barbell',
@@ -710,6 +710,9 @@ const IMBALANCE_THRESHOLDS = {
   minTotalSets: 12,
   underdoseSets: 4,
 };
+const STALL_MAX_ACTIVE_INSIGHTS = 1;
+const STALL_MAX_VOLUME_DELTA_PCT = 10;
+const STALL_MIN_VOLUME_DELTA_PCT = -10;
 
 const isSuspiciousDelta = (value: number, compareValue: number): boolean => {
   if (value <= 0 || compareValue <= 0) return false;
@@ -1842,39 +1845,7 @@ const buildStallRiskInsights = async ({
   }
 
   if (!exposures || exposures.length === 0) {
-    return [
-      {
-        user_id: userId,
-        type: STALL_RISK_TYPE,
-        window: STALL_WINDOW,
-        anchor_date: toIsoDate(weekStart),
-        subject_key: GLOBAL_SUBJECT_KEY,
-        severity: 'low',
-        status: 'active',
-        title: 'Not enough data yet',
-        summary: 'Repeat a lift 3 to 5 times in the last 6 weeks to unlock stall alerts. Accessory lifts need more history.',
-        evidence: [
-          {
-            key: 'eligible_exercises',
-            label: 'Eligible lifts',
-            value: 0,
-            unit: 'lifts',
-            source: 'exercise_exposures',
-            period: 'last_6w',
-          },
-          {
-            key: 'flagged_exercises',
-            label: 'Flagged lifts',
-            value: 0,
-            unit: 'lifts',
-            source: 'training_insights',
-            period: 'this_week',
-          },
-        ],
-        recommendation: [],
-        schema_version: SCHEMA_VERSION,
-      },
-    ];
+    return [];
   }
 
   const exposuresByExercise = new Map<string, ExposureRow[]>();
@@ -1930,39 +1901,7 @@ const buildStallRiskInsights = async ({
   });
 
   if (eligibleCandidates.length === 0) {
-    return [
-      {
-        user_id: userId,
-        type: STALL_RISK_TYPE,
-        window: STALL_WINDOW,
-        anchor_date: toIsoDate(weekStart),
-        subject_key: GLOBAL_SUBJECT_KEY,
-        severity: 'low',
-        status: 'active',
-        title: 'Not enough data yet',
-        summary: 'Repeat a lift 3 to 5 times in the last 6 weeks to unlock stall alerts. Accessory lifts need more history.',
-        evidence: [
-          {
-            key: 'eligible_exercises',
-            label: 'Eligible lifts',
-            value: 0,
-            unit: 'lifts',
-            source: 'exercise_exposures',
-            period: 'last_6w',
-          },
-          {
-            key: 'flagged_exercises',
-            label: 'Flagged lifts',
-            value: 0,
-            unit: 'lifts',
-            source: 'training_insights',
-            period: 'this_week',
-          },
-        ],
-        recommendation: [],
-        schema_version: SCHEMA_VERSION,
-      },
-    ];
+    return [];
   }
 
   const candidateIds = eligibleCandidates.map((item) => item.exerciseId);
@@ -1970,6 +1909,7 @@ const buildStallRiskInsights = async ({
 
   const currentAnchorDate = toIsoDate(weekStart);
   const previousAnchorDate = toIsoDate(addDays(weekStart, -7));
+  const previousAnchorDateTwo = toIsoDate(addDays(weekStart, -14));
   const [{ data: weeklyAggs }, { data: existingStallRowsRaw }] = await Promise.all([
     adminClient
       .from('exercise_weekly_agg')
@@ -1984,7 +1924,7 @@ const buildStallRiskInsights = async ({
       .eq('user_id', userId)
       .eq('type', STALL_RISK_TYPE)
       .in('subject_key', candidateIds.map((id) => `exercise:${id}`))
-      .in('anchor_date', [previousAnchorDate, currentAnchorDate]),
+      .in('anchor_date', [previousAnchorDateTwo, previousAnchorDate, currentAnchorDate]),
   ]);
 
   const exerciseNameById = new Map<string, string>();
@@ -2018,9 +1958,9 @@ const buildStallRiskInsights = async ({
 
   const threshold = STALL_THRESHOLDS[conservatismLevel] ?? STALL_THRESHOLDS.standard;
   const unit = preferredUnits === 'metric' ? 'kg' : 'lbs';
-  const insights: Record<string, unknown>[] = [];
-  let flaggedCount = 0;
-  let pendingCount = 0;
+  const pendingInsights: Record<string, unknown>[] = [];
+  const dismissedInsights: Record<string, unknown>[] = [];
+  const flaggedInsights: Array<{ priority: number; insight: Record<string, unknown> }> = [];
 
   eligibleCandidates.forEach((candidate) => {
     const items = exposuresByExercise.get(candidate.exerciseId) ?? [];
@@ -2036,11 +1976,11 @@ const buildStallRiskInsights = async ({
     const sorted = [...items].sort((a, b) => {
       return new Date(a.exposure_at).getTime() - new Date(b.exposure_at).getTime();
     });
-    const lastThree = sorted.slice(-3);
-    if (lastThree.length < 3) return;
+    const evaluationWindow = sorted.slice(-signalProfile.minExposures);
+    if (evaluationWindow.length < signalProfile.minExposures) return;
 
-    const oldest = lastThree[0];
-    const latest = lastThree[lastThree.length - 1];
+    const oldest = evaluationWindow[0];
+    const latest = evaluationWindow[evaluationWindow.length - 1];
     const oldestE1 = clampNumber(oldest.best_e1rm);
     const latestE1 = clampNumber(latest.best_e1rm);
     const e1rmDeltaPct = oldestE1 > 0 ? ((latestE1 - oldestE1) / oldestE1) * 100 : 0;
@@ -2054,7 +1994,13 @@ const buildStallRiskInsights = async ({
       previousVolume > 0 ? ((recentVolume - previousVolume) / previousVolume) * 100 : 100;
     const adjustedThreshold = threshold + signalProfile.thresholdAdjustment;
 
-    if (!(e1rmDeltaPct <= adjustedThreshold && volumeDeltaPct <= 5)) {
+    if (
+      !(
+        e1rmDeltaPct <= adjustedThreshold &&
+        volumeDeltaPct <= STALL_MAX_VOLUME_DELTA_PCT &&
+        volumeDeltaPct >= STALL_MIN_VOLUME_DELTA_PCT
+      )
+    ) {
       return;
     }
 
@@ -2068,20 +2014,20 @@ const buildStallRiskInsights = async ({
     const hasCurrentUserDismissal = existingRows.some((row) => {
       return row.anchor_date === currentAnchorDate && row.status === 'dismissed' && !hasPendingStallGate(row.recommendation);
     });
-    const hasPreviousDetection = existingRows.some((row) => {
-      return row.status === 'active' || hasPendingStallGate(row.recommendation);
-    });
+    const previousDetections = existingRows.filter((row) => {
+      return row.anchor_date !== currentAnchorDate && (row.status === 'active' || hasPendingStallGate(row.recommendation));
+    }).length;
 
     const evidence: EvidenceItem[] = [
       {
         key: 'best_e1rm',
-        label: 'Best e1RM (3 exposures)',
+        label: `Best e1RM (${evaluationWindow.length} exposures)`,
         value: Math.round(latestE1),
         unit,
         compareValue: Math.round(oldestE1),
         deltaValue: Math.round(latestE1 - oldestE1),
         source: 'exercise_exposures',
-        period: 'last_3_exposures',
+        period: `last_${evaluationWindow.length}_exposures`,
       },
       {
         key: 'volume_load',
@@ -2104,7 +2050,7 @@ const buildStallRiskInsights = async ({
     ];
 
     if (hasCurrentUserDismissal) {
-      insights.push({
+      dismissedInsights.push({
         user_id: userId,
         type: STALL_RISK_TYPE,
         window: STALL_WINDOW,
@@ -2122,9 +2068,8 @@ const buildStallRiskInsights = async ({
       return;
     }
 
-    if (!hasPreviousDetection) {
-      pendingCount += 1;
-      insights.push({
+    if (previousDetections + 1 < signalProfile.consecutiveDetections) {
+      pendingInsights.push({
         user_id: userId,
         type: STALL_RISK_TYPE,
         window: STALL_WINDOW,
@@ -2142,100 +2087,31 @@ const buildStallRiskInsights = async ({
       return;
     }
 
-    flaggedCount += 1;
-    insights.push({
-      user_id: userId,
-      type: STALL_RISK_TYPE,
-      window: STALL_WINDOW,
-      anchor_date: currentAnchorDate,
-      subject_key: subjectKey,
-      severity,
-      status: 'active',
-      title: `Stall risk: ${exerciseName}`,
-      summary: `Recent ${exerciseName} progress has flattened. A small adjustment could help restart momentum.${rpeNote}`,
-      evidence,
-      recommendation: [recommendation],
-      schema_version: SCHEMA_VERSION,
-      exercise_id: candidate.exerciseId,
+    flaggedInsights.push({
+      priority: (severity === 'high' ? 1000 : 500) + candidate.exposures * 10 + Math.abs(Math.round(e1rmDeltaPct * 10)),
+      insight: {
+        user_id: userId,
+        type: STALL_RISK_TYPE,
+        window: STALL_WINDOW,
+        anchor_date: currentAnchorDate,
+        subject_key: subjectKey,
+        severity,
+        status: 'active',
+        title: `Stall risk: ${exerciseName}`,
+        summary: `Recent ${exerciseName} progress has flattened. A small adjustment could help restart momentum.${rpeNote}`,
+        evidence,
+        recommendation: [recommendation],
+        schema_version: SCHEMA_VERSION,
+        exercise_id: candidate.exerciseId,
+      },
     });
   });
+  const visibleFlaggedInsights = flaggedInsights
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, STALL_MAX_ACTIVE_INSIGHTS)
+    .map((entry) => entry.insight);
 
-  const eligibleCount = eligibleCandidates.length;
-
-  const summaryTitle = eligibleCount === 0
-    ? 'Not enough data yet'
-    : flaggedCount === 0
-    ? pendingCount > 0
-      ? 'No high-confidence stall risks'
-      : 'All clear this week'
-    : 'Watchlist updated';
-  const summaryText = eligibleCount === 0
-    ? 'Repeat a lift 3 to 5 times in the last 6 weeks to unlock stall alerts. Accessory lifts need more history.'
-    : flaggedCount === 0
-    ? pendingCount > 0
-      ? 'Some lifts are being monitored, but nothing is strong enough to flag yet.'
-      : 'Your eligible lifts look steady this week. Keep building consistency.'
-    : 'Stall risks detected on your watchlist. Tap a lift to see why.';
-
-  insights.push({
-    user_id: userId,
-    type: STALL_RISK_TYPE,
-    window: STALL_WINDOW,
-    anchor_date: toIsoDate(weekStart),
-    subject_key: GLOBAL_SUBJECT_KEY,
-    severity: flaggedCount > 0 ? 'medium' : 'low',
-    status: 'active',
-    title: summaryTitle,
-    summary: summaryText,
-    evidence: [
-      {
-        key: 'eligible_exercises',
-        label: 'Eligible lifts',
-        value: eligibleCount,
-        unit: 'lifts',
-        source: 'exercise_exposures',
-        period: 'last_6w',
-      },
-      {
-        key: 'flagged_exercises',
-        label: 'Flagged lifts',
-        value: flaggedCount,
-        unit: 'lifts',
-        source: 'training_insights',
-        period: 'this_week',
-      },
-      ...(pendingCount > 0
-        ? [
-            {
-              key: 'monitored_exercises',
-              label: 'Monitored lifts',
-              value: pendingCount,
-              unit: 'lifts',
-              source: 'training_insights',
-              period: 'this_week',
-            } satisfies EvidenceItem,
-          ]
-        : []),
-      ...(rpeDelta !== null
-        ? [
-            {
-              key: 'avg_rpe',
-              label: 'Avg RPE (WoW)',
-              value: Number((normalizedThisRpe ?? 0).toFixed(1)),
-              unit: 'rpe',
-              compareValue: Number((normalizedLastRpe ?? 0).toFixed(1)),
-              deltaValue: rpeDelta,
-              source: 'weekly_workout_volume',
-              period: 'this_week',
-            } satisfies EvidenceItem,
-          ]
-        : []),
-    ],
-    recommendation: [],
-    schema_version: SCHEMA_VERSION,
-  });
-
-  return insights;
+  return [...pendingInsights, ...dismissedInsights, ...visibleFlaggedInsights];
 };
 
 const dismissStaleStallRiskInsights = async ({
