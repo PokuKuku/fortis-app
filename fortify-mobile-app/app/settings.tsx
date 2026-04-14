@@ -61,6 +61,14 @@ interface SettingsRowProps {
   isDark: boolean;
 }
 
+const BUNDLED_APP_VERSION: string | undefined = (() => {
+  try {
+    return require('../app.json')?.expo?.version;
+  } catch {
+    return undefined;
+  }
+})();
+
 function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colors, isDark }: SettingsRowProps) {
   return (
     <TouchableOpacity
@@ -90,7 +98,11 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
 }
 
 export default function SettingsScreen() {
-  const APP_VERSION = Constants.expoConfig?.version ?? '1.1.0';
+  const APP_VERSION =
+    BUNDLED_APP_VERSION ??
+    Constants.expoConfig?.version ??
+    Constants.nativeAppVersion ??
+    '1.1.1';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { profile, signOut } = useAuth();

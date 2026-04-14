@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fortify AI",
     "slug": "fortis",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/fortify_ai.png",
     "notification": {
