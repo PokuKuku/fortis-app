@@ -172,7 +172,7 @@ export function WorkoutHeaderTopBar({
         )}
 
         <View style={styles.topCenter}>
-          {showCompactTimers && renderTimers(true)}
+          {showCompactTimers ? renderTimers(true) : null}
         </View>
 
         <Pressable

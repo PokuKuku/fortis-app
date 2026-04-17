@@ -23,9 +23,13 @@ const AnimatedSvgLinearGradient = Animated.createAnimatedComponent(SvgLinearGrad
 
 interface ChatHeaderLogoProps {
   isLoading?: boolean;
+  showSparkleIcon?: boolean;
 }
 
-export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
+export function ChatHeaderLogo({
+  isLoading = false,
+  showSparkleIcon = true,
+}: ChatHeaderLogoProps) {
   const { colors } = useTheme();
   const { fontScale } = useWindowDimensions();
   const shineAnim = useRef(new Animated.Value(0)).current;
@@ -33,12 +37,13 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
   const loopRef = useRef<Animated.CompositeAnimation | null>(null);
   const sparkleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
 
-  const logoWidth = Math.round(176 * fontScale);
+  const logoWidth = Math.round((showSparkleIcon ? 176 : 148) * fontScale);
   const logoHeight = Math.round(24 * fontScale);
   const iconSize = Math.round(22 * fontScale);
   const logoFontSize = Math.round(18 * fontScale);
   const logoBaseline = Math.round(18 * fontScale);
   const logoLetterSpacing = Math.round(3 * fontScale * 10) / 10;
+  const shouldCenterText = !showSparkleIcon;
 
   const shineX = shineAnim.interpolate({
     inputRange: [0, 1],
@@ -98,15 +103,16 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
 
   return (
     <View style={styles.container}>
-      {/* Sparkles icon - animated when loading */}
-      <View style={[styles.sparkleWrapper, { width: iconSize, height: iconSize }]}>
-        <Animated.View style={[styles.sparkleAbsolute, { opacity: sparkleAnim }]}>
-          <SparklesSolid color={colors.accent} size={iconSize} />
-        </Animated.View>
-        <Animated.View style={[styles.sparkleAbsolute, { opacity: sparkleOutlineOpacity }]}>
-          <SparklesOutline color={colors.accent} size={iconSize} />
-        </Animated.View>
-      </View>
+      {showSparkleIcon ? (
+        <View style={[styles.sparkleWrapper, { width: iconSize, height: iconSize }]}>
+          <Animated.View style={[styles.sparkleAbsolute, { opacity: sparkleAnim }]}>
+            <SparklesSolid color={colors.accent} size={iconSize} />
+          </Animated.View>
+          <Animated.View style={[styles.sparkleAbsolute, { opacity: sparkleOutlineOpacity }]}>
+            <SparklesOutline color={colors.accent} size={iconSize} />
+          </Animated.View>
+        </View>
+      ) : null}
 
       {/* FORTIFY AI animated logo */}
       <Svg height={logoHeight} width={logoWidth} viewBox={`0 0 ${logoWidth} ${logoHeight}`}>
@@ -139,8 +145,9 @@ export function ChatHeaderLogo({ isLoading = false }: ChatHeaderLogoProps) {
             fontSize={logoFontSize}
             fontWeight="900"
             letterSpacing={logoLetterSpacing}
-            x={0}
+            x={shouldCenterText ? logoWidth / 2 : 0}
             y={logoBaseline}
+            textAnchor={shouldCenterText ? 'middle' : 'start'}
             fontFamily="BankGothicBT-Medium"
           >
             FORTIFY AI
