@@ -13,6 +13,8 @@ import { useAuth } from '@/src/contexts/AuthContext';
 
 const LAST_SYNCED_USER_KEY = 'fortis_revenuecat_last_synced_user_id_v1';
 const IOS_REVENUECAT_PUBLIC_SDK_KEY = 'appl_xUfcAjGXbhIduaxJcQhipSkOksi';
+const isRevenueCatAnalyticsEnabled =
+  !__DEV__ && process.env.EXPO_PUBLIC_APP_ENV?.trim() === 'production';
 
 let configurePromise: Promise<boolean> | null = null;
 let hasInstalledRevenueCatLogHandler = false;
@@ -98,6 +100,10 @@ function installRevenueCatLogHandler() {
 }
 
 async function configureRevenueCat() {
+  if (!isRevenueCatAnalyticsEnabled) {
+    return false;
+  }
+
   if (configurePromise) {
     return configurePromise;
   }
@@ -142,6 +148,10 @@ async function configureRevenueCat() {
 }
 
 async function syncPurchasesOnceForUser(userId: string) {
+  if (!isRevenueCatAnalyticsEnabled) {
+    return;
+  }
+
   const lastSyncedUserId = await AsyncStorage.getItem(LAST_SYNCED_USER_KEY);
   if (lastSyncedUserId === userId) {
     return;
@@ -158,6 +168,10 @@ async function syncPurchasesOnceForUser(userId: string) {
 }
 
 async function syncPurchasesForAnalytics(trigger: string) {
+  if (!isRevenueCatAnalyticsEnabled) {
+    return;
+  }
+
   const isConfigured = await configureRevenueCat();
   if (!isConfigured) {
     return;
@@ -181,6 +195,10 @@ export function RevenueCatAnalyticsSync() {
   const inFlightIdentitySyncRef = useRef<Promise<void> | null>(null);
 
   const syncIdentity = useCallback(async () => {
+    if (!isRevenueCatAnalyticsEnabled) {
+      return;
+    }
+
     if (!isAuthResolved) {
       return;
     }
@@ -234,11 +252,18 @@ export function RevenueCatAnalyticsSync() {
   }, [isAuthResolved, profile?.email, user?.id]);
 
   useEffect(() => {
+    if (!isRevenueCatAnalyticsEnabled) {
+      return;
+    }
     void syncIdentity();
   }, [syncIdentity]);
 
   useSuperwallEvents({
     onPaywallPresent: (info: { name?: string }) => {
+      if (!isRevenueCatAnalyticsEnabled) {
+        return;
+      }
+
       void (async () => {
         const isConfigured = await configureRevenueCat();
         if (!isConfigured) {
@@ -274,6 +299,10 @@ export function RevenueCatAnalyticsSync() {
       }
     },
   });
+
+  if (!isRevenueCatAnalyticsEnabled) {
+    return null;
+  }
 
   return null;
 }
