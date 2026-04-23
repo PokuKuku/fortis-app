@@ -18,6 +18,7 @@ import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync'
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
 import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
 import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTracker';
+import { RevenueCatAnalyticsSync } from '@/src/components/revenuecat/RevenueCatAnalyticsSync';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -60,6 +61,7 @@ function ThemedAppContent({
     <AuthProvider>
       <SuperwallAuthSync />
       <SuperwallPurchaseRecovery />
+      <RevenueCatAnalyticsSync />
       <MixpanelAuthSync />
       <MixpanelRouteTracker />
       {!disableThemeSync && <ThemeAuthSync />}

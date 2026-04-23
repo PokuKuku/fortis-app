@@ -48,7 +48,8 @@
       },
       "package": "com.fortis.app",
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "com.android.vending.BILLING"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
