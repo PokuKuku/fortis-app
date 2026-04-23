@@ -15,6 +15,7 @@ import { AuthProviderButtons } from '@/src/components/auth/AuthProviderButtons';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { Typography } from '@/constants/Typography';
+import { useOnboardingFunnelScreen } from '@/src/services/onboardingAnalyticsService';
 
 const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal888.mov');
 const WELCOME_TITLE_LINE_ONE = 'Gym Progress';
@@ -41,6 +42,8 @@ const getSharedWelcomeTitleMetrics = (screenWidth: number) => {
 };
 
 export default function OnboardingWelcomeScreen() {
+  useOnboardingFunnelScreen('Welcome Screen');
+
   const router = useRouter();
   const navigation = useNavigation();
   const { returning } = useLocalSearchParams<{ returning?: string }>();

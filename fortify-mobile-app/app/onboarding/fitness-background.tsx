@@ -5,7 +5,10 @@ import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 const SUCCESS_ANIMATION = require('../../assets/lottie/success.json');
 
@@ -115,6 +118,8 @@ const LottieView = (() => {
 })();
 
 export default function OnboardingFitnessBackgroundScreen() {
+  useOnboardingFunnelScreen('Q7. Fitness Background');
+
   const router = useRouter();
   const { colors } = useTheme();
   const { width: windowWidth } = useWindowDimensions();

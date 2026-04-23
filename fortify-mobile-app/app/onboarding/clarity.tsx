@@ -8,7 +8,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { moderateScale } from '@/src/utils/responsive';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 const CLARITY_ANIMATION = require('../../assets/lottie/graphs.json');
 const FORTIFY_LABEL_DELAY_MS = 1650;
@@ -42,6 +45,8 @@ const LottieView = (() => {
 })();
 
 export default function OnboardingClarityScreen() {
+  useOnboardingFunnelScreen('Q11. Fortify Clarity');
+
   const router = useRouter();
   const { colors } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();

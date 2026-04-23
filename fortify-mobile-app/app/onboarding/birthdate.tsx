@@ -8,7 +8,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 const YEAR_MIN = 1930;
 const DEFAULT_YEAR = 1998;
@@ -25,6 +28,8 @@ const formatBirthDate = (year: number, monthIndex: number, day: number) => `${ye
 const daysInMonth = (year: number, monthIndex: number) => new Date(year, monthIndex + 1, 0).getDate();
 
 export default function OnboardingBirthdateScreen() {
+  useOnboardingFunnelScreen('Q3. Whats your birthdate?');
+
   const router = useRouter();
   const { colors } = useTheme();
   const currentYear = new Date().getFullYear();

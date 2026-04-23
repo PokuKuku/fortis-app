@@ -9,7 +9,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 type ExperienceLevel = 'none' | 'beginner' | 'intermediate' | 'advanced';
 
@@ -37,6 +40,8 @@ const OPTIONS: Array<{ value: ExperienceLevel; title: string; description: strin
 ];
 
 export default function OnboardingExperienceScreen() {
+  useOnboardingFunnelScreen('Q8. Lifting Experience?');
+
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useTheme();

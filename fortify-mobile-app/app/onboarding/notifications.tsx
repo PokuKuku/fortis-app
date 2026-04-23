@@ -10,10 +10,15 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { HAS_REQUESTED_NOTIFICATIONS_KEY } from '@/src/constants/storageKeys';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 
 export default function OnboardingNotificationsScreen() {
+  useOnboardingFunnelScreen('Ask for notifications page');
+
   const router = useRouter();
   const { colors } = useTheme();
   const hasTrackedRef = useRef(false);

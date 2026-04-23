@@ -9,49 +9,35 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 type UnitSystem = 'imperial' | 'metric';
 
 const FEET_VALUES = Array.from({ length: 5 }, (_, index) => index + 3);
 const INCH_VALUES = Array.from({ length: 12 }, (_, index) => index);
 const CM_VALUES = Array.from({ length: 101 }, (_, index) => index + 120);
-const LB_MIN = 80;
-const LB_MAX = 400;
-const KG_MIN = 40;
-const KG_MAX = 180;
-const LB_VALUES = Array.from({ length: LB_MAX - LB_MIN + 1 }, (_, index) => index + LB_MIN);
-const KG_VALUES = Array.from({ length: KG_MAX - KG_MIN + 1 }, (_, index) => index + KG_MIN);
-const KG_PER_LB = 1 / 2.20462;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-const roundTo = (value: number, decimals: number) => {
-  const factor = Math.pow(10, decimals);
-  return Math.round(value * factor) / factor;
-};
-const lbIndexFromKg = (valueKg: number) => clamp(Math.round(valueKg * 2.20462) - LB_MIN, 0, LB_VALUES.length - 1);
-const kgIndexFromKg = (valueKg: number) => clamp(Math.round(valueKg) - KG_MIN, 0, KG_VALUES.length - 1);
 const DEFAULT_HEIGHT_CM = 175;
-const DEFAULT_WEIGHT_KG = roundTo(165 * KG_PER_LB, 1);
 const DEFAULT_FEET = 5;
 const DEFAULT_INCHES = 9;
 
 export default function OnboardingHeightScreen() {
+  useOnboardingFunnelScreen("Q4. What's your height?");
+
   const router = useRouter();
   const { colors } = useTheme();
   const [unit, setUnit] = useState<UnitSystem>('imperial');
   const [feetIndex, setFeetIndex] = useState(() => Math.max(FEET_VALUES.indexOf(DEFAULT_FEET), 0));
   const [inchIndex, setInchIndex] = useState(DEFAULT_INCHES);
   const [cmIndex, setCmIndex] = useState(() => clamp(CM_VALUES.indexOf(DEFAULT_HEIGHT_CM), 0, CM_VALUES.length - 1));
-  const [weightKg, setWeightKg] = useState(DEFAULT_WEIGHT_KG);
-  const [lbIndex, setLbIndex] = useState(() => lbIndexFromKg(DEFAULT_WEIGHT_KG));
-  const [kgIndex, setKgIndex] = useState(() => kgIndexFromKg(DEFAULT_WEIGHT_KG));
 
   const feetLabels = useMemo(() => FEET_VALUES.map((value) => `${value} ft`), []);
   const inchLabels = useMemo(() => INCH_VALUES.map((value) => `${value} in`), []);
   const cmLabels = useMemo(() => CM_VALUES.map((value) => `${value} cm`), []);
-  const lbLabels = useMemo(() => LB_VALUES.map((value) => `${value} lb`), []);
-  const kgLabels = useMemo(() => KG_VALUES.map((value) => `${value} kg`), []);
 
   useEffect(() => {
     let isActive = true;
@@ -76,12 +62,6 @@ export default function OnboardingHeightScreen() {
         setInchIndex(inches);
       }
 
-      if (typeof state?.weight_kg === 'number') {
-        const normalizedKg = clamp(state.weight_kg, KG_MIN, KG_MAX);
-        setWeightKg(normalizedKg);
-        setKgIndex(kgIndexFromKg(normalizedKg));
-        setLbIndex(lbIndexFromKg(normalizedKg));
-      }
     };
 
     loadState();
@@ -100,7 +80,6 @@ export default function OnboardingHeightScreen() {
       const cmValue = Math.round(totalInches * 2.54);
       const cmIdx = clamp(CM_VALUES.indexOf(cmValue), 0, CM_VALUES.length - 1);
       setCmIndex(cmIdx >= 0 ? cmIdx : 0);
-      setKgIndex(kgIndexFromKg(weightKg));
     } else {
       const cmValue = CM_VALUES[cmIndex];
       const totalInches = Math.round(cmValue / 2.54);
@@ -108,7 +87,6 @@ export default function OnboardingHeightScreen() {
       const inches = clamp(totalInches % 12, 0, 11);
       setFeetIndex(Math.max(FEET_VALUES.indexOf(feet), 0));
       setInchIndex(inches);
-      setLbIndex(lbIndexFromKg(weightKg));
     }
 
     setUnit(castUnit);
@@ -119,33 +97,18 @@ export default function OnboardingHeightScreen() {
     const heightCm = unit === 'metric'
       ? CM_VALUES[cmIndex]
       : Math.round((FEET_VALUES[feetIndex] * 12 + INCH_VALUES[inchIndex]) * 2.54);
-    const normalizedKg = clamp(roundTo(weightKg, 1), KG_MIN, KG_MAX);
 
-    await updateOnboardingState({ height_cm: heightCm, weight_kg: normalizedKg, preferred_units: unit });
+    await updateOnboardingState({ height_cm: heightCm, preferred_units: unit });
     trackOnboardingStepCompleted('body_metrics');
-    router.push('/onboarding/source');
-  };
-
-  const handleWeightChange = (nextIndex: number) => {
-    if (unit === 'metric') {
-      const nextKg = KG_VALUES[nextIndex];
-      setKgIndex(nextIndex);
-      setWeightKg(clamp(nextKg, KG_MIN, KG_MAX));
-      return;
-    }
-
-    const nextLb = LB_VALUES[nextIndex];
-    setLbIndex(nextIndex);
-    const nextKg = roundTo(nextLb / 2.20462, 1);
-    setWeightKg(clamp(nextKg, KG_MIN, KG_MAX));
+    router.push('/onboarding/weight');
   };
 
   return (
     <OnboardingScreen
       step={4}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Height & weight"
-      subtitle="You can update your metrics later."
+      title="What is your height?"
+      subtitle="You can update this any time from your profile."
       onBack={() => router.back()}
       useScrollView={false}
       footer={
@@ -164,45 +127,33 @@ export default function OnboardingHeightScreen() {
           onChange={handleUnitChange}
         />
 
-        <View style={styles.metricGrid}>
-          <View style={styles.metricColumn}>
-            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Height</Text>
-            {unit === 'imperial' ? (
-              <View style={styles.pickerRow}>
-                <View style={styles.pickerColumn}>
-                  <OnboardingWheelPicker
-                    items={feetLabels}
-                    selectedIndex={feetIndex}
-                    onChange={setFeetIndex}
-                  />
-                </View>
-                <View style={styles.pickerColumn}>
-                  <OnboardingWheelPicker
-                    items={inchLabels}
-                    selectedIndex={inchIndex}
-                    onChange={setInchIndex}
-                  />
-                </View>
-              </View>
-            ) : (
-              <View style={styles.pickerColumnFull}>
+        <View style={styles.metricColumn}>
+          {unit === 'imperial' ? (
+            <View style={styles.pickerRow}>
+              <View style={styles.pickerColumn}>
                 <OnboardingWheelPicker
-                  items={cmLabels}
-                  selectedIndex={cmIndex}
-                  onChange={setCmIndex}
+                  items={feetLabels}
+                  selectedIndex={feetIndex}
+                  onChange={setFeetIndex}
                 />
               </View>
-            )}
-          </View>
-
-          <View style={styles.metricColumn}>
-            <Text style={[styles.metricLabel, { color: colors.textSecondary }]}>Weight</Text>
-            <OnboardingWheelPicker
-              items={unit === 'metric' ? kgLabels : lbLabels}
-              selectedIndex={unit === 'metric' ? kgIndex : lbIndex}
-              onChange={handleWeightChange}
-            />
-          </View>
+              <View style={styles.pickerColumn}>
+                <OnboardingWheelPicker
+                  items={inchLabels}
+                  selectedIndex={inchIndex}
+                  onChange={setInchIndex}
+                />
+              </View>
+            </View>
+          ) : (
+            <View style={styles.pickerColumnFull}>
+              <OnboardingWheelPicker
+                items={cmLabels}
+                selectedIndex={cmIndex}
+                onChange={setCmIndex}
+              />
+            </View>
+          )}
         </View>
       </View>
     </OnboardingScreen>
@@ -214,21 +165,9 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     marginTop: 20,
   },
-  metricGrid: {
-    flexDirection: 'row',
-    gap: Spacing.lg,
-    alignItems: 'flex-start',
-  },
   metricColumn: {
-    flex: 1,
+    width: '100%',
     gap: Spacing.sm,
-  },
-  metricLabel: {
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: 14,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    textAlign: 'center',
   },
   pickerRow: {
     flexDirection: 'row',

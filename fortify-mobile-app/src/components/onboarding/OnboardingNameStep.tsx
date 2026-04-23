@@ -8,13 +8,18 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 interface OnboardingNameStepProps {
   prewarm?: boolean;
 }
 
 export function OnboardingNameStep({ prewarm = false }: OnboardingNameStepProps) {
+  useOnboardingFunnelScreen('Profile Name', !prewarm);
+
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useTheme();

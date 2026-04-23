@@ -9,7 +9,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 type UnitSystem = 'imperial' | 'metric';
 
@@ -26,6 +29,8 @@ const KG_MAX = 180;
 const DIAL_STEP = 0.1;
 
 export default function OnboardingWeightScreen() {
+  useOnboardingFunnelScreen("Q5. What's your weight?");
+
   const router = useRouter();
   const { colors } = useTheme();
   const [unit, setUnit] = useState<UnitSystem>('imperial');

@@ -8,7 +8,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 const THANK_YOU_ANIMATION = require('../../assets/lottie/Lock Animation.json');
 
@@ -114,6 +117,8 @@ const LottieView = (() => {
 })();
 
 export default function OnboardingThankYouScreen() {
+  useOnboardingFunnelScreen('Thank you page');
+
   const router = useRouter();
   const { colors } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();

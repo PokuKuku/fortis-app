@@ -8,7 +8,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 type FitnessGoal = 'build_muscle' | 'general_health' | 'improve_strength' | 'stay_consistent';
 
@@ -20,6 +23,8 @@ const OPTIONS: Array<{ value: FitnessGoal; title: string }> = [
 ];
 
 export default function OnboardingGoalScreen() {
+  useOnboardingFunnelScreen('Q12. What is your fitness goal?');
+
   const router = useRouter();
   const { colors } = useTheme();
   const [selected, setSelected] = useState<FitnessGoal[]>([]);

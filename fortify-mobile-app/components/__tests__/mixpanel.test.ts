@@ -24,7 +24,7 @@ describe('mixpanel', () => {
       Mixpanel: mockMixpanelCtor,
     }));
 
-    let trackMixpanelEvent: (
+    let trackMixpanelEvent!: (
       eventName: string,
       properties?: Record<string, unknown>
     ) => Promise<void>;
@@ -68,7 +68,7 @@ describe('mixpanel', () => {
       Mixpanel: mockMixpanelCtor,
     }));
 
-    let identifyMixpanelUser: (userContext: Record<string, unknown>) => Promise<void>;
+    let identifyMixpanelUser!: (userContext: Record<string, unknown>) => Promise<void>;
     jest.isolateModules(() => {
       ({ identifyMixpanelUser } = require('@/src/lib/mixpanel'));
     });

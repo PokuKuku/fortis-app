@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { Mixpanel } from 'mixpanel-react-native';
 
-type MixpanelProperties = Record<string, unknown>;
+export type MixpanelProperties = Record<string, unknown>;
 
 export interface MixpanelUserContext {
   distinctId: string;
@@ -13,13 +13,22 @@ export interface MixpanelUserContext {
   accentColor?: string | null;
 }
 
-const mixpanelToken = process.env.EXPO_PUBLIC_MIXPANEL_TOKEN?.trim();
 const mixpanelServerUrl = process.env.EXPO_PUBLIC_MIXPANEL_SERVER_URL?.trim();
 const appEnvironment = process.env.EXPO_PUBLIC_APP_ENV?.trim() || 'unknown';
 
 let mixpanelInstance: Mixpanel | null = null;
 let mixpanelInitPromise: Promise<Mixpanel | null> | null = null;
 let mixpanelDisabled = false;
+let hasWarnedMissingToken = false;
+let currentIdentifiedUserId: string | null = null;
+
+interface TrackOptions {
+  flush?: boolean;
+}
+
+function getMixpanelToken(): string {
+  return process.env.EXPO_PUBLIC_MIXPANEL_TOKEN?.trim() ?? '';
+}
 
 function sanitizeProperties(properties: MixpanelProperties = {}): MixpanelProperties {
   return Object.fromEntries(
@@ -68,17 +77,33 @@ function getPeopleProperties(userContext: MixpanelUserContext): MixpanelProperti
 }
 
 export function isMixpanelConfigured(): boolean {
-  return Boolean(mixpanelToken);
+  return Boolean(getMixpanelToken());
+}
+
+function warnMissingMixpanelToken(): void {
+  if (hasWarnedMissingToken) {
+    return;
+  }
+
+  hasWarnedMissingToken = true;
+  console.warn('[Mixpanel] Missing EXPO_PUBLIC_MIXPANEL_TOKEN; analytics are disabled.');
 }
 
 async function createMixpanelInstance(): Promise<Mixpanel | null> {
-  if (!isMixpanelConfigured() || mixpanelDisabled) {
+  const token = getMixpanelToken();
+
+  if (!token) {
+    warnMissingMixpanelToken();
+    return null;
+  }
+
+  if (mixpanelDisabled) {
     return null;
   }
 
   try {
     // JS mode is more stable in Expo-managed flows than the native bridge path.
-    const instance = new Mixpanel(mixpanelToken as string, false, false);
+    const instance = new Mixpanel(token, false, false);
     await instance.init(false, getAnonymousSuperProperties(), mixpanelServerUrl || undefined);
     mixpanelInstance = instance;
     return instance;
@@ -94,6 +119,12 @@ async function getMixpanelInstance(): Promise<Mixpanel | null> {
     return mixpanelInstance;
   }
 
+  if (!isMixpanelConfigured()) {
+    warnMissingMixpanelToken();
+    mixpanelInitPromise = null;
+    return null;
+  }
+
   if (!mixpanelInitPromise) {
     mixpanelInitPromise = createMixpanelInstance().catch((error) => {
       console.warn('[Mixpanel] Failed to initialize:', error);
@@ -107,9 +138,62 @@ async function getMixpanelInstance(): Promise<Mixpanel | null> {
   return mixpanelInitPromise;
 }
 
+export async function initializeMixpanel(): Promise<boolean> {
+  return Boolean(await getMixpanelInstance());
+}
+
+export async function getMixpanelDistinctId(): Promise<string | null> {
+  const mixpanel = await getMixpanelInstance();
+  if (!mixpanel) {
+    return null;
+  }
+
+  try {
+    if (typeof (mixpanel as { getDistinctId?: unknown }).getDistinctId !== 'function') {
+      return null;
+    }
+
+    return await mixpanel.getDistinctId();
+  } catch (error) {
+    console.warn('[Mixpanel] Failed to read distinct id:', error);
+    return null;
+  }
+}
+
+export async function getMixpanelIdentityProperties(): Promise<MixpanelProperties> {
+  if (currentIdentifiedUserId) {
+    return { user_id: currentIdentifiedUserId };
+  }
+
+  const distinctId = await getMixpanelDistinctId();
+  return distinctId ? { distinct_id: distinctId } : {};
+}
+
+export async function flushMixpanel(): Promise<void> {
+  if (mixpanelDisabled) {
+    return;
+  }
+
+  const mixpanel = await getMixpanelInstance();
+  if (!mixpanel) {
+    return;
+  }
+
+  try {
+    if (typeof (mixpanel as { flush?: unknown }).flush !== 'function') {
+      return;
+    }
+
+    await Promise.resolve(mixpanel.flush());
+  } catch (error) {
+    console.warn('[Mixpanel] Flush failed:', error);
+  }
+}
+
 export async function trackMixpanelEvent(
   eventName: string,
-  properties: MixpanelProperties = {}
+  properties: MixpanelProperties = {},
+  options: TrackOptions = {}
 ): Promise<void> {
   if (!eventName.trim() || mixpanelDisabled) {
     return;
@@ -127,7 +211,10 @@ export async function trackMixpanelEvent(
       return;
     }
 
-    mixpanel.track(eventName, sanitizeProperties(properties));
+    await Promise.resolve(mixpanel.track(eventName, sanitizeProperties(properties)));
+    if (options.flush) {
+      await flushMixpanel();
+    }
   } catch (error) {
     mixpanelDisabled = true;
     console.warn('[Mixpanel] Track failed:', eventName, error);
@@ -146,15 +233,18 @@ export async function identifyMixpanelUser(userContext: MixpanelUserContext): Pr
 
   try {
     await mixpanel.identify(userContext.distinctId);
+    currentIdentifiedUserId = userContext.distinctId;
     mixpanel.clearSuperProperties();
     mixpanel.registerSuperProperties(getAuthenticatedSuperProperties(userContext));
-    mixpanel.getPeople().set(getPeopleProperties(userContext));
+    await Promise.resolve(mixpanel.getPeople().set(getPeopleProperties(userContext)));
   } catch (error) {
     console.warn('[Mixpanel] Failed to identify user:', error);
   }
 }
 
 export async function resetMixpanelUser(): Promise<void> {
+  currentIdentifiedUserId = null;
+
   if (mixpanelDisabled) {
     return;
   }

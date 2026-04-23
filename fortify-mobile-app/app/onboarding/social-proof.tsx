@@ -8,7 +8,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 const TESTIMONIALS = [
   {
@@ -36,6 +39,8 @@ const TESTIMONIALS = [
 ];
 
 export default function OnboardingSocialProofScreen() {
+  useOnboardingFunnelScreen('Social Proof page');
+
   const router = useRouter();
   const { colors } = useTheme();
 

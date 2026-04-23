@@ -9,7 +9,10 @@ import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardin
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius } from '@/constants/Sizes';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 type GenderOption = 'male' | 'female' | 'other';
 
@@ -20,6 +23,8 @@ const OPTIONS: Array<{ value: GenderOption; label: string }> = [
 ];
 
 export default function OnboardingGenderScreen() {
+  useOnboardingFunnelScreen("Q2. What's your gender?");
+
   const router = useRouter();
   const { colors } = useTheme();
   const setBodyType = useWorkoutStore((state) => state.setBodyType);

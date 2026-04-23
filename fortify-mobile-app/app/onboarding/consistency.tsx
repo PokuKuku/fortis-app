@@ -8,7 +8,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 type Consistency = 'none' | 'daily' | 'few_times_week' | 'once_or_less' | 'starting';
 
@@ -20,6 +23,8 @@ const OPTIONS: Array<{ value: Consistency; title: string }> = [
 ];
 
 export default function OnboardingConsistencyScreen() {
+  useOnboardingFunnelScreen('Q9. How consistent are you');
+
   const router = useRouter();
   const { colors } = useTheme();
   const [selected, setSelected] = useState<Consistency | null>(null);

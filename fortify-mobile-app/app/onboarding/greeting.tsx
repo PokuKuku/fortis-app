@@ -7,12 +7,15 @@ import { Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getOnboardingState } from '@/src/utils/onboardingState';
 import { InlineAnimatedLogo } from '@/components/InlineAnimatedLogo';
+import { useOnboardingFunnelScreen } from '@/src/services/onboardingAnalyticsService';
 
 const ADVANCE_DELAY_MS = 2400;
 const GREETING_TEXT_SIZE = 26;
 const COMMA_RIGHT_NUDGE = 7;
 
 export default function OnboardingGreetingScreen() {
+  useOnboardingFunnelScreen('Greeting');
+
   const router = useRouter();
   const { colors } = useTheme();
   const { width: screenWidth } = useWindowDimensions();

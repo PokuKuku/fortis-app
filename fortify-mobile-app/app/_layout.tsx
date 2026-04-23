@@ -18,6 +18,7 @@ import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync'
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
 import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
 import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTracker';
+import { initializeMixpanel } from '@/src/lib/mixpanel';
 import { RevenueCatAnalyticsSync } from '@/src/components/revenuecat/RevenueCatAnalyticsSync';
 
 const PAGE_TRANSITION = {
@@ -388,6 +389,12 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
+
+  useEffect(() => {
+    void initializeMixpanel().catch((error) => {
+      console.warn('[Mixpanel] Startup initialization failed:', error);
+    });
+  }, []);
 
   // Load persisted preferences on app start
   useEffect(() => {

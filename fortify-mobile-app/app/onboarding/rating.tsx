@@ -10,7 +10,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { HAS_REQUESTED_REVIEW_DEVICE_KEY } from '@/src/constants/storageKeys';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 const USERS = [
   { image: require('@/assets/onboarding/user5.png') },
@@ -19,6 +22,8 @@ const USERS = [
 ];
 
 export default function OnboardingRatingScreen() {
+  useOnboardingFunnelScreen('Ask for rating page');
+
   const router = useRouter();
   const { colors } = useTheme();
   const [reviewRequested, setReviewRequested] = useState(false);

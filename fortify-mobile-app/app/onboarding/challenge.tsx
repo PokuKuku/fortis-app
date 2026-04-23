@@ -8,7 +8,10 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { trackOnboardingStepCompleted } from '@/src/services/onboardingAnalyticsService';
+import {
+  trackOnboardingStepCompleted,
+  useOnboardingFunnelScreen,
+} from '@/src/services/onboardingAnalyticsService';
 
 type Challenge = 'consistency' | 'plateaus' | 'starting_out' | 'time';
 
@@ -20,6 +23,8 @@ const OPTIONS: Array<{ value: Challenge; title: string }> = [
 ];
 
 export default function OnboardingChallengeScreen() {
+  useOnboardingFunnelScreen('Q13. What are you biggest challenge');
+
   const router = useRouter();
   const { colors } = useTheme();
   const [selected, setSelected] = useState<Challenge[]>([]);

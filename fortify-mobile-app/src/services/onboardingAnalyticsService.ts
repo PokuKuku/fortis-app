@@ -1,4 +1,9 @@
-import { trackAnonymousMixpanelEvent } from '@/src/lib/mixpanelOnboarding';
+import { flushMixpanel } from '@/src/lib/mixpanel';
+export {
+  ONBOARDING_FUNNEL_STEPS,
+  trackOnboardingFunnelScreen,
+  useOnboardingFunnelScreen,
+} from '@/src/lib/mixpanelOnboarding';
 
 const ONBOARDING_STEP_INDEX = {
   profile_name: 1,
@@ -22,19 +27,17 @@ const ONBOARDING_STEP_INDEX = {
 
 type OnboardingStepId = keyof typeof ONBOARDING_STEP_INDEX;
 
-function fireAndForgetTracking(eventName: string, properties: Record<string, unknown>): void {
-  void trackAnonymousMixpanelEvent(eventName, properties).catch((error) => {
-    console.warn('[OnboardingAnalytics] Tracking failed:', eventName, error);
+function flushPendingOnboardingEvents(reason: string): void {
+  void flushMixpanel().catch((error) => {
+    console.warn('[OnboardingAnalytics] Flush failed:', reason, error);
   });
 }
 
 export function trackOnboardingStepCompleted(stepId: OnboardingStepId): void {
-  fireAndForgetTracking('onboarding_step_completed', {
-    step_id: stepId,
-    step_index: ONBOARDING_STEP_INDEX[stepId],
-  });
+  void ONBOARDING_STEP_INDEX[stepId];
+  flushPendingOnboardingEvents('step_completed');
 }
 
 export function trackOnboardingFinished(): void {
-  fireAndForgetTracking('onboarding_finished', {});
+  flushPendingOnboardingEvents('onboarding_finished');
 }
