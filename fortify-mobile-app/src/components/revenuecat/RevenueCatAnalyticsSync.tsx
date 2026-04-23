@@ -12,6 +12,7 @@ import { useSuperwallEvents } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
 
 const LAST_SYNCED_USER_KEY = 'fortis_revenuecat_last_synced_user_id_v1';
+const IOS_REVENUECAT_PUBLIC_SDK_KEY = 'appl_xUfcAjGXbIduaxJcQhipSkOksi';
 
 let configurePromise: Promise<boolean> | null = null;
 let hasInstalledRevenueCatLogHandler = false;
@@ -19,17 +20,19 @@ let hasInstalledRevenueCatLogHandler = false;
 const expectedAnalyticsOnlySyncMessages = ['receipt is not valid', 'invalid receipt'];
 
 function getRevenueCatApiKey() {
-  const fallbackApiKey = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY?.trim() ?? '';
-
   if (Platform.OS === 'ios') {
-    return process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?.trim() || fallbackApiKey;
+    return IOS_REVENUECAT_PUBLIC_SDK_KEY;
   }
 
   if (Platform.OS === 'android') {
-    return process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim() || fallbackApiKey;
+    return (
+      process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim() ||
+      process.env.EXPO_PUBLIC_REVENUECAT_API_KEY?.trim() ||
+      ''
+    );
   }
 
-  return fallbackApiKey;
+  return IOS_REVENUECAT_PUBLIC_SDK_KEY;
 }
 
 function buildRevenueCatConfiguration(apiKey: string): PurchasesConfiguration {
