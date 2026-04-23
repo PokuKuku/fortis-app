@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fortify AI",
     "slug": "fortis",
-    "version": "1.1.1",
+    "version": "1.1.2",
     "orientation": "portrait",
     "icon": "./assets/fortify_ai.png",
     "notification": {
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.fortisfitness.app",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "usesAppleSignIn": true,
       "icon": "./assets/fortify_ai.png",
       "infoPlist": {

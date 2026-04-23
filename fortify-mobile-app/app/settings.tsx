@@ -102,7 +102,7 @@ export default function SettingsScreen() {
     BUNDLED_APP_VERSION ??
     Constants.expoConfig?.version ??
     Constants.nativeAppVersion ??
-    '1.1.1';
+    '1.1.2';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { profile, signOut } = useAuth();
