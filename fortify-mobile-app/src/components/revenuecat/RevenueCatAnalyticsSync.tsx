@@ -10,11 +10,13 @@ import Purchases, {
 } from 'react-native-purchases';
 import { useSuperwallEvents } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
+import {
+  getRevenueCatApiKeyForPlatform,
+  shouldEnableRevenueCatAnalytics,
+} from '@/src/components/revenuecat/revenueCatConfig';
 
 const LAST_SYNCED_USER_KEY = 'fortis_revenuecat_last_synced_user_id_v1';
-const IOS_REVENUECAT_PUBLIC_SDK_KEY = 'appl_xUfcAjGXbhIduaxJcQhipSkOksi';
-const isRevenueCatAnalyticsEnabled =
-  !__DEV__ && process.env.EXPO_PUBLIC_APP_ENV?.trim() === 'production';
+const isRevenueCatAnalyticsEnabled = shouldEnableRevenueCatAnalytics(__DEV__);
 
 let configurePromise: Promise<boolean> | null = null;
 let hasInstalledRevenueCatLogHandler = false;
@@ -22,23 +24,7 @@ let hasInstalledRevenueCatLogHandler = false;
 const expectedAnalyticsOnlySyncMessages = ['receipt is not valid', 'invalid receipt'];
 
 function getRevenueCatApiKey() {
-  if (Platform.OS === 'ios') {
-    return (
-      process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY?.trim() ||
-      process.env.EXPO_PUBLIC_REVENUECAT_API_KEY?.trim() ||
-      IOS_REVENUECAT_PUBLIC_SDK_KEY
-    );
-  }
-
-  if (Platform.OS === 'android') {
-    return (
-      process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY?.trim() ||
-      process.env.EXPO_PUBLIC_REVENUECAT_API_KEY?.trim() ||
-      ''
-    );
-  }
-
-  return IOS_REVENUECAT_PUBLIC_SDK_KEY;
+  return getRevenueCatApiKeyForPlatform(Platform.OS, process.env);
 }
 
 function buildRevenueCatConfiguration(apiKey: string): PurchasesConfiguration {
@@ -112,7 +98,9 @@ async function configureRevenueCat() {
     const apiKey = getRevenueCatApiKey();
     if (!apiKey) {
       if (__DEV__) {
-        console.warn('[RevenueCat] Missing platform API key; analytics sync disabled.');
+        console.warn(
+          `[RevenueCat] Missing valid ${Platform.OS} public SDK key; analytics sync disabled.`,
+        );
       }
       return false;
     }
