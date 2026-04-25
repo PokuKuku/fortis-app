@@ -131,6 +131,7 @@ export default function CreateWorkoutScreen() {
   const setEditorDate = useWorkoutStore(s => s.setEditorDate);
   const addEditorExercises = useWorkoutStore(s => s.addEditorExercises);
   const replaceEditorExercise = useWorkoutStore(s => s.replaceEditorExercise);
+  const reorderEditorExercises = useWorkoutStore(s => s.reorderEditorExercises);
   const saveEditorAsTemplate = useWorkoutStore(s => s.saveEditorAsTemplate);
   const saveEditorAsWorkout = useWorkoutStore(s => s.saveEditorAsWorkout);
   const commitEditorStickyNotesDraft = useWorkoutStore(s => s.commitEditorStickyNotesDraft);
@@ -338,6 +339,15 @@ export default function CreateWorkoutScreen() {
     setShowAddExerciseModal(true);
   }, []);
 
+  const handleMoveExercise = useCallback((exerciseLocalId: string, direction: 'up' | 'down') => {
+    const exercises = editorSession?.exercises ?? [];
+    const index = exercises.findIndex((exercise) => exercise.localId === exerciseLocalId);
+    if (index < 0) return;
+    const nextIndex = direction === 'up' ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= exercises.length) return;
+    reorderEditorExercises(index, nextIndex);
+  }, [editorSession?.exercises, reorderEditorExercises]);
+
   const handleModalExerciseDetails = (exerciseId: string) => {
     if (isNavigating.current) return;
     isNavigating.current = true;
@@ -461,12 +471,17 @@ export default function CreateWorkoutScreen() {
   // Render exercise card
   const firstExerciseLocalId = editorSession?.exercises[0]?.localId ?? null;
 
-  const renderExerciseCard = useCallback(({ item }: { item: { localId: string } }) => {
+  const renderExerciseCard = useCallback(({ item, index }: { item: { localId: string }; index: number }) => {
+    const exerciseTotal = editorSession?.exercises.length ?? 0;
     const card = (
       <ExerciseCard
         exerciseLocalId={item.localId}
         onReplace={handleReplaceExercise}
         onViewDetails={handleViewExerciseDetails}
+        onMoveUp={(exerciseLocalId) => handleMoveExercise(exerciseLocalId, 'up')}
+        onMoveDown={(exerciseLocalId) => handleMoveExercise(exerciseLocalId, 'down')}
+        canMoveUp={index > 0}
+        canMoveDown={index < exerciseTotal - 1}
         useEditor={true}
         deferStickyNoteSave={mode !== 'log'}
         showCheckboxes={mode === 'log'}
@@ -482,7 +497,15 @@ export default function CreateWorkoutScreen() {
     }
 
     return card;
-  }, [firstExerciseLocalId, handleReplaceExercise, handleViewExerciseDetails, mode, shouldAnchorVoiceAddMultiple]);
+  }, [
+    editorSession?.exercises.length,
+    firstExerciseLocalId,
+    handleMoveExercise,
+    handleReplaceExercise,
+    handleViewExerciseDetails,
+    mode,
+    shouldAnchorVoiceAddMultiple,
+  ]);
 
   // Render empty state
   const renderEmptyState = () => (

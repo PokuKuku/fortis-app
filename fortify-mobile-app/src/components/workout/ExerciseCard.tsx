@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import {
+  ChevronDownIcon,
+  ChevronUpIcon,
   EllipsisVerticalIcon,
   DocumentTextIcon,
   MicrophoneIcon,
@@ -53,6 +55,10 @@ interface ExerciseCardProps {
   onReplace?: (exerciseLocalId: string) => void;
   onViewDetails?: (exerciseId: string) => void;
   onVoiceLog?: (exerciseLocalId: string) => void;
+  onMoveUp?: (exerciseLocalId: string) => void;
+  onMoveDown?: (exerciseLocalId: string) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
   completedSetTint?: 'accent' | 'success';
   shouldAnchorVoiceButton?: boolean;
 }
@@ -65,6 +71,10 @@ export function ExerciseCard({
   onReplace,
   onViewDetails,
   onVoiceLog,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
   completedSetTint = 'accent',
   shouldAnchorVoiceButton = false,
 }: ExerciseCardProps) {
@@ -89,6 +99,12 @@ export function ExerciseCard({
     headerText: { color: colors.textSecondary },
     addSetLine: { backgroundColor: colors.accentBorder },
     addSetText: { color: colors.accent },
+    reorderButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    },
+    reorderButtonPressed: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.08)',
+    },
   };
 
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
@@ -215,6 +231,18 @@ export function ExerciseCard({
     onVoiceLog?.(exerciseLocalId);
   };
 
+  const handleMoveUp = () => {
+    if (!canMoveUp) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onMoveUp?.(exerciseLocalId);
+  };
+
+  const handleMoveDown = () => {
+    if (!canMoveDown) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onMoveDown?.(exerciseLocalId);
+  };
+
   const handleOpenStickyNote = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setStickyNoteValue(stickyNote || '');
@@ -293,8 +321,45 @@ export function ExerciseCard({
       <View style={styles.content}>
         {/* Exercise Header */}
         <View style={styles.header}>
-          <Text style={[styles.exerciseName, themedStyles.exerciseName]}>{exercise.exerciseName}</Text>
+          <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
+            {exercise.exerciseName}
+          </Text>
           <View style={styles.headerActions}>
+            {useEditor && onMoveUp && onMoveDown && (
+              <View style={styles.reorderActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${exercise.exerciseName} up`}
+                  onPress={handleMoveUp}
+                  disabled={!canMoveUp}
+                  style={({ pressed }) => [
+                    styles.reorderButton,
+                    themedStyles.reorderButton,
+                    !canMoveUp && styles.reorderButtonDisabled,
+                    pressed && canMoveUp && themedStyles.reorderButtonPressed,
+                  ]}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <ChevronUpIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${exercise.exerciseName} down`}
+                  onPress={handleMoveDown}
+                  disabled={!canMoveDown}
+                  style={({ pressed }) => [
+                    styles.reorderButton,
+                    themedStyles.reorderButton,
+                    !canMoveDown && styles.reorderButtonDisabled,
+                    pressed && canMoveDown && themedStyles.reorderButtonPressed,
+                  ]}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                >
+                  <ChevronDownIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+                </Pressable>
+              </View>
+            )}
+
             {!useEditor && onVoiceLog && (
               shouldAnchorVoiceLog
                 ? (
@@ -505,6 +570,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: Spacing.sm,
+  },
+  reorderActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginRight: Spacing.xs,
+  },
+  reorderButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: BorderRadius.md,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  reorderButtonDisabled: {
+    opacity: 0.4,
   },
   voiceButton: {
     width: responsiveValue(34, 36, 38),

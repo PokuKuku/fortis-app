@@ -16,10 +16,12 @@ import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
+import { DripFunnelController } from '@/src/components/drip-funnel/DripFunnelController';
 import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
 import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTracker';
 import { initializeMixpanel } from '@/src/lib/mixpanel';
 import { RevenueCatAnalyticsSync } from '@/src/components/revenuecat/RevenueCatAnalyticsSync';
+import { isDripFunnelNotification } from '@/src/services/dripFunnelService';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -35,12 +37,18 @@ const ONBOARDING_TRANSITION = {
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: false,
-    shouldShowList: false,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const shouldShowDripOffer = isDripFunnelNotification(
+      notification.request.content.data,
+    );
+
+    return {
+      shouldShowBanner: shouldShowDripOffer,
+      shouldShowList: shouldShowDripOffer,
+      shouldPlaySound: shouldShowDripOffer,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 /**
@@ -62,6 +70,7 @@ function ThemedAppContent({
     <AuthProvider>
       <SuperwallAuthSync />
       <SuperwallPurchaseRecovery />
+      <DripFunnelController />
       <RevenueCatAnalyticsSync />
       <MixpanelAuthSync />
       <MixpanelRouteTracker />

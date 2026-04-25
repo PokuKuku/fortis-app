@@ -347,6 +347,7 @@ interface WorkoutState {
   addEditorExercises: (exercises: ExerciseAddPayload[]) => void;
   replaceEditorExercise: (localId: string, newExerciseId: string, newExerciseName: string) => void;
   removeEditorExercise: (localId: string) => void;
+  reorderEditorExercises: (fromIndex: number, toIndex: number) => void;
   addEditorSet: (exerciseLocalId: string) => void;
   removeEditorSet: (exerciseLocalId: string, setLocalId: string) => void;
   updateEditorSet: (
@@ -2514,6 +2515,32 @@ export const useWorkoutStore = create<WorkoutState>()(
         (ex) => ex.localId !== localId
       );
       const reindexed = filtered.map((ex, i) => ({ ...ex, orderIndex: i }));
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises: reindexed,
+        },
+      });
+    },
+
+    reorderEditorExercises: (fromIndex, toIndex) => {
+      const { editorSession } = get();
+      if (!editorSession) return;
+      if (
+        fromIndex < 0
+        || toIndex < 0
+        || fromIndex >= editorSession.exercises.length
+        || toIndex >= editorSession.exercises.length
+        || fromIndex === toIndex
+      ) {
+        return;
+      }
+
+      const exercises = [...editorSession.exercises];
+      const [removed] = exercises.splice(fromIndex, 1);
+      exercises.splice(toIndex, 0, removed);
+      const reindexed = exercises.map((ex, i) => ({ ...ex, orderIndex: i }));
 
       set({
         editorSession: {

@@ -35,7 +35,7 @@ import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, { Easing, LinearTransition, runOnJS } from 'react-native-reanimated';
 import { responsiveValue, scale } from '@/src/utils/responsive';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
@@ -435,7 +435,10 @@ export default function CreateProgramScreen() {
     const canMoveDown = index < workouts.length - 1;
 
     return (
-      <View style={[styles.workoutCard, themedStyles.workoutCard]}>
+      <Animated.View
+        style={[styles.workoutCard, themedStyles.workoutCard]}
+        layout={LinearTransition.duration(250).easing(Easing.inOut(Easing.cubic))}
+      >
         <View style={styles.workoutCardHeader}>
           <Pressable
             onPress={() => handleViewWorkoutDetails(item.templateId)}
@@ -498,7 +501,7 @@ export default function CreateProgramScreen() {
             </Pressable>
           </View>
         </View>
-      </View>
+      </Animated.View>
     );
   }, [handleMoveWorkout, handleRemoveWorkout, handleViewWorkoutDetails, templateMap, workouts.length, colors, themedStyles]);
 

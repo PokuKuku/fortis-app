@@ -142,4 +142,53 @@ describe('workout editor store', () => {
     expect(exercises[0].setDetails).toEqual([{ weight: 100, reps: 8 }]);
     expect(result).toBe('template-123');
   });
+
+  it('reorders editor exercises and reindexes order', () => {
+    const editorSession: WorkoutSession = {
+      localId: 'session-1',
+      name: 'Upper Body',
+      notes: '',
+      startedAt: new Date('2024-01-01T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [
+        {
+          localId: 'exercise-1',
+          exerciseId: 'ex-bench',
+          exerciseName: 'Bench Press',
+          sets: [],
+          notes: '',
+          orderIndex: 0,
+        },
+        {
+          localId: 'exercise-2',
+          exerciseId: 'ex-row',
+          exerciseName: 'Row',
+          sets: [],
+          notes: '',
+          orderIndex: 1,
+        },
+        {
+          localId: 'exercise-3',
+          exerciseId: 'ex-curl',
+          exerciseName: 'Curl',
+          sets: [],
+          notes: '',
+          orderIndex: 2,
+        },
+      ],
+      isSynced: false,
+    };
+
+    useWorkoutStore.setState({ editorSession });
+
+    useWorkoutStore.getState().reorderEditorExercises(2, 0);
+
+    const updatedExercises = useWorkoutStore.getState().editorSession?.exercises ?? [];
+    expect(updatedExercises.map((exercise) => exercise.exerciseName)).toEqual([
+      'Curl',
+      'Bench Press',
+      'Row',
+    ]);
+    expect(updatedExercises.map((exercise) => exercise.orderIndex)).toEqual([0, 1, 2]);
+  });
 });

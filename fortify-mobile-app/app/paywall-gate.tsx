@@ -10,6 +10,10 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/superwallGuards';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
+import {
+  trackDripFunnelConversion,
+  trackDripFunnelPaywallDeclined,
+} from '@/src/services/dripFunnelService';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const GATE_RETRY_DELAY_MS = 2_000;
@@ -151,11 +155,30 @@ export default function PaywallGateScreen() {
   ]);
 
   const handleDismiss = useCallback(
-    (_paywallInfo: unknown, result: PaywallResult) => {
+    (paywallInfo: { name?: string } | unknown, result: PaywallResult) => {
+      const paywallName =
+        paywallInfo && typeof paywallInfo === 'object' && 'name' in paywallInfo
+          ? String(paywallInfo.name ?? '')
+          : null;
+
       if (result.type === 'purchased' || result.type === 'restored') {
+        void trackDripFunnelConversion({
+          placement: POST_SIGN_UP_PLACEMENT,
+          paywallName,
+          resultType: result.type,
+          productId: result.type === 'purchased' ? result.productId : null,
+        });
         hasActiveSubscriptionRef.current = true;
         finishGate();
         return;
+      }
+
+      if (result.type === 'declined') {
+        void trackDripFunnelPaywallDeclined({
+          placement: POST_SIGN_UP_PLACEMENT,
+          paywallName,
+          resultType: result.type,
+        });
       }
 
       if (hasActiveSubscriptionRef.current) {
