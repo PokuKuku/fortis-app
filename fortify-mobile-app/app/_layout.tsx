@@ -101,6 +101,13 @@ function ThemedAppContent({
               }}
             />
             <Stack.Screen
+              name="drip-discount"
+              options={{
+                ...PAGE_TRANSITION,
+                gestureEnabled: false,
+              }}
+            />
+            <Stack.Screen
               name="auth/index"
               options={{
                 ...ONBOARDING_TRANSITION,

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
+import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { usePlacement, useSuperwall, useSuperwallEvents } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -16,6 +17,7 @@ const DISCOUNT_PLACEMENT_RETRY_DELAY_MS = 750;
 const DISCOUNT_PLACEMENT_MAX_ATTEMPTS = 3;
 
 export function DripFunnelController() {
+  const router = useRouter();
   const { isAuthenticated, isAuthResolved } = useAuth();
   const pendingPlacementRef = useRef<string | null>(null);
   const placementAttemptRef = useRef(0);
@@ -108,8 +110,12 @@ export function DripFunnelController() {
     if (!placement) return;
 
     placementAttemptRef.current = 0;
+    router.replace({
+      pathname: '/drip-discount',
+      params: { placement },
+    } as never);
     void openDiscountPlacement(placement);
-  }, [openDiscountPlacement]);
+  }, [openDiscountPlacement, router]);
 
   useEffect(() => {
     void maybeRegisterPushToken(true);
