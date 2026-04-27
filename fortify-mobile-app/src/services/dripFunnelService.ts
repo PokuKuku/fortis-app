@@ -130,6 +130,15 @@ export const trackDripFunnelPaywallDeclined = async (payload: PaywallTrackPayloa
   });
 };
 
+export const trackDripFunnelPaywallPresented = async (payload: PaywallTrackPayload) => {
+  if (!isDripFunnelInitialPlacement(payload.placement)) return false;
+
+  return await invokeDripFunnel({
+    action: 'paywall_presented',
+    ...payload,
+  });
+};
+
 export const trackDripFunnelConversion = async (payload: PaywallTrackPayload = {}) => {
   return await invokeDripFunnel({
     action: 'conversion',

@@ -9,6 +9,7 @@ const DEFAULT_DISPATCH_LIMIT = 100;
 
 type TrackAction =
   | 'register_push_token'
+  | 'paywall_presented'
   | 'paywall_declined'
   | 'conversion'
   | 'dispatch_due';
@@ -21,7 +22,7 @@ type PushTokenBody = {
 };
 
 type PaywallBody = {
-  action: 'paywall_declined' | 'conversion';
+  action: 'paywall_presented' | 'paywall_declined' | 'conversion';
   placement?: string | null;
   paywallName?: string | null;
   resultType?: string | null;
@@ -315,28 +316,43 @@ Deno.serve(async (req) => {
 
     if (action === 'conversion') {
       const { placement, paywallName, resultType, productId, metadata } = body as PaywallBody;
-      const { error } = await admin
+      const conversionPayload = {
+        status: 'converted',
+        converted_at: new Date().toISOString(),
+        source_placement: placement ?? null,
+        source_paywall_name: paywallName ?? null,
+        source_result_type: resultType ?? null,
+        scheduled_at: new Date().toISOString(),
+        metadata: {
+          ...(metadata ?? {}),
+          productId: productId ?? null,
+        },
+      };
+
+      const { data: updated, error } = await admin
         .from('drip_funnel_events')
-        .update({
-          status: 'converted',
-          converted_at: new Date().toISOString(),
-          source_placement: placement ?? null,
-          source_paywall_name: paywallName ?? null,
-          source_result_type: resultType ?? null,
-          metadata: {
-            ...(metadata ?? {}),
-            productId: productId ?? null,
-          },
-        })
+        .update(conversionPayload)
         .eq('user_id', userId)
         .eq('campaign_key', CAMPAIGN_KEY)
-        .in('status', ['scheduled', 'sent', 'failed', 'no_token']);
+        .in('status', ['scheduled', 'sent', 'failed', 'no_token'])
+        .select('id');
 
       if (error) throw error;
+      if ((updated ?? []).length === 0) {
+        const { error: upsertError } = await admin
+          .from('drip_funnel_events')
+          .upsert({
+            user_id: userId,
+            campaign_key: CAMPAIGN_KEY,
+            ...conversionPayload,
+          }, { onConflict: 'user_id,campaign_key' });
+
+        if (upsertError) throw upsertError;
+      }
       return jsonResponse({ ok: true }, 200, origin);
     }
 
-    if (action === 'paywall_declined') {
+    if (action === 'paywall_presented' || action === 'paywall_declined') {
       const { placement, paywallName, resultType, productId, metadata } = body as PaywallBody;
       const now = new Date();
       const scheduledAt = addHours(now, SCHEDULE_DELAY_HOURS);

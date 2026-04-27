@@ -1,6 +1,5 @@
 import React from 'react';
 import { act, render, waitFor } from '@testing-library/react-native';
-import PaywallGateScreen from '@/app/paywall-gate';
 
 const mockRegisterPlacement = jest.fn();
 const mockIdentify = jest.fn().mockResolvedValue(undefined);
@@ -9,6 +8,9 @@ const mockSignOut = jest.fn().mockResolvedValue(undefined);
 const mockGetEntitlements = jest.fn().mockResolvedValue({ active: [] });
 const mockSetSubscriptionStatus = jest.fn().mockResolvedValue(undefined);
 const mockQueueTourStartAfterPaywallClose = jest.fn();
+const mockTrackDripFunnelConversion = jest.fn().mockResolvedValue(true);
+const mockTrackDripFunnelPaywallDeclined = jest.fn().mockResolvedValue(true);
+const mockTrackDripFunnelPaywallPresented = jest.fn().mockResolvedValue(true);
 const mockSubscriptionStatusState: { status: string; entitlements?: Array<{ id: string; type: string }> } = {
   status: 'INACTIVE',
 };
@@ -82,6 +84,14 @@ jest.mock('@/components/AnimatedLogo', () => ({
   AnimatedLogo: () => null,
 }));
 
+jest.mock('@/src/services/dripFunnelService', () => ({
+  trackDripFunnelConversion: mockTrackDripFunnelConversion,
+  trackDripFunnelPaywallDeclined: mockTrackDripFunnelPaywallDeclined,
+  trackDripFunnelPaywallPresented: mockTrackDripFunnelPaywallPresented,
+}));
+
+const PaywallGateScreen = require('@/app/paywall-gate').default;
+
 describe('PaywallGateScreen', () => {
   beforeEach(() => {
     jest.useRealTimers();
@@ -142,6 +152,30 @@ describe('PaywallGateScreen', () => {
     await waitFor(() => {
       expect(mockSetSubscriptionStatus).toHaveBeenCalledWith({ status: 'INACTIVE' });
       expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
+    });
+  });
+
+  it('schedules the drip funnel when the hard paywall is presented', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+
+    render(<PaywallGateScreen />);
+
+    await waitFor(() => {
+      expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
+    });
+
+    const { usePlacement } = jest.requireMock('expo-superwall');
+    const options = usePlacement.mock.calls[0][0];
+
+    act(() => {
+      options.onPresent({ name: 'Onboarding Paywall' });
+    });
+
+    expect(mockTrackDripFunnelPaywallPresented).toHaveBeenCalledWith({
+      placement: 'fortis_first',
+      paywallName: 'Onboarding Paywall',
+      resultType: 'presented',
     });
   });
 });

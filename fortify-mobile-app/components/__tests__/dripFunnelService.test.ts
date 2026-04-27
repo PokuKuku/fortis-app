@@ -5,6 +5,7 @@ import {
   getDiscountPlacementFromNotification,
   isDripFunnelInitialPlacement,
   isDripFunnelNotification,
+  trackDripFunnelPaywallPresented,
 } from '@/src/services/dripFunnelService';
 
 jest.mock('expo-notifications', () => ({
@@ -31,6 +32,12 @@ jest.mock('@/src/lib/supabase', () => ({
 }));
 
 describe('dripFunnelService', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    const { supabase } = jest.requireMock('@/src/lib/supabase');
+    supabase.functions.invoke.mockResolvedValue({});
+  });
+
   it('recognizes only the initial paywall placements for scheduling', () => {
     expect(DRIP_FUNNEL_INITIAL_PLACEMENTS.has('fortis_first')).toBe(true);
     expect(isDripFunnelInitialPlacement('fortis_first')).toBe(true);
@@ -58,5 +65,32 @@ describe('dripFunnelService', () => {
     expect(getDiscountPlacementFromNotification({
       kind: 'workout-reminder',
     })).toBeNull();
+  });
+
+  it('schedules only initial paywall presentations', async () => {
+    const { supabase } = jest.requireMock('@/src/lib/supabase');
+
+    await expect(trackDripFunnelPaywallPresented({
+      placement: 'fortis_first',
+      paywallName: 'Onboarding Paywall',
+      resultType: 'presented',
+    })).resolves.toBe(true);
+
+    expect(supabase.functions.invoke).toHaveBeenCalledWith('drip-funnel', {
+      body: {
+        action: 'paywall_presented',
+        placement: 'fortis_first',
+        paywallName: 'Onboarding Paywall',
+        resultType: 'presented',
+      },
+    });
+
+    supabase.functions.invoke.mockClear();
+
+    await expect(trackDripFunnelPaywallPresented({
+      placement: DRIP_FUNNEL_DISCOUNT_PLACEMENT,
+    })).resolves.toBe(false);
+
+    expect(supabase.functions.invoke).not.toHaveBeenCalled();
   });
 });
