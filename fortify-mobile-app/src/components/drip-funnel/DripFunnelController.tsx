@@ -12,13 +12,20 @@ import {
 } from '@/src/services/dripFunnelService';
 
 const PUSH_TOKEN_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const DISCOUNT_PLACEMENT_RETRY_DELAY_MS = 750;
+const DISCOUNT_PLACEMENT_MAX_ATTEMPTS = 3;
 
 export function DripFunnelController() {
   const { isAuthenticated, isAuthResolved } = useAuth();
   const pendingPlacementRef = useRef<string | null>(null);
+  const placementAttemptRef = useRef(0);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPushTokenRefreshAtRef = useRef(0);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const isSuperwallReady = useSuperwall((state) => state.isConfigured && !state.isLoading);
+  const { dismiss, isSuperwallReady } = useSuperwall((state) => ({
+    dismiss: state.dismiss,
+    isSuperwallReady: state.isConfigured && !state.isLoading,
+  }));
 
   const { registerPlacement } = usePlacement({
     onDismiss: (_paywallInfo, result) => {
@@ -34,6 +41,22 @@ export function DripFunnelController() {
     onError: (error) => {
       if (__DEV__) {
         console.warn('[DripFunnel] Discount placement failed:', error);
+      }
+
+      const placement = pendingPlacementRef.current;
+      if (
+        placement &&
+        String(error).toLowerCase().includes('one paywall') &&
+        placementAttemptRef.current < DISCOUNT_PLACEMENT_MAX_ATTEMPTS
+      ) {
+        void dismiss().catch(() => undefined);
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+        retryTimeoutRef.current = setTimeout(() => {
+          retryTimeoutRef.current = null;
+          void openDiscountPlacement(placement);
+        }, DISCOUNT_PLACEMENT_RETRY_DELAY_MS);
       }
     },
     onSkip: (reason) => {
@@ -64,6 +87,12 @@ export function DripFunnelController() {
     }
 
     pendingPlacementRef.current = placement;
+    placementAttemptRef.current += 1;
+    if (placementAttemptRef.current === 1) {
+      await dismiss().catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, DISCOUNT_PLACEMENT_RETRY_DELAY_MS));
+    }
+
     await registerPlacement({
       placement,
       params: {
@@ -71,13 +100,14 @@ export function DripFunnelController() {
         source: 'push_notification',
       },
     });
-  }, [isAuthResolved, isSuperwallReady, registerPlacement]);
+  }, [dismiss, isAuthResolved, isSuperwallReady, registerPlacement]);
 
   const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse | null) => {
     const data = response?.notification.request.content.data as DripFunnelNotificationData | undefined;
     const placement = getDiscountPlacementFromNotification(data);
     if (!placement) return;
 
+    placementAttemptRef.current = 0;
     void openDiscountPlacement(placement);
   }, [openDiscountPlacement]);
 
@@ -102,6 +132,14 @@ export function DripFunnelController() {
       subscription.remove();
     };
   }, [maybeRegisterPushToken]);
+
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     Notifications.getLastNotificationResponseAsync()
