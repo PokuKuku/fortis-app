@@ -25,8 +25,8 @@
       "infoPlist": {
         "CFBundleDisplayName": "Fortify AI",
         "CFBundleName": "FortifyAI",
-        "NSMicrophoneUsageDescription": "Fortify uses your microphone so you can dictate workout sets, weights, and reps during an active session.",
-        "NSSpeechRecognitionUsageDescription": "Fortify uses speech recognition so your voice messages can appear as text while you speak to the AI assistant.",
+        "NSMicrophoneUsageDescription": "Fortify uses your microphone so you can dictate messages to the AI assistant.",
+        "NSSpeechRecognitionUsageDescription": "Fortify uses speech recognition so your voice messages can appear as text while you speak.",
         "NSPhotoLibraryUsageDescription": "Turning on Photo access will allow us to display your chosen photo for your profile.",
         "UIApplicationShortcutItems": [
           {
@@ -91,8 +91,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "your-project-id-here"
+        "projectId": "1df7f09e-a068-4bb3-814b-72c36906b512"
       }
-    }
+    },
+    "owner": "pokukuku"
   }
 }
