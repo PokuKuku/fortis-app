@@ -165,7 +165,7 @@ export function WeeklyTierMuscleHeatmap({
                 { color: colors.textSecondary },
               ]}
             >
-              {tier}
+              {tier} tier
             </Text>
           </View>
         ))}

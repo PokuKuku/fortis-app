@@ -4,7 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 
 export const DRIP_FUNNEL_CAMPAIGN_KEY = 'drip_discount_25_v1';
-export const DRIP_FUNNEL_DISCOUNT_PLACEMENT = 'fortis_drip_discount_25';
+export const DRIP_FUNNEL_DISCOUNT_PLACEMENT = 'fortify_drip_discount_25';
 export const DRIP_FUNNEL_DISCOUNT_OFFER = 'drip_discount_25';
 export const DRIP_FUNNEL_INITIAL_PLACEMENTS = new Set(['fortis_first']);
 export const DRIP_FUNNEL_NOTIFICATION_KIND = 'drip-discount';

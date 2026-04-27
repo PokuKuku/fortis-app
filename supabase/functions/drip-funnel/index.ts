@@ -2,9 +2,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 
 const CAMPAIGN_KEY = 'drip_discount_25_v1';
-const DISCOUNT_PLACEMENT = 'fortis_drip_discount_25';
+const DISCOUNT_PLACEMENT = 'fortify_drip_discount_25';
 const DISCOUNT_URL = 'fortis://paywall?offer=drip_discount_25';
-const SCHEDULE_DELAY_HOURS = 24;
+const SCHEDULE_DELAY_HOURS = 2;
 const DEFAULT_DISPATCH_LIMIT = 100;
 
 type TrackAction =
@@ -218,8 +218,8 @@ Deno.serve(async (req) => {
       const messages = sendable.map(({ token }) => ({
         to: token.expo_push_token,
         sound: 'default',
-        title: 'Your Fortify AI discount is ready',
-        body: 'Come back today and get 25% off Pro. Unlock yearly access for $29.99.',
+        title: "Here's a 25% discount for Fortify AI",
+        body: 'Unlock the yearly plan now and save 25% forever.',
         data: {
           kind: 'drip-discount',
           campaignKey: CAMPAIGN_KEY,
