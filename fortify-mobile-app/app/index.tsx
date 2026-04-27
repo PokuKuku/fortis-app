@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { useRootNavigationState, useRouter } from 'expo-router';
+import { usePathname, useRootNavigationState, useRouter } from 'expo-router';
 import { Asset } from 'expo-asset';
 import * as ExpoSplashScreen from 'expo-splash-screen';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -32,6 +32,7 @@ const resolveStartupRoute = ({
 
 export default function SplashScreen() {
   const router = useRouter();
+  const pathname = usePathname();
   const rootNavigationState = useRootNavigationState();
   const { colors } = useTheme();
   const { isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved } = useAuth();
@@ -79,7 +80,13 @@ export default function SplashScreen() {
 
   useEffect(() => {
     const profileStateReady = !isAuthenticated || profileResolved;
-    if (!minDelayPassed || !isAuthResolved || !profileStateReady || hasNavigatedRef.current) {
+    if (
+      !minDelayPassed ||
+      !isAuthResolved ||
+      !profileStateReady ||
+      hasNavigatedRef.current ||
+      pathname === '/drip-discount'
+    ) {
       return;
     }
 
@@ -103,6 +110,7 @@ export default function SplashScreen() {
     profile,
     profileResolved,
     onboardingWarmupReady,
+    pathname,
     router,
   ]);
 
