@@ -2,10 +2,9 @@ import { useCallback, useEffect, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { usePlacement, useSuperwall, useSuperwallEvents } from 'expo-superwall';
+import { useSuperwallEvents } from 'expo-superwall';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
-  DRIP_FUNNEL_DISCOUNT_OFFER,
   getDiscountPlacementFromNotification,
   registerDripFunnelPushToken,
   trackDripFunnelConversion,
@@ -13,60 +12,12 @@ import {
 } from '@/src/services/dripFunnelService';
 
 const PUSH_TOKEN_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
-const DISCOUNT_PLACEMENT_RETRY_DELAY_MS = 750;
-const DISCOUNT_PLACEMENT_MAX_ATTEMPTS = 3;
 
 export function DripFunnelController() {
   const router = useRouter();
   const { isAuthenticated, isAuthResolved } = useAuth();
-  const pendingPlacementRef = useRef<string | null>(null);
-  const placementAttemptRef = useRef(0);
-  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPushTokenRefreshAtRef = useRef(0);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const { dismiss, isSuperwallReady } = useSuperwall((state) => ({
-    dismiss: state.dismiss,
-    isSuperwallReady: state.isConfigured && !state.isLoading,
-  }));
-
-  const { registerPlacement } = usePlacement({
-    onDismiss: (_paywallInfo, result) => {
-      if (result.type === 'purchased' || result.type === 'restored') {
-        void trackDripFunnelConversion({
-          placement: pendingPlacementRef.current,
-          resultType: result.type,
-          productId: result.type === 'purchased' ? result.productId : null,
-          metadata: { source: 'discount_notification_paywall' },
-        });
-      }
-    },
-    onError: (error) => {
-      if (__DEV__) {
-        console.warn('[DripFunnel] Discount placement failed:', error);
-      }
-
-      const placement = pendingPlacementRef.current;
-      if (
-        placement &&
-        String(error).toLowerCase().includes('one paywall') &&
-        placementAttemptRef.current < DISCOUNT_PLACEMENT_MAX_ATTEMPTS
-      ) {
-        void dismiss().catch(() => undefined);
-        if (retryTimeoutRef.current) {
-          clearTimeout(retryTimeoutRef.current);
-        }
-        retryTimeoutRef.current = setTimeout(() => {
-          retryTimeoutRef.current = null;
-          void openDiscountPlacement(placement);
-        }, DISCOUNT_PLACEMENT_RETRY_DELAY_MS);
-      }
-    },
-    onSkip: (reason) => {
-      if (__DEV__) {
-        console.log('[DripFunnel] Discount placement skipped:', reason.type);
-      }
-    },
-  });
 
   const maybeRegisterPushToken = useCallback(async (force = false) => {
     if (!isAuthResolved || !isAuthenticated) return;
@@ -82,40 +33,16 @@ export function DripFunnelController() {
     }
   }, [isAuthResolved, isAuthenticated]);
 
-  const openDiscountPlacement = useCallback(async (placement: string) => {
-    if (!isAuthResolved || !isSuperwallReady) {
-      pendingPlacementRef.current = placement;
-      return;
-    }
-
-    pendingPlacementRef.current = placement;
-    placementAttemptRef.current += 1;
-    if (placementAttemptRef.current === 1) {
-      await dismiss().catch(() => undefined);
-      await new Promise((resolve) => setTimeout(resolve, DISCOUNT_PLACEMENT_RETRY_DELAY_MS));
-    }
-
-    await registerPlacement({
-      placement,
-      params: {
-        offer: DRIP_FUNNEL_DISCOUNT_OFFER,
-        source: 'push_notification',
-      },
-    });
-  }, [dismiss, isAuthResolved, isSuperwallReady, registerPlacement]);
-
   const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse | null) => {
     const data = response?.notification.request.content.data as DripFunnelNotificationData | undefined;
     const placement = getDiscountPlacementFromNotification(data);
     if (!placement) return;
 
-    placementAttemptRef.current = 0;
     router.replace({
       pathname: '/drip-discount',
       params: { placement },
     } as never);
-    void openDiscountPlacement(placement);
-  }, [openDiscountPlacement, router]);
+  }, [router]);
 
   useEffect(() => {
     void maybeRegisterPushToken(true);
@@ -140,14 +67,6 @@ export function DripFunnelController() {
   }, [maybeRegisterPushToken]);
 
   useEffect(() => {
-    return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     Notifications.getLastNotificationResponseAsync()
       .then(handleNotificationResponse)
       .catch(() => undefined);
@@ -157,16 +76,6 @@ export function DripFunnelController() {
       subscription.remove();
     };
   }, [handleNotificationResponse]);
-
-  useEffect(() => {
-    if (!pendingPlacementRef.current || !isAuthResolved || !isSuperwallReady) {
-      return;
-    }
-
-    const placement = pendingPlacementRef.current;
-    pendingPlacementRef.current = null;
-    void openDiscountPlacement(placement);
-  }, [isAuthResolved, isSuperwallReady, openDiscountPlacement]);
 
   useSuperwallEvents({
     onPurchase: (params: { productId?: string; platform?: string }) => {
