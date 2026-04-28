@@ -4,5 +4,8 @@
   ],
   "ios": {
     "bundleIdentifier": "com.anonymous.fortis-app"
+  },
+  "android": {
+    "package": "com.anonymous.fortisapp"
   }
 }
