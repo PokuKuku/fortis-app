@@ -220,7 +220,7 @@ Deno.serve(async (req) => {
         to: token.expo_push_token,
         sound: 'default',
         title: "Here's a 25% discount for Fortify AI",
-        body: 'Unlock the yearly plan now and save 25% forever.',
+        body: 'Unlock the yearly plan now and save 25% forever!',
         data: {
           kind: 'drip-discount',
           campaignKey: CAMPAIGN_KEY,
