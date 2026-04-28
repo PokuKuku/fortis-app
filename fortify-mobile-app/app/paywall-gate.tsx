@@ -10,11 +10,6 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/superwallGuards';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
-import {
-  trackDripFunnelConversion,
-  trackDripFunnelPaywallDeclined,
-  trackDripFunnelPaywallPresented,
-} from '@/src/services/dripFunnelService';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const GATE_RETRY_DELAY_MS = 2_000;
@@ -44,7 +39,6 @@ export default function PaywallGateScreen() {
   const lastIdentityRetryRef = useRef(-1);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasActiveSubscriptionRef = useRef(false);
-  const hasTrackedPaywallPresentedRef = useRef(false);
   const subscriptionStatusRef = useRef(subscriptionStatus);
   const [attempt, setAttempt] = useState(0);
 
@@ -157,30 +151,11 @@ export default function PaywallGateScreen() {
   ]);
 
   const handleDismiss = useCallback(
-    (paywallInfo: { name?: string } | unknown, result: PaywallResult) => {
-      const paywallName =
-        paywallInfo && typeof paywallInfo === 'object' && 'name' in paywallInfo
-          ? String(paywallInfo.name ?? '')
-          : null;
-
+    (_paywallInfo: { name?: string } | unknown, result: PaywallResult) => {
       if (result.type === 'purchased' || result.type === 'restored') {
-        void trackDripFunnelConversion({
-          placement: POST_SIGN_UP_PLACEMENT,
-          paywallName,
-          resultType: result.type,
-          productId: result.type === 'purchased' ? result.productId : null,
-        });
         hasActiveSubscriptionRef.current = true;
         finishGate();
         return;
-      }
-
-      if (result.type === 'declined') {
-        void trackDripFunnelPaywallDeclined({
-          placement: POST_SIGN_UP_PLACEMENT,
-          paywallName,
-          resultType: result.type,
-        });
       }
 
       if (hasActiveSubscriptionRef.current) {
@@ -192,24 +167,6 @@ export default function PaywallGateScreen() {
     },
     [finishGate, scheduleRetry],
   );
-
-  const handlePresent = useCallback((paywallInfo: { name?: string } | unknown) => {
-    if (hasTrackedPaywallPresentedRef.current) {
-      return;
-    }
-
-    const paywallName =
-      paywallInfo && typeof paywallInfo === 'object' && 'name' in paywallInfo
-        ? String(paywallInfo.name ?? '')
-        : null;
-
-    hasTrackedPaywallPresentedRef.current = true;
-    void trackDripFunnelPaywallPresented({
-      placement: POST_SIGN_UP_PLACEMENT,
-      paywallName,
-      resultType: 'presented',
-    });
-  }, []);
 
   const handleSkip = useCallback(
     (_reason: PaywallSkippedReason) => {
@@ -236,7 +193,6 @@ export default function PaywallGateScreen() {
   );
 
   const { registerPlacement } = usePlacement({
-    onPresent: handlePresent,
     onDismiss: handleDismiss,
     onSkip: handleSkip,
     onError: handleError,

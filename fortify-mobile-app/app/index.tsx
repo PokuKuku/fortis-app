@@ -84,8 +84,7 @@ export default function SplashScreen() {
       !minDelayPassed ||
       !isAuthResolved ||
       !profileStateReady ||
-      hasNavigatedRef.current ||
-      pathname === '/drip-discount'
+      hasNavigatedRef.current
     ) {
       return;
     }

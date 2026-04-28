@@ -5,7 +5,6 @@ import { InteractionManager, Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import * as Notifications from 'expo-notifications';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
@@ -16,12 +15,10 @@ import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
-import { DripFunnelController } from '@/src/components/drip-funnel/DripFunnelController';
 import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
 import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTracker';
 import { initializeMixpanel } from '@/src/lib/mixpanel';
 import { RevenueCatAnalyticsSync } from '@/src/components/revenuecat/RevenueCatAnalyticsSync';
-import { isDripFunnelNotification } from '@/src/services/dripFunnelService';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -36,20 +33,6 @@ const ONBOARDING_TRANSITION = {
 };
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    const shouldShowDripOffer = isDripFunnelNotification(
-      notification.request.content.data,
-    );
-
-    return {
-      shouldShowBanner: shouldShowDripOffer,
-      shouldShowList: shouldShowDripOffer,
-      shouldPlaySound: shouldShowDripOffer,
-      shouldSetBadge: false,
-    };
-  },
-});
 
 /**
  * Themed content wrapper - uses theme context for StatusBar and Stack styling
@@ -70,7 +53,6 @@ function ThemedAppContent({
     <AuthProvider>
       <SuperwallAuthSync />
       <SuperwallPurchaseRecovery />
-      <DripFunnelController />
       <RevenueCatAnalyticsSync />
       <MixpanelAuthSync />
       <MixpanelRouteTracker />
@@ -95,13 +77,6 @@ function ThemedAppContent({
             />
             <Stack.Screen
               name="paywall-gate"
-              options={{
-                ...PAGE_TRANSITION,
-                gestureEnabled: false,
-              }}
-            />
-            <Stack.Screen
-              name="drip-discount"
               options={{
                 ...PAGE_TRANSITION,
                 gestureEnabled: false,
