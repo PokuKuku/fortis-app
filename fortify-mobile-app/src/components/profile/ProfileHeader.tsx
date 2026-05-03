@@ -9,11 +9,12 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
+  type ImageSourcePropType,
 } from 'react-native';
 import { format } from 'date-fns';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { UserCircleIcon, CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
+import { CameraIcon, PencilIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -25,6 +26,7 @@ import { Typography } from '@/constants/Typography';
 const HEATMAP_CELL_SIZE = 10;
 const HEATMAP_CELL_GAP = 4;
 const HEATMAP_DAY_LABEL_WIDTH = 34;
+const PROFILE_AVATAR_SOURCE = require('@/assets/fortify_ai.png') as ImageSourcePropType;
 
 function withAlpha(color: string, alpha: number): string {
   if (!color.startsWith('#') || color.length !== 7) {
@@ -226,6 +228,10 @@ export function ProfileHeader() {
     backgroundColor: colors.accentOverlay,
   };
 
+  const avatarSource: ImageSourcePropType = localAvatarUri
+    ? { uri: localAvatarUri }
+    : PROFILE_AVATAR_SOURCE;
+
   const handleShareActivity = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({ pathname: '/profile/share', params: { type: 'activity' } });
@@ -246,10 +252,8 @@ export function ProfileHeader() {
             <View style={styles.avatarLoading}>
               <ActivityIndicator color={colors.accent} size="small" />
             </View>
-          ) : (localAvatarUri || profile?.avatar_url) ? (
-            <Image source={{ uri: localAvatarUri || profile?.avatar_url || '' }} style={styles.avatarImage} />
           ) : (
-            <UserCircleIcon color={colors.accent} size={56} strokeWidth={1} />
+            <Image source={avatarSource} style={styles.avatarImage} />
           )}
           <View style={[styles.cameraIconBadge, cameraIconBadgeStyle, { borderColor: colors.background }]}>
             <CameraIcon color={colors.white} size={12} strokeWidth={2.5} />

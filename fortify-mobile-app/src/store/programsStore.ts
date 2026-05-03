@@ -15,6 +15,7 @@ import {
   removeFromPendingQueue,
   getPendingProgramSyncIds,
 } from '../services/programSyncService';
+import { resolveCustomExerciseRemoteIds } from '../services/customExerciseSync';
 import { getDefaultPrograms, getDefaultTemplates } from '../data/defaultPrograms';
 import { isLocalProgramId } from '../utils/localIds';
 import { generateUniqueName } from '../utils/nameUtils';
@@ -226,11 +227,15 @@ const normalizeExerciseKey = (value: string): string =>
 const resolveExerciseIdMap = async (
   exercises: Array<{ exerciseId: string; exerciseName?: string | null }>
 ): Promise<Map<string, string>> => {
-  const map = new Map<string, string>();
+  const customRemoteIds = await resolveCustomExerciseRemoteIds(exercises.map((ex) => ex.exerciseId));
+  const map = new Map<string, string>(customRemoteIds);
   const slugKeys = new Set<string>();
   const nameKeys = new Set<string>();
 
   exercises.forEach((ex) => {
+    if (customRemoteIds.has(ex.exerciseId)) {
+      return;
+    }
     if (isValidUUID(ex.exerciseId)) {
       map.set(ex.exerciseId, ex.exerciseId);
       return;
@@ -667,7 +672,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return false;
     }
 
-    const hasLocalExercises = hasLocalExerciseIds(templateWorkout.exercises || []);
     const now = new Date().toISOString();
     const nextDayNumber = program.workouts.length + 1;
 
@@ -691,7 +695,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return updatedProgram;
     };
 
-    if (isLocalProgramId(programId) || hasLocalExercises || !isSupabaseConfigured()) {
+    if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
       const updatedProgram = applyLocalUpdate();
 
       if (isLocalProgramId(programId)) {
@@ -912,10 +916,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return null;
     }
 
-    const hasLocalExercises = templates.some((entry) =>
-      hasLocalExerciseIds(entry.template?.workouts[0].exercises || [])
-    );
-
     const saveLocally = async () => {
       const localId = `local-${Date.now()}`;
       const now = new Date().toISOString();
@@ -952,25 +952,23 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }));
       get().persistLocalPrograms();
 
-      if (!hasLocalExercises) {
-        syncLocalProgram(localProgram)
-          .then((result) => {
-            if (result.success && result.serverId) {
-              const stillExists = get().programs.some((p) => p.id === localId);
-              if (stillExists) {
-                get().replaceLocalIdWithServerId(localId, result.serverId);
-              }
+      syncLocalProgram(localProgram)
+        .then((result) => {
+          if (result.success && result.serverId) {
+            const stillExists = get().programs.some((p) => p.id === localId);
+            if (stillExists) {
+              get().replaceLocalIdWithServerId(localId, result.serverId);
             }
-          })
-          .catch((err) => {
-            console.warn('Background program sync failed:', err);
-          });
-      }
+          }
+        })
+        .catch((err) => {
+          console.warn('Background program sync failed:', err);
+        });
 
       return localId;
     };
 
-    if (!isSupabaseConfigured() || hasLocalExercises) {
+    if (!isSupabaseConfigured()) {
       return await saveLocally();
     }
 
@@ -1090,10 +1088,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return null;
     }
 
-    const hasLocalExercises = templates.some((entry) =>
-      hasLocalExerciseIds(entry.template?.workouts[0].exercises || [])
-    );
-
     const now = new Date().toISOString();
 
     const buildUpdatedProgram = (workoutIds?: Map<number, string>) => {
@@ -1128,7 +1122,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return updatedProgram;
     };
 
-    if (isLocalProgramId(programId) || hasLocalExercises || !isSupabaseConfigured()) {
+    if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
       const updatedProgram = applyLocalUpdate();
 
       if (programId.startsWith('local-')) {
@@ -1602,7 +1596,6 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return updatedProgram;
     };
 
-    const hasLocalExercises = hasLocalExerciseIds(exercises);
     const isSeededDefaultTemplate = isSeededDefaultProgram(template);
 
     if (isSeededDefaultTemplate) {
@@ -1660,7 +1653,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         console.warn('Failed to persist deleted default program IDs:', err);
       }
 
-      if (hasLocalExercises || !isSupabaseConfigured()) {
+      if (!isSupabaseConfigured()) {
         return await persistForkLocally();
       }
 
@@ -1669,15 +1662,16 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         const result = await syncLocalProgram(copiedTemplate);
 
         if (result.success && result.serverId) {
+          const serverId = result.serverId;
           const syncedTemplate: Program = {
             ...copiedTemplate,
-            id: result.serverId,
+            id: serverId,
             workouts: copiedTemplate.workouts.map((w) => ({
               ...w,
-              id: w.id.replace(localId, result.serverId),
+              id: w.id.replace(localId, serverId),
               exercises: w.exercises.map((ex) => ({
                 ...ex,
-                id: ex.id.replace(localId, result.serverId),
+                id: ex.id.replace(localId, serverId),
               })),
             })),
           };
@@ -1710,7 +1704,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       await get().refreshPendingProgramSyncIds();
     }
 
-    if (hasLocalExercises || !isSupabaseConfigured()) {
+    if (!isSupabaseConfigured()) {
       return templateId;
     }
 

@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import * as Linking from 'expo-linking';
 import Constants from 'expo-constants';
+import { isInvalidRefreshTokenError } from '@/src/utils/authErrors';
 
 const parseHost = (value: string | null | undefined) => {
   if (!value) return null;
@@ -64,6 +65,28 @@ const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
 // Key for storing refresh token securely
 const SECURE_REFRESH_TOKEN_KEY = 'fortis_refresh_token';
+
+const installSupabaseAuthConsoleErrorFilter = () => {
+  if (!__DEV__) return;
+
+  const consoleWithFlag = console as typeof console & {
+    __fortisSupabaseAuthErrorFilterInstalled?: boolean;
+  };
+
+  if (consoleWithFlag.__fortisSupabaseAuthErrorFilterInstalled) return;
+
+  const originalError = console.error.bind(console);
+  consoleWithFlag.error = (...args: Parameters<typeof console.error>) => {
+    if (args.some(isInvalidRefreshTokenError)) {
+      return;
+    }
+
+    originalError(...args);
+  };
+  consoleWithFlag.__fortisSupabaseAuthErrorFilterInstalled = true;
+};
+
+installSupabaseAuthConsoleErrorFilter();
 
 /**
  * Hybrid storage adapter for React Native
@@ -162,7 +185,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 export const clearSupabaseAuthStorage = async () => {
-  const storageKey = supabase.auth.storageKey;
+  const storageKey = (supabase.auth as typeof supabase.auth & { storageKey?: string }).storageKey;
   if (storageKey) {
     await SecureStorageAdapter.removeItem(storageKey);
   }

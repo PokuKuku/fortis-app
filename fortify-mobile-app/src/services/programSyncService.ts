@@ -10,6 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { Program, ProgramWorkout, ProgramExercise } from '@/src/types/workout';
 import { PENDING_PROGRAM_SYNC_QUEUE_KEY } from '@/src/constants/storageKeys';
+import { resolveCustomExerciseRemoteIds } from '@/src/services/customExerciseSync';
 
 // Pending sync item stored in queue
 interface PendingProgramSyncItem {
@@ -46,17 +47,6 @@ function isValidUUID(str: string): boolean {
   return uuidRegex.test(str);
 }
 
-/**
- * Check if program has any local (non-UUID) exercise IDs
- */
-function hasLocalExercises(program: Program): boolean {
-  return program.workouts.some(workout =>
-    workout.exercises.some(ex =>
-      ex.exerciseId.startsWith('custom-') || ex.exerciseId.startsWith('local-')
-    )
-  );
-}
-
 function normalizeExerciseKey(value: string): string {
   return value
     .toLowerCase()
@@ -66,11 +56,15 @@ function normalizeExerciseKey(value: string): string {
 }
 
 async function resolveExerciseIdMap(exercises: ProgramExercise[]): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
+  const customRemoteIds = await resolveCustomExerciseRemoteIds(exercises.map((ex) => ex.exerciseId));
+  const map = new Map<string, string>(customRemoteIds);
   const slugKeys = new Set<string>();
   const nameKeys = new Set<string>();
 
   exercises.forEach((ex) => {
+    if (customRemoteIds.has(ex.exerciseId)) {
+      return;
+    }
     if (isValidUUID(ex.exerciseId)) {
       map.set(ex.exerciseId, ex.exerciseId);
       return;
@@ -458,11 +452,6 @@ export async function syncLocalProgram(program: Program): Promise<SyncResult> {
     return { success: false, error: 'Supabase not configured' };
   }
 
-  // Programs with local exercise IDs can't be synced
-  if (hasLocalExercises(program)) {
-    return { success: false, error: 'Program contains local exercises' };
-  }
-
   // Check authentication
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -529,12 +518,6 @@ export async function processPendingProgramQueue(): Promise<{
   const remainingQueue: PendingProgramSyncItem[] = [];
 
   for (const item of queue) {
-    // Skip programs with local exercises
-    if (hasLocalExercises(item.program)) {
-      remainingQueue.push(item);
-      continue;
-    }
-
     const result = await syncProgramToSupabase(item.program, user.id);
 
     if (result.success) {

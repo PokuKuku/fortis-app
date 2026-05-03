@@ -24,6 +24,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import NetInfo from '@react-native-community/netinfo';
+import { isInvalidRefreshTokenError } from '@/src/utils/authErrors';
 
 // Ensure web browser is dismissed after auth
 WebBrowser.maybeCompleteAuthSession();
@@ -83,18 +84,6 @@ export interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-
-const isInvalidRefreshTokenError = (error: unknown) => {
-  if (!error || typeof error !== 'object') return false;
-
-  const value = error as { name?: unknown; message?: unknown };
-  return (
-    value.name === 'AuthApiError' &&
-    typeof value.message === 'string' &&
-    value.message.includes('Invalid Refresh Token') &&
-    value.message.includes('Refresh Token Not Found')
-  );
-};
 
 export function useAuth() {
   const context = useContext(AuthContext);
