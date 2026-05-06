@@ -7,7 +7,7 @@ import {
   Animated,
   Modal,
 } from 'react-native';
-import { InformationCircleIcon, ArrowPathIcon, TrashIcon, DocumentTextIcon } from 'react-native-heroicons/outline';
+import { InformationCircleIcon, ArrowPathIcon, TrashIcon, DocumentTextIcon, AdjustmentsHorizontalIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
@@ -18,6 +18,7 @@ interface ExerciseKebabPopoverProps {
   onReplace: () => void;
   onViewDetails: () => void;
   onStickyNote: () => void;
+  onEditTarget: () => void;
   hasStickyNote: boolean;
   onAddNote: () => void;
   hasNote: boolean;
@@ -31,6 +32,7 @@ export function ExerciseKebabPopover({
   onReplace,
   onViewDetails,
   onStickyNote,
+  onEditTarget,
   hasStickyNote,
   onAddNote,
   hasNote,
@@ -124,6 +126,14 @@ export function ExerciseKebabPopover({
         >
           <InformationCircleIcon color={colors.textSecondary} size={18} strokeWidth={2} />
           <Text style={[styles.optionText, themedStyles.optionText]}>View Details</Text>
+        </TouchableOpacity>
+        <View style={[styles.divider, themedStyles.divider]} />
+        <TouchableOpacity
+          style={styles.option}
+          onPress={() => handleAction(onEditTarget)}
+        >
+          <AdjustmentsHorizontalIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+          <Text style={[styles.optionText, themedStyles.optionText]}>Set Target</Text>
         </TouchableOpacity>
         <View style={[styles.divider, themedStyles.divider]} />
         <TouchableOpacity

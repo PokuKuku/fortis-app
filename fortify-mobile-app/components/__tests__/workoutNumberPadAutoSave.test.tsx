@@ -110,4 +110,57 @@ describe('workout number pad auto-save', () => {
     expect(useWorkoutStore.getState().activeNumberPad?.inputType).toBe('reps');
     expect(useWorkoutStore.getState().activeNumberPad?.pendingValue).toBe('');
   });
+
+  it('updates active exercise target and resizes sets', () => {
+    const activeSession: WorkoutSession = {
+      localId: 'session-3',
+      name: 'Upper 1',
+      notes: '',
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [
+        {
+          localId: 'exercise-3',
+          exerciseId: 'ex-3',
+          exerciseName: 'Incline Press',
+          targetReps: '8-12',
+          sets: [
+            {
+              localId: 'set-3',
+              setNumber: 1,
+              setType: 'normal',
+              weight: null,
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          notes: '',
+          orderIndex: 0,
+        },
+      ],
+      isSynced: false,
+    };
+
+    useWorkoutStore.setState({
+      activeSession,
+      isWorkoutActive: true,
+      weightUnits: { 'ex-3': 'lbs' },
+    });
+
+    useWorkoutStore.getState().updateExerciseTarget('exercise-3', {
+      sets: 4,
+      minReps: 6,
+      maxReps: 10,
+    });
+
+    const updatedExercise = useWorkoutStore.getState().activeSession?.exercises[0];
+    expect(updatedExercise?.targetReps).toBe('6-10');
+    expect(updatedExercise?.sets).toHaveLength(4);
+    expect(updatedExercise?.sets.map((set) => set.setNumber)).toEqual([1, 2, 3, 4]);
+    expect(updatedExercise?.sets.map((set) => set.orderIndex)).toEqual([0, 1, 2, 3]);
+  });
 });

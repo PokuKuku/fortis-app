@@ -82,8 +82,10 @@ describe('workout editor store', () => {
     expect(session?.exercises).toHaveLength(2);
     expect(session?.exercises[0].exerciseName).toBe('Lunge');
     expect(session?.exercises[0].sets).toHaveLength(2);
+    expect(session?.exercises[0].targetReps).toBe('8');
     expect(session?.exercises[1].exerciseName).toBe('Squat');
     expect(session?.exercises[1].sets).toHaveLength(3);
+    expect(session?.exercises[1].targetReps).toBe('5');
     expect(session?.exercises[1].sets[1].weight).toBe(105);
     expect(session?.exercises[1].sets[1].reps).toBe(5);
   });
@@ -114,6 +116,7 @@ describe('workout editor store', () => {
               orderIndex: 0,
             },
           ],
+          targetReps: '6-10',
           notes: '',
           orderIndex: 0,
         },
@@ -139,8 +142,58 @@ describe('workout editor store', () => {
     expect(name).toBe('Upper Body');
     expect(exercises).toHaveLength(1);
     expect(exercises[0].exerciseId).toBe('ex-bench');
+    expect(exercises[0].reps).toBe('6-10');
     expect(exercises[0].setDetails).toEqual([{ weight: 100, reps: 8 }]);
     expect(result).toBe('template-123');
+  });
+
+  it('updates editor exercise target and resizes sets', () => {
+    const editorSession: WorkoutSession = {
+      localId: 'session-1',
+      name: 'Upper Body',
+      notes: '',
+      startedAt: new Date('2024-01-01T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [
+        {
+          localId: 'exercise-1',
+          exerciseId: 'ex-bench',
+          exerciseName: 'Bench Press',
+          sets: [
+            {
+              localId: 'set-1',
+              setNumber: 1,
+              setType: 'normal',
+              weight: 100,
+              reps: 8,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          targetReps: '8-12',
+          notes: '',
+          orderIndex: 0,
+        },
+      ],
+      isSynced: false,
+    };
+
+    useWorkoutStore.setState({ editorSession });
+
+    useWorkoutStore.getState().updateEditorExerciseTarget('exercise-1', {
+      sets: 3,
+      minReps: 6,
+      maxReps: 10,
+    });
+
+    const exercise = useWorkoutStore.getState().editorSession?.exercises[0];
+    expect(exercise?.targetReps).toBe('6-10');
+    expect(exercise?.sets).toHaveLength(3);
+    expect(exercise?.sets.map((set) => set.setNumber)).toEqual([1, 2, 3]);
+    expect(exercise?.sets.map((set) => set.orderIndex)).toEqual([0, 1, 2]);
   });
 
   it('reorders editor exercises and reindexes order', () => {

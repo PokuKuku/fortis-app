@@ -1,4 +1,5 @@
 import { View, Text, Pressable, StyleSheet } from 'react-native';
+import type { ReactElement } from 'react';
 import { ClockIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -60,7 +61,7 @@ interface WorkoutHeaderTopBarProps {
 
 interface WorkoutHeaderDetailsProps {
   onRestTimerPress: () => void;
-  muscleLevels?: Record<MuscleKey, number>;
+  muscleLevels?: Partial<Record<MuscleKey, number>>;
   elapsed: number;
   displaySeconds: number;
   restTimerColor: string;
@@ -99,7 +100,7 @@ export function WorkoutHeaderTopBar({
 
   const shouldAnchorRestTimerSettings = isTourActive && activeStepId === 'rest_timer_settings';
 
-  const wrapAnchor = (enabled: boolean, id: string, node: JSX.Element) =>
+  const wrapAnchor = (enabled: boolean, id: string, node: ReactElement) =>
     enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
 
   const renderTimers = (compact: boolean) => (
@@ -219,7 +220,7 @@ export function WorkoutHeaderDetails({
   };
 
   const shouldAnchorRestTimer = isTourActive && activeStepId === 'rest_timer';
-  const wrapAnchor = (enabled: boolean, id: string, node: JSX.Element) =>
+  const wrapAnchor = (enabled: boolean, id: string, node: ReactElement) =>
     enabled ? <TourAnchor id={id}>{node}</TourAnchor> : node;
 
   return (

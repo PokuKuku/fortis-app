@@ -37,6 +37,7 @@ import { isCustomExercise } from '../services/exerciseService';
 import { generateSecureUUID as generateId } from '../utils/uuid';
 import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
 import { createWorkoutVoiceLogPlan } from '../utils/workoutVoiceLog';
+import { DEFAULT_TARGET_REPS, formatRepRange } from '../utils/workoutProgression';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
@@ -153,7 +154,26 @@ function clampInitialSetCount(value: number | null | undefined): number {
   return Math.max(1, Math.min(12, Math.round(value)));
 }
 
-const loadProgramsStore = async () => {
+function normalizeExerciseSets(
+  exercise: WorkoutExercise,
+  targetSetCount: number,
+  buildSet: (setIndex: number) => WorkoutSet
+): WorkoutSet[] {
+  const clampedSetCount = clampInitialSetCount(targetSetCount);
+  const nextSets = exercise.sets.slice(0, clampedSetCount);
+
+  for (let setIndex = nextSets.length; setIndex < clampedSetCount; setIndex += 1) {
+    nextSets.push(buildSet(setIndex));
+  }
+
+  return nextSets.map((set, index) => ({
+    ...set,
+    setNumber: index + 1,
+    orderIndex: index,
+  }));
+}
+
+const loadProgramsStore = async (): Promise<typeof import('./programsStore')> => {
   try {
     return await import('./programsStore');
   } catch {
@@ -161,7 +181,7 @@ const loadProgramsStore = async () => {
   }
 };
 
-const loadProgramProgressStore = async () => {
+const loadProgramProgressStore = async (): Promise<typeof import('./programProgressStore')> => {
   try {
     return await import('./programProgressStore');
   } catch {
@@ -248,6 +268,10 @@ interface WorkoutState {
   replaceExercise: (localId: string, newExerciseId: string, newExerciseName: string) => void;
   reorderExercises: (fromIndex: number, toIndex: number) => void;
   updateExerciseNotes: (localId: string, notes: string) => void;
+  updateExerciseTarget: (
+    localId: string,
+    target: { sets: number; minReps: number; maxReps: number }
+  ) => void;
 
   // Actions - Sets
   addSet: (exerciseLocalId: string) => void;
@@ -364,6 +388,10 @@ interface WorkoutState {
   openEditorNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
   closeEditorNumberPad: () => void;
   updateEditorExerciseNotes: (localId: string, notes: string) => void;
+  updateEditorExerciseTarget: (
+    localId: string,
+    target: { sets: number; minReps: number; maxReps: number }
+  ) => void;
   saveEditorAsTemplate: (templateId?: string) => Promise<string | null>;
   saveEditorAsWorkout: () => Promise<void>;
   clearEditorSession: () => void;
@@ -517,6 +545,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             exerciseId: planExercise.exerciseId,
             exerciseName: planExercise.exerciseName,
             sets,
+            targetReps: planExercise.reps || DEFAULT_TARGET_REPS,
             notes: planExercise.notes || '',
             orderIndex: exIndex,
             baselinePerformance: {
@@ -628,6 +657,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             exerciseId: templateEx.exerciseId,
             exerciseName: templateEx.exerciseName,
             sets,
+            targetReps: templateEx.reps || DEFAULT_TARGET_REPS,
             notes: templateEx.notes || '',
             orderIndex: exIndex,
             baselinePerformance: templateEx.setDetails ? {
@@ -739,6 +769,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             exerciseId: programEx.exerciseId,
             exerciseName: programEx.exerciseName,
             sets,
+            targetReps: programEx.reps || DEFAULT_TARGET_REPS,
             notes: programEx.notes || '',
             orderIndex: exIndex,
           };
@@ -1012,6 +1043,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             orderIndex: 0,
           },
         ],
+        targetReps: DEFAULT_TARGET_REPS,
         notes: '',
         orderIndex: activeSession.exercises.length,
       };
@@ -1066,6 +1098,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           exerciseId: ex.id,
           exerciseName: ex.name,
           sets,
+          targetReps: DEFAULT_TARGET_REPS,
           notes: '',
           orderIndex: startIndex + i,
         };
@@ -1121,6 +1154,7 @@ export const useWorkoutStore = create<WorkoutState>()(
               orderIndex: 0,
             },
           ],
+          targetReps: DEFAULT_TARGET_REPS,
           notes: '',
         };
       });
@@ -1155,6 +1189,38 @@ export const useWorkoutStore = create<WorkoutState>()(
       const exercises = activeSession.exercises.map((ex) =>
         ex.localId === localId ? { ...ex, notes } : ex
       );
+
+      setActiveSessionState({
+        ...activeSession,
+        exercises,
+      });
+    },
+
+    updateExerciseTarget: (localId, target) => {
+      const { activeSession, weightUnits, completedSessions } = get();
+      if (!activeSession) return;
+
+      const targetReps = formatRepRange(target.minReps, target.maxReps);
+      const exercises = activeSession.exercises.map((ex) => {
+        if (ex.localId !== localId) return ex;
+
+        return {
+          ...ex,
+          targetReps,
+          sets: normalizeExerciseSets(ex, target.sets, (setIndex) => buildNewActiveSet(
+            ex,
+            activeSession,
+            weightUnits,
+            completedSessions,
+            setIndex
+          )),
+          baselinePerformance: ex.baselinePerformance
+            ? {
+              sets: ex.baselinePerformance.sets.slice(0, clampInitialSetCount(target.sets)),
+            }
+            : ex.baselinePerformance,
+        };
+      });
 
       setActiveSessionState({
         ...activeSession,
@@ -2369,6 +2435,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             exerciseId: templateEx.exerciseId,
             exerciseName: templateEx.exerciseName,
             sets,
+            targetReps: templateEx.reps || DEFAULT_TARGET_REPS,
             notes: templateEx.notes || '',
             orderIndex: exIndex,
           };
@@ -2455,6 +2522,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             isCompleted: false,
             orderIndex: setIndex,
           })),
+          targetReps: DEFAULT_TARGET_REPS,
           notes: '',
           orderIndex: startIndex + i,
         };
@@ -2495,6 +2563,7 @@ export const useWorkoutStore = create<WorkoutState>()(
               orderIndex: 0,
             },
           ],
+          targetReps: DEFAULT_TARGET_REPS,
           notes: '',
         };
       });
@@ -2733,6 +2802,41 @@ export const useWorkoutStore = create<WorkoutState>()(
       });
     },
 
+    updateEditorExerciseTarget: (localId, target) => {
+      const { editorSession, weightUnits } = get();
+      if (!editorSession) return;
+
+      const targetReps = formatRepRange(target.minReps, target.maxReps);
+      const exercises = editorSession.exercises.map((ex) => {
+        if (ex.localId !== localId) return ex;
+
+        return {
+          ...ex,
+          targetReps,
+          sets: normalizeExerciseSets(ex, target.sets, (setIndex) => ({
+            localId: generateId(),
+            setNumber: setIndex + 1,
+            setType: 'normal',
+            weight: null,
+            weightUnit: weightUnits[ex.exerciseId] || 'lbs',
+            reps: null,
+            rpe: null,
+            restSeconds: null,
+            notes: '',
+            isCompleted: false,
+            orderIndex: setIndex,
+          })),
+        };
+      });
+
+      set({
+        editorSession: {
+          ...editorSession,
+          exercises,
+        },
+      });
+    },
+
     saveEditorAsTemplate: async (templateId) => {
       const { editorSession } = get();
       if (!editorSession || !editorSession.name.trim()) return null;
@@ -2744,7 +2848,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         exerciseId: ex.exerciseId,
         exerciseName: ex.exerciseName,
         sets: ex.sets.length,
-        reps: '8-12', // Default rep range for templates
+        reps: ex.targetReps || DEFAULT_TARGET_REPS,
         restSeconds: 120,
         // Include full set details (weight, reps for each set)
         setDetails: ex.sets.map(set => ({

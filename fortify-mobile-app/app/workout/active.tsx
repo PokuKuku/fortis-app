@@ -530,7 +530,7 @@ export default function ActiveWorkoutScreen() {
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exerciseName,
       sets: exercise.sets.length,
-      reps: '8-12',
+      reps: exercise.targetReps || '8-12',
       restSeconds: 120,
       notes: exercise.notes,
       setDetails: exercise.sets.map((set) => ({

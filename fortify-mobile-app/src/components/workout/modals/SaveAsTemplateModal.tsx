@@ -62,7 +62,7 @@ export function SaveAsTemplateModal({
     exerciseId: ex.exerciseId,
     exerciseName: ex.exerciseName,
     sets: ex.sets.length, // Save all sets, not just completed ones
-    reps: '8-12', // Default rep range
+    reps: ex.targetReps || '8-12',
     restSeconds: 120,
     setDetails: ex.sets.map(set => ({
       weight: set.weight,

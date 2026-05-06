@@ -58,6 +58,14 @@ interface SetRowProps {
       setType: string;
     }>;
   };
+  suggestedPerformance?: {
+    sets: Array<{
+      weight: number | null;
+      weightUnit?: WeightUnit | null;
+      reps: number | null;
+      setType: string;
+    }>;
+  } | null;
   completedSetTint?: 'accent' | 'success';
 }
 
@@ -70,6 +78,7 @@ export function SetRow({
   previousSet,
   lastPerformance,
   baselinePerformance,
+  suggestedPerformance,
   completedSetTint = 'accent',
 }: SetRowProps) {
   const { colors, isDark } = useTheme();
@@ -434,11 +443,11 @@ export function SetRow({
     }
 
     // Autofill from previous set if still null
-    if (allowAutoFill && finalWeight === null && previousSet?.weight != null) {
-      finalWeight = previousSet.weight;
+    if (allowAutoFill && finalWeight === null && inputSuggestion?.weight != null) {
+      finalWeight = inputSuggestion.weight;
     }
-    if (allowAutoFill && finalReps === null && previousSet?.reps != null) {
-      finalReps = previousSet.reps;
+    if (allowAutoFill && finalReps === null && inputSuggestion?.reps != null) {
+      finalReps = inputSuggestion.reps;
     }
 
     if (finalWeight === null) {
@@ -548,6 +557,10 @@ export function SetRow({
 
   // Use last performance if available, otherwise fall back to baseline
   const effectivePerformance = previousSetPerformance || baselineSetPerformance;
+  const suggestedSetsOfType = suggestedPerformance?.sets
+    ?.filter(s => s.setType === set?.setType) ?? [];
+  const suggestedSetPerformance = suggestedSetsOfType[typeIndex];
+  const inputSuggestion = previousSet || suggestedSetPerformance;
 
   const recordedWeightUnit = effectivePerformance?.weightUnit
     || previousUnitRef.current
@@ -687,7 +700,7 @@ export function SetRow({
             <Text style={[
               styles.inputText,
               themedStyles.inputText,
-              (isWeightActive && !activePendingValue && allowAutoFill && previousSet?.weight != null) && themedStyles.placeholderText,
+              (isWeightActive && !activePendingValue && allowAutoFill && inputSuggestion?.weight != null) && themedStyles.placeholderText,
               (!isWeightActive && set.weight === null && allowAutoFill) && themedStyles.placeholderText
             ]}
             numberOfLines={1}
@@ -695,8 +708,8 @@ export function SetRow({
             minimumFontScale={0.6}
             >
               {isWeightActive
-                ? (activePendingValue || (allowAutoFill ? previousSet?.weight?.toString() : '') || '')
-                : (set.weight !== null ? set.weight.toString() : (allowAutoFill ? previousSet?.weight?.toString() || '' : ''))}
+                ? (activePendingValue || (allowAutoFill ? inputSuggestion?.weight?.toString() : '') || '')
+                : (set.weight !== null ? set.weight.toString() : (allowAutoFill ? inputSuggestion?.weight?.toString() || '' : ''))}
             </Text>
           </Pressable>
         </Animated.View>
@@ -720,7 +733,7 @@ export function SetRow({
                 <Text style={[
                   styles.inputText,
                   themedStyles.inputText,
-                  (isRepsActive && !activePendingValue && allowAutoFill && previousSet?.reps != null) && themedStyles.placeholderText,
+                  (isRepsActive && !activePendingValue && allowAutoFill && inputSuggestion?.reps != null) && themedStyles.placeholderText,
                   (!isRepsActive && set.reps === null && allowAutoFill) && themedStyles.placeholderText
                 ]}
                 numberOfLines={1}
@@ -728,8 +741,8 @@ export function SetRow({
                 minimumFontScale={0.6}
                 >
                   {isRepsActive
-                    ? (activePendingValue || (allowAutoFill ? previousSet?.reps?.toString() : '') || '')
-                    : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? previousSet?.reps?.toString() || '' : ''))}
+                    ? (activePendingValue || (allowAutoFill ? inputSuggestion?.reps?.toString() : '') || '')
+                    : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? inputSuggestion?.reps?.toString() || '' : ''))}
                 </Text>
             </Pressable>
             {/* RPE Badge */}

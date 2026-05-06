@@ -19,6 +19,8 @@ import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetRow } from './SetRow';
 import { ExerciseKebabPopover } from './ExerciseKebabPopover';
+import { ExerciseTargetSheet } from './ExerciseTargetSheet';
+import { buildRepRangeProgressionSuggestion, parseRepRange } from '@/src/utils/workoutProgression';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeIn,
@@ -92,6 +94,7 @@ export function ExerciseCard({
       borderColor: colors.accentBorder,
     },
     exerciseName: { color: colors.textPrimary },
+    targetSummary: { color: colors.accent },
     notesInput: { color: colors.textPrimary },
     headerDivider: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.06)',
@@ -113,6 +116,7 @@ export function ExerciseCard({
   const session = useWorkoutStore(s => useEditor ? s.editorSession : s.activeSession);
   const removeExercise = useWorkoutStore(s => useEditor ? s.removeEditorExercise : s.removeExercise);
   const updateExerciseNotes = useWorkoutStore(s => useEditor ? s.updateEditorExerciseNotes : s.updateExerciseNotes);
+  const updateExerciseTarget = useWorkoutStore(s => useEditor ? s.updateEditorExerciseTarget : s.updateExerciseTarget);
   const addSet = useWorkoutStore(s => useEditor ? s.addEditorSet : s.addSet);
   const stickyNotes = useWorkoutStore(s => s.stickyNotes);
   const editorStickyNotesDraft = useWorkoutStore(s => s.editorStickyNotesDraft);
@@ -124,6 +128,7 @@ export function ExerciseCard({
 
   const [showKebab, setShowKebab] = useState(false);
   const [showStickyNoteInput, setShowStickyNoteInput] = useState(false);
+  const [showTargetSheet, setShowTargetSheet] = useState(false);
   const [stickyNoteValue, setStickyNoteValue] = useState('');
   const [showNotesInput, setShowNotesInput] = useState(false);
   const [kebabPosition, setKebabPosition] = useState({ top: 0, left: 0 });
@@ -146,6 +151,10 @@ export function ExerciseCard({
     : undefined;
   const weightUnit = exercise ? (weightUnits[exercise.exerciseId] || 'lbs') : 'lbs';
   const exerciseId = exercise?.exerciseId;
+  const targetRange = parseRepRange(exercise?.targetReps);
+  const targetSummary = exercise && targetRange
+    ? `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'} x ${targetRange.min} - ${targetRange.max} reps`
+    : null;
 
   useEffect(() => {
     stickyNoteValueRef.current = stickyNoteValue;
@@ -180,6 +189,14 @@ export function ExerciseCard({
     exercise?.exerciseId,
     performanceContext
   );
+  const progressionSuggestion = useMemo(() => {
+    if (!exercise || !lastPerformance) return null;
+    return buildRepRangeProgressionSuggestion(
+      exercise.targetReps,
+      exercise.sets.filter((set) => set.setType === 'normal').length || exercise.sets.length,
+      lastPerformance.sets
+    );
+  }, [exercise, lastPerformance]);
 
   useEffect(() => {
     if (showKebab && !isKebabOpenRef.current) {
@@ -285,6 +302,15 @@ export function ExerciseCard({
     setTimeout(() => notesInputRef.current?.focus(), 100);
   };
 
+  const handleOpenTargetSheet = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setShowTargetSheet(true);
+  };
+
+  const handleSaveTarget = (target: { sets: number; minReps: number; maxReps: number }) => {
+    updateExerciseTarget(exerciseLocalId, target);
+  };
+
   const handleNotesBlur = () => {
     if (!exercise.notes) {
       setShowNotesInput(false);
@@ -321,9 +347,25 @@ export function ExerciseCard({
       <View style={styles.content}>
         {/* Exercise Header */}
         <View style={styles.header}>
-          <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
-            {exercise.exerciseName}
-          </Text>
+          <View style={styles.exerciseTitleGroup}>
+            <Text style={[styles.exerciseName, themedStyles.exerciseName]}>
+              {exercise.exerciseName}
+            </Text>
+            {targetSummary && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Edit target for ${exercise.exerciseName}`}
+                accessibilityHint="Opens set and rep target controls"
+                onPress={handleOpenTargetSheet}
+                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                style={({ pressed }) => pressed && styles.targetSummaryPressed}
+              >
+                <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={1}>
+                  {targetSummary}
+                </Text>
+              </Pressable>
+            )}
+          </View>
           <View style={styles.headerActions}>
             {useEditor && onMoveUp && onMoveDown && (
               <View style={styles.reorderActions}>
@@ -498,6 +540,7 @@ export function ExerciseCard({
               previousSet={index > 0 ? exercise.sets[index - 1] : undefined}
               lastPerformance={lastPerformance}
               baselinePerformance={exercise.baselinePerformance}
+              suggestedPerformance={progressionSuggestion}
               completedSetTint={completedSetTint}
             />
           ))}
@@ -528,10 +571,17 @@ export function ExerciseCard({
         onReplace={handleReplace}
         onViewDetails={handleViewDetails}
         onStickyNote={handleOpenStickyNote}
+        onEditTarget={handleOpenTargetSheet}
         hasStickyNote={!!stickyNote}
         onAddNote={handleOpenNotes}
         hasNote={!!exercise.notes}
         position={kebabPosition}
+      />
+      <ExerciseTargetSheet
+        visible={showTargetSheet}
+        exercise={exercise}
+        onClose={() => setShowTargetSheet(false)}
+        onSave={handleSaveTarget}
       />
     </Animated.View>
   );
@@ -553,15 +603,34 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
   },
   exerciseName: {
-    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: EXERCISE_NAME_SIZE,
+    lineHeight: Math.round(EXERCISE_NAME_SIZE * 1.35),
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
     textTransform: 'uppercase',
     letterSpacing: EXERCISE_NAME_LETTER_SPACING,
+  },
+  exerciseTitleGroup: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    gap: 4,
+  },
+  targetSummary: {
+    fontSize: moderateScale(FontSizes.xs),
+    fontFamily: 'BankGothicBT-Medium',
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  targetSummaryPressed: {
+    opacity: 0.65,
   },
   kebabButton: {
     padding: Spacing.sm,
@@ -569,7 +638,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginLeft: Spacing.sm,
+    flexShrink: 0,
   },
   reorderActions: {
     flexDirection: 'row',

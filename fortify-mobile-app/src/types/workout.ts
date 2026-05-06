@@ -39,6 +39,7 @@ export interface WorkoutExercise {
   exerciseId: string;        // Reference to exercise library
   exerciseName: string;      // Denormalized for offline access
   sets: WorkoutSet[];
+  targetReps?: string;       // Exercise-level rep prescription, e.g. "8-12"
   notes: string;
   orderIndex: number;
   baselinePerformance?: {    // Template baseline for Previous column

@@ -25,7 +25,7 @@ interface Exercise {
 
 interface MuscleHeatmapProps {
   exercises?: Exercise[];
-  muscleLevels?: Record<MuscleKey, number>;
+  muscleLevels?: Partial<Record<MuscleKey, number>>;
   gender?: 'male' | 'female';
   scale?: number;
   compact?: boolean;
@@ -148,7 +148,7 @@ export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale 
     };
 
     const resolvedLevels = muscleLevels
-      ?? (exercises ? bucketIntensity(attributeExercisesToMuscles(exercises)) : {});
+      ?? (exercises ? bucketIntensity(attributeExercisesToMuscles(exercises as any)) : {});
 
     Object.entries(resolvedLevels).forEach(([muscleKey, level]) => {
       if (level <= 0) return;

@@ -6,7 +6,7 @@
  *
  * Supports both dark and light themes with appropriate glass effects.
  */
-import { View, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
 import * as Haptics from 'expo-haptics';
@@ -23,12 +23,13 @@ interface GlassButtonProps {
   children: ReactNode;
   onPress?: () => void;
   onLongPress?: () => void;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   gradientColors?: string[];
   circular?: boolean;
   size?: number;
   disabled?: boolean;
   hapticFeedback?: GlassButtonHapticFeedback;
+  pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
 }
 
 export function GlassButton({
@@ -41,6 +42,7 @@ export function GlassButton({
   size,
   disabled = false,
   hapticFeedback = 'none',
+  pointerEvents,
 }: GlassButtonProps) {
   const { colors } = useTheme();
 
@@ -89,10 +91,13 @@ export function GlassButton({
   };
 
   return (
-    <View style={[styles.container, accentShadow, buttonStyle, style, disabled && styles.disabled]}>
+    <View
+      pointerEvents={pointerEvents}
+      style={[styles.container, accentShadow, buttonStyle, style, disabled && styles.disabled]}
+    >
       {/* Gradient background - render first */}
       <LinearGradient
-        colors={buttonGradient}
+        colors={buttonGradient as any}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -101,7 +106,7 @@ export function GlassButton({
 
       {/* Glass fog overlay on top - theme-aware */}
       <LinearGradient
-        colors={fogOverlay}
+        colors={fogOverlay as any}
         start={{ x: 0, y: 0 }}
         end={{ x: 0, y: 1 }}
         style={StyleSheet.absoluteFillObject}
