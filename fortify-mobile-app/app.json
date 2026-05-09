@@ -34,12 +34,6 @@
             "UIApplicationShortcutItemTitle": "Deleting? Tell us why.",
             "UIApplicationShortcutItemSubtitle": "Send feedback before you delete.",
             "UIApplicationShortcutItemIconSymbolName": "square.and.pencil"
-          },
-          {
-            "UIApplicationShortcutItemType": "com.fortisfitness.app.delete-feedback",
-            "UIApplicationShortcutItemTitle": "Deleting? Tell us why.",
-            "UIApplicationShortcutItemSubtitle": "Send feedback before you delete.",
-            "UIApplicationShortcutItemIconSymbolName": "square.and.pencil"
           }
         ],
         "UIBackgroundModes": [
@@ -72,6 +66,7 @@
       "expo-secure-store",
       "expo-video",
       "./plugins/withSuperwallXcode26Fix",
+      "./plugins/withStartWorkoutWidget",
       [
         "expo-build-properties",
         {

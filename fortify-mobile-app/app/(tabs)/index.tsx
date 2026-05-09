@@ -1337,16 +1337,16 @@ export default function ProgramsScreen() {
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <AnimatedLogo />
-        </View>
-
         <NestableScrollContainer
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Header */}
+          <View style={styles.header}>
+            <AnimatedLogo />
+          </View>
+
           {/* Title */}
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>Programs</Text>
@@ -1586,7 +1586,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: HEADER_PADDING_TOP,
     paddingBottom: HEADER_PADDING_BOTTOM,
     alignItems: 'flex-start',

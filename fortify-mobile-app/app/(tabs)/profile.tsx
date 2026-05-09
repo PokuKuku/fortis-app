@@ -94,27 +94,27 @@ export default function ProfileScreen() {
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.logoContainer}>
-            <AnimatedLogo />
-          </View>
-          {isAuthenticated && (
-            <TouchableOpacity
-              style={styles.settingsButton}
-              onPress={handleSettingsPress}
-              activeOpacity={0.7}
-            >
-              <Cog6ToothIcon color={colors.textSecondary} size={SETTINGS_ICON_SIZE} strokeWidth={2} />
-            </TouchableOpacity>
-          )}
-        </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.logoContainer}>
+              <AnimatedLogo />
+            </View>
+            {isAuthenticated && (
+              <TouchableOpacity
+                style={styles.settingsButton}
+                onPress={handleSettingsPress}
+                activeOpacity={0.7}
+              >
+                <Cog6ToothIcon color={colors.textSecondary} size={SETTINGS_ICON_SIZE} strokeWidth={2} />
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Title */}
           <View style={styles.titleContainer}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Profile</Text>
@@ -187,7 +187,6 @@ const styles = StyleSheet.create({
   header: {
     position: 'relative',
     justifyContent: 'center',
-    paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: HEADER_PADDING_TOP,
     paddingBottom: HEADER_PADDING_BOTTOM,
     minHeight: HEADER_MIN_HEIGHT + HEADER_PADDING_TOP + HEADER_PADDING_BOTTOM,
@@ -198,7 +197,7 @@ const styles = StyleSheet.create({
   },
   settingsButton: {
     position: 'absolute',
-    right: HORIZONTAL_PADDING,
+    right: 0,
     top: HEADER_PADDING_TOP,
     width: SETTINGS_BUTTON_SIZE,
     height: SETTINGS_BUTTON_SIZE,

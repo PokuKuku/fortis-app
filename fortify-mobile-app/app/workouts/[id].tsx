@@ -184,14 +184,14 @@ export default function WorkoutDetailScreen() {
 
     const updatedTemplateId = await updateWorkoutTemplate(template.id, template.name, updatedExercises);
 
-    // Close modal and refresh
+    // Close modal. The programs store already applied the template update locally;
+    // forcing a fetch here can pull stale server data before background sync finishes.
     setDeleteModal({ ...deleteModal, visible: false });
     if (updatedTemplateId && updatedTemplateId !== template.id) {
       router.replace(`/workouts/${updatedTemplateId}`);
       return;
     }
-    refreshWorkout();
-  }, [id, deleteModal, refreshWorkout, router, template, updateWorkoutTemplate]);
+  }, [id, deleteModal, router, template, updateWorkoutTemplate]);
 
   const handleCancelDelete = useCallback(() => {
     setDeleteModal({ ...deleteModal, visible: false });

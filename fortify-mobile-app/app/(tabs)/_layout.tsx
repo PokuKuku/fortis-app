@@ -41,6 +41,7 @@ import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/
 import { useExercises } from '@/src/hooks/useExercises';
 import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } from '@/src/utils/exerciseSearch';
 import { saveCustomExercise } from '@/src/services/exerciseService';
+import { startWorkoutFromStartPreset } from '@/src/services/startWorkoutFromPreset';
 import { triggerImmediateNavigationHaptic } from '@/src/components/haptics/navigationHaptics';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 
@@ -78,14 +79,9 @@ export default function TabLayout() {
     },
   };
   const isExercises = pathname?.includes('/exercises');
-  const startWorkout = useWorkoutStore(s => s.startWorkout);
-  const startWorkoutFromTemplate = useWorkoutStore(s => s.startWorkoutFromTemplate);
-  const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
   const { programs, fetchPrograms, isLoading: isProgramsLoading } = useProgramsStore();
-  const getNextDayNumber = useProgramProgressStore(s => s.getNextDayNumber);
   const loadProgramProgress = useProgramProgressStore(s => s.loadProgress);
-  const isProgramProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const startPreset = useStartPresetStore(s => s.preset);
   const loadStartPreset = useStartPresetStore(s => s.loadPreset);
   const setStartPreset = useStartPresetStore(s => s.setPreset);
@@ -376,59 +372,11 @@ export default function TabLayout() {
     startActionLock.current = true;
 
     try {
-      if (preset.type === 'blank') {
-        startWorkout();
+      const result = await startWorkoutFromStartPreset(preset);
+      if (result === 'started') {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
         router.push('/workout/active');
         return;
-      }
-
-      if (!programs.length) {
-        await fetchPrograms();
-      }
-
-      if (preset.type === 'template') {
-        const hasTemplateWorkout = !!preset.templateWorkoutId
-          && templates.some((template) =>
-            template.workouts.some((workout) => workout.id === preset.templateWorkoutId)
-          );
-        const templateId = hasTemplateWorkout
-          ? preset.templateWorkoutId
-          : preset.templateId;
-        if (!templateId) {
-          await setStartPreset(null);
-          openStartConfig();
-          return;
-        }
-        const success = await startWorkoutFromTemplate(templateId);
-        if (success) {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-          router.push('/workout/active');
-          return;
-        }
-      }
-
-      if (preset.type === 'program') {
-        if (!isProgramProgressLoaded) {
-          await useProgramProgressStore.getState().loadProgress();
-        }
-        const program = programs.find((item) => item.id === preset.programId);
-        const workouts = program?.workouts ? [...program.workouts] : [];
-        workouts.sort((a, b) => a.dayNumber - b.dayNumber);
-        const totalDays = workouts.length;
-        const nextDayNumber = program && totalDays > 0
-          ? useProgramProgressStore.getState().getNextDayNumber(program.id, totalDays)
-          : 1;
-        const nextWorkout = workouts.find((w) => w.dayNumber === nextDayNumber) || workouts[0];
-
-        if (program && nextWorkout) {
-          const success = await startWorkoutFromProgram(program.id, nextWorkout.id);
-          if (success) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-            router.push('/workout/active');
-            return;
-          }
-        }
       }
 
       await setStartPreset(null);

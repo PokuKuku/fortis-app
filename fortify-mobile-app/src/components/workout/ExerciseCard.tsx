@@ -623,7 +623,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   targetSummary: {
-    fontSize: moderateScale(FontSizes.xs),
+    fontSize: moderateScale(FontSizes.sm),
     fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
     letterSpacing: 0.8,

@@ -992,10 +992,6 @@ export default function InsightsScreen() {
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.header}>
-          <AnimatedLogo />
-        </View>
-
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -1008,6 +1004,10 @@ export default function InsightsScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.header}>
+            <AnimatedLogo />
+          </View>
+
           <View style={styles.titleContainer}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Insights</Text>
           </View>
@@ -1168,7 +1168,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: HEADER_PADDING_TOP,
     paddingBottom: HEADER_PADDING_BOTTOM,
     alignItems: 'flex-start',
