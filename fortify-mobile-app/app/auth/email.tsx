@@ -552,9 +552,9 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 44,
+    height: 50,
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    borderRadius: BorderRadius['2xl'],
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: 'rgba(63, 63, 70, 0.8)',
     paddingHorizontal: Spacing.md,
@@ -571,13 +571,15 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: '100%',
-    ...Typography.body,
+    fontSize: 15,
+    letterSpacing: 0.4,
     color: Colors.textPrimary,
     lineHeight: FontSizes.base,
     paddingVertical: 0,
     paddingTop: 1,
     paddingBottom: 0,
     textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   errorText: {
     ...Typography.caption,

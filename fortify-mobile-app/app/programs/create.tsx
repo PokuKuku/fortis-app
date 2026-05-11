@@ -145,8 +145,6 @@ export default function CreateProgramScreen() {
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showEditIntentModal, setShowEditIntentModal] = useState(false);
   const [showCancelEditModal, setShowCancelEditModal] = useState(false);
-  const [headerLeftWidth, setHeaderLeftWidth] = useState(0);
-  const [titleTextWidth, setTitleTextWidth] = useState(0);
   const [showHeaderDetails, setShowHeaderDetails] = useState(true);
   const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
@@ -532,17 +530,10 @@ export default function CreateProgramScreen() {
   );
 
   const saveButtonText = isEditing ? 'Finish edit' : 'Create Program';
-  const titleMeasureText = programName || 'Program Name';
-  const titleRowWidth = headerLeftWidth && titleTextWidth
-    ? Math.min(titleTextWidth + Spacing.xs + 14, headerLeftWidth)
-    : undefined;
   const headerDetailsContent = (
     <View style={[styles.headerContentRow, styles.listHeaderContentRow]}>
-      <View
-        style={styles.headerLeftColumn}
-        onLayout={(event) => setHeaderLeftWidth(event.nativeEvent.layout.width)}
-      >
-        <View style={[styles.titleInputWrapper, titleRowWidth ? { width: titleRowWidth } : null]}>
+      <View style={styles.headerLeftColumn}>
+        <View style={styles.titleInputWrapper}>
           <TextInput
             style={[styles.headerTitleInput, themedStyles.headerTitleInput]}
             placeholder="Program Name"
@@ -563,11 +554,6 @@ export default function CreateProgramScreen() {
               <PencilIcon size={14} color={colors.textTertiary} strokeWidth={2} />
             )}
           </View>
-        </View>
-        <View style={styles.titleMeasureContainer} pointerEvents="none">
-          <Text style={styles.titleMeasureText} onLayout={(event) => setTitleTextWidth(event.nativeEvent.layout.width)}>
-            {titleMeasureText}
-          </Text>
         </View>
         {workoutCount > 0 && (
           <View style={styles.statsRow}>
@@ -967,7 +953,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     gap: Spacing.xs,
-    alignSelf: 'flex-start',
+    width: '100%',
+    minHeight: ButtonHeights.md,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   editIconSlot: {
     width: 14,
@@ -982,20 +971,14 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     lineHeight: FontSizes.xl,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    margin: 0,
+    paddingHorizontal: 0,
     paddingVertical: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,
-    minHeight: ButtonHeights.md,
-  },
-  titleMeasureContainer: {
-    position: 'absolute',
-    opacity: 0,
-    height: 0,
-  },
-  titleMeasureText: {
-    ...Typography.h4,
-    fontFamily: 'BankGothicBT-Medium',
-    lineHeight: FontSizes.xl,
+    height: ButtonHeights.md,
   },
   statsRow: {
     flexDirection: 'row',

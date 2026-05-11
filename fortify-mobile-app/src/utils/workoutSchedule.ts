@@ -1,4 +1,4 @@
-import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
+import { addDays, format, isSameDay, startOfDay, startOfWeek } from 'date-fns';
 import type { WorkoutSession } from '@/src/types/workout';
 
 export const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -15,6 +15,7 @@ export type WeekProgressDay = {
   dateLabel: string;
   isToday: boolean;
   isScheduled: boolean;
+  isMissed: boolean;
   completedSessions: WorkoutSession[];
 };
 
@@ -100,6 +101,8 @@ export function buildWeekProgressDays({
 
   return buildSundayWeek(anchorDate).map((date) => {
     const weekday = date.getDay();
+    const completedSessions = getSessionsForDate(sessions, date);
+    const isScheduled = normalizedSchedule.has(weekday);
     return {
       date,
       dateKey: getDateKey(date),
@@ -107,8 +110,9 @@ export function buildWeekProgressDays({
       dayLabel: WEEKDAY_SHORT_LABELS[weekday],
       dateLabel: format(date, 'd'),
       isToday: isSameDay(date, today),
-      isScheduled: normalizedSchedule.has(weekday),
-      completedSessions: getSessionsForDate(sessions, date),
+      isScheduled,
+      isMissed: isScheduled && completedSessions.length === 0 && date < startOfDay(today),
+      completedSessions,
     };
   });
 }

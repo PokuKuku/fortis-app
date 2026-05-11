@@ -19,7 +19,7 @@ import { buildExerciseSearchIndex, searchExercises as searchExercisesInIndex } f
 import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { CATEGORIES, EQUIPMENT_TYPES } from '@/src/constants/exerciseOptions';
 import { Colors } from '@/constants/Colors';
-import { Sizes } from '@/constants/Sizes';
+import { BorderRadius, Sizes, Spacing } from '@/constants/Sizes';
 import type { Exercise } from '@/src/types/exercise';
 
 type CustomExerciseModalProps = {
@@ -534,15 +534,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   textInput: {
-    borderRadius: 10,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
     fontSize: 14,
-    fontWeight: '500',
+    letterSpacing: 0.4,
   },
   textInputSingle: {
-    height: Sizes.minTouchTarget,
+    height: 50,
     paddingVertical: 0,
     textAlignVertical: 'center',
     includeFontPadding: false,

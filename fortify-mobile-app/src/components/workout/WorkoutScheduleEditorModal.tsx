@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -111,11 +111,7 @@ export function WorkoutScheduleEditorModal({
             pressed && modalStyles.buttonPressed,
           ]}
         >
-          {isSaving ? (
-            <ActivityIndicator color={colors.accent} size="small" />
-          ) : (
-            <Text style={modalStyles.successButtonText}>Save</Text>
-          )}
+          <Text style={modalStyles.successButtonText}>Save</Text>
         </Pressable>
       </View>
     </BaseModal>

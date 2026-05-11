@@ -210,6 +210,7 @@ export function ProfileHeader() {
 
   const inputStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+    borderColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.1)',
   };
 
   const dividerStyle = {
@@ -518,8 +519,10 @@ const styles = StyleSheet.create({
   },
   nameInput: {
     flex: 1,
-    ...Typography.h3,
+    fontSize: 24,
+    letterSpacing: 0.8,
     borderRadius: BorderRadius.md,
+    borderWidth: 1,
     paddingHorizontal: Spacing.md,
     minHeight: Sizes.minTouchTarget,
     paddingVertical: 0,

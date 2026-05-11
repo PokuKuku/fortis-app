@@ -19,6 +19,10 @@ interface WorkoutStackPreviewProps {
    */
   currentDayNumber: number;
   /**
+   * Optional visual-only labels for each workout, e.g. Mon/Wed/Fri.
+   */
+  weekdayLabelsByWorkoutId?: Record<string, string>;
+  /**
    * Maximum number of workouts to display (default: 3)
    */
   maxVisible?: number;
@@ -32,6 +36,7 @@ export function WorkoutStackPreview({
   workouts,
   completedIds,
   currentDayNumber,
+  weekdayLabelsByWorkoutId = {},
   maxVisible = 3,
 }: WorkoutStackPreviewProps) {
   const { colors, isDark } = useTheme();
@@ -129,7 +134,7 @@ export function WorkoutStackPreview({
           >
             <View style={[styles.dayBadge, themedStyles.dayBadge, next && themedStyles.dayBadgeNext]}>
               <Text style={[styles.dayBadgeText, themedStyles.dayBadgeText, next && themedStyles.dayBadgeTextNext]}>
-                D{workout.dayNumber}
+                {weekdayLabelsByWorkoutId[workout.id] ?? `D${workout.dayNumber}`}
               </Text>
             </View>
             <Text

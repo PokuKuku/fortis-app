@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -23,8 +23,11 @@ import { Typography } from '@/constants/Typography';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
 import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
+import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
+import { useWorkoutRetentionPreferences } from '@/src/hooks/useWorkoutRetentionPreferences';
 import { WEEKDAY_LABELS } from '@/src/utils/workoutSchedule';
+import { formatReminderTime, normalizeReminderTime, type WeeklyRecap } from '@/src/utils/workoutRetention';
 
 const LB_PER_KG = 2.20462;
 const KG_PER_LB = 1 / LB_PER_KG;
@@ -140,6 +143,10 @@ export default function SettingsPreferencesScreen() {
     isSaving: isSavingSchedule,
     saveScheduleDays,
   } = useWorkoutSchedule();
+  const {
+    reminderTime,
+    setReminderTime,
+  } = useWorkoutRetentionPreferences();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
   const modalStyles = useModalStyles();
@@ -157,11 +164,14 @@ export default function SettingsPreferencesScreen() {
   const scheduleLabel = scheduleDays.length > 0
     ? scheduleDays.map((day) => WEEKDAY_LABELS[day]).join(', ')
     : '—';
+  const reminderTimeLabel = formatReminderTime(reminderTime);
 
   const [measurementsOpen, setMeasurementsOpen] = useState(false);
   const [experienceOpen, setExperienceOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [reminderTimeOpen, setReminderTimeOpen] = useState(false);
+  const [weeklyRecapPreviewOpen, setWeeklyRecapPreviewOpen] = useState(false);
   const [isSavingMeasurements, setIsSavingMeasurements] = useState(false);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
   const [isSavingExperience, setIsSavingExperience] = useState(false);
@@ -170,6 +180,72 @@ export default function SettingsPreferencesScreen() {
   const [heightFeetInput, setHeightFeetInput] = useState('');
   const [heightInchesInput, setHeightInchesInput] = useState('');
   const [weightInput, setWeightInput] = useState('');
+  const [reminderHourInput, setReminderHourInput] = useState('');
+  const [reminderMinuteInput, setReminderMinuteInput] = useState('');
+  const [reminderPeriod, setReminderPeriod] = useState<'AM' | 'PM'>('AM');
+  const previewWeeklyRecap = useMemo<WeeklyRecap>(() => {
+    const weekStart = new Date(2026, 4, 10);
+    const weekEnd = new Date(2026, 4, 16, 23, 59, 59, 999);
+    return {
+      weekKey: '2026-05-10',
+      weekStart,
+      weekEnd,
+      workoutsCompleted: 4,
+      scheduledDays: 5,
+      scheduledDaysHit: 4,
+      scheduledDaysMissed: 1,
+      streak: 4,
+      totalSets: 72,
+      totalVolume: 48250,
+      volumeUnit: 'lbs',
+      totalDurationSeconds: 15300,
+      prCount: 3,
+      prHighlights: [
+        {
+          exerciseName: 'Barbell Bench Press',
+          reps: 8,
+          weight: 225,
+          weightUnit: 'lbs',
+          date: new Date(2026, 4, 12),
+          sessionName: 'Push Hypertrophy',
+        },
+        {
+          exerciseName: 'Cable Crunch',
+          reps: 15,
+          weight: 80,
+          weightUnit: 'lbs',
+          date: new Date(2026, 4, 14),
+          sessionName: 'Core S Tier',
+        },
+        {
+          exerciseName: 'Romanian Deadlift',
+          reps: 6,
+          weight: 315,
+          weightUnit: 'lbs',
+          date: new Date(2026, 4, 15),
+          sessionName: 'Lower Strength',
+        },
+      ],
+      muscleScores: [
+        { label: 'Chest', score: 18 },
+        { label: 'Back', score: 13 },
+        { label: 'Abs', score: 9 },
+        { label: 'Quads', score: 6 },
+        { label: 'Biceps', score: 3 },
+      ],
+      topMuscles: [
+        { label: 'Chest', score: 18 },
+        { label: 'Back', score: 13 },
+        { label: 'Abs', score: 9 },
+        { label: 'Quads', score: 6 },
+      ],
+      notableExercises: [
+        { name: 'Barbell Bench Press', sets: 12, volume: 14600 },
+        { name: 'Cable Crunch', sets: 10, volume: 6800 },
+        { name: 'Romanian Deadlift', sets: 9, volume: 12400 },
+      ],
+    };
+  }, []);
 
   useEffect(() => {
     if (!measurementsOpen) return;
@@ -202,6 +278,15 @@ export default function SettingsPreferencesScreen() {
 
     setHeightCmInput('');
   }, [measurementsOpen, profile?.height_cm, profile?.weight_kg, units]);
+
+  useEffect(() => {
+    if (!reminderTimeOpen) return;
+    const isPm = reminderTime.hour >= 12;
+    const twelveHour = reminderTime.hour % 12 || 12;
+    setReminderHourInput(String(twelveHour));
+    setReminderMinuteInput(String(reminderTime.minute).padStart(2, '0'));
+    setReminderPeriod(isPm ? 'PM' : 'AM');
+  }, [reminderTime.hour, reminderTime.minute, reminderTimeOpen]);
 
   const handleToggleUnits = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -340,6 +425,25 @@ export default function SettingsPreferencesScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
 
+  const handleSaveReminderTime = async () => {
+    const rawHour = Number(reminderHourInput);
+    const rawMinute = Number(reminderMinuteInput);
+    if (!Number.isFinite(rawHour) || rawHour < 1 || rawHour > 12) {
+      Alert.alert('Invalid time', 'Enter an hour from 1 to 12.');
+      return;
+    }
+    if (!Number.isFinite(rawMinute) || rawMinute < 0 || rawMinute > 59) {
+      Alert.alert('Invalid time', 'Enter minutes from 0 to 59.');
+      return;
+    }
+    const hour24 = reminderPeriod === 'PM'
+      ? (rawHour % 12) + 12
+      : rawHour % 12;
+    await setReminderTime(normalizeReminderTime({ hour: hour24, minute: rawMinute }));
+    setReminderTimeOpen(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+  };
+
   const cardStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
@@ -424,6 +528,26 @@ export default function SettingsPreferencesScreen() {
                 showChevron
                 colors={colors}
               />
+              <View style={[styles.divider, dividerStyle]} />
+              <PreferenceRow
+                label="Reminder Time"
+                value={reminderTimeLabel}
+                onPress={() => setReminderTimeOpen(true)}
+                showChevron
+                colors={colors}
+              />
+              {__DEV__ ? (
+                <>
+                  <View style={[styles.divider, dividerStyle]} />
+                  <PreferenceRow
+                    label="Preview Weekly Recap"
+                    value="Dev"
+                    onPress={() => setWeeklyRecapPreviewOpen(true)}
+                    showChevron
+                    colors={colors}
+                  />
+                </>
+              ) : null}
             </View>
           </View>
         </ScrollView>
@@ -582,6 +706,102 @@ export default function SettingsPreferencesScreen() {
         onClose={() => setScheduleOpen(false)}
         onSave={handleSaveSchedule}
       />
+
+      <BaseModal
+        visible={reminderTimeOpen}
+        onClose={() => setReminderTimeOpen(false)}
+        title="Reminder Time"
+      >
+        <View style={styles.timeInputRow}>
+          <TextInput
+            style={[
+              styles.timeInput,
+              {
+                color: colors.textPrimary,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                borderWidth: 1,
+              },
+            ]}
+            value={reminderHourInput}
+            onChangeText={setReminderHourInput}
+            keyboardType="number-pad"
+            placeholder="8"
+            placeholderTextColor={colors.textTertiary}
+            maxLength={2}
+            textAlign="center"
+            textAlignVertical="center"
+          />
+          <Text style={[styles.timeSeparator, { color: colors.textPrimary }]}>:</Text>
+          <TextInput
+            style={[
+              styles.timeInput,
+              {
+                color: colors.textPrimary,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                borderWidth: 1,
+              },
+            ]}
+            value={reminderMinuteInput}
+            onChangeText={setReminderMinuteInput}
+            keyboardType="number-pad"
+            placeholder="00"
+            placeholderTextColor={colors.textTertiary}
+            maxLength={2}
+            textAlign="center"
+            textAlignVertical="center"
+          />
+          <View style={styles.periodToggle}>
+            {(['AM', 'PM'] as const).map((period) => {
+              const selected = reminderPeriod === period;
+              return (
+                <TouchableOpacity
+                  key={period}
+                  style={[
+                    styles.periodButton,
+                    {
+                      backgroundColor: selected ? colors.accent : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                      borderColor: selected ? colors.accent : isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                    },
+                  ]}
+                  onPress={() => setReminderPeriod(period)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.periodText, { color: selected ? colors.white : colors.textPrimary }]}>
+                    {period}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+        <View style={modalStyles.actions}>
+          <TouchableOpacity
+            style={modalStyles.cancelButton}
+            onPress={() => setReminderTimeOpen(false)}
+            activeOpacity={0.75}
+          >
+            <Text style={modalStyles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={modalStyles.successButton}
+            onPress={handleSaveReminderTime}
+            activeOpacity={0.75}
+          >
+            <Text style={modalStyles.successButtonText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </BaseModal>
+
+      {__DEV__ ? (
+        <WeeklyRecapModal
+          visible={weeklyRecapPreviewOpen}
+          recap={previewWeeklyRecap}
+          userName={profile?.full_name}
+          onClose={() => setWeeklyRecapPreviewOpen(false)}
+        />
+      ) : null}
     </View>
   );
 }
@@ -671,10 +891,14 @@ const styles = StyleSheet.create({
     ...Typography.caption,
   },
   modalInput: {
-    ...Typography.body,
-    borderRadius: BorderRadius.sm,
+    fontSize: 16,
+    letterSpacing: 0.6,
+    borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 0,
+    minHeight: 48,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
   },
   splitInputRow: {
     flexDirection: 'row',
@@ -682,6 +906,46 @@ const styles = StyleSheet.create({
   },
   splitInput: {
     flex: 1,
+  },
+  timeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing['2xl'],
+  },
+  timeInput: {
+    width: 68,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    textAlign: 'center',
+    fontSize: 18,
+    letterSpacing: 1,
+  },
+  timeSeparator: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 22,
+    lineHeight: 26,
+  },
+  periodToggle: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+    marginLeft: Spacing.xs,
+  },
+  periodButton: {
+    minWidth: 44,
+    height: 42,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+  },
+  periodText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    letterSpacing: 0.8,
   },
   optionList: {
     gap: Spacing.sm,

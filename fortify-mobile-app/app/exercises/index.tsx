@@ -684,6 +684,7 @@ const styles = StyleSheet.create({
     flex: 1,
     color: '#DFE2E6',
     fontSize: SEARCH_INPUT_SIZE,
+    letterSpacing: 0.5,
     height: SEARCH_HEIGHT,
     paddingVertical: 0,
     textAlignVertical: 'center',

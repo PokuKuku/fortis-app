@@ -19,6 +19,7 @@ import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
 import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTracker';
 import { initializeMixpanel } from '@/src/lib/mixpanel';
 import { RevenueCatAnalyticsSync } from '@/src/components/revenuecat/RevenueCatAnalyticsSync';
+import { WorkoutRetentionCoordinator } from '@/src/components/retention/WorkoutRetentionCoordinator';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -59,6 +60,7 @@ function ThemedAppContent({
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
         <DragDropProvider>
+          {!isEarlyRoute ? <WorkoutRetentionCoordinator /> : null}
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <Stack
             screenOptions={{

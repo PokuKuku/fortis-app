@@ -1161,8 +1161,8 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: FontSizes.base,
-    fontWeight: '500',
+    fontSize: 14,
+    letterSpacing: 0.5,
     color: Colors.textPrimary,
     height: Sizes.minTouchTarget,
     paddingVertical: 0,

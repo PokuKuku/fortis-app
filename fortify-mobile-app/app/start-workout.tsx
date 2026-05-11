@@ -20,6 +20,8 @@ export default function StartWorkoutDeepLinkScreen() {
     const start = async () => {
       router.replace('/(tabs)');
 
+      await useWorkoutStore.getState().loadActiveSession();
+
       const now = Date.now();
       const isDuplicateTap = widgetStartInFlight || now - lastWidgetStartAt < WIDGET_START_DEBOUNCE_MS;
       if (useWorkoutStore.getState().isWorkoutActive) {

@@ -1,14 +1,15 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Dimensions,
   FlatList,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { addDays, format } from 'date-fns';
-import { CheckIcon, FireIcon } from 'react-native-heroicons/outline';
+import { FireIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -39,6 +40,16 @@ type WeekPage = {
   anchorDate: Date;
 };
 
+function formatSetSummary(reps: number | null, weight: number | null, unit?: string | null): string {
+  const repsLabel = reps === null ? '-- reps' : `${reps} reps`;
+  const resolvedUnit = unit === 'kg' ? 'kg' : 'lbs';
+  const weightLabel = weight === null
+    ? `-- ${resolvedUnit}`
+    : `${Number.isInteger(weight) ? weight : weight.toFixed(1)} ${resolvedUnit}`;
+
+  return `${repsLabel} × ${weightLabel}`;
+}
+
 export function WeeklyProgressCarousel({
   scheduleDays,
   sessions,
@@ -47,9 +58,16 @@ export function WeeklyProgressCarousel({
   const { colors, isDark } = useTheme();
   const modalStyles = useModalStyles();
   const listRef = useRef<FlatList<WeekPage>>(null);
+  const editScheduleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [anchorDate, setAnchorDate] = useState(() => getSundayWeekStart(new Date()));
   const [selectedDay, setSelectedDay] = useState<WeekProgressDay | null>(null);
   const headerDateLabel = useMemo(() => format(new Date(), 'MMM d'), []);
+
+  useEffect(() => () => {
+    if (editScheduleTimeoutRef.current) {
+      clearTimeout(editScheduleTimeoutRef.current);
+    }
+  }, []);
 
   const pages = useMemo<WeekPage[]>(
     () => [
@@ -75,6 +93,17 @@ export function WeeklyProgressCarousel({
       setAnchorDate((current) => addDays(current, 7));
       requestAnimationFrame(() => listRef.current?.scrollToIndex({ index: 1, animated: false }));
     }
+  };
+
+  const handleEditSchedulePress = () => {
+    setSelectedDay(null);
+    if (editScheduleTimeoutRef.current) {
+      clearTimeout(editScheduleTimeoutRef.current);
+    }
+    editScheduleTimeoutRef.current = setTimeout(() => {
+      editScheduleTimeoutRef.current = null;
+      onEditSchedule();
+    }, 260);
   };
 
   const renderWeek = ({ item }: { item: WeekPage }) => {
@@ -116,25 +145,25 @@ export function WeeklyProgressCarousel({
                         ? colors.accent
                         : isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
                       borderColor: isScheduledPending
-                        ? colors.accent
+                        ? day.isMissed ? colors.error : colors.accent
                         : isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)',
                       borderStyle: isScheduledPending ? 'dashed' : 'solid',
                     },
-                    day.isToday && { borderColor: colors.textPrimary },
+                    day.isToday && !isComplete && { borderColor: colors.textPrimary },
                   ]}
                 >
-                  {isComplete ? (
-                    <CheckIcon color={colors.white} size={20} strokeWidth={3} />
-                  ) : (
-                    <Text
-                      style={[
-                        styles.dateLabel,
-                        { color: day.isScheduled ? colors.accent : colors.textTertiary },
-                      ]}
-                    >
-                      {day.dateLabel}
-                    </Text>
-                  )}
+                  <Text
+                    style={[
+                      styles.dateLabel,
+                      {
+                        color: isComplete
+                          ? colors.white
+                          : day.isMissed ? colors.error : day.isScheduled ? colors.accent : colors.textTertiary,
+                      },
+                    ]}
+                  >
+                    {day.dateLabel}
+                  </Text>
                 </View>
               </Pressable>
             );
@@ -186,33 +215,74 @@ export function WeeklyProgressCarousel({
             <Text style={[styles.detailStatus, { color: colors.textSecondary }]}>
               {selectedDay.completedSessions.length > 0
                 ? 'Workout completed'
+                : selectedDay.isMissed
+                  ? 'Scheduled workout missed'
                 : selectedDay.isScheduled
                   ? 'Scheduled workout day'
                   : 'Rest day'}
             </Text>
-            <View style={styles.detailList}>
+            <ScrollView
+              style={styles.detailScroll}
+              contentContainerStyle={styles.detailList}
+              showsVerticalScrollIndicator={false}
+            >
               {selectedDay.completedSessions.length > 0 ? (
-                selectedDay.completedSessions.map((session) => (
+                selectedDay.completedSessions.map((session) => {
+                  const performedExercises = session.exercises
+                    .map((exercise) => ({
+                      ...exercise,
+                      sets: exercise.sets.filter((set) => (
+                        set.isCompleted
+                        && (set.reps !== null || set.weight !== null)
+                      )),
+                    }))
+                    .filter((exercise) => exercise.sets.length > 0);
+
+                  return (
                   <View
                     key={session.localId}
                     style={[
-                      styles.detailWorkoutRow,
+                      styles.detailSessionCard,
                       {
                         backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
                       },
                     ]}
                   >
-                    <Text style={[styles.detailWorkoutName, { color: colors.textPrimary }]}>
+                    <Text style={[styles.detailSessionName, { color: colors.textPrimary }]}>
                       {session.name}
                     </Text>
+                    {performedExercises.length > 0 ? (
+                      performedExercises.map((exercise) => (
+                        <View key={exercise.localId} style={styles.detailExerciseBlock}>
+                          <Text style={[styles.detailExerciseName, { color: colors.accent }]}>
+                            {exercise.exerciseName}
+                          </Text>
+                          {exercise.sets.map((set, index) => (
+                            <View key={set.localId} style={styles.detailSetRow}>
+                              <Text style={[styles.detailSetNumber, { color: colors.textSecondary }]}>
+                                {index + 1}
+                              </Text>
+                              <Text style={[styles.detailSetText, { color: colors.textPrimary }]}>
+                                {formatSetSummary(set.reps, set.weight, set.weightUnit)}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={[styles.detailEmpty, { color: colors.textTertiary }]}>
+                        No completed set details saved for this workout.
+                      </Text>
+                    )}
                   </View>
-                ))
+                  );
+                })
               ) : (
                 <Text style={[styles.detailEmpty, { color: colors.textTertiary }]}>
                   No completed workouts logged for this day.
                 </Text>
               )}
-            </View>
+            </ScrollView>
 
             <View style={modalStyles.actions}>
               <Pressable
@@ -225,10 +295,7 @@ export function WeeklyProgressCarousel({
                 <Text style={modalStyles.cancelButtonText}>Close</Text>
               </Pressable>
               <Pressable
-                onPress={() => {
-                  setSelectedDay(null);
-                  onEditSchedule();
-                }}
+                onPress={handleEditSchedulePress}
                 style={({ pressed }) => [
                   modalStyles.successButton,
                   pressed && modalStyles.buttonPressed,
@@ -308,18 +375,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: Spacing.lg,
   },
-  detailList: {
-    gap: Spacing.sm,
+  detailScroll: {
+    maxHeight: scale(360),
     marginBottom: Spacing['2xl'],
   },
-  detailWorkoutRow: {
+  detailList: {
+    gap: Spacing.md,
+    paddingBottom: Spacing.xs,
+  },
+  detailSessionCard: {
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
   },
-  detailWorkoutName: {
+  detailSessionName: {
     fontSize: moderateScale(14),
     fontWeight: '700',
+    marginBottom: Spacing.md,
+  },
+  detailExerciseBlock: {
+    marginTop: Spacing.sm,
+  },
+  detailExerciseName: {
+    fontSize: moderateScale(14),
+    fontWeight: '800',
+    marginBottom: Spacing.xs,
+  },
+  detailSetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingVertical: scale(2),
+  },
+  detailSetNumber: {
+    width: scale(18),
+    textAlign: 'center',
+    fontSize: moderateScale(13),
+    fontWeight: '700',
+  },
+  detailSetText: {
+    flex: 1,
+    fontSize: moderateScale(13),
+    fontWeight: '600',
   },
   detailEmpty: {
     textAlign: 'center',

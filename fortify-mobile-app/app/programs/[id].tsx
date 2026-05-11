@@ -25,6 +25,8 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { WorkoutStackPreview } from '@/src/components/program/WorkoutStackPreview';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
+import { WEEKDAY_LABELS, WEEKDAY_SHORT_LABELS } from '@/src/utils/workoutSchedule';
 
 // Difficulty badge colors - beginner uses accent from theme
 const getDifficultyColors = (accentOverlay: string, accent: string): Record<string, { bg: string; text: string }> => ({
@@ -69,6 +71,7 @@ const formatShortRelativeTime = (dateString?: string | null) => {
 // Collapsible workout section component
 function WorkoutSection({
   workout,
+  scheduleLabel,
   isExpanded,
   onToggle,
   onExercisePress,
@@ -76,6 +79,7 @@ function WorkoutSection({
   onDeleteExercise,
 }: {
   workout: ProgramWorkout;
+  scheduleLabel: string;
   isExpanded: boolean;
   onToggle: () => void;
   onExercisePress: (exerciseId: string) => void;
@@ -105,7 +109,7 @@ function WorkoutSection({
         >
           <View style={styles.workoutSectionLeft}>
             <View style={[styles.dayBadge, { backgroundColor: colors.accentOverlay }]}>
-              <Text style={[styles.dayBadgeText, { color: colors.accent }]}>Day {workout.dayNumber}</Text>
+              <Text style={[styles.dayBadgeText, { color: colors.accent }]}>{scheduleLabel}</Text>
             </View>
             <View style={styles.workoutSectionInfo}>
               <Text style={[styles.workoutSectionTitle, { color: colors.textPrimary }]}>{workout.name}</Text>
@@ -157,10 +161,53 @@ function WorkoutSection({
   );
 }
 
+function ProgramScheduleRow({ scheduleDays }: { scheduleDays: number[] }) {
+  const { colors, isDark } = useTheme();
+  const scheduled = useMemo(() => new Set(scheduleDays), [scheduleDays]);
+
+  return (
+    <View style={styles.scheduleRow}>
+      {WEEKDAY_SHORT_LABELS.map((label, day) => {
+        const isScheduled = scheduled.has(day);
+        return (
+          <View key={`${label}-${day}`} style={styles.scheduleDay}>
+            <View
+              style={[
+                styles.scheduleCircle,
+                {
+                  backgroundColor: isScheduled
+                    ? colors.accent
+                    : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                  borderColor: isScheduled
+                    ? colors.accent
+                    : isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.scheduleCircleText,
+                  { color: isScheduled ? colors.background : colors.textTertiary },
+                ]}
+              >
+                {label}
+              </Text>
+            </View>
+            <Text style={[styles.scheduleDayText, { color: isScheduled ? colors.textPrimary : colors.textTertiary }]}>
+              {WEEKDAY_LABELS[day]}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function ProgramDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { scheduleDays } = useWorkoutSchedule();
   const modalStyles = useModalStyles();
   const { program, loading } = useProgram(id);
   const isNavigating = useRef(false);
@@ -418,6 +465,14 @@ export default function ProgramDetailScreen() {
     if (!program) return [];
     return [...program.workouts].sort((a, b) => a.dayNumber - b.dayNumber);
   }, [program]);
+  const workoutScheduleLabels = useMemo(() => {
+    if (scheduleDays.length === 0) return {};
+    return orderedWorkouts.reduce<Record<string, string>>((labels, workout, index) => {
+      const scheduleDay = scheduleDays[index % scheduleDays.length];
+      labels[workout.id] = WEEKDAY_LABELS[scheduleDay];
+      return labels;
+    }, {});
+  }, [orderedWorkouts, scheduleDays]);
 
   // Not found state (avoid loading splash)
   if (!program) {
@@ -513,6 +568,13 @@ export default function ProgramDetailScreen() {
         </Animated.View>
 
         <Animated.View
+          entering={FadeIn.delay(225).duration(300)}
+          style={styles.scheduleContainer}
+        >
+          <ProgramScheduleRow scheduleDays={scheduleDays} />
+        </Animated.View>
+
+        <Animated.View
           entering={FadeInDown.delay(250).duration(400)}
           style={styles.section}
         >
@@ -549,10 +611,11 @@ export default function ProgramDetailScreen() {
           </View>
 
           <View style={styles.workoutsList}>
-            {orderedWorkouts.map((workout, index) => (
+            {orderedWorkouts.map((workout) => (
               <WorkoutSection
                 key={workout.id}
                 workout={workout}
+                scheduleLabel={workoutScheduleLabels[workout.id] ?? `Day ${workout.dayNumber}`}
                 isExpanded={!!expandedWorkouts[workout.id]}
                 onToggle={() => toggleWorkout(workout.id)}
                 onExercisePress={handleExercisePress}
@@ -577,6 +640,7 @@ export default function ProgramDetailScreen() {
             workouts={orderedWorkouts}
             completedIds={completedIds}
             currentDayNumber={nextDayNumber}
+            weekdayLabelsByWorkoutId={workoutScheduleLabels}
           />
           {completedCycles > 0 && (
             <Text style={[styles.progressHistoryText, { color: colors.textSecondary }]}>
@@ -752,6 +816,34 @@ const styles = StyleSheet.create({
   creatorContainer: {
     marginBottom: Spacing.lg,
     gap: 4,
+  },
+  scheduleContainer: {
+    marginBottom: Spacing['2xl'],
+  },
+  scheduleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  scheduleDay: {
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  scheduleCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scheduleCircleText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '800',
+  },
+  scheduleDayText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   creatorText: {
     fontSize: FontSizes.sm,
