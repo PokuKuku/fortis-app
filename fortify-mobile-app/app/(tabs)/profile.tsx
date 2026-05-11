@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { Cog6ToothIcon, FireIcon } from 'react-native-heroicons/outline';
+import { Cog6ToothIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedLogo } from '@/components/AnimatedLogo';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -17,11 +17,9 @@ import { ProfileHeader } from '@/src/components/profile/ProfileHeader';
 import { StatsOverviewCard } from '@/src/components/profile/StatsOverviewCard';
 import { PersonalRecordsCard } from '@/src/components/profile/PersonalRecordsCard';
 import { WeeklyMuscleHeatmapCard } from '@/src/components/profile/WeeklyMuscleHeatmapCard';
-import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { scale, moderateScale } from '@/src/utils/responsive';
-import { format, startOfDay, startOfWeek, subWeeks } from 'date-fns';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -31,12 +29,6 @@ const SETTINGS_ICON_SIZE = scale(24);
 const HEADER_MIN_HEIGHT = SETTINGS_BUTTON_SIZE;
 const TITLE_PADDING_BOTTOM = scale(Spacing.md);
 const SECTION_TITLE_SIZE = moderateScale(24);
-const STREAK_BADGE_PADDING_X = scale(Spacing.sm);
-const STREAK_BADGE_PADDING_Y = scale(Spacing.xs);
-const STREAK_BADGE_RADIUS = scale(Spacing.lg);
-const STREAK_BADGE_GAP = scale(Spacing.xs);
-const STREAK_BADGE_TEXT_SIZE = moderateScale(12);
-const STREAK_ICON_SIZE = scale(14);
 const SCROLL_PADDING_BOTTOM = scale(120);
 const SECTION_SPACING = scale(Spacing.lg);
 const NOT_SIGNED_IN_PADDING_TOP = scale(80);
@@ -52,37 +44,7 @@ const SIGNIN_TEXT_MARGIN = scale(Spacing.xl);
 export default function ProfileScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
-  const { colors, isDark } = useTheme();
-  const { sessions: historySessions } = useWorkoutHistorySource({ enabled: isAuthenticated });
-
-  const weeklyStreak = (() => {
-    if (!isAuthenticated) return 0;
-    if (historySessions.length === 0) return 0;
-    const weekStarts = new Set<string>();
-    historySessions.forEach((session) => {
-      const sessionDate = startOfDay(new Date(session.completedAt ?? session.startedAt));
-      const weekStart = startOfWeek(sessionDate, { weekStartsOn: 1 });
-      weekStarts.add(format(weekStart, 'yyyy-MM-dd'));
-    });
-
-    let streak = 0;
-    const currentWeekStart = startOfWeek(startOfDay(new Date()), { weekStartsOn: 1 });
-    const lastWeekStart = subWeeks(currentWeekStart, 1);
-    let cursor: Date | null = null;
-
-    if (weekStarts.has(format(currentWeekStart, 'yyyy-MM-dd'))) {
-      cursor = currentWeekStart;
-    } else if (weekStarts.has(format(lastWeekStart, 'yyyy-MM-dd'))) {
-      cursor = lastWeekStart;
-    }
-
-    if (!cursor) return 0;
-    while (weekStarts.has(format(cursor, 'yyyy-MM-dd'))) {
-      streak += 1;
-      cursor = subWeeks(cursor, 1);
-    }
-    return streak;
-  })();
+  const { colors } = useTheme();
 
   const handleSettingsPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -118,22 +80,6 @@ export default function ProfileScreen() {
           {/* Title */}
           <View style={styles.titleContainer}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Profile</Text>
-            {isAuthenticated && (
-              <View
-                style={[
-                  styles.streakBadge,
-                  {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
-                  },
-                ]}
-              >
-                <FireIcon color="#ef4444" size={STREAK_ICON_SIZE} strokeWidth={2} />
-                <Text style={[styles.streakText, { color: colors.textPrimary }]}>
-                  {weeklyStreak} week streak
-                </Text>
-              </View>
-            )}
           </View>
 
           {isAuthenticated ? (
@@ -212,20 +158,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: SECTION_TITLE_SIZE,
-    fontFamily: 'BankGothicBT-Medium',
-  },
-  streakBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: STREAK_BADGE_GAP,
-    borderRadius: STREAK_BADGE_RADIUS,
-    borderWidth: 1,
-    paddingHorizontal: STREAK_BADGE_PADDING_X,
-    paddingVertical: STREAK_BADGE_PADDING_Y,
-  },
-  streakText: {
-    fontSize: STREAK_BADGE_TEXT_SIZE,
-    fontWeight: '600',
     fontFamily: 'BankGothicBT-Medium',
   },
   scrollView: {

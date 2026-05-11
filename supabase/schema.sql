@@ -27,6 +27,7 @@ CREATE TABLE profiles (
   weight_kg NUMERIC,
   lifting_experience TEXT,
   workouts_per_week INTEGER,
+  workout_schedule_days SMALLINT[],
   tried_other_apps TEXT,
   fitness_goal TEXT,
   biggest_challenge TEXT,

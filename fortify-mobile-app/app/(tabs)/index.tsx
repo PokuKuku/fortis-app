@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRightIcon,
-  PlayIcon,
   EllipsisHorizontalIcon,
   DocumentDuplicateIcon,
   TrashIcon,
@@ -36,7 +35,6 @@ import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { Spacing } from '@/constants/Sizes';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
-import { useWorkoutStore } from '../../src/store/workoutStore';
 import { useProgramsStore } from '../../src/store/programsStore';
 import { useProgramProgressStore } from '../../src/store/programProgressStore';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../../src/constants/programs';
@@ -48,6 +46,10 @@ import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { HOME_CARD_ORDER_KEY } from '@/src/constants/storageKeys';
+import { WeeklyProgressCarousel } from '@/src/components/program/WeeklyProgressCarousel';
+import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
+import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -81,23 +83,16 @@ const WORKOUT_CARD_PADDING_HORIZONTAL = responsiveValue(8, 10, 12);
 const CARD_PADDING_TOP = responsiveValue(8, 10, 12);
 const CARD_PADDING_BOTTOM = responsiveValue(10, 12, 14);
 const SECTION_TITLE_SIZE = responsiveValue(18, 20, 22);
-const START_BUTTON_HEIGHT = responsiveValue(32, 36, 40);
-const START_BUTTON_TEXT_SIZE = responsiveValue(13, 15, 16);
 const CARD_TITLE_SIZE = responsiveValue(12, 14, 15);
 const CARD_META_SIZE = responsiveValue(11, 12, 13);
 const HORIZONTAL_PADDING = scale(24);
 const HEADER_PADDING_TOP = scale(16);
 const HEADER_PADDING_BOTTOM = scale(12);
-const TITLE_PADDING_BOTTOM = scale(12);
-const TITLE_FONT_SIZE = moderateScale(24);
 const SCROLL_PADDING_BOTTOM = scale(120);
 const SECTION_SPACING = scale(32);
 const SECTION_HEADER_MARGIN = scale(16);
 const SECTION_HEADER_GAP = scale(12);
 const SECTION_Kebab_PADDING = scale(4);
-const START_BUTTON_RADIUS = scale(8);
-const START_BUTTON_GAP = scale(8);
-const START_ICON_SIZE = scale(20);
 const SECTION_CHEVRON_SIZE = scale(16);
 const SECTION_CHEVRON_BUTTON_SIZE = scale(24);
 const KEBAB_ICON_SIZE = scale(20);
@@ -732,8 +727,12 @@ export default function ProgramsScreen() {
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
   const [highlightedWorkoutId, setHighlightedWorkoutId] = useState<string | null>(null);
   const modalStyles = useModalStyles();
-  const startWorkout = useWorkoutStore(s => s.startWorkout);
-  const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
+  const { sessions: historySessions } = useWorkoutHistorySource({ enabled: Boolean(user) });
+  const {
+    scheduleDays,
+    isSaving: isSavingSchedule,
+    saveScheduleDays,
+  } = useWorkoutSchedule();
 
   // Programs store
   const storePrograms = useProgramsStore(s => s.programs);
@@ -756,6 +755,7 @@ export default function ProgramsScreen() {
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
+  const [scheduleEditorVisible, setScheduleEditorVisible] = useState(false);
   const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
@@ -968,11 +968,16 @@ export default function ProgramsScreen() {
     templateId: string;
   } | null>(null);
 
-  // Handle start blank workout
-  const handleStartBlankWorkout = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    startWorkout(); // Creates blank workout with generated ID and timestamp
-    router.push('/workout/active');
+  const handleSaveSchedule = async (days: number[]) => {
+    const { error } = await saveScheduleDays(days);
+    if (error) {
+      setToastMessage(error.message);
+      setShowToast(true);
+      return;
+    }
+
+    setScheduleEditorVisible(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
 
   // Handle workout/template card press - navigate to detail screen
@@ -1347,24 +1352,11 @@ export default function ProgramsScreen() {
             <AnimatedLogo />
           </View>
 
-          {/* Title */}
-          <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Programs</Text>
-          </View>
-
-          {/* Quick Start Section */}
-          <View style={styles.quickStartSection}>
-            <GlassButton style={styles.startButton} onPress={handleStartBlankWorkout} disabled={isWorkoutActive}>
-              <View style={styles.startButtonInner}>
-                <PlayIcon color="#fff" size={START_ICON_SIZE} strokeWidth={2} />
-                <Text
-                  style={styles.startButtonText}
-                >
-                  Start a Blank Workout
-                </Text>
-              </View>
-            </GlassButton>
-          </View>
+          <WeeklyProgressCarousel
+            scheduleDays={scheduleDays}
+            sessions={historySessions}
+            onEditSchedule={() => setScheduleEditorVisible(true)}
+          />
 
           {/* Programs Section */}
           <View style={styles.section}>
@@ -1573,6 +1565,14 @@ export default function ProgramsScreen() {
         message={toastMessage || 'Done!'}
         onHide={() => setShowToast(false)}
       />
+
+      <WorkoutScheduleEditorModal
+        visible={scheduleEditorVisible}
+        initialDays={scheduleDays}
+        isSaving={isSavingSchedule}
+        onClose={() => setScheduleEditorVisible(false)}
+        onSave={handleSaveSchedule}
+      />
     </View>
   );
 }
@@ -1590,23 +1590,12 @@ const styles = StyleSheet.create({
     paddingBottom: HEADER_PADDING_BOTTOM,
     alignItems: 'flex-start',
   },
-  titleContainer: {
-    paddingBottom: TITLE_PADDING_BOTTOM,
-  },
-  title: {
-    fontSize: TITLE_FONT_SIZE,
-    fontFamily: 'BankGothicBT-Medium',
-    color: '#FFFFFF',
-  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: SCROLL_PADDING_BOTTOM,
-  },
-  quickStartSection: {
-    marginBottom: SECTION_SPACING,
   },
   section: {
     marginBottom: SECTION_SPACING,
@@ -1646,26 +1635,6 @@ const styles = StyleSheet.create({
   },
   sectionKebabButton: {
     padding: SECTION_Kebab_PADDING,
-  },
-  startButton: {
-    minHeight: START_BUTTON_HEIGHT,
-    borderRadius: START_BUTTON_RADIUS,
-    paddingVertical: scale(Spacing.xs),
-    paddingHorizontal: scale(Spacing.md),
-  },
-  startButtonInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: START_BUTTON_GAP,
-    alignSelf: 'stretch',
-  },
-  startButtonText: {
-    color: '#fff',
-    fontSize: START_BUTTON_TEXT_SIZE,
-    fontWeight: '700',
-    flexShrink: 1,
-    textAlign: 'center',
   },
   cardsContainer: {
   },

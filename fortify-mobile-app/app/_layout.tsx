@@ -224,6 +224,12 @@ function ThemedAppContent({
               }}
             />
             <Stack.Screen
+              name="onboarding/workout-schedule"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
               name="onboarding/complete"
               options={{
                 ...ONBOARDING_TRANSITION,

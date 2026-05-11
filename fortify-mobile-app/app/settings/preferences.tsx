@@ -22,6 +22,9 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
+import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
+import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
+import { WEEKDAY_LABELS } from '@/src/utils/workoutSchedule';
 
 const LB_PER_KG = 2.20462;
 const KG_PER_LB = 1 / LB_PER_KG;
@@ -132,6 +135,11 @@ export default function SettingsPreferencesScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const { user, profile, updateProfile } = useAuth();
+  const {
+    scheduleDays,
+    isSaving: isSavingSchedule,
+    saveScheduleDays,
+  } = useWorkoutSchedule();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
   const modalStyles = useModalStyles();
@@ -146,10 +154,14 @@ export default function SettingsPreferencesScreen() {
     ? GOAL_LABELS[profile.fitness_goal as FitnessGoal]
     : '—';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
+  const scheduleLabel = scheduleDays.length > 0
+    ? scheduleDays.map((day) => WEEKDAY_LABELS[day]).join(', ')
+    : '—';
 
   const [measurementsOpen, setMeasurementsOpen] = useState(false);
   const [experienceOpen, setExperienceOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [isSavingMeasurements, setIsSavingMeasurements] = useState(false);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
   const [isSavingExperience, setIsSavingExperience] = useState(false);
@@ -318,6 +330,16 @@ export default function SettingsPreferencesScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
 
+  const handleSaveSchedule = async (days: number[]) => {
+    const { error } = await saveScheduleDays(days);
+    if (error) {
+      Alert.alert('Update failed', error.message);
+      return;
+    }
+    setScheduleOpen(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+  };
+
   const cardStyle = {
     backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
     borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
@@ -391,6 +413,14 @@ export default function SettingsPreferencesScreen() {
                 label="Primary Goal"
                 value={goalLabel}
                 onPress={() => setGoalOpen(true)}
+                showChevron
+                colors={colors}
+              />
+              <View style={[styles.divider, dividerStyle]} />
+              <PreferenceRow
+                label="Workout Schedule"
+                value={scheduleLabel}
+                onPress={() => setScheduleOpen(true)}
                 showChevron
                 colors={colors}
               />
@@ -544,6 +574,14 @@ export default function SettingsPreferencesScreen() {
           </View>
         )}
       </BaseModal>
+
+      <WorkoutScheduleEditorModal
+        visible={scheduleOpen}
+        initialDays={scheduleDays}
+        isSaving={isSavingSchedule}
+        onClose={() => setScheduleOpen(false)}
+        onSave={handleSaveSchedule}
+      />
     </View>
   );
 }

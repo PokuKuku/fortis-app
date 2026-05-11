@@ -116,6 +116,11 @@ export const useStartPresetStore = create<StartPresetState>((set, get) => ({
       set({ preset: null });
     }
 
+    if (localPreset && !canSyncPreset(localPreset)) {
+      set({ isLoaded: true });
+      return;
+    }
+
     if (!isSupabaseConfigured()) {
       set({ isLoaded: true });
       return;

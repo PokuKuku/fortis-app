@@ -726,6 +726,9 @@ export default function OnboardingCompleteScreen() {
       if (state?.workout_consistency && !profile?.workout_consistency) {
         updates.workout_consistency = state.workout_consistency;
       }
+      if (state?.workout_schedule_days?.length && !profile?.workout_schedule_days?.length) {
+        updates.workout_schedule_days = state.workout_schedule_days;
+      }
 
       let didTimeout = false;
       let timeoutId: ReturnType<typeof setTimeout> | null = null;

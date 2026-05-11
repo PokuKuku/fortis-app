@@ -196,6 +196,9 @@ export default function AuthWelcomeScreen() {
         if (state?.workout_consistency && !profileSnapshot?.workout_consistency) {
           updates.workout_consistency = state.workout_consistency;
         }
+        if (state?.workout_schedule_days?.length && !profileSnapshot?.workout_schedule_days?.length) {
+          updates.workout_schedule_days = state.workout_schedule_days;
+        }
 
         const { error } = await withTimeout(
           updateProfile(updates),

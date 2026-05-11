@@ -53,7 +53,7 @@ export default function OnboardingConsistencyScreen() {
   const handleContinue = () => {
     if (!selected) return;
     trackOnboardingStepCompleted('workout_consistency');
-    router.push('/onboarding/other-apps');
+    router.push('/onboarding/workout-schedule');
   };
 
   return (

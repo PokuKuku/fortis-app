@@ -154,7 +154,7 @@ export default function OnboardingInsightsScreen() {
 
   return (
     <OnboardingScreen
-      step={13}
+      step={14}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Break through your goals"
       subtitle="Fortify finds insights that move you forward"

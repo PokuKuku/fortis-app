@@ -125,7 +125,7 @@ export default function OnboardingClarityScreen() {
 
   return (
     <OnboardingScreen
-      step={10}
+      step={11}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Fortify helps you understand your progress faster"
       subtitle="Understand what’s working and keep progressing!"

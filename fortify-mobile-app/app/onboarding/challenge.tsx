@@ -77,7 +77,7 @@ export default function OnboardingChallengeScreen() {
 
   return (
     <OnboardingScreen
-      step={12}
+      step={13}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What are your biggest challenges toward your goals?"
       subtitle="Rank all that apply. Tap in order of importance."

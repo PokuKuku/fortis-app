@@ -10,6 +10,7 @@ export type OnboardingState = {
   preferred_units?: 'imperial' | 'metric';
   lifting_experience?: 'none' | 'beginner' | 'intermediate' | 'advanced';
   workouts_per_week?: number;
+  workout_schedule_days?: number[];
   tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never';
   heard_about?:
     | 'tiktok'
