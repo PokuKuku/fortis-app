@@ -239,7 +239,7 @@ async function transcribeAudio(request: WorkoutVoiceRequest): Promise<string> {
     throw new Error('Recording is too large. Please keep it shorter.');
   }
   const file = new Blob([bytes], { type: request.mimeType });
-  const configuredModel = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe';
+  const configuredModel = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'whisper-1';
   const modelCandidates = Array.from(new Set([configuredModel, 'whisper-1']));
   let lastError: Error | null = null;
 
@@ -290,7 +290,7 @@ async function interpretTranscriptWithModel(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: Deno.env.get('OPENAI_VOICE_PARSE_MODEL') || 'gpt-4o-mini',
+      model: Deno.env.get('OPENAI_VOICE_PARSE_MODEL') || 'gpt-5-nano',
       temperature: 0.1,
       messages: [
         {

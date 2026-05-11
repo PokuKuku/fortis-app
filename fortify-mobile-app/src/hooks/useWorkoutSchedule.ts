@@ -11,7 +11,7 @@ import {
 
 export function useWorkoutSchedule() {
   const { profile, updateProfile } = useAuth();
-  const [localDays, setLocalDays] = useState<number[]>([]);
+  const [localDays, setLocalDays] = useState<number[] | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -26,7 +26,7 @@ export function useWorkoutSchedule() {
       })
       .catch(() => {
         if (!isActive) return;
-        setLocalDays([]);
+        setLocalDays(null);
         setIsLoaded(true);
       });
 

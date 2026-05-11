@@ -43,7 +43,7 @@ export function WorkoutScheduleEditorModal({
   };
 
   const handleSave = async () => {
-    if (selectedDays.length === 0 || isSaving) return;
+    if (isSaving) return;
     await onSave(selectedDays);
   };
 
@@ -55,7 +55,7 @@ export function WorkoutScheduleEditorModal({
       width={360}
     >
       <Text style={[styles.description, { color: colors.textSecondary }]}>
-        Choose the days you plan to train each week.
+        Choose the days you plan to train each week, or leave blank for no fixed schedule.
       </Text>
 
       <View style={styles.daysGrid}>
@@ -104,10 +104,10 @@ export function WorkoutScheduleEditorModal({
         </Pressable>
         <Pressable
           onPress={handleSave}
-          disabled={isSaving || selectedDays.length === 0}
+          disabled={isSaving}
           style={({ pressed }) => [
             modalStyles.successButton,
-            (isSaving || selectedDays.length === 0) && styles.disabled,
+            isSaving && styles.disabled,
             pressed && modalStyles.buttonPressed,
           ]}
         >

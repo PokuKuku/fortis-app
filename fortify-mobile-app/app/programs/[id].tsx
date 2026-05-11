@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import {
+  CheckIcon,
   PlayIcon,
   TrashIcon,
   ExclamationTriangleIcon,
@@ -26,7 +27,13 @@ import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { WorkoutStackPreview } from '@/src/components/program/WorkoutStackPreview';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
-import { WEEKDAY_LABELS, WEEKDAY_SHORT_LABELS } from '@/src/utils/workoutSchedule';
+import {
+  buildSundayWeek,
+  getSessionsForDate,
+  WEEKDAY_LABELS,
+  WEEKDAY_SHORT_LABELS,
+} from '@/src/utils/workoutSchedule';
+import type { WorkoutSession } from '@/src/types/workout';
 
 // Difficulty badge colors - beginner uses accent from theme
 const getDifficultyColors = (accentOverlay: string, accent: string): Record<string, { bg: string; text: string }> => ({
@@ -161,39 +168,54 @@ function WorkoutSection({
   );
 }
 
-function ProgramScheduleRow({ scheduleDays }: { scheduleDays: number[] }) {
+function ProgramScheduleRow({
+  scheduleDays,
+  completedWeekdays,
+}: {
+  scheduleDays: number[];
+  completedWeekdays: number[];
+}) {
   const { colors, isDark } = useTheme();
   const scheduled = useMemo(() => new Set(scheduleDays), [scheduleDays]);
+  const completed = useMemo(() => new Set(completedWeekdays), [completedWeekdays]);
 
   return (
     <View style={styles.scheduleRow}>
       {WEEKDAY_SHORT_LABELS.map((label, day) => {
         const isScheduled = scheduled.has(day);
+        const isComplete = completed.has(day);
         return (
           <View key={`${label}-${day}`} style={styles.scheduleDay}>
             <View
               style={[
                 styles.scheduleCircle,
                 {
-                  backgroundColor: isScheduled
+                  backgroundColor: isComplete
                     ? colors.accent
+                    : isScheduled
+                      ? colors.accentOverlay
                     : isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-                  borderColor: isScheduled
+                  borderColor: isComplete || isScheduled
                     ? colors.accent
                     : isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                  borderStyle: isScheduled && !isComplete ? 'dashed' : 'solid',
                 },
               ]}
             >
-              <Text
-                style={[
-                  styles.scheduleCircleText,
-                  { color: isScheduled ? colors.background : colors.textTertiary },
-                ]}
-              >
-                {label}
-              </Text>
+              {isComplete ? (
+                <CheckIcon color={colors.white} size={17} strokeWidth={3} />
+              ) : (
+                <Text
+                  style={[
+                    styles.scheduleCircleText,
+                    { color: isScheduled ? colors.accent : colors.textTertiary },
+                  ]}
+                >
+                  {label}
+                </Text>
+              )}
             </View>
-            <Text style={[styles.scheduleDayText, { color: isScheduled ? colors.textPrimary : colors.textTertiary }]}>
+            <Text style={[styles.scheduleDayText, { color: isComplete || isScheduled ? colors.textPrimary : colors.textTertiary }]}>
               {WEEKDAY_LABELS[day]}
             </Text>
           </View>
@@ -216,6 +238,7 @@ export default function ProgramDetailScreen() {
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
   const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
   const bodyType = useWorkoutStore(s => s.bodyType);
+  const completedSessions = useWorkoutStore(s => s.completedSessions);
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
   const isProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const progressEntry = useProgramProgressStore(
@@ -473,6 +496,12 @@ export default function ProgramDetailScreen() {
       return labels;
     }, {});
   }, [orderedWorkouts, scheduleDays]);
+  const completedWeekdays = useMemo(() => {
+    const weekDays = buildSundayWeek(new Date());
+    return weekDays
+      .filter((day) => getSessionsForDate(completedSessions as WorkoutSession[], day).length > 0)
+      .map((day) => day.getDay());
+  }, [completedSessions]);
 
   // Not found state (avoid loading splash)
   if (!program) {
@@ -571,7 +600,7 @@ export default function ProgramDetailScreen() {
           entering={FadeIn.delay(225).duration(300)}
           style={styles.scheduleContainer}
         >
-          <ProgramScheduleRow scheduleDays={scheduleDays} />
+          <ProgramScheduleRow scheduleDays={scheduleDays} completedWeekdays={completedWeekdays} />
         </Animated.View>
 
         <Animated.View

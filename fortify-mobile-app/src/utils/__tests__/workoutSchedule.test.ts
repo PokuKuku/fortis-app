@@ -4,7 +4,9 @@ import {
   buildWeekProgressDays,
   deriveScheduleDaysFromWorkoutsPerWeek,
   getScheduledWorkoutDayStreak,
+  getWorkoutDayStreak,
   normalizeWorkoutScheduleDays,
+  resolveWorkoutScheduleDays,
 } from '@/src/utils/workoutSchedule';
 
 function session(localId: string, completedAt: string, name = 'Workout'): WorkoutSession {
@@ -36,6 +38,12 @@ describe('workoutSchedule', () => {
     expect(deriveScheduleDaysFromWorkoutsPerWeek(null)).toEqual([1, 3, 5]);
     expect(deriveScheduleDaysFromWorkoutsPerWeek(2)).toEqual([1, 4]);
     expect(deriveScheduleDaysFromWorkoutsPerWeek(7)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it('keeps an explicit empty schedule instead of falling back', () => {
+    expect(resolveWorkoutScheduleDays([], undefined, undefined, 3)).toEqual([]);
+    expect(resolveWorkoutScheduleDays(undefined, [], undefined, 3)).toEqual([]);
+    expect(resolveWorkoutScheduleDays(undefined, undefined, undefined, 3)).toEqual([1, 3, 5]);
   });
 
   it('maps completed sessions to local calendar dates', () => {
@@ -80,5 +88,32 @@ describe('workoutSchedule', () => {
     });
 
     expect(streak).toBe(1);
+  });
+
+  it('counts consecutive daily workouts when no schedule is selected', () => {
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [],
+      sessions: [
+        session('thursday', '2026-05-14T12:00:00'),
+        session('friday', '2026-05-15T12:00:00'),
+        session('saturday', '2026-05-16T12:00:00'),
+      ],
+      today: new Date('2026-05-16T12:00:00'),
+    });
+
+    expect(streak).toBe(3);
+  });
+
+  it('exposes a daily workout streak helper', () => {
+    const streak = getWorkoutDayStreak({
+      sessions: [
+        session('wednesday', '2026-05-13T12:00:00'),
+        session('friday', '2026-05-15T12:00:00'),
+        session('saturday', '2026-05-16T12:00:00'),
+      ],
+      today: new Date('2026-05-16T12:00:00'),
+    });
+
+    expect(streak).toBe(2);
   });
 });

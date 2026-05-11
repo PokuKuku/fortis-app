@@ -2,14 +2,15 @@ import { WORKOUT_SCHEDULE_DAYS_KEY } from '@/src/constants/storageKeys';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { normalizeWorkoutScheduleDays } from '@/src/utils/workoutSchedule';
 
-export async function loadLocalWorkoutScheduleDays(): Promise<number[]> {
+export async function loadLocalWorkoutScheduleDays(): Promise<number[] | null> {
   const raw = await getScopedItem(WORKOUT_SCHEDULE_DAYS_KEY);
-  if (!raw) return [];
+  if (!raw) return null;
 
   try {
-    return normalizeWorkoutScheduleDays(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? normalizeWorkoutScheduleDays(parsed) : null;
   } catch {
-    return [];
+    return null;
   }
 }
 

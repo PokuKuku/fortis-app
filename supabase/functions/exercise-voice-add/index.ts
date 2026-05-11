@@ -194,7 +194,7 @@ async function transcribeAudio(request: ExerciseVoiceRequest): Promise<string> {
     throw new Error('Recording is too large. Please keep it shorter.');
   }
   const file = new File([bytes], request.fileName, { type: request.mimeType });
-  const configuredModel = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'gpt-4o-mini-transcribe';
+  const configuredModel = Deno.env.get('OPENAI_TRANSCRIPTION_MODEL') || 'whisper-1';
   const modelCandidates = Array.from(new Set([configuredModel, 'whisper-1']));
   let lastError: Error | null = null;
 
@@ -237,7 +237,7 @@ async function parseExerciseTranscript(transcript: string): Promise<ExerciseVoic
     return fallbackInterpretTranscript(transcript);
   }
 
-  const model = Deno.env.get('OPENAI_EXERCISE_VOICE_PARSE_MODEL') || 'gpt-4o-mini';
+  const model = Deno.env.get('OPENAI_EXERCISE_VOICE_PARSE_MODEL') || 'gpt-5-nano';
   const prompt = [
     'You extract exercise add requests from a workout transcript.',
     'Return strict JSON with shape: {"entries":[{"exerciseQuery":"barbell bench press","setCount":3,"confidence":"high"}]}.',

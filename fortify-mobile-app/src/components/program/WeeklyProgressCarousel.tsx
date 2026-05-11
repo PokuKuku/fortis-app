@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { addDays, format } from 'date-fns';
-import { FireIcon } from 'react-native-heroicons/outline';
+import { CheckIcon, FireIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -152,18 +152,20 @@ export function WeeklyProgressCarousel({
                     day.isToday && !isComplete && { borderColor: colors.textPrimary },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.dateLabel,
-                      {
-                        color: isComplete
-                          ? colors.white
-                          : day.isMissed ? colors.error : day.isScheduled ? colors.accent : colors.textTertiary,
-                      },
-                    ]}
-                  >
-                    {day.dateLabel}
-                  </Text>
+                  {isComplete ? (
+                    <CheckIcon color={colors.white} size={18} strokeWidth={3} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.dateLabel,
+                        {
+                          color: day.isMissed ? colors.error : day.isScheduled ? colors.accent : colors.textTertiary,
+                        },
+                      ]}
+                    >
+                      {day.dateLabel}
+                    </Text>
+                  )}
                 </View>
               </Pressable>
             );

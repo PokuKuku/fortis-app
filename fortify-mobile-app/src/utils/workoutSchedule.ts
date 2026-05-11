@@ -51,14 +51,17 @@ export function resolveWorkoutScheduleDays(
   onboardingDays?: unknown,
   workoutsPerWeek?: number | null
 ): number[] {
-  const normalizedProfileDays = normalizeWorkoutScheduleDays(profileDays);
-  if (normalizedProfileDays.length > 0) return normalizedProfileDays;
+  if (Array.isArray(profileDays)) {
+    return normalizeWorkoutScheduleDays(profileDays);
+  }
 
-  const normalizedLocalDays = normalizeWorkoutScheduleDays(localDays);
-  if (normalizedLocalDays.length > 0) return normalizedLocalDays;
+  if (Array.isArray(localDays)) {
+    return normalizeWorkoutScheduleDays(localDays);
+  }
 
-  const normalizedOnboardingDays = normalizeWorkoutScheduleDays(onboardingDays);
-  if (normalizedOnboardingDays.length > 0) return normalizedOnboardingDays;
+  if (Array.isArray(onboardingDays)) {
+    return normalizeWorkoutScheduleDays(onboardingDays);
+  }
 
   return deriveScheduleDaysFromWorkoutsPerWeek(workoutsPerWeek);
 }
@@ -84,6 +87,37 @@ export function getSessionsForDate(
     if (!session.completedAt) return false;
     return isSameDay(session.completedAt, date);
   });
+}
+
+export function getWorkoutDayStreak({
+  sessions,
+  today = new Date(),
+}: {
+  sessions: WorkoutSession[];
+  today?: Date;
+}): number {
+  const completedDateKeys = new Set(
+    sessions
+      .filter((session) => session.completedAt)
+      .map((session) => getDateKey(session.completedAt as Date))
+  );
+
+  let cursor = new Date(today);
+  let streak = 0;
+  let inspectedDays = 0;
+  const maxLookbackDays = 370;
+
+  while (inspectedDays < maxLookbackDays) {
+    if (!completedDateKeys.has(getDateKey(cursor))) {
+      return streak;
+    }
+
+    streak += 1;
+    cursor = addDays(cursor, -1);
+    inspectedDays += 1;
+  }
+
+  return streak;
 }
 
 export function buildWeekProgressDays({
@@ -139,7 +173,9 @@ export function getScheduledWorkoutDayStreak({
   today?: Date;
 }): number {
   const normalizedSchedule = normalizeWorkoutScheduleDays(scheduleDays);
-  if (normalizedSchedule.length === 0) return 0;
+  if (normalizedSchedule.length === 0) {
+    return getWorkoutDayStreak({ sessions, today });
+  }
 
   const scheduledDays = new Set(normalizedSchedule);
   const completedDateKeys = new Set(
