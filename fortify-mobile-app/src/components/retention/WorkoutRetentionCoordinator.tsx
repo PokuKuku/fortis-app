@@ -28,7 +28,7 @@ import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
 
 export function WorkoutRetentionCoordinator() {
   const { user, profile } = useAuth();
-  const { scheduleDays } = useWorkoutSchedule();
+  const { scheduleDays, scheduleHistory } = useWorkoutSchedule();
   const { sessions } = useWorkoutHistorySource({ enabled: Boolean(user) });
   const { exercisesById } = useExerciseLookup();
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
@@ -41,29 +41,11 @@ export function WorkoutRetentionCoordinator() {
     [sessions]
   );
   const scheduleKey = scheduleDays.join(',');
+  const scheduleHistoryKey = scheduleHistory
+    .map((entry) => `${entry.effectiveDateKey}:${entry.scheduleDays.join(',')}`)
+    .join('|');
 
-  const buildRecapForWeek = useCallback((weekStart: Date) => buildWeeklyRecap({
-    weekStart,
-    scheduleDays,
-    sessions,
-    exercisesById: exercisesById as unknown as Map<string, Exercise>,
-    preferredUnits: profile?.preferred_units === 'metric' ? 'metric' : 'imperial',
-    weightUnits,
-  }), [exercisesById, profile?.preferred_units, scheduleDays, sessions, weightUnits]);
-
-  const maybeShowWeeklyRecap = useCallback(async (forceWeekStart?: Date | null) => {
-    if (!user) return;
-    const dueWeekStart = forceWeekStart ?? getDueWeeklyRecapWeekStart();
-    if (!dueWeekStart) return;
-    const recap = buildRecapForWeek(dueWeekStart);
-    const lastShown = await getLastShownWeeklyRecapKey();
-    const lastAcknowledged = await getLastAcknowledgedWeeklyRecapKey();
-    if (!forceWeekStart && (lastShown === recap.weekKey || lastAcknowledged === recap.weekKey)) return;
-    await setLastShownWeeklyRecapKey(recap.weekKey);
-    setWeeklyRecap(recap);
-  }, [buildRecapForWeek, user]);
-
-  useEffect(() => {
+  const syncNotifications = useCallback(() => {
     if (!preferences.isLoaded) return;
     void syncRetentionNotifications({
       scheduleDays,
@@ -78,20 +60,47 @@ export function WorkoutRetentionCoordinator() {
     scheduleDays,
   ]);
 
+  const buildRecapForWeek = useCallback((weekStart: Date) => buildWeeklyRecap({
+    weekStart,
+    scheduleDays,
+    scheduleHistory,
+    sessions,
+    exercisesById: exercisesById as unknown as Map<string, Exercise>,
+    preferredUnits: profile?.preferred_units === 'metric' ? 'metric' : 'imperial',
+    weightUnits,
+  }), [exercisesById, profile?.preferred_units, scheduleDays, scheduleHistory, sessions, weightUnits]);
+
+  const maybeShowWeeklyRecap = useCallback(async (forceWeekStart?: Date | null) => {
+    if (!user) return;
+    const dueWeekStart = forceWeekStart ?? getDueWeeklyRecapWeekStart();
+    if (!dueWeekStart) return;
+    const recap = buildRecapForWeek(dueWeekStart);
+    const lastShown = await getLastShownWeeklyRecapKey();
+    const lastAcknowledged = await getLastAcknowledgedWeeklyRecapKey();
+    if (!forceWeekStart && (lastShown === recap.weekKey || lastAcknowledged === recap.weekKey)) return;
+    await setLastShownWeeklyRecapKey(recap.weekKey);
+    setWeeklyRecap(recap);
+  }, [buildRecapForWeek, user]);
+
+  useEffect(() => {
+    syncNotifications();
+  }, [syncNotifications]);
+
   useEffect(() => {
     void maybeShowWeeklyRecap();
-  }, [maybeShowWeeklyRecap, sessionsKey, scheduleKey]);
+  }, [maybeShowWeeklyRecap, sessionsKey, scheduleKey, scheduleHistoryKey]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       const previous = appStateRef.current;
       appStateRef.current = nextState;
       if ((previous === 'background' || previous === 'inactive') && nextState === 'active') {
+        syncNotifications();
         void maybeShowWeeklyRecap();
       }
     });
     return () => subscription.remove();
-  }, [maybeShowWeeklyRecap]);
+  }, [maybeShowWeeklyRecap, syncNotifications]);
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {

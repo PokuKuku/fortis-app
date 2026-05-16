@@ -342,6 +342,7 @@ export interface ProgramExerciseDTO {
   rest_seconds?: number;
   notes?: string;
   order_index: number;
+  set_details?: TemplateSetDetail[] | null;
 }
 
 // ============================================
@@ -357,6 +358,7 @@ export interface ProgramProgress {
   programId: string;
   currentWorkoutIndex: number;
   currentCycle: number;
+  nextDayNumberOverride?: number | null;
   startedAt: string;
   completedAt: string | null;
   lastWorkoutId: string | null;
@@ -381,6 +383,7 @@ export interface ProgramProgressDTO {
   program_id: string;
   current_workout_index: number;
   current_cycle: number;
+  next_day_number_override?: number | null;
   started_at: string;
   completed_at: string | null;
   last_workout_id: string | null;

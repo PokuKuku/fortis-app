@@ -56,36 +56,76 @@ export function getProgressionIncrement(unit: WeightUnit | null | undefined): nu
   return unit === 'kg' ? 2.5 : 5;
 }
 
+function normalizeSetType(value: SetType | string | null | undefined): SetType {
+  return value === 'warmup' || value === 'dropset' || value === 'failure'
+    ? value
+    : 'normal';
+}
+
 export function buildRepRangeProgressionSuggestion(
   targetReps: string | null | undefined,
-  setCount: number,
+  currentSets: number | ProgressionSetInput[],
   previousSets: ProgressionSetInput[] | null | undefined
 ): ProgressionSuggestion | null {
   const range = parseRepRange(targetReps);
-  if (!range || setCount < 1 || !previousSets?.length) return null;
+  if (!range || !previousSets?.length) return null;
 
-  const normalSets = previousSets
-    .filter((set) => (set.setType || 'normal') === 'normal')
-    .slice(0, setCount);
+  const typeCounts = new Map<SetType, number>();
+  const orderedTypes: SetType[] = [];
 
-  if (normalSets.length < setCount) return null;
+  if (typeof currentSets === 'number') {
+    if (currentSets < 1) return null;
+    typeCounts.set('normal', currentSets);
+    orderedTypes.push('normal');
+  } else {
+    if (currentSets.length < 1) return null;
+    currentSets.forEach((set) => {
+      const type = normalizeSetType(set.setType);
+      typeCounts.set(type, (typeCounts.get(type) ?? 0) + 1);
+      if (!orderedTypes.includes(type)) {
+        orderedTypes.push(type);
+      }
+    });
+  }
 
-  const hitTopRange = normalSets.every(
-    (set) => set.reps !== null && set.reps !== undefined && set.reps >= range.max
-  );
-  if (!hitTopRange) return null;
+  const suggestedSets: ProgressionSuggestion['sets'] = [];
 
-  return {
-    sets: normalSets.map((set) => {
+  orderedTypes.forEach((type) => {
+    const count = typeCounts.get(type) ?? 0;
+    const previousSetsOfType = previousSets
+      .filter((set) => normalizeSetType(set.setType) === type)
+      .slice(0, count);
+
+    if (previousSetsOfType.length < count) return;
+
+    const hitTopRange = previousSetsOfType.every(
+      (set) => set.reps !== null && set.reps !== undefined && set.reps >= range.max
+    );
+
+    if (!hitTopRange) {
+      const firstSet = previousSetsOfType[0];
+      if (firstSet.reps === null || firstSet.reps === undefined) return;
+      suggestedSets.push({
+        weight: firstSet.weight ?? null,
+        reps: Math.min(firstSet.reps + 1, range.max),
+        weightUnit: firstSet.weightUnit ?? null,
+        setType: type,
+      });
+      return;
+    }
+
+    previousSetsOfType.forEach((set) => {
       const unit = set.weightUnit ?? null;
-      return {
+      suggestedSets.push({
         weight: set.weight === null || set.weight === undefined
           ? null
           : set.weight + getProgressionIncrement(unit),
         reps: range.min,
         weightUnit: unit,
-        setType: 'normal',
-      };
-    }),
-  };
+        setType: type,
+      });
+    });
+  });
+
+  return suggestedSets.length > 0 ? { sets: suggestedSets } : null;
 }

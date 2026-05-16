@@ -41,7 +41,7 @@ import {
   StyleSheet,
   ViewStyle,
   TextStyle,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { XMarkIcon } from 'react-native-heroicons/outline';
 import Animated, {
@@ -58,9 +58,9 @@ import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-// Ensure modal has at least 24px margin on each side
-const DEFAULT_MODAL_WIDTH = Math.min(SCREEN_WIDTH - 48, 320);
+const DEFAULT_MODAL_WIDTH = 320;
+const MODAL_SIDE_MARGIN = Spacing.lg;
+const MODAL_VERTICAL_MARGIN = Spacing['2xl'];
 
 export interface BaseModalProps {
   /** Whether the modal is visible */
@@ -104,6 +104,10 @@ export function BaseModal({
   animation = 'zoom',
 }: BaseModalProps) {
   const { colors, isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const availableWidth = Math.max(1, windowWidth - MODAL_SIDE_MARGIN * 2);
+  const resolvedWidth = Math.min(width, availableWidth);
+  const maxModalHeight = Math.max(1, windowHeight - MODAL_VERTICAL_MARGIN * 2);
 
   // Theme-aware colors
   const themedCloseButtonColor = closeButtonColor || colors.textSecondary;
@@ -156,7 +160,16 @@ export function BaseModal({
             entering={contentEntering}
             exiting={contentExiting}
           >
-            <View style={[styles.container, { width, backgroundColor: containerBg }]}>
+            <View
+              style={[
+                styles.container,
+                {
+                  width: resolvedWidth,
+                  maxHeight: maxModalHeight,
+                  backgroundColor: containerBg,
+                },
+              ]}
+            >
               <StainlessSteelPattern />
 
               {/* Header */}
@@ -197,7 +210,8 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing['2xl'],
+    paddingHorizontal: MODAL_SIDE_MARGIN,
+    paddingVertical: MODAL_VERTICAL_MARGIN,
   },
   container: {
     borderRadius: BorderRadius['2xl'],

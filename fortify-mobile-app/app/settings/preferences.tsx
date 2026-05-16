@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  useWindowDimensions,
+  PanResponder,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -26,7 +28,6 @@ import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutSche
 import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import { useWorkoutRetentionPreferences } from '@/src/hooks/useWorkoutRetentionPreferences';
-import { WEEKDAY_LABELS } from '@/src/utils/workoutSchedule';
 import { formatReminderTime, normalizeReminderTime, type WeeklyRecap } from '@/src/utils/workoutRetention';
 
 const LB_PER_KG = 2.20462;
@@ -59,6 +60,8 @@ type ExperienceOption = {
   title: string;
   description: string;
 };
+
+type ReminderDialMode = 'hour' | 'minute';
 
 const GOAL_OPTIONS: GoalOption[] = [
   { value: 'build_muscle', title: 'Build muscle', description: 'Prioritize hypertrophy and consistent volume.' },
@@ -134,9 +137,176 @@ function PreferenceRow({ label, value, onPress, showChevron, disabled, colors }:
   );
 }
 
+interface ReminderTimeDialProps {
+  mode: ReminderDialMode;
+  hour: number;
+  minute: number;
+  size: number;
+  isDark: boolean;
+  colors: ReturnType<typeof useTheme>['colors'];
+  onChangeHour: (hour: number) => void;
+  onChangeMinute: (minute: number) => void;
+}
+
+function ReminderTimeDial({
+  mode,
+  hour,
+  minute,
+  size,
+  isDark,
+  colors,
+  onChangeHour,
+  onChangeMinute,
+}: ReminderTimeDialProps) {
+  const radius = size / 2;
+  const center = radius;
+  const isCompact = size < 225;
+  const markSize = isCompact ? 28 : 32;
+  const knobSize = isCompact ? 18 : 20;
+  const markerRadius = radius - (isCompact ? 16 : 18);
+  const knobRadius = radius - (isCompact ? 22 : 24);
+  const selectedValue = mode === 'hour' ? hour : minute;
+  const steps = mode === 'hour' ? 12 : 60;
+  const selectedIndex = mode === 'hour' ? hour % 12 : minute;
+  const selectedAngle = (selectedIndex / steps) * 360;
+  const selectedRadians = ((selectedAngle - 90) * Math.PI) / 180;
+  const knobX = center + Math.cos(selectedRadians) * knobRadius;
+  const knobY = center + Math.sin(selectedRadians) * knobRadius;
+  const lastHapticValueRef = useRef<number | null>(null);
+
+  const setValueFromLocation = (x: number, y: number) => {
+    const dx = x - center;
+    const dy = y - center;
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const normalized = (angle + 90 + 360) % 360;
+
+    if (mode === 'hour') {
+      const nextIndex = Math.round(normalized / 30) % 12;
+      const nextHour = nextIndex === 0 ? 12 : nextIndex;
+      onChangeHour(nextHour);
+      if (lastHapticValueRef.current !== nextHour) {
+        lastHapticValueRef.current = nextHour;
+        Haptics.selectionAsync().catch(() => undefined);
+      }
+      return;
+    }
+
+    const nextMinute = Math.round(normalized / 6) % 60;
+    onChangeMinute(nextMinute);
+    const hapticTick = Math.round(nextMinute / 5) % 12;
+    if (nextMinute % 5 === 0 && lastHapticValueRef.current !== hapticTick) {
+      lastHapticValueRef.current = hapticTick;
+      Haptics.selectionAsync().catch(() => undefined);
+    }
+  };
+
+  const panResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: (event) => {
+      setValueFromLocation(event.nativeEvent.locationX, event.nativeEvent.locationY);
+    },
+    onPanResponderMove: (event) => {
+      setValueFromLocation(event.nativeEvent.locationX, event.nativeEvent.locationY);
+    },
+  }), [mode, onChangeHour, onChangeMinute, center]);
+
+  const marks = useMemo(() => {
+    const count = mode === 'hour' ? 12 : 12;
+    return Array.from({ length: count }, (_, index) => {
+      const value = mode === 'hour' ? (index === 0 ? 12 : index) : index * 5;
+      const angleDeg = mode === 'hour' ? index * 30 : index * 30;
+      const radians = ((angleDeg - 90) * Math.PI) / 180;
+      const x = center + Math.cos(radians) * markerRadius;
+      const y = center + Math.sin(radians) * markerRadius;
+      const isSelected = mode === 'hour'
+        ? value === hour
+        : value === Math.round(minute / 5) * 5 || (value === 0 && minute >= 58);
+
+      return {
+        key: `${mode}-${value}`,
+        label: mode === 'hour' ? String(value) : String(value).padStart(2, '0'),
+        x,
+        y,
+        isSelected,
+      };
+    });
+  }, [center, hour, markerRadius, minute, mode]);
+
+  return (
+    <View
+      style={[
+        styles.dial,
+        {
+          width: size,
+          height: size,
+          borderRadius: radius,
+          backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+          borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+        },
+      ]}
+      {...panResponder.panHandlers}
+    >
+      {marks.map((mark) => (
+        <View
+          key={mark.key}
+          pointerEvents="none"
+          style={[
+            styles.dialMark,
+            {
+              left: mark.x - markSize / 2,
+              top: mark.y - markSize / 2,
+              width: markSize,
+              height: markSize,
+              borderRadius: markSize / 2,
+              backgroundColor: mark.isSelected ? colors.accent : 'transparent',
+            },
+          ]}
+        >
+          <Text
+            allowFontScaling={false}
+            style={[
+              styles.dialMarkText,
+              isCompact && styles.dialMarkTextCompact,
+              { color: mark.isSelected ? colors.white : colors.textSecondary },
+            ]}
+          >
+            {mark.label}
+          </Text>
+        </View>
+      ))}
+
+      <View
+        pointerEvents="none"
+        style={[
+          styles.dialKnob,
+          {
+            left: knobX - knobSize / 2,
+            top: knobY - knobSize / 2,
+            width: knobSize,
+            height: knobSize,
+            borderRadius: knobSize / 2,
+            backgroundColor: colors.accent,
+            shadowColor: colors.accent,
+          },
+        ]}
+      />
+      <View pointerEvents="none" style={styles.dialCenter}>
+        <Text allowFontScaling={false} style={[styles.dialValue, { color: colors.textPrimary }]}>
+          {mode === 'hour' ? selectedValue : String(selectedValue).padStart(2, '0')}
+        </Text>
+        <Text allowFontScaling={false} style={[styles.dialModeLabel, { color: colors.textSecondary }]}>
+          {mode}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 export default function SettingsPreferencesScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const { user, profile, updateProfile } = useAuth();
   const {
     scheduleDays,
@@ -150,6 +320,16 @@ export default function SettingsPreferencesScreen() {
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
   const modalStyles = useModalStyles();
+  const isCompactReminderLayout = windowHeight < 720;
+  const reminderModalWidth = Math.min(360, Math.max(288, windowWidth - Spacing.lg * 2));
+  const reminderDialSize = Math.max(
+    196,
+    Math.min(
+      isCompactReminderLayout ? 220 : 252,
+      reminderModalWidth - Spacing.xl * 2,
+      windowHeight - (isCompactReminderLayout ? 430 : 470)
+    )
+  );
 
   const units = profile?.preferred_units === 'metric' ? 'metric' : 'imperial';
   const weightLabel = formatWeight(profile?.weight_kg, units);
@@ -161,9 +341,6 @@ export default function SettingsPreferencesScreen() {
     ? GOAL_LABELS[profile.fitness_goal as FitnessGoal]
     : '—';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
-  const scheduleLabel = scheduleDays.length > 0
-    ? scheduleDays.map((day) => WEEKDAY_LABELS[day]).join(', ')
-    : '—';
   const reminderTimeLabel = formatReminderTime(reminderTime);
 
   const [measurementsOpen, setMeasurementsOpen] = useState(false);
@@ -180,8 +357,9 @@ export default function SettingsPreferencesScreen() {
   const [heightFeetInput, setHeightFeetInput] = useState('');
   const [heightInchesInput, setHeightInchesInput] = useState('');
   const [weightInput, setWeightInput] = useState('');
-  const [reminderHourInput, setReminderHourInput] = useState('');
-  const [reminderMinuteInput, setReminderMinuteInput] = useState('');
+  const [reminderDialMode, setReminderDialMode] = useState<ReminderDialMode>('hour');
+  const [reminderHour, setReminderHour] = useState(8);
+  const [reminderMinute, setReminderMinute] = useState(0);
   const [reminderPeriod, setReminderPeriod] = useState<'AM' | 'PM'>('AM');
   const previewWeeklyRecap = useMemo<WeeklyRecap>(() => {
     const weekStart = new Date(2026, 4, 10);
@@ -283,9 +461,10 @@ export default function SettingsPreferencesScreen() {
     if (!reminderTimeOpen) return;
     const isPm = reminderTime.hour >= 12;
     const twelveHour = reminderTime.hour % 12 || 12;
-    setReminderHourInput(String(twelveHour));
-    setReminderMinuteInput(String(reminderTime.minute).padStart(2, '0'));
+    setReminderHour(twelveHour);
+    setReminderMinute(reminderTime.minute);
     setReminderPeriod(isPm ? 'PM' : 'AM');
+    setReminderDialMode('hour');
   }, [reminderTime.hour, reminderTime.minute, reminderTimeOpen]);
 
   const handleToggleUnits = async () => {
@@ -426,20 +605,10 @@ export default function SettingsPreferencesScreen() {
   };
 
   const handleSaveReminderTime = async () => {
-    const rawHour = Number(reminderHourInput);
-    const rawMinute = Number(reminderMinuteInput);
-    if (!Number.isFinite(rawHour) || rawHour < 1 || rawHour > 12) {
-      Alert.alert('Invalid time', 'Enter an hour from 1 to 12.');
-      return;
-    }
-    if (!Number.isFinite(rawMinute) || rawMinute < 0 || rawMinute > 59) {
-      Alert.alert('Invalid time', 'Enter minutes from 0 to 59.');
-      return;
-    }
     const hour24 = reminderPeriod === 'PM'
-      ? (rawHour % 12) + 12
-      : rawHour % 12;
-    await setReminderTime(normalizeReminderTime({ hour: hour24, minute: rawMinute }));
+      ? (reminderHour % 12) + 12
+      : reminderHour % 12;
+    await setReminderTime(normalizeReminderTime({ hour: hour24, minute: reminderMinute }));
     setReminderTimeOpen(false);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
@@ -523,7 +692,6 @@ export default function SettingsPreferencesScreen() {
               <View style={[styles.divider, dividerStyle]} />
               <PreferenceRow
                 label="Workout Schedule"
-                value={scheduleLabel}
                 onPress={() => setScheduleOpen(true)}
                 showChevron
                 colors={colors}
@@ -711,47 +879,57 @@ export default function SettingsPreferencesScreen() {
         visible={reminderTimeOpen}
         onClose={() => setReminderTimeOpen(false)}
         title="Reminder Time"
+        width={reminderModalWidth}
       >
-        <View style={styles.timeInputRow}>
-          <TextInput
-            style={[
-              styles.timeInput,
-              {
-                color: colors.textPrimary,
-                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-                borderWidth: 1,
-              },
-            ]}
-            value={reminderHourInput}
-            onChangeText={setReminderHourInput}
-            keyboardType="number-pad"
-            placeholder="8"
-            placeholderTextColor={colors.textTertiary}
-            maxLength={2}
-            textAlign="center"
-            textAlignVertical="center"
+        <View style={[
+          styles.reminderDialContent,
+          isCompactReminderLayout && styles.reminderDialContentCompact,
+        ]}>
+          <Text allowFontScaling={false} style={[styles.reminderTimePreview, { color: colors.textPrimary }]}>
+            {`${reminderHour}:${String(reminderMinute).padStart(2, '0')} ${reminderPeriod}`}
+          </Text>
+
+          <View style={[styles.dialModeToggle, { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' }]}>
+            {(['hour', 'minute'] as const).map((mode) => {
+              const selected = reminderDialMode === mode;
+              return (
+                <TouchableOpacity
+                  key={mode}
+                  style={[
+                    styles.dialModeButton,
+                    { backgroundColor: selected ? colors.accent : 'transparent' },
+                  ]}
+                  onPress={() => {
+                    setReminderDialMode(mode);
+                    Haptics.selectionAsync().catch(() => undefined);
+                  }}
+                  activeOpacity={0.75}
+                >
+                  <Text
+                    allowFontScaling={false}
+                    style={[
+                      styles.dialModeButtonText,
+                      { color: selected ? colors.white : colors.textSecondary },
+                    ]}
+                  >
+                    {mode === 'hour' ? 'Hour' : 'Minute'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <ReminderTimeDial
+            mode={reminderDialMode}
+            hour={reminderHour}
+            minute={reminderMinute}
+            size={reminderDialSize}
+            isDark={isDark}
+            colors={colors}
+            onChangeHour={setReminderHour}
+            onChangeMinute={setReminderMinute}
           />
-          <Text style={[styles.timeSeparator, { color: colors.textPrimary }]}>:</Text>
-          <TextInput
-            style={[
-              styles.timeInput,
-              {
-                color: colors.textPrimary,
-                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-                borderWidth: 1,
-              },
-            ]}
-            value={reminderMinuteInput}
-            onChangeText={setReminderMinuteInput}
-            keyboardType="number-pad"
-            placeholder="00"
-            placeholderTextColor={colors.textTertiary}
-            maxLength={2}
-            textAlign="center"
-            textAlignVertical="center"
-          />
+
           <View style={styles.periodToggle}>
             {(['AM', 'PM'] as const).map((period) => {
               const selected = reminderPeriod === period;
@@ -761,14 +939,18 @@ export default function SettingsPreferencesScreen() {
                   style={[
                     styles.periodButton,
                     {
+                      flex: 1,
                       backgroundColor: selected ? colors.accent : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
                       borderColor: selected ? colors.accent : isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
                     },
                   ]}
-                  onPress={() => setReminderPeriod(period)}
+                  onPress={() => {
+                    setReminderPeriod(period);
+                    Haptics.selectionAsync().catch(() => undefined);
+                  }}
                   activeOpacity={0.75}
                 >
-                  <Text style={[styles.periodText, { color: selected ? colors.white : colors.textPrimary }]}>
+                  <Text allowFontScaling={false} style={[styles.periodText, { color: selected ? colors.white : colors.textPrimary }]}>
                     {period}
                   </Text>
                 </TouchableOpacity>
@@ -907,34 +1089,92 @@ const styles = StyleSheet.create({
   splitInput: {
     flex: 1,
   },
-  timeInputRow: {
-    flexDirection: 'row',
+  reminderDialContent: {
     alignItems: 'center',
-    gap: Spacing.sm,
+    justifyContent: 'center',
+    gap: Spacing.md,
     marginBottom: Spacing['2xl'],
   },
-  timeInput: {
-    width: 68,
-    height: 48,
+  reminderDialContentCompact: {
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  reminderTimePreview: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 30,
+    lineHeight: 36,
+    letterSpacing: 1.2,
+  },
+  dialModeToggle: {
+    flexDirection: 'row',
+    width: '100%',
     borderRadius: BorderRadius.md,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    textAlign: 'center',
-    fontSize: 18,
+    padding: 4,
+    gap: 4,
+  },
+  dialModeButton: {
+    flex: 1,
+    height: 38,
+    borderRadius: BorderRadius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialModeButtonText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    letterSpacing: 0.8,
+  },
+  dial: {
+    position: 'relative',
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: Spacing.sm,
+  },
+  dialMark: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialMarkText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 11,
+    letterSpacing: 0.4,
+  },
+  dialMarkTextCompact: {
+    fontSize: 10,
+  },
+  dialKnob: {
+    position: 'absolute',
+    shadowOpacity: 0.24,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  dialCenter: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dialValue: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 34,
+    lineHeight: 38,
     letterSpacing: 1,
   },
-  timeSeparator: {
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: 22,
-    lineHeight: 26,
+  dialModeLabel: {
+    ...Typography.caption,
+    textTransform: 'uppercase',
   },
   periodToggle: {
     flexDirection: 'row',
     gap: Spacing.xs,
-    marginLeft: Spacing.xs,
+    width: '100%',
   },
   periodButton: {
-    minWidth: 44,
     height: 42,
     borderWidth: 1,
     borderRadius: BorderRadius.md,

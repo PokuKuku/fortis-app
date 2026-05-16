@@ -30,6 +30,21 @@ export type OnboardingState = {
   >;
   biggest_challenge?: 'consistency' | 'plateaus' | 'starting_out' | 'time';
   biggest_challenges?: Array<'consistency' | 'plateaus' | 'starting_out' | 'time'>;
+  fitness_motivation?:
+    | 'self_confidence'
+    | 'longevity'
+    | 'daily_energy'
+    | 'strength_capability'
+    | 'body_confidence'
+    | 'discipline';
+  fitness_motivations?: Array<
+    | 'self_confidence'
+    | 'longevity'
+    | 'daily_energy'
+    | 'strength_capability'
+    | 'body_confidence'
+    | 'discipline'
+  >;
   workout_consistency?: 'none' | 'daily' | 'few_times_week' | 'once_or_less' | 'starting';
 };
 

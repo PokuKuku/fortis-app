@@ -8,7 +8,13 @@ import {
 } from 'date-fns';
 import type { WorkoutSession, WeightUnit } from '@/src/types/workout';
 import type { Exercise } from '@/src/types/exercise';
-import { getDateKey, getSundayWeekStart, normalizeWorkoutScheduleDays } from '@/src/utils/workoutSchedule';
+import {
+  getDateKey,
+  getScheduleDaysForDate,
+  getSundayWeekStart,
+  normalizeWorkoutScheduleDays,
+  type WorkoutScheduleHistoryEntry,
+} from '@/src/utils/workoutSchedule';
 import { getSetVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 import {
   attributeSessionSetsToMuscles,
@@ -30,6 +36,38 @@ export type ReminderTime = {
 
 export const DEFAULT_WORKOUT_REMINDER_TIME: ReminderTime = { hour: 8, minute: 0 };
 export const WEEKLY_RECAP_TIME: ReminderTime = { hour: 18, minute: 0 };
+export const SCHEDULED_WORKOUT_REMINDER_BODIES = [
+  'Let’s keep that workout streak alive.',
+  'Training day is here. Let’s make it count.',
+  'Your goals called. They want reps today.',
+  'Time to stack another win.',
+  'Strong starts with showing up. Let’s go!',
+  'Workout day energy. Bring it.',
+  'You planned it. Now go own it.',
+  'Another session, another step forward.',
+  'Your streak is waiting for you.',
+  'Today’s a great day to get stronger.',
+  'No overthinking. Just start.',
+  'Let’s put another workout in the books.',
+  'Progress is built today. Time to train.',
+  'Your future self is already cheering.',
+  'One workout closer. Let’s get after it.',
+  'Training day unlocked.',
+  'A little sweat, a lot of momentum.',
+  'The plan says train. Let’s execute.',
+  'Your checkmark is waiting. Go earn it.',
+  'Big energy today. Move something heavy.',
+  'Let’s turn today into progress.',
+  'Another chance to prove consistency wins.',
+  'Workout scheduled. Beast mode optional, showing up required.',
+  'Keep the rhythm. Keep the streak. Keep going.',
+  'Today is not a rest day. Let’s move.',
+  'Tiny start, strong finish. Open the app and begin.',
+  'You’re one session away from feeling better.',
+  'Time to train like you mean it.',
+  'The streak survives if you show up today.',
+  'Let’s get stronger, one set at a time.',
+] as const;
 
 export type WeeklyRecap = {
   weekKey: string;
@@ -78,6 +116,12 @@ export function setTimeOnDate(date: Date, time: ReminderTime): Date {
   const next = new Date(date);
   next.setHours(time.hour, time.minute, 0, 0);
   return next;
+}
+
+export function getScheduledWorkoutReminderBody(date: Date): string {
+  const dateKey = getDateKey(date);
+  const hash = Array.from(dateKey).reduce((total, character) => total + character.charCodeAt(0), 0);
+  return SCHEDULED_WORKOUT_REMINDER_BODIES[hash % SCHEDULED_WORKOUT_REMINDER_BODIES.length];
 }
 
 export function getScheduledReminderDates({
@@ -140,6 +184,7 @@ export function getDueWeeklyRecapWeekStart(now = new Date()): Date | null {
 export function buildWeeklyRecap({
   weekStart,
   scheduleDays,
+  scheduleHistory,
   sessions,
   exercisesById,
   preferredUnits = 'imperial',
@@ -147,6 +192,7 @@ export function buildWeeklyRecap({
 }: {
   weekStart: Date;
   scheduleDays: number[];
+  scheduleHistory?: WorkoutScheduleHistoryEntry[];
   sessions: WorkoutSession[];
   exercisesById?: Map<string, Exercise>;
   preferredUnits?: 'imperial' | 'metric';
@@ -161,7 +207,14 @@ export function buildWeeklyRecap({
   const normalizedSchedule = normalizeWorkoutScheduleDays(scheduleDays);
   const completedDateKeys = new Set(weekSessions.map((session) => getDateKey(session.completedAt as Date)));
   const weekDays = Array.from({ length: 7 }, (_, index) => addDays(start, index));
-  const scheduledDates = weekDays.filter((date) => normalizedSchedule.includes(date.getDay()));
+  const scheduledDates = weekDays.filter((date) => {
+    const activeSchedule = getScheduleDaysForDate({
+      date,
+      scheduleDays: normalizedSchedule,
+      scheduleHistory,
+    });
+    return activeSchedule.includes(date.getDay());
+  });
   const scheduledDaysHit = scheduledDates.filter((date) => completedDateKeys.has(getDateKey(date))).length;
 
   const volumeContext: VolumeContext = {

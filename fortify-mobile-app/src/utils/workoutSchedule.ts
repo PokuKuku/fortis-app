@@ -7,6 +7,11 @@ export const DEFAULT_WORKOUT_SCHEDULE_DAYS = [1, 3, 5];
 
 export type WeekdayIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
+export type WorkoutScheduleHistoryEntry = {
+  effectiveDateKey: string;
+  scheduleDays: number[];
+};
+
 export type WeekProgressDay = {
   date: Date;
   dateKey: string;
@@ -30,6 +35,51 @@ export function normalizeWorkoutScheduleDays(value: unknown): number[] {
         .filter((item) => Number.isInteger(item) && item >= 0 && item <= 6)
     )
   ).sort((a, b) => a - b);
+}
+
+export function areWorkoutScheduleDaysEqual(left: number[], right: number[]): boolean {
+  const normalizedLeft = normalizeWorkoutScheduleDays(left);
+  const normalizedRight = normalizeWorkoutScheduleDays(right);
+  return normalizedLeft.length === normalizedRight.length
+    && normalizedLeft.every((day, index) => day === normalizedRight[index]);
+}
+
+export function normalizeWorkoutScheduleHistory(value: unknown): WorkoutScheduleHistoryEntry[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') return null;
+      const candidate = entry as {
+        effectiveDateKey?: unknown;
+        scheduleDays?: unknown;
+      };
+      if (
+        typeof candidate.effectiveDateKey !== 'string'
+        || !/^\d{4}-\d{2}-\d{2}$/.test(candidate.effectiveDateKey)
+      ) {
+        return null;
+      }
+
+      return {
+        effectiveDateKey: candidate.effectiveDateKey,
+        scheduleDays: normalizeWorkoutScheduleDays(candidate.scheduleDays),
+      };
+    })
+    .filter((entry): entry is WorkoutScheduleHistoryEntry => Boolean(entry))
+    .sort((left, right) => left.effectiveDateKey.localeCompare(right.effectiveDateKey))
+    .reduce<WorkoutScheduleHistoryEntry[]>((entries, entry) => {
+      const previous = entries[entries.length - 1];
+      if (previous?.effectiveDateKey === entry.effectiveDateKey) {
+        entries[entries.length - 1] = entry;
+        return entries;
+      }
+      if (previous && areWorkoutScheduleDaysEqual(previous.scheduleDays, entry.scheduleDays)) {
+        return entries;
+      }
+      entries.push(entry);
+      return entries;
+    }, []);
 }
 
 export function deriveScheduleDaysFromWorkoutsPerWeek(workoutsPerWeek?: number | null): number[] {
@@ -68,6 +118,32 @@ export function resolveWorkoutScheduleDays(
 
 export function getDateKey(date: Date): string {
   return format(date, 'yyyy-MM-dd');
+}
+
+export function getScheduleDaysForDate({
+  date,
+  scheduleDays,
+  scheduleHistory = [],
+}: {
+  date: Date;
+  scheduleDays: number[];
+  scheduleHistory?: WorkoutScheduleHistoryEntry[];
+}): number[] {
+  const normalizedHistory = normalizeWorkoutScheduleHistory(scheduleHistory);
+  if (normalizedHistory.length === 0) {
+    return normalizeWorkoutScheduleDays(scheduleDays);
+  }
+
+  const dateKey = getDateKey(date);
+  let activeEntry: WorkoutScheduleHistoryEntry | null = null;
+  for (const entry of normalizedHistory) {
+    if (entry.effectiveDateKey > dateKey) break;
+    activeEntry = entry;
+  }
+
+  return activeEntry
+    ? activeEntry.scheduleDays
+    : normalizedHistory[0].scheduleDays;
 }
 
 export function getSundayWeekStart(date: Date): Date {
@@ -123,20 +199,21 @@ export function getWorkoutDayStreak({
 export function buildWeekProgressDays({
   anchorDate,
   scheduleDays,
+  scheduleHistory,
   sessions,
   today = new Date(),
 }: {
   anchorDate: Date;
   scheduleDays: number[];
+  scheduleHistory?: WorkoutScheduleHistoryEntry[];
   sessions: WorkoutSession[];
   today?: Date;
 }): WeekProgressDay[] {
-  const normalizedSchedule = new Set(normalizeWorkoutScheduleDays(scheduleDays));
-
   return buildSundayWeek(anchorDate).map((date) => {
     const weekday = date.getDay();
     const completedSessions = getSessionsForDate(sessions, date);
-    const isScheduled = normalizedSchedule.has(weekday);
+    const activeSchedule = new Set(getScheduleDaysForDate({ date, scheduleDays, scheduleHistory }));
+    const isScheduled = activeSchedule.has(weekday);
     return {
       date,
       dateKey: getDateKey(date),
@@ -165,19 +242,21 @@ export function formatWeekRange(anchorDate: Date): string {
 
 export function getScheduledWorkoutDayStreak({
   scheduleDays,
+  scheduleHistory,
   sessions,
   today = new Date(),
 }: {
   scheduleDays: number[];
+  scheduleHistory?: WorkoutScheduleHistoryEntry[];
   sessions: WorkoutSession[];
   today?: Date;
 }): number {
   const normalizedSchedule = normalizeWorkoutScheduleDays(scheduleDays);
-  if (normalizedSchedule.length === 0) {
+  const normalizedHistory = normalizeWorkoutScheduleHistory(scheduleHistory);
+  if (normalizedSchedule.length === 0 && normalizedHistory.length === 0) {
     return getWorkoutDayStreak({ sessions, today });
   }
 
-  const scheduledDays = new Set(normalizedSchedule);
   const completedDateKeys = new Set(
     sessions
       .filter((session) => session.completedAt)
@@ -185,18 +264,36 @@ export function getScheduledWorkoutDayStreak({
   );
 
   let cursor = new Date(today);
+  const todayKey = getDateKey(today);
   let streak = 0;
   let inspectedDays = 0;
   const maxLookbackDays = 370;
 
   while (inspectedDays < maxLookbackDays) {
+    const scheduledDays = new Set(
+      getScheduleDaysForDate({
+        date: cursor,
+        scheduleDays: normalizedSchedule,
+        scheduleHistory: normalizedHistory,
+      })
+    );
+    if (scheduledDays.size === 0) {
+      return getWorkoutDayStreak({ sessions, today });
+    }
+
     if (!scheduledDays.has(cursor.getDay())) {
       cursor = addDays(cursor, -1);
       inspectedDays += 1;
       continue;
     }
 
-    if (!completedDateKeys.has(getDateKey(cursor))) {
+    const cursorKey = getDateKey(cursor);
+    if (!completedDateKeys.has(cursorKey)) {
+      if (cursorKey === todayKey) {
+        cursor = addDays(cursor, -1);
+        inspectedDays += 1;
+        continue;
+      }
       return streak;
     }
 

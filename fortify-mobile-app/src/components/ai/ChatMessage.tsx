@@ -243,7 +243,10 @@ export function ChatMessage({
           </View>
         )}
 
-        {!isUser && message.workoutTemplate && (
+        {!isUser
+          && message.workoutTemplate
+          && Array.isArray(message.workoutTemplate.exercises)
+          && message.workoutTemplate.exercises.length > 0 && (
           <ChatWorkoutTemplateCard
             template={message.workoutTemplate}
             onView={() => onViewWorkoutTemplate?.(message)}

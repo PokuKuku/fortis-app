@@ -14,6 +14,7 @@ export interface ProgramProgressEntry {
   programId: string;
   currentCycle: number;
   completedDayNumbers: number[];
+  nextDayNumberOverride: number | null;
   history: ProgramProgressHistory[];
   lastWorkoutId: string | null;
   lastWorkoutAt: string | null;
@@ -36,6 +37,7 @@ interface ProgramProgressState {
   ) => void;
   restartProgram: (programId: string) => void;
   trimCompletedDays: (programId: string, totalDays: number) => void;
+  setNextDayNumber: (programId: string, dayNumber: number, totalDays: number) => void;
   migrateProgramId: (fromProgramId: string, toProgramId: string) => void;
   getNextDayNumber: (programId: string, totalDays: number) => number;
   resetStore: () => void;
@@ -82,10 +84,18 @@ const normalizeHistory = (value: unknown): ProgramProgressHistory[] => {
     .sort((a, b) => a.cycle - b.cycle);
 };
 
+const normalizeNextDayNumberOverride = (value: unknown, totalDays?: number): number | null => {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) return null;
+  if (typeof totalDays === 'number' && totalDays > 0 && parsed > totalDays) return null;
+  return parsed;
+};
+
 const normalizeEntry = (entry: Partial<ProgramProgressEntry> & { programId: string }): ProgramProgressEntry => ({
   programId: entry.programId,
   currentCycle: Math.max(1, Number(entry.currentCycle ?? 1)),
   completedDayNumbers: normalizeCompletedDayNumbers(entry.completedDayNumbers),
+  nextDayNumberOverride: normalizeNextDayNumberOverride(entry.nextDayNumberOverride),
   history: normalizeHistory(entry.history),
   lastWorkoutId: entry.lastWorkoutId ?? null,
   lastWorkoutAt: entry.lastWorkoutAt ?? null,
@@ -101,6 +111,7 @@ const createEntry = (
   programId,
   currentCycle: 1,
   completedDayNumbers: [],
+  nextDayNumberOverride: null,
   history: [],
   lastWorkoutId: null,
   lastWorkoutAt: null,
@@ -155,6 +166,7 @@ const mapRemoteEntry = (entry: SyncedProgramProgressEntry): ProgramProgressEntry
   programId: entry.programId,
   currentCycle: entry.currentCycle,
   completedDayNumbers: entry.completedDayNumbers,
+  nextDayNumberOverride: entry.nextDayNumberOverride,
   history: entry.history,
   lastWorkoutId: entry.lastWorkoutId,
   lastWorkoutAt: entry.lastWorkoutAt,
@@ -208,6 +220,9 @@ const mergeProgressMaps = (
 const computeNextDayNumber = (entry: ProgramProgressEntry | undefined, totalDays: number): number => {
   if (!entry || totalDays <= 0) return 1;
 
+  const override = normalizeNextDayNumberOverride(entry.nextDayNumberOverride, totalDays);
+  if (override) return override;
+
   const completed = new Set(
     entry.completedDayNumbers.filter((dayNumber) => dayNumber >= 1 && dayNumber <= totalDays)
   );
@@ -219,12 +234,31 @@ const computeNextDayNumber = (entry: ProgramProgressEntry | undefined, totalDays
   return 1;
 };
 
+const getNextIncompleteDayNumberAfter = (
+  dayNumber: number,
+  totalDays: number,
+  completedDayNumbers: number[]
+): number | null => {
+  if (totalDays <= 0) return null;
+  const completed = new Set(
+    completedDayNumbers.filter((candidate) => candidate >= 1 && candidate <= totalDays)
+  );
+
+  for (let offset = 1; offset <= totalDays; offset += 1) {
+    const candidate = ((dayNumber - 1 + offset) % totalDays) + 1;
+    if (!completed.has(candidate)) return candidate;
+  }
+
+  return null;
+};
+
 const syncEntryToRemote = async (entry: ProgramProgressEntry) => {
   try {
     const remoteEntry = await upsertProgramProgressEntry({
       programId: entry.programId,
       currentCycle: entry.currentCycle,
       completedDayNumbers: entry.completedDayNumbers,
+      nextDayNumberOverride: entry.nextDayNumberOverride,
       history: entry.history,
       lastWorkoutId: entry.lastWorkoutId,
       lastWorkoutAt: entry.lastWorkoutAt,
@@ -329,10 +363,18 @@ export const useProgramProgressStore = create<ProgramProgressState>((set, get) =
     const completed = new Set(entry.completedDayNumbers);
     completed.add(dayNumber);
     const updatedCompleted = Array.from(completed).sort((a, b) => a - b);
+    const completedOverride = normalizeNextDayNumberOverride(
+      entry.nextDayNumberOverride,
+      totalDays
+    ) === dayNumber;
+    const nextDayNumberOverride = completedOverride
+      ? getNextIncompleteDayNumberAfter(dayNumber, totalDays, updatedCompleted)
+      : entry.nextDayNumberOverride;
 
     let nextEntry = createEntry(programId, {
       ...entry,
       completedDayNumbers: updatedCompleted,
+      nextDayNumberOverride,
       lastWorkoutId,
       lastWorkoutAt: now,
       updatedAt: now,
@@ -343,6 +385,7 @@ export const useProgramProgressStore = create<ProgramProgressState>((set, get) =
         ...nextEntry,
         currentCycle: entry.currentCycle + 1,
         completedDayNumbers: [],
+        nextDayNumberOverride: null,
         history: [
           ...entry.history,
           {
@@ -374,6 +417,7 @@ export const useProgramProgressStore = create<ProgramProgressState>((set, get) =
       ...existing,
       currentCycle: existing.currentCycle + 1,
       completedDayNumbers: [],
+      nextDayNumberOverride: null,
       history: [
         ...existing.history,
         {
@@ -406,6 +450,29 @@ export const useProgramProgressStore = create<ProgramProgressState>((set, get) =
       completedDayNumbers: existing.completedDayNumbers.filter(
         (dayNumber) => dayNumber <= totalDays
       ),
+      nextDayNumberOverride: normalizeNextDayNumberOverride(existing.nextDayNumberOverride, totalDays),
+      updatedAt: now,
+    });
+
+    const nextMap = {
+      ...get().progressByProgram,
+      [programId]: nextEntry,
+    };
+
+    writeProgressMap(nextMap);
+    void syncEntryToRemote(nextEntry);
+  },
+
+  setNextDayNumber: (programId, dayNumber, totalDays) => {
+    const override = normalizeNextDayNumberOverride(dayNumber, totalDays);
+    if (!override) return;
+
+    const now = new Date().toISOString();
+    const existing = get().progressByProgram[programId];
+    const nextEntry = createEntry(programId, {
+      ...(existing ?? {}),
+      nextDayNumberOverride: override,
+      startedAt: existing?.startedAt ?? now,
       updatedAt: now,
     });
 

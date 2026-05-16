@@ -244,7 +244,7 @@ interface WorkoutState {
 
   // Editor session (for template creation and manual workout logging)
   editorSession: WorkoutSession | null;
-  editorMode: 'template' | 'log';
+  editorMode: 'template' | 'log' | 'program';
   editorDate: Date;
 
   // Actions - Session
@@ -365,7 +365,8 @@ interface WorkoutState {
   // Actions - Editor Session
   initEditorSession: () => void;
   initEditorSessionFromTemplate: (templateId: string) => Promise<boolean>;
-  setEditorMode: (mode: 'template' | 'log') => void;
+  initEditorSessionFromProgramWorkout: (programId: string, workoutId: string) => Promise<boolean>;
+  setEditorMode: (mode: 'template' | 'log' | 'program') => void;
   setEditorDate: (date: Date) => void;
   setEditorWorkoutName: (name: string) => void;
   addEditorExercises: (exercises: ExerciseAddPayload[]) => void;
@@ -393,6 +394,7 @@ interface WorkoutState {
     target: { sets: number; minReps: number; maxReps: number }
   ) => void;
   saveEditorAsTemplate: (templateId?: string) => Promise<string | null>;
+  saveEditorAsProgramWorkout: (programId: string, workoutId: string) => Promise<boolean>;
   saveEditorAsWorkout: () => Promise<void>;
   clearEditorSession: () => void;
 }
@@ -744,7 +746,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         const exercises: WorkoutExercise[] = workout.exercises.map((programEx, exIndex) => {
           const exerciseWeightUnit = weightUnits[programEx.exerciseId] || 'lbs';
           const sets: WorkoutSet[] = [];
-          const numSets = programEx.sets;
+          const numSets = Math.max(1, programEx.setDetails?.length ?? programEx.sets ?? 1);
 
           for (let i = 0; i < numSets; i++) {
             const inheritedSetType = getSetTypeFromHistory(completedSessions, programEx.exerciseId, i, context);
@@ -772,6 +774,14 @@ export const useWorkoutStore = create<WorkoutState>()(
             targetReps: programEx.reps || DEFAULT_TARGET_REPS,
             notes: programEx.notes || '',
             orderIndex: exIndex,
+            baselinePerformance: programEx.setDetails ? {
+              sets: programEx.setDetails.map((detail, idx) => ({
+                weight: detail.weight,
+                weightUnit: exerciseWeightUnit,
+                reps: detail.reps,
+                setType: sets[idx]?.setType || 'normal',
+              })),
+            } : undefined,
           };
         });
 
@@ -2467,6 +2477,85 @@ export const useWorkoutStore = create<WorkoutState>()(
       }
     },
 
+    initEditorSessionFromProgramWorkout: async (programId, workoutId) => {
+      try {
+        const { useProgramsStore } = await loadProgramsStore();
+        const programs = useProgramsStore.getState().programs;
+
+        const program = programs.find(p => p.id === programId && !p.isTemplate);
+        const workout = program?.workouts.find(w => w.id === workoutId);
+        if (!program || !workout) {
+          get().initEditorSession();
+          return false;
+        }
+
+        const sortedExercises = [...workout.exercises].sort(
+          (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
+        );
+
+        const { weightUnits } = get();
+        const exercises: WorkoutExercise[] = sortedExercises.map((programEx, exIndex) => {
+          const exerciseWeightUnit = weightUnits[programEx.exerciseId] || 'lbs';
+          const numSets = Math.max(1, programEx.setDetails?.length ?? programEx.sets ?? 1);
+          const sets: WorkoutSet[] = [];
+
+          for (let i = 0; i < numSets; i += 1) {
+            const setDetail = programEx.setDetails?.[i];
+            sets.push({
+              localId: generateId(),
+              setNumber: i + 1,
+              setType: 'normal',
+              weight: setDetail?.weight ?? null,
+              weightUnit: exerciseWeightUnit,
+              reps: setDetail?.reps ?? null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: i,
+            });
+          }
+
+          return {
+            localId: generateId(),
+            exerciseId: programEx.exerciseId,
+            exerciseName: programEx.exerciseName,
+            sets,
+            targetReps: programEx.reps || DEFAULT_TARGET_REPS,
+            notes: programEx.notes || '',
+            orderIndex: exIndex,
+          };
+        });
+
+        const session: WorkoutSession = {
+          localId: generateId(),
+          name: workout.name,
+          notes: '',
+          startedAt: new Date(),
+          lastEditedAt: new Date(),
+          completedAt: null,
+          exercises,
+          isSynced: false,
+          programId,
+          programWorkoutId: workoutId,
+        };
+
+        set({
+          editorSession: session,
+          editorDate: new Date(),
+          editorMode: 'program',
+          editorStickyNotesDraft: {},
+          activeNumberPad: null,
+        });
+
+        return true;
+      } catch (error) {
+        console.error('Failed to init editor session from program workout:', error);
+        get().initEditorSession();
+        return false;
+      }
+    },
+
     setEditorMode: (mode) => {
       set({ editorMode: mode });
     },
@@ -2868,6 +2957,34 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       const newTemplateId = await createWorkoutTemplate(editorSession.name.trim(), exercisesToSave);
       return newTemplateId;
+    },
+
+    saveEditorAsProgramWorkout: async (programId, workoutId) => {
+      const { editorSession } = get();
+      if (!editorSession || !editorSession.name.trim()) return false;
+
+      const { useProgramsStore } = await loadProgramsStore();
+      const { updateProgramWorkout } = useProgramsStore.getState();
+
+      const exercisesToSave = editorSession.exercises.map(ex => ({
+        exerciseId: ex.exerciseId,
+        exerciseName: ex.exerciseName,
+        sets: ex.sets.length,
+        reps: ex.targetReps || DEFAULT_TARGET_REPS,
+        restSeconds: 120,
+        notes: ex.notes,
+        setDetails: ex.sets.map(set => ({
+          weight: set.weight,
+          reps: set.reps,
+        })),
+      }));
+
+      return updateProgramWorkout(
+        programId,
+        workoutId,
+        editorSession.name.trim(),
+        exercisesToSave
+      );
     },
 
     saveEditorAsWorkout: async () => {

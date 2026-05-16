@@ -16,6 +16,8 @@ import {
   AIRequestContext,
   AIRateLimitStatus,
   AIRateLimitWindow,
+  AIWorkoutTemplate,
+  AIWorkoutTemplateExercise,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
@@ -23,6 +25,52 @@ import { generateSecureUUID as generateId } from '../utils/uuid';
 
 const makeFriendlyClarification = (question: string | undefined): string => {
   return question || 'Could you share a bit more detail so I can help?';
+};
+
+const CONTEXT_TOO_LARGE_MESSAGE =
+  'That edit pulled in too much context. I trimmed it down, please try again.';
+const GENERIC_AI_ERROR_MESSAGE = 'Something went wrong on the AI side. Please try again.';
+
+const looksLikeRawProviderPayload = (message: string): boolean => {
+  const normalized = message.trim();
+  if (!normalized) return false;
+
+  return (
+    /OpenAI API error/i.test(normalized)
+    || /context_length_exceeded/i.test(normalized)
+    || /invalid_request_error/i.test(normalized)
+    || /maximum context length/i.test(normalized)
+    || /"error"\s*:\s*\{/i.test(normalized)
+    || /"message"\s*:\s*"/i.test(normalized)
+    || /```/.test(normalized)
+    || /^\s*\{[\s\S]*\}\s*$/.test(normalized)
+  );
+};
+
+const makeFriendlyAIErrorMessage = (error?: AIError): string => {
+  const message = error?.message?.trim() || '';
+  const code = error?.code?.trim() || '';
+
+  if (
+    /CONTEXT_TOO_LARGE/i.test(code)
+    || /context_length_exceeded/i.test(code)
+    || /context_length_exceeded/i.test(message)
+    || /maximum context length/i.test(message)
+  ) {
+    return CONTEXT_TOO_LARGE_MESSAGE;
+  }
+
+  if (!message || looksLikeRawProviderPayload(message)) {
+    return GENERIC_AI_ERROR_MESSAGE;
+  }
+
+  return message;
+};
+
+const makeSafeAssistantText = (message: string | undefined): string => {
+  const text = message?.trim() || '';
+  if (!text) return '';
+  return looksLikeRawProviderPayload(text) ? GENERIC_AI_ERROR_MESSAGE : text;
 };
 
 const RATE_LIMIT_LABELS: Record<AIRateLimitWindow, string> = {
@@ -48,6 +96,67 @@ const formatRetryAfter = (seconds?: number): string | null => {
 };
 
 const MAX_HISTORY_MESSAGES = 20;
+
+const normalizeWorkoutTemplateExercise = (
+  exercise: unknown
+): AIWorkoutTemplateExercise | null => {
+  if (!exercise || typeof exercise !== 'object') {
+    return null;
+  }
+
+  const candidate = exercise as Partial<AIWorkoutTemplateExercise>;
+  const exerciseId = typeof candidate.exerciseId === 'string' ? candidate.exerciseId.trim() : '';
+  const exerciseName = typeof candidate.exerciseName === 'string' ? candidate.exerciseName.trim() : '';
+  const sets = typeof candidate.sets === 'number'
+    ? candidate.sets
+    : typeof candidate.sets === 'string'
+      ? Number.parseInt(candidate.sets, 10)
+      : Number.NaN;
+  const reps = typeof candidate.reps === 'string' ? candidate.reps.trim() : String(candidate.reps ?? '').trim();
+
+  if (!exerciseId || !exerciseName || !Number.isFinite(sets) || sets <= 0 || !reps) {
+    return null;
+  }
+
+  return {
+    exerciseId,
+    exerciseName,
+    sets: Math.max(1, Math.round(sets)),
+    reps,
+    restSeconds: typeof candidate.restSeconds === 'number'
+      ? Math.max(0, Math.round(candidate.restSeconds))
+      : undefined,
+    notes: typeof candidate.notes === 'string' ? candidate.notes : undefined,
+  };
+};
+
+const normalizeWorkoutTemplate = (template: unknown): AIWorkoutTemplate | undefined => {
+  if (!template || typeof template !== 'object') {
+    return undefined;
+  }
+
+  const candidate = template as Partial<AIWorkoutTemplate>;
+  const name = typeof candidate.name === 'string' ? candidate.name.trim() : '';
+  const exercises = Array.isArray(candidate.exercises)
+    ? candidate.exercises
+        .map(normalizeWorkoutTemplateExercise)
+        .filter((exercise): exercise is AIWorkoutTemplateExercise => Boolean(exercise))
+    : [];
+
+  if (!name || exercises.length === 0) {
+    return undefined;
+  }
+
+  return {
+    name,
+    description: typeof candidate.description === 'string' ? candidate.description.trim() : undefined,
+    focus: typeof candidate.focus === 'string' ? candidate.focus.trim() : undefined,
+    estimatedDurationMinutes: typeof candidate.estimatedDurationMinutes === 'number'
+      ? candidate.estimatedDurationMinutes
+      : undefined,
+    exercises,
+  };
+};
 
 const makeRateLimitMessage = (error?: AIError): string => {
   const windowLabel = error?.limitWindow ? RATE_LIMIT_LABELS[error.limitWindow] : null;
@@ -139,15 +248,25 @@ export const useAIStore = create<AIState>()(
         const history = buildConversationHistory(updatedConversation.messages, intent);
         const response = await aiService.sendAIMessage(intent, message, context, history);
         const isRateLimited = response.type === 'error' && response.error?.code === 'RATE_LIMITED';
+        const friendlyErrorMessage = response.type === 'error'
+          ? makeFriendlyAIErrorMessage(response.error)
+          : null;
 
         const assistantContent =
           response.type === 'answer'
-            ? response.answer?.text || ''
+            ? makeSafeAssistantText(response.answer?.text)
             : response.type === 'clarification'
             ? makeFriendlyClarification(response.clarification?.question)
             : isRateLimited
             ? makeRateLimitMessage(response.error)
-            : response.error?.message || 'An error occurred';
+            : friendlyErrorMessage || GENERIC_AI_ERROR_MESSAGE;
+
+        const workoutTemplate =
+          response.type === 'answer'
+            ? normalizeWorkoutTemplate(response.answer?.workoutTemplate)
+            : response.type === 'clarification'
+              ? normalizeWorkoutTemplate(response.clarification?.workoutTemplate)
+              : undefined;
 
         const assistantMessage: AIConversationMessage = {
           id: generateId(),
@@ -156,12 +275,7 @@ export const useAIStore = create<AIState>()(
           intent,
           createdAt: new Date().toISOString(),
           clarification: response.type === 'clarification' ? response.clarification : undefined,
-          workoutTemplate:
-            response.type === 'answer'
-              ? response.answer?.workoutTemplate
-              : response.type === 'clarification'
-                ? response.clarification?.workoutTemplate
-                : undefined,
+          workoutTemplate,
           savedWorkoutTemplateId: null,
         };
 
@@ -181,7 +295,7 @@ export const useAIStore = create<AIState>()(
           } else {
             set({
               conversation: finalConversation,
-              error: response.error?.message || 'An error occurred',
+              error: friendlyErrorMessage || GENERIC_AI_ERROR_MESSAGE,
               lastFailedMessage: messageParams,
               isSendingMessage: false,
             });
@@ -196,7 +310,11 @@ export const useAIStore = create<AIState>()(
         persistConversation();
         return response;
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+        const errorMessage = makeFriendlyAIErrorMessage({
+          code: 'INTERNAL_ERROR',
+          message: err instanceof Error ? err.message : 'An unexpected error occurred',
+          retryable: true,
+        });
         set({ error: errorMessage, isSendingMessage: false, lastFailedMessage: messageParams });
         return {
           type: 'error',

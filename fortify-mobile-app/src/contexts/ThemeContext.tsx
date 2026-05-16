@@ -67,11 +67,11 @@ export const BaseColors = {
  */
 export const DarkTheme = {
   // Core
-  background: '#121214',
+  background: '#24252A',
   foreground: '#fafafa',
-  card: '#121214',
+  card: '#24252A',
   cardForeground: '#fafafa',
-  popover: '#121214',
+  popover: '#24252A',
   popoverForeground: '#fafafa',
 
   // Primary
@@ -110,7 +110,7 @@ export const DarkTheme = {
   overlay: 'rgba(0, 0, 0, 0.5)',
   overlayLight: 'rgba(0, 0, 0, 0.3)',
   overlayHeavy: 'rgba(0, 0, 0, 0.7)',
-  backdrop: 'rgba(18, 18, 20, 0.8)',
+  backdrop: 'rgba(36, 37, 42, 0.8)',
 
   // Glass morphism (white glass on dark)
   glassBackground: 'rgba(255, 255, 255, 0.08)',
@@ -144,12 +144,12 @@ export const DarkTheme = {
   buttonFog: ['rgba(140,140,140,0.45)', 'rgba(100,100,100,0.38)', 'rgba(60,60,60,0.32)', 'rgba(20,20,20,0.25)'] as readonly string[],
 
   // Pattern (StainlessSteelPattern)
-  patternBase: '#121214',
+  patternBase: '#24252A',
   patternStroke: 'rgba(255, 255, 255, 0.03)',
   patternStrokeAccent: 'rgba(255, 255, 255, 0.05)',
 
   // Tab bar
-  tabBarBackground: 'rgba(18, 18, 20, 0.92)',
+  tabBarBackground: 'rgba(36, 37, 42, 0.92)',
   tabBarBorder: 'rgba(255, 255, 255, 0.08)',
   tabInactive: '#525252',
   tabActive: '#22c55e',
@@ -254,8 +254,16 @@ export const LightTheme = {
   ...BaseColors,
 } as const;
 
+type WidenThemeValue<T> =
+  T extends string ? string :
+  T extends readonly string[] ? readonly string[] :
+  T extends Record<string, string> ? Record<keyof T, string> :
+  T;
+
 /** Base theme colors without accent overrides */
-type BaseThemeColors = typeof DarkTheme;
+type BaseThemeColors = {
+  readonly [K in keyof typeof DarkTheme]: WidenThemeValue<(typeof DarkTheme)[K]>;
+};
 
 /** Full theme colors including accent-derived properties */
 export type ThemeColors = BaseThemeColors & AccentThemeColors;
@@ -376,6 +384,7 @@ export function ThemeProvider({ children, forceTheme }: ThemeProviderProps) {
         if (resolvedAccent) {
           setAccentColorState(resolvedAccent);
         }
+
       } catch (error) {
         console.warn('Failed to load theme preferences:', error);
       } finally {

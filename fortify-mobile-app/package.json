@@ -16,6 +16,7 @@
   "dependencies": {
     "@heroicons/react": "^2.2.0",
     "@hookform/resolvers": "^5.2.2",
+    "@mixpanel/react-native-session-replay": "^1.2.0",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@react-native-masked-view/masked-view": "^0.3.2",

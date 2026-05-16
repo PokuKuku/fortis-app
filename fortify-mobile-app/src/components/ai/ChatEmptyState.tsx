@@ -32,7 +32,7 @@ import { getContentWidth, moderateScale, scale } from '@/src/utils/responsive';
 // Calculate grid dimensions for consistent layout across screen sizes
 const GRID_HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const GRID_GAP = scale(Spacing.md);
-const GRID_COLUMNS = 2;
+const GRID_COLUMNS: number = 2;
 const GRID_MAX_WIDTH = scale(420);
 const GRID_WIDTH = getContentWidth(GRID_HORIZONTAL_PADDING, GRID_MAX_WIDTH);
 const CARD_WIDTH = GRID_COLUMNS === 1 ? GRID_WIDTH : (GRID_WIDTH - GRID_GAP) / 2;
@@ -71,7 +71,7 @@ const QUICK_ACTIONS: QuickAction[] = [
     icon: TrophyIcon,
     label: 'Consistency Streak',
     description: 'Habit momentum',
-    prompt: "How consistent have I been recently and what's my current streak?",
+    prompt: "How consistent have I been recently and what's my current streak? Use this week if there's enough activity, otherwise use the last 4 weeks. Don't ask me to clarify the timeframe.",
   },
   {
     intent: 'FORTIS_ANALYST',

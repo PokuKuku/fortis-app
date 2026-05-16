@@ -29,7 +29,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { AnimatedLogo } from '../../components/AnimatedLogo';
+import { AppHeaderBrand } from '@/src/components/navigation/AppHeaderBrand';
 import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
 import { Spacing } from '@/constants/Sizes';
@@ -730,6 +730,7 @@ export default function ProgramsScreen() {
   const { sessions: historySessions } = useWorkoutHistorySource({ enabled: Boolean(user) });
   const {
     scheduleDays,
+    scheduleHistory,
     isSaving: isSavingSchedule,
     saveScheduleDays,
   } = useWorkoutSchedule();
@@ -1347,13 +1348,11 @@ export default function ProgramsScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <AnimatedLogo />
-          </View>
+          <AppHeaderBrand style={styles.header} />
 
           <WeeklyProgressCarousel
             scheduleDays={scheduleDays}
+            scheduleHistory={scheduleHistory}
             sessions={historySessions}
             onEditSchedule={() => setScheduleEditorVisible(true)}
           />

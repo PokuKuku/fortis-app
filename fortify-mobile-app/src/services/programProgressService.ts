@@ -5,6 +5,7 @@ export interface SyncedProgramProgressEntry {
   programId: string;
   currentCycle: number;
   completedDayNumbers: number[];
+  nextDayNumberOverride: number | null;
   history: ProgramProgressHistoryEntry[];
   startedAt: string | null;
   completedAt: string | null;
@@ -76,10 +77,16 @@ const computeCurrentWorkoutIndex = (completedDayNumbers: number[]): number => {
   return Math.max(0, dayNumber - 1);
 };
 
+const normalizeNextDayNumberOverride = (value: unknown): number | null => {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+};
+
 const mapProgressFromDTO = (dto: ProgramProgressDTO): SyncedProgramProgressEntry => ({
   programId: dto.program_id,
   currentCycle: Math.max(1, Number(dto.current_cycle ?? 1)),
   completedDayNumbers: deriveCompletedDayNumbers(dto),
+  nextDayNumberOverride: normalizeNextDayNumberOverride(dto.next_day_number_override),
   history: normalizeHistory(dto.history),
   startedAt: dto.started_at ?? null,
   completedAt: dto.completed_at ?? null,
@@ -142,6 +149,7 @@ export async function upsertProgramProgressEntry(
         program_id: entry.programId,
         current_workout_index: computeCurrentWorkoutIndex(completedDayNumbers),
         current_cycle: Math.max(1, Number(entry.currentCycle ?? 1)),
+        next_day_number_override: normalizeNextDayNumberOverride(entry.nextDayNumberOverride),
         started_at: startedAt,
         completed_at: completedAt,
         last_workout_id: entry.lastWorkoutId ?? null,

@@ -43,6 +43,7 @@ import { AIWorkoutPreviewModal } from '@/src/components/ai/AIWorkoutPreviewModal
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { getExerciseById } from '@/src/services/exerciseService';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -72,6 +73,11 @@ const ANALYST_KEYWORD_REGEXES = [
   /\bplan\b/i,
   /\btrend(s)?\b/i,
   /\bsummary\b/i,
+  /\bconsisten(cy|t)\b/i,
+  /\bstreak(s)?\b/i,
+  /\bhabit(s)?\b/i,
+  /\bmomentum\b/i,
+  /\badherence\b/i,
   /\banaly[sz]e\b/i,
   /\banalysis\b/i,
   /\binsight(s)?\b/i,
@@ -99,8 +105,10 @@ const ANALYST_KEYWORD_REGEXES = [
 const ANALYST_TIME_WINDOW_REGEX = /\b(last|past|previous|this|next)\s+(\d+\s+)?(day|week|month|year|session|workout)s?\b/i;
 const COACHING_QUESTION_REGEX =
   /\b(how do i|how to|what('?s| is) the proper way to|show me how to|teach me how to|tips for|form for)\b/i;
+const ADVICE_REQUEST_REGEX =
+  /\b(advice|feedback|suggestions?|recommendations?|tips?)\b/i;
 const WORKOUT_GENERATION_REGEX =
-  /\b(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i;
+  /\b(?:(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workout|routine|session|template)\b/i;
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
 
@@ -159,7 +167,7 @@ const inferIntentFromMessage = (message: string): AIIntent => {
     return 'GENERAL_CHAT';
   }
 
-  if (COACHING_QUESTION_REGEX.test(normalized)) {
+  if (COACHING_QUESTION_REGEX.test(normalized) || ADVICE_REQUEST_REGEX.test(normalized)) {
     return 'GENERAL_CHAT';
   }
 
@@ -198,6 +206,27 @@ const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
     }
   }
   return null;
+};
+
+const shouldInheritAnalystIntent = (
+  message: string,
+  inferredIntent: AIIntent,
+  lastIntent: AIIntent | null
+): boolean => {
+  if (inferredIntent !== 'GENERAL_CHAT' || lastIntent !== 'FORTIS_ANALYST') {
+    return false;
+  }
+
+  const normalized = message.trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  return !(
+    WORKOUT_GENERATION_REGEX.test(normalized)
+    || WORKOUT_EDIT_REGEX.test(normalized)
+    || COACHING_QUESTION_REGEX.test(normalized)
+  );
 };
 
 export default function AIChatScreen() {
@@ -350,8 +379,9 @@ export default function AIChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const inferredIntent = inferIntentFromMessage(message);
     const lastIntent = getLastIntent(messages);
-    const intent =
-      inferredIntent === 'GENERAL_CHAT' && lastIntent ? lastIntent : inferredIntent;
+    const intent = shouldInheritAnalystIntent(message, inferredIntent, lastIntent)
+      ? 'FORTIS_ANALYST'
+      : inferredIntent;
     const requestContext = currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)
       ? { currentWorkoutTemplateDraft }
       : undefined;
@@ -387,7 +417,7 @@ export default function AIChatScreen() {
   }, [retryLastMessage]);
 
   const handleViewWorkoutTemplate = useCallback((message: AIConversationMessage) => {
-    if (!message.workoutTemplate) {
+    if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -396,7 +426,7 @@ export default function AIChatScreen() {
   }, []);
 
   const ensureWorkoutTemplateSaved = useCallback(async (message: AIConversationMessage) => {
-    if (!message.workoutTemplate) {
+    if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
       throw new Error('Missing workout template.');
     }
 
@@ -404,15 +434,35 @@ export default function AIChatScreen() {
       return message.savedWorkoutTemplateId;
     }
 
+    const resolvedExercises = await Promise.all(
+      message.workoutTemplate.exercises.map(async (exercise) => {
+        const libraryExercise = await getExerciseById(exercise.exerciseId)
+          || await getExerciseById(exercise.exerciseName);
+
+        if (!libraryExercise) {
+          return null;
+        }
+
+        return {
+          exerciseId: libraryExercise.id,
+          exerciseName: libraryExercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          restSeconds: exercise.restSeconds,
+        };
+      })
+    );
+    const validExercises = resolvedExercises.filter(
+      (exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise)
+    );
+
+    if (validExercises.length !== message.workoutTemplate.exercises.length) {
+      throw new Error('This AI workout includes exercises that are not in your app library.');
+    }
+
     const createdTemplateId = await createWorkoutTemplate(
       message.workoutTemplate.name,
-      message.workoutTemplate.exercises.map((exercise) => ({
-        exerciseId: exercise.exerciseId,
-        exerciseName: exercise.exerciseName,
-        sets: exercise.sets,
-        reps: exercise.reps,
-        restSeconds: exercise.restSeconds,
-      })),
+      validExercises,
       {
         description: message.workoutTemplate.description,
         isAiCreated: true,
@@ -430,7 +480,13 @@ export default function AIChatScreen() {
   }, [conversation?.id, createWorkoutTemplate, markWorkoutTemplateSaved]);
 
   const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
-    if (!message.workoutTemplate || message.savedWorkoutTemplateId || savingWorkoutMessageId || startingWorkoutMessageId) {
+    if (
+      !message.workoutTemplate
+      || !Array.isArray(message.workoutTemplate.exercises)
+      || message.savedWorkoutTemplateId
+      || savingWorkoutMessageId
+      || startingWorkoutMessageId
+    ) {
       return;
     }
 
@@ -439,6 +495,7 @@ export default function AIChatScreen() {
 
     try {
       await ensureWorkoutTemplateSaved(message);
+      setPreviewMessageId(null);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (saveError) {
       console.warn('Failed to save AI workout template:', saveError);
@@ -454,7 +511,12 @@ export default function AIChatScreen() {
   }, [ensureWorkoutTemplateSaved, savingWorkoutMessageId, startingWorkoutMessageId]);
 
   const handleStartWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
-    if (!message.workoutTemplate || startingWorkoutMessageId || savingWorkoutMessageId) {
+    if (
+      !message.workoutTemplate
+      || !Array.isArray(message.workoutTemplate.exercises)
+      || startingWorkoutMessageId
+      || savingWorkoutMessageId
+    ) {
       return;
     }
 

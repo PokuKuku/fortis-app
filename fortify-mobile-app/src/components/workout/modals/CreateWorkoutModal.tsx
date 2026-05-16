@@ -572,16 +572,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing['6xl'],
+    width: '100%',
   },
   emptyStateText: {
     ...Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   emptyStateSubtext: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
     opacity: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   exerciseCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.05)',

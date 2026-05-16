@@ -77,6 +77,68 @@ describe('workoutSchedule', () => {
     expect(streak).toBe(3);
   });
 
+  it('uses historical schedules so changing days does not rewrite past streak rules', () => {
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [2, 4],
+      scheduleHistory: [
+        { effectiveDateKey: '1970-01-01', scheduleDays: [1, 3, 5] },
+        { effectiveDateKey: '2026-05-16', scheduleDays: [2, 4] },
+      ],
+      sessions: [
+        session('monday', '2026-05-11T12:00:00'),
+        session('wednesday', '2026-05-13T12:00:00'),
+        session('friday', '2026-05-15T12:00:00'),
+      ],
+      today: new Date('2026-05-16T12:00:00'),
+    });
+
+    expect(streak).toBe(3);
+  });
+
+  it('renders schedule dots from the schedule active on each date', () => {
+    const days = buildWeekProgressDays({
+      anchorDate: new Date('2026-05-11T12:00:00'),
+      scheduleDays: [2, 4],
+      scheduleHistory: [
+        { effectiveDateKey: '1970-01-01', scheduleDays: [1, 3, 5] },
+        { effectiveDateKey: '2026-05-16', scheduleDays: [2, 4] },
+      ],
+      sessions: [],
+      today: new Date('2026-05-16T12:00:00'),
+    });
+
+    expect(days.map((day) => day.isScheduled)).toEqual([
+      false,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+    ]);
+
+    const nextWeek = buildWeekProgressDays({
+      anchorDate: new Date('2026-05-18T12:00:00'),
+      scheduleDays: [2, 4],
+      scheduleHistory: [
+        { effectiveDateKey: '1970-01-01', scheduleDays: [1, 3, 5] },
+        { effectiveDateKey: '2026-05-16', scheduleDays: [2, 4] },
+      ],
+      sessions: [],
+      today: new Date('2026-05-16T12:00:00'),
+    });
+
+    expect(nextWeek.map((day) => day.isScheduled)).toEqual([
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+    ]);
+  });
+
   it('breaks streaks on the first missed scheduled workout day', () => {
     const streak = getScheduledWorkoutDayStreak({
       scheduleDays: [1, 3, 5],
@@ -88,6 +150,30 @@ describe('workoutSchedule', () => {
     });
 
     expect(streak).toBe(1);
+  });
+
+  it('does not break a streak for an incomplete scheduled workout until that day is over', () => {
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 3, 5],
+      sessions: [
+        session('monday', '2026-05-11T12:00:00'),
+      ],
+      today: new Date('2026-05-13T12:00:00'),
+    });
+
+    expect(streak).toBe(1);
+  });
+
+  it('breaks the streak after a scheduled workout day ends without a completion', () => {
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 3, 5],
+      sessions: [
+        session('monday', '2026-05-11T12:00:00'),
+      ],
+      today: new Date('2026-05-14T12:00:00'),
+    });
+
+    expect(streak).toBe(0);
   });
 
   it('counts consecutive daily workouts when no schedule is selected', () => {

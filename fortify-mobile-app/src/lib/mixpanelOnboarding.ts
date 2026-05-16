@@ -22,12 +22,13 @@ export const ONBOARDING_FUNNEL_STEPS = [
   { funnelStep: 14, eventName: 'Q11. Fortify Clarity', route: '/onboarding/clarity' },
   { funnelStep: 15, eventName: 'Q12. What is your fitness goal?', route: '/onboarding/goal' },
   { funnelStep: 16, eventName: 'Q13. What are you biggest challenge', route: '/onboarding/challenge' },
-  { funnelStep: 17, eventName: 'Q14. Fortify Provides Insights', route: '/onboarding/insights' },
-  { funnelStep: 18, eventName: 'Thank you page', route: '/onboarding/thank-you' },
-  { funnelStep: 19, eventName: 'Social Proof page', route: '/onboarding/social-proof' },
-  { funnelStep: 20, eventName: 'Ask for rating page', route: '/onboarding/rating' },
-  { funnelStep: 21, eventName: 'Ask for notifications page', route: '/onboarding/notifications' },
-  { funnelStep: 22, eventName: 'Onboarding Complete Page', route: '/onboarding/complete' },
+  { funnelStep: 17, eventName: 'Q14. Fitness Motivation', route: '/onboarding/motivation' },
+  { funnelStep: 18, eventName: 'Q15. Fortify Provides Insights', route: '/onboarding/insights' },
+  { funnelStep: 19, eventName: 'Thank you page', route: '/onboarding/thank-you' },
+  { funnelStep: 20, eventName: 'Social Proof page', route: '/onboarding/social-proof' },
+  { funnelStep: 21, eventName: 'Ask for rating page', route: '/onboarding/rating' },
+  { funnelStep: 22, eventName: 'Ask for notifications page', route: '/onboarding/notifications' },
+  { funnelStep: 23, eventName: 'Onboarding Complete Page', route: '/onboarding/complete' },
 ] as const;
 
 export type OnboardingFunnelEventName =

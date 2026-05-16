@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Easing,
   PanResponder,
+  type DimensionValue,
   type LayoutChangeEvent,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -83,6 +84,15 @@ const FITNESS_GOAL_LABELS: Record<string, string> = {
   lose_fat: 'Lose fat',
   improve_strength: 'Improve strength',
   stay_consistent: 'Stay consistent',
+};
+
+const FITNESS_MOTIVATION_LABELS: Record<string, string> = {
+  self_confidence: 'More self-confidence',
+  longevity: 'A healthier, longer life',
+  daily_energy: 'More energy every day',
+  strength_capability: 'Feel stronger and capable',
+  body_confidence: 'Look better in my body',
+  discipline: 'Stay disciplined',
 };
 
 const EXPERIENCE_LABELS: Record<string, string> = {
@@ -501,10 +511,20 @@ export default function OnboardingCompleteScreen() {
       ? onboardingState.biggest_challenges[0]
       : undefined;
     const resolvedChallenge = onboardingState.biggest_challenge ?? challengeFromList;
+    const motivationFromList = onboardingState.fitness_motivations?.length
+      ? onboardingState.fitness_motivations[0]
+      : undefined;
+    const resolvedMotivation = onboardingState.fitness_motivation ?? motivationFromList;
     const items: SummaryItem[] = [];
 
     if (resolvedGoal) {
       items.push({ label: 'Goal', value: FITNESS_GOAL_LABELS[resolvedGoal] ?? resolvedGoal });
+    }
+    if (resolvedMotivation) {
+      items.push({
+        label: 'Motivation',
+        value: FITNESS_MOTIVATION_LABELS[resolvedMotivation] ?? resolvedMotivation,
+      });
     }
     if (onboardingState.lifting_experience) {
       items.push({
@@ -785,7 +805,7 @@ export default function OnboardingCompleteScreen() {
     const stepProgress = clamp01((currentPct - stepStart) / denom);
     const completed = stepProgress >= 1;
     const active = !completed && index === activeStepIndex;
-    const stepFillPct = `${Math.round(stepProgress * 100)}%`;
+    const stepFillPct = `${Math.round(stepProgress * 100)}%` as DimensionValue;
 
     return (
       <View key={step.label} style={styles.loadingRow}>

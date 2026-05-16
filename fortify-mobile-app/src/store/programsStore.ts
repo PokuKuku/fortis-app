@@ -135,6 +135,20 @@ interface ProgramsState {
     workoutId: string,
     exerciseId: string
   ) => Promise<boolean>;
+  updateProgramWorkout: (
+    programId: string,
+    workoutId: string,
+    name: string,
+    exercises: Array<{
+      exerciseId: string;
+      exerciseName?: string;
+      sets: number;
+      reps: string;
+      restSeconds?: number;
+      notes?: string;
+      setDetails?: TemplateSetDetail[];
+    }>
+  ) => Promise<boolean>;
   updateWorkoutTemplate: (
     templateId: string,
     name: string,
@@ -167,7 +181,7 @@ interface ProgramsState {
 // DTO Mappers
 // ============================================
 
-function mapExerciseFromDTO(dto: ProgramExerciseDTO & { set_details?: any }): ProgramExercise {
+function mapExerciseFromDTO(dto: ProgramExerciseDTO): ProgramExercise {
   return {
     id: dto.id,
     exerciseId: dto.exercise_id,
@@ -1536,6 +1550,141 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           p.id === programId ? { ...p, workouts: previousWorkouts } : p
         ),
         error: err instanceof Error ? err.message : 'Failed to update program exercises',
+      }));
+      return false;
+    }
+  },
+
+  updateProgramWorkout: async (programId, workoutId, name, exercises) => {
+    set({ error: null });
+
+    const program = get().programs.find((p) => p.id === programId && !p.isTemplate);
+    const workout = program?.workouts.find((entry) => entry.id === workoutId);
+    if (!program || !workout) {
+      set({ error: 'Program workout not found' });
+      return false;
+    }
+
+    const previousProgram = program;
+    const normalizedName = name.trim() || workout.name;
+    const buildLocalExercises = (source: typeof exercises): ProgramExercise[] =>
+      source.map((exercise, index) => ({
+        id: `${workoutId}-exercise-${Date.now()}-${index}`,
+        exerciseId: exercise.exerciseId,
+        exerciseName: exercise.exerciseName ?? '',
+        sets: Math.max(1, exercise.sets),
+        reps: exercise.reps || '8-12',
+        restSeconds: exercise.restSeconds ?? 120,
+        notes: exercise.notes,
+        setDetails: exercise.setDetails,
+        orderIndex: index,
+      }));
+
+    const optimisticWorkout: ProgramWorkout = {
+      ...workout,
+      name: normalizedName,
+      exercises: buildLocalExercises(exercises),
+    };
+
+    set((state) => ({
+      programs: state.programs.map((entry) =>
+        entry.id === programId
+          ? {
+            ...entry,
+            workouts: entry.workouts.map((candidate) =>
+              candidate.id === workoutId ? optimisticWorkout : candidate
+            ),
+          }
+          : entry
+      ),
+    }));
+
+    if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
+      get().persistLocalPrograms();
+      return true;
+    }
+
+    try {
+      const { error: workoutError } = await supabase
+        .from('program_workouts')
+        .update({ name: normalizedName })
+        .eq('id', workoutId);
+      if (workoutError) {
+        throw new Error(workoutError.message);
+      }
+
+      const { error: deleteError } = await supabase
+        .from('program_exercises')
+        .delete()
+        .eq('program_workout_id', workoutId);
+      if (deleteError) {
+        throw new Error(deleteError.message);
+      }
+
+      let persistedExercises: ProgramExercise[] = [];
+      if (exercises.length > 0) {
+        const resolvedExercises = await resolveExerciseIdsForSupabase(
+          exercises.map((exercise) => ({
+            exerciseId: exercise.exerciseId,
+            exerciseName: exercise.exerciseName,
+            sets: exercise.sets,
+            reps: exercise.reps,
+            restSeconds: exercise.restSeconds,
+            notes: exercise.notes,
+            setDetails: exercise.setDetails,
+            orderIndex: 0,
+          }))
+        );
+
+        const exercisesToInsert = resolvedExercises.map((exercise, index) => ({
+          program_workout_id: workoutId,
+          exercise_id: exercise.resolvedExerciseId,
+          exercise_name_snapshot: exercise.exerciseName ?? null,
+          sets: Math.max(1, exercise.sets),
+          reps: exercise.reps || '8-12',
+          rest_seconds: exercise.restSeconds ?? 120,
+          notes: exercise.notes,
+          set_details: exercise.setDetails ?? null,
+          order_index: index,
+        }));
+
+        const { data, error: insertError } = await supabase
+          .from('program_exercises')
+          .insert(exercisesToInsert)
+          .select('*');
+        if (insertError) {
+          throw new Error(insertError.message);
+        }
+
+        persistedExercises = (data ?? []).map(mapExerciseFromDTO);
+      }
+
+      set((state) => ({
+        programs: state.programs.map((entry) =>
+          entry.id === programId
+            ? {
+              ...entry,
+              workouts: entry.workouts.map((candidate) =>
+                candidate.id === workoutId
+                  ? {
+                    ...candidate,
+                    name: normalizedName,
+                    exercises: persistedExercises,
+                  }
+                  : candidate
+              ),
+            }
+            : entry
+        ),
+      }));
+
+      return true;
+    } catch (err) {
+      set((state) => ({
+        programs: state.programs.map((entry) =>
+          entry.id === programId ? previousProgram : entry
+        ),
+        error: err instanceof Error ? err.message : 'Failed to update program workout',
       }));
       return false;
     }

@@ -72,7 +72,7 @@ export default function OnboardingChallengeScreen() {
   const handleContinue = () => {
     if (selected.length === 0) return;
     trackOnboardingStepCompleted('biggest_challenges');
-    router.push('/onboarding/insights');
+    router.push('/onboarding/motivation');
   };
 
   return (

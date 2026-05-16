@@ -193,7 +193,7 @@ export function ExerciseCard({
     if (!exercise || !lastPerformance) return null;
     return buildRepRangeProgressionSuggestion(
       exercise.targetReps,
-      exercise.sets.filter((set) => set.setType === 'normal').length || exercise.sets.length,
+      exercise.sets,
       lastPerformance.sets
     );
   }, [exercise, lastPerformance]);

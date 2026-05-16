@@ -312,8 +312,8 @@ export default function TabLayout() {
   };
 
   const startButtonColors = startPreset
-    ? (colors.contrastGradient as unknown as string[])
-    : undefined;
+    ? (colors.buttonGradient as unknown as string[])
+    : (colors.contrastGradient as unknown as string[]);
 
   // Track exercise detail modal visibility to disable FAB interactions
   useEffect(() => {
@@ -1053,7 +1053,7 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: '#121214',
+    backgroundColor: '#24252A',
     borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
@@ -1099,7 +1099,7 @@ const styles = StyleSheet.create({
   modalCard: {
     width: '100%',
     maxWidth: 440,
-    backgroundColor: '#121214',
+    backgroundColor: '#24252A',
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',

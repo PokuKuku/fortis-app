@@ -6,6 +6,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { addDays, format } from 'date-fns';
@@ -21,6 +22,7 @@ import {
   getScheduledWorkoutDayStreak,
   getSundayWeekStart,
   type WeekProgressDay,
+  type WorkoutScheduleHistoryEntry,
 } from '@/src/utils/workoutSchedule';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -31,6 +33,7 @@ const DAY_GAP = scale(8);
 
 type WeeklyProgressCarouselProps = {
   scheduleDays: number[];
+  scheduleHistory?: WorkoutScheduleHistoryEntry[];
   sessions: WorkoutSession[];
   onEditSchedule: () => void;
 };
@@ -52,16 +55,20 @@ function formatSetSummary(reps: number | null, weight: number | null, unit?: str
 
 export function WeeklyProgressCarousel({
   scheduleDays,
+  scheduleHistory = [],
   sessions,
   onEditSchedule,
 }: WeeklyProgressCarouselProps) {
   const { colors, isDark } = useTheme();
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const modalStyles = useModalStyles();
   const listRef = useRef<FlatList<WeekPage>>(null);
   const editScheduleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [anchorDate, setAnchorDate] = useState(() => getSundayWeekStart(new Date()));
   const [selectedDay, setSelectedDay] = useState<WeekProgressDay | null>(null);
   const headerDateLabel = useMemo(() => format(new Date(), 'MMM d'), []);
+  const detailModalWidth = Math.max(1, Math.min(360, windowWidth - Spacing.lg * 2));
+  const detailScrollMaxHeight = Math.max(180, Math.min(scale(360), Math.round(windowHeight * 0.42)));
 
   useEffect(() => () => {
     if (editScheduleTimeoutRef.current) {
@@ -79,8 +86,8 @@ export function WeeklyProgressCarousel({
   );
 
   const streak = useMemo(
-    () => getScheduledWorkoutDayStreak({ scheduleDays, sessions }),
-    [scheduleDays, sessions]
+    () => getScheduledWorkoutDayStreak({ scheduleDays, scheduleHistory, sessions }),
+    [scheduleDays, scheduleHistory, sessions]
   );
 
   const handleMomentumEnd = (offsetX: number) => {
@@ -110,6 +117,7 @@ export function WeeklyProgressCarousel({
     const weekDays = buildWeekProgressDays({
       anchorDate: item.anchorDate,
       scheduleDays,
+      scheduleHistory,
       sessions,
     });
 
@@ -210,7 +218,8 @@ export function WeeklyProgressCarousel({
         visible={Boolean(selectedDay)}
         onClose={() => setSelectedDay(null)}
         title={selectedDay ? format(selectedDay.date, 'EEEE, MMM d') : 'Workout Day'}
-        width={360}
+        width={detailModalWidth}
+        showCloseButton={false}
       >
         {selectedDay ? (
           <>
@@ -224,7 +233,7 @@ export function WeeklyProgressCarousel({
                   : 'Rest day'}
             </Text>
             <ScrollView
-              style={styles.detailScroll}
+              style={[styles.detailScroll, { maxHeight: detailScrollMaxHeight }]}
               contentContainerStyle={styles.detailList}
               showsVerticalScrollIndicator={false}
             >
@@ -286,24 +295,26 @@ export function WeeklyProgressCarousel({
               )}
             </ScrollView>
 
-            <View style={modalStyles.actions}>
+            <View style={[modalStyles.actions, styles.detailActions]}>
               <Pressable
                 onPress={() => setSelectedDay(null)}
                 style={({ pressed }) => [
                   modalStyles.cancelButton,
+                  styles.detailActionButton,
                   pressed && modalStyles.buttonPressed,
                 ]}
               >
-                <Text style={modalStyles.cancelButtonText}>Close</Text>
+                <Text style={[modalStyles.cancelButtonText, styles.detailActionText]}>Close</Text>
               </Pressable>
               <Pressable
                 onPress={handleEditSchedulePress}
                 style={({ pressed }) => [
                   modalStyles.successButton,
+                  styles.detailActionButton,
                   pressed && modalStyles.buttonPressed,
                 ]}
               >
-                <Text style={modalStyles.successButtonText}>Edit Schedule</Text>
+                <Text style={[modalStyles.successButtonText, styles.detailActionText]}>Edit Schedule</Text>
               </Pressable>
             </View>
           </>
@@ -378,7 +389,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   detailScroll: {
-    maxHeight: scale(360),
     marginBottom: Spacing['2xl'],
   },
   detailList: {
@@ -425,5 +435,14 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(13),
     fontWeight: '500',
     lineHeight: moderateScale(20),
+  },
+  detailActions: {
+    flexWrap: 'wrap',
+  },
+  detailActionButton: {
+    minWidth: scale(120),
+  },
+  detailActionText: {
+    textAlign: 'center',
   },
 });

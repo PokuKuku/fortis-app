@@ -127,6 +127,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: 18,
     lineHeight: 24,
     height: 56,

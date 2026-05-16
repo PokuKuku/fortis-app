@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -26,7 +26,11 @@ export function WorkoutScheduleEditorModal({
 }: WorkoutScheduleEditorModalProps) {
   const { colors, isDark } = useTheme();
   const modalStyles = useModalStyles();
+  const { width: windowWidth } = useWindowDimensions();
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const modalWidth = Math.min(360, Math.max(300, windowWidth - Spacing.lg * 2));
+  const contentWidth = modalWidth - Spacing['2xl'] * 2;
+  const dayButtonWidth = Math.floor((contentWidth - Spacing.sm * 2) / 3);
 
   useEffect(() => {
     if (!visible) return;
@@ -52,7 +56,7 @@ export function WorkoutScheduleEditorModal({
       visible={visible}
       onClose={onClose}
       title="Workout Schedule"
-      width={360}
+      width={modalWidth}
     >
       <Text style={[styles.description, { color: colors.textSecondary }]}>
         Choose the days you plan to train each week, or leave blank for no fixed schedule.
@@ -67,6 +71,7 @@ export function WorkoutScheduleEditorModal({
               onPress={() => toggleDay(day)}
               style={({ pressed }) => [
                 styles.dayButton,
+                { width: dayButtonWidth },
                 {
                   backgroundColor: selected
                     ? colors.accent
@@ -134,7 +139,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   dayButton: {
-    width: 72,
     height: 42,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,

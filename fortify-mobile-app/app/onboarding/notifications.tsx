@@ -71,7 +71,7 @@ export default function OnboardingNotificationsScreen() {
 
   return (
     <OnboardingScreen
-      step={18}
+      step={19}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle
@@ -95,7 +95,10 @@ export default function OnboardingNotificationsScreen() {
 
         <GlassCard
           padding={Spacing.xl}
-          style={[styles.promptCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder }]}
+          style={StyleSheet.flatten([
+            styles.promptCard,
+            { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder },
+          ])}
         >
           <View style={styles.promptHeader}>
             <BellAlertIcon size={22} color={colors.textPrimary} />

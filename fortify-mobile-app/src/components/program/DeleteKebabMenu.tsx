@@ -13,9 +13,15 @@ import {
   Animated,
   Modal,
   Pressable,
-  LayoutChangeEvent,
+  useWindowDimensions,
 } from 'react-native';
-import { EllipsisVerticalIcon, InformationCircleIcon, TrashIcon } from 'react-native-heroicons/outline';
+import {
+  EllipsisVerticalIcon,
+  InformationCircleIcon,
+  PencilIcon,
+  PlayIcon,
+  TrashIcon,
+} from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -26,18 +32,31 @@ interface DeleteKebabMenuProps {
   deleteLabel?: string;
   /** Optional handler for opening the details view */
   onViewDetails?: () => void;
+  /** Optional handler for setting this workout as the next program workout */
+  onSetAsNext?: () => void;
+  /** Optional handler for editing this workout */
+  onEdit?: () => void;
   /** Called when delete is confirmed */
   onDelete: () => void;
 }
 
+const POPOVER_MARGIN = 12;
+const POPOVER_MIN_WIDTH = 170;
+const OPTION_HEIGHT = 46;
+const DIVIDER_HEIGHT = 9;
+const POPOVER_VERTICAL_PADDING = Spacing.xs * 2;
+
 export function DeleteKebabMenu({
   deleteLabel = 'Delete',
   onViewDetails,
+  onSetAsNext,
+  onEdit,
   onDelete,
 }: DeleteKebabMenuProps) {
   const { colors, isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [visible, setVisible] = useState(false);
-  const [position, setPosition] = useState({ top: 0, right: 0 });
+  const [position, setPosition] = useState({ top: 0, right: POPOVER_MARGIN });
   const buttonRef = useRef<View>(null);
 
   // Theme-aware styles
@@ -87,15 +106,32 @@ export function DeleteKebabMenu({
 
   const handleOpen = useCallback(() => {
     buttonRef.current?.measureInWindow((x, y, width, height) => {
-      // Position popover below and to the left of the button
+      const optionCount = 1
+        + (onViewDetails ? 1 : 0)
+        + (onSetAsNext ? 1 : 0)
+        + (onEdit ? 1 : 0);
+      const dividerCount = Math.max(0, optionCount - 1);
+      const estimatedPopoverHeight =
+        POPOVER_VERTICAL_PADDING + optionCount * OPTION_HEIGHT + dividerCount * DIVIDER_HEIGHT;
+      const belowTop = y + height + 4;
+      const aboveTop = y - estimatedPopoverHeight - 4;
+      const wouldOverflowBottom = belowTop + estimatedPopoverHeight > windowHeight - POPOVER_MARGIN;
+      const resolvedTop = wouldOverflowBottom
+        ? Math.max(POPOVER_MARGIN, aboveTop)
+        : Math.min(belowTop, windowHeight - estimatedPopoverHeight - POPOVER_MARGIN);
+      const resolvedRight = Math.max(
+        POPOVER_MARGIN,
+        Math.min(windowWidth - POPOVER_MIN_WIDTH - POPOVER_MARGIN, windowWidth - (x + width))
+      );
+
       setPosition({
-        top: y + height + 4,
-        right: 20, // Fixed right margin
+        top: resolvedTop,
+        right: resolvedRight,
       });
       setVisible(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     });
-  }, []);
+  }, [onEdit, onSetAsNext, onViewDetails, windowHeight, windowWidth]);
 
   const handleClose = useCallback(() => {
     setVisible(false);
@@ -113,6 +149,18 @@ export function DeleteKebabMenu({
     onViewDetails();
     handleClose();
   }, [handleClose, onViewDetails]);
+
+  const handleSetAsNext = useCallback(() => {
+    if (!onSetAsNext) return;
+    onSetAsNext();
+    handleClose();
+  }, [handleClose, onSetAsNext]);
+
+  const handleEdit = useCallback(() => {
+    if (!onEdit) return;
+    onEdit();
+    handleClose();
+  }, [handleClose, onEdit]);
 
   return (
     <>
@@ -163,6 +211,24 @@ export function DeleteKebabMenu({
               <TouchableOpacity style={styles.option} onPress={handleViewDetails}>
                 <InformationCircleIcon color={colors.textSecondary} size={18} strokeWidth={2} />
                 <Text style={[styles.optionText, themedStyles.optionText]}>View Details</Text>
+              </TouchableOpacity>
+              <View style={[styles.divider, themedStyles.divider]} />
+            </>
+          ) : null}
+          {onSetAsNext ? (
+            <>
+              <TouchableOpacity style={styles.option} onPress={handleSetAsNext}>
+                <PlayIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+                <Text style={[styles.optionText, themedStyles.optionText]}>Set as Next</Text>
+              </TouchableOpacity>
+              <View style={[styles.divider, themedStyles.divider]} />
+            </>
+          ) : null}
+          {onEdit ? (
+            <>
+              <TouchableOpacity style={styles.option} onPress={handleEdit}>
+                <PencilIcon color={colors.textSecondary} size={18} strokeWidth={2} />
+                <Text style={[styles.optionText, themedStyles.optionText]}>Edit Workout</Text>
               </TouchableOpacity>
               <View style={[styles.divider, themedStyles.divider]} />
             </>

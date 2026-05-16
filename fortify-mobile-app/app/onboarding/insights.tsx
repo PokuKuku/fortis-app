@@ -115,7 +115,7 @@ const LottieView = (() => {
 })();
 
 export default function OnboardingInsightsScreen() {
-  useOnboardingFunnelScreen('Q14. Fortify Provides Insights');
+  useOnboardingFunnelScreen('Q15. Fortify Provides Insights');
 
   const router = useRouter();
   const { colors } = useTheme();
@@ -154,7 +154,7 @@ export default function OnboardingInsightsScreen() {
 
   return (
     <OnboardingScreen
-      step={14}
+      step={15}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Break through your goals"
       subtitle="Fortify finds insights that move you forward"

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BaseModal } from '@/src/components/ui/BaseModal';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -13,7 +14,12 @@ import type { Exercise } from '@/src/types/exercise';
 import type { AIWorkoutTemplate } from '@/src/types/ai';
 import { PlusIcon, CheckIcon, PlayIcon } from 'react-native-heroicons/outline';
 
-const PREVIEW_MODAL_WIDTH = Math.min(Dimensions.get('window').width - 32, 390);
+const PREVIEW_MODAL_MAX_WIDTH = 390;
+const MODAL_HORIZONTAL_MARGIN = 32;
+const MODAL_VERTICAL_MARGIN = Spacing['2xl'] * 2;
+const BASE_MODAL_HEADER_HEIGHT = 68;
+const BASE_MODAL_CONTENT_BOTTOM_PADDING = Spacing['2xl'];
+const FOOTER_ACTIONS_HEIGHT = 50 * 2 + Spacing.sm + Spacing.md;
 
 interface AIWorkoutPreviewModalProps {
   visible: boolean;
@@ -39,20 +45,26 @@ export function AIWorkoutPreviewModal({
   isStartDisabled = false,
 }: AIWorkoutPreviewModalProps) {
   const { colors, isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const [exerciseMeta, setExerciseMeta] = useState<Record<string, Exercise | null>>({});
+  const templateExercises = useMemo(
+    () => (Array.isArray(template?.exercises) ? template.exercises : []),
+    [template]
+  );
 
   useEffect(() => {
     let isMounted = true;
 
     const loadExerciseMeta = async () => {
-      if (!template) {
+      if (!template || templateExercises.length === 0) {
         setExerciseMeta({});
         return;
       }
 
       const pairs = await Promise.all(
-        template.exercises.map(async (exercise) => [
+        templateExercises.map(async (exercise) => [
           exercise.exerciseId,
           await getExerciseById(exercise.exerciseId),
         ] as const)
@@ -70,18 +82,36 @@ export function AIWorkoutPreviewModal({
     return () => {
       isMounted = false;
     };
-  }, [template]);
+  }, [template, templateExercises]);
 
   const heatmapExercises = useMemo(
-    () => template?.exercises
+    () => templateExercises
       .map((exercise) => exerciseMeta[exercise.exerciseId])
-      .filter((exercise): exercise is Exercise => Boolean(exercise)) ?? [],
-    [exerciseMeta, template]
+      .filter((exercise): exercise is Exercise => Boolean(exercise)),
+    [exerciseMeta, templateExercises]
   );
 
   if (!template) {
     return null;
   }
+
+  const modalWidth = Math.min(
+    Math.max(1, windowWidth - MODAL_HORIZONTAL_MARGIN),
+    PREVIEW_MODAL_MAX_WIDTH
+  );
+  const safeModalHeight = Math.max(
+    360,
+    windowHeight - insets.top - insets.bottom - MODAL_VERTICAL_MARGIN
+  );
+  const scrollMaxHeight = Math.max(
+    260,
+    safeModalHeight
+      - BASE_MODAL_HEADER_HEIGHT
+      - BASE_MODAL_CONTENT_BOTTOM_PADDING
+      - FOOTER_ACTIONS_HEIGHT
+  );
+  const isCompactHeight = windowHeight < 760;
+  const heatmapScale = isCompactHeight ? 0.24 : 0.32;
 
   const themedStyles = {
     subtitle: { color: colors.textSecondary },
@@ -109,12 +139,12 @@ export function AIWorkoutPreviewModal({
       visible={visible}
       onClose={onClose}
       title={template.name}
-      width={PREVIEW_MODAL_WIDTH}
+      width={modalWidth}
       animation="zoom"
     >
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        style={[styles.scrollView, { maxHeight: scrollMaxHeight }]}
+        contentContainerStyle={[styles.content, isCompactHeight && styles.contentCompact]}
         showsVerticalScrollIndicator={false}
       >
         {(template.description || template.focus || template.estimatedDurationMinutes) && (
@@ -140,20 +170,20 @@ export function AIWorkoutPreviewModal({
         )}
 
         {heatmapExercises.length > 0 && (
-          <View style={styles.heatmapWrap}>
-            <MuscleHeatmap exercises={heatmapExercises} gender={bodyType} scale={0.32} compact />
+          <View style={[styles.heatmapWrap, isCompactHeight && styles.heatmapWrapCompact]}>
+            <MuscleHeatmap exercises={heatmapExercises} gender={bodyType} scale={heatmapScale} compact />
           </View>
         )}
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Exercises</Text>
           <Text style={[styles.sectionCount, themedStyles.sectionCount]}>
-            {template.exercises.length} exercises
+            {templateExercises.length} exercises
           </Text>
         </View>
 
         <View style={styles.exerciseList}>
-          {template.exercises.map((exercise) => {
+          {templateExercises.map((exercise) => {
             const meta = exerciseMeta[exercise.exerciseId];
             return (
               <View key={exercise.exerciseId} style={styles.exerciseRowWrap}>
@@ -179,7 +209,7 @@ export function AIWorkoutPreviewModal({
         >
           <View style={styles.addButtonContent}>
             <PlayIcon color={Colors.white} size={IconSizes.md} strokeWidth={2.2} />
-            <Text style={[styles.startButtonText, themedStyles.startButtonText]}>
+            <Text style={[styles.startButtonText, themedStyles.startButtonText]} numberOfLines={1}>
               {isStarting ? 'Starting Workout...' : isStartDisabled ? 'Workout Active' : 'Start Workout'}
             </Text>
           </View>
@@ -201,7 +231,7 @@ export function AIWorkoutPreviewModal({
             ) : (
               <PlusIcon color={colors.textPrimary} size={IconSizes.md} strokeWidth={2.2} />
             )}
-            <Text style={[styles.addButtonText, themedStyles.addButtonText]}>
+            <Text style={[styles.addButtonText, themedStyles.addButtonText]} numberOfLines={1}>
               {isAdded ? 'Added to Workouts' : isAdding ? 'Adding to Workouts...' : 'Add to Workouts'}
             </Text>
           </View>
@@ -213,10 +243,13 @@ export function AIWorkoutPreviewModal({
 
 const styles = StyleSheet.create({
   scrollView: {
-    maxHeight: 560,
+    flexGrow: 0,
   },
   content: {
     paddingBottom: Spacing.lg,
+  },
+  contentCompact: {
+    paddingBottom: Spacing.md,
   },
   summaryBlock: {
     gap: Spacing.sm,
@@ -245,6 +278,9 @@ const styles = StyleSheet.create({
   heatmapWrap: {
     marginBottom: Spacing.lg,
     alignItems: 'center',
+  },
+  heatmapWrapCompact: {
+    marginBottom: Spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -291,10 +327,12 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '700',
     color: Colors.white,
+    flexShrink: 1,
   },
   startButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
+    flexShrink: 1,
   },
 });
 

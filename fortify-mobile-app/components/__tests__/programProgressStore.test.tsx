@@ -55,6 +55,7 @@ describe('programProgressStore', () => {
           programId: 'program-1',
           currentCycle: 1,
           completedDayNumbers: [1, 3, 4],
+          nextDayNumberOverride: null,
           history: [],
           lastWorkoutId: null,
           lastWorkoutAt: null,
@@ -68,6 +69,32 @@ describe('programProgressStore', () => {
     useProgramProgressStore.getState().trimCompletedDays('program-1', 3);
     const entry = useProgramProgressStore.getState().progressByProgram['program-1'];
     expect(entry.completedDayNumbers).toEqual([1, 3]);
+  });
+
+  it('continues forward after completing a next workout override', () => {
+    useProgramProgressStore.getState().startProgram('program-1');
+    useProgramProgressStore.getState().markWorkoutComplete('program-1', 1, 3, '2024-01-02T00:00:00.000Z');
+
+    useProgramProgressStore.getState().setNextDayNumber('program-1', 3, 3);
+    expect(useProgramProgressStore.getState().getNextDayNumber('program-1', 3)).toBe(3);
+
+    useProgramProgressStore.getState().markWorkoutComplete('program-1', 3, 3, '2024-01-03T00:00:00.000Z');
+    const entry = useProgramProgressStore.getState().progressByProgram['program-1'];
+    expect(entry.nextDayNumberOverride).toBe(2);
+    expect(useProgramProgressStore.getState().getNextDayNumber('program-1', 3)).toBe(2);
+  });
+
+  it('continues to the next workout after a skipped-ahead override', () => {
+    useProgramProgressStore.getState().startProgram('program-1');
+
+    useProgramProgressStore.getState().setNextDayNumber('program-1', 3, 5);
+    expect(useProgramProgressStore.getState().getNextDayNumber('program-1', 5)).toBe(3);
+
+    useProgramProgressStore.getState().markWorkoutComplete('program-1', 3, 5, '2024-01-03T00:00:00.000Z');
+    const entry = useProgramProgressStore.getState().progressByProgram['program-1'];
+    expect(entry.completedDayNumbers).toEqual([3]);
+    expect(entry.nextDayNumberOverride).toBe(4);
+    expect(useProgramProgressStore.getState().getNextDayNumber('program-1', 5)).toBe(4);
   });
 
   it('merges newer local progress into remote state on load', async () => {
@@ -90,6 +117,7 @@ describe('programProgressStore', () => {
         programId: 'program-1',
         currentCycle: 1,
         completedDayNumbers: [1],
+        nextDayNumberOverride: null,
         history: [],
         lastWorkoutId: null,
         lastWorkoutAt: '2024-01-02T00:00:00.000Z',

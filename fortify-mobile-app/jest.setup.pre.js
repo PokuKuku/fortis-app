@@ -61,3 +61,31 @@ jest.mock('mixpanel-react-native', () => ({
     })),
   })),
 }));
+
+jest.mock('@mixpanel/react-native-session-replay', () => ({
+  MPSessionReplay: {
+    initialize: jest.fn().mockResolvedValue(undefined),
+    identify: jest.fn().mockResolvedValue(undefined),
+    startRecording: jest.fn().mockResolvedValue(undefined),
+    stopRecording: jest.fn().mockResolvedValue(undefined),
+    isRecording: jest.fn().mockResolvedValue(false),
+    getReplayId: jest.fn().mockResolvedValue(null),
+    flush: jest.fn().mockResolvedValue(undefined),
+  },
+  MPSessionReplayConfig: jest.fn().mockImplementation((config = {}) => ({
+    ...config,
+    toJSON: jest.fn(() => JSON.stringify(config)),
+  })),
+  MPSessionReplayMask: {
+    Text: 'text',
+    Web: 'web',
+    Map: 'map',
+    Image: 'image',
+  },
+  MPSessionReplayRemoteSettingsMode: {
+    Disabled: 'disabled',
+    Strict: 'strict',
+    Fallback: 'fallback',
+  },
+  MPSessionReplayView: 'MPSessionReplayView',
+}));

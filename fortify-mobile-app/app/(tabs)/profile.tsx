@@ -10,7 +10,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { Cog6ToothIcon } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { AppHeaderBrand } from '@/src/components/navigation/AppHeaderBrand';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { ProfileHeader } from '@/src/components/profile/ProfileHeader';
@@ -26,7 +26,6 @@ const HEADER_PADDING_TOP = scale(Spacing.lg);
 const HEADER_PADDING_BOTTOM = scale(Spacing.md);
 const SETTINGS_BUTTON_SIZE = scale(40);
 const SETTINGS_ICON_SIZE = scale(24);
-const HEADER_MIN_HEIGHT = SETTINGS_BUTTON_SIZE;
 const TITLE_PADDING_BOTTOM = scale(Spacing.md);
 const SECTION_TITLE_SIZE = moderateScale(24);
 const SCROLL_PADDING_BOTTOM = scale(120);
@@ -61,11 +60,11 @@ export default function ProfileScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.logoContainer}>
-              <AnimatedLogo />
-            </View>
+          <AppHeaderBrand style={styles.header} />
+
+          {/* Title */}
+          <View style={styles.titleContainer}>
+            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Profile</Text>
             {isAuthenticated && (
               <TouchableOpacity
                 style={styles.settingsButton}
@@ -75,11 +74,6 @@ export default function ProfileScreen() {
                 <Cog6ToothIcon color={colors.textSecondary} size={SETTINGS_ICON_SIZE} strokeWidth={2} />
               </TouchableOpacity>
             )}
-          </View>
-
-          {/* Title */}
-          <View style={styles.titleContainer}>
-            <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Profile</Text>
           </View>
 
           {isAuthenticated ? (
@@ -131,20 +125,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    position: 'relative',
-    justifyContent: 'center',
     paddingTop: HEADER_PADDING_TOP,
     paddingBottom: HEADER_PADDING_BOTTOM,
-    minHeight: HEADER_MIN_HEIGHT + HEADER_PADDING_TOP + HEADER_PADDING_BOTTOM,
-  },
-  logoContainer: {
-    alignSelf: 'flex-start',
-    justifyContent: 'center',
   },
   settingsButton: {
-    position: 'absolute',
-    right: 0,
-    top: HEADER_PADDING_TOP,
     width: SETTINGS_BUTTON_SIZE,
     height: SETTINGS_BUTTON_SIZE,
     alignItems: 'center',

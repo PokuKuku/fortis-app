@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Animated,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { InformationCircleIcon, ArrowPathIcon, TrashIcon, DocumentTextIcon, AdjustmentsHorizontalIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
@@ -25,6 +26,12 @@ interface ExerciseKebabPopoverProps {
   position: { top: number; left: number };
 }
 
+const POPOVER_MARGIN = 12;
+const POPOVER_WIDTH = 220;
+const OPTION_HEIGHT = 46;
+const DIVIDER_HEIGHT = 9;
+const POPOVER_VERTICAL_PADDING = 8;
+
 export function ExerciseKebabPopover({
   visible,
   onClose,
@@ -39,9 +46,21 @@ export function ExerciseKebabPopover({
   position,
 }: ExerciseKebabPopoverProps) {
   const { colors, isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const popoverScale = useRef(new Animated.Value(0)).current;
   const popoverOpacity = useRef(new Animated.Value(0)).current;
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const optionCount = hasNote ? 5 : 6;
+  const estimatedPopoverHeight =
+    POPOVER_VERTICAL_PADDING + optionCount * OPTION_HEIGHT + (optionCount - 1) * DIVIDER_HEIGHT;
+  const resolvedTop = Math.min(
+    Math.max(POPOVER_MARGIN, position.top),
+    Math.max(POPOVER_MARGIN, windowHeight - estimatedPopoverHeight - POPOVER_MARGIN)
+  );
+  const resolvedLeft = Math.min(
+    Math.max(POPOVER_MARGIN, position.left),
+    Math.max(POPOVER_MARGIN, windowWidth - POPOVER_WIDTH - POPOVER_MARGIN)
+  );
 
   // Theme-aware styles
   const themedStyles = {
@@ -113,8 +132,8 @@ export function ExerciseKebabPopover({
           styles.popover,
           themedStyles.popover,
           {
-            top: position.top,
-            left: position.left,
+            top: resolvedTop,
+            left: resolvedLeft,
             opacity: popoverOpacity,
             transform: [{ scale: popoverScale }],
           },
@@ -196,7 +215,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
     zIndex: 1000,
-    minWidth: 170,
+    width: POPOVER_WIDTH,
   },
   option: {
     flexDirection: 'row',

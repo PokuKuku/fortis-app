@@ -33,6 +33,7 @@ export const EXERCISE_WEIGHT_UNITS_KEY = 'exercise_weight_units_v1';
 export const BODY_TYPE_KEY = 'body_type_v1';
 export const START_BUTTON_PRESET_KEY = 'start_button_preset_v1';
 export const WORKOUT_SCHEDULE_DAYS_KEY = 'workout_schedule_days_v1';
+export const WORKOUT_SCHEDULE_HISTORY_KEY = 'workout_schedule_history_v1';
 export const ONBOARDING_STATE_KEY = 'onboarding_state_v1';
 
 // In-app tour
@@ -82,6 +83,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   BODY_TYPE_KEY,
   START_BUTTON_PRESET_KEY,
   WORKOUT_SCHEDULE_DAYS_KEY,
+  WORKOUT_SCHEDULE_HISTORY_KEY,
   ONBOARDING_STATE_KEY,
   IN_APP_TOUR_STATE_KEY,
   HAS_AUTO_SET_GET_STARTED_PRESET_KEY,

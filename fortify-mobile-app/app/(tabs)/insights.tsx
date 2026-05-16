@@ -7,7 +7,7 @@ import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { addDays, format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
-import { AnimatedLogo } from '@/components/AnimatedLogo';
+import { AppHeaderBrand } from '@/src/components/navigation/AppHeaderBrand';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
@@ -1004,9 +1004,7 @@ export default function InsightsScreen() {
           }
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.header}>
-            <AnimatedLogo />
-          </View>
+          <AppHeaderBrand style={styles.header} />
 
           <View style={styles.titleContainer}>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Insights</Text>

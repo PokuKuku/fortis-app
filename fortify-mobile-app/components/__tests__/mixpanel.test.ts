@@ -54,6 +54,7 @@ describe('mixpanel', () => {
     const mockClearSuperProperties = jest.fn();
     const mockRegisterSuperProperties = jest.fn();
     const mockPeopleSet = jest.fn();
+    const mockReplayInitialize = jest.fn().mockResolvedValue(undefined);
     const mockMixpanelCtor = jest.fn().mockImplementation(() => ({
       init: jest.fn().mockResolvedValue(undefined),
       track: jest.fn(),
@@ -67,9 +68,26 @@ describe('mixpanel', () => {
     jest.doMock('mixpanel-react-native', () => ({
       Mixpanel: mockMixpanelCtor,
     }));
+    jest.doMock('@mixpanel/react-native-session-replay', () => ({
+      MPSessionReplay: {
+        initialize: mockReplayInitialize,
+        identify: jest.fn().mockResolvedValue(undefined),
+      },
+      MPSessionReplayConfig: jest.fn().mockImplementation((config = {}) => config),
+      MPSessionReplayMask: {
+        Text: 'text',
+        Web: 'web',
+        Map: 'map',
+        Image: 'image',
+      },
+      MPSessionReplayRemoteSettingsMode: {
+        Disabled: 'disabled',
+      },
+    }));
 
     let identifyMixpanelUser!: (userContext: Record<string, unknown>) => Promise<void>;
     jest.isolateModules(() => {
+      require('react-native').NativeModules.MixpanelReactNativeSessionReplay = {};
       ({ identifyMixpanelUser } = require('@/src/lib/mixpanel'));
     });
 
@@ -99,5 +117,103 @@ describe('mixpanel', () => {
         $name: 'Test User',
       })
     );
+    expect(mockReplayInitialize).toHaveBeenCalledWith(
+      'test-token',
+      'user-123',
+      expect.objectContaining({
+        autoStartRecording: true,
+        recordingSessionsPercent: 100,
+        wifiOnly: true,
+      })
+    );
+  });
+
+  it('initializes session replay with the anonymous Mixpanel distinct id', async () => {
+    process.env.EXPO_PUBLIC_MIXPANEL_REPLAY_SAMPLE_RATE = '25';
+    const mockInit = jest.fn().mockResolvedValue(undefined);
+    const mockGetDistinctId = jest.fn().mockResolvedValue('anon-123');
+    const mockReplayInitialize = jest.fn().mockResolvedValue(undefined);
+    const mockConfigCtor = jest.fn().mockImplementation((config = {}) => config);
+    const mockMixpanelCtor = jest.fn().mockImplementation(() => ({
+      init: mockInit,
+      track: jest.fn(),
+      identify: jest.fn().mockResolvedValue(undefined),
+      clearSuperProperties: jest.fn(),
+      registerSuperProperties: jest.fn(),
+      reset: jest.fn(),
+      getDistinctId: mockGetDistinctId,
+      getPeople: jest.fn(() => ({ set: jest.fn() })),
+    }));
+
+    jest.doMock('mixpanel-react-native', () => ({
+      Mixpanel: mockMixpanelCtor,
+    }));
+    jest.doMock('@mixpanel/react-native-session-replay', () => ({
+      MPSessionReplay: {
+        initialize: mockReplayInitialize,
+        identify: jest.fn().mockResolvedValue(undefined),
+      },
+      MPSessionReplayConfig: mockConfigCtor,
+      MPSessionReplayMask: {
+        Text: 'text',
+        Web: 'web',
+        Map: 'map',
+        Image: 'image',
+      },
+      MPSessionReplayRemoteSettingsMode: {
+        Disabled: 'disabled',
+      },
+    }));
+
+    let initializeMixpanel!: () => Promise<boolean>;
+    jest.isolateModules(() => {
+      require('react-native').NativeModules.MixpanelReactNativeSessionReplay = {};
+      ({ initializeMixpanel } = require('@/src/lib/mixpanel'));
+    });
+
+    await expect(initializeMixpanel()).resolves.toBe(true);
+
+    expect(mockReplayInitialize).toHaveBeenCalledWith(
+      'test-token',
+      'anon-123',
+      expect.objectContaining({
+        recordingSessionsPercent: 25,
+        autoMaskedViews: ['text', 'image', 'web', 'map'],
+      })
+    );
+  });
+
+  it('skips session replay when the native module is not linked', async () => {
+    const mockWarn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const mockMixpanelCtor = jest.fn().mockImplementation(() => ({
+      init: jest.fn().mockResolvedValue(undefined),
+      track: jest.fn(),
+      identify: jest.fn().mockResolvedValue(undefined),
+      clearSuperProperties: jest.fn(),
+      registerSuperProperties: jest.fn(),
+      reset: jest.fn(),
+      getDistinctId: jest.fn().mockResolvedValue('anon-123'),
+      getPeople: jest.fn(() => ({ set: jest.fn() })),
+    }));
+
+    jest.doMock('mixpanel-react-native', () => ({
+      Mixpanel: mockMixpanelCtor,
+    }));
+    jest.doMock('@mixpanel/react-native-session-replay', () => {
+      throw new Error('should not import unlinked replay package');
+    });
+
+    let initializeMixpanel!: () => Promise<boolean>;
+    jest.isolateModules(() => {
+      delete require('react-native').NativeModules.MixpanelReactNativeSessionReplay;
+      ({ initializeMixpanel } = require('@/src/lib/mixpanel'));
+    });
+
+    await expect(initializeMixpanel()).resolves.toBe(true);
+
+    expect(mockWarn).toHaveBeenCalledWith(
+      '[Mixpanel] Session Replay native module is not linked; rebuild the native app to enable replay.'
+    );
+    mockWarn.mockRestore();
   });
 });

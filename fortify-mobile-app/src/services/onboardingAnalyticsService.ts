@@ -19,11 +19,12 @@ const ONBOARDING_STEP_INDEX = {
   clarity_animation: 11,
   fitness_goals: 12,
   biggest_challenges: 13,
-  insights_preview: 14,
-  privacy_thank_you: 15,
-  social_proof: 16,
-  app_rating: 17,
-  notifications_prompt: 18,
+  fitness_motivations: 14,
+  insights_preview: 15,
+  privacy_thank_you: 16,
+  social_proof: 17,
+  app_rating: 18,
+  notifications_prompt: 19,
 } as const;
 
 type OnboardingStepId = keyof typeof ONBOARDING_STEP_INDEX;

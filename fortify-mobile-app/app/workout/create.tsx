@@ -53,14 +53,21 @@ export default function CreateWorkoutScreen() {
     mode = 'template',
     date,
     templateId: templateIdParam,
+    programId: programIdParam,
+    workoutId: workoutIdParam,
   } = useLocalSearchParams<{
-    mode?: 'template' | 'log';
+    mode?: 'template' | 'log' | 'program';
     date?: string | string[];
     templateId?: string | string[];
+    programId?: string | string[];
+    workoutId?: string | string[];
   }>();
   const templateId = Array.isArray(templateIdParam) ? templateIdParam[0] : templateIdParam;
+  const programId = Array.isArray(programIdParam) ? programIdParam[0] : programIdParam;
+  const workoutId = Array.isArray(workoutIdParam) ? workoutIdParam[0] : workoutIdParam;
   const dateValue = Array.isArray(date) ? date[0] : date;
-  const isEditingTemplate = mode !== 'log' && !!templateId;
+  const isEditingTemplate = mode === 'template' && !!templateId;
+  const isEditingProgramWorkout = mode === 'program' && !!programId && !!workoutId;
   const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const shouldAnchorAddWithVoice = isTourActive && activeStepId === 'open_add_with_voice';
   const shouldAdvanceVoiceTutorial =
@@ -127,12 +134,14 @@ export default function CreateWorkoutScreen() {
   const editorDate = useWorkoutStore(s => s.editorDate);
   const initEditorSession = useWorkoutStore(s => s.initEditorSession);
   const initEditorSessionFromTemplate = useWorkoutStore(s => s.initEditorSessionFromTemplate);
+  const initEditorSessionFromProgramWorkout = useWorkoutStore(s => s.initEditorSessionFromProgramWorkout);
   const setEditorWorkoutName = useWorkoutStore(s => s.setEditorWorkoutName);
   const setEditorDate = useWorkoutStore(s => s.setEditorDate);
   const addEditorExercises = useWorkoutStore(s => s.addEditorExercises);
   const replaceEditorExercise = useWorkoutStore(s => s.replaceEditorExercise);
   const reorderEditorExercises = useWorkoutStore(s => s.reorderEditorExercises);
   const saveEditorAsTemplate = useWorkoutStore(s => s.saveEditorAsTemplate);
+  const saveEditorAsProgramWorkout = useWorkoutStore(s => s.saveEditorAsProgramWorkout);
   const saveEditorAsWorkout = useWorkoutStore(s => s.saveEditorAsWorkout);
   const commitEditorStickyNotesDraft = useWorkoutStore(s => s.commitEditorStickyNotesDraft);
   const clearEditorSession = useWorkoutStore(s => s.clearEditorSession);
@@ -239,7 +248,9 @@ export default function CreateWorkoutScreen() {
 
   // Initialize editor session on mount
   useEffect(() => {
-    if (isEditingTemplate && templateId) {
+    if (isEditingProgramWorkout && programId && workoutId) {
+      initEditorSessionFromProgramWorkout(programId, workoutId);
+    } else if (isEditingTemplate && templateId) {
       initEditorSessionFromTemplate(templateId);
     } else {
       initEditorSession();
@@ -247,7 +258,17 @@ export default function CreateWorkoutScreen() {
     return () => {
       clearEditorSession();
     };
-  }, [clearEditorSession, initEditorSession, initEditorSessionFromTemplate, isEditingTemplate, templateId]);
+  }, [
+    clearEditorSession,
+    initEditorSession,
+    initEditorSessionFromProgramWorkout,
+    initEditorSessionFromTemplate,
+    isEditingProgramWorkout,
+    isEditingTemplate,
+    programId,
+    templateId,
+    workoutId,
+  ]);
 
   useFocusEffect(
     useCallback(() => {
@@ -374,6 +395,17 @@ export default function CreateWorkoutScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         DeviceEventEmitter.emit('workout-updated');
         router.back();
+      } else if (isEditingProgramWorkout && programId && workoutId) {
+        const didSave = await saveEditorAsProgramWorkout(programId, workoutId);
+        if (didSave) {
+          await commitEditorStickyNotesDraft();
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          DeviceEventEmitter.emit('workout-updated');
+          router.back();
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+          setIsSaving(false);
+        }
       } else {
         const updatedTemplateId = isEditingTemplate && templateId
           ? await saveEditorAsTemplate(templateId)
@@ -515,7 +547,9 @@ export default function CreateWorkoutScreen() {
     </View>
   );
 
-  const saveButtonText = mode === 'log' ? 'Log' : (isEditingTemplate ? 'Finish edit' : 'Create Workout');
+  const saveButtonText = mode === 'log'
+    ? 'Log'
+    : (isEditingTemplate || isEditingProgramWorkout ? 'Finish edit' : 'Create Workout');
   const isFinishEdit = saveButtonText === 'Finish edit';
   const headerDetailsContent = (
     <View style={[styles.headerContentRow, useScrollableHeaderDetails && styles.listHeaderContentRow]}>
@@ -1025,16 +1059,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing['6xl'],
+    width: '100%',
   },
   emptyStateText: {
     ...Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   emptyStateSubtext: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
     opacity: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   bottomActions: {
     paddingTop: Spacing.lg,

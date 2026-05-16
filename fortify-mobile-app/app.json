@@ -7,14 +7,14 @@
     "icon": "./assets/fortify_ai.png",
     "notification": {
       "icon": "./assets/fortify_ai.png",
-      "color": "#121214"
+      "color": "#24252A"
     },
     "scheme": "fortis",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#121214"
+      "backgroundColor": "#24252A"
     },
     "ios": {
       "supportsTablet": true,
@@ -46,7 +46,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/fortify_ai.png",
-        "backgroundColor": "#121214"
+        "backgroundColor": "#24252A"
       },
       "package": "com.fortis.app",
       "permissions": [

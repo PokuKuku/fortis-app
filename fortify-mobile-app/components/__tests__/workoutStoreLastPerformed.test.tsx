@@ -83,6 +83,50 @@ describe('workout last performed updates', () => {
     expect(updateLastPerformed).not.toHaveBeenCalled();
   });
 
+  it('seeds program workout previous-column baseline from saved set details', async () => {
+    const program = buildProgram({
+      id: 'program-with-baseline',
+      name: 'Program With Baseline',
+      workouts: [
+        {
+          id: 'program-with-baseline-workout-1',
+          name: 'Upper',
+          dayNumber: 1,
+          exercises: [
+            {
+              id: 'program-with-baseline-ex-1',
+              exerciseId: 'bench-press',
+              exerciseName: 'Bench Press',
+              sets: 1,
+              reps: '8-12',
+              notes: '',
+              orderIndex: 0,
+              setDetails: [
+                { weight: 185, reps: 10 },
+                { weight: 195, reps: 8 },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    useProgramsStore.setState({ programs: [program] });
+
+    const result = await useWorkoutStore.getState().startWorkoutFromProgram(
+      program.id,
+      program.workouts[0].id
+    );
+
+    const exercise = useWorkoutStore.getState().activeSession?.exercises[0];
+    expect(result).toBe(true);
+    expect(exercise?.sets).toHaveLength(2);
+    expect(exercise?.baselinePerformance?.sets).toEqual([
+      { weight: 185, weightUnit: 'lbs', reps: 10, setType: 'normal' },
+      { weight: 195, weightUnit: 'lbs', reps: 8, setType: 'normal' },
+    ]);
+  });
+
   it('updates last performed when finishing a template workout', async () => {
     const template = buildProgram({
       id: 'template-2',

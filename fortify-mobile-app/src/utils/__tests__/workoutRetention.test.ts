@@ -3,7 +3,9 @@ import {
   buildWeeklyRecap,
   getDueWeeklyRecapWeekStart,
   getScheduledReminderDates,
+  getScheduledWorkoutReminderBody,
   normalizeReminderTime,
+  SCHEDULED_WORKOUT_REMINDER_BODIES,
 } from '@/src/utils/workoutRetention';
 
 function session(localId: string, completedAt: string, name = 'Workout'): WorkoutSession {
@@ -86,6 +88,21 @@ describe('workoutRetention', () => {
     ]);
   });
 
+  it('selects stable scheduled workout reminder copy for a notification date', () => {
+    const date = new Date('2026-05-13T08:00:00');
+
+    expect(SCHEDULED_WORKOUT_REMINDER_BODIES).toContain(getScheduledWorkoutReminderBody(date));
+    expect(getScheduledWorkoutReminderBody(date)).toBe(getScheduledWorkoutReminderBody(new Date('2026-05-13T18:00:00')));
+  });
+
+  it('rotates scheduled workout reminder copy across upcoming dates', () => {
+    const bodies = Array.from({ length: 14 }, (_, index) => (
+      getScheduledWorkoutReminderBody(new Date(2026, 4, 13 + index, 8, 0, 0))
+    ));
+
+    expect(new Set(bodies).size).toBeGreaterThan(1);
+  });
+
   it('returns weekly recap due only on Sunday evening', () => {
     expect(getDueWeeklyRecapWeekStart(new Date('2026-05-17T17:59:00'))).toBeNull();
     expect(getDueWeeklyRecapWeekStart(new Date('2026-05-17T18:00:00'))?.toISOString().slice(0, 10)).toBe('2026-05-10');
@@ -109,6 +126,25 @@ describe('workoutRetention', () => {
     expect(recap.notableExercises[0]).toMatchObject({ name: 'Bench Press', sets: 2 });
     expect(recap.prCount).toBe(0);
     expect(recap.prHighlights).toEqual([]);
+  });
+
+  it('uses schedule history when counting weekly scheduled days', () => {
+    const recap = buildWeeklyRecap({
+      weekStart: new Date('2026-05-10T00:00:00'),
+      scheduleDays: [2, 4],
+      scheduleHistory: [
+        { effectiveDateKey: '1970-01-01', scheduleDays: [1, 3, 5] },
+        { effectiveDateKey: '2026-05-16', scheduleDays: [2, 4] },
+      ],
+      sessions: [
+        session('monday', '2026-05-11T12:00:00', 'Upper'),
+        session('friday', '2026-05-15T12:00:00', 'Lower'),
+      ],
+    });
+
+    expect(recap.scheduledDays).toBe(3);
+    expect(recap.scheduledDaysHit).toBe(2);
+    expect(recap.scheduledDaysMissed).toBe(1);
   });
 
   it('adds weekly PR highlights from completed PR-marked sets', () => {

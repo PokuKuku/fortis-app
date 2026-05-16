@@ -83,6 +83,8 @@ function WorkoutSection({
   onToggle,
   onExercisePress,
   onDeleteWorkout,
+  onSetAsNext,
+  onEditWorkout,
   onDeleteExercise,
 }: {
   workout: ProgramWorkout;
@@ -91,6 +93,8 @@ function WorkoutSection({
   onToggle: () => void;
   onExercisePress: (exerciseId: string) => void;
   onDeleteWorkout: (workoutId: string, workoutName: string) => void;
+  onSetAsNext: (workout: ProgramWorkout) => void;
+  onEditWorkout: (workout: ProgramWorkout) => void;
   onDeleteExercise: (workoutId: string, exerciseId: string, exerciseName: string) => void;
 }) {
   const { colors, isDark } = useTheme();
@@ -127,16 +131,12 @@ function WorkoutSection({
           </View>
         </TouchableOpacity>
         <View style={styles.workoutSectionActions}>
-          <Pressable
-            onPress={() => onDeleteWorkout(workout.id, workout.name)}
-            style={({ pressed }) => [
-              styles.deleteButton,
-              pressed && styles.deleteButtonPressed,
-            ]}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <TrashIcon size={18} color={Colors.error} strokeWidth={2.2} />
-          </Pressable>
+          <DeleteKebabMenu
+            deleteLabel="Delete Workout"
+            onSetAsNext={() => onSetAsNext(workout)}
+            onEdit={() => onEditWorkout(workout)}
+            onDelete={() => onDeleteWorkout(workout.id, workout.name)}
+          />
         </View>
       </View>
 
@@ -233,7 +233,6 @@ export default function ProgramDetailScreen() {
   const modalStyles = useModalStyles();
   const { program, loading } = useProgram(id);
   const isNavigating = useRef(false);
-  const storePrograms = useProgramsStore(s => s.programs);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
   const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
@@ -247,6 +246,7 @@ export default function ProgramDetailScreen() {
   const getNextDayNumber = useProgramProgressStore(s => s.getNextDayNumber);
   const restartProgram = useProgramProgressStore(s => s.restartProgram);
   const trimCompletedDays = useProgramProgressStore(s => s.trimCompletedDays);
+  const setNextDayNumber = useProgramProgressStore(s => s.setNextDayNumber);
 
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -423,49 +423,6 @@ export default function ProgramDetailScreen() {
     [program]
   );
 
-  const templateSignatures = useMemo(() => {
-    return storePrograms
-      .filter((entry) => entry.isTemplate)
-      .map((template) => {
-        const templateWorkout = template.workouts[0];
-        const exerciseIds = templateWorkout?.exercises
-          .map((exercise) => exercise.exerciseId)
-          .join(',');
-        return {
-          name: template.name.trim().toLowerCase(),
-          exerciseIds: exerciseIds || '',
-        };
-      });
-  }, [storePrograms]);
-
-  const hasTemplateMatch = useCallback(
-    (workout: ProgramWorkout) => {
-      const workoutName = workout.name.trim().toLowerCase();
-      const workoutIds = workout.exercises
-        .map((exercise) => exercise.exerciseId)
-        .join(',');
-      return templateSignatures.some((template) => {
-        if (template.exerciseIds && workoutIds && template.exerciseIds === workoutIds) return true;
-        return template.name === workoutName;
-      });
-    },
-    [templateSignatures]
-  );
-
-  useEffect(() => {
-    if (!program || !id) return;
-    const storeProgram = storePrograms.find((entry) => entry.id === id && !entry.isTemplate);
-    if (!storeProgram || storeProgram.isDefault) return;
-    if (templateSignatures.length === 0) return;
-
-    const missingWorkouts = program.workouts.filter((workout) => !hasTemplateMatch(workout));
-    if (missingWorkouts.length === 0) return;
-
-    missingWorkouts.forEach((workout) => {
-      void removeWorkoutFromProgram(id, workout.id);
-    });
-  }, [hasTemplateMatch, id, program, removeWorkoutFromProgram, storePrograms, templateSignatures]);
-
   useEffect(() => {
     loadProgress();
   }, [loadProgress]);
@@ -503,6 +460,20 @@ export default function ProgramDetailScreen() {
       .map((day) => day.getDay());
   }, [completedSessions]);
 
+  const handleSetWorkoutAsNext = useCallback((workout: ProgramWorkout) => {
+    if (!id || orderedWorkouts.length === 0) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setNextDayNumber(id, workout.dayNumber, orderedWorkouts.length);
+  }, [id, orderedWorkouts.length, setNextDayNumber]);
+
+  const handleEditWorkout = useCallback((workout: ProgramWorkout) => {
+    if (!id || isNavigating.current) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    isNavigating.current = true;
+    router.push(`/workout/create?mode=program&programId=${id}&workoutId=${workout.id}`);
+    setTimeout(() => { isNavigating.current = false; }, 500);
+  }, [id, router]);
+
   // Not found state (avoid loading splash)
   if (!program) {
     if (loading) {
@@ -533,6 +504,7 @@ export default function ProgramDetailScreen() {
   const nextDayNumber = isProgressLoaded && id
     ? getNextDayNumber(id, orderedWorkouts.length)
     : 1;
+  const nextWorkoutName = orderedWorkouts.find((workout) => workout.dayNumber === nextDayNumber)?.name;
   const currentCycle = isProgressLoaded ? (progressEntry?.currentCycle || 1) : 1;
   const completedCycles = isProgressLoaded ? (progressEntry?.history.length || 0) : 0;
 
@@ -592,15 +564,8 @@ export default function ProgramDetailScreen() {
           style={styles.creatorContainer}
         >
           <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-            Cycle {currentCycle} - Next Day {nextDayNumber}
+            Cycle {currentCycle} - Next: {nextWorkoutName || `Day ${nextDayNumber}`}
           </Text>
-        </Animated.View>
-
-        <Animated.View
-          entering={FadeIn.delay(225).duration(300)}
-          style={styles.scheduleContainer}
-        >
-          <ProgramScheduleRow scheduleDays={scheduleDays} completedWeekdays={completedWeekdays} />
         </Animated.View>
 
         <Animated.View
@@ -627,6 +592,13 @@ export default function ProgramDetailScreen() {
           </GlassButton>
         </Animated.View>
 
+        <Animated.View
+          entering={FadeInDown.delay(325).duration(400)}
+          style={styles.scheduleContainer}
+        >
+          <ProgramScheduleRow scheduleDays={scheduleDays} completedWeekdays={completedWeekdays} />
+        </Animated.View>
+
         {/* Workouts Section */}
         <Animated.View
           entering={FadeInDown.delay(350).duration(400)}
@@ -649,6 +621,8 @@ export default function ProgramDetailScreen() {
                 onToggle={() => toggleWorkout(workout.id)}
                 onExercisePress={handleExercisePress}
                 onDeleteWorkout={handleDeleteWorkout}
+                onSetAsNext={handleSetWorkoutAsNext}
+                onEditWorkout={handleEditWorkout}
                 onDeleteExercise={handleDeleteExercise}
               />
             ))}

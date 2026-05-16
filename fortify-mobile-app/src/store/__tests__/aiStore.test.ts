@@ -82,4 +82,59 @@ describe('useAIStore workout templates', () => {
     const savedConversation = useAIStore.getState().conversation;
     expect(savedConversation?.messages[1]?.savedWorkoutTemplateId).toBe('template-123');
   });
+
+  it('does not attach malformed workout templates to assistant messages', async () => {
+    (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
+      type: 'answer',
+      requestId: 'req-2',
+      answer: {
+        text: 'Your consistency has improved recently.',
+        citations: [],
+        workoutTemplate: {
+          name: 'Not a real workout',
+        },
+      },
+    });
+
+    await useAIStore.getState().sendMessage(
+      'FORTIS_ANALYST',
+      "How consistent have I been recently and what's my current streak?"
+    );
+
+    const assistantMessage = useAIStore.getState().conversation?.messages[1];
+    expect(assistantMessage?.workoutTemplate).toBeUndefined();
+  });
+
+  it('does not render raw provider JSON errors in chat messages', async () => {
+    (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
+      type: 'error',
+      requestId: 'req-3',
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: `OpenAI API error: {
+          "error": {
+            "message": "This model's maximum context length is 128000 tokens.",
+            "type": "invalid_request_error",
+            "code": "context_length_exceeded"
+          }
+        }`,
+        retryable: true,
+      },
+    });
+
+    await useAIStore.getState().sendMessage(
+      'GENERAL_CHAT',
+      'Add incline smith press'
+    );
+
+    const assistantMessage = useAIStore.getState().conversation?.messages[1];
+    expect(assistantMessage?.content).toBe(
+      'That edit pulled in too much context. I trimmed it down, please try again.'
+    );
+    expect(assistantMessage?.content).not.toContain('OpenAI API error');
+    expect(assistantMessage?.content).not.toContain('context_length_exceeded');
+    expect(useAIStore.getState().error).toBe(
+      'That edit pulled in too much context. I trimmed it down, please try again.'
+    );
+  });
 });

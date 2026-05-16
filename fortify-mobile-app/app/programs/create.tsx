@@ -8,6 +8,7 @@ import {
   FlatList,
   ActivityIndicator,
   Modal,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -20,6 +21,8 @@ import {
   ChevronUpIcon,
   ChevronDownIcon,
   ExclamationTriangleIcon,
+  MagnifyingGlassIcon,
+  CheckIcon,
 } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights, Sizes } from '@/constants/Sizes';
@@ -35,7 +38,7 @@ import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
-import Animated, { Easing, LinearTransition, runOnJS } from 'react-native-reanimated';
+import Animated, { Easing, LinearTransition, SlideInDown, SlideOutDown, runOnJS } from 'react-native-reanimated';
 import { responsiveValue, scale } from '@/src/utils/responsive';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
@@ -92,8 +95,32 @@ export default function CreateProgramScreen() {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.03)',
     },
     modalOptionTitle: { color: colors.textPrimary },
+    modalOptionTitleSelected: { color: colors.accent },
     modalOptionSubtitle: { color: colors.textSecondary },
     modalEmptyText: { color: colors.textSecondary },
+    modalSearchContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    modalSearchInput: { color: colors.textPrimary },
+    modalChip: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
+    },
+    modalChipText: { color: colors.accent },
+    modalOptionSelected: {
+      backgroundColor: colors.accentOverlay,
+      borderColor: colors.accentBorder,
+    },
+    modalIconContainer: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+    },
+    modalIconContainerSelected: {
+      backgroundColor: colors.accentOverlayMedium,
+    },
+    modalActionBar: {
+      backgroundColor: colors.background,
+    },
     accentButtonBorder: { borderColor: colors.accentBorder },
     accentButtonBg: { backgroundColor: colors.accentOverlay },
     accentButtonBgPressed: { backgroundColor: colors.accentOverlayMedium },
@@ -141,13 +168,17 @@ export default function CreateProgramScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [isTemplatePickerClosing, setIsTemplatePickerClosing] = useState(false);
   const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
+  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [showEditIntentModal, setShowEditIntentModal] = useState(false);
   const [showCancelEditModal, setShowCancelEditModal] = useState(false);
   const [showHeaderDetails, setShowHeaderDetails] = useState(true);
   const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
+  const templatePickerCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasInitializedEdit = useRef(false);
   const initialSnapshotRef = useRef<{
     name: string;
@@ -162,6 +193,12 @@ export default function CreateProgramScreen() {
   useEffect(() => {
     loadProgress();
   }, [loadProgress]);
+
+  useEffect(() => () => {
+    if (templatePickerCloseTimer.current) {
+      clearTimeout(templatePickerCloseTimer.current);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isEditing || !editingProgram) return;
@@ -208,6 +245,23 @@ export default function CreateProgramScreen() {
       return sum + (template?.workouts[0]?.exercises.length || 0);
     }, 0),
     [templateMap, workouts]
+  );
+  const filteredTemplates = useMemo(() => {
+    const query = templateSearchQuery.trim().toLowerCase();
+    if (!query) return templates;
+    return templates.filter((template) => {
+      const exerciseNames = template.workouts[0]?.exercises
+        .map((exercise) => exercise.exerciseName)
+        .join(' ')
+        .toLowerCase() || '';
+      return template.name.toLowerCase().includes(query) || exerciseNames.includes(query);
+    });
+  }, [templateSearchQuery, templates]);
+  const selectedTemplates = useMemo(
+    () => selectedTemplateIds
+      .map((templateId) => templateMap.get(templateId))
+      .filter((template): template is NonNullable<typeof template> => !!template),
+    [selectedTemplateIds, templateMap]
   );
   const programExerciseIds = useMemo(() => {
     const ids = new Set<string>();
@@ -270,6 +324,23 @@ export default function CreateProgramScreen() {
     router.back();
   };
 
+  const closeTemplatePicker = useCallback(() => {
+    if (isTemplatePickerClosing) return;
+
+    setIsTemplatePickerClosing(true);
+    if (templatePickerCloseTimer.current) {
+      clearTimeout(templatePickerCloseTimer.current);
+    }
+    setShowTemplatePicker(false);
+    templatePickerCloseTimer.current = setTimeout(() => {
+      setIsTemplatePickerClosing(false);
+      setActiveWorkoutId(null);
+      setTemplateSearchQuery('');
+      setSelectedTemplateIds([]);
+      templatePickerCloseTimer.current = null;
+    }, 320);
+  }, [isTemplatePickerClosing]);
+
   const handleDiscardChanges = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowCancelEditModal(false);
@@ -293,7 +364,14 @@ export default function CreateProgramScreen() {
       setShowLimitModal(true);
       return;
     }
+    if (templatePickerCloseTimer.current) {
+      clearTimeout(templatePickerCloseTimer.current);
+      templatePickerCloseTimer.current = null;
+    }
     setActiveWorkoutId(null);
+    setTemplateSearchQuery('');
+    setSelectedTemplateIds([]);
+    setIsTemplatePickerClosing(false);
     setShowTemplatePicker(true);
   }, [workouts.length]);
 
@@ -323,36 +401,68 @@ export default function CreateProgramScreen() {
     });
   }, []);
 
-  const handleSelectTemplate = useCallback((templateId: string) => {
+  const handleTemplatePress = useCallback((templateId: string) => {
     const template = templateMap.get(templateId);
     if (!template) return;
 
-    setWorkouts((prev) => {
-      if (activeWorkoutId) {
-        return prev.map((workout) =>
-          workout.id === activeWorkoutId
-            ? {
-              ...workout,
-              templateId,
-              name: template.name,
-            }
-            : workout
-        );
+    if (activeWorkoutId) {
+      setWorkouts((prev) => prev.map((workout) =>
+        workout.id === activeWorkoutId
+          ? {
+            ...workout,
+            templateId,
+            name: template.name,
+          }
+          : workout
+      ));
+      closeTemplatePicker();
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedTemplateIds((prev) => {
+      if (prev.includes(templateId)) {
+        return prev.filter((id) => id !== templateId);
       }
+
+      if (workouts.length + prev.length >= MAX_WORKOUTS_PER_PROGRAM) {
+        setShowLimitModal(true);
+        return prev;
+      }
+
+      return [...prev, templateId];
+    });
+  }, [activeWorkoutId, closeTemplatePicker, templateMap, workouts.length]);
+
+  const handleRemoveSelectedTemplate = useCallback((templateId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedTemplateIds((prev) => prev.filter((id) => id !== templateId));
+  }, []);
+
+  const handleAddSelectedTemplates = useCallback(() => {
+    if (activeWorkoutId || selectedTemplateIds.length === 0) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setWorkouts((prev) => {
+      const remainingSlots = Math.max(0, MAX_WORKOUTS_PER_PROGRAM - prev.length);
+      const templatesToAdd = selectedTemplateIds
+        .slice(0, remainingSlots)
+        .map((templateId) => templateMap.get(templateId))
+        .filter((template): template is NonNullable<typeof template> => !!template);
+
+      if (templatesToAdd.length === 0) return prev;
 
       return [
         ...prev,
-        {
-          id: `workout-${Date.now()}`,
-          templateId,
+        ...templatesToAdd.map((template) => ({
+          id: `workout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          templateId: template.id,
           name: template.name,
-        },
+        })),
       ];
     });
-
-    setActiveWorkoutId(null);
-    setShowTemplatePicker(false);
-  }, [activeWorkoutId, templateMap]);
+    closeTemplatePicker();
+  }, [activeWorkoutId, closeTemplatePicker, selectedTemplateIds, templateMap]);
 
   const handleViewWorkoutDetails = useCallback((templateId?: string | null) => {
     if (!templateId || isNavigating.current) return;
@@ -442,7 +552,14 @@ export default function CreateProgramScreen() {
             onPress={() => handleViewWorkoutDetails(item.templateId)}
             onLongPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (templatePickerCloseTimer.current) {
+                clearTimeout(templatePickerCloseTimer.current);
+                templatePickerCloseTimer.current = null;
+              }
               setActiveWorkoutId(item.id);
+              setTemplateSearchQuery('');
+              setSelectedTemplateIds([]);
+              setIsTemplatePickerClosing(false);
               setShowTemplatePicker(true);
             }}
             delayLongPress={200}
@@ -690,61 +807,143 @@ export default function CreateProgramScreen() {
 
         <Modal
           transparent
-          visible={showTemplatePicker}
-          animationType="fade"
-          onRequestClose={() => {
-            setShowTemplatePicker(false);
-            setActiveWorkoutId(null);
-          }}
+          visible={showTemplatePicker || isTemplatePickerClosing}
+          animationType="none"
+          onRequestClose={closeTemplatePicker}
+          statusBarTranslucent
         >
           <View style={[styles.modalOverlay, themedStyles.modalOverlay]}>
-            <View style={[styles.modalCard, themedStyles.modalCard]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Select a workout template</Text>
-                <Pressable
-                  onPress={() => {
-                    setShowTemplatePicker(false);
-                    setActiveWorkoutId(null);
-                  }}
-                  style={({ pressed }) => [
-                    styles.modalCloseButton,
-                    themedStyles.modalCloseButton,
-                    pressed && styles.modalCloseButtonPressed,
-                  ]}
-                >
-                  <XMarkIcon size={18} color={colors.textSecondary} strokeWidth={2} />
-                </Pressable>
-              </View>
-              <FlatList
-                data={templates}
-                keyExtractor={(template) => template.id}
-                contentContainerStyle={styles.modalList}
-                showsVerticalScrollIndicator={false}
-                renderItem={({ item }) => (
+            {showTemplatePicker ? (
+              <Animated.View
+                entering={SlideInDown.duration(420).easing(Easing.out(Easing.cubic))}
+                exiting={SlideOutDown.duration(320).easing(Easing.in(Easing.cubic))}
+                style={[styles.modalCard, themedStyles.modalCard]}
+              >
+                <StainlessSteelPattern />
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalTitleBlock}>
+                    <Text style={[styles.modalTitle, themedStyles.modalTitle]}>Workouts</Text>
+                  </View>
                   <Pressable
-                    onPress={() => handleSelectTemplate(item.id)}
+                    onPress={closeTemplatePicker}
                     style={({ pressed }) => [
-                      styles.modalOption,
-                      themedStyles.modalOption,
-                      pressed && styles.modalOptionPressed,
+                      styles.modalCloseButton,
+                      pressed && styles.modalCloseButtonPressed,
                     ]}
                   >
-                    <View>
-                      <Text style={[styles.modalOptionTitle, themedStyles.modalOptionTitle]}>{item.name}</Text>
-                      <Text style={[styles.modalOptionSubtitle, themedStyles.modalOptionSubtitle]}>
-                        {item.workouts[0]?.exercises.length || 0} exercises
-                      </Text>
-                    </View>
-                    <PlusIcon size={16} color={colors.accent} strokeWidth={2} />
+                    <XMarkIcon size={24} color={colors.textSecondary} strokeWidth={2} />
                   </Pressable>
-                )}
-                ListEmptyComponent={
-                  <Text style={[styles.modalEmptyText, themedStyles.modalEmptyText]}>
-                    No templates available yet.
-                  </Text>
-                }
-              />
-            </View>
+                </View>
+
+                {!activeWorkoutId && selectedTemplates.length > 0 ? (
+                  <View style={styles.modalSelectedSection}>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.modalSelectedScrollContent}
+                    >
+                      {selectedTemplates.map((template) => (
+                        <View key={`selected-${template.id}`} style={[styles.modalChip, themedStyles.modalChip]}>
+                          <Text style={[styles.modalChipText, themedStyles.modalChipText]} numberOfLines={1}>
+                            {template.name}
+                          </Text>
+                          <Pressable
+                            onPress={() => handleRemoveSelectedTemplate(template.id)}
+                            hitSlop={8}
+                          >
+                            <XMarkIcon size={14} color={colors.textSecondary} strokeWidth={2} />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+
+                <View style={[styles.modalSearchContainer, themedStyles.modalSearchContainer]}>
+                  <MagnifyingGlassIcon size={18} color={colors.textSecondary} strokeWidth={2} />
+                  <TextInput
+                    style={[styles.modalSearchInput, themedStyles.modalSearchInput]}
+                    placeholder="Search workouts..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={templateSearchQuery}
+                    onChangeText={setTemplateSearchQuery}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                  />
+                  {templateSearchQuery.length > 0 ? (
+                    <Pressable onPress={() => setTemplateSearchQuery('')} hitSlop={8} style={styles.modalSearchActionIcon}>
+                      <XMarkIcon size={16} color={colors.textSecondary} strokeWidth={2} />
+                    </Pressable>
+                  ) : null}
+                </View>
+
+                <FlatList
+                  data={filteredTemplates}
+                  keyExtractor={(template) => template.id}
+                  contentContainerStyle={styles.modalList}
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => {
+                    const selected = selectedTemplateIds.includes(item.id);
+                    return (
+                      <Pressable
+                        onPress={() => handleTemplatePress(item.id)}
+                        style={({ pressed }) => [
+                          styles.modalOption,
+                          themedStyles.modalOption,
+                          selected && themedStyles.modalOptionSelected,
+                          pressed && styles.modalOptionPressed,
+                        ]}
+                      >
+                        <View style={styles.modalOptionCopy}>
+                          <Text
+                            style={[
+                              styles.modalOptionTitle,
+                              themedStyles.modalOptionTitle,
+                              selected && themedStyles.modalOptionTitleSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {item.name}
+                          </Text>
+                          <Text style={[styles.modalOptionSubtitle, themedStyles.modalOptionSubtitle]}>
+                            {item.workouts[0]?.exercises.length || 0} exercises
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.modalIconContainer,
+                            themedStyles.modalIconContainer,
+                            selected && themedStyles.modalIconContainerSelected,
+                          ]}
+                        >
+                          {selected ? (
+                            <CheckIcon size={18} color={colors.accent} strokeWidth={2} />
+                          ) : (
+                            <PlusIcon size={18} color={colors.textSecondary} strokeWidth={2} />
+                          )}
+                        </View>
+                      </Pressable>
+                    );
+                  }}
+                  ListEmptyComponent={
+                    <Text style={[styles.modalEmptyText, themedStyles.modalEmptyText]}>
+                      No templates available yet.
+                    </Text>
+                  }
+                />
+
+                {!activeWorkoutId && selectedTemplateIds.length > 0 ? (
+                  <View style={[styles.modalActionBar, themedStyles.modalActionBar]}>
+                    <GlassButton style={styles.modalAddButton} onPress={handleAddSelectedTemplates}>
+                      <Text style={styles.modalAddButtonText}>
+                        Add {selectedTemplateIds.length} Workout{selectedTemplateIds.length > 1 ? 's' : ''}
+                      </Text>
+                    </GlassButton>
+                  </View>
+                ) : null}
+              </Animated.View>
+            ) : null}
           </View>
         </Modal>
 
@@ -1028,16 +1227,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing['6xl'],
+    width: '100%',
   },
   emptyStateText: {
     ...Typography.body,
     color: Colors.textSecondary,
     marginBottom: Spacing.xs,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   emptyStateSubtext: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
     opacity: 0.7,
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   workoutCard: {
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
@@ -1135,46 +1339,110 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: Colors.overlayHeavy,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing['2xl'],
+    justifyContent: 'flex-end',
   },
   modalCard: {
     backgroundColor: Colors.background,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    maxHeight: '70%',
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    height: '85%',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing['2xl'],
+    paddingBottom: Spacing.lg,
+    gap: Spacing.md,
+    zIndex: 1,
+  },
+  modalTitleBlock: {
+    flex: 1,
   },
   modalTitle: {
-    ...Typography.h4,
+    fontSize: FontSizes['2xl'],
+    fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
   },
   modalCloseButton: {
-    width: 32,
-    height: 32,
-    borderRadius: BorderRadius.md,
+    padding: Spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   modalCloseButtonPressed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    opacity: 0.6,
+  },
+  modalSelectedSection: {
+    paddingBottom: Spacing.md,
+    zIndex: 1,
+  },
+  modalSelectedScrollContent: {
+    paddingHorizontal: Spacing['2xl'],
+    gap: Spacing.sm,
+  },
+  modalChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    maxWidth: 180,
+  },
+  modalChipText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  modalSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginHorizontal: Spacing['2xl'],
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    height: Sizes.minTouchTarget,
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    zIndex: 1,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 14,
+    letterSpacing: 0.5,
+    color: Colors.textPrimary,
+    height: Sizes.minTouchTarget,
+    paddingVertical: 0,
+    textAlignVertical: 'center',
+    includeFontPadding: false,
+  },
+  modalSearchActionIcon: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   modalList: {
-    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing['2xl'],
+    paddingBottom: 120,
   },
   modalOption: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.md,
+    paddingVertical: Spacing.lg,
     paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
@@ -1187,17 +1455,48 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textPrimary,
     fontWeight: '600',
+    flexShrink: 1,
   },
   modalOptionSubtitle: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
     marginTop: 2,
   },
+  modalOptionCopy: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  modalIconContainer: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
   modalEmptyText: {
     ...Typography.bodySmall,
     color: Colors.textSecondary,
     textAlign: 'center',
     paddingVertical: Spacing.lg,
+  },
+  modalActionBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: Spacing['2xl'],
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing['3xl'],
+    zIndex: 2,
+  },
+  modalAddButton: {
+    height: 48,
+    borderRadius: BorderRadius.xl,
+  },
+  modalAddButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    color: '#fff',
   },
   bottomActions: {
     paddingTop: Spacing.lg,

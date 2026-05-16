@@ -30,6 +30,7 @@ export function ChatWorkoutTemplateCard({
   const { colors, isDark } = useTheme();
   const isBusy = isAdding || isStarting;
   const isStartBusy = isBusy || isStartDisabled;
+  const exercises = Array.isArray(template.exercises) ? template.exercises : [];
 
   const themedStyles = {
     card: {
@@ -55,7 +56,7 @@ export function ChatWorkoutTemplateCard({
 
   const metaParts = [
     template.focus,
-    `${template.exercises.length} exercises`,
+    `${exercises.length} exercises`,
   ].filter(Boolean);
 
   return (

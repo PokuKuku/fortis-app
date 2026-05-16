@@ -144,7 +144,7 @@ export default function OnboardingThankYouScreen() {
 
   return (
     <OnboardingScreen
-      step={15}
+      step={16}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       subtitle={undefined}

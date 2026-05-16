@@ -31,11 +31,27 @@ describe('workoutProgression', () => {
     ]);
   });
 
-  it('does not suggest progression when one set misses the top of the range', () => {
-    expect(buildRepRangeProgressionSuggestion('8-12', 2, [
+  it('only suggests the first set when the top of the range was not reached', () => {
+    const suggestion = buildRepRangeProgressionSuggestion('8-12', 2, [
       { weight: 100, reps: 12, weightUnit: 'lbs', setType: 'normal' },
       { weight: 100, reps: 11, weightUnit: 'lbs', setType: 'normal' },
-    ])).toBeNull();
+    ]);
+
+    expect(suggestion?.sets).toEqual([
+      { weight: 100, reps: 12, weightUnit: 'lbs', setType: 'normal' },
+    ]);
+  });
+
+  it('adds one rep only to the first set when the first set is still below the top of the range', () => {
+    const suggestion = buildRepRangeProgressionSuggestion('8-12', 3, [
+      { weight: 100, reps: 10, weightUnit: 'lbs', setType: 'normal' },
+      { weight: 100, reps: 9, weightUnit: 'lbs', setType: 'normal' },
+      { weight: 100, reps: 8, weightUnit: 'lbs', setType: 'normal' },
+    ]);
+
+    expect(suggestion?.sets).toEqual([
+      { weight: 100, reps: 11, weightUnit: 'lbs', setType: 'normal' },
+    ]);
   });
 
   it('uses kg increments when previous sets were logged in kg', () => {
@@ -49,5 +65,42 @@ describe('workoutProgression', () => {
       weightUnit: 'kg',
       setType: 'normal',
     });
+  });
+
+  it('suggests progressions for matching non-normal set types', () => {
+    const suggestion = buildRepRangeProgressionSuggestion('8-12', [
+      { weight: null, reps: null, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: null, reps: null, weightUnit: 'lbs', setType: 'normal' },
+      { weight: null, reps: null, weightUnit: 'lbs', setType: 'dropset' },
+    ], [
+      { weight: 50, reps: 12, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: 100, reps: 12, weightUnit: 'lbs', setType: 'normal' },
+      { weight: 80, reps: 12, weightUnit: 'lbs', setType: 'dropset' },
+    ]);
+
+    expect(suggestion?.sets).toEqual([
+      { weight: 55, reps: 8, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: 105, reps: 8, weightUnit: 'lbs', setType: 'normal' },
+      { weight: 85, reps: 8, weightUnit: 'lbs', setType: 'dropset' },
+    ]);
+  });
+
+  it('only suggests the first set of each type when that type has not reached the top of the range', () => {
+    const suggestion = buildRepRangeProgressionSuggestion('8-12', [
+      { weight: null, reps: null, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: null, reps: null, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: null, reps: null, weightUnit: 'lbs', setType: 'failure' },
+      { weight: null, reps: null, weightUnit: 'lbs', setType: 'failure' },
+    ], [
+      { weight: 50, reps: 10, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: 55, reps: 9, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: 75, reps: 11, weightUnit: 'lbs', setType: 'failure' },
+      { weight: 70, reps: 10, weightUnit: 'lbs', setType: 'failure' },
+    ]);
+
+    expect(suggestion?.sets).toEqual([
+      { weight: 50, reps: 11, weightUnit: 'lbs', setType: 'warmup' },
+      { weight: 75, reps: 12, weightUnit: 'lbs', setType: 'failure' },
+    ]);
   });
 });

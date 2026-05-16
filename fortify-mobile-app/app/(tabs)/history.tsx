@@ -17,7 +17,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
-import { AnimatedLogo } from '../../components/AnimatedLogo';
+import { AppHeaderBrand } from '../../src/components/navigation/AppHeaderBrand';
 import { getWorkoutSummary, useWorkoutStore } from '../../src/store/workoutStore';
 import { getPendingSyncSessions, processPendingQueue } from '../../src/services/workoutHistoryService';
 import { useWorkoutHistorySource } from '../../src/hooks/useWorkoutHistorySource';
@@ -715,9 +715,7 @@ export default function HistoryScreen() {
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {isLoading && !hasRemoteSessions && !hasPendingSessions ? (
           <View style={styles.loadingContainer}>
-            <View style={styles.header}>
-              <AnimatedLogo />
-            </View>
+            <AppHeaderBrand style={styles.header} />
             <View style={styles.titleContainer}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
             </View>
@@ -740,9 +738,7 @@ export default function HistoryScreen() {
             )}
             ListHeaderComponent={
               <>
-                <View style={styles.header}>
-                  <AnimatedLogo />
-                </View>
+                <AppHeaderBrand style={styles.header} />
                 <View style={styles.titleContainer}>
                   <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
                 </View>
