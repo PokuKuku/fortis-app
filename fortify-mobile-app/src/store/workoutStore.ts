@@ -28,6 +28,7 @@ import {
   BODY_TYPE_KEY,
 } from '../constants/storageKeys';
 import { syncWorkoutSession, resyncMissingSets } from '../services/workoutHistoryService';
+import { scheduleWorkoutCompletionNotification } from '../services/workoutCompletionNotifications';
 import {
   syncStickyNote,
   deleteStickyNoteFromCloud,
@@ -917,6 +918,8 @@ export const useWorkoutStore = create<WorkoutState>()(
           console.warn('Failed to update template last performed:', error);
         }
       }
+
+      void scheduleWorkoutCompletionNotification(completedSession);
 
       // Sync to Supabase (async, non-blocking)
       // If offline or not authenticated, it will be queued for later
@@ -3045,6 +3048,8 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to persist completed sessions:', error);
       }
+
+      void scheduleWorkoutCompletionNotification(completedSession);
 
       // Sync to Supabase (async, non-blocking)
       get().markSessionsSyncing([completedSession.localId]);

@@ -12,69 +12,27 @@ import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
 import {
-  PROGRESS_BLOCKER_LABELS,
-  getProgressBlockerInsightCopy,
-} from '@/src/utils/onboardingConversion';
-import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
 
-const OUTCOME_TILE_COPY: Record<string, OnboardingValueBenefitTile> = {
-  build_visible_muscle: { emoji: '💪', value: 'See real change', label: 'Build the body you want' },
-  strength_progress: { emoji: '🏋️', value: 'Feel stronger', label: 'Lift with more confidence' },
-  lose_body_fat: { emoji: '🔥', value: 'Feel leaner', label: 'Train toward a body you like' },
-  improve_conditioning: { emoji: '⚡', value: 'Last longer', label: 'Feel less winded day to day' },
-  move_better: { emoji: '🤸', value: 'Move freely', label: 'Feel better in your body' },
-  training_consistency: { emoji: '📅', value: 'Show up more', label: 'Make fitness feel automatic' },
-  feel_strong_capable: { emoji: '🦾', value: 'Feel capable', label: 'Trust what your body can do' },
-  body_confidence: { emoji: '✨', value: 'Feel proud', label: 'Like what you see building' },
-  daily_energy: { emoji: '🔋', value: 'Have more energy', label: 'Feel better outside the gym' },
-  stay_consistent_long_term: { emoji: '🎯', value: 'Stay on track', label: 'Follow through for yourself' },
-  overall_health: { emoji: '🌿', value: 'Feel healthier', label: 'Build strength that lasts' },
-};
-
-const MOTIVATION_TILE_COPY: Record<string, OnboardingValueBenefitTile> = {
-  self_confidence: { emoji: '😎', value: 'Walk taller', label: 'Carry confidence with you' },
-  longevity: { emoji: '🌱', value: 'Stay independent', label: 'Build fitness you can keep' },
-  daily_energy: { emoji: '⚡', value: 'More daily energy', label: 'Feel ready for your day' },
-  strength_capability: { emoji: '💪', value: 'Feel stronger', label: 'Handle life with more ease' },
-  body_confidence: { emoji: '✨', value: 'Like your body', label: 'Feel your work paying off' },
-  discipline: { emoji: '🎯', value: 'Follow through', label: 'Prove you can stay with it' },
-};
-
-const BLOCKER_TILE_COPY: Record<string, OnboardingValueBenefitTile> = {
-  no_plan: { emoji: '🧭', value: 'Know what to do', label: 'Walk in with confidence' },
-  unclear_progress: { emoji: '📊', value: 'See it working', label: 'Know your effort is adding up' },
-  plateaus: { emoji: '🚀', value: 'Get unstuck', label: 'Keep progressing when it slows' },
-  time: { emoji: '⏱️', value: 'Save time', label: 'Train without wasting sessions' },
-  accountability: { emoji: '🔔', value: 'Keep momentum', label: 'Stay connected to the habit' },
-};
-
-const DEFAULT_BENEFIT_TILES: OnboardingValueBenefitTile[] = [
-  { emoji: '🧠', value: 'Less guessing', label: 'Know your next move' },
-  { emoji: '📋', value: 'Feel prepared', label: 'Start each week with direction' },
-  { emoji: '⚙️', value: 'Keep adapting', label: 'Change course before you stall' },
-  { emoji: '📈', value: 'See momentum', label: 'Know your work is paying off' },
-];
-
-const FEATURE_CARD_EMOJIS = ['🧠', '🏋️', '📈'] as const;
-const blockerBenefitCopy = (state: OnboardingState | null, fallback: string) => {
-  switch (state?.progress_blocker) {
-    case 'no_plan':
-      return 'You will know exactly what to do next instead of piecing workouts together on the spot.';
-    case 'unclear_progress':
-      return 'You will see whether your effort is actually turning into progress, not just more logged workouts.';
-    case 'plateaus':
-      return 'You will get clearer next steps when the same weights stop moving, so stalls feel solvable.';
-    case 'time':
-      return 'You will get sessions that respect your time, so training fits your week instead of taking it over.';
-    case 'accountability':
-      return 'You will have a system that keeps the habit visible, so it is easier to come back and keep momentum.';
-    default:
-      return fallback;
-  }
-};
+const RAIL_STEPS = [
+  {
+    label: 'Track',
+    body: 'Log reps, weight, and sets so your progression is visible.',
+    emoji: '📝',
+  },
+  {
+    label: 'AI trainer',
+    body: 'Your personal AI trainer pulls relevant insights on your lifting trends and offers adjustments.',
+    emoji: '🤖',
+  },
+  {
+    label: 'Progress',
+    body: 'Use those adjustments to know what to push, repeat, or recover from next.',
+    emoji: '🎯',
+  },
+] as const;
 
 export default function OnboardingSixMonthPreviewScreen() {
   useOnboardingFunnelScreen('Q9. Six Month Preview');
@@ -104,22 +62,27 @@ export default function OnboardingSixMonthPreviewScreen() {
   }, []);
 
   const firstName = useMemo(() => state?.full_name?.trim().split(/\s+/)[0] ?? null, [state?.full_name]);
-  const primaryOutcome = state?.fitness_outcomes?.[0] ?? state?.fitness_goal ?? 'training_consistency';
+  const primaryOutcome = state?.fitness_outcomes?.[0] ?? null;
   const primaryChallenge = state?.biggest_challenges?.[0] ?? state?.biggest_challenge ?? 'consistency';
-  const primaryMotivation = state?.fitness_motivations?.[0] ?? state?.fitness_motivation ?? null;
-  const blockerCopy = useMemo(() => getProgressBlockerInsightCopy(state), [state]);
   const fullTitle = firstName
-    ? `${firstName}, here's where we will take you...`
-    : "Here's where we will take you...";
+    ? `${firstName}, here's where you will be in just over 2 months...`
+    : "Here's where you will be in just over 2 months...";
   const benefitTiles = useMemo<OnboardingValueBenefitTile[]>(() => {
-    const tiles = [
-      OUTCOME_TILE_COPY[primaryOutcome],
-      primaryMotivation ? MOTIVATION_TILE_COPY[primaryMotivation] : null,
-      state?.progress_blocker ? BLOCKER_TILE_COPY[state.progress_blocker] : null,
-    ].filter((tile): tile is OnboardingValueBenefitTile => Boolean(tile));
-
-    return [...tiles, ...DEFAULT_BENEFIT_TILES].slice(0, 4);
-  }, [primaryMotivation, primaryOutcome, state?.progress_blocker]);
+    return [
+      {
+        emoji: '💪',
+        value: '31%-33%+ increase in strength',
+      },
+      {
+        emoji: '📈',
+        value: '10%-11%+ increase in muscle size',
+      },
+      {
+        emoji: '⚡',
+        value: 'Enhanced metabolic health',
+      },
+    ];
+  }, []);
 
   useEffect(() => {
     if (typewriterTimeoutRef.current) {
@@ -190,7 +153,10 @@ export default function OnboardingSixMonthPreviewScreen() {
       step={17}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title={typedTitle || ' '}
+      titleFontSize={22}
       titleNumberOfLines={3}
+      titleAdjustsFontSizeToFit
+      titleMinimumFontScale={0.76}
       titleMinHeight={72}
       contentGap={Spacing.xs}
       onBack={() => router.back()}
@@ -210,68 +176,52 @@ export default function OnboardingSixMonthPreviewScreen() {
             How we’ll get you there:
           </Text>
 
-          <Animated.View
+          <View
             style={[
-              styles.featureCard,
+              styles.rail,
               { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder },
-              {
-                opacity: featureCardAnimations[0].opacity,
-                transform: [{ translateY: featureCardAnimations[0].translateY }],
-              },
             ]}
           >
-            <View style={styles.featureCopy}>
-              <View style={styles.featureTitleRow}>
-                <Text style={styles.featureEmoji}>{FEATURE_CARD_EMOJIS[0]}</Text>
-                <Text style={[styles.featureTitle, { color: colors.textPrimary }]}>Start with a plan that fits you.</Text>
-              </View>
-              <Text style={[styles.featureBody, { color: colors.textSecondary }]}>
-                Your goals, schedule, focus areas, and training setup turn into a week you can actually follow.
-              </Text>
-            </View>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.featureCard,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder },
-              {
-                opacity: featureCardAnimations[1].opacity,
-                transform: [{ translateY: featureCardAnimations[1].translateY }],
-              },
-            ]}
-          >
-            <View style={styles.featureCopy}>
-              <View style={styles.featureTitleRow}>
-                <Text style={styles.featureEmoji}>{FEATURE_CARD_EMOJIS[1]}</Text>
-                <Text style={[styles.featureTitle, { color: colors.textPrimary }]}>Feel confident every session.</Text>
-              </View>
-              <Text style={[styles.featureBody, { color: colors.textSecondary }]}>
-                You will know what you did last time and what to do next, so each workout feels easier to start.
-              </Text>
-            </View>
-          </Animated.View>
-
-          <Animated.View
-            style={[
-              styles.featureCard,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder },
-              {
-                opacity: featureCardAnimations[2].opacity,
-                transform: [{ translateY: featureCardAnimations[2].translateY }],
-              },
-            ]}
-          >
-            <View style={styles.featureCopy}>
-              <View style={styles.featureTitleRow}>
-                <Text style={styles.featureEmoji}>{FEATURE_CARD_EMOJIS[2]}</Text>
-                <Text style={[styles.featureTitle, { color: colors.textPrimary }]}>Keep moving when progress slows.</Text>
-              </View>
-              <Text style={[styles.featureBody, { color: colors.textSecondary }]}>
-                {blockerBenefitCopy(state, `${blockerCopy.feature} That keeps the plan focused on ${PROGRESS_BLOCKER_LABELS[state?.progress_blocker ?? 'accountability'] ?? primaryChallenge}.`)}
-              </Text>
-            </View>
-          </Animated.View>
+            {RAIL_STEPS.map(({ label, body, emoji }, index) => (
+              <Animated.View
+                key={label}
+                style={[
+                  styles.railStep,
+                  index < RAIL_STEPS.length - 1 && {
+                    borderBottomColor: colors.glassBorder,
+                    borderBottomWidth: 1,
+                  },
+                  {
+                    opacity: featureCardAnimations[index].opacity,
+                    transform: [{ translateY: featureCardAnimations[index].translateY }],
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.railIcon,
+                    { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
+                  ]}
+                >
+                  <Text style={styles.railEmoji}>{emoji}</Text>
+                </View>
+                <View style={styles.railCopy}>
+                  <Text style={[styles.railTitle, { color: colors.textPrimary }]}>
+                    {label}
+                  </Text>
+                  <Text style={[styles.railBody, { color: colors.textSecondary }]}>
+                    {body}
+                  </Text>
+                </View>
+              </Animated.View>
+            ))}
+          </View>
+          <Text style={[styles.citationHeader, { color: colors.textSecondary }]}>
+            The science behind the results
+          </Text>
+          <Text style={[styles.citationText, { color: colors.textTertiary }]}>
+            Chaves, T. S., Scarpelli, M. C., Bergamasco, J. G. A., da Silva, D. G., Medalha Junior, R. A., Dias, N. F., Bittencourt, D., Carello Filho, P. C., Angleri, V., Nóbrega, S. R., Roberts, M. D., Ugrinowitsch, C., & Libardi, C. A. (2024). Effects of resistance training overload progression protocols on strength and muscle mass. International Journal of Sports Medicine, 45, 504–510. https://doi.org/10.1055/a-2256-5857
+          </Text>
         </View>
 
       </View>
@@ -292,37 +242,60 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     fontWeight: '800',
   },
-  featureCard: {
-    minHeight: 84,
+  rail: {
     borderWidth: 1,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
-    gap: Spacing.xs,
+    overflow: 'hidden',
   },
-  featureEmoji: {
-    fontSize: 20,
-    lineHeight: 24,
-    textAlign: 'center',
-  },
-  featureCopy: {
-    width: '100%',
-    gap: 3,
-  },
-  featureTitleRow: {
+  railStep: {
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    gap: Spacing.sm,
   },
-  featureTitle: {
+  railIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  railEmoji: {
+    fontSize: 18,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  railCopy: {
     flex: 1,
-    fontSize: 16,
-    lineHeight: 20,
+    gap: 2,
+  },
+  railTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 13,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  railBody: {
+    fontSize: 13,
+    lineHeight: 17,
     fontWeight: '800',
   },
-  featureBody: {
+  citationHeader: {
+    marginTop: Spacing.xs,
     fontSize: 14,
-    lineHeight: 19,
-    fontWeight: '600',
+    lineHeight: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  citationText: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+    paddingHorizontal: Spacing.sm,
   },
   floatingButton: {
     height: 54,

@@ -168,6 +168,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               id: userId,
               email: session.user.email || '',
               preferred_units: 'imperial',
+              accent_color: 'midnight',
               onboarding_completed: false,
             })
             .select()
@@ -690,13 +691,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update(updates)
-        .eq('id', user.id);
+        .eq('id', user.id)
+        .select('id')
+        .maybeSingle();
 
       if (error) {
         return { error: new Error(error.message) };
+      }
+
+      if (!data) {
+        const { error: upsertError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: user.id,
+            email: user.email ?? '',
+            ...updates,
+            preferred_units: updates.preferred_units ?? 'imperial',
+            accent_color: updates.accent_color ?? 'midnight',
+          }, { onConflict: 'id' });
+
+        if (upsertError) {
+          return { error: new Error(upsertError.message) };
+        }
       }
 
       // Refresh profile after update
@@ -705,7 +724,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (err) {
       return { error: err as Error };
     }
-  }, [user?.id, refreshProfile]);
+  }, [refreshProfile, user?.email, user?.id]);
 
   // Upload avatar
   const uploadAvatar = useCallback(async (

@@ -6,7 +6,6 @@ import { BorderRadius, Spacing } from '@/constants/Sizes';
 
 export type OnboardingValueBenefitTile = {
   value: string;
-  label: string;
   emoji: string;
 };
 
@@ -18,10 +17,10 @@ export function OnboardingValueMotionPanel({
   benefitTiles,
 }: ValueMotionPanelProps) {
   const { colors, isDark } = useTheme();
-  const tileAnimations = useRef(
+  const rowAnimations = useRef(
     Array.from({ length: 4 }, () => ({
       opacity: new Animated.Value(0),
-      translateY: new Animated.Value(-14),
+      translateY: new Animated.Value(-12),
     }))
   ).current;
 
@@ -33,29 +32,29 @@ export function OnboardingValueMotionPanel({
   );
 
   useEffect(() => {
-    tileAnimations.forEach(({ opacity, translateY }) => {
+    rowAnimations.forEach(({ opacity, translateY }) => {
       opacity.setValue(0);
-      translateY.setValue(-14);
+      translateY.setValue(-12);
     });
 
     Animated.stagger(
-      170,
+      120,
       benefitTiles.slice(0, 4).map((_, index) => Animated.parallel([
-        Animated.timing(tileAnimations[index].opacity, {
+        Animated.timing(rowAnimations[index].opacity, {
           toValue: 1,
-          duration: 520,
+          duration: 360,
           useNativeDriver: true,
         }),
-        Animated.spring(tileAnimations[index].translateY, {
+        Animated.spring(rowAnimations[index].translateY, {
           toValue: 0,
           damping: 18,
-          stiffness: 95,
+          stiffness: 120,
           mass: 0.8,
           useNativeDriver: true,
         }),
       ]))
     ).start();
-  }, [benefitTiles, tileAnimations]);
+  }, [benefitTiles, rowAnimations]);
 
   return (
     <LinearGradient
@@ -68,7 +67,7 @@ export function OnboardingValueMotionPanel({
         pointerEvents="none"
         style={[
           styles.accentGlow,
-          { backgroundColor: colors.accent, opacity: isDark ? 0.2 : 0.1 },
+          { backgroundColor: colors.accent, opacity: isDark ? 0.18 : 0.09 },
         ]}
       />
       <View
@@ -79,43 +78,43 @@ export function OnboardingValueMotionPanel({
         ]}
       />
 
-      <View style={styles.benefitGrid}>
-        {benefitTiles.slice(0, 4).map((tile, index) => (
-          <Animated.View
-            key={`${tile.value}-${tile.label}`}
-            style={[
-              styles.benefitTile,
-              { backgroundColor: colors.background, borderColor: colors.glassBorder },
-              {
-                opacity: tileAnimations[index].opacity,
-                transform: [{ translateY: tileAnimations[index].translateY }],
-              },
-            ]}
-          >
-            <View style={styles.tileEmojiWrap}>
-              <Text style={styles.tileEmoji}>{tile.emoji}</Text>
-            </View>
-            <Text style={[styles.tileNumber, { color: colors.textTertiary }]}>
-              {String(index + 1).padStart(2, '0')}
-            </Text>
-            <Text
-              style={[styles.benefitValue, { color: colors.textPrimary }]}
-              numberOfLines={2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.74}
+      <View style={styles.benefitList}>
+        {benefitTiles.slice(0, 4).map((tile, index) => {
+          return (
+            <Animated.View
+              key={`${tile.value}-${index}`}
+              style={[
+                styles.benefitRow,
+                { backgroundColor: colors.background, borderColor: colors.glassBorder },
+                {
+                  opacity: rowAnimations[index].opacity,
+                  transform: [{ translateY: rowAnimations[index].translateY }],
+                },
+              ]}
             >
-              {tile.value}
-            </Text>
-            <Text
-              style={[styles.benefitLabel, { color: colors.textSecondary }]}
-              numberOfLines={2}
-              adjustsFontSizeToFit
-              minimumFontScale={0.78}
-            >
-              {tile.label}
-            </Text>
-          </Animated.View>
-        ))}
+              <View
+                style={[
+                  styles.emojiBadge,
+                  { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
+                ]}
+              >
+                <Text style={styles.emojiText}>
+                  {tile.emoji}
+                </Text>
+              </View>
+              <View style={styles.benefitCopy}>
+                <Text
+                  style={[styles.benefitValue, { color: colors.textPrimary }]}
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.8}
+                >
+                  {tile.value}
+                </Text>
+              </View>
+            </Animated.View>
+          );
+        })}
       </View>
     </LinearGradient>
   );
@@ -126,7 +125,8 @@ const styles = StyleSheet.create({
     width: '100%',
     borderWidth: 1,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.sm,
+    padding: Spacing.md,
+    gap: Spacing.md,
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOpacity: 0.16,
@@ -136,65 +136,52 @@ const styles = StyleSheet.create({
   },
   accentGlow: {
     position: 'absolute',
-    top: -82,
-    right: -68,
-    width: 170,
-    height: 170,
-    borderRadius: 85,
+    top: -88,
+    right: -72,
+    width: 176,
+    height: 176,
+    borderRadius: 88,
   },
   diagonalBeam: {
     position: 'absolute',
-    top: -48,
-    left: 130,
+    top: -52,
+    left: 132,
     width: 88,
     height: 430,
     transform: [{ rotate: '16deg' }],
   },
-  benefitGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  benefitList: {
     gap: Spacing.sm,
   },
-  benefitTile: {
-    width: '48%',
-    aspectRatio: 1,
+  benefitRow: {
+    minHeight: 62,
     borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    justifyContent: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: Spacing.sm,
-    gap: 6,
+    gap: Spacing.sm,
     overflow: 'hidden',
   },
-  tileEmojiWrap: {
-    position: 'absolute',
-    top: Spacing.sm,
-    left: Spacing.sm,
+  emojiBadge: {
     width: 38,
     height: 38,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileEmoji: {
-    fontSize: 24,
+  emojiText: {
+    fontSize: 18,
+    lineHeight: 22,
     textAlign: 'center',
   },
-  tileNumber: {
-    position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: 10,
-    letterSpacing: 1,
+  benefitCopy: {
+    flex: 1,
   },
   benefitValue: {
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: 14,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  benefitLabel: {
-    fontSize: 15,
-    lineHeight: 18,
+    fontSize: 17,
+    lineHeight: 21,
     fontWeight: '800',
   },
 });

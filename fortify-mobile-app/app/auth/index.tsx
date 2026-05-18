@@ -28,6 +28,7 @@ import {
   buildOnboardingProgramSpec,
   savePendingOnboardingProgramSpec,
 } from '@/src/utils/onboardingProgram';
+import { clearInAppTourState } from '@/src/services/inAppTourService';
 
 const ONBOARDING_STATE_LOAD_TIMEOUT_MS = 4_000;
 const PROFILE_FINALIZATION_TIMEOUT_MS = 8_000;
@@ -200,7 +201,7 @@ export default function AuthWelcomeScreen() {
         if (state?.workout_consistency && !profileSnapshot?.workout_consistency) {
           updates.workout_consistency = state.workout_consistency;
         }
-        if (state?.workout_schedule_days?.length && !profileSnapshot?.workout_schedule_days?.length) {
+        if (Array.isArray(state?.workout_schedule_days) && !profileSnapshot?.workout_schedule_days?.length) {
           updates.workout_schedule_days = state.workout_schedule_days;
         }
 
@@ -221,9 +222,9 @@ export default function AuthWelcomeScreen() {
         }
 
         await withTimeout(
-          clearOnboardingState(),
+          clearInAppTourState().then(() => clearOnboardingState()),
           ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
-          'Clearing onboarding state',
+          'Clearing onboarding and tour state',
         );
 
         if (isMountedRef.current && isFocusedRef.current) {

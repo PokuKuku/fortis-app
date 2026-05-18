@@ -13,7 +13,7 @@ import {
 
 const INTRO_TITLE = 'Now help Fortify get to know you better!';
 const COPY_TITLE = 'Custom program setup';
-const COPY_SUBTITLE = "Let's shape Fortify and your new program around your preferences!";
+const COPY_SUBTITLE = "Let's get you started with a program! You can change it or make your own later.";
 const TITLE_TYPEWRITER_START_DELAY_MS = 80;
 const TITLE_TYPEWRITER_INTERVAL_MS = 24;
 

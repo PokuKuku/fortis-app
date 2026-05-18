@@ -35,6 +35,7 @@ CREATE TABLE profiles (
 
   -- User preferences
   preferred_units TEXT DEFAULT 'imperial' CHECK (preferred_units IN ('imperial', 'metric')),
+  accent_color TEXT DEFAULT 'midnight',
   theme TEXT DEFAULT 'dark' CHECK (theme IN ('light', 'dark')),
 
   -- Onboarding status

@@ -39,6 +39,7 @@ import {
   trackOnboardingFinished,
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
+import { clearInAppTourState } from '@/src/services/inAppTourService';
 
 const LOADING_DURATION_MS = 13000;
 const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
@@ -837,6 +838,9 @@ export default function OnboardingCompleteScreen() {
       if (state?.lifting_experience && !profile?.lifting_experience) {
         updates.lifting_experience = state.lifting_experience;
       }
+      if (typeof state?.workouts_per_week === 'number' && shouldSetNumber(profile?.workouts_per_week)) {
+        updates.workouts_per_week = state.workouts_per_week;
+      }
       if (state?.tried_other_apps && !profile?.tried_other_apps) {
         updates.tried_other_apps = state.tried_other_apps;
       }
@@ -853,7 +857,7 @@ export default function OnboardingCompleteScreen() {
       if (state?.workout_consistency && !profile?.workout_consistency) {
         updates.workout_consistency = state.workout_consistency;
       }
-      if (state?.workout_schedule_days?.length && !profile?.workout_schedule_days?.length) {
+      if (Array.isArray(state?.workout_schedule_days) && !profile?.workout_schedule_days?.length) {
         updates.workout_schedule_days = state.workout_schedule_days;
       }
 
@@ -892,6 +896,7 @@ export default function OnboardingCompleteScreen() {
       }
 
       try {
+        await clearInAppTourState();
         await clearOnboardingState();
       } catch (clearError) {
         console.warn('[Onboarding] Failed to clear local onboarding state:', clearError);

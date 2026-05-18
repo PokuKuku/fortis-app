@@ -90,7 +90,7 @@ export default function OnboardingNotificationsScreen() {
     >
       <View style={styles.content}>
         <Text allowFontScaling={false} style={[styles.titleText, { color: colors.textPrimary }]}>
-          Allow notifications{'\n'}to reach your goals.
+          Allow notifications{'\n'}for workout reminders.
         </Text>
 
         <GlassCard
@@ -133,7 +133,7 @@ export default function OnboardingNotificationsScreen() {
           </View>
         </View>
         <Text allowFontScaling={false} style={[styles.caption, { color: colors.textPrimary }]}>
-          Notifications help Fortify keep you on track.
+          Fortify will remind you when it is time to train.
         </Text>
       </View>
     </OnboardingScreen>

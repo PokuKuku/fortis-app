@@ -231,6 +231,8 @@ export function ProfileHeader() {
 
   const avatarSource: ImageSourcePropType = localAvatarUri
     ? { uri: localAvatarUri }
+    : profile?.avatar_url
+      ? { uri: profile.avatar_url }
     : PROFILE_AVATAR_SOURCE;
 
   const handleShareActivity = () => {

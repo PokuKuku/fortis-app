@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
-import { parseISO } from 'date-fns';
 import type { Exercise } from '@/src/types/exercise';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
@@ -20,21 +19,24 @@ import {
 import {
   buildWeeklyRecap,
   getDueWeeklyRecapWeekStart,
-  SCHEDULED_WORKOUT_REMINDER_KIND,
   WEEKLY_RECAP_KIND,
   type WeeklyRecap,
 } from '@/src/utils/workoutRetention';
+import { getRetentionNotificationIntent } from '@/src/utils/retentionNotificationResponse';
 import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
 
 export function WorkoutRetentionCoordinator() {
   const { user, profile } = useAuth();
-  const { scheduleDays, scheduleHistory } = useWorkoutSchedule();
-  const { sessions } = useWorkoutHistorySource({ enabled: Boolean(user) });
-  const { exercisesById } = useExerciseLookup();
+  const { scheduleDays, scheduleHistory, isLoaded: scheduleLoaded } = useWorkoutSchedule();
+  const { sessions, isLoading: historyLoading } = useWorkoutHistorySource({ enabled: Boolean(user) });
+  const { exercisesById, loading: exercisesLoading } = useExerciseLookup();
   const weightUnits = useWorkoutStore((state) => state.weightUnits);
   const preferences = useWorkoutRetentionPreferences();
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const handledNotificationResponseIdsRef = useRef(new Set<string>());
+  const [pendingWeeklyRecapWeekStart, setPendingWeeklyRecapWeekStart] = useState<Date | null>(null);
   const [weeklyRecap, setWeeklyRecap] = useState<WeeklyRecap | null>(null);
+  const retentionDataReady = Boolean(user) && scheduleLoaded && !historyLoading && !exercisesLoading;
 
   const sessionsKey = useMemo(
     () => sessions.map((session) => `${session.localId}:${session.completedAt?.getTime() ?? 0}`).join('|'),
@@ -71,7 +73,7 @@ export function WorkoutRetentionCoordinator() {
   }), [exercisesById, profile?.preferred_units, scheduleDays, scheduleHistory, sessions, weightUnits]);
 
   const maybeShowWeeklyRecap = useCallback(async (forceWeekStart?: Date | null) => {
-    if (!user) return;
+    if (!retentionDataReady) return;
     const dueWeekStart = forceWeekStart ?? getDueWeeklyRecapWeekStart();
     if (!dueWeekStart) return;
     const recap = buildRecapForWeek(dueWeekStart);
@@ -80,7 +82,27 @@ export function WorkoutRetentionCoordinator() {
     if (!forceWeekStart && (lastShown === recap.weekKey || lastAcknowledged === recap.weekKey)) return;
     await setLastShownWeeklyRecapKey(recap.weekKey);
     setWeeklyRecap(recap);
-  }, [buildRecapForWeek, user]);
+  }, [buildRecapForWeek, retentionDataReady]);
+
+  const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse | null | undefined) => {
+    const intent = getRetentionNotificationIntent(response);
+    if (!intent) return false;
+
+    if (intent.id) {
+      if (handledNotificationResponseIdsRef.current.has(intent.id)) {
+        return true;
+      }
+      handledNotificationResponseIdsRef.current.add(intent.id);
+    }
+
+    router.replace('/(tabs)');
+
+    if (intent.kind === WEEKLY_RECAP_KIND) {
+      setPendingWeeklyRecapWeekStart(intent.weeklyRecapWeekStart ?? getDueWeeklyRecapWeekStart());
+    }
+
+    return true;
+  }, []);
 
   useEffect(() => {
     syncNotifications();
@@ -104,24 +126,45 @@ export function WorkoutRetentionCoordinator() {
 
   useEffect(() => {
     const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      const data = response.notification.request.content.data as {
-        kind?: string;
-        dateKey?: string;
-      };
-      if (!data?.kind) return;
-
-      router.replace('/(tabs)');
-      if (data.kind === WEEKLY_RECAP_KIND) {
-        const weekStart = data.dateKey ? parseISO(`${data.dateKey}T00:00:00`) : getDueWeeklyRecapWeekStart();
-        void maybeShowWeeklyRecap(weekStart);
-        return;
-      }
-      if (data.kind === SCHEDULED_WORKOUT_REMINDER_KIND) {
-        return;
-      }
+      handleNotificationResponse(response);
     });
     return () => subscription.remove();
-  }, [maybeShowWeeklyRecap]);
+  }, [handleNotificationResponse]);
+
+  useEffect(() => {
+    let didCancel = false;
+
+    const handleLastNotificationResponse = async () => {
+      let response: Notifications.NotificationResponse | null = null;
+      try {
+        response = Notifications.getLastNotificationResponse();
+      } catch {
+        return;
+      }
+
+      if (didCancel || !handleNotificationResponse(response)) return;
+
+      try {
+        Notifications.clearLastNotificationResponse();
+      } catch {
+        // Older/native builds can lack this method; duplicate protection still keeps this safe.
+      }
+    };
+
+    void handleLastNotificationResponse();
+
+    return () => {
+      didCancel = true;
+    };
+  }, [handleNotificationResponse]);
+
+  useEffect(() => {
+    if (!pendingWeeklyRecapWeekStart || !retentionDataReady) return;
+
+    const weekStart = pendingWeeklyRecapWeekStart;
+    setPendingWeeklyRecapWeekStart(null);
+    void maybeShowWeeklyRecap(weekStart);
+  }, [maybeShowWeeklyRecap, pendingWeeklyRecapWeekStart, retentionDataReady]);
 
   const handleCloseWeeklyRecap = async () => {
     if (weeklyRecap) {

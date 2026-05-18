@@ -2,7 +2,7 @@
 -- Users can select from a preset palette of colors
 
 ALTER TABLE profiles
-ADD COLUMN IF NOT EXISTS accent_color TEXT DEFAULT 'green'
-CHECK (accent_color IN ('green', 'blue', 'purple', 'teal', 'orange', 'pink', 'amber', 'rose'));
+ADD COLUMN IF NOT EXISTS accent_color TEXT DEFAULT 'midnight'
+CHECK (accent_color IN ('green', 'midnight', 'blue', 'purple', 'teal', 'orange', 'pink', 'amber', 'rose'));
 
-COMMENT ON COLUMN profiles.accent_color IS 'User preferred accent color for UI theming. Defaults to green.';
+COMMENT ON COLUMN profiles.accent_color IS 'User preferred accent color for UI theming. Defaults to midnight.';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -73,9 +73,7 @@ export function TourOverlay({
   mode,
   anchorRect,
   body,
-  stepLabel = null,
   primaryAction,
-  secondaryAction,
   showArrow = false,
   centerTooltip = false,
   showHighlight = true,
