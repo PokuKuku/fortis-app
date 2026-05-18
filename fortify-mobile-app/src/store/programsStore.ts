@@ -33,6 +33,7 @@ import {
 } from '../types/workout';
 import { DELETED_DEFAULT_PROGRAM_IDS_KEY, LOCAL_TEMPLATES_KEY } from '../constants/storageKeys';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../constants/programs';
+import type { GeneratedProgramPayload } from '../utils/onboardingProgram';
 
 const DEFAULT_PROGRAM_IDS = new Set(
   [...getDefaultPrograms(), ...getDefaultTemplates()].map((program) => program.id)
@@ -113,6 +114,7 @@ interface ProgramsState {
       durationWeeks?: number;
     }
   ) => Promise<string | null>;
+  createGeneratedProgram: (payload: GeneratedProgramPayload) => Promise<string | null>;
   updateProgram: (
     programId: string,
     name: string,
@@ -1069,6 +1071,96 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       });
       return null;
     }
+  },
+
+  createGeneratedProgram: async (payload) => {
+    set({ error: null });
+
+    if (payload.workouts.length === 0) {
+      set({ error: 'Generated program must include at least one workout' });
+      return null;
+    }
+
+    if (payload.workouts.length > MAX_WORKOUTS_PER_PROGRAM) {
+      set({ error: `Programs can have at most ${MAX_WORKOUTS_PER_PROGRAM} workouts` });
+      return null;
+    }
+
+    const programNames = get().programs.filter((p) => !p.isTemplate).map((p) => p.name);
+    const uniqueName = generateUniqueName(payload.name, programNames);
+    const localId = `local-ai-program-${Date.now()}`;
+    const now = new Date().toISOString();
+
+    const programWorkouts: ProgramWorkout[] = payload.workouts.map((workout, workoutIndex) => {
+      const workoutId = `${localId}-day-${workoutIndex + 1}`;
+      return {
+        id: workoutId,
+        name: workout.name,
+        dayNumber: workoutIndex + 1,
+        exercises: workout.exercises.map((exercise, exerciseIndex) => ({
+          id: `${workoutId}-ex-${exerciseIndex + 1}`,
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          restSeconds: exercise.restSeconds ?? 120,
+          notes: exercise.notes ?? '',
+          orderIndex: exerciseIndex,
+        })),
+      };
+    });
+
+    const localProgram: Program = {
+      id: localId,
+      name: uniqueName,
+      description: payload.description,
+      difficulty: payload.difficulty,
+      goal: payload.goal,
+      durationWeeks: payload.durationWeeks,
+      isPublic: false,
+      isDefault: false,
+      isAiCreated: true,
+      isTemplate: false,
+      aiSourceChatId: null,
+      aiPayloadVersion: `onboarding-program:${payload.sourceSpecId}`,
+      lastPerformedAt: null,
+      createdBy: 'local',
+      createdAt: now,
+      updatedAt: now,
+      workouts: programWorkouts,
+    };
+
+    set((state) => ({
+      programs: [localProgram, ...state.programs],
+    }));
+    await get().persistLocalPrograms();
+
+    if (!isSupabaseConfigured()) {
+      return localId;
+    }
+
+    get().markProgramSyncing(localId, true);
+    syncLocalProgram(localProgram)
+      .then((result) => {
+        if (result.success && result.serverId) {
+          const stillExists = get().programs.some((p) => p.id === localId);
+          if (stillExists) {
+            get().replaceLocalIdWithServerId(localId, result.serverId);
+          }
+        }
+        if (!result.success && !result.queued) {
+          console.warn('[ProgramsStore] Generated program sync failed:', result.error);
+        }
+      })
+      .catch((err) => {
+        console.warn('[ProgramsStore] Generated program sync failed:', err);
+      })
+      .finally(() => {
+        get().markProgramSyncing(localId, false);
+        void get().refreshPendingProgramSyncIds();
+      });
+
+    return localId;
   },
 
   updateProgram: async (programId, name, workouts, options) => {

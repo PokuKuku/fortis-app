@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CheckBadgeIcon } from 'react-native-heroicons/solid';
@@ -8,6 +9,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
+import { getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
 import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
@@ -43,6 +45,44 @@ export default function OnboardingSocialProofScreen() {
 
   const router = useRouter();
   const { colors } = useTheme();
+  const [state, setState] = useState<OnboardingState | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadState = async () => {
+      const nextState = await getOnboardingState();
+      if (isActive) setState(nextState);
+    };
+
+    void loadState();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const testimonials = useMemo(() => {
+    const primaryGoal = state?.fitness_goals?.[0] ?? state?.fitness_goal;
+    const primaryChallenge = state?.biggest_challenges?.[0] ?? state?.biggest_challenge;
+    if (primaryChallenge === 'plateaus' || state?.progress_blocker === 'unclear_progress') {
+      return [TESTIMONIALS[2], TESTIMONIALS[1], TESTIMONIALS[0]];
+    }
+    if (primaryGoal === 'build_muscle' || primaryGoal === 'lose_fat' || primaryGoal === 'improve_strength') {
+      return [TESTIMONIALS[1], TESTIMONIALS[2], TESTIMONIALS[0]];
+    }
+    return TESTIMONIALS;
+  }, [state]);
+
+  const caption = useMemo(() => {
+    if (state?.progress_blocker === 'unclear_progress' || state?.biggest_challenge === 'plateaus') {
+      return 'Proof from people who wanted clearer progress.';
+    }
+    if (state?.biggest_challenge === 'consistency' || state?.progress_blocker === 'accountability') {
+      return 'Proof from people building a stronger routine.';
+    }
+    return "We're loved by our users!";
+  }, [state]);
 
   const handleContinue = () => {
     trackOnboardingStepCompleted('social_proof');
@@ -51,7 +91,7 @@ export default function OnboardingSocialProofScreen() {
 
   return (
     <OnboardingScreen
-      step={17}
+      step={25}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle
@@ -74,12 +114,12 @@ export default function OnboardingSocialProofScreen() {
             resizeMode="contain"
           />
           <Text style={[styles.ratingCaption, { color: colors.textSecondary }]}>
-            We&apos;re loved by our users!
+            {caption}
           </Text>
         </View>
 
         <View style={styles.cards}>
-          {TESTIMONIALS.map((item) => (
+          {testimonials.map((item) => (
             <View
               key={item.name}
               style={[

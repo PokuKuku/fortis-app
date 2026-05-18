@@ -53,7 +53,9 @@ export function OnboardingNameStep({ prewarm = false }: OnboardingNameStepProps)
     if (!trimmed) return;
 
     await updateOnboardingState({ full_name: trimmed });
-    trackOnboardingStepCompleted('profile_name');
+    trackOnboardingStepCompleted('profile_name', {
+      has_full_name: trimmed.length > 0,
+    });
     router.push('/onboarding/greeting');
   };
 

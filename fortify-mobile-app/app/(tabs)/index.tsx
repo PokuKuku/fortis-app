@@ -9,6 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Pressable,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,6 +51,12 @@ import { WeeklyProgressCarousel } from '@/src/components/program/WeeklyProgressC
 import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
+import {
+  loadPendingOnboardingProgramSpec,
+  updatePendingOnboardingProgramSpec,
+  ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT,
+  type OnboardingProgramSpec,
+} from '@/src/utils/onboardingProgram';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -757,6 +764,7 @@ export default function ProgramsScreen() {
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
   const [scheduleEditorVisible, setScheduleEditorVisible] = useState(false);
+  const [onboardingProgramSpec, setOnboardingProgramSpec] = useState<OnboardingProgramSpec | null>(null);
   const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
@@ -816,6 +824,34 @@ export default function ProgramsScreen() {
   }, [refreshPendingProgramSyncIds]);
 
   useEffect(() => {
+    if (!isAuthResolved) {
+      setOnboardingProgramSpec(null);
+      return;
+    }
+
+    let isMounted = true;
+    const loadSpec = async () => {
+      const spec = await loadPendingOnboardingProgramSpec();
+      if (isMounted) {
+        setOnboardingProgramSpec(spec);
+      }
+    };
+
+    void loadSpec();
+    const subscription = DeviceEventEmitter.addListener(
+      ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT,
+      (spec: OnboardingProgramSpec | null) => {
+        setOnboardingProgramSpec(spec);
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      subscription.remove();
+    };
+  }, [isAuthResolved, user?.id]);
+
+  useEffect(() => {
     if (!highlightWorkoutId || typeof highlightWorkoutId !== 'string') {
       return;
     }
@@ -873,6 +909,18 @@ export default function ProgramsScreen() {
 
   // Keep original workouts for backward compatibility
   const workouts: WorkoutItem[] = templates;
+
+  const onboardingGeneratedProgram = useMemo(() => {
+    if (!onboardingProgramSpec) return null;
+    const sourceVersion = `onboarding-program:${onboardingProgramSpec.id}`;
+    return storePrograms.find((program) =>
+      !program.isTemplate &&
+      (
+        program.id === onboardingProgramSpec.generatedProgramId ||
+        program.aiPayloadVersion === sourceVersion
+      )
+    ) ?? null;
+  }, [onboardingProgramSpec, storePrograms]);
 
   useEffect(() => {
     if (!isHomeCardOrderLoaded || !hasFetchedPrograms) {
@@ -991,6 +1039,24 @@ export default function ProgramsScreen() {
   const handleProgramCardPress = (programId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/programs/${programId}`);
+  };
+
+  const handleOpenOnboardingProgram = () => {
+    if (!onboardingGeneratedProgram) return;
+    setShowPrograms(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/programs/${onboardingGeneratedProgram.id}`);
+  };
+
+  const handleRetryOnboardingProgram = async () => {
+    if (!onboardingProgramSpec) return;
+    await updatePendingOnboardingProgramSpec({
+      status: 'pending',
+      error: null,
+      generatedProgramId: null,
+    });
+    setToastMessage('We’ll try building your program again.');
+    setShowToast(true);
   };
 
   const handleKebabPress = (
@@ -1357,6 +1423,69 @@ export default function ProgramsScreen() {
             onEditSchedule={() => setScheduleEditorVisible(true)}
           />
 
+          {onboardingProgramSpec && onboardingProgramSpec.status !== 'dismissed' && (
+            <View style={[
+              styles.onboardingProgramCard,
+              {
+                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)',
+                borderColor: isDark ? 'rgba(255, 255, 255, 0.14)' : 'rgba(0, 0, 0, 0.08)',
+              },
+            ]}>
+              <View style={styles.onboardingProgramHeader}>
+                <View style={styles.onboardingProgramTitleRow}>
+                  <SparklesIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.4} />
+                  <Text style={[styles.onboardingProgramEyebrow, { color: colors.accent }]}>
+                    Personalized Program
+                  </Text>
+                </View>
+                {onboardingProgramSpec.status === 'generating' && (
+                  <ActivityIndicator size="small" color={colors.accent} />
+                )}
+              </View>
+              <Text style={[styles.onboardingProgramTitle, { color: colors.textPrimary }]}>
+                {onboardingProgramSpec.status === 'ready' && onboardingGeneratedProgram
+                  ? onboardingGeneratedProgram.name
+                  : onboardingProgramSpec.status === 'failed'
+                    ? 'Program build paused'
+                    : 'Building your first program'}
+              </Text>
+              <Text style={[styles.onboardingProgramBody, { color: readableSubtext.meta }]}>
+                {onboardingProgramSpec.status === 'ready' && onboardingGeneratedProgram
+                  ? 'Your onboarding answers are now a full training plan. Open it when you’re ready.'
+                  : onboardingProgramSpec.status === 'failed'
+                    ? 'Something got in the way while saving it. You can retry without restarting onboarding.'
+                    : 'Fortify is turning your schedule, training setup, and focus areas into a complete plan.'}
+              </Text>
+              {onboardingProgramSpec.status === 'ready' && onboardingGeneratedProgram ? (
+                <Pressable
+                  onPress={handleOpenOnboardingProgram}
+                  style={({ pressed }) => [
+                    styles.onboardingProgramButton,
+                    { backgroundColor: colors.accent },
+                    pressed && styles.onboardingProgramButtonPressed,
+                  ]}
+                >
+                  <Text style={styles.onboardingProgramButtonText}>View Program</Text>
+                </Pressable>
+              ) : onboardingProgramSpec.status === 'failed' ? (
+                <Pressable
+                  onPress={handleRetryOnboardingProgram}
+                  style={({ pressed }) => [
+                    styles.onboardingProgramButton,
+                    {
+                      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
+                      borderColor: colors.accentBorder,
+                      borderWidth: 1,
+                    },
+                    pressed && styles.onboardingProgramButtonPressed,
+                  ]}
+                >
+                  <Text style={[styles.onboardingProgramButtonText, { color: colors.textPrimary }]}>Retry</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          )}
+
           {/* Programs Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -1595,6 +1724,60 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: SCROLL_PADDING_BOTTOM,
+  },
+  onboardingProgramCard: {
+    borderWidth: 1,
+    borderRadius: CARD_RADIUS,
+    padding: scale(16),
+    marginBottom: SECTION_SPACING,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.16,
+    shadowRadius: 14,
+    elevation: 3,
+  },
+  onboardingProgramHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: scale(8),
+  },
+  onboardingProgramTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(8),
+  },
+  onboardingProgramEyebrow: {
+    fontSize: moderateScale(11),
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  onboardingProgramTitle: {
+    fontSize: moderateScale(20),
+    fontWeight: '800',
+    marginBottom: scale(6),
+  },
+  onboardingProgramBody: {
+    fontSize: moderateScale(14),
+    fontWeight: '600',
+    lineHeight: moderateScale(20),
+  },
+  onboardingProgramButton: {
+    marginTop: scale(14),
+    minHeight: scale(44),
+    borderRadius: scale(14),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingProgramButtonPressed: {
+    opacity: 0.78,
+    transform: [{ scale: 0.99 }],
+  },
+  onboardingProgramButtonText: {
+    color: '#fff',
+    fontSize: moderateScale(15),
+    fontWeight: '800',
   },
   section: {
     marginBottom: SECTION_SPACING,

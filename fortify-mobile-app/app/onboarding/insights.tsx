@@ -1,4 +1,4 @@
-import { useMemo, type ComponentType } from 'react';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, UIManager } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassButton } from '@/components/GlassButton';
@@ -6,6 +6,8 @@ import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
+import { getProgressBlockerInsightCopy } from '@/src/utils/onboardingConversion';
 import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
@@ -115,13 +117,30 @@ const LottieView = (() => {
 })();
 
 export default function OnboardingInsightsScreen() {
-  useOnboardingFunnelScreen('Q15. Fortify Provides Insights');
+  useOnboardingFunnelScreen('Q18. Fortify Provides Insights');
 
   const router = useRouter();
   const { colors } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
+  const [state, setState] = useState<OnboardingState | null>(null);
   const animationSize = Math.min(320, Math.max(220, Math.round(windowWidth * 0.72)));
   const canRenderLottie = Boolean(LottieView) && isLottieViewManagerAvailable();
+  const blockerCopy = useMemo(() => getProgressBlockerInsightCopy(state), [state]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadState = async () => {
+      const nextState = await getOnboardingState();
+      if (isActive) setState(nextState);
+    };
+
+    void loadState();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
   const animationSource = useMemo(() => {
     if (!INSIGHTS_ANIMATION || typeof INSIGHTS_ANIMATION !== 'object') return INSIGHTS_ANIMATION;
     const raw = INSIGHTS_ANIMATION as { assets?: Array<{ id?: string }>; layers?: Array<{ refId?: string }> };
@@ -149,15 +168,15 @@ export default function OnboardingInsightsScreen() {
 
   const handleContinue = () => {
     trackOnboardingStepCompleted('insights_preview');
-    router.push('/onboarding/thank-you');
+    router.push('/onboarding/program-setup-intro');
   };
 
   return (
     <OnboardingScreen
-      step={15}
+      step={8}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Break through your goals"
-      subtitle="Fortify finds insights that move you forward"
+      subtitle={`Fortify focuses on ${blockerCopy.label.toLowerCase()} with guidance tied to your training history.`}
       onBack={() => router.back()}
       useScrollView={false}
       bodyAlign="center"
@@ -201,6 +220,25 @@ export default function OnboardingInsightsScreen() {
             </View>
           )}
         </View>
+        <View
+          style={[
+            styles.insightCard,
+            {
+              backgroundColor: colors.surfaceElevated,
+              borderColor: colors.glassBorder,
+            },
+          ]}
+        >
+          <Text style={[styles.insightEyebrow, { color: colors.accent }]}>
+            YOUR BLOCKER
+          </Text>
+          <Text style={[styles.insightTitle, { color: colors.textPrimary }]}>
+            {blockerCopy.label}
+          </Text>
+          <Text style={[styles.insightBody, { color: colors.textSecondary }]}>
+            {blockerCopy.feature}
+          </Text>
+        </View>
       </View>
     </OnboardingScreen>
   );
@@ -211,6 +249,7 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.md,
   },
   animationCard: {
     alignItems: 'center',
@@ -236,6 +275,28 @@ const styles = StyleSheet.create({
   fallbackSubtext: {
     fontSize: 13,
     textAlign: 'center',
+  },
+  insightCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  insightEyebrow: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    letterSpacing: 2,
+  },
+  insightTitle: {
+    fontSize: 20,
+    lineHeight: 25,
+    fontWeight: '800',
+  },
+  insightBody: {
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '600',
   },
   button: {
     height: 54,

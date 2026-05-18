@@ -13,7 +13,6 @@ import {
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
 import {
-  deriveScheduleDaysFromWorkoutsPerWeek,
   normalizeWorkoutScheduleDays,
   WEEKDAY_LABELS,
 } from '@/src/utils/workoutSchedule';
@@ -33,11 +32,7 @@ export default function OnboardingWorkoutScheduleScreen() {
       if (!isActive) return;
 
       const savedDays = normalizeWorkoutScheduleDays(state?.workout_schedule_days);
-      setSelectedDays(
-        savedDays.length > 0
-          ? savedDays
-          : deriveScheduleDaysFromWorkoutsPerWeek(state?.workouts_per_week)
-      );
+      setSelectedDays(savedDays);
     };
 
     loadState();
@@ -59,13 +54,16 @@ export default function OnboardingWorkoutScheduleScreen() {
   const handleContinue = async () => {
     if (selectedDays.length === 0) return;
     await updateOnboardingState({ workout_schedule_days: selectedDays });
-    trackOnboardingStepCompleted('workout_schedule');
-    router.push('/onboarding/other-apps');
+    trackOnboardingStepCompleted('workout_schedule', {
+      workout_schedule_days: selectedDays.join(', '),
+      workout_schedule_days_count: selectedDays.length,
+    });
+    router.push('/onboarding/session-duration');
   };
 
   return (
     <OnboardingScreen
-      step={9}
+      step={14}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What days do you plan to work out?"
       subtitle="We’ll use this to show your weekly training progress."

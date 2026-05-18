@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { type Slug } from 'react-native-body-highlighter';
 import { Path } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import { bodyFront } from 'react-native-body-highlighter/assets/bodyFront';
 import { bodyBack } from 'react-native-body-highlighter/assets/bodyBack';
 import { bodyFemaleFront } from 'react-native-body-highlighter/assets/bodyFemaleFront';
@@ -29,6 +30,8 @@ interface MuscleHeatmapProps {
   gender?: 'male' | 'female';
   scale?: number;
   compact?: boolean;
+  baselineIntensity?: number;
+  showLegend?: boolean;
 }
 
 interface BodyPartData {
@@ -75,6 +78,25 @@ const buildHeatmapPalette = (light: string, base: string, dark: string) => ([
   mixHex(base, dark, 0.6),
   dark,
 ]);
+
+const TRAINABLE_HEATMAP_SLUGS: Slug[] = [
+  'chest',
+  'obliques',
+  'abs',
+  'biceps',
+  'triceps',
+  'trapezius',
+  'deltoids',
+  'adductors',
+  'quadriceps',
+  'tibialis',
+  'calves',
+  'forearm',
+  'upper-back',
+  'lower-back',
+  'gluteal',
+  'hamstring',
+] as Slug[];
 
 function AccentBody({
   data,
@@ -128,11 +150,22 @@ function AccentBody({
   );
 }
 
-export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale = 0.5, compact = false }: MuscleHeatmapProps) {
+export function MuscleHeatmap({
+  exercises,
+  muscleLevels,
+  gender = 'male',
+  scale = 0.5,
+  compact = false,
+  baselineIntensity = 0,
+  showLegend = false,
+}: MuscleHeatmapProps) {
   const { colors, isDark } = useTheme();
 
   // 5-level palette from accent colors (low -> high intensity)
   const heatmapColors = buildHeatmapPalette(colors.accentLight, colors.accent, colors.accentDark);
+  const legendColors: [string, string, string, string] = isDark
+    ? ['#3D4654', '#8EA6C0', colors.accent, '#020817']
+    : ['#F2F6FB', '#91A9C4', colors.accent, '#081323'];
   const baseBodyFill = isDark ? '#5B626D' : '#8C949E';
 
   const { frontData, backData } = useMemo(() => {
@@ -149,6 +182,13 @@ export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale 
 
     const resolvedLevels = muscleLevels
       ?? (exercises ? bucketIntensity(attributeExercisesToMuscles(exercises as any)) : {});
+
+    if (baselineIntensity > 0) {
+      TRAINABLE_HEATMAP_SLUGS.forEach((slug) => {
+        applyIntensity(frontIntensity, slug, baselineIntensity);
+        applyIntensity(backIntensity, slug, baselineIntensity);
+      });
+    }
 
     Object.entries(resolvedLevels).forEach(([muscleKey, level]) => {
       if (level <= 0) return;
@@ -176,10 +216,23 @@ export function MuscleHeatmap({ exercises, muscleLevels, gender = 'male', scale 
     }));
 
     return { frontData, backData };
-  }, [exercises, muscleLevels]);
+  }, [baselineIntensity, exercises, muscleLevels]);
 
   return (
     <View style={[styles.container, compact && styles.containerCompact]}>
+      {showLegend ? (
+        <View style={styles.legend}>
+          <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>Less</Text>
+          <LinearGradient
+            colors={legendColors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            locations={[0, 0.28, 0.62, 1]}
+            style={[styles.legendTrack, { borderColor: colors.glassBorder }]}
+          />
+          <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>More</Text>
+        </View>
+      ) : null}
       <View style={styles.bodiesContainer}>
         <View style={styles.bodyWrapper}>
           <AccentBody
@@ -221,6 +274,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'flex-start',
+  },
+  legend: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  legendTrack: {
+    width: 108,
+    height: 10,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  legendLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   bodyWrapper: {
     alignItems: 'center',

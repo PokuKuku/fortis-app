@@ -1,4 +1,9 @@
-import { flushMixpanel } from '@/src/lib/mixpanel';
+import {
+  flushMixpanel,
+  getMixpanelIdentityProperties,
+  trackMixpanelEvent,
+  type MixpanelProperties,
+} from '@/src/lib/mixpanel';
 export {
   ONBOARDING_FUNNEL_STEPS,
   trackOnboardingFunnelScreen,
@@ -8,23 +13,32 @@ export {
 const ONBOARDING_STEP_INDEX = {
   profile_name: 1,
   gender: 2,
-  birthdate: 3,
-  body_metrics: 4,
-  referral_source: 5,
-  fitness_background: 6,
-  lifting_experience: 7,
-  workout_consistency: 8,
-  workout_schedule: 9,
-  tried_other_apps: 10,
-  clarity_animation: 11,
-  fitness_goals: 12,
-  biggest_challenges: 13,
-  fitness_motivations: 14,
-  insights_preview: 15,
-  privacy_thank_you: 16,
-  social_proof: 17,
-  app_rating: 18,
-  notifications_prompt: 19,
+  fitness_goals: 3,
+  fitness_motivations: 4,
+  lifting_experience: 5,
+  tried_other_apps: 6,
+  progress_blocker: 7,
+  insights_preview: 8,
+  program_setup_intro: 9,
+  training_environment: 10,
+  muscle_focus: 11,
+  fitness_priorities: 12,
+  workout_consistency: 13,
+  workout_schedule: 14,
+  session_duration: 15,
+  goal_pace: 16,
+  six_month_preview: 17,
+  program_name: 18,
+  metrics_intro: 19,
+  birthdate: 20,
+  body_metrics: 21,
+  referral_source: 23,
+  privacy_thank_you: 24,
+  social_proof: 25,
+  app_rating: 26,
+  notifications_prompt: 27,
+  biggest_challenges: 99,
+  fitness_background: 99,
 } as const;
 
 type OnboardingStepId = keyof typeof ONBOARDING_STEP_INDEX;
@@ -35,11 +49,44 @@ function flushPendingOnboardingEvents(reason: string): void {
   });
 }
 
-export function trackOnboardingStepCompleted(stepId: OnboardingStepId): void {
-  void ONBOARDING_STEP_INDEX[stepId];
-  flushPendingOnboardingEvents('step_completed');
+export function trackOnboardingStepCompleted(
+  stepId: OnboardingStepId,
+  properties: MixpanelProperties = {}
+): void {
+  const stepIndex = ONBOARDING_STEP_INDEX[stepId];
+  void (async () => {
+    const identityProperties = await getMixpanelIdentityProperties();
+    await trackMixpanelEvent(
+      'Onboarding Step Completed',
+      {
+        step_id: stepId,
+        step_index: stepIndex,
+        ...identityProperties,
+        ...properties,
+      },
+      { flush: true }
+    );
+  })().catch((error) => {
+    console.warn('[OnboardingAnalytics] Step completion failed:', stepId, error);
+    flushPendingOnboardingEvents('step_completed_fallback');
+  });
 }
 
-export function trackOnboardingFinished(): void {
-  flushPendingOnboardingEvents('onboarding_finished');
+export function trackOnboardingFinished(properties: MixpanelProperties = {}): void {
+  void (async () => {
+    const identityProperties = await getMixpanelIdentityProperties();
+    await trackMixpanelEvent(
+      'Onboarding Finished',
+      {
+        step_id: 'onboarding_finished',
+        step_index: 28,
+        ...identityProperties,
+        ...properties,
+      },
+      { flush: true }
+    );
+  })().catch((error) => {
+    console.warn('[OnboardingAnalytics] Finished event failed:', error);
+    flushPendingOnboardingEvents('onboarding_finished_fallback');
+  });
 }

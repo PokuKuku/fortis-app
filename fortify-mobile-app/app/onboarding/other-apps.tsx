@@ -16,14 +16,14 @@ import {
 type TriedApps = 'consistent' | 'occasionally' | 'stopped' | 'never';
 
 const OPTIONS: Array<{ value: TriedApps; title: string }> = [
-  { value: 'consistent', title: 'Yes, consistently' },
-  { value: 'occasionally', title: 'Occasionally' },
-  { value: 'stopped', title: "I've tried but stopped" },
-  { value: 'never', title: 'Never' },
+  { value: 'consistent', title: '✅ Yes, consistently' },
+  { value: 'occasionally', title: '🔄 Occasionally' },
+  { value: 'stopped', title: "⏸️ I've tried but stopped" },
+  { value: 'never', title: '🆕 Never' },
 ];
 
 export default function OnboardingOtherAppsScreen() {
-  useOnboardingFunnelScreen('Q10. Other apps?');
+  useOnboardingFunnelScreen('Q12. Other apps?');
 
   const router = useRouter();
   const { colors } = useTheme();
@@ -52,15 +52,17 @@ export default function OnboardingOtherAppsScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
-    trackOnboardingStepCompleted('tried_other_apps');
-    router.push('/onboarding/clarity');
+    trackOnboardingStepCompleted('tried_other_apps', {
+      tried_other_apps: selected,
+    });
+    router.push('/onboarding/progress-blocker');
   };
 
   return (
     <OnboardingScreen
-      step={10}
+      step={6}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Have you tried other workout tracking apps?"
+      title="Have you tracked or followed a workout routine before?"
       subtitle={undefined}
       onBack={() => router.back()}
       floatingFooter={

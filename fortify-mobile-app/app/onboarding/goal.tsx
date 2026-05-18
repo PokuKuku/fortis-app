@@ -13,21 +13,94 @@ import {
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
 
-type FitnessGoal = 'build_muscle' | 'general_health' | 'improve_strength' | 'stay_consistent';
+type FitnessGoal =
+  | 'build_muscle'
+  | 'general_health'
+  | 'improve_strength'
+  | 'lose_fat'
+  | 'stay_consistent';
 
-const OPTIONS: Array<{ value: FitnessGoal; title: string }> = [
-  { value: 'build_muscle', title: 'Build muscle' },
-  { value: 'general_health', title: 'General health and fitness' },
-  { value: 'improve_strength', title: 'Improve strength' },
-  { value: 'stay_consistent', title: 'Stay consistent' },
+type FitnessOutcome =
+  | 'build_visible_muscle'
+  | 'strength_progress'
+  | 'lose_body_fat'
+  | 'improve_conditioning'
+  | 'move_better'
+  | 'training_consistency'
+  | 'feel_strong_capable'
+  | 'body_confidence'
+  | 'daily_energy'
+  | 'stay_consistent_long_term'
+  | 'overall_health';
+
+const OUTCOME_TO_GOAL: Record<FitnessOutcome, FitnessGoal> = {
+  build_visible_muscle: 'build_muscle',
+  strength_progress: 'improve_strength',
+  lose_body_fat: 'lose_fat',
+  improve_conditioning: 'general_health',
+  move_better: 'general_health',
+  training_consistency: 'stay_consistent',
+  feel_strong_capable: 'improve_strength',
+  body_confidence: 'lose_fat',
+  daily_energy: 'general_health',
+  stay_consistent_long_term: 'stay_consistent',
+  overall_health: 'general_health',
+};
+
+const GOAL_TO_DEFAULT_OUTCOME: Record<FitnessGoal, FitnessOutcome> = {
+  build_muscle: 'build_visible_muscle',
+  general_health: 'improve_conditioning',
+  improve_strength: 'strength_progress',
+  lose_fat: 'lose_body_fat',
+  stay_consistent: 'training_consistency',
+};
+
+const OPTIONS: Array<{ value: FitnessOutcome; title: string }> = [
+  { value: 'build_visible_muscle', title: '💪 Build visible muscle' },
+  { value: 'strength_progress', title: '🏋️ Get stronger' },
+  { value: 'lose_body_fat', title: '🔥 Lose body fat' },
+  { value: 'improve_conditioning', title: '🫀 Improve conditioning' },
+  { value: 'move_better', title: '🤸 Move better' },
+  { value: 'training_consistency', title: '📅 Train consistently' },
 ];
 
+const VALID_OUTCOMES = new Set<FitnessOutcome>(Object.keys(OUTCOME_TO_GOAL) as FitnessOutcome[]);
+const VALID_GOALS = new Set<FitnessGoal>([
+  'build_muscle',
+  'general_health',
+  'improve_strength',
+  'lose_fat',
+  'stay_consistent',
+]);
+
+const isFitnessOutcome = (value: unknown): value is FitnessOutcome => {
+  return typeof value === 'string' && VALID_OUTCOMES.has(value as FitnessOutcome);
+};
+
+const isFitnessGoal = (value: unknown): value is FitnessGoal => {
+  return typeof value === 'string' && VALID_GOALS.has(value as FitnessGoal);
+};
+
+const dedupeGoals = (outcomes: FitnessOutcome[]): FitnessGoal[] => {
+  const goals = outcomes.map((outcome) => OUTCOME_TO_GOAL[outcome]);
+  return goals.filter((goal, index) => goals.indexOf(goal) === index);
+};
+
+const mapStoredGoalsToOutcomes = (goals: FitnessGoal[]): FitnessOutcome[] => {
+  return goals.map((goal) => GOAL_TO_DEFAULT_OUTCOME[goal]).filter(Boolean);
+};
+
+const normalizeOutcomes = (outcomes: FitnessOutcome[]): FitnessOutcome[] => {
+  const normalized = outcomes.map((outcome) => GOAL_TO_DEFAULT_OUTCOME[OUTCOME_TO_GOAL[outcome]]);
+  return normalized.filter((outcome, index) => normalized.indexOf(outcome) === index);
+};
+
 export default function OnboardingGoalScreen() {
-  useOnboardingFunnelScreen('Q12. What is your fitness goal?');
+  useOnboardingFunnelScreen('Q14. What is your fitness goal?');
 
   const router = useRouter();
   const { colors } = useTheme();
-  const [selected, setSelected] = useState<FitnessGoal[]>([]);
+  const [selected, setSelected] = useState<FitnessOutcome[]>([]);
   const isDisabled = selected.length === 0;
 
   useEffect(() => {
@@ -36,14 +109,20 @@ export default function OnboardingGoalScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive) return;
-      const storedGoals = (state?.fitness_goals?.filter(Boolean) ?? []) as FitnessGoal[];
-      const storedPrimary = (state?.fitness_goal ?? null) as FitnessGoal | null;
+      const storedOutcomes = state?.fitness_outcomes?.filter(isFitnessOutcome) ?? [];
+      if (storedOutcomes.length > 0) {
+        setSelected(normalizeOutcomes(storedOutcomes));
+        return;
+      }
+
+      const storedGoals = state?.fitness_goals?.filter(isFitnessGoal) ?? [];
+      const storedPrimary = isFitnessGoal(state?.fitness_goal) ? state.fitness_goal : null;
       const nextGoals = storedGoals.length > 0
         ? storedGoals
         : storedPrimary
           ? [storedPrimary]
           : [];
-      setSelected(nextGoals);
+      setSelected(mapStoredGoalsToOutcomes(nextGoals));
     };
 
     loadState();
@@ -53,16 +132,18 @@ export default function OnboardingGoalScreen() {
     };
   }, []);
 
-  const handleSelect = (value: FitnessGoal) => {
+  const handleSelect = (value: FitnessOutcome) => {
     setSelected((prev) => {
       const wasSelected = prev.includes(value);
       const nextSelected = wasSelected
         ? prev.filter((goal) => goal !== value)
         : [...prev, value];
+      const fitnessGoals = dedupeGoals(nextSelected);
 
       void updateOnboardingState({
-        fitness_goals: nextSelected,
-        fitness_goal: nextSelected[0] ?? undefined,
+        fitness_outcomes: nextSelected,
+        fitness_goals: fitnessGoals,
+        fitness_goal: fitnessGoals[0] ?? undefined,
       });
 
       return nextSelected;
@@ -71,15 +152,18 @@ export default function OnboardingGoalScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) return;
-    trackOnboardingStepCompleted('fitness_goals');
-    router.push('/onboarding/challenge');
+    trackOnboardingStepCompleted('fitness_goals', {
+      fitness_outcomes: selected.join(', '),
+      fitness_goals: dedupeGoals(selected).join(', '),
+    });
+    router.push('/onboarding/motivation');
   };
 
   return (
     <OnboardingScreen
-      step={12}
+      step={3}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="What are your main fitness goals?"
+      title="What fitness outcome do you want to achieve with Fortify?"
       subtitle="Rank all that apply. Tap in order of importance."
       onBack={() => router.back()}
       footer={

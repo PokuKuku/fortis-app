@@ -22,16 +22,20 @@ type Motivation =
   | 'discipline';
 
 const OPTIONS: Array<{ value: Motivation; title: string }> = [
-  { value: 'self_confidence', title: 'More self-confidence' },
-  { value: 'longevity', title: 'A healthier, longer life' },
-  { value: 'daily_energy', title: 'More energy every day' },
-  { value: 'strength_capability', title: 'Feel stronger and capable' },
-  { value: 'body_confidence', title: 'Look better in my body' },
-  { value: 'discipline', title: 'Stay disciplined' },
+  { value: 'self_confidence', title: '🏆 Build confidence' },
+  { value: 'daily_energy', title: '⚡ Improve daily energy' },
+  { value: 'discipline', title: '🎯 Stay disciplined' },
+  { value: 'strength_capability', title: '🧠 Sharpen my mindset' },
 ];
 
+const VALID_MOTIVATIONS = new Set<Motivation>(OPTIONS.map((option) => option.value));
+
+const isMotivation = (value: unknown): value is Motivation => {
+  return typeof value === 'string' && VALID_MOTIVATIONS.has(value as Motivation);
+};
+
 export default function OnboardingMotivationScreen() {
-  useOnboardingFunnelScreen('Q14. Fitness Motivation');
+  useOnboardingFunnelScreen('Q17. Fitness Motivation');
 
   const router = useRouter();
   const { colors } = useTheme();
@@ -44,8 +48,8 @@ export default function OnboardingMotivationScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive) return;
-      const storedMotivations = (state?.fitness_motivations?.filter(Boolean) ?? []) as Motivation[];
-      const storedPrimary = (state?.fitness_motivation ?? null) as Motivation | null;
+      const storedMotivations = state?.fitness_motivations?.filter(isMotivation) ?? [];
+      const storedPrimary = isMotivation(state?.fitness_motivation) ? state.fitness_motivation : null;
       const nextMotivations = storedMotivations.length > 0
         ? storedMotivations
         : storedPrimary
@@ -79,16 +83,18 @@ export default function OnboardingMotivationScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) return;
-    trackOnboardingStepCompleted('fitness_motivations');
-    router.push('/onboarding/insights');
+    trackOnboardingStepCompleted('fitness_motivations', {
+      fitness_motivations: selected.join(', '),
+      fitness_motivation: selected[0] ?? null,
+    });
+    router.push('/onboarding/experience');
   };
 
   return (
     <OnboardingScreen
-      step={14}
+      step={4}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="What would reaching your fitness goals do for you?"
-      subtitle="Fortify AI uses this to personalize your training around what matters most to you."
+      title="How would achieving this outcome impact your life outside the gym?"
       onBack={() => router.back()}
       footer={
         <GlassButton

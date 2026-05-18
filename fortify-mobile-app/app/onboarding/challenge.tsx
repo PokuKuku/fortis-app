@@ -16,14 +16,14 @@ import {
 type Challenge = 'consistency' | 'plateaus' | 'starting_out' | 'time';
 
 const OPTIONS: Array<{ value: Challenge; title: string }> = [
-  { value: 'consistency', title: 'Consistency' },
-  { value: 'plateaus', title: 'Plateaus' },
-  { value: 'starting_out', title: 'Starting out' },
-  { value: 'time', title: 'Time' },
+  { value: 'consistency', title: '📆 Consistency' },
+  { value: 'plateaus', title: '🧱 Plateaus' },
+  { value: 'starting_out', title: '🚀 Starting out' },
+  { value: 'time', title: '⏱️ Time' },
 ];
 
 export default function OnboardingChallengeScreen() {
-  useOnboardingFunnelScreen('Q13. What are you biggest challenge');
+  useOnboardingFunnelScreen('Q16. What are you biggest challenge');
 
   const router = useRouter();
   const { colors } = useTheme();
@@ -71,13 +71,16 @@ export default function OnboardingChallengeScreen() {
 
   const handleContinue = () => {
     if (selected.length === 0) return;
-    trackOnboardingStepCompleted('biggest_challenges');
-    router.push('/onboarding/motivation');
+    trackOnboardingStepCompleted('biggest_challenges', {
+      biggest_challenges: selected.join(', '),
+      biggest_challenge: selected[0] ?? null,
+    });
+    router.push('/onboarding/progress-blocker');
   };
 
   return (
     <OnboardingScreen
-      step={13}
+      step={7}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What are your biggest challenges toward your goals?"
       subtitle="Rank all that apply. Tap in order of importance."

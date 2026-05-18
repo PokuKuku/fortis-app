@@ -19,22 +19,22 @@ type ExperienceLevel = 'none' | 'beginner' | 'intermediate' | 'advanced';
 const OPTIONS: Array<{ value: ExperienceLevel; title: string; description: string }> = [
   {
     value: 'none',
-    title: 'None',
+    title: '🌱 None',
     description: 'Currently not lifting',
   },
   {
     value: 'beginner',
-    title: 'Beginner',
+    title: '🏁 Beginner',
     description: 'Lifting for less than a year',
   },
   {
     value: 'intermediate',
-    title: 'Intermediate',
+    title: '💪 Intermediate',
     description: 'Lifting for 1-4 years',
   },
   {
     value: 'advanced',
-    title: 'Advanced',
+    title: '🏆 Advanced',
     description: 'Lifting for 5+ years',
   },
 ];
@@ -70,8 +70,10 @@ export default function OnboardingExperienceScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
-    trackOnboardingStepCompleted('lifting_experience');
-    router.push('/onboarding/consistency');
+    trackOnboardingStepCompleted('lifting_experience', {
+      lifting_experience: selected,
+    });
+    router.push('/onboarding/other-apps');
   };
 
   const handleBack = () => {
@@ -85,12 +87,12 @@ export default function OnboardingExperienceScreen() {
       // Fall back below.
     }
 
-    router.replace('/onboarding/height');
+    router.replace('/onboarding/motivation');
   };
 
   return (
     <OnboardingScreen
-      step={7}
+      step={5}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your experience level with lifting?"
       subtitle="This helps us shape your training insights."

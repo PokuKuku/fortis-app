@@ -35,6 +35,8 @@ export const START_BUTTON_PRESET_KEY = 'start_button_preset_v1';
 export const WORKOUT_SCHEDULE_DAYS_KEY = 'workout_schedule_days_v1';
 export const WORKOUT_SCHEDULE_HISTORY_KEY = 'workout_schedule_history_v1';
 export const ONBOARDING_STATE_KEY = 'onboarding_state_v1';
+export const PENDING_ONBOARDING_PROGRAM_SPEC_KEY = 'pending_onboarding_program_spec_v1';
+export const PENDING_ONBOARDING_CONVERSION_CONTEXT_KEY = 'pending_onboarding_conversion_context_v1';
 
 // In-app tour
 export const IN_APP_TOUR_STATE_KEY = 'in_app_tour_state_v2';
@@ -85,6 +87,8 @@ export const USER_SCOPED_STORAGE_KEYS = [
   WORKOUT_SCHEDULE_DAYS_KEY,
   WORKOUT_SCHEDULE_HISTORY_KEY,
   ONBOARDING_STATE_KEY,
+  PENDING_ONBOARDING_PROGRAM_SPEC_KEY,
+  PENDING_ONBOARDING_CONVERSION_CONTEXT_KEY,
   IN_APP_TOUR_STATE_KEY,
   HAS_AUTO_SET_GET_STARTED_PRESET_KEY,
   HAS_REQUESTED_NOTIFICATIONS_KEY,

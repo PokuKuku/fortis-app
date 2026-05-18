@@ -115,13 +115,15 @@ export default function OnboardingBirthdateScreen() {
       return;
     }
 
-    trackOnboardingStepCompleted('birthdate');
+    trackOnboardingStepCompleted('birthdate', {
+      age,
+    });
     router.push('/onboarding/height');
   };
 
   return (
     <OnboardingScreen
-      step={3}
+      step={20}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="When were you born?"
       subtitle={undefined}

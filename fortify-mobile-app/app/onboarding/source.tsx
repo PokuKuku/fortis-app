@@ -63,6 +63,8 @@ const OPTIONS: Array<{
   { value: 'other', label: 'Other', icon: ICONS.other },
 ];
 
+const VALID_REFERRAL_SOURCES = new Set<ReferralSource>(OPTIONS.map((option) => option.value));
+
 function SourceOptionCard({
   label,
   icon,
@@ -102,7 +104,7 @@ function SourceOptionCard({
   };
 
   return (
-    <GlassCard onPress={handlePress} padding={cardPadding} style={[styles.optionCard, cardStyle]}>
+    <GlassCard onPress={handlePress} padding={cardPadding} style={StyleSheet.flatten([styles.optionCard, cardStyle])}>
       <View style={styles.optionRow}>
         <View style={[styles.iconWrap, iconWrapStyle, { width: iconWrapSize, height: iconWrapSize }]}>
           {IconComponent ? (
@@ -135,7 +137,9 @@ export default function OnboardingSourceScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive || !state?.heard_about) return;
-      setSelected(state.heard_about);
+      if (VALID_REFERRAL_SOURCES.has(state.heard_about as ReferralSource)) {
+        setSelected(state.heard_about as ReferralSource);
+      }
     };
 
     loadState();
@@ -152,13 +156,15 @@ export default function OnboardingSourceScreen() {
 
   const handleContinue = () => {
     if (!selected) return;
-    trackOnboardingStepCompleted('referral_source');
-    router.push('/onboarding/fitness-background');
+    trackOnboardingStepCompleted('referral_source', {
+      heard_about: selected,
+    });
+    router.push('/onboarding/thank-you');
   };
 
   return (
     <OnboardingScreen
-      step={5}
+      step={23}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Where did you hear about Fortify?"
       subtitle={undefined}

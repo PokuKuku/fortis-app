@@ -103,7 +103,10 @@ export const MUSCLE_TO_HEATMAP_REGIONS: Record<MuscleKey, HeatmapRegion[]> = {
   glutes: [{ slug: 'gluteal', side: 'back' }],
   quads: [{ slug: 'quadriceps', side: 'front' }],
   hamstrings: [{ slug: 'hamstring', side: 'back' }],
-  calves: [{ slug: 'calves', side: 'both' }],
+  calves: [
+    { slug: 'calves', side: 'both' },
+    { slug: 'tibialis', side: 'front' },
+  ],
   adductors: [{ slug: 'adductors', side: 'both' }],
   abductors: [{ slug: 'gluteal', side: 'back' }],
 };

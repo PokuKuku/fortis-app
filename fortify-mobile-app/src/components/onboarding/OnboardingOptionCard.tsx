@@ -10,6 +10,8 @@ import { moderateScale, scale } from '@/src/utils/responsive';
 interface OnboardingOptionCardProps {
   title: string;
   description?: string;
+  leadingAccessory?: React.ReactNode;
+  trailingAccessory?: React.ReactNode;
   selected: boolean;
   rank?: number | null;
   onSelect: () => void;
@@ -18,6 +20,8 @@ interface OnboardingOptionCardProps {
 export function OnboardingOptionCard({
   title,
   description,
+  leadingAccessory,
+  trailingAccessory,
   selected,
   rank,
   onSelect,
@@ -47,8 +51,15 @@ export function OnboardingOptionCard({
   };
 
   return (
-    <GlassCard onPress={handlePress} padding={cardPadding} style={[styles.card, cardStyle]}>
+    <GlassCard
+      onPress={handlePress}
+      padding={cardPadding}
+      style={StyleSheet.flatten([styles.card, cardStyle])}
+    >
       <View style={styles.row}>
+        {leadingAccessory ? (
+          <View style={styles.leadingAccessory}>{leadingAccessory}</View>
+        ) : null}
         <View style={styles.textStack}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
           {description && (
@@ -57,6 +68,9 @@ export function OnboardingOptionCard({
             </Text>
           )}
         </View>
+        {trailingAccessory ? (
+          <View style={styles.trailingAccessory}>{trailingAccessory}</View>
+        ) : null}
         {showRank ? (
           <View style={[styles.rank, rankStyle]}>
             {selected ? (
@@ -80,6 +94,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: scale(Spacing.lg),
+  },
+  leadingAccessory: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  trailingAccessory: {
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textStack: {
     flex: 1,

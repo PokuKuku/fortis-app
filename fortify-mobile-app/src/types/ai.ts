@@ -19,6 +19,21 @@ export interface AIRequestContext {
   insightId?: string;
   periodWeeks?: number;
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+  onboardingProgramSpec?: {
+    id: string;
+    trainingEnvironment: 'gym' | 'home' | 'hybrid';
+    muscleFocuses: string[];
+    fitnessPriorities?: string[];
+    fitnessGoal?: string | null;
+    liftingExperience?: string | null;
+    sessionDurationMinutes?: number;
+    goalPace?: string;
+    workoutsPerWeek: number;
+    scheduleDays: number[];
+    durationWeeks: number;
+    userName?: string | null;
+    programName?: string | null;
+  };
 }
 
 export interface AIChatMessage {
@@ -45,6 +60,7 @@ export interface AIAnswer {
   text: string;
   citations?: AICitation[];
   workoutTemplate?: AIWorkoutTemplate;
+  programTemplate?: AIProgramTemplate;
 }
 
 export interface AICitation {
@@ -99,6 +115,22 @@ export interface AIWorkoutTemplate {
   focus?: string;
   estimatedDurationMinutes?: number;
   exercises: AIWorkoutTemplateExercise[];
+}
+
+export interface AIProgramTemplateExercise extends AIWorkoutTemplateExercise {}
+
+export interface AIProgramTemplateWorkout {
+  name: string;
+  exercises: AIProgramTemplateExercise[];
+}
+
+export interface AIProgramTemplate {
+  name: string;
+  description?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  goal?: 'strength' | 'hypertrophy' | 'general_fitness';
+  durationWeeks?: number;
+  workouts: AIProgramTemplateWorkout[];
 }
 
 // ============================================

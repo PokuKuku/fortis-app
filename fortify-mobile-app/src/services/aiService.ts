@@ -14,6 +14,7 @@ import {
   AIResponse,
   AIRateLimitStatus,
 } from '../types/ai';
+import type { OnboardingProgramSpec } from '@/src/utils/onboardingProgram';
 import { hasAIDataSharingConsent } from '@/src/services/aiConsentService';
 
 async function getAuthenticatedUserId(): Promise<string | null> {
@@ -131,6 +132,26 @@ export async function sendAIMessage(
  */
 export async function askFortisAnalyst(query: string): Promise<AIResponse> {
   return sendAIMessage('FORTIS_ANALYST', query);
+}
+
+export async function generateOnboardingProgramWithAI(spec: OnboardingProgramSpec): Promise<AIResponse> {
+  return sendAIMessage('GENERAL_CHAT', 'Generate my personalized onboarding program.', {
+    onboardingProgramSpec: {
+      id: spec.id,
+      trainingEnvironment: spec.trainingEnvironment,
+      muscleFocuses: spec.muscleFocuses,
+      fitnessPriorities: spec.fitnessPriorities,
+      fitnessGoal: spec.fitnessGoal,
+      liftingExperience: spec.liftingExperience,
+      sessionDurationMinutes: spec.sessionDurationMinutes,
+      goalPace: spec.goalPace,
+      workoutsPerWeek: spec.workoutsPerWeek,
+      scheduleDays: spec.scheduleDays,
+      durationWeeks: spec.durationWeeks,
+      userName: spec.userName,
+      programName: spec.programName,
+    },
+  });
 }
 
 /**

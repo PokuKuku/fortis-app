@@ -29,6 +29,7 @@ interface OnboardingScreenProps {
   titleAlign?: 'left' | 'center';
   subtitleAlign?: 'left' | 'center';
   titleFontSize?: number;
+  titleMinHeight?: number;
   subtitleFontSize?: number;
   titleNumberOfLines?: number;
   titleAdjustsFontSizeToFit?: boolean;
@@ -59,6 +60,7 @@ export function OnboardingScreen({
   titleAlign = 'left',
   subtitleAlign = 'left',
   titleFontSize,
+  titleMinHeight,
   subtitleFontSize,
   titleNumberOfLines,
   titleAdjustsFontSizeToFit,
@@ -83,6 +85,9 @@ export function OnboardingScreen({
   const resolvedTitleFontSize = typeof titleFontSize === 'number'
     ? moderateScale(titleFontSize)
     : undefined;
+  const resolvedTitleMinHeight = typeof titleMinHeight === 'number'
+    ? moderateScale(titleMinHeight)
+    : undefined;
   const resolvedSubtitleFontSize = typeof subtitleFontSize === 'number'
     ? moderateScale(subtitleFontSize)
     : undefined;
@@ -97,15 +102,21 @@ export function OnboardingScreen({
       borderColor: colors.glassBorder,
     },
     safeArea: {
-      width: '100%',
+      width: '100%' as const,
       maxWidth,
-      alignSelf: 'center',
+      alignSelf: 'center' as const,
       paddingHorizontal: horizontalPadding,
     },
   };
 
   const titleBlock = hideTitle ? null : (
-    <View style={[styles.titleBlock, resolvedTitleOffset ? { marginTop: resolvedTitleOffset } : null]}>
+    <View
+      style={[
+        styles.titleBlock,
+        resolvedTitleOffset ? { marginTop: resolvedTitleOffset } : null,
+        resolvedTitleMinHeight !== undefined ? { height: resolvedTitleMinHeight } : null,
+      ]}
+    >
       <Text
         style={[
           styles.title,

@@ -71,7 +71,10 @@ export default function OnboardingWeightScreen() {
     const normalizedKg = clamp(roundTo(weightKg, 1), KG_MIN, KG_MAX);
 
     await updateOnboardingState({ weight_kg: normalizedKg, preferred_units: unit });
-    trackOnboardingStepCompleted('body_metrics');
+    trackOnboardingStepCompleted('body_metrics', {
+      weight_kg: normalizedKg,
+      preferred_units: unit,
+    });
     router.push('/onboarding/source');
   };
 
@@ -93,7 +96,7 @@ export default function OnboardingWeightScreen() {
 
   return (
     <OnboardingScreen
-      step={4}
+      step={22}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your weight?"
       subtitle="You can update this any time from your profile."

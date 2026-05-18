@@ -10,6 +10,10 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/superwallGuards';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
+import {
+  loadPendingOnboardingConversionContext,
+  type OnboardingConversionContext,
+} from '@/src/utils/onboardingConversion';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const GATE_RETRY_DELAY_MS = 2_000;
@@ -28,6 +32,7 @@ export default function PaywallGateScreen() {
     user: superwallUser,
     getEntitlements,
     setSubscriptionStatus,
+    update,
   } = useUser();
   const { isSuperwallReady, hasSuperwallError } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
@@ -41,10 +46,28 @@ export default function PaywallGateScreen() {
   const hasActiveSubscriptionRef = useRef(false);
   const subscriptionStatusRef = useRef(subscriptionStatus);
   const [attempt, setAttempt] = useState(0);
+  const [paywallContext, setPaywallContext] = useState<OnboardingConversionContext | null>(null);
 
   useEffect(() => {
     subscriptionStatusRef.current = subscriptionStatus;
   }, [subscriptionStatus]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadContext = async () => {
+      const context = await loadPendingOnboardingConversionContext();
+      if (isActive) {
+        setPaywallContext(context);
+      }
+    };
+
+    void loadContext();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const authUserId = authUser?.id ?? null;
   const superwallUserId =
@@ -254,7 +277,17 @@ export default function PaywallGateScreen() {
       }
 
       try {
-        await registerPlacement({ placement: POST_SIGN_UP_PLACEMENT });
+        if (paywallContext) {
+          try {
+            await update(paywallContext);
+          } catch {
+            // Best effort. Placement params still carry the context for paywall rules.
+          }
+        }
+        await registerPlacement({
+          placement: POST_SIGN_UP_PLACEMENT,
+          params: paywallContext ?? undefined,
+        });
       } catch {
         scheduleRetry();
       }
@@ -265,12 +298,14 @@ export default function PaywallGateScreen() {
     hasSuperwallError,
     isIdentityReady,
     isSuperwallReady,
+    paywallContext,
     registerPlacement,
     retryIdentitySync,
     scheduleRetry,
     syncAccessOnce,
     canBypassIdentityGate,
     isAuthResolved,
+    update,
   ]);
 
   return (

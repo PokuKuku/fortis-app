@@ -19,9 +19,21 @@ import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { clearOnboardingState, getOnboardingState, type OnboardingState } from '@/src/utils/onboardingState';
+import {
+  buildOnboardingProgramBlueprint,
+  buildOnboardingProgramSpec,
+  savePendingOnboardingProgramSpec,
+  type MuscleFocus,
+} from '@/src/utils/onboardingProgram';
+import {
+  buildOnboardingConversionContext,
+  savePendingOnboardingConversionContext,
+} from '@/src/utils/onboardingConversion';
+import type { MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { Typography } from '@/constants/Typography';
 import {
   trackOnboardingFinished,
@@ -76,6 +88,80 @@ const triggerTypewriterHaptic = (index: number, text: string) => {
 type SummaryItem = {
   label: string;
   value: string;
+};
+
+const FOCUS_MUSCLE_LEVELS: Record<MuscleFocus, Partial<Record<MuscleKey, number>>> = {
+  balanced: {
+    chest: 2,
+    side_delts: 2,
+    triceps: 2,
+    biceps: 2,
+    lats: 2,
+    upper_back: 2,
+    abs: 2,
+    glutes: 2,
+    quads: 2,
+    hamstrings: 2,
+    adductors: 2,
+  },
+  chest: {
+    chest: 5,
+    front_delts: 3,
+    triceps: 3,
+  },
+  back: {
+    lats: 5,
+    upper_back: 5,
+    lower_back: 3,
+    rear_delts: 3,
+    biceps: 3,
+  },
+  shoulders: {
+    front_delts: 5,
+    side_delts: 5,
+    rear_delts: 5,
+    upper_back: 2,
+    triceps: 2,
+  },
+  arms: {
+    biceps: 5,
+    triceps: 5,
+    forearms: 3,
+    front_delts: 2,
+  },
+  legs: {
+    quads: 5,
+    adductors: 5,
+    hamstrings: 5,
+    glutes: 4,
+    calves: 4,
+  },
+  glutes: {
+    glutes: 5,
+    hamstrings: 4,
+    quads: 2,
+    lower_back: 2,
+  },
+  core: {
+    abs: 5,
+    obliques: 5,
+    lower_back: 2,
+  },
+};
+
+const buildProgramPreviewMuscleLevels = (focuses: MuscleFocus[]): Partial<Record<MuscleKey, number>> => {
+  const resolvedFocuses = focuses.length > 0 ? focuses : ['balanced' as MuscleFocus];
+  const levels: Partial<Record<MuscleKey, number>> = {};
+
+  resolvedFocuses.forEach((focus) => {
+    const focusLevels = FOCUS_MUSCLE_LEVELS[focus] ?? FOCUS_MUSCLE_LEVELS.balanced;
+    Object.entries(focusLevels).forEach(([muscle, level]) => {
+      const key = muscle as MuscleKey;
+      levels[key] = Math.max(levels[key] ?? 0, level ?? 0);
+    });
+  });
+
+  return levels;
 };
 
 const FITNESS_GOAL_LABELS: Record<string, string> = {
@@ -189,14 +275,14 @@ export default function OnboardingCompleteScreen() {
     [onboardingState?.full_name, profile?.full_name]
   );
 
-  const loadingTitleLine = 'We’re setting everything up for you';
+  const loadingTitleLine = 'Generating your personalized program';
   const readyNameLine = preferredFirstName ?? '';
-  const readyTitleLine = 'You’re ready to go...';
+  const readyTitleLine = 'Your custom AI-powered program is here';
   const readySubtitleLine = isSaving
     ? 'Starting…'
     : isAuthenticated
       ? 'Finishing up…'
-      : 'Your custom training profile is ready.';
+      : '';
 
   const animateSummaryRestState = useCallback(() => {
     Animated.parallel([
@@ -499,7 +585,26 @@ export default function OnboardingCompleteScreen() {
     return `${name}'s training profile`;
   }, [onboardingState?.full_name]);
 
-  const summaryActiveStreak = '0 days';
+  const programBlueprint = useMemo(() => {
+    if (!onboardingState) return null;
+    return buildOnboardingProgramBlueprint(buildOnboardingProgramSpec(onboardingState));
+  }, [onboardingState]);
+
+  const programPreviewMuscleLevels = useMemo(() => {
+    if (!programBlueprint) return null;
+    return buildProgramPreviewMuscleLevels(
+      onboardingState?.muscle_focuses?.length
+        ? (onboardingState.muscle_focuses as MuscleFocus[])
+        : onboardingState?.muscle_focus
+          ? [onboardingState.muscle_focus as MuscleFocus]
+          : ['balanced']
+    );
+  }, [onboardingState?.muscle_focus, onboardingState?.muscle_focuses, programBlueprint]);
+
+  const programPreviewHeatmapGender = useMemo<'male' | 'female'>(() => {
+    const resolvedGender = onboardingState?.gender ?? profile?.gender;
+    return resolvedGender === 'female' ? 'female' : 'male';
+  }, [onboardingState?.gender, profile?.gender]);
 
   const summaryItems = useMemo<SummaryItem[]>(() => {
     if (!onboardingState) return [];
@@ -559,6 +664,8 @@ export default function OnboardingCompleteScreen() {
 
     return items.slice(0, 4);
   }, [onboardingState]);
+
+  const headerStatusText = phase === 'loading' ? typedStatusLine : typedReadySubtitle;
 
   useEffect(() => {
     let isActive = true;
@@ -769,7 +876,21 @@ export default function OnboardingCompleteScreen() {
         return;
       }
 
-      trackOnboardingFinished();
+      if (state) {
+        try {
+          const programSpec = buildOnboardingProgramSpec(state);
+          const conversionContext = buildOnboardingConversionContext(state);
+          await savePendingOnboardingProgramSpec(programSpec);
+          await savePendingOnboardingConversionContext(conversionContext);
+          trackOnboardingFinished(conversionContext);
+        } catch (programSpecError) {
+          console.warn('[Onboarding] Failed to save pending program spec:', programSpecError);
+          trackOnboardingFinished();
+        }
+      } else {
+        trackOnboardingFinished();
+      }
+
       try {
         await clearOnboardingState();
       } catch (clearError) {
@@ -875,7 +996,7 @@ export default function OnboardingCompleteScreen() {
             hapticFeedback="impactMedium"
           >
             <Text allowFontScaling={false} style={[styles.continueButtonText, { color: colors.white }]}>
-              {isSaving ? 'Starting…' : "I'm ready!"}
+              {isSaving ? 'Starting…' : "I'm ready"}
             </Text>
           </GlassButton>
         ) : undefined
@@ -906,27 +1027,26 @@ export default function OnboardingCompleteScreen() {
           >
             {phase === 'loading' ? typedLoadingTitle : typedReadyTitle}
           </Text>
-          <Text
-            allowFontScaling={false}
-            numberOfLines={2}
-            style={[styles.statusText, { color: colors.textSecondary }]}
-          >
-            {phase === 'loading'
-              ? typedStatusLine
-              : isSaving
-                ? typedReadySubtitle
-                : isAuthenticated
-                  ? typedReadySubtitle
-                  : typedReadySubtitle}
-          </Text>
+          {headerStatusText ? (
+            <Text
+              allowFontScaling={false}
+              numberOfLines={2}
+              style={[styles.statusText, { color: colors.textSecondary }]}
+            >
+              {headerStatusText}
+            </Text>
+          ) : null}
         </View>
 
         {showSummary ? (
           <Animated.View
-            style={{
-              opacity: summaryAnim,
-              overflow: 'visible',
-            }}
+            style={[
+              styles.summaryBlock,
+              {
+                opacity: summaryAnim,
+                overflow: 'visible',
+              },
+            ]}
           >
             <Animated.View
               style={[styles.summaryCardShell, summaryCardAnimatedStyle]}
@@ -971,14 +1091,67 @@ export default function OnboardingCompleteScreen() {
                 <Text allowFontScaling={false} style={[styles.summaryTitle, { color: colors.textPrimary }]}>
                   {summaryName ?? 'Your training profile'}
                 </Text>
-                <View style={[styles.summaryStreakCard, { borderColor: colors.glassBorder }]}>
-                  <Text allowFontScaling={false} style={[styles.summaryStreakLabel, { color: colors.textSecondary }]}>
-                    Active streak
-                  </Text>
-                  <Text allowFontScaling={false} style={[styles.summaryStreakValue, { color: colors.textPrimary }]}>
-                    {summaryActiveStreak}
-                  </Text>
-                </View>
+                {programBlueprint ? (
+                  <View style={[styles.programPreview, { borderColor: colors.glassBorder }]}>
+                    <View style={styles.programPreviewHeader}>
+                      <View style={styles.programPreviewTitleStack}>
+                        <Text allowFontScaling={false} style={[styles.programPreviewEyebrow, { color: colors.accent }]}>
+                          PROGRAM PREVIEW
+                        </Text>
+                        <Text allowFontScaling={false} style={[styles.programPreviewTitle, { color: colors.textPrimary }]}>
+                          {programBlueprint.name}
+                        </Text>
+                      </View>
+                      <Text allowFontScaling={false} style={[styles.programPreviewWeeks, { color: colors.textPrimary }]}>
+                        {programBlueprint.durationWeeks} weeks
+                      </Text>
+                    </View>
+                    <Text allowFontScaling={false} style={[styles.programPreviewSubtitle, { color: colors.textSecondary }]}>
+                      {programBlueprint.subtitle}
+                    </Text>
+                    <View style={styles.programChips}>
+                      {[programBlueprint.environmentLabel, programBlueprint.scheduleLabel, programBlueprint.focusLabel].map((label) => (
+                        <View
+                          key={label}
+                          style={[
+                            styles.programChip,
+                            { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
+                          ]}
+                        >
+                          <Text allowFontScaling={false} numberOfLines={1} style={[styles.programChipText, { color: colors.textPrimary }]}>
+                            {label}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={styles.programPreviewBody}>
+                      <View style={styles.programWorkoutList}>
+                        {programBlueprint.workouts.slice(0, 4).map((workout, index) => (
+                          <View key={`${workout.name}-${index}`} style={styles.programWorkoutRow}>
+                            <Text allowFontScaling={false} style={[styles.programWorkoutIndex, { color: colors.accent }]}>
+                              {index + 1}
+                            </Text>
+                            <Text allowFontScaling={false} numberOfLines={1} style={[styles.programWorkoutName, { color: colors.textPrimary }]}>
+                              {workout.name}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                      {programPreviewMuscleLevels ? (
+                        <View style={styles.programHeatmap}>
+                          <MuscleHeatmap
+                            muscleLevels={programPreviewMuscleLevels}
+                            gender={programPreviewHeatmapGender}
+                            scale={0.32}
+                            compact
+                            baselineIntensity={1}
+                            showLegend
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                ) : null}
                 {summaryItems.length > 0 ? (
                   <View style={styles.summaryGrid}>
                     {summaryItems.map((item) => (
@@ -1013,7 +1186,7 @@ export default function OnboardingCompleteScreen() {
               </LinearGradient>
             </Animated.View>
             <Text allowFontScaling={false} style={[styles.summaryNote, { color: colors.textPrimary }]}>
-              You can edit your information at any time.
+              You can change this at any time.
             </Text>
           </Animated.View>
         ) : null}
@@ -1041,10 +1214,11 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     justifyContent: 'flex-start',
-    gap: Spacing['2xl'],
+    gap: Spacing.lg,
     paddingBottom: Spacing['6xl'],
   },
   headerBlock: {
+    minHeight: 178,
     gap: Spacing.xs,
     paddingTop: Spacing.sm,
   },
@@ -1085,6 +1259,9 @@ const styles = StyleSheet.create({
   summaryCardShell: {
     width: '100%',
     overflow: 'visible',
+  },
+  summaryBlock: {
+    marginTop: -Spacing.md,
   },
   summaryShine: {
     position: 'absolute',
@@ -1137,6 +1314,88 @@ const styles = StyleSheet.create({
   },
   summarySubtitle: {
     ...Typography.bodySmall,
+  },
+  programPreview: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  programPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+  },
+  programPreviewTitleStack: {
+    flex: 1,
+    gap: 2,
+  },
+  programPreviewEyebrow: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 11,
+    letterSpacing: 1.8,
+  },
+  programPreviewTitle: {
+    ...Typography.h3,
+    fontSize: 18,
+  },
+  programPreviewWeeks: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  programPreviewSubtitle: {
+    ...Typography.bodySmall,
+  },
+  programChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.xs,
+  },
+  programChip: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 5,
+    maxWidth: '100%',
+  },
+  programChipText: {
+    ...Typography.caption,
+    fontWeight: '700',
+  },
+  programPreviewBody: {
+    minHeight: 124,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  programWorkoutList: {
+    flex: 1,
+    minWidth: 0,
+    gap: Spacing.xs,
+  },
+  programWorkoutRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  programWorkoutIndex: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    width: 18,
+  },
+  programWorkoutName: {
+    ...Typography.bodySmall,
+    flex: 1,
+    fontWeight: '700',
+  },
+  programHeatmap: {
+    width: 148,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
   },
   summaryNote: {
     ...Typography.bodySmall,

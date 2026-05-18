@@ -20,6 +20,7 @@ import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTr
 import { initializeMixpanel } from '@/src/lib/mixpanel';
 import { RevenueCatAnalyticsSync } from '@/src/components/revenuecat/RevenueCatAnalyticsSync';
 import { WorkoutRetentionCoordinator } from '@/src/components/retention/WorkoutRetentionCoordinator';
+import { OnboardingProgramCoordinator } from '@/src/components/onboarding/OnboardingProgramCoordinator';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -61,6 +62,7 @@ function ThemedAppContent({
       <InAppTourProvider>
         <DragDropProvider>
           {!isEarlyRoute ? <WorkoutRetentionCoordinator /> : null}
+          {!isEarlyRoute ? <OnboardingProgramCoordinator /> : null}
           <StatusBar style={isDark ? 'light' : 'dark'} />
           <Stack
             screenOptions={{
@@ -166,19 +168,49 @@ function ThemedAppContent({
               }}
             />
             <Stack.Screen
+              name="onboarding/training-environment"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
               name="onboarding/other-apps"
               options={{
                 ...ONBOARDING_TRANSITION,
               }}
             />
             <Stack.Screen
-              name="onboarding/clarity"
+              name="onboarding/progress-blocker"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/six-month-preview"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/program-setup-intro"
               options={{
                 ...ONBOARDING_TRANSITION,
               }}
             />
             <Stack.Screen
               name="onboarding/goal"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/muscle-focus"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/fitness-priorities"
               options={{
                 ...ONBOARDING_TRANSITION,
               }}
@@ -233,6 +265,30 @@ function ThemedAppContent({
             />
             <Stack.Screen
               name="onboarding/workout-schedule"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/session-duration"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/goal-pace"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/program-name"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/metrics-intro"
               options={{
                 ...ONBOARDING_TRANSITION,
               }}

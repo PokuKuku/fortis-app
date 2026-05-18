@@ -24,6 +24,10 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboardingState';
+import {
+  buildOnboardingProgramSpec,
+  savePendingOnboardingProgramSpec,
+} from '@/src/utils/onboardingProgram';
 
 const ONBOARDING_STATE_LOAD_TIMEOUT_MS = 4_000;
 const PROFILE_FINALIZATION_TIMEOUT_MS = 8_000;
@@ -210,6 +214,10 @@ export default function AuthWelcomeScreen() {
             router.replace('/onboarding/welcome');
           }
           return;
+        }
+
+        if (state) {
+          await savePendingOnboardingProgramSpec(buildOnboardingProgramSpec(state));
         }
 
         await withTimeout(

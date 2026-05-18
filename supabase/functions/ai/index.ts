@@ -138,6 +138,7 @@ interface AIRequest {
     insightId?: string;
     periodWeeks?: number;
     currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+    onboardingProgramSpec?: AIOnboardingProgramSpec;
   };
   history?: Array<{
     role: 'user' | 'assistant';
@@ -161,6 +162,32 @@ interface AIWorkoutTemplate {
   focus?: string;
   estimatedDurationMinutes?: number;
   exercises: AIWorkoutTemplateExercise[];
+}
+
+interface AIOnboardingProgramSpec {
+  id: string;
+  trainingEnvironment: 'gym' | 'home' | 'hybrid';
+  muscleFocuses: string[];
+  fitnessGoal?: string | null;
+  liftingExperience?: string | null;
+  workoutsPerWeek: number;
+  scheduleDays: number[];
+  durationWeeks: number;
+  userName?: string | null;
+}
+
+interface AIProgramTemplateWorkout {
+  name: string;
+  exercises: AIWorkoutTemplateExercise[];
+}
+
+interface AIProgramTemplate {
+  name: string;
+  description?: string;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  goal?: 'strength' | 'hypertrophy' | 'general_fitness';
+  durationWeeks?: number;
+  workouts: AIProgramTemplateWorkout[];
 }
 
 interface WorkoutGenerationExerciseCatalogEntry {
@@ -288,6 +315,14 @@ Deno.serve(async (req: Request) => {
           ...(rateLimitResult.limitWindow && { limitWindow: rateLimitResult.limitWindow }),
         },
       }, 429, origin);
+    }
+
+    if (isOnboardingProgramRequest(aiRequest)) {
+      const programStart = performance.now();
+      const response = await buildOnboardingProgramResponse(supabase, aiRequest, requestId);
+      logTiming('buildOnboardingProgram', programStart);
+      logTiming('total', requestStart);
+      return jsonResponse(response, 200, origin);
     }
 
     // Assemble context based on intent
@@ -455,6 +490,11 @@ function validateRequest(body: unknown): string | null {
     if (ctx.currentWorkoutTemplateDraft !== undefined) {
       if (!ctx.currentWorkoutTemplateDraft || typeof ctx.currentWorkoutTemplateDraft !== 'object' || Array.isArray(ctx.currentWorkoutTemplateDraft)) {
         return 'currentWorkoutTemplateDraft must be an object';
+      }
+    }
+    if (ctx.onboardingProgramSpec !== undefined) {
+      if (!ctx.onboardingProgramSpec || typeof ctx.onboardingProgramSpec !== 'object' || Array.isArray(ctx.onboardingProgramSpec)) {
+        return 'onboardingProgramSpec must be an object';
       }
     }
   }
@@ -682,6 +722,316 @@ function extractWorkoutEquipment(message: string): string[] {
     }
   }
   return Array.from(equipment);
+}
+
+function isOnboardingProgramRequest(request: AIRequest): boolean {
+  return !!request.context?.onboardingProgramSpec;
+}
+
+const ONBOARDING_FOCUS_LABELS: Record<string, string> = {
+  balanced: 'Balanced',
+  chest: 'Chest',
+  back: 'Back',
+  shoulders: 'Shoulders',
+  arms: 'Arms',
+  legs: 'Legs',
+  glutes: 'Glutes',
+  core: 'Core',
+};
+
+function getBalancedOnboardingSplitNames(spec: AIOnboardingProgramSpec): string[] {
+  const count = Math.min(7, Math.max(1, Math.round(spec.workoutsPerWeek || 3)));
+  if (count === 1) return ['Full Body'];
+  if (count === 2) return ['Upper', 'Lower'];
+  if (count === 3) {
+    return spec.fitnessGoal === 'improve_strength'
+      ? ['Upper Strength', 'Lower Strength', 'Full Body']
+      : ['Push', 'Pull', 'Legs'];
+  }
+  if (count === 4) return ['Upper A', 'Lower A', 'Upper B', 'Lower B'];
+  if (count === 5) return ['Push', 'Pull', 'Legs', 'Upper', 'Lower'];
+  return ['Push A', 'Pull A', 'Legs A', 'Push B', 'Pull B', 'Legs B', 'Full Body'].slice(0, count);
+}
+
+function getSpecificOnboardingFocuses(spec: AIOnboardingProgramSpec): string[] {
+  return Array.isArray(spec.muscleFocuses)
+    ? spec.muscleFocuses.filter((focus) => focus && focus !== 'balanced')
+    : [];
+}
+
+function formatOnboardingFocusGroupName(focuses: string[]): string {
+  return focuses.map((focus) => ONBOARDING_FOCUS_LABELS[focus] ?? focus).join(' + ');
+}
+
+function splitOnboardingFocusesAcrossWorkouts(focuses: string[], count: number): string[][] {
+  if (count <= focuses.length) {
+    const baseSize = Math.floor(focuses.length / count);
+    const remainder = focuses.length % count;
+    let cursor = 0;
+    return Array.from({ length: count }, (_, index) => {
+      const size = baseSize + (index < remainder ? 1 : 0);
+      const chunk = focuses.slice(cursor, cursor + size);
+      cursor += size;
+      return chunk;
+    });
+  }
+
+  return Array.from({ length: count }, (_, index) => [focuses[index % focuses.length]]);
+}
+
+function getOnboardingFocusedVariant(
+  occurrence: number,
+  count: number,
+  focusCount: number,
+  fitnessGoal: AIOnboardingProgramSpec['fitnessGoal']
+): string {
+  if (count <= focusCount) {
+    return fitnessGoal === 'improve_strength' ? 'Strength' : 'Focus';
+  }
+
+  const variants = fitnessGoal === 'improve_strength'
+    ? ['Strength', 'Volume', 'Accessory', 'Power', 'Pump', 'Support', 'Finish']
+    : ['Strength', 'Volume', 'Accessory', 'Pump', 'Hypertrophy', 'Support', 'Finish'];
+  return variants[occurrence] ?? `Day ${occurrence + 1}`;
+}
+
+function getFocusedOnboardingWorkouts(spec: AIOnboardingProgramSpec): Array<{ name: string; focuses: string[] }> {
+  const count = Math.min(7, Math.max(1, Math.round(spec.workoutsPerWeek || 3)));
+  const focuses = getSpecificOnboardingFocuses(spec);
+  const chunks = splitOnboardingFocusesAcrossWorkouts(focuses, count);
+  const occurrences = new Map<string, number>();
+
+  return chunks.map((focusChunk) => {
+    const key = focusChunk.join('|');
+    const occurrence = occurrences.get(key) ?? 0;
+    occurrences.set(key, occurrence + 1);
+    const label = formatOnboardingFocusGroupName(focusChunk);
+    const variant = getOnboardingFocusedVariant(occurrence, count, focuses.length, spec.fitnessGoal);
+    return {
+      name: `${label} ${variant}`,
+      focuses: focusChunk,
+    };
+  });
+}
+
+function getOnboardingWorkoutFocuses(name: string, spec: AIOnboardingProgramSpec): string[] {
+  const lower = name.toLowerCase();
+  if (lower.includes('push')) return ['chest', 'shoulders', 'arms'];
+  if (lower.includes('pull')) return ['back', 'arms'];
+  if (lower.includes('upper')) return ['chest', 'back', 'shoulders'];
+  if (lower.includes('lower') || lower.includes('legs')) return ['legs', 'glutes'];
+  const selected = Array.isArray(spec.muscleFocuses)
+    ? spec.muscleFocuses.filter((focus) => focus && focus !== 'balanced')
+    : [];
+  return selected.length > 0 ? selected : ['chest', 'back', 'legs', 'core'];
+}
+
+function getOnboardingWorkouts(spec: AIOnboardingProgramSpec): Array<{ name: string; focuses: string[] }> {
+  const specificFocuses = getSpecificOnboardingFocuses(spec);
+  if (specificFocuses.length > 0) {
+    return getFocusedOnboardingWorkouts(spec);
+  }
+
+  return getBalancedOnboardingSplitNames(spec).map((name) => ({
+    name,
+    focuses: getOnboardingWorkoutFocuses(name, spec),
+  }));
+}
+
+function onboardingFocusMatchesExercise(exercise: WorkoutGenerationExerciseCatalogEntry, focus: string): boolean {
+  const muscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
+    .map((muscle) => normalizeCatalogLookupValue(muscle))
+    .join(' ');
+  const name = normalizeCatalogLookupValue(exercise.name);
+  const tokenMap: Record<string, string[]> = {
+    balanced: [],
+    chest: ['chest', 'pectorals'],
+    back: ['back', 'lats', 'middle back', 'lower back', 'traps'],
+    shoulders: ['shoulders', 'delts', 'deltoids'],
+    arms: ['biceps', 'triceps', 'forearms'],
+    legs: ['quadriceps', 'hamstrings', 'calves', 'adductors', 'abductors'],
+    glutes: ['glutes'],
+    core: ['abdominals', 'abs', 'obliques'],
+  };
+  return (tokenMap[focus] ?? []).some((token) => muscles.includes(token) || name.includes(token));
+}
+
+function onboardingExerciseAllowedForEnvironment(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  environment: AIOnboardingProgramSpec['trainingEnvironment'],
+  workoutIndex: number
+): boolean {
+  const equipment = normalizeCatalogLookupValue(exercise.equipment);
+  if (environment === 'gym') return true;
+  const homeEquipment = ['body only', 'bodyweight', 'body weight', 'dumbbell', 'band', 'bands', 'kettlebell'];
+  if (environment === 'home') {
+    return homeEquipment.some((item) => equipment.includes(item));
+  }
+  if (workoutIndex % 2 === 0) return true;
+  return [...homeEquipment, 'cable'].some((item) => equipment.includes(item));
+}
+
+function onboardingExercisePenalty(exercise: WorkoutGenerationExerciseCatalogEntry): number {
+  const text = normalizeCatalogLookupValue(`${exercise.name} ${exercise.category} ${exercise.level ?? ''}`);
+  let penalty = 0;
+  if (/\b(stretch|mobility|roll|warm up|warmup|cardio)\b/.test(text)) penalty += 20;
+  if (/\b(assisted|behind neck|reverse|decline close grip)\b/.test(text)) penalty += 8;
+  if (/\b(beginner)\b/.test(text)) penalty += 2;
+  return penalty;
+}
+
+function scoreOnboardingExercise(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  focuses: string[],
+  spec: AIOnboardingProgramSpec
+): number {
+  let score = 0;
+  focuses.forEach((focus) => {
+    if (onboardingFocusMatchesExercise(exercise, focus)) score += 10;
+  });
+  if (exercise.isCurated) score += 5;
+  if (!exercise.canonicalId) score += 2;
+  if (isCompoundExerciseName(exercise.name)) score += 3;
+  const equipment = normalizeCatalogLookupValue(exercise.equipment);
+  if (spec.trainingEnvironment === 'gym' && ['barbell', 'dumbbell', 'cable', 'machine'].some((item) => equipment.includes(item))) {
+    score += 2;
+  }
+  if (spec.trainingEnvironment === 'home' && ['body', 'dumbbell', 'band', 'kettlebell'].some((item) => equipment.includes(item))) {
+    score += 2;
+  }
+  return score - onboardingExercisePenalty(exercise);
+}
+
+function buildOnboardingProgramExercise(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  index: number,
+  spec: AIOnboardingProgramSpec
+): AIWorkoutTemplateExercise {
+  const compound = isCompoundExerciseName(exercise.name);
+  const strengthFocused = spec.fitnessGoal === 'improve_strength';
+  return {
+    exerciseId: exercise.id,
+    exerciseName: toWorkoutTitleCase(exercise.name),
+    sets: compound && index < 2 ? 4 : 3,
+    reps: strengthFocused && compound ? '5-8' : compound ? '6-10' : '10-15',
+    restSeconds: compound ? 90 : 60,
+  };
+}
+
+function buildOnboardingProgramTemplate(
+  spec: AIOnboardingProgramSpec,
+  catalog: WorkoutGenerationExerciseCatalogEntry[]
+): AIProgramTemplate | null {
+  const firstName = spec.userName?.trim().split(/\s+/)[0];
+  const programName = firstName ? `${firstName}'s Program` : 'Your Program';
+  const focusLabel = spec.muscleFocuses?.includes('balanced') || !spec.muscleFocuses?.length
+    ? 'balanced training'
+    : spec.muscleFocuses
+        .map((focus) => ONBOARDING_FOCUS_LABELS[focus] ?? focus)
+        .join(', ')
+        .toLowerCase();
+  const splitWorkouts = getOnboardingWorkouts(spec);
+  const usableCatalog = catalog.filter((exercise) => onboardingExercisePenalty(exercise) < 20);
+
+  const workouts = splitWorkouts
+    .map((workout, workoutIndex) => {
+      const { name, focuses } = workout;
+      const ranked = usableCatalog
+        .filter((exercise) => onboardingExerciseAllowedForEnvironment(exercise, spec.trainingEnvironment, workoutIndex))
+        .filter((exercise) => focuses.some((focus) => onboardingFocusMatchesExercise(exercise, focus)))
+        .map((exercise) => ({ exercise, score: scoreOnboardingExercise(exercise, focuses, spec) }))
+        .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
+
+      const selected: WorkoutGenerationExerciseCatalogEntry[] = [];
+      const selectedGroups = new Set<string>();
+      const equipmentGroups = new Set<string>();
+      for (const { exercise } of ranked) {
+        if (selected.length >= 5) break;
+        const group = exercise.canonicalKey || exercise.canonicalId || normalizeCatalogLookupValue(exercise.name);
+        if (selectedGroups.has(group)) continue;
+        const equipment = normalizeCatalogLookupValue(exercise.equipment).split(' ')[0] || 'body';
+        if (selected.length >= 3 && equipmentGroups.size < 2 && equipmentGroups.has(equipment)) {
+          continue;
+        }
+        selected.push(exercise);
+        selectedGroups.add(group);
+        equipmentGroups.add(equipment);
+      }
+
+      return {
+        name,
+        exercises: selected.map((exercise, index) => buildOnboardingProgramExercise(exercise, index, spec)),
+      };
+    })
+    .filter((workout) => workout.exercises.length >= 3);
+
+  if (workouts.length === 0) {
+    return null;
+  }
+
+  return {
+    name: programName,
+    description: `${spec.durationWeeks || 8}-week ${focusLabel} plan built for ${spec.trainingEnvironment} training.`,
+    difficulty: spec.liftingExperience === 'advanced'
+      ? 'advanced'
+      : spec.liftingExperience === 'none'
+        ? 'beginner'
+        : 'intermediate',
+    goal: spec.fitnessGoal === 'improve_strength'
+      ? 'strength'
+      : spec.fitnessGoal === 'build_muscle'
+        ? 'hypertrophy'
+        : 'general_fitness',
+    durationWeeks: Math.min(16, Math.max(4, Math.round(spec.durationWeeks || 8))),
+    workouts,
+  };
+}
+
+async function buildOnboardingProgramResponse(
+  supabase: SupabaseClient,
+  request: AIRequest,
+  requestId: string
+): Promise<unknown> {
+  const spec = request.context?.onboardingProgramSpec;
+  if (!spec) {
+    return {
+      type: 'error',
+      requestId,
+      error: {
+        code: 'INVALID_REQUEST',
+        message: 'Missing onboarding program details.',
+        retryable: false,
+      },
+    };
+  }
+
+  const catalog = await fetchWorkoutExerciseCatalog(
+    supabase,
+    `${spec.trainingEnvironment} ${spec.muscleFocuses.join(' ')} full body push pull legs upper lower workout`,
+    { broadSearch: true }
+  );
+  const programTemplate = buildOnboardingProgramTemplate(spec, catalog);
+  if (!programTemplate) {
+    return {
+      type: 'error',
+      requestId,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'I couldn’t build a program from the exercise library yet.',
+        retryable: true,
+      },
+    };
+  }
+
+  return {
+    type: 'answer',
+    requestId,
+    answer: {
+      text: `I built ${programTemplate.name}, a ${programTemplate.workouts.length}-day plan based on your onboarding answers.`,
+      citations: [],
+      programTemplate,
+    },
+  };
 }
 
 async function assembleContext(

@@ -99,13 +99,16 @@ export default function OnboardingHeightScreen() {
       : Math.round((FEET_VALUES[feetIndex] * 12 + INCH_VALUES[inchIndex]) * 2.54);
 
     await updateOnboardingState({ height_cm: heightCm, preferred_units: unit });
-    trackOnboardingStepCompleted('body_metrics');
+    trackOnboardingStepCompleted('body_metrics', {
+      height_cm: heightCm,
+      preferred_units: unit,
+    });
     router.push('/onboarding/weight');
   };
 
   return (
     <OnboardingScreen
-      step={4}
+      step={21}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your height?"
       subtitle="You can update this any time from your profile."
