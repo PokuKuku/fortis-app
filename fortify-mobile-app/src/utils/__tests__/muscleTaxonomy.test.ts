@@ -1,8 +1,10 @@
 import {
+  attributeExercisesToMuscles,
   attributeSessionToMuscles,
   attributeSessionSetsToMuscles,
   bucketIntensity,
   bucketWeeklyTierIntensity,
+  normalizeMuscleArray,
 } from '@/src/utils/muscleTaxonomy';
 import type { Exercise } from '@/src/types/exercise';
 import type { WorkoutSession } from '@/src/types/workout';
@@ -225,5 +227,47 @@ describe('muscleTaxonomy attribution', () => {
     expect(levels.lats).toBe(2);
     expect(levels.upper_back).toBe(2);
     expect(levels.biceps).toBe(2);
+  });
+
+  it('keeps adductors active for adduction exercises and heatmap scoring', () => {
+    const adduction: Exercise = {
+      id: 'ex-adduction',
+      name: 'Lever Seated Hip Adduction',
+      primaryMuscles: ['adductors'],
+      secondaryMuscles: ['hamstrings', 'glutes'],
+      equipment: 'machine',
+      category: 'strength',
+      instructions: [],
+      images: [],
+    };
+
+    expect(normalizeMuscleArray(['adductors'])).toEqual(['adductors']);
+
+    const scores = attributeExercisesToMuscles([adduction]);
+    const levels = bucketIntensity(scores);
+
+    expect(scores.adductors).toBe(1);
+    expect(levels.adductors).toBe(5);
+  });
+
+  it('keeps abductors active for abduction exercises and heatmap scoring', () => {
+    const abduction: Exercise = {
+      id: 'ex-abduction',
+      name: 'Lever Seated Hip Abduction',
+      primaryMuscles: ['abductors'],
+      secondaryMuscles: ['hamstrings', 'glutes'],
+      equipment: 'machine',
+      category: 'strength',
+      instructions: [],
+      images: [],
+    };
+
+    expect(normalizeMuscleArray(['abductors'])).toEqual(['abductors']);
+
+    const scores = attributeExercisesToMuscles([abduction]);
+    const levels = bucketIntensity(scores);
+
+    expect(scores.abductors).toBe(1);
+    expect(levels.abductors).toBe(5);
   });
 });

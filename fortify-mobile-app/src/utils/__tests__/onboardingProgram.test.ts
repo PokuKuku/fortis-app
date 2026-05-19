@@ -3,6 +3,7 @@ import {
   buildOnboardingProgramBlueprint,
   buildOnboardingProgramSpec,
   formatOnboardingFrequencySummary,
+  resolveOnboardingProgramName,
 } from '@/src/utils/onboardingProgram';
 import type { ExerciseWithSource } from '@/src/types/exercise';
 import type { OnboardingState } from '@/src/utils/onboardingState';
@@ -22,7 +23,7 @@ const exercise = (
   equipment,
   category: 'strength',
   instructions: [],
-  images: [],
+  images: [`${id}.gif`],
   isCurated: true,
   isHidden: false,
   source: 'api',
@@ -49,13 +50,24 @@ describe('onboarding program helpers', () => {
     expect(preview.name).toBe("Kwaku's Program");
     expect(preview.environmentLabel).toBe('Hybrid');
     expect(preview.scheduleLabel).toBe('Mon, Tue, Thu, Sat');
-    expect(preview.subtitle).toBe('8-week chest, back focus');
+    expect(preview.subtitle).toBe('10-week chest, back focus');
     expect(preview.workouts.map((workout) => workout.name)).toEqual([
       'Upper A',
       'Lower A',
       'Upper B',
       'Lower B',
     ]);
+  });
+
+  it('uses the custom onboarding program name before generated fallbacks', () => {
+    const spec = buildOnboardingProgramSpec({
+      full_name: 'Kwaku Bimpong',
+      program_name: 'Project Iron',
+      workouts_per_week: 3,
+    } as OnboardingState);
+
+    expect(buildOnboardingProgramBlueprint(spec).name).toBe('Project Iron');
+    expect(resolveOnboardingProgramName(spec, "Kwaku's Program")).toBe('Project Iron');
   });
 
   it('uses standard split names for balanced and focused strength plans', () => {
@@ -105,7 +117,7 @@ describe('onboarding program helpers', () => {
       muscle_focuses: ['legs', 'arms', 'shoulders', 'back'],
     } as OnboardingState);
 
-    expect(buildOnboardingProgramBlueprint(spec).subtitle).toBe('8-week legs, arms, shoulders, back focus');
+    expect(buildOnboardingProgramBlueprint(spec).subtitle).toBe('10-week legs, arms, shoulders, back focus');
   });
 
   it('formats exact onboarding workout frequency for the preview summary', () => {
@@ -172,7 +184,7 @@ describe('onboarding program helpers', () => {
     expect(payload?.workouts[0].exercises.map((item) => item.exerciseName)).toContain('Leg Press');
   });
 
-  it('prefers exercises with available media over similar exercises without media', () => {
+  it('excludes exercises without usable GIF media', () => {
     const spec = buildOnboardingProgramSpec({
       workouts_per_week: 1,
       training_environment: 'gym',
@@ -181,6 +193,9 @@ describe('onboarding program helpers', () => {
     const payload = buildDeterministicOnboardingProgram(spec, [
       exercise('no-media-squat', 'Advanced Dumbbell Step Up', ['glutes'], 'Dumbbell', {
         images: [],
+      }),
+      exercise('static-image-lunge', 'Dumbbell Step-up Lunge', ['quadriceps'], 'Dumbbell', {
+        images: ['dumbbell-step-up.png'],
       }),
       exercise('squat', 'Barbell Squat', ['quadriceps'], 'Barbell', {
         images: ['barbell-squat.gif'],
@@ -202,6 +217,35 @@ describe('onboarding program helpers', () => {
     const exerciseNames = payload?.workouts[0].exercises.map((item) => item.exerciseName) ?? [];
     expect(exerciseNames).toContain('Barbell Squat');
     expect(exerciseNames).not.toContain('Advanced Dumbbell Step Up');
+    expect(exerciseNames).not.toContain('Dumbbell Step-up Lunge');
+    expect(exerciseNames).toEqual(expect.arrayContaining(['Leg Press', 'Romanian Deadlift', 'Seated Leg Curl']));
+  });
+
+  it('returns fewer exercises instead of filling with non-GIF exercises', () => {
+    const spec = buildOnboardingProgramSpec({
+      workouts_per_week: 1,
+      training_environment: 'gym',
+      muscle_focuses: ['legs'],
+    } as OnboardingState);
+    const payload = buildDeterministicOnboardingProgram(spec, [
+      exercise('leg-press', 'Leg Press', ['quadriceps'], 'Machine', {
+        images: ['leg-press.gif'],
+      }),
+      exercise('rdl', 'Romanian Deadlift', ['hamstrings'], 'Barbell', {
+        images: ['rdl.gif'],
+      }),
+      exercise('static-calf-raise', 'Standing Calf Raise', ['calves'], 'Machine', {
+        images: ['standing-calf-raise.jpg'],
+      }),
+      exercise('no-media-adduction', 'Cable Hip Adduction', ['adductors'], 'Cable', {
+        images: [],
+      }),
+    ]);
+
+    const exerciseNames = payload?.workouts[0].exercises.map((item) => item.exerciseName) ?? [];
+    expect(exerciseNames).toEqual(['Leg Press', 'Romanian Deadlift']);
+    expect(exerciseNames).not.toContain('Standing Calf Raise');
+    expect(exerciseNames).not.toContain('Cable Hip Adduction');
   });
 
   it('excludes gym equipment from home generated programs', () => {
@@ -226,6 +270,87 @@ describe('onboarding program helpers', () => {
     expect(exerciseNames).not.toContain('Leg Press');
   });
 
+  it('uses verified canonical ids over obscure GIF-backed variants across split days', () => {
+    const spec = buildOnboardingProgramSpec({
+      workouts_per_week: 3,
+      training_environment: 'gym',
+      muscle_focuses: ['balanced'],
+    } as OnboardingState);
+    const payload = buildDeterministicOnboardingProgram(spec, [
+      exercise('obscure-bench', 'One Arm Dumbbell Bench Press', ['chest'], 'Dumbbell'),
+      exercise('canonical-bench', 'Barbell Bench Press - Medium Grip', ['chest'], 'Barbell', {
+        remoteId: 'a46f5273-d6ed-4de8-cfe2-1646dad01bc9',
+      }),
+      exercise('canonical-shoulder', 'Barbell Shoulder Press', ['shoulders'], 'Barbell', {
+        remoteId: '00ce669e-1411-43de-d5a7-b7e85a160e30',
+      }),
+      exercise('canonical-lateral', 'Side Lateral Raise', ['shoulders'], 'Dumbbell', {
+        remoteId: 'e89f2b37-4047-441b-21d4-072c0d03e98e',
+      }),
+      exercise('obscure-triceps', 'Reverse Grip Triceps Pushdown', ['triceps'], 'Cable'),
+      exercise('canonical-triceps', 'Triceps Pushdown', ['triceps'], 'Cable', {
+        remoteId: '697409e4-0b0a-464f-8ad1-054aa7b2117d',
+      }),
+      exercise('bench-pullup', 'Bench Pull-ups', ['lats'], 'Body Weight'),
+      exercise('bodyweight-squat-row', 'Bodyweight Squatting Row', ['upper back'], 'Body Weight'),
+      exercise('canonical-pulldown', 'Wide-Grip Lat Pulldown', ['lats'], 'Cable', {
+        remoteId: '8f4e3f99-cd79-49a9-542c-0238df792506',
+      }),
+      exercise('canonical-row', 'Seated Cable Rows', ['middle back'], 'Cable', {
+        remoteId: 'aec04e6f-add8-4ca0-847e-c7a4e4879a22',
+      }),
+      exercise('canonical-face-pull', 'Face Pull', ['rear delts'], 'Cable', {
+        remoteId: 'cd6e3284-218f-4781-910b-8fe9ecc575aa',
+      }),
+      exercise('canonical-curl', 'Dumbbell Bicep Curl', ['biceps'], 'Dumbbell', {
+        remoteId: '96dd46a4-976c-4c7e-dd21-2225fff1b258',
+      }),
+      exercise('canonical-squat', 'Barbell Squat', ['quadriceps'], 'Barbell', {
+        remoteId: '6bd35c77-0093-4d84-f7fd-7f7a3834f226',
+      }),
+      exercise('obscure-hinge', 'Advanced Dumbbell Stiff Leg Deadlift', ['hamstrings'], 'Dumbbell'),
+      exercise('canonical-rdl', 'Romanian Deadlift', ['hamstrings'], 'Barbell', {
+        remoteId: '07bccaa6-d851-4d7d-29b5-f67980133235',
+      }),
+      exercise('obscure-calf', 'Dumbbell Seated One-Leg Calf Raise', ['calves'], 'Dumbbell'),
+      exercise('canonical-calf-press', 'Calf Press On The Leg Press Machine', ['calves'], 'Machine', {
+        remoteId: 'dd5de488-04ec-4c8f-8043-3ead36c31017',
+      }),
+      exercise('canonical-hip-thrust', 'Barbell Hip Thrust', ['glutes'], 'Barbell', {
+        remoteId: '750b8c83-2f2c-4634-efc6-581de0628c32',
+      }),
+    ]);
+
+    const pushNames = payload?.workouts[0].exercises.map((item) => item.exerciseName) ?? [];
+    const pullNames = payload?.workouts[1].exercises.map((item) => item.exerciseName) ?? [];
+    const legNames = payload?.workouts[2].exercises.map((item) => item.exerciseName) ?? [];
+
+    expect(pushNames).toEqual(expect.arrayContaining([
+      'Barbell Bench Press - Medium Grip',
+      'Barbell Shoulder Press',
+      'Side Lateral Raise',
+      'Triceps Pushdown',
+    ]));
+    expect(pushNames).not.toContain('One Arm Dumbbell Bench Press');
+    expect(pushNames).not.toContain('Reverse Grip Triceps Pushdown');
+    expect(pullNames).toEqual(expect.arrayContaining([
+      'Wide-Grip Lat Pulldown',
+      'Seated Cable Rows',
+      'Face Pull',
+      'Dumbbell Bicep Curl',
+    ]));
+    expect(pullNames).not.toContain('Bench Pull-ups');
+    expect(pullNames).not.toContain('Bodyweight Squatting Row');
+    expect(legNames).toEqual(expect.arrayContaining([
+      'Barbell Squat',
+      'Romanian Deadlift',
+      'Calf Press On The Leg Press Machine',
+      'Barbell Hip Thrust',
+    ]));
+    expect(legNames).not.toContain('Advanced Dumbbell Stiff Leg Deadlift');
+    expect(legNames).not.toContain('Dumbbell Seated One-Leg Calf Raise');
+  });
+
   it('uses selected muscles to bias standard split exercise selection', () => {
     const spec = buildOnboardingProgramSpec({
       workouts_per_week: 3,
@@ -237,18 +362,31 @@ describe('onboarding program helpers', () => {
       exercise('shoulder-press', 'Barbell Shoulder Press', ['shoulders'], 'Barbell'),
       exercise('lateral-raise', 'Cable Lateral Raise', ['shoulders'], 'Cable'),
       exercise('triceps-pushdown', 'Cable Triceps Pushdown', ['triceps'], 'Cable'),
+      exercise('bench-pullup', 'Bench Pull-ups', ['lats'], 'Body Weight'),
+      exercise('bodyweight-squat-row-a', 'Bodyweight Squatting Row', ['upper back'], 'Body Weight'),
+      exercise('bodyweight-squat-row-b', 'Bodyweight Squatting Row Variation', ['upper back'], 'Body Weight'),
       exercise('lat-pulldown', 'Lat Pulldown', ['lats'], 'Cable'),
       exercise('row', 'Seated Cable Row', ['middle back'], 'Cable'),
+      exercise('machine-row', 'Machine Row', ['middle back'], 'Machine'),
+      exercise('face-pull', 'Face Pull', ['rear delts'], 'Cable'),
       exercise('curl', 'Dumbbell Curl', ['biceps'], 'Dumbbell'),
       exercise('leg-press', 'Leg Press', ['quadriceps'], 'Machine'),
       exercise('rdl', 'Romanian Deadlift', ['hamstrings'], 'Barbell'),
       exercise('calf-raise', 'Standing Calf Raise', ['calves'], 'Machine'),
+      exercise('leg-curl', 'Seated Leg Curl', ['hamstrings'], 'Machine'),
     ]);
 
     expect(payload?.workouts.map((workout) => workout.name)).toEqual(['Push', 'Pull', 'Legs']);
     expect(payload?.workouts[0].exercises.map((item) => item.exerciseName)).toEqual(
-      expect.arrayContaining(['Barbell Shoulder Press', 'Cable Triceps Pushdown'])
+      expect.arrayContaining(['Barbell Bench Press', 'Barbell Shoulder Press', 'Cable Triceps Pushdown'])
     );
-    expect(payload?.workouts[0].exercises.slice(0, 3).map((item) => item.exerciseName)).not.toContain('Barbell Bench Press');
+    const pullNames = payload?.workouts[1].exercises.map((item) => item.exerciseName) ?? [];
+    expect(pullNames).toEqual(expect.arrayContaining(['Lat Pulldown', 'Face Pull', 'Dumbbell Curl']));
+    expect(pullNames.some((name) => name === 'Seated Cable Row' || name === 'Machine Row')).toBe(true);
+    expect(pullNames).not.toContain('Bench Pull-ups');
+    expect(pullNames).not.toContain('Bodyweight Squatting Row');
+    expect(payload?.workouts[2].exercises.map((item) => item.exerciseName)).toEqual(
+      expect.arrayContaining(['Leg Press', 'Romanian Deadlift', 'Standing Calf Raise'])
+    );
   });
 });

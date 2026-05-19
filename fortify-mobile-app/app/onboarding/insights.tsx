@@ -129,8 +129,8 @@ export default function OnboardingInsightsScreen() {
     <OnboardingScreen
       step={8}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Fortify helps you understand your progress faster"
-      subtitle="Understand what’s working and keep progressing!"
+      title="Fortify helps you break through your goals!"
+      subtitle="Our personalized experience will help you move past your barriers"
       titleFontSize={30}
       subtitleFontSize={20}
       onBack={() => router.back()}

@@ -38,6 +38,11 @@ type ExerciseMetadataRow = {
   secondary_muscles: string[] | null;
 };
 
+type ExerciseMetadataResult = {
+  data: ExerciseMetadataRow[];
+  error: { message: string } | null;
+};
+
 type MuscleGroupRow = {
   muscle_group: string;
   week_start: string;
@@ -90,6 +95,27 @@ type VerdictOutput = {
   title: string;
   summary: string;
   severity: 'low' | 'medium' | 'high';
+};
+
+const fetchScopedExerciseMetadata = async (
+  adminClient: SupabaseClient,
+  userId: string,
+  exerciseIds: string[]
+): Promise<ExerciseMetadataResult> => {
+  if (exerciseIds.length === 0) {
+    return { data: [], error: null };
+  }
+
+  const { data, error } = await adminClient
+    .from('exercises')
+    .select('id, name, equipment, category, primary_muscles, secondary_muscles')
+    .in('id', exerciseIds)
+    .or(`is_custom.eq.false,created_by.eq.${userId}`);
+
+  return {
+    data: (data as ExerciseMetadataRow[] | null) ?? [],
+    error: error ? { message: error.message } : null,
+  };
 };
 
 type StallSignalClass = 'high_signal' | 'medium_signal' | 'low_signal';
@@ -445,12 +471,14 @@ const fetchWeekToDateVolume = async (
     }
   });
 
-  const { data: exerciseRows } = exerciseIds.size
-    ? await adminClient
-        .from('exercises')
-        .select('id, name, equipment, category, primary_muscles')
-        .in('id', Array.from(exerciseIds))
-    : { data: [] as Array<{ id: string; name: string; equipment?: string | null; category?: string | null; primary_muscles?: string[] | null }> };
+  const { data: exerciseRows, error: exerciseRowsError } = await fetchScopedExerciseMetadata(
+    adminClient,
+    userId,
+    Array.from(exerciseIds)
+  );
+  if (exerciseRowsError) {
+    console.warn('[Insights] Failed to fetch scoped exercise metadata:', exerciseRowsError.message);
+  }
 
   const exerciseNameById = new Map<string, string>();
   const exerciseEquipmentById = new Map<string, string>();
@@ -458,7 +486,7 @@ const fetchWeekToDateVolume = async (
   const exercisePrimaryById = new Map<string, string[]>();
   (exerciseRows ?? []).forEach((row) => {
     if (!row?.id) return;
-    exerciseNameById.set(row.id, row.name);
+    if (row.name) exerciseNameById.set(row.id, row.name);
     if (row.equipment) exerciseEquipmentById.set(row.id, row.equipment ?? '');
     if (row.category) exerciseCategoryById.set(row.id, row.category ?? '');
     if (row.primary_muscles) exercisePrimaryById.set(row.id, row.primary_muscles ?? []);
@@ -1498,27 +1526,31 @@ const buildWorkoutRecapInsights = async ({
     }
   });
 
-  const { data: exerciseRows } = exerciseIds.size
-    ? await adminClient
-        .from('exercises')
-        .select('id, name, equipment, category, primary_muscles')
-        .in('id', Array.from(exerciseIds))
-    : { data: [] as Array<{ id: string; name: string; equipment?: string | null; category?: string | null; primary_muscles?: string[] | null }> };
+  const { data: exerciseRows, error: exerciseRowsError } = await fetchScopedExerciseMetadata(
+    adminClient,
+    userId,
+    Array.from(exerciseIds)
+  );
+  if (exerciseRowsError) {
+    console.warn('[Insights] Failed to fetch scoped exercise metadata for recap:', exerciseRowsError.message);
+  }
   const exerciseNameById = new Map<string, string>();
   const exerciseEquipmentById = new Map<string, string>();
   const exerciseCategoryById = new Map<string, string>();
   const exercisePrimaryById = new Map<string, string[]>();
-  (exerciseRows ?? []).forEach((row: { id: string; name: string; equipment?: string | null; category?: string | null; primary_muscles?: string[] | null }) => {
+  (exerciseRows ?? []).forEach((row: ExerciseMetadataRow) => {
     if (row?.id) {
-      exerciseNameById.set(row.id, row.name);
-      if ((row as { equipment?: string | null }).equipment) {
-        exerciseEquipmentById.set(row.id, (row as { equipment?: string | null }).equipment ?? '');
+      if (row.name) {
+        exerciseNameById.set(row.id, row.name);
       }
-      if ((row as { category?: string | null }).category) {
-        exerciseCategoryById.set(row.id, (row as { category?: string | null }).category ?? '');
+      if (row.equipment) {
+        exerciseEquipmentById.set(row.id, row.equipment ?? '');
       }
-      if ((row as { primary_muscles?: string[] | null }).primary_muscles) {
-        exercisePrimaryById.set(row.id, (row as { primary_muscles?: string[] | null }).primary_muscles ?? []);
+      if (row.category) {
+        exerciseCategoryById.set(row.id, row.category ?? '');
+      }
+      if (row.primary_muscles) {
+        exercisePrimaryById.set(row.id, row.primary_muscles ?? []);
       }
     }
   });
@@ -1871,10 +1903,11 @@ const buildStallRiskInsights = async ({
     .sort(sortByExposure);
 
   const rankedIds = ranked.map((item) => item.exerciseId);
-  const { data: exerciseMetadataRows, error: exerciseMetadataError } = await adminClient
-    .from('exercises')
-    .select('id, name, equipment, category, primary_muscles, secondary_muscles')
-    .in('id', rankedIds);
+  const { data: exerciseMetadataRows, error: exerciseMetadataError } = await fetchScopedExerciseMetadata(
+    adminClient,
+    userId,
+    rankedIds
+  );
 
   if (exerciseMetadataError) {
     console.warn('[Insights] Failed to fetch exercise metadata for stall risk:', exerciseMetadataError.message);

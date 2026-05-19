@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Easing,
   PanResponder,
+  useWindowDimensions,
   type DimensionValue,
   type LayoutChangeEvent,
 } from 'react-native';
@@ -56,6 +57,13 @@ const SUMMARY_MAX_TILT_DEG = 16;
 const SUMMARY_MAX_SHIFT_PX = 34;
 const SUMMARY_MAX_TRANSLATE_PX = 4;
 const SUMMARY_REST_SCALE = 0.985;
+const PROGRAM_PREVIEW_HEATMAP_GRADIENT: [string, string, string, string, string] = [
+  '#16A34A',
+  '#84CC16',
+  '#EAB308',
+  '#F97316',
+  '#DC2626',
+];
 
 type Phase = 'loading' | 'ready';
 
@@ -229,6 +237,8 @@ export default function OnboardingCompleteScreen() {
 
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isCompactProgramPreview = windowWidth < 380 || windowHeight < 760;
   const { updateProfile, isAuthenticated, profile } = useAuth();
   const didContinueRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -1021,7 +1031,7 @@ export default function OnboardingCompleteScreen() {
       }
     >
       <View style={styles.page}>
-        <View style={styles.headerBlock}>
+        <View style={[styles.headerBlock, phase === 'ready' && styles.headerBlockReady]}>
           <Text allowFontScaling={false} style={[styles.percentText, { color: colors.textPrimary }]}>
             {phase === 'loading' ? `${progressPct}%` : '100%'}
           </Text>
@@ -1127,22 +1137,10 @@ export default function OnboardingCompleteScreen() {
                     <Text allowFontScaling={false} style={[styles.programPreviewSubtitle, { color: colors.textSecondary }]}>
                       {programBlueprint.subtitle}
                     </Text>
-                    <View style={styles.programChips}>
-                      {[programBlueprint.environmentLabel, programBlueprint.scheduleLabel, programBlueprint.focusLabel].map((label) => (
-                        <View
-                          key={label}
-                          style={[
-                            styles.programChip,
-                            { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
-                          ]}
-                        >
-                          <Text allowFontScaling={false} numberOfLines={1} style={[styles.programChipText, { color: colors.textPrimary }]}>
-                            {label}
-                          </Text>
-                        </View>
-                      ))}
-                    </View>
-                    <View style={styles.programPreviewBody}>
+                    <View style={[
+                      styles.programPreviewBody,
+                      isCompactProgramPreview && styles.programPreviewBodyCompact,
+                    ]}>
                       <View style={styles.programWorkoutList}>
                         {programBlueprint.workouts.slice(0, 4).map((workout, index) => (
                           <View key={`${workout.name}-${index}`} style={styles.programWorkoutRow}>
@@ -1156,14 +1154,18 @@ export default function OnboardingCompleteScreen() {
                         ))}
                       </View>
                       {programPreviewMuscleLevels ? (
-                        <View style={styles.programHeatmap}>
+                        <View style={[
+                          styles.programHeatmap,
+                          isCompactProgramPreview && styles.programHeatmapCompact,
+                        ]}>
                           <MuscleHeatmap
                             muscleLevels={programPreviewMuscleLevels}
                             gender={programPreviewHeatmapGender}
-                            scale={0.32}
+                            scale={isCompactProgramPreview ? 0.28 : 0.32}
                             compact
                             baselineIntensity={1}
                             showLegend
+                            intensityPalette={PROGRAM_PREVIEW_HEATMAP_GRADIENT}
                           />
                         </View>
                       ) : null}
@@ -1239,6 +1241,10 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     paddingTop: Spacing.sm,
   },
+  headerBlockReady: {
+    minHeight: 0,
+    paddingTop: 0,
+  },
   percentText: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 38,
@@ -1278,7 +1284,7 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   summaryBlock: {
-    marginTop: -Spacing.md,
+    marginTop: -Spacing.sm,
   },
   summaryShine: {
     position: 'absolute',
@@ -1366,27 +1372,17 @@ const styles = StyleSheet.create({
   programPreviewSubtitle: {
     ...Typography.bodySmall,
   },
-  programChips: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs,
-  },
-  programChip: {
-    borderWidth: 1,
-    borderRadius: BorderRadius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 5,
-    maxWidth: '100%',
-  },
-  programChipText: {
-    ...Typography.caption,
-    fontWeight: '700',
-  },
   programPreviewBody: {
     minHeight: 124,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+  },
+  programPreviewBodyCompact: {
+    minHeight: 0,
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: Spacing.sm,
   },
   programWorkoutList: {
     flex: 1,
@@ -1413,6 +1409,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
+  },
+  programHeatmapCompact: {
+    width: '100%',
   },
   summaryNote: {
     ...Typography.bodySmall,

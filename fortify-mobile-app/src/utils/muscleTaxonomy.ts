@@ -52,10 +52,9 @@ export const MUSCLE_KEYS: MuscleKey[] = [
   'abductors',
 ];
 
-// Inventory check (exercises-export + curated): adductors/abductors appear ~10x each.
-// Treat as inactive for v1 until they show up at meaningful frequency.
-const INCLUDE_ADDUCTORS = false;
-const INCLUDE_ABDUCTORS = false;
+// Adductors/abductors are present in the curated exercise library and supported by heatmap mappings.
+const INCLUDE_ADDUCTORS = true;
+const INCLUDE_ABDUCTORS = true;
 
 export const ACTIVE_MUSCLE_KEYS: MuscleKey[] = MUSCLE_KEYS.filter((key) => {
   if (key === 'adductors') return INCLUDE_ADDUCTORS;

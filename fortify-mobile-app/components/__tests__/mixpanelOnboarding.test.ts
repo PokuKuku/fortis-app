@@ -32,11 +32,16 @@ describe('mixpanelOnboarding', () => {
 
     expect(mockMixpanelCtor).toHaveBeenCalledWith('test-token', false, false);
     expect(mockInit).toHaveBeenCalledTimes(1);
-    expect(mockTrack).toHaveBeenCalledWith("Q2. What's your gender?", {
-      funnel_step: 4,
-      screen_name: "Q2. What's your gender?",
-      distinct_id: 'anon-123',
-    });
+    expect(mockTrack).toHaveBeenCalledWith(
+      "Q2. What's your gender?",
+      expect.objectContaining({
+        funnel_step: 4,
+        screen_name: "Q2. What's your gender?",
+        distinct_id: 'anon-123',
+        time: expect.any(Number),
+        $insert_id: expect.any(String),
+      })
+    );
     expect(mockFlush).toHaveBeenCalledTimes(1);
   });
 

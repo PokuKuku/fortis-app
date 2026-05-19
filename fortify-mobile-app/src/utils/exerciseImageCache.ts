@@ -16,6 +16,11 @@ function normalizeImageUrl(imagePath: string | null | undefined): string | null 
   return url.length > 0 ? url : null;
 }
 
+export function isExerciseGifImagePath(imagePath: string | null | undefined): boolean {
+  const uri = normalizeImageUrl(imagePath);
+  return !!uri && isGifUrl(uri);
+}
+
 export function getCachedExerciseImageSource(
   imagePath: string | null | undefined
 ): ImageSourcePropType | null {

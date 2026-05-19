@@ -778,6 +778,10 @@ export default function ProgramsScreen() {
   const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
   const [onboardingProgramSpec, setOnboardingProgramSpec] = useState<OnboardingProgramSpec | null>(null);
+  const [isOnboardingPreviewDismissing, setIsOnboardingPreviewDismissing] = useState(false);
+  const onboardingPreviewOpacity = useRef(new Animated.Value(1)).current;
+  const onboardingPreviewScale = useRef(new Animated.Value(1)).current;
+  const onboardingPreviewTranslateY = useRef(new Animated.Value(0)).current;
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
 
   const loadOnboardingProgramSpec = useCallback(async () => {
@@ -921,6 +925,22 @@ export default function ProgramsScreen() {
     ) ?? null;
   }, [onboardingProgramSpec, programs]);
 
+  useEffect(() => {
+    if (!onboardingPreviewProgram || isOnboardingPreviewDismissing) {
+      return;
+    }
+
+    onboardingPreviewOpacity.setValue(1);
+    onboardingPreviewScale.setValue(1);
+    onboardingPreviewTranslateY.setValue(0);
+  }, [
+    isOnboardingPreviewDismissing,
+    onboardingPreviewOpacity,
+    onboardingPreviewProgram,
+    onboardingPreviewScale,
+    onboardingPreviewTranslateY,
+  ]);
+
   const templates = useMemo(
     () => sortItemsBySavedOrder(baseTemplates, homeCardOrder.workoutIds),
     [baseTemplates, homeCardOrder.workoutIds]
@@ -1049,9 +1069,31 @@ export default function ProgramsScreen() {
   };
 
   const handleOnboardingProgramPreviewPress = useCallback(async () => {
-    if (!onboardingPreviewProgram || !onboardingProgramSpec) return;
+    if (!onboardingPreviewProgram || !onboardingProgramSpec || isOnboardingPreviewDismissing) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setIsOnboardingPreviewDismissing(true);
+
+    await new Promise<void>((resolve) => {
+      Animated.parallel([
+        Animated.timing(onboardingPreviewOpacity, {
+          toValue: 0,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(onboardingPreviewScale, {
+          toValue: 0.96,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+        Animated.timing(onboardingPreviewTranslateY, {
+          toValue: -12,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start(() => resolve());
+    });
+
     setOnboardingProgramSpec({
       ...onboardingProgramSpec,
       status: 'dismissed',
@@ -1068,7 +1110,16 @@ export default function ProgramsScreen() {
       console.warn('Failed to dismiss onboarding program preview:', error);
     }
     router.push(`/programs/${onboardingPreviewProgram.id}`);
-  }, [onboardingPreviewProgram, onboardingProgramSpec, router]);
+    setIsOnboardingPreviewDismissing(false);
+  }, [
+    isOnboardingPreviewDismissing,
+    onboardingPreviewOpacity,
+    onboardingPreviewProgram,
+    onboardingProgramSpec,
+    onboardingPreviewScale,
+    onboardingPreviewTranslateY,
+    router,
+  ]);
 
   const handleKebabPress = (
     type: 'program' | 'workout',
@@ -1435,43 +1486,54 @@ export default function ProgramsScreen() {
           />
 
           {onboardingPreviewProgram && (
-            <TouchableOpacity
-              activeOpacity={0.84}
-              onPress={handleOnboardingProgramPreviewPress}
-              style={[
-                styles.onboardingProgramPreviewCard,
-                {
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-                  borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-                },
-              ]}
+            <Animated.View
+              style={{
+                opacity: onboardingPreviewOpacity,
+                transform: [
+                  { translateY: onboardingPreviewTranslateY },
+                  { scale: onboardingPreviewScale },
+                ],
+              }}
             >
-              <StainlessSteelPattern />
-              <View style={styles.onboardingProgramPreviewContent}>
-                <View style={styles.onboardingProgramPreviewHeader}>
-                  <View>
-                    <Text style={[styles.onboardingProgramPreviewEyebrow, { color: colors.accent }]}>
-                      FORTIFY AI
-                    </Text>
-                    <Text
-                      style={[styles.onboardingProgramPreviewTitle, { color: colors.textPrimary }]}
-                      numberOfLines={2}
-                    >
-                      {onboardingPreviewProgram.name}
-                    </Text>
+              <TouchableOpacity
+                activeOpacity={0.84}
+                disabled={isOnboardingPreviewDismissing}
+                onPress={handleOnboardingProgramPreviewPress}
+                style={[
+                  styles.onboardingProgramPreviewCard,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                  },
+                ]}
+              >
+                <StainlessSteelPattern />
+                <View style={styles.onboardingProgramPreviewContent}>
+                  <View style={styles.onboardingProgramPreviewHeader}>
+                    <View>
+                      <Text style={[styles.onboardingProgramPreviewEyebrow, { color: colors.accent }]}>
+                        FORTIFY AI
+                      </Text>
+                      <Text
+                        style={[styles.onboardingProgramPreviewTitle, { color: colors.textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        {onboardingPreviewProgram.name}
+                      </Text>
+                    </View>
+                    <SparklesIcon color={colors.accent} size={MODAL_ICON_SIZE} strokeWidth={2} />
                   </View>
-                  <SparklesIcon color={colors.accent} size={MODAL_ICON_SIZE} strokeWidth={2} />
+                  <LinearGradient
+                    colors={colors.accentGradient as unknown as [string, string, ...string[]]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.onboardingProgramPreviewButton}
+                  >
+                    <Text style={styles.onboardingProgramPreviewButtonText}>VIEW PROGRAM</Text>
+                  </LinearGradient>
                 </View>
-                <LinearGradient
-                  colors={colors.accentGradient as unknown as [string, string, ...string[]]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.onboardingProgramPreviewButton}
-                >
-                  <Text style={styles.onboardingProgramPreviewButtonText}>VIEW PROGRAM</Text>
-                </LinearGradient>
-              </View>
-            </TouchableOpacity>
+              </TouchableOpacity>
+            </Animated.View>
           )}
 
           {/* Programs Section */}

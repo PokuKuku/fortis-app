@@ -33,6 +33,11 @@ interface TrackOptions {
   flush?: boolean;
 }
 
+interface DirectMixpanelEvent {
+  event: string;
+  properties: MixpanelProperties;
+}
+
 function getMixpanelToken(): string {
   return process.env.EXPO_PUBLIC_MIXPANEL_TOKEN?.trim() ?? '';
 }
@@ -82,6 +87,36 @@ function sanitizeProperties(properties: MixpanelProperties = {}): MixpanelProper
   return Object.fromEntries(
     Object.entries(properties).filter(([, value]) => value !== undefined)
   );
+}
+
+function createInsertId(eventName: string, eventTime: number): string {
+  const randomValue = Math.random().toString(36).slice(2);
+  return `${eventName}:${eventTime}:${randomValue}`;
+}
+
+function getMixpanelEventTimeSeconds(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.floor(value > 9_999_999_999 ? value / 1000 : value);
+  }
+
+  return Math.floor(Date.now() / 1000);
+}
+
+function getDirectMixpanelResponseStatus(responseBody: string): number | null {
+  const trimmedBody = responseBody.trim();
+  if (trimmedBody === '1') {
+    return 1;
+  }
+  if (trimmedBody === '0') {
+    return 0;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmedBody) as { status?: unknown };
+    return typeof parsed.status === 'number' ? parsed.status : null;
+  } catch {
+    return null;
+  }
 }
 
 function getBaseSuperProperties(): MixpanelProperties {
@@ -338,30 +373,115 @@ export async function flushMixpanel(): Promise<void> {
   }
 }
 
+async function sendDirectMixpanelEvent(event: DirectMixpanelEvent): Promise<void> {
+  const token = getMixpanelToken();
+  if (!__DEV__ || !token || process.env.NODE_ENV === 'test' || typeof fetch !== 'function') {
+    return;
+  }
+
+  const directProperties = sanitizeProperties({
+    ...getBaseSuperProperties(),
+    auth_state: currentIdentifiedUserId ? 'authenticated' : 'anonymous',
+    token,
+    ...event.properties,
+    user_id: event.properties.user_id ?? currentIdentifiedUserId ?? undefined,
+  });
+
+  const body = `data=${encodeURIComponent(
+    JSON.stringify([
+      {
+        event: event.event,
+        properties: directProperties,
+      },
+    ])
+  )}`;
+
+  try {
+    const response = await fetch(
+      `${mixpanelServerUrl || 'https://api.mixpanel.com'}/track/?ip=1&verbose=1`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body,
+      }
+    );
+
+    const responseBody = await response.text();
+    const responseStatus = getDirectMixpanelResponseStatus(responseBody);
+    console.log('[Mixpanel] Direct flush response:', event.event, response.status, responseBody);
+    if (!response.ok || responseStatus !== 1) {
+      console.warn('[Mixpanel] Direct flush failed:', event.event, response.status, responseBody);
+    } else {
+      console.log('[Mixpanel] Direct flush accepted:', event.event);
+    }
+  } catch (error) {
+    console.warn('[Mixpanel] Direct flush failed:', event.event, error);
+  }
+}
+
 export async function trackMixpanelEvent(
   eventName: string,
   properties: MixpanelProperties = {},
   options: TrackOptions = {}
 ): Promise<void> {
-  if (!eventName.trim() || mixpanelDisabled) {
+  if (!eventName.trim()) {
+    return;
+  }
+
+  const eventTime = getMixpanelEventTimeSeconds(properties.time);
+  const eventProperties = sanitizeProperties({
+    ...properties,
+    time: eventTime,
+    ...(options.flush
+      ? {
+          $insert_id: properties.$insert_id ?? createInsertId(eventName, eventTime),
+        }
+      : {}),
+  });
+
+  if (mixpanelDisabled) {
+    if (options.flush) {
+      await sendDirectMixpanelEvent({
+        event: eventName,
+        properties: eventProperties,
+      });
+    }
     return;
   }
 
   const mixpanel = await getMixpanelInstance();
   if (!mixpanel) {
+    if (options.flush) {
+      await sendDirectMixpanelEvent({
+        event: eventName,
+        properties: eventProperties,
+      });
+    }
     return;
   }
 
   try {
     if (typeof (mixpanel as { track?: unknown }).track !== 'function') {
-      mixpanelDisabled = true;
       console.warn('[Mixpanel] Disabled because track method is unavailable.');
+      if (options.flush) {
+        await sendDirectMixpanelEvent({
+          event: eventName,
+          properties: eventProperties,
+        });
+      }
+      mixpanelDisabled = true;
       return;
     }
 
-    await Promise.resolve(mixpanel.track(eventName, sanitizeProperties(properties)));
+    await Promise.resolve(mixpanel.track(eventName, eventProperties));
     if (options.flush) {
       await flushMixpanel();
+      await sendDirectMixpanelEvent({
+        event: eventName,
+        properties: eventProperties,
+      });
     }
   } catch (error) {
     mixpanelDisabled = true;

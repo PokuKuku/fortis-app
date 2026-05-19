@@ -158,6 +158,21 @@ describe('workoutRetention', () => {
     expect(recap.scheduledDaysMissed).toBe(1);
   });
 
+  it('excludes scheduled weekdays before the first schedule activation from weekly recaps', () => {
+    const recap = buildWeeklyRecap({
+      weekStart: new Date('2026-05-17T00:00:00'),
+      scheduleDays: [1, 3, 5],
+      scheduleHistory: [
+        { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      ],
+      sessions: [],
+    });
+
+    expect(recap.scheduledDays).toBe(2);
+    expect(recap.scheduledDaysHit).toBe(0);
+    expect(recap.scheduledDaysMissed).toBe(2);
+  });
+
   it('adds weekly PR highlights from completed PR-marked sets', () => {
     const recap = buildWeeklyRecap({
       weekStart: new Date('2026-05-10T00:00:00'),

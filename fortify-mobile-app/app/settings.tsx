@@ -102,7 +102,7 @@ export default function SettingsScreen() {
     BUNDLED_APP_VERSION ??
     Constants.expoConfig?.version ??
     Constants.nativeAppVersion ??
-    '1.1.3';
+    '1.1.4';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { profile, signOut } = useAuth();
@@ -581,7 +581,7 @@ export default function SettingsScreen() {
 
               <SettingsRow
                 icon={<DocumentTextIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
-                label="AI Data Sharing"
+                label="AI Coaching"
                 value={aiDataSharingAllowed ? 'Allowed' : 'Not allowed'}
                 onPress={handleAIDataSharingPress}
                 colors={colors}

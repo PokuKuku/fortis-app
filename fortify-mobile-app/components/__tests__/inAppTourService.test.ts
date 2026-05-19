@@ -1,4 +1,4 @@
-import { parseInAppTourState } from '@/src/services/inAppTourService';
+import { markInProgressTourSkipped, parseInAppTourState } from '@/src/services/inAppTourService';
 
 describe('inAppTourService', () => {
   it('returns null for empty payload', () => {
@@ -37,5 +37,21 @@ describe('inAppTourService', () => {
       updatedAt: now,
     });
   });
-});
 
+  it('marks an interrupted tour skipped while preserving the last step', () => {
+    const skippedAt = '2026-05-19T17:57:13.000Z';
+    const state = {
+      version: 12,
+      status: 'in_progress' as const,
+      stepId: 'welcome',
+      updatedAt: '2026-05-19T17:56:00.000Z',
+    };
+
+    expect(markInProgressTourSkipped(state, skippedAt)).toEqual({
+      version: 12,
+      status: 'skipped',
+      stepId: 'welcome',
+      updatedAt: skippedAt,
+    });
+  });
+});

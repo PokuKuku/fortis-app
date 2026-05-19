@@ -58,7 +58,6 @@ const GOAL_TO_DEFAULT_OUTCOME: Record<FitnessGoal, FitnessOutcome> = {
 const OPTIONS: Array<{ value: FitnessOutcome; title: string }> = [
   { value: 'build_visible_muscle', title: '💪 Build visible muscle' },
   { value: 'strength_progress', title: '🏋️ Get stronger' },
-  { value: 'lose_body_fat', title: '🔥 Lose body fat' },
   { value: 'improve_conditioning', title: '🫀 Improve conditioning' },
   { value: 'move_better', title: '🤸 Move better' },
   { value: 'training_consistency', title: '📅 Train consistently' },
@@ -135,6 +134,10 @@ export default function OnboardingGoalScreen() {
   const handleSelect = (value: FitnessOutcome) => {
     setSelected((prev) => {
       const wasSelected = prev.includes(value);
+      if (!wasSelected && prev.length >= 3) {
+        return prev;
+      }
+
       const nextSelected = wasSelected
         ? prev.filter((goal) => goal !== value)
         : [...prev, value];
@@ -164,7 +167,7 @@ export default function OnboardingGoalScreen() {
       step={3}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What fitness outcome do you want to achieve with Fortify?"
-      subtitle="Rank all that apply. Tap in order of importance."
+      subtitle="Select up to 3. Rank in order of importance."
       onBack={() => router.back()}
       footer={
         <GlassButton

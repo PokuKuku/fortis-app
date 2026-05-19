@@ -346,18 +346,33 @@ function upsertExerciseCaches(exercise: ExerciseWithSource): void {
 async function fetchExerciseByIdFromSupabase(id: string): Promise<Exercise | null> {
   if (!isSupabaseConfigured()) return null;
 
-  const { data, error } = await supabase
+  const { data: { user } } = await supabase.auth.getUser();
+  const query = supabase
     .from('exercises')
     .select('id, slug, name, equipment, category, primary_muscles, secondary_muscles, instructions, images, aliases, canonical_id, canonical_key, based_on_exercise_id, is_curated, is_hidden, is_custom, normalized_name')
-    .eq('id', id)
-    .eq('is_custom', false)
-    .limit(1);
+    .eq('id', id);
+
+  const { data, error } = user
+    ? await query.or(`is_custom.eq.false,created_by.eq.${user.id}`).limit(1)
+    : await query.eq('is_custom', false).limit(1);
 
   if (error || !data || data.length === 0) {
     return null;
   }
 
-  return transformSupabaseExerciseToExercise(data[0]);
+  const exercise = transformSupabaseExerciseToExercise(data[0]);
+  if (!exercise.isCustom) {
+    return exercise;
+  }
+
+  const slug = exercise.slug ?? undefined;
+  return {
+    ...exercise,
+    id: slug ?? exercise.id,
+    slug,
+    remoteId: exercise.id,
+    isCustom: true,
+  };
 }
 
 // --- Cache Management ---

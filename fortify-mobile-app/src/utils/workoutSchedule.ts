@@ -146,17 +146,13 @@ export function buildWorkoutScheduleHistoryForChange({
   }
 
   const effectiveDateKey = getDateKey(effectiveDate);
-  const hasEarlierHistory = normalizedHistory.some(
-    (entry) => entry.effectiveDateKey < effectiveDateKey
-  );
-  const seededHistory = hasEarlierHistory
+  const seededHistory = normalizedHistory.length > 0
     ? normalizedHistory
     : [
         {
           effectiveDateKey: '1970-01-01',
           scheduleDays: normalizedPrevious,
         },
-        ...normalizedHistory.filter((entry) => entry.effectiveDateKey !== '1970-01-01'),
       ];
 
   return normalizeWorkoutScheduleHistory([
@@ -189,9 +185,7 @@ export function getScheduleDaysForDate({
     activeEntry = entry;
   }
 
-  return activeEntry
-    ? activeEntry.scheduleDays
-    : normalizedHistory[0].scheduleDays;
+  return activeEntry ? activeEntry.scheduleDays : [];
 }
 
 export function getSundayWeekStart(date: Date): Date {
@@ -325,7 +319,14 @@ export function getScheduledWorkoutDayStreak({
         scheduleHistory: normalizedHistory,
       })
     );
+    const cursorKey = getDateKey(cursor);
     if (scheduledDays.size === 0) {
+      if (
+        normalizedHistory.length > 0
+        && cursorKey < normalizedHistory[0].effectiveDateKey
+      ) {
+        return streak;
+      }
       return getWorkoutDayStreak({ sessions, today });
     }
 
@@ -335,7 +336,6 @@ export function getScheduledWorkoutDayStreak({
       continue;
     }
 
-    const cursorKey = getDateKey(cursor);
     if (!completedDateKeys.has(cursorKey)) {
       if (cursorKey === todayKey) {
         cursor = addDays(cursor, -1);

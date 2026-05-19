@@ -29,6 +29,15 @@ export const parseInAppTourState = (raw: string | null): PersistedInAppTourState
   }
 };
 
+export const markInProgressTourSkipped = (
+  state: PersistedInAppTourState,
+  updatedAt: string = new Date().toISOString()
+): PersistedInAppTourState => ({
+  ...state,
+  status: 'skipped',
+  updatedAt,
+});
+
 export async function loadInAppTourState(): Promise<PersistedInAppTourState | null> {
   const raw = await getScopedItem(IN_APP_TOUR_STATE_KEY);
   return parseInAppTourState(raw);
@@ -41,4 +50,3 @@ export async function saveInAppTourState(state: PersistedInAppTourState): Promis
 export async function clearInAppTourState(): Promise<void> {
   await removeScopedItem(IN_APP_TOUR_STATE_KEY);
 }
-

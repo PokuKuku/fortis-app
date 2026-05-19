@@ -32,6 +32,7 @@ interface MuscleHeatmapProps {
   compact?: boolean;
   baselineIntensity?: number;
   showLegend?: boolean;
+  intensityPalette?: [string, string, string, string, string];
 }
 
 interface BodyPartData {
@@ -71,7 +72,7 @@ const mixHex = (start: string, end: string, ratio: number) => {
   return `#${[r, g, bVal].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
 };
 
-const buildHeatmapPalette = (light: string, base: string, dark: string) => ([
+const buildHeatmapPalette = (light: string, base: string, dark: string): [string, string, string, string, string] => ([
   light,
   mixHex(light, base, 0.6),
   base,
@@ -128,7 +129,8 @@ function AccentBody({
   const getFillFor = (bodyPart: LocalBodyPart) => {
     const match = data.find((item) => item.slug === bodyPart.slug);
     if (!match || match.intensity <= 0) return baseColor;
-    return colors[match.intensity - 1] ?? colors[0] ?? baseColor;
+    const paletteIndex = Math.min(colors.length - 1, Math.max(0, match.intensity - 1));
+    return colors[paletteIndex] ?? colors[0] ?? baseColor;
   };
 
   return (
@@ -158,14 +160,12 @@ export function MuscleHeatmap({
   compact = false,
   baselineIntensity = 0,
   showLegend = false,
+  intensityPalette,
 }: MuscleHeatmapProps) {
   const { colors, isDark } = useTheme();
 
-  // 5-level palette from accent colors (low -> high intensity)
-  const heatmapColors = buildHeatmapPalette(colors.accentLight, colors.accent, colors.accentDark);
-  const legendColors: [string, string, string, string] = isDark
-    ? ['#3D4654', '#8EA6C0', colors.accent, '#020817']
-    : ['#F2F6FB', '#91A9C4', colors.accent, '#081323'];
+  // 5-level palette from low -> high intensity.
+  const heatmapColors = intensityPalette ?? buildHeatmapPalette(colors.accentLight, colors.accent, colors.accentDark);
   const baseBodyFill = isDark ? '#5B626D' : '#8C949E';
 
   const { frontData, backData } = useMemo(() => {
@@ -224,10 +224,10 @@ export function MuscleHeatmap({
         <View style={styles.legend}>
           <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>Less</Text>
           <LinearGradient
-            colors={legendColors}
+            colors={heatmapColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            locations={[0, 0.28, 0.62, 1]}
+            locations={[0, 0.25, 0.5, 0.75, 1]}
             style={[styles.legendTrack, { borderColor: colors.glassBorder }]}
           />
           <Text style={[styles.legendLabel, { color: colors.textSecondary }]}>More</Text>

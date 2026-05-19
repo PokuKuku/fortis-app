@@ -158,9 +158,9 @@ export function OnboardingScreen({
 
   const shouldUseScrollView = useScrollView || isShortScreen;
   const footerClearance = floatingFooter
-    ? (isShortScreen ? scale(112) : scale(128))
+    ? (isShortScreen ? scale(168) : scale(192))
     : scale(Spacing['3xl']);
-  const floatingFooterBottom = isShortScreen ? scale(Spacing.md) : scale(Spacing.lg);
+  const floatingFooterBottom = isShortScreen ? scale(Spacing['5xl']) : scale(Spacing['6xl']);
 
   const contentBlockStyle = bodyAlign === 'center'
     ? [styles.contentBlock, styles.contentBlockFill, { gap: resolvedGap }]

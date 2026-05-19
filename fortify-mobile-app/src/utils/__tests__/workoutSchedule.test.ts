@@ -4,6 +4,7 @@ import {
   buildSundayWeek,
   buildWeekProgressDays,
   deriveScheduleDaysFromWorkoutsPerWeek,
+  getScheduleDaysForDate,
   getScheduledWorkoutDayStreak,
   getWorkoutDayStreak,
   normalizeWorkoutScheduleDays,
@@ -158,6 +159,103 @@ describe('workoutSchedule', () => {
       { effectiveDateKey: '1970-01-01', scheduleDays: [0, 1, 2, 3, 4, 5, 6] },
       { effectiveDateKey: '2026-05-18', scheduleDays: [1, 2, 3, 4, 5] },
     ]);
+  });
+
+  it('does not backfill a fresh account schedule before its first active date', () => {
+    expect(getScheduleDaysForDate({
+      date: new Date('2026-05-18T12:00:00'),
+      scheduleDays: [1, 3, 5],
+      scheduleHistory: [
+        { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      ],
+    })).toEqual([]);
+
+    expect(getScheduleDaysForDate({
+      date: new Date('2026-05-19T12:00:00'),
+      scheduleDays: [1, 3, 5],
+      scheduleHistory: [
+        { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      ],
+    })).toEqual([1, 3, 5]);
+  });
+
+  it('keeps legacy no-history schedules active for previous dates', () => {
+    const days = buildWeekProgressDays({
+      anchorDate: new Date('2026-05-18T12:00:00'),
+      scheduleDays: [1],
+      sessions: [],
+      today: new Date('2026-05-19T12:00:00'),
+    });
+
+    expect(days[1]).toMatchObject({
+      dateKey: '2026-05-18',
+      isScheduled: true,
+      isMissed: true,
+    });
+  });
+
+  it('does not mark pre-activation scheduled weekdays as missed', () => {
+    const days = buildWeekProgressDays({
+      anchorDate: new Date('2026-05-19T12:00:00'),
+      scheduleDays: [1, 3, 5],
+      scheduleHistory: [
+        { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      ],
+      sessions: [],
+      today: new Date('2026-05-19T12:00:00'),
+    });
+
+    expect(days[1]).toMatchObject({
+      dateKey: '2026-05-18',
+      isScheduled: false,
+      isMissed: false,
+    });
+    expect(days[3]).toMatchObject({
+      dateKey: '2026-05-20',
+      isScheduled: true,
+    });
+  });
+
+  it('keeps fresh account schedule edits effective tomorrow without a legacy backfill', () => {
+    const history = buildWorkoutScheduleHistoryForChange({
+      previousDays: [1, 3, 5],
+      nextDays: [2, 4],
+      currentHistory: [
+        { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      ],
+      effectiveDate: new Date('2026-05-20T12:00:00'),
+    });
+
+    expect(history).toEqual([
+      { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      { effectiveDateKey: '2026-05-20', scheduleDays: [2, 4] },
+    ]);
+
+    expect(getScheduleDaysForDate({
+      date: new Date('2026-05-19T12:00:00'),
+      scheduleDays: [2, 4],
+      scheduleHistory: history,
+    })).toEqual([1, 3, 5]);
+    expect(getScheduleDaysForDate({
+      date: new Date('2026-05-20T12:00:00'),
+      scheduleDays: [2, 4],
+      scheduleHistory: history,
+    })).toEqual([2, 4]);
+  });
+
+  it('does not break scheduled streaks before the first schedule activation date', () => {
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 3, 5],
+      scheduleHistory: [
+        { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      ],
+      sessions: [
+        session('wednesday', '2026-05-20T12:00:00'),
+      ],
+      today: new Date('2026-05-21T12:00:00'),
+    });
+
+    expect(streak).toBe(1);
   });
 
   it('replaces same day schedule history entries instead of duplicating them', () => {

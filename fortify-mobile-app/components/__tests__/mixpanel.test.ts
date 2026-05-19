@@ -44,9 +44,13 @@ describe('mixpanel', () => {
       }),
       'https://api.mixpanel.com'
     );
-    expect(mockTrack).toHaveBeenCalledWith('screen_view', {
-      pathname: '/onboarding/welcome',
-    });
+    expect(mockTrack).toHaveBeenCalledWith(
+      'screen_view',
+      expect.objectContaining({
+        pathname: '/onboarding/welcome',
+        time: expect.any(Number),
+      })
+    );
   });
 
   it('identifies authenticated users and refreshes super properties', async () => {

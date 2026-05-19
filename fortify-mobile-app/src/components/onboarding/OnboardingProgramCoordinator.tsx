@@ -9,6 +9,7 @@ import {
   buildDeterministicOnboardingProgram,
   loadPendingOnboardingProgramSpec,
   ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT,
+  resolveOnboardingProgramName,
   updatePendingOnboardingProgramSpec,
   type GeneratedProgramPayload,
   type OnboardingProgramSpec,
@@ -36,12 +37,12 @@ const normalizeAIProgram = (
           notes: exercise.notes ?? '',
         })),
     }))
-    .filter((workout) => workout.exercises.length >= 3);
+    .filter((workout) => workout.exercises.length > 0);
 
   if (workouts.length === 0) return null;
 
   return {
-    name: template.name?.trim() || spec.programName?.trim() || 'Your Program',
+    name: resolveOnboardingProgramName(spec, template.name),
     description: template.description?.trim() || 'A personalized program built from your onboarding setup.',
     difficulty: template.difficulty ?? (spec.liftingExperience === 'advanced' ? 'advanced' : spec.liftingExperience === 'none' ? 'beginner' : 'intermediate'),
     goal: template.goal ?? (spec.fitnessGoal === 'improve_strength' ? 'strength' : spec.fitnessGoal === 'build_muscle' ? 'hypertrophy' : 'general_fitness'),

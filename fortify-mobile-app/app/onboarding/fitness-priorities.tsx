@@ -1,38 +1,64 @@
-import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassButton } from '@/components/GlassButton';
+import { GlassCard } from '@/components/GlassCard';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
-import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
+import { OnboardingSegmentedControl } from '@/src/components/onboarding/OnboardingSegmentedControl';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
-import { BorderRadius } from '@/constants/Sizes';
+import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { moderateScale, scale } from '@/src/utils/responsive';
 import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
 
 type FitnessPriority = 'strength' | 'muscle_growth' | 'fat_loss' | 'conditioning' | 'mobility' | 'consistency';
+type PriorityLevel = 'off' | 'medium' | 'high';
 
-const OPTIONS: Array<{ value: FitnessPriority; title: string }> = [
-  { value: 'strength', title: '🏋️ Strength' },
-  { value: 'muscle_growth', title: '💪 Muscle growth' },
-  { value: 'fat_loss', title: '🔥 Fat loss' },
-  { value: 'conditioning', title: '🫀 Conditioning' },
-  { value: 'mobility', title: '🤸 Mobility' },
-  { value: 'consistency', title: '📅 Consistency' },
+const OPTIONS: Array<{ value: FitnessPriority; icon: string; title: string; description: string }> = [
+  { value: 'strength', icon: '🏋️', title: 'Strength', description: 'Heavier lifts and measurable progression' },
+  { value: 'muscle_growth', icon: '💪', title: 'Muscle Growth', description: 'More hypertrophy-focused training volume' },
+  { value: 'conditioning', icon: '🫀', title: 'Conditioning', description: 'Work capacity and heart-rate challenge' },
+  { value: 'mobility', icon: '🤸', title: 'Mobility', description: 'Movement quality and joint-friendly work' },
+  { value: 'consistency', icon: '📅', title: 'Consistency', description: 'A plan that is easier to repeat' },
 ];
 
 const VALID_PRIORITIES = new Set<FitnessPriority>(OPTIONS.map((option) => option.value));
+const LEVEL_OPTIONS = [
+  { label: 'Off', value: 'off' },
+  { label: 'Medium', value: 'medium' },
+  { label: 'High', value: 'high' },
+];
+
+const createEmptyPriorityLevels = (): Record<FitnessPriority, PriorityLevel> => ({
+  strength: 'off',
+  muscle_growth: 'off',
+  fat_loss: 'off',
+  conditioning: 'off',
+  mobility: 'off',
+  consistency: 'off',
+});
+
+const getPrioritiesFromLevels = (levels: Record<FitnessPriority, PriorityLevel>): FitnessPriority[] => [
+  ...OPTIONS.filter((option) => levels[option.value] === 'high').map((option) => option.value),
+  ...OPTIONS.filter((option) => levels[option.value] === 'medium').map((option) => option.value),
+];
 
 export default function OnboardingFitnessPrioritiesScreen() {
   useOnboardingFunnelScreen('Q13. Fitness Priorities');
 
   const router = useRouter();
   const { colors } = useTheme();
-  const [selected, setSelected] = useState<FitnessPriority[]>([]);
-  const isDisabled = selected.length === 0;
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isCompactLayout = windowWidth < 380 || windowHeight < 760;
+  const [priorityLevels, setPriorityLevels] = useState<Record<FitnessPriority, PriorityLevel>>(
+    createEmptyPriorityLevels
+  );
+  const selectedPriorities = useMemo(() => getPrioritiesFromLevels(priorityLevels), [priorityLevels]);
+  const isDisabled = selectedPriorities.length === 0;
 
   useEffect(() => {
     let isActive = true;
@@ -42,7 +68,15 @@ export default function OnboardingFitnessPrioritiesScreen() {
       const stored = (state?.fitness_priorities ?? []).filter((value): value is FitnessPriority =>
         VALID_PRIORITIES.has(value as FitnessPriority)
       );
-      setSelected(stored);
+      const nextLevels = {
+        ...createEmptyPriorityLevels(),
+        ...Object.fromEntries(stored.map((value) => [value, 'high' as PriorityLevel])),
+      };
+      const nextPriorities = getPrioritiesFromLevels(nextLevels);
+      setPriorityLevels(nextLevels);
+      if ((state?.fitness_priorities ?? []).join(',') !== nextPriorities.join(',')) {
+        void updateOnboardingState({ fitness_priorities: nextPriorities });
+      }
     };
     void loadState();
     return () => {
@@ -50,20 +84,19 @@ export default function OnboardingFitnessPrioritiesScreen() {
     };
   }, []);
 
-  const handleSelect = (value: FitnessPriority) => {
-    setSelected((prev) => {
-      const nextSelected = prev.includes(value)
-        ? prev.filter((item) => item !== value)
-        : [...prev, value];
-      void updateOnboardingState({ fitness_priorities: nextSelected });
-      return nextSelected;
+  const handlePriorityLevelChange = (priority: FitnessPriority, level: PriorityLevel) => {
+    setPriorityLevels((prev) => {
+      const nextLevels = { ...prev, [priority]: level };
+      const nextPriorities = getPrioritiesFromLevels(nextLevels);
+      void updateOnboardingState({ fitness_priorities: nextPriorities });
+      return nextLevels;
     });
   };
 
   const handleContinue = () => {
     if (isDisabled) return;
     trackOnboardingStepCompleted('fitness_priorities', {
-      fitness_priorities: selected.join(', '),
+      fitness_priorities: selectedPriorities.join(', '),
     });
     router.push('/onboarding/consistency');
   };
@@ -72,10 +105,11 @@ export default function OnboardingFitnessPrioritiesScreen() {
     <OnboardingScreen
       step={12}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="Choose your main fitness priorities"
-      subtitle="Rank all that apply. Tap in order of importance."
+      title="Tune your program focus"
+      subtitle="Set what your plan should emphasize most."
+      contentGap={Spacing.lg}
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}
@@ -86,17 +120,49 @@ export default function OnboardingFitnessPrioritiesScreen() {
         </GlassButton>
       }
     >
-      <View style={styles.options}>
+      <View style={[styles.options, isCompactLayout && styles.optionsCompact]}>
         {OPTIONS.map((option) => {
-          const rank = selected.indexOf(option.value);
           return (
-            <OnboardingOptionCard
+            <GlassCard
               key={option.value}
-              title={option.title}
-              selected={rank !== -1}
-              rank={rank === -1 ? null : rank + 1}
-              onSelect={() => handleSelect(option.value)}
-            />
+              padding={scale(isCompactLayout ? Spacing.md : Spacing.lg)}
+              style={styles.tuningCard}
+            >
+              <View style={[styles.priorityHeader, isCompactLayout && styles.priorityHeaderCompact]}>
+                <Text style={[styles.priorityIcon, isCompactLayout && styles.priorityIconCompact]}>
+                  {option.icon}
+                </Text>
+                <View style={styles.priorityTextStack}>
+                  <Text
+                    style={[
+                      styles.priorityTitle,
+                      isCompactLayout && styles.priorityTitleCompact,
+                      { color: colors.textPrimary },
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.84}
+                  >
+                    {option.title}
+                  </Text>
+                  <Text
+                    numberOfLines={2}
+                    style={[
+                      styles.priorityDescription,
+                      isCompactLayout && styles.priorityDescriptionCompact,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {option.description}
+                  </Text>
+                </View>
+              </View>
+              <OnboardingSegmentedControl
+                options={LEVEL_OPTIONS}
+                value={priorityLevels[option.value]}
+                onChange={(level) => handlePriorityLevelChange(option.value, level as PriorityLevel)}
+              />
+            </GlassCard>
           );
         })}
       </View>
@@ -107,6 +173,51 @@ export default function OnboardingFitnessPrioritiesScreen() {
 const styles = StyleSheet.create({
   options: {
     gap: 12,
+  },
+  optionsCompact: {
+    gap: 10,
+  },
+  tuningCard: {
+    borderRadius: BorderRadius.xl,
+  },
+  priorityHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: scale(Spacing.md),
+    marginBottom: scale(Spacing.sm),
+  },
+  priorityHeaderCompact: {
+    gap: scale(Spacing.sm),
+    marginBottom: scale(Spacing.xs),
+  },
+  priorityIcon: {
+    fontSize: moderateScale(22),
+    lineHeight: moderateScale(28),
+  },
+  priorityIconCompact: {
+    fontSize: moderateScale(20),
+    lineHeight: moderateScale(24),
+  },
+  priorityTextStack: {
+    flex: 1,
+    minWidth: 0,
+    gap: scale(Spacing.xs),
+  },
+  priorityTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(16),
+    letterSpacing: moderateScale(1.2),
+  },
+  priorityTitleCompact: {
+    fontSize: moderateScale(15),
+  },
+  priorityDescription: {
+    fontSize: moderateScale(14),
+    lineHeight: moderateScale(19),
+  },
+  priorityDescriptionCompact: {
+    fontSize: moderateScale(13),
+    lineHeight: moderateScale(17),
   },
   button: {
     height: 54,

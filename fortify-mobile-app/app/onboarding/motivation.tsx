@@ -68,6 +68,10 @@ export default function OnboardingMotivationScreen() {
   const handleSelect = (value: Motivation) => {
     setSelected((prev) => {
       const wasSelected = prev.includes(value);
+      if (!wasSelected && prev.length >= 3) {
+        return prev;
+      }
+
       const nextSelected = wasSelected
         ? prev.filter((motivation) => motivation !== value)
         : [...prev, value];
@@ -95,6 +99,7 @@ export default function OnboardingMotivationScreen() {
       step={4}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="How would achieving this outcome impact your life outside the gym?"
+      subtitle="Select up to 3. Rank in order of importance."
       onBack={() => router.back()}
       footer={
         <GlassButton

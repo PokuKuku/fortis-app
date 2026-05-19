@@ -779,6 +779,9 @@ export default function InsightsScreen() {
       if (exercise.slug) {
         map.set(exercise.slug, exercise.name);
       }
+      if (exercise.remoteId) {
+        map.set(exercise.remoteId, exercise.name);
+      }
     });
     return map;
   }, [exercises]);
@@ -858,6 +861,9 @@ export default function InsightsScreen() {
       map.set(exercise.id, exercise.name);
       if (exercise.slug) {
         map.set(exercise.slug, exercise.name);
+      }
+      if (exercise.remoteId) {
+        map.set(exercise.remoteId, exercise.name);
       }
     });
     return map;

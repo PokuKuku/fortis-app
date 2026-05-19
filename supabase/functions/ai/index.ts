@@ -825,8 +825,189 @@ function onboardingExercisePenalty(exercise: WorkoutGenerationExerciseCatalogEnt
   return penalty;
 }
 
-function onboardingExerciseHasMedia(exercise: WorkoutGenerationExerciseCatalogEntry): boolean {
-  return exercise.images.some((image) => image.trim().length > 0);
+function onboardingExerciseHasUsableGif(exercise: WorkoutGenerationExerciseCatalogEntry): boolean {
+  return exercise.images.some((image) => /\.gif($|\?)/i.test(image.trim()));
+}
+
+type AIOnboardingCanonicalPreference = {
+  id: string;
+  name: string;
+  slotIds: string[];
+};
+
+const AI_CANONICAL_ONBOARDING_EXERCISE_PREFERENCES: AIOnboardingCanonicalPreference[] = [
+  { id: '8f4e3f99-cd79-49a9-542c-0238df792506', name: 'Wide-Grip Lat Pulldown', slotIds: ['vertical_pull', 'second_pull', 'vertical_pull_core'] },
+  { id: '0608a659-2ce8-455a-0d0d-f264b0c80786', name: 'V-Bar Pulldown', slotIds: ['vertical_pull', 'second_pull', 'vertical_pull_core'] },
+  { id: '967b8d8f-6842-48ad-3049-2eba275bc41e', name: 'Close-Grip Front Lat Pulldown', slotIds: ['vertical_pull', 'second_pull', 'vertical_pull_core'] },
+  { id: 'aec04e6f-add8-4ca0-847e-c7a4e4879a22', name: 'Seated Cable Rows', slotIds: ['row', 'second_pull'] },
+  { id: 'cd6e3284-218f-4781-910b-8fe9ecc575aa', name: 'Face Pull', slotIds: ['rear_delt_upper_back', 'shoulder_accessory'] },
+  { id: '96dd46a4-976c-4c7e-dd21-2225fff1b258', name: 'Dumbbell Bicep Curl', slotIds: ['biceps', 'arm_accessory'] },
+  { id: '0cb907f9-7f89-4ce6-05e4-3eadd55a87f4', name: 'Barbell Curl', slotIds: ['biceps', 'arm_accessory'] },
+  { id: '5ede595d-40cd-412e-06d8-f6f6368d02db', name: 'EZ-Bar Curl', slotIds: ['biceps', 'arm_accessory'] },
+  { id: '51849a2e-7c93-4f1b-6783-e24687ddc40f', name: 'Hammer Curls', slotIds: ['biceps', 'arm_accessory'] },
+  { id: 'a46f5273-d6ed-4de8-cfe2-1646dad01bc9', name: 'Barbell Bench Press - Medium Grip', slotIds: ['horizontal_press', 'press'] },
+  { id: 'd486b05a-e771-47d4-99a5-7b89d2390aeb', name: 'Dumbbell Bench Press', slotIds: ['horizontal_press', 'press'] },
+  { id: '5fb424c6-0ab7-4ef3-0722-e47e1ed24740', name: 'Machine Bench Press', slotIds: ['horizontal_press', 'press', 'chest_accessory'] },
+  { id: '00ce669e-1411-43de-d5a7-b7e85a160e30', name: 'Barbell Shoulder Press', slotIds: ['shoulder_press', 'shoulder_accessory', 'press'] },
+  { id: 'ca7a37de-77ae-400a-3805-df1ba466419f', name: 'Dumbbell Shoulder Press', slotIds: ['shoulder_press', 'shoulder_accessory', 'press'] },
+  { id: 'fd2e3afb-459d-4a0b-3816-815987897324', name: 'Leverage Shoulder Press', slotIds: ['shoulder_press', 'shoulder_accessory', 'press'] },
+  { id: 'e89f2b37-4047-441b-21d4-072c0d03e98e', name: 'Side Lateral Raise', slotIds: ['lateral_raise', 'shoulder_accessory'] },
+  { id: 'b262c55b-e735-4d3d-47be-a9cbafadcb24', name: 'Seated Side Lateral Raise', slotIds: ['lateral_raise', 'shoulder_accessory'] },
+  { id: '697409e4-0b0a-464f-8ad1-054aa7b2117d', name: 'Triceps Pushdown', slotIds: ['triceps', 'arm_accessory'] },
+  { id: '3d967c2b-4184-41bd-cc0a-882a8cead67f', name: 'Triceps Pushdown - Rope Attachment', slotIds: ['triceps', 'arm_accessory'] },
+  { id: '488cf0c2-fc1a-457f-aeea-239e110c0bab', name: 'Triceps Pushdown - V-Bar Attachment', slotIds: ['triceps', 'arm_accessory'] },
+  { id: '6bd35c77-0093-4d84-f7fd-7f7a3834f226', name: 'Barbell Squat', slotIds: ['squat_press'] },
+  { id: '68be0377-1b01-4c53-d839-a5fc291fb389', name: 'Leg Press', slotIds: ['squat_press'] },
+  { id: '07bccaa6-d851-4d7d-29b5-f67980133235', name: 'Romanian Deadlift', slotIds: ['hinge_curl', 'hinge'] },
+  { id: '0d0fe991-6cad-4610-ef18-4e51795c9328', name: 'Lying Leg Curls', slotIds: ['hinge_curl'] },
+  { id: '247e4e39-b46d-48f8-0085-f0c6fc34c011', name: 'Seated Leg Curl', slotIds: ['hinge_curl'] },
+  { id: '94d8f05f-069a-4b44-eb68-bbefe2cfabe8', name: 'Leg Extensions', slotIds: ['unilateral_leg'] },
+  { id: '8c3c8bf5-4099-44a0-6b2d-f381dfb26a1f', name: 'Calf Press', slotIds: ['calves'] },
+  { id: 'dd5de488-04ec-4c8f-8043-3ead36c31017', name: 'Calf Press On The Leg Press Machine', slotIds: ['calves'] },
+  { id: 'be3a2e88-0b03-479c-b870-937092be0238', name: 'Seated Calf Raise', slotIds: ['calves'] },
+  { id: '3c9cfe7d-5a90-4137-7197-4f0f82d17234', name: 'Smith Machine Calf Raise', slotIds: ['calves'] },
+  { id: 'f11e6b2b-4750-43a0-8aeb-9f75dc12e340', name: 'Standing Calf Raises', slotIds: ['calves'] },
+  { id: '750b8c83-2f2c-4634-efc6-581de0628c32', name: 'Barbell Hip Thrust', slotIds: ['glute_hip', 'hinge'] },
+  { id: '1f189423-23b3-4427-dd89-f8ea66d77d82', name: 'Cable Hip Adduction', slotIds: ['glute_hip'] },
+  { id: '35047242-8cc2-4ba8-db82-78998c956c16', name: 'Thigh Abductor', slotIds: ['glute_hip'] },
+  { id: '46c835f3-4282-4472-7fbf-374f08f9ac92', name: 'Thigh Adductor', slotIds: ['glute_hip'] },
+];
+
+type AIOnboardingSlotKey = 'push' | 'pull' | 'legs' | 'upper' | 'full_body';
+
+type AIOnboardingMovementSlot = {
+  id: string;
+  tokens: string[];
+  keywords: RegExp[];
+  preferredEquipment?: string[];
+  mechanic?: 'compound' | 'isolation';
+  optional?: boolean;
+};
+
+function getAIOnboardingSlotKey(name: string): AIOnboardingSlotKey {
+  const lower = name.toLowerCase();
+  if (lower.includes('push')) return 'push';
+  if (lower.includes('pull')) return 'pull';
+  if (lower.includes('upper')) return 'upper';
+  if (lower.includes('lower') || lower.includes('legs')) return 'legs';
+  return 'full_body';
+}
+
+const AI_ONBOARDING_MOVEMENT_SLOTS: Record<AIOnboardingSlotKey, AIOnboardingMovementSlot[]> = {
+  pull: [
+    { id: 'vertical_pull', tokens: ['lats'], keywords: [/\b(pulldown|pull[- ]?up|chin[- ]?up)\b/i], preferredEquipment: ['cable', 'machine'], mechanic: 'compound' },
+    { id: 'row', tokens: ['upper back', 'middle back', 'lats'], keywords: [/\b(row|rowing)\b/i], preferredEquipment: ['cable', 'machine', 'dumbbell', 'barbell'], mechanic: 'compound' },
+    { id: 'rear_delt_upper_back', tokens: ['rear delts', 'upper back', 'traps'], keywords: [/\b(face pull|rear delt|reverse fly|reverse pec deck|shrug)\b/i], preferredEquipment: ['cable', 'machine', 'dumbbell'], mechanic: 'isolation' },
+    { id: 'biceps', tokens: ['biceps'], keywords: [/\b(curl|biceps)\b/i], preferredEquipment: ['dumbbell', 'cable', 'barbell'], mechanic: 'isolation' },
+    { id: 'second_pull', tokens: ['lats', 'upper back', 'middle back'], keywords: [/\b(row|rowing|pulldown|pull[- ]?up|chin[- ]?up)\b/i], preferredEquipment: ['cable', 'machine', 'dumbbell', 'barbell'], optional: true },
+  ],
+  push: [
+    { id: 'horizontal_press', tokens: ['chest', 'pectorals'], keywords: [/\b(bench press|chest press|push[- ]?up|dip)\b/i], preferredEquipment: ['barbell', 'dumbbell', 'machine'], mechanic: 'compound' },
+    { id: 'shoulder_press', tokens: ['shoulders', 'delts'], keywords: [/\b(shoulder press|overhead press|military press)\b/i], preferredEquipment: ['barbell', 'dumbbell', 'machine'], mechanic: 'compound' },
+    { id: 'chest_accessory', tokens: ['chest', 'pectorals'], keywords: [/\b(fly|flye|pec deck|cable crossover|chest press)\b/i], preferredEquipment: ['cable', 'machine', 'dumbbell'], mechanic: 'isolation' },
+    { id: 'lateral_raise', tokens: ['shoulders', 'delts'], keywords: [/\b(lateral raise|side raise)\b/i], preferredEquipment: ['dumbbell', 'cable', 'machine'], mechanic: 'isolation' },
+    { id: 'triceps', tokens: ['triceps'], keywords: [/\b(pushdown|triceps?|skullcrusher|extension)\b/i], preferredEquipment: ['cable', 'dumbbell', 'barbell'], mechanic: 'isolation' },
+  ],
+  legs: [
+    { id: 'squat_press', tokens: ['quadriceps', 'quads'], keywords: [/\b(squat|leg press|hack squat)\b/i], preferredEquipment: ['barbell', 'machine'], mechanic: 'compound' },
+    { id: 'hinge_curl', tokens: ['hamstrings'], keywords: [/\b(deadlift|romanian|rdl|leg curl|hamstring curl)\b/i], preferredEquipment: ['barbell', 'dumbbell', 'machine'], mechanic: 'compound' },
+    { id: 'unilateral_leg', tokens: ['quadriceps', 'glutes'], keywords: [/\b(lunge|split squat|step[- ]?up)\b/i], preferredEquipment: ['dumbbell', 'barbell', 'body'], optional: true },
+    { id: 'calves', tokens: ['calves'], keywords: [/\b(calf raise|calf press|calves)\b/i], preferredEquipment: ['machine', 'dumbbell'], mechanic: 'isolation' },
+    { id: 'glute_hip', tokens: ['glutes', 'adductors', 'abductors'], keywords: [/\b(hip thrust|glute bridge|adduction|abduction|adductor|abductor)\b/i], preferredEquipment: ['barbell', 'machine', 'cable'], optional: true },
+  ],
+  upper: [
+    { id: 'horizontal_press', tokens: ['chest', 'pectorals'], keywords: [/\b(bench press|chest press|push[- ]?up)\b/i], preferredEquipment: ['barbell', 'dumbbell', 'machine'], mechanic: 'compound' },
+    { id: 'row', tokens: ['upper back', 'middle back', 'lats'], keywords: [/\b(row|rowing)\b/i], preferredEquipment: ['cable', 'machine', 'dumbbell', 'barbell'], mechanic: 'compound' },
+    { id: 'vertical_pull', tokens: ['lats'], keywords: [/\b(pulldown|pull[- ]?up|chin[- ]?up)\b/i], preferredEquipment: ['cable', 'machine'], mechanic: 'compound' },
+    { id: 'shoulder_accessory', tokens: ['shoulders', 'delts'], keywords: [/\b(shoulder press|lateral raise|side raise|rear delt|face pull)\b/i], preferredEquipment: ['dumbbell', 'cable', 'machine'], optional: true },
+    { id: 'arm_accessory', tokens: ['biceps', 'triceps'], keywords: [/\b(curl|pushdown|triceps?|biceps)\b/i], preferredEquipment: ['dumbbell', 'cable', 'barbell'], optional: true },
+  ],
+  full_body: [
+    { id: 'squat_press', tokens: ['quadriceps', 'quads'], keywords: [/\b(squat|leg press|hack squat)\b/i], preferredEquipment: ['barbell', 'machine', 'dumbbell'], mechanic: 'compound' },
+    { id: 'press', tokens: ['chest', 'shoulders', 'pectorals'], keywords: [/\b(bench press|chest press|shoulder press|overhead press|push[- ]?up)\b/i], preferredEquipment: ['barbell', 'dumbbell', 'machine'], mechanic: 'compound' },
+    { id: 'row', tokens: ['upper back', 'middle back', 'lats'], keywords: [/\b(row|rowing)\b/i], preferredEquipment: ['cable', 'machine', 'dumbbell', 'barbell'], mechanic: 'compound' },
+    { id: 'hinge', tokens: ['hamstrings', 'glutes'], keywords: [/\b(deadlift|romanian|rdl|hip thrust|glute bridge)\b/i], preferredEquipment: ['barbell', 'dumbbell', 'machine'], mechanic: 'compound' },
+    { id: 'vertical_pull_core', tokens: ['lats', 'abs', 'obliques'], keywords: [/\b(pulldown|pull[- ]?up|chin[- ]?up|plank|crunch|leg raise)\b/i], preferredEquipment: ['cable', 'machine', 'body'], optional: true },
+  ],
+};
+
+function getAIOnboardingCanonicalMatchScore(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  slotId?: string,
+): number {
+  const ids = new Set(
+    [exercise.id, exercise.canonicalId]
+      .filter((value): value is string => !!value)
+      .map((value) => value.toLowerCase())
+  );
+  const lookupValues = new Set(
+    [exercise.name, exercise.slug, exercise.canonicalKey]
+      .filter((value): value is string => !!value)
+      .map((value) => normalizeCatalogLookupValue(value))
+  );
+  let bestScore = 0;
+
+  AI_CANONICAL_ONBOARDING_EXERCISE_PREFERENCES.forEach((preference) => {
+    if (slotId && !preference.slotIds.includes(slotId)) return;
+    const preferenceName = normalizeCatalogLookupValue(preference.name);
+    const preferenceSlug = normalizeCatalogLookupValue(preference.name.replace(/\s+/g, '-'));
+    if (ids.has(preference.id.toLowerCase())) {
+      bestScore = Math.max(bestScore, slotId ? 70 : 24);
+      return;
+    }
+    if (lookupValues.has(preferenceName) || lookupValues.has(preferenceSlug)) {
+      bestScore = Math.max(bestScore, slotId ? 54 : 18);
+    }
+  });
+
+  return bestScore;
+}
+
+function getAIOnboardingObscurePenalty(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  environment: AIOnboardingProgramSpec['trainingEnvironment'],
+): number {
+  const equipment = normalizeCatalogLookupValue(exercise.equipment);
+  let penalty = isWeakOnboardingVariant(exercise) ? 28 : 0;
+  if ((environment === 'gym' || environment === 'hybrid') && /\b(band|bands)\b/.test(equipment)) {
+    penalty += 14;
+  }
+  return penalty;
+}
+
+function onboardingSlotMatchesExercise(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  slot: AIOnboardingMovementSlot
+): boolean {
+  const text = normalizeCatalogLookupValue(`${exercise.name} ${exercise.primaryMuscles.join(' ')} ${exercise.secondaryMuscles.join(' ')}`);
+  return slot.keywords.some((pattern) => pattern.test(exercise.name) || pattern.test(text))
+    || slot.tokens.some((token) => text.includes(normalizeCatalogLookupValue(token)));
+}
+
+function isWeakOnboardingVariant(exercise: WorkoutGenerationExerciseCatalogEntry): boolean {
+  return /\b(advanced|beginner|assisted|behind neck|reverse|one[- ]?arm|one[- ]?leg|single[- ]?leg|deficit|bodyweight squatting|bench pull[- ]?ups?)\b/i.test(exercise.name);
+}
+
+function scoreOnboardingSlotExercise(
+  exercise: WorkoutGenerationExerciseCatalogEntry,
+  slot: AIOnboardingMovementSlot,
+  focuses: string[],
+  spec: AIOnboardingProgramSpec
+): number {
+  const equipment = normalizeCatalogLookupValue(exercise.equipment);
+  const usesGymEquipment = ['barbell', 'dumbbell', 'cable', 'machine', 'smith', 'leg press', 'hack squat'].some((item) => equipment.includes(item));
+  const usesHomeEquipment = ['body', 'bodyweight', 'body weight', 'dumbbell', 'band', 'kettlebell'].some((item) => equipment.includes(item));
+  let score = scoreOnboardingExercise(exercise, focuses, spec);
+  if (slot.keywords.some((pattern) => pattern.test(exercise.name))) score += 30;
+  score += getAIOnboardingCanonicalMatchScore(exercise, slot.id);
+  if (slot.preferredEquipment?.some((item) => equipment.includes(item))) score += 10;
+  if (slot.mechanic === 'compound' && isCompoundExerciseName(exercise.name)) score += 8;
+  if (slot.mechanic === 'isolation' && isIsolationExerciseName(exercise.name)) score += 6;
+  if ((spec.trainingEnvironment === 'gym' || spec.trainingEnvironment === 'hybrid') && usesGymEquipment) score += 14;
+  if ((spec.trainingEnvironment === 'gym' || spec.trainingEnvironment === 'hybrid') && usesHomeEquipment && !usesGymEquipment) score -= 12;
+  if (spec.trainingEnvironment === 'home' && usesHomeEquipment) score += 4;
+  score -= getAIOnboardingObscurePenalty(exercise, spec.trainingEnvironment);
+  return score;
 }
 
 function scoreOnboardingExercise(
@@ -838,7 +1019,7 @@ function scoreOnboardingExercise(
   focuses.forEach((focus) => {
     if (onboardingFocusMatchesExercise(exercise, focus)) score += 10;
   });
-  if (onboardingExerciseHasMedia(exercise)) score += 18;
+  if (onboardingExerciseHasUsableGif(exercise)) score += 18;
   else score -= 24;
   if (exercise.isCurated && !exercise.canonicalId) score += 14;
   else if (exercise.isCurated) score += 6;
@@ -856,6 +1037,8 @@ function scoreOnboardingExercise(
   if (spec.trainingEnvironment === 'home' && usesHomeEquipment) {
     score += 3;
   }
+  score += getAIOnboardingCanonicalMatchScore(exercise);
+  score -= getAIOnboardingObscurePenalty(exercise, spec.trainingEnvironment);
   return score - onboardingExercisePenalty(exercise);
 }
 
@@ -888,46 +1071,89 @@ function buildOnboardingProgramTemplate(
         .join(', ')
         .toLowerCase();
   const splitWorkouts = getOnboardingWorkouts(spec);
-  const usableCatalog = catalog.filter((exercise) => onboardingExercisePenalty(exercise) < 20);
+  const usableCatalog = catalog.filter((exercise) => (
+    onboardingExercisePenalty(exercise) < 20 && onboardingExerciseHasUsableGif(exercise)
+  ));
 
   const workouts = splitWorkouts
     .map((workout) => {
       const { name, focuses } = workout;
-      const ranked = usableCatalog
-        .filter((exercise) => onboardingExerciseAllowedForEnvironment(exercise, spec.trainingEnvironment))
-        .filter((exercise) => focuses.some((focus) => onboardingFocusMatchesExercise(exercise, focus)))
+      const allowedCatalog = usableCatalog
+        .filter((exercise) => onboardingExerciseAllowedForEnvironment(exercise, spec.trainingEnvironment));
+      const eligibleCatalog = allowedCatalog
+        .filter((exercise) => focuses.some((focus) => onboardingFocusMatchesExercise(exercise, focus)));
+      const ranked = eligibleCatalog
         .map((exercise) => ({ exercise, score: scoreOnboardingExercise(exercise, focuses, spec) }))
         .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
-      const rankedWithMedia = ranked.filter(({ exercise }) => onboardingExerciseHasMedia(exercise));
-      const rankedFallback = ranked.filter(({ exercise }) => !onboardingExerciseHasMedia(exercise));
-
       const selected: WorkoutGenerationExerciseCatalogEntry[] = [];
       const selectedGroups = new Set<string>();
-      const equipmentGroups = new Set<string>();
-      const addRankedExercises = (candidates: Array<{ exercise: WorkoutGenerationExerciseCatalogEntry; score: number }>) => {
+      const selectedIds = new Set<string>();
+      const addExercise = (exercise: WorkoutGenerationExerciseCatalogEntry, options?: { allowFamilyDuplicate?: boolean }) => {
+        if (selectedIds.has(exercise.id)) return false;
+        const family = getExerciseFamily(exercise);
+        if (!options?.allowFamilyDuplicate && selectedGroups.has(family)) return false;
+        selected.push(exercise);
+        selectedIds.add(exercise.id);
+        selectedGroups.add(family);
+        return true;
+      };
+      const addSlotExercise = (slot: AIOnboardingMovementSlot) => {
+        if (selected.length >= 5) return;
+        const candidates = allowedCatalog
+          .filter((exercise) => !selectedIds.has(exercise.id))
+          .filter((exercise) => !selectedGroups.has(getExerciseFamily(exercise)))
+          .filter((exercise) => onboardingSlotMatchesExercise(exercise, slot))
+          .map((exercise) => ({
+            exercise,
+            canonicalScore: getAIOnboardingCanonicalMatchScore(exercise, slot.id),
+            score: scoreOnboardingSlotExercise(exercise, slot, focuses, spec),
+        }))
+        .sort((a, b) =>
+          b.canonicalScore - a.canonicalScore
+          || b.score - a.score
+          || a.exercise.name.localeCompare(b.exercise.name)
+        );
+        const winner = candidates.find(({ exercise }) => !isWeakOnboardingVariant(exercise))?.exercise
+          ?? candidates[0]?.exercise;
+        if (winner && slot.optional && isWeakOnboardingVariant(winner)) {
+          return;
+        }
+        if (winner) {
+          addExercise(winner);
+        }
+      };
+      const addRankedExercises = (
+        candidates: Array<{ exercise: WorkoutGenerationExerciseCatalogEntry; score: number }>,
+        options?: { allowFamilyDuplicate?: boolean }
+      ) => {
         for (const { exercise } of candidates) {
           if (selected.length >= 5) break;
-          const group = exercise.canonicalKey || exercise.canonicalId || normalizeCatalogLookupValue(exercise.name);
-          if (selectedGroups.has(group)) continue;
-          const equipment = normalizeCatalogLookupValue(exercise.equipment).split(' ')[0] || 'body';
-          if (selected.length >= 3 && equipmentGroups.size < 2 && equipmentGroups.has(equipment)) {
-            continue;
-          }
-          selected.push(exercise);
-          selectedGroups.add(group);
-          equipmentGroups.add(equipment);
+          if (selected.length >= 3 && isWeakOnboardingVariant(exercise)) continue;
+          addExercise(exercise, options);
         }
       };
 
-      addRankedExercises(rankedWithMedia);
-      addRankedExercises(rankedFallback);
+      AI_ONBOARDING_MOVEMENT_SLOTS[getAIOnboardingSlotKey(name)]
+        .filter((slot) => !slot.optional)
+        .forEach((slot) => addSlotExercise(slot));
+      AI_ONBOARDING_MOVEMENT_SLOTS[getAIOnboardingSlotKey(name)]
+        .filter((slot) => slot.optional)
+        .forEach((slot) => addSlotExercise(slot));
+      addRankedExercises(ranked);
+      addRankedExercises(ranked, { allowFamilyDuplicate: true });
+      if (selected.length < 3) {
+        for (const { exercise } of ranked) {
+          if (selected.length >= 5 || selected.length >= 3) break;
+          addExercise(exercise, { allowFamilyDuplicate: true });
+        }
+      }
 
       return {
         name,
         exercises: selected.map((exercise, index) => buildOnboardingProgramExercise(exercise, index, spec)),
       };
     })
-    .filter((workout) => workout.exercises.length >= 3);
+    .filter((workout) => workout.exercises.length > 0);
 
   if (workouts.length === 0) {
     return null;
@@ -3700,11 +3926,11 @@ function getExerciseFamily(entry: WorkoutGenerationExerciseCatalogEntry): string
   if (/\b(shrug)\b/.test(text)) return 'shrug';
   if (/\b(back extension|hyperextension|good morning)\b/.test(text)) return 'lower-back-extension';
   if (/\b(deadlift|rack pull|rdl|romanian)\b/.test(text)) return 'hinge';
+  if (/\b(calf raise|calf press)\b/.test(text)) return 'calf';
   if (/\b(squat|leg press|hack squat)\b/.test(text)) return 'squat';
   if (/\b(lunge|split squat|step up)\b/.test(text)) return 'unilateral-leg';
   if (/\b(leg curl|hamstring curl)\b/.test(text)) return 'leg-curl';
   if (/\b(leg extension)\b/.test(text)) return 'leg-extension';
-  if (/\b(calf raise)\b/.test(text)) return 'calf';
   if (/\b(bench press|chest press|push up|dip)\b/.test(text)) return 'horizontal-press';
   if (/\b(shoulder press|overhead press|military press)\b/.test(text)) return 'vertical-press';
   if (/\b(fly|flye|pec deck)\b/.test(text)) return 'fly';

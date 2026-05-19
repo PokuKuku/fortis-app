@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { addDays } from 'date-fns';
 import { useAuth } from '@/src/contexts/AuthContext';
 import {
   loadLocalWorkoutScheduleHistory,
@@ -74,7 +75,8 @@ export function useWorkoutSchedule() {
   ) => {
     const normalized = normalizeWorkoutScheduleDays(days);
     const previousScheduleDays = scheduleDays;
-    const effectiveDate = options.today ?? new Date();
+    const editDate = options.today ?? new Date();
+    const effectiveDate = addDays(editDate, 1);
     const sourceHistory = activeScheduleHistory;
     setIsSaving(true);
     try {
@@ -91,13 +93,13 @@ export function useWorkoutSchedule() {
           scheduleDays: previousScheduleDays,
           scheduleHistory: sourceHistory,
           sessions: options.sessions,
-          today: effectiveDate,
+          today: editDate,
         });
         const nextStreak = getScheduledWorkoutDayStreak({
           scheduleDays: normalized,
           scheduleHistory: nextHistory,
           sessions: options.sessions,
-          today: effectiveDate,
+          today: editDate,
         });
 
         if (nextStreak < previousStreak) {

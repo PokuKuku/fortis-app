@@ -7,7 +7,13 @@ import {
   type TourAnchorId,
 } from '@/src/constants/inAppTour';
 import { useAuth, type Profile } from '@/src/contexts/AuthContext';
-import { clearInAppTourState, loadInAppTourState, saveInAppTourState, type PersistedInAppTourState } from '@/src/services/inAppTourService';
+import {
+  clearInAppTourState,
+  loadInAppTourState,
+  markInProgressTourSkipped,
+  saveInAppTourState,
+  type PersistedInAppTourState,
+} from '@/src/services/inAppTourService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
 
@@ -657,6 +663,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (loaded?.status === 'in_progress') {
+        const skipped = markInProgressTourSkipped(loaded);
+        await setTourStateAndPersist(skipped);
+        void markTourSeenOnServer({ status: 'skipped', completedAt: skipped.updatedAt });
+        setTourLoaded(true);
+        return;
+      }
+
       setTourState(loaded);
       setTourLoaded(true);
     };
@@ -666,7 +680,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [isAuthResolved, isAuthenticated, markTourSeenOnServer, user?.id]);
+  }, [isAuthResolved, isAuthenticated, markTourSeenOnServer, setTourStateAndPersist, user?.id]);
 
   const isInOnboardingOrAuth = segments[0] === 'onboarding' || segments[0] === 'auth';
   const isMainAppRoute =

@@ -124,6 +124,7 @@ export default function ActiveWorkoutScreen() {
   const updateActiveSessionName = useWorkoutStore(s => s.updateActiveSessionName);
   const programs = useProgramsStore(s => s.programs);
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
+  const updateProgramWorkout = useProgramsStore(s => s.updateProgramWorkout);
   const elapsed = useElapsedTime();
 
   const templateForSession = useMemo(() => {
@@ -131,7 +132,19 @@ export default function ActiveWorkoutScreen() {
     return programs.find((program) => program.id === activeSession.programId && program.isTemplate) || null;
   }, [activeSession?.programId, programs]);
 
-  const canUpdateTemplate = !!templateForSession && hasTemplateModifications(activeSession);
+  const programForSession = useMemo(() => {
+    if (!activeSession?.programId) return null;
+    return programs.find((program) => program.id === activeSession.programId && !program.isTemplate) || null;
+  }, [activeSession?.programId, programs]);
+
+  const programWorkoutForSession = useMemo(() => {
+    if (!activeSession?.programWorkoutId) return null;
+    return programForSession?.workouts.find((workout) => workout.id === activeSession.programWorkoutId) || null;
+  }, [activeSession?.programWorkoutId, programForSession]);
+
+  const hasSessionTemplateModifications = hasTemplateModifications(activeSession);
+  const canUpdateTemplate = !!templateForSession && hasSessionTemplateModifications;
+  const canUpdateProgramWorkout = !!programForSession && !!programWorkoutForSession && hasSessionTemplateModifications;
   const [showHeaderDetails, setShowHeaderDetails] = useState(true);
   const headerDetailsVisibleRef = useRef(true);
   const idleSeconds = restTimerNextStartSeconds ?? restTimerSettings.normalSeconds;
@@ -519,14 +532,8 @@ export default function ActiveWorkoutScreen() {
     setShowFinishModal(false);
   };
 
-  const handleUpdateTemplate = async () => {
-    if (!activeSession || !templateForSession) return;
-
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    const templateId = templateForSession.id;
-    const templateName = templateForSession.name;
-    const exercisesForTemplate = activeSession.exercises.map((exercise) => ({
+  const buildExercisesForSavedWorkout = (session: WorkoutSession) =>
+    session.exercises.map((exercise) => ({
       exerciseId: exercise.exerciseId,
       exerciseName: exercise.exerciseName,
       sets: exercise.sets.length,
@@ -539,18 +546,50 @@ export default function ActiveWorkoutScreen() {
       })),
     }));
 
-    await updateActiveSessionName(templateName);
-    await finishWorkoutAndNavigate();
+  const handleUpdateTemplate = async () => {
+    if (!activeSession) return;
 
-    void updateWorkoutTemplate(templateId, templateName, exercisesForTemplate)
-      .then((updatedId) => {
-        if (!updatedId) {
-          console.warn('[ActiveWorkout] Background template update failed');
-        }
-      })
-      .catch((error) => {
-        console.warn('[ActiveWorkout] Background template update threw', error);
-      });
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const exercisesForTemplate = buildExercisesForSavedWorkout(activeSession);
+
+    if (templateForSession) {
+      const templateId = templateForSession.id;
+      const templateName = templateForSession.name;
+
+      await updateActiveSessionName(templateName);
+      await finishWorkoutAndNavigate();
+
+      void updateWorkoutTemplate(templateId, templateName, exercisesForTemplate)
+        .then((updatedId) => {
+          if (!updatedId) {
+            console.warn('[ActiveWorkout] Background template update failed');
+          }
+        })
+        .catch((error) => {
+          console.warn('[ActiveWorkout] Background template update threw', error);
+        });
+      return;
+    }
+
+    if (programForSession && programWorkoutForSession) {
+      const programId = programForSession.id;
+      const workoutId = programWorkoutForSession.id;
+      const workoutName = programWorkoutForSession.name;
+
+      await updateActiveSessionName(workoutName);
+      await finishWorkoutAndNavigate();
+
+      void updateProgramWorkout(programId, workoutId, workoutName, exercisesForTemplate)
+        .then((updated) => {
+          if (!updated) {
+            console.warn('[ActiveWorkout] Background program workout update failed');
+          }
+        })
+        .catch((error) => {
+          console.warn('[ActiveWorkout] Background program workout update threw', error);
+        });
+    }
   };
 
   // Handle template save success
@@ -893,17 +932,19 @@ export default function ActiveWorkoutScreen() {
         }}
         onConfirm={handleConfirmFinish}
         onSaveAsTemplate={
-          hasTemplateModifications(activeSession)
+          hasSessionTemplateModifications
             ? handleSaveAsTemplate
             : undefined
         }
-        onUpdateTemplate={canUpdateTemplate ? handleUpdateTemplate : undefined}
+        onUpdateTemplate={canUpdateTemplate || canUpdateProgramWorkout ? handleUpdateTemplate : undefined}
         saveTemplateLabel={
           activeSession?.programId
             ? 'Save as New Template'
             : undefined
         }
-        updateTemplateLabel={canUpdateTemplate ? 'Update Template' : undefined}
+        updateTemplateLabel={
+          canUpdateTemplate || canUpdateProgramWorkout ? 'Update Template' : undefined
+        }
         session={activeSession}
         durationSecondsOverride={finishSnapshot?.durationSeconds}
         completedExercisesOverride={finishSnapshot?.completedExercises}
