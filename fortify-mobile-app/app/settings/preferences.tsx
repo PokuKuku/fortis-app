@@ -26,9 +26,13 @@ import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
 import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
 import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
+import type { Exercise } from '@/src/types/exercise';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
+import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import { useWorkoutRetentionPreferences } from '@/src/hooks/useWorkoutRetentionPreferences';
-import { formatReminderTime, normalizeReminderTime, type WeeklyRecap } from '@/src/utils/workoutRetention';
+import { buildWeeklyRecap, formatReminderTime, getDueWeeklyRecapWeekStart, normalizeReminderTime, type WeeklyRecap } from '@/src/utils/workoutRetention';
+import { getSundayWeekStart } from '@/src/utils/workoutSchedule';
 
 const LB_PER_KG = 2.20462;
 const KG_PER_LB = 1 / LB_PER_KG;
@@ -40,6 +44,17 @@ const CM_MIN = 120;
 const CM_MAX = 220;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+const getWeeklyRecapPreviewWeekStart = () => {
+  const dueWeekStart = getDueWeeklyRecapWeekStart();
+  if (dueWeekStart) return dueWeekStart;
+
+  const currentWeekStart = getSundayWeekStart(new Date());
+  return new Date(
+    currentWeekStart.getFullYear(),
+    currentWeekStart.getMonth(),
+    currentWeekStart.getDate() - 7
+  );
+};
 const roundTo = (value: number, decimals = 1) => {
   const factor = Math.pow(10, decimals);
   return Math.round(value * factor) / factor;
@@ -310,15 +325,22 @@ export default function SettingsPreferencesScreen() {
   const { user, profile, updateProfile } = useAuth();
   const {
     scheduleDays,
+    scheduleHistory,
     isSaving: isSavingSchedule,
     saveScheduleDays,
   } = useWorkoutSchedule();
+  const { sessions: weeklyRecapSessions } = useWorkoutHistorySource({
+    enabled: __DEV__ && Boolean(user),
+    syncToStore: false,
+  });
+  const { exercisesById } = useExerciseLookup();
   const {
     reminderTime,
     setReminderTime,
   } = useWorkoutRetentionPreferences();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
+  const weightUnits = useWorkoutStore((s) => s.weightUnits);
   const modalStyles = useModalStyles();
   const isCompactReminderLayout = windowHeight < 720;
   const reminderModalWidth = Math.min(360, Math.max(288, windowWidth - Spacing.lg * 2));
@@ -349,6 +371,7 @@ export default function SettingsPreferencesScreen() {
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [reminderTimeOpen, setReminderTimeOpen] = useState(false);
   const [weeklyRecapPreviewOpen, setWeeklyRecapPreviewOpen] = useState(false);
+  const [weeklyRecapPreviewWeekStart, setWeeklyRecapPreviewWeekStart] = useState(() => getWeeklyRecapPreviewWeekStart());
   const [isSavingMeasurements, setIsSavingMeasurements] = useState(false);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
   const [isSavingExperience, setIsSavingExperience] = useState(false);
@@ -361,69 +384,28 @@ export default function SettingsPreferencesScreen() {
   const [reminderHour, setReminderHour] = useState(8);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [reminderPeriod, setReminderPeriod] = useState<'AM' | 'PM'>('AM');
-  const previewWeeklyRecap = useMemo<WeeklyRecap>(() => {
-    const weekStart = new Date(2026, 4, 10);
-    const weekEnd = new Date(2026, 4, 16, 23, 59, 59, 999);
-    return {
-      weekKey: '2026-05-10',
-      weekStart,
-      weekEnd,
-      workoutsCompleted: 4,
-      scheduledDays: 5,
-      scheduledDaysHit: 4,
-      scheduledDaysMissed: 1,
-      streak: 4,
-      totalSets: 72,
-      totalVolume: 48250,
-      volumeUnit: 'lbs',
-      totalDurationSeconds: 15300,
-      prCount: 3,
-      prHighlights: [
-        {
-          exerciseName: 'Barbell Bench Press',
-          reps: 8,
-          weight: 225,
-          weightUnit: 'lbs',
-          date: new Date(2026, 4, 12),
-          sessionName: 'Push Hypertrophy',
-        },
-        {
-          exerciseName: 'Cable Crunch',
-          reps: 15,
-          weight: 80,
-          weightUnit: 'lbs',
-          date: new Date(2026, 4, 14),
-          sessionName: 'Core S Tier',
-        },
-        {
-          exerciseName: 'Romanian Deadlift',
-          reps: 6,
-          weight: 315,
-          weightUnit: 'lbs',
-          date: new Date(2026, 4, 15),
-          sessionName: 'Lower Strength',
-        },
-      ],
-      muscleScores: [
-        { label: 'Chest', score: 18 },
-        { label: 'Back', score: 13 },
-        { label: 'Abs', score: 9 },
-        { label: 'Quads', score: 6 },
-        { label: 'Biceps', score: 3 },
-      ],
-      topMuscles: [
-        { label: 'Chest', score: 18 },
-        { label: 'Back', score: 13 },
-        { label: 'Abs', score: 9 },
-        { label: 'Quads', score: 6 },
-      ],
-      notableExercises: [
-        { name: 'Barbell Bench Press', sets: 12, volume: 14600 },
-        { name: 'Cable Crunch', sets: 10, volume: 6800 },
-        { name: 'Romanian Deadlift', sets: 9, volume: 12400 },
-      ],
-    };
-  }, []);
+  const previewWeeklyRecap = useMemo<WeeklyRecap>(() => buildWeeklyRecap({
+    weekStart: weeklyRecapPreviewWeekStart,
+    scheduleDays,
+    scheduleHistory,
+    sessions: weeklyRecapSessions,
+    exercisesById: exercisesById as unknown as Map<string, Exercise>,
+    preferredUnits: units,
+    weightUnits,
+  }), [
+    exercisesById,
+    scheduleDays,
+    scheduleHistory,
+    weeklyRecapPreviewWeekStart,
+    weeklyRecapSessions,
+    units,
+    weightUnits,
+  ]);
+
+  const handleOpenWeeklyRecapPreview = () => {
+    setWeeklyRecapPreviewWeekStart(getWeeklyRecapPreviewWeekStart());
+    setWeeklyRecapPreviewOpen(true);
+  };
 
   useEffect(() => {
     if (!measurementsOpen) return;
@@ -595,7 +577,7 @@ export default function SettingsPreferencesScreen() {
   };
 
   const handleSaveSchedule = async (days: number[]) => {
-    const { error } = await saveScheduleDays(days);
+    const { error } = await saveScheduleDays(days, { sessions: weeklyRecapSessions });
     if (error) {
       Alert.alert('Update failed', error.message);
       return;
@@ -710,7 +692,7 @@ export default function SettingsPreferencesScreen() {
                   <PreferenceRow
                     label="Preview Weekly Recap"
                     value="Dev"
-                    onPress={() => setWeeklyRecapPreviewOpen(true)}
+                    onPress={handleOpenWeeklyRecapPreview}
                     showChevron
                     colors={colors}
                   />

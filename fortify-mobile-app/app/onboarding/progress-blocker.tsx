@@ -7,7 +7,7 @@ import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOpti
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import type { ProgressBlocker } from '@/src/utils/onboardingConversion';
-import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import {
   trackOnboardingStepCompleted,
@@ -134,7 +134,6 @@ export default function OnboardingProgressBlockerScreen() {
 const styles = StyleSheet.create({
   options: {
     gap: 12,
-    paddingBottom: Spacing['6xl'],
   },
   floatingButton: {
     height: 54,

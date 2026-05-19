@@ -91,6 +91,13 @@ export type WeeklyRecap = {
     date: Date;
     sessionName: string;
   }>;
+  bestLifts: Array<{
+    exerciseName: string;
+    reps: number | null;
+    weight: number | null;
+    weightUnit: WeightUnit | null;
+    volume: number;
+  }>;
   muscleScores: Array<{ label: string; score: number }>;
   topMuscles: Array<{ label: string; score: number }>;
   notableExercises: Array<{ name: string; sets: number; volume: number }>;
@@ -228,6 +235,7 @@ export function buildWeeklyRecap({
   let totalDurationSeconds = 0;
   let prCount = 0;
   const prHighlights: WeeklyRecap['prHighlights'] = [];
+  const bestLiftsByExercise = new Map<string, WeeklyRecap['bestLifts'][number]>();
 
   weekSessions.forEach((session) => {
     totalDurationSeconds += session.durationSeconds ?? 0;
@@ -247,6 +255,16 @@ export function buildWeeklyRecap({
         });
         exerciseVolume += volume;
         totalVolume += volume;
+        const existingBestLift = bestLiftsByExercise.get(exercise.exerciseName);
+        if (!existingBestLift || volume > existingBestLift.volume) {
+          bestLiftsByExercise.set(exercise.exerciseName, {
+            exerciseName: exercise.exerciseName,
+            reps: set.reps,
+            weight: set.weight,
+            weightUnit: set.weightUnit ?? weightUnits?.[exercise.exerciseId] ?? null,
+            volume,
+          });
+        }
         if (set.notes?.toLowerCase().includes('pr')) {
           prCount += 1;
           prHighlights.push({
@@ -299,6 +317,9 @@ export function buildWeeklyRecap({
     totalDurationSeconds,
     prCount,
     prHighlights,
+    bestLifts: Array.from(bestLiftsByExercise.values())
+      .sort((left, right) => right.volume - left.volume)
+      .slice(0, 5),
     muscleScores: sortedMuscleScores,
     topMuscles: sortedMuscleScores.slice(0, 4),
     notableExercises: Array.from(exerciseSummary.values())

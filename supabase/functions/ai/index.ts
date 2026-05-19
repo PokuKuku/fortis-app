@@ -198,6 +198,7 @@ interface WorkoutGenerationExerciseCatalogEntry {
   secondaryMuscles: string[];
   equipment: string;
   category: string;
+  images: string[];
   level?: string | null;
   mechanic?: string | null;
   force?: string | null;
@@ -743,11 +744,7 @@ function getBalancedOnboardingSplitNames(spec: AIOnboardingProgramSpec): string[
   const count = Math.min(7, Math.max(1, Math.round(spec.workoutsPerWeek || 3)));
   if (count === 1) return ['Full Body'];
   if (count === 2) return ['Upper', 'Lower'];
-  if (count === 3) {
-    return spec.fitnessGoal === 'improve_strength'
-      ? ['Upper Strength', 'Lower Strength', 'Full Body']
-      : ['Push', 'Pull', 'Legs'];
-  }
+  if (count === 3) return ['Push', 'Pull', 'Legs'];
   if (count === 4) return ['Upper A', 'Lower A', 'Upper B', 'Lower B'];
   if (count === 5) return ['Push', 'Pull', 'Legs', 'Upper', 'Lower'];
   return ['Push A', 'Pull A', 'Legs A', 'Push B', 'Pull B', 'Legs B', 'Full Body'].slice(0, count);
@@ -759,82 +756,32 @@ function getSpecificOnboardingFocuses(spec: AIOnboardingProgramSpec): string[] {
     : [];
 }
 
-function formatOnboardingFocusGroupName(focuses: string[]): string {
-  return focuses.map((focus) => ONBOARDING_FOCUS_LABELS[focus] ?? focus).join(' + ');
-}
-
-function splitOnboardingFocusesAcrossWorkouts(focuses: string[], count: number): string[][] {
-  if (count <= focuses.length) {
-    const baseSize = Math.floor(focuses.length / count);
-    const remainder = focuses.length % count;
-    let cursor = 0;
-    return Array.from({ length: count }, (_, index) => {
-      const size = baseSize + (index < remainder ? 1 : 0);
-      const chunk = focuses.slice(cursor, cursor + size);
-      cursor += size;
-      return chunk;
-    });
-  }
-
-  return Array.from({ length: count }, (_, index) => [focuses[index % focuses.length]]);
-}
-
-function getOnboardingFocusedVariant(
-  occurrence: number,
-  count: number,
-  focusCount: number,
-  fitnessGoal: AIOnboardingProgramSpec['fitnessGoal']
-): string {
-  if (count <= focusCount) {
-    return fitnessGoal === 'improve_strength' ? 'Strength' : 'Focus';
-  }
-
-  const variants = fitnessGoal === 'improve_strength'
-    ? ['Strength', 'Volume', 'Accessory', 'Power', 'Pump', 'Support', 'Finish']
-    : ['Strength', 'Volume', 'Accessory', 'Pump', 'Hypertrophy', 'Support', 'Finish'];
-  return variants[occurrence] ?? `Day ${occurrence + 1}`;
-}
-
-function getFocusedOnboardingWorkouts(spec: AIOnboardingProgramSpec): Array<{ name: string; focuses: string[] }> {
-  const count = Math.min(7, Math.max(1, Math.round(spec.workoutsPerWeek || 3)));
-  const focuses = getSpecificOnboardingFocuses(spec);
-  const chunks = splitOnboardingFocusesAcrossWorkouts(focuses, count);
-  const occurrences = new Map<string, number>();
-
-  return chunks.map((focusChunk) => {
-    const key = focusChunk.join('|');
-    const occurrence = occurrences.get(key) ?? 0;
-    occurrences.set(key, occurrence + 1);
-    const label = formatOnboardingFocusGroupName(focusChunk);
-    const variant = getOnboardingFocusedVariant(occurrence, count, focuses.length, spec.fitnessGoal);
-    return {
-      name: `${label} ${variant}`,
-      focuses: focusChunk,
-    };
-  });
-}
-
 function getOnboardingWorkoutFocuses(name: string, spec: AIOnboardingProgramSpec): string[] {
   const lower = name.toLowerCase();
   if (lower.includes('push')) return ['chest', 'shoulders', 'arms'];
   if (lower.includes('pull')) return ['back', 'arms'];
-  if (lower.includes('upper')) return ['chest', 'back', 'shoulders'];
+  if (lower.includes('upper')) return ['chest', 'back', 'shoulders', 'arms'];
   if (lower.includes('lower') || lower.includes('legs')) return ['legs', 'glutes'];
+  const splitFocuses = ['chest', 'back', 'shoulders', 'arms', 'legs', 'glutes', 'core'];
   const selected = Array.isArray(spec.muscleFocuses)
     ? spec.muscleFocuses.filter((focus) => focus && focus !== 'balanced')
     : [];
-  return selected.length > 0 ? selected : ['chest', 'back', 'legs', 'core'];
+  if (selected.length === 0) return splitFocuses;
+
+  const overlappingFocuses = selected.filter((focus) => splitFocuses.includes(focus));
+  return overlappingFocuses.length > 0 ? overlappingFocuses : splitFocuses;
 }
 
 function getOnboardingWorkouts(spec: AIOnboardingProgramSpec): Array<{ name: string; focuses: string[] }> {
-  const specificFocuses = getSpecificOnboardingFocuses(spec);
-  if (specificFocuses.length > 0) {
-    return getFocusedOnboardingWorkouts(spec);
-  }
-
   return getBalancedOnboardingSplitNames(spec).map((name) => ({
     name,
-    focuses: getOnboardingWorkoutFocuses(name, spec),
+    focuses: (() => {
+      const splitFocuses = getOnboardingWorkoutFocuses(name, { ...spec, muscleFocuses: ['balanced'] });
+      const selectedFocuses = getSpecificOnboardingFocuses(spec);
+      if (selectedFocuses.length === 0) return splitFocuses;
+      const overlappingFocuses = selectedFocuses.filter((focus) => splitFocuses.includes(focus));
+      return overlappingFocuses.length > 0 ? [...overlappingFocuses, ...splitFocuses] : splitFocuses;
+    })(),
   }));
 }
 
@@ -859,7 +806,6 @@ function onboardingFocusMatchesExercise(exercise: WorkoutGenerationExerciseCatal
 function onboardingExerciseAllowedForEnvironment(
   exercise: WorkoutGenerationExerciseCatalogEntry,
   environment: AIOnboardingProgramSpec['trainingEnvironment'],
-  workoutIndex: number
 ): boolean {
   const equipment = normalizeCatalogLookupValue(exercise.equipment);
   if (environment === 'gym') return true;
@@ -867,8 +813,7 @@ function onboardingExerciseAllowedForEnvironment(
   if (environment === 'home') {
     return homeEquipment.some((item) => equipment.includes(item));
   }
-  if (workoutIndex % 2 === 0) return true;
-  return [...homeEquipment, 'cable'].some((item) => equipment.includes(item));
+  return true;
 }
 
 function onboardingExercisePenalty(exercise: WorkoutGenerationExerciseCatalogEntry): number {
@@ -880,6 +825,10 @@ function onboardingExercisePenalty(exercise: WorkoutGenerationExerciseCatalogEnt
   return penalty;
 }
 
+function onboardingExerciseHasMedia(exercise: WorkoutGenerationExerciseCatalogEntry): boolean {
+  return exercise.images.some((image) => image.trim().length > 0);
+}
+
 function scoreOnboardingExercise(
   exercise: WorkoutGenerationExerciseCatalogEntry,
   focuses: string[],
@@ -889,15 +838,23 @@ function scoreOnboardingExercise(
   focuses.forEach((focus) => {
     if (onboardingFocusMatchesExercise(exercise, focus)) score += 10;
   });
-  if (exercise.isCurated) score += 5;
-  if (!exercise.canonicalId) score += 2;
+  if (onboardingExerciseHasMedia(exercise)) score += 18;
+  else score -= 24;
+  if (exercise.isCurated && !exercise.canonicalId) score += 14;
+  else if (exercise.isCurated) score += 6;
+  else if (!exercise.canonicalId) score += 2;
   if (isCompoundExerciseName(exercise.name)) score += 3;
   const equipment = normalizeCatalogLookupValue(exercise.equipment);
-  if (spec.trainingEnvironment === 'gym' && ['barbell', 'dumbbell', 'cable', 'machine'].some((item) => equipment.includes(item))) {
-    score += 2;
+  const usesGymEquipment = ['barbell', 'dumbbell', 'cable', 'machine', 'smith', 'leg press', 'hack squat'].some((item) => equipment.includes(item));
+  const usesHomeEquipment = ['body', 'bodyweight', 'body weight', 'dumbbell', 'band', 'kettlebell'].some((item) => equipment.includes(item));
+  if ((spec.trainingEnvironment === 'gym' || spec.trainingEnvironment === 'hybrid') && usesGymEquipment) {
+    score += 7;
   }
-  if (spec.trainingEnvironment === 'home' && ['body', 'dumbbell', 'band', 'kettlebell'].some((item) => equipment.includes(item))) {
-    score += 2;
+  if ((spec.trainingEnvironment === 'gym' || spec.trainingEnvironment === 'hybrid') && usesHomeEquipment && !usesGymEquipment) {
+    score -= 2;
+  }
+  if (spec.trainingEnvironment === 'home' && usesHomeEquipment) {
+    score += 3;
   }
   return score - onboardingExercisePenalty(exercise);
 }
@@ -934,29 +891,36 @@ function buildOnboardingProgramTemplate(
   const usableCatalog = catalog.filter((exercise) => onboardingExercisePenalty(exercise) < 20);
 
   const workouts = splitWorkouts
-    .map((workout, workoutIndex) => {
+    .map((workout) => {
       const { name, focuses } = workout;
       const ranked = usableCatalog
-        .filter((exercise) => onboardingExerciseAllowedForEnvironment(exercise, spec.trainingEnvironment, workoutIndex))
+        .filter((exercise) => onboardingExerciseAllowedForEnvironment(exercise, spec.trainingEnvironment))
         .filter((exercise) => focuses.some((focus) => onboardingFocusMatchesExercise(exercise, focus)))
         .map((exercise) => ({ exercise, score: scoreOnboardingExercise(exercise, focuses, spec) }))
         .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
+      const rankedWithMedia = ranked.filter(({ exercise }) => onboardingExerciseHasMedia(exercise));
+      const rankedFallback = ranked.filter(({ exercise }) => !onboardingExerciseHasMedia(exercise));
 
       const selected: WorkoutGenerationExerciseCatalogEntry[] = [];
       const selectedGroups = new Set<string>();
       const equipmentGroups = new Set<string>();
-      for (const { exercise } of ranked) {
-        if (selected.length >= 5) break;
-        const group = exercise.canonicalKey || exercise.canonicalId || normalizeCatalogLookupValue(exercise.name);
-        if (selectedGroups.has(group)) continue;
-        const equipment = normalizeCatalogLookupValue(exercise.equipment).split(' ')[0] || 'body';
-        if (selected.length >= 3 && equipmentGroups.size < 2 && equipmentGroups.has(equipment)) {
-          continue;
+      const addRankedExercises = (candidates: Array<{ exercise: WorkoutGenerationExerciseCatalogEntry; score: number }>) => {
+        for (const { exercise } of candidates) {
+          if (selected.length >= 5) break;
+          const group = exercise.canonicalKey || exercise.canonicalId || normalizeCatalogLookupValue(exercise.name);
+          if (selectedGroups.has(group)) continue;
+          const equipment = normalizeCatalogLookupValue(exercise.equipment).split(' ')[0] || 'body';
+          if (selected.length >= 3 && equipmentGroups.size < 2 && equipmentGroups.has(equipment)) {
+            continue;
+          }
+          selected.push(exercise);
+          selectedGroups.add(group);
+          equipmentGroups.add(equipment);
         }
-        selected.push(exercise);
-        selectedGroups.add(group);
-        equipmentGroups.add(equipment);
-      }
+      };
+
+      addRankedExercises(rankedWithMedia);
+      addRankedExercises(rankedFallback);
 
       return {
         name,
@@ -1158,6 +1122,7 @@ type WorkoutExerciseCatalogRow = {
   secondary_muscles?: string[] | null;
   equipment: string | null;
   category: string | null;
+  images?: string[] | null;
   level?: string | null;
   mechanic?: string | null;
   force?: string | null;
@@ -1168,7 +1133,7 @@ type WorkoutExerciseCatalogRow = {
 };
 
 const EXERCISE_CATALOG_SELECT =
-  'id, slug, name, primary_muscles, secondary_muscles, equipment, category, level, mechanic, force, canonical_id, canonical_key, aliases, is_curated';
+  'id, slug, name, primary_muscles, secondary_muscles, equipment, category, images, level, mechanic, force, canonical_id, canonical_key, aliases, is_curated';
 
 function mapWorkoutExerciseCatalogRow(
   row: WorkoutExerciseCatalogRow
@@ -1185,6 +1150,7 @@ function mapWorkoutExerciseCatalogRow(
     secondaryMuscles: Array.isArray(row.secondary_muscles) ? row.secondary_muscles : [],
     equipment: row.equipment || 'body weight',
     category: row.category || 'strength',
+    images: Array.isArray(row.images) ? row.images : [],
     level: row.level ?? null,
     mechanic: row.mechanic ?? null,
     force: row.force ?? null,
@@ -1374,6 +1340,7 @@ async function fetchWorkoutEditExerciseCatalog(
       secondaryMuscles: [],
       equipment: 'body weight',
       category: 'strength',
+      images: [],
       level: null,
       mechanic: null,
       force: null,

@@ -8,6 +8,7 @@ const mockSignOut = jest.fn().mockResolvedValue(undefined);
 const mockGetEntitlements = jest.fn().mockResolvedValue({ active: [] });
 const mockSetSubscriptionStatus = jest.fn().mockResolvedValue(undefined);
 const mockQueueTourStartAfterPaywallClose = jest.fn();
+const mockReplace = jest.fn();
 const mockSubscriptionStatusState: { status: string; entitlements?: Array<{ id: string; type: string }> } = {
   status: 'INACTIVE',
 };
@@ -21,6 +22,9 @@ const mockSuperwallState = {
 const mockAuthState = {
   user: { id: 'user-1' as string | null },
   isAuthResolved: true,
+  profile: { onboarding_completed: true } as { onboarding_completed: boolean } | null,
+  profileResolved: true,
+  needsOnboarding: false,
 };
 
 const mockSuperwallUserState = {
@@ -62,6 +66,12 @@ jest.mock('@/src/contexts/InAppTourContext', () => ({
   })),
 }));
 
+jest.mock('expo-router', () => ({
+  useRouter: () => ({
+    replace: mockReplace,
+  }),
+}));
+
 jest.mock('@/src/contexts/ThemeContext', () => ({
   useTheme: jest.fn(() => ({
     isDark: true,
@@ -92,6 +102,9 @@ describe('PaywallGateScreen', () => {
     mockSuperwallState.configurationError = new Error('config failed');
     mockAuthState.user = { id: 'user-1' };
     mockAuthState.isAuthResolved = true;
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.profileResolved = true;
+    mockAuthState.needsOnboarding = false;
     mockSuperwallUserState.appUserId = 'user-1';
     mockSubscriptionStatusState.status = 'INACTIVE';
     delete mockSubscriptionStatusState.entitlements;
@@ -144,6 +157,20 @@ describe('PaywallGateScreen', () => {
       expect(mockSetSubscriptionStatus).toHaveBeenCalledWith({ status: 'INACTIVE' });
       expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
     });
+  });
+
+  it('redirects incomplete profiles back to onboarding instead of entering the app', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+    mockAuthState.profile = { onboarding_completed: false };
+    mockAuthState.needsOnboarding = true;
+
+    render(<PaywallGateScreen />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/onboarding');
+    });
+    expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
   });
 
 });

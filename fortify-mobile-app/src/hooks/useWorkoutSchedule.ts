@@ -8,7 +8,10 @@ import {
 } from '@/src/services/workoutSchedulePreference';
 import { loadWorkoutRetentionPreferences } from '@/src/services/workoutRetentionPreferences';
 import { syncRetentionNotifications } from '@/src/services/workoutRetentionNotifications';
+import type { WorkoutSession } from '@/src/types/workout';
 import {
+  buildWorkoutScheduleHistoryForChange,
+  getScheduledWorkoutDayStreak,
   normalizeWorkoutScheduleDays,
   normalizeWorkoutScheduleHistory,
   resolveWorkoutScheduleDays,
@@ -57,21 +60,69 @@ export function useWorkoutSchedule() {
     [localDays, profile?.workout_schedule_days, profile?.workouts_per_week]
   );
 
-  const saveScheduleDays = useCallback(async (days: number[]) => {
+  const cloudScheduleHistory = useMemo(
+    () => normalizeWorkoutScheduleHistory(profile?.workout_schedule_history),
+    [profile?.workout_schedule_history]
+  );
+  const activeScheduleHistory = cloudScheduleHistory.length > 0
+    ? cloudScheduleHistory
+    : scheduleHistory;
+
+  const saveScheduleDays = useCallback(async (
+    days: number[],
+    options: { sessions?: WorkoutSession[]; today?: Date } = {}
+  ) => {
     const normalized = normalizeWorkoutScheduleDays(days);
     const previousScheduleDays = scheduleDays;
+    const effectiveDate = options.today ?? new Date();
+    const sourceHistory = activeScheduleHistory;
     setIsSaving(true);
     try {
       await saveLocalWorkoutScheduleDays(normalized);
-      const nextHistory = await recordWorkoutScheduleChange({
+      let nextHistory = await recordWorkoutScheduleChange({
         previousDays: previousScheduleDays,
         nextDays: normalized,
+        currentHistory: sourceHistory,
+        effectiveDate,
       });
+
+      if (options.sessions?.length) {
+        const previousStreak = getScheduledWorkoutDayStreak({
+          scheduleDays: previousScheduleDays,
+          scheduleHistory: sourceHistory,
+          sessions: options.sessions,
+          today: effectiveDate,
+        });
+        const nextStreak = getScheduledWorkoutDayStreak({
+          scheduleDays: normalized,
+          scheduleHistory: nextHistory,
+          sessions: options.sessions,
+          today: effectiveDate,
+        });
+
+        if (nextStreak < previousStreak) {
+          nextHistory = await recordWorkoutScheduleChange({
+            previousDays: previousScheduleDays,
+            nextDays: normalized,
+            currentHistory: buildWorkoutScheduleHistoryForChange({
+              previousDays: previousScheduleDays,
+              nextDays: normalized,
+              currentHistory: [],
+              effectiveDate,
+            }),
+            effectiveDate,
+          });
+        }
+      }
+
       setLocalDays(normalized);
       setScheduleHistory(nextHistory);
 
       if (profile) {
-        const { error } = await updateProfile({ workout_schedule_days: normalized });
+        const { error } = await updateProfile({
+          workout_schedule_days: normalized,
+          workout_schedule_history: nextHistory,
+        });
         if (error) {
           return { error };
         }
@@ -89,11 +140,11 @@ export function useWorkoutSchedule() {
     } finally {
       setIsSaving(false);
     }
-  }, [profile, scheduleDays, updateProfile]);
+  }, [activeScheduleHistory, profile, scheduleDays, updateProfile]);
 
   return {
     scheduleDays,
-    scheduleHistory,
+    scheduleHistory: activeScheduleHistory,
     isLoaded,
     isSaving,
     saveScheduleDays,

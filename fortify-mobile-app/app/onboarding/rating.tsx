@@ -117,7 +117,6 @@ const styles = StyleSheet.create({
     gap: Spacing.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingBottom: Spacing['6xl'],
   },
   titleText: {
     fontSize: 46,

@@ -22,7 +22,7 @@ const IDENTITY_SYNC_MAX_RETRIES = 3;
 export default function PaywallGateScreen() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { user: authUser, isAuthResolved } = useAuth();
+  const { user: authUser, isAuthResolved, profile, profileResolved, needsOnboarding } = useAuth();
   const { queueTourStartAfterPaywallClose } = useInAppTour();
   const {
     identify,
@@ -94,6 +94,22 @@ export default function PaywallGateScreen() {
     authUserId !== null &&
     superwallUserId === null &&
     attempt >= IDENTITY_SYNC_MAX_RETRIES;
+
+  useEffect(() => {
+    if (!isAuthResolved) {
+      return;
+    }
+    if (!authUserId) {
+      router.replace('/onboarding/welcome');
+      return;
+    }
+    if (!profileResolved) {
+      return;
+    }
+    if (!profile || needsOnboarding) {
+      router.replace('/onboarding');
+    }
+  }, [authUserId, isAuthResolved, needsOnboarding, profile, profileResolved, router]);
 
   const finishGate = useCallback(() => {
     if (hasNavigatedRef.current) {
@@ -242,7 +258,7 @@ export default function PaywallGateScreen() {
       return;
     }
 
-    if (!isAuthResolved || !isSuperwallReady) {
+    if (!isAuthResolved || !isSuperwallReady || !profileResolved || !profile || needsOnboarding) {
       scheduleRetry();
       return;
     }
@@ -298,7 +314,10 @@ export default function PaywallGateScreen() {
     hasSuperwallError,
     isIdentityReady,
     isSuperwallReady,
+    needsOnboarding,
     paywallContext,
+    profile,
+    profileResolved,
     registerPlacement,
     retryIdentitySync,
     scheduleRetry,

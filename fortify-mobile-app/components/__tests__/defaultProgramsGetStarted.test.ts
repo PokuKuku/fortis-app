@@ -16,10 +16,8 @@ describe('defaultPrograms default templates', () => {
     expect(lower?.workouts[0]?.exercises.length).toBeGreaterThan(0);
   });
 
-  it('builds the default Upper/Lower program from two workouts', () => {
+  it('does not seed a default Upper/Lower program', () => {
     const programs = getDefaultPrograms();
-    const upperLower = programs.find((program) => program.id === 'default-program-upper-lower');
-    expect(upperLower).toBeDefined();
-    expect(upperLower?.workouts.length).toBe(2);
+    expect(programs).toEqual([]);
   });
 });

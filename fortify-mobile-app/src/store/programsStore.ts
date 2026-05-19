@@ -16,7 +16,7 @@ import {
   getPendingProgramSyncIds,
 } from '../services/programSyncService';
 import { resolveCustomExerciseRemoteIds } from '../services/customExerciseSync';
-import { getDefaultPrograms, getDefaultTemplates } from '../data/defaultPrograms';
+import { getDefaultPrograms, getDefaultTemplates, REMOVED_DEFAULT_PROGRAM_IDS } from '../data/defaultPrograms';
 import { isLocalProgramId } from '../utils/localIds';
 import { generateUniqueName } from '../utils/nameUtils';
 import { useProgramProgressStore } from './programProgressStore';
@@ -2035,7 +2035,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       if (stored) {
         const beforePrune = localPrograms.length;
         localPrograms = localPrograms.filter(
-          (program) => !(program.isDefault && deletedDefaultIds.has(program.id))
+          (program) => !(
+            program.isDefault &&
+            (deletedDefaultIds.has(program.id) || REMOVED_DEFAULT_PROGRAM_IDS.has(program.id))
+          )
         );
         didChangeStoredPrograms = beforePrune !== localPrograms.length;
 
@@ -2055,7 +2058,9 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       // Merge with existing programs (avoid duplicates)
       set((state) => {
-        const nonLocalPrograms = state.programs.filter((p) => !isLocalProgramId(p.id));
+        const nonLocalPrograms = state.programs.filter(
+          (p) => !isLocalProgramId(p.id) && !REMOVED_DEFAULT_PROGRAM_IDS.has(p.id)
+        );
         return { programs: [...nonLocalPrograms, ...localPrograms] };
       });
       await get().refreshPendingProgramSyncIds();

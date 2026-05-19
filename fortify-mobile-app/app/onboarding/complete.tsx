@@ -26,6 +26,7 @@ import { clearOnboardingState, getOnboardingState, type OnboardingState } from '
 import {
   buildOnboardingProgramBlueprint,
   buildOnboardingProgramSpec,
+  formatOnboardingFrequencySummary,
   savePendingOnboardingProgramSpec,
   type MuscleFocus,
 } from '@/src/utils/onboardingProgram';
@@ -64,7 +65,7 @@ type LoadingStep = {
 };
 
 const LOADING_STEPS: LoadingStep[] = [
-  { label: 'Saving your preferences…', completeAt: 22 },
+  { label: 'Reading your preferences…', completeAt: 22 },
   { label: 'Building your profile…', completeAt: 54 },
   { label: 'Personalizing your insights…', completeAt: 84 },
   { label: 'Finalizing setup…', completeAt: 100 },
@@ -280,9 +281,9 @@ export default function OnboardingCompleteScreen() {
   const readyNameLine = preferredFirstName ?? '';
   const readyTitleLine = 'Your custom AI-powered program is here';
   const readySubtitleLine = isSaving
-    ? 'Starting…'
+    ? 'Starting...'
     : isAuthenticated
-      ? 'Finishing up…'
+      ? 'Finishing up...'
       : '';
 
   const animateSummaryRestState = useCallback(() => {
@@ -638,9 +639,15 @@ export default function OnboardingCompleteScreen() {
         value: EXPERIENCE_LABELS[onboardingState.lifting_experience] ?? onboardingState.lifting_experience,
       });
     }
-    if (onboardingState.workout_consistency) {
+    const frequencySummary = formatOnboardingFrequencySummary(onboardingState.workouts_per_week);
+    if (frequencySummary) {
       items.push({
-        label: 'Consistency',
+        label: 'Frequency',
+        value: frequencySummary,
+      });
+    } else if (onboardingState.workout_consistency) {
+      items.push({
+        label: 'Frequency',
         value: CONSISTENCY_LABELS[onboardingState.workout_consistency] ?? onboardingState.workout_consistency,
       });
     }
@@ -859,6 +866,12 @@ export default function OnboardingCompleteScreen() {
       }
       if (Array.isArray(state?.workout_schedule_days) && !profile?.workout_schedule_days?.length) {
         updates.workout_schedule_days = state.workout_schedule_days;
+        updates.workout_schedule_history = [
+          {
+            effectiveDateKey: '1970-01-01',
+            scheduleDays: state.workout_schedule_days,
+          },
+        ];
       }
 
       let didTimeout = false;
@@ -1001,7 +1014,7 @@ export default function OnboardingCompleteScreen() {
             hapticFeedback="impactMedium"
           >
             <Text allowFontScaling={false} style={[styles.continueButtonText, { color: colors.white }]}>
-              {isSaving ? 'Starting…' : "I'm ready"}
+              {isSaving ? 'Starting...' : "I'm ready"}
             </Text>
           </GlassButton>
         ) : undefined
@@ -1220,7 +1233,6 @@ const styles = StyleSheet.create({
     width: '100%',
     justifyContent: 'flex-start',
     gap: Spacing.lg,
-    paddingBottom: Spacing['6xl'],
   },
   headerBlock: {
     minHeight: 178,
@@ -1475,17 +1487,6 @@ const styles = StyleSheet.create({
   stepFill: {
     height: '100%',
     borderRadius: BorderRadius.full,
-  },
-  savingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
-  },
-  savingText: {
-    ...Typography.bodyLarge,
-    textAlign: 'center',
   },
   continueButton: {
     height: 54,

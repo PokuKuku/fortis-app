@@ -1,5 +1,6 @@
 import type { WorkoutSession } from '@/src/types/workout';
 import {
+  buildWorkoutScheduleHistoryForChange,
   buildSundayWeek,
   buildWeekProgressDays,
   deriveScheduleDaysFromWorkoutsPerWeek,
@@ -19,6 +20,16 @@ function session(localId: string, completedAt: string, name = 'Workout'): Workou
     exercises: [],
     isSynced: true,
   };
+}
+
+function dailySessions(startDateKey: string, count: number): WorkoutSession[] {
+  const start = new Date(`${startDateKey}T12:00:00`);
+  return Array.from({ length: count }, (_, index) => {
+    const completedAt = new Date(start);
+    completedAt.setDate(start.getDate() + index);
+    const key = completedAt.toISOString().slice(0, 10);
+    return session(`workout-${key}`, `${key}T12:00:00`);
+  });
 }
 
 describe('workoutSchedule', () => {
@@ -93,6 +104,77 @@ describe('workoutSchedule', () => {
     });
 
     expect(streak).toBe(3);
+  });
+
+  it('keeps an 18 day streak after removing schedule days', () => {
+    const today = new Date('2026-05-18T12:00:00');
+    const history = buildWorkoutScheduleHistoryForChange({
+      previousDays: [0, 1, 2, 3, 4, 5, 6],
+      nextDays: [1, 2, 3, 4, 5],
+      effectiveDate: today,
+    });
+
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 2, 3, 4, 5],
+      scheduleHistory: history,
+      sessions: dailySessions('2026-05-01', 18),
+      today,
+    });
+
+    expect(streak).toBe(18);
+  });
+
+  it('continues with the new schedule after preserving the old schedule history', () => {
+    const history = buildWorkoutScheduleHistoryForChange({
+      previousDays: [0, 1, 2, 3, 4, 5, 6],
+      nextDays: [1, 2, 3, 4, 5],
+      effectiveDate: new Date('2026-05-18T12:00:00'),
+    });
+
+    const streak = getScheduledWorkoutDayStreak({
+      scheduleDays: [1, 2, 3, 4, 5],
+      scheduleHistory: history,
+      sessions: [
+        ...dailySessions('2026-05-01', 18),
+        session('tuesday', '2026-05-19T12:00:00'),
+        session('wednesday', '2026-05-20T12:00:00'),
+        session('thursday', '2026-05-21T12:00:00'),
+        session('friday', '2026-05-22T12:00:00'),
+      ],
+      today: new Date('2026-05-25T12:00:00'),
+    });
+
+    expect(streak).toBe(22);
+  });
+
+  it('builds schedule history by preserving old rules before the edit date', () => {
+    const history = buildWorkoutScheduleHistoryForChange({
+      previousDays: [0, 1, 2, 3, 4, 5, 6],
+      nextDays: [1, 2, 3, 4, 5],
+      effectiveDate: new Date('2026-05-18T12:00:00'),
+    });
+
+    expect(history).toEqual([
+      { effectiveDateKey: '1970-01-01', scheduleDays: [0, 1, 2, 3, 4, 5, 6] },
+      { effectiveDateKey: '2026-05-18', scheduleDays: [1, 2, 3, 4, 5] },
+    ]);
+  });
+
+  it('replaces same day schedule history entries instead of duplicating them', () => {
+    const history = buildWorkoutScheduleHistoryForChange({
+      previousDays: [1, 2, 3, 4, 5],
+      nextDays: [1, 3, 5],
+      currentHistory: [
+        { effectiveDateKey: '1970-01-01', scheduleDays: [0, 1, 2, 3, 4, 5, 6] },
+        { effectiveDateKey: '2026-05-18', scheduleDays: [1, 2, 3, 4, 5] },
+      ],
+      effectiveDate: new Date('2026-05-18T12:00:00'),
+    });
+
+    expect(history).toEqual([
+      { effectiveDateKey: '1970-01-01', scheduleDays: [0, 1, 2, 3, 4, 5, 6] },
+      { effectiveDateKey: '2026-05-18', scheduleDays: [1, 3, 5] },
+    ]);
   });
 
   it('renders schedule dots from the schedule active on each date', () => {

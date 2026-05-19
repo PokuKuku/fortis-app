@@ -117,7 +117,14 @@ function SourceOptionCard({
             />
           ) : null}
         </View>
-        <Text style={[styles.optionLabel, { color: colors.textPrimary }]}>{label}</Text>
+        <Text
+          style={[styles.optionLabel, { color: colors.textPrimary }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
+        >
+          {label}
+        </Text>
         <View style={[styles.radio, radioStyle]} />
       </View>
     </GlassCard>
@@ -182,7 +189,7 @@ export default function OnboardingSourceScreen() {
         ) : null
       }
     >
-      <View style={[styles.options, selected && styles.optionsWithFooter]}>
+      <View style={styles.options}>
         {OPTIONS.map((option) => (
           <SourceOptionCard
             key={option.value}
@@ -202,9 +209,6 @@ const styles = StyleSheet.create({
   options: {
     gap: Spacing.sm,
   },
-  optionsWithFooter: {
-    paddingBottom: Spacing['6xl'],
-  },
   optionCard: {
     width: '100%',
   },
@@ -221,6 +225,7 @@ const styles = StyleSheet.create({
   },
   optionLabel: {
     flex: 1,
+    minWidth: 0,
     fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(16),
     letterSpacing: moderateScale(0.6),

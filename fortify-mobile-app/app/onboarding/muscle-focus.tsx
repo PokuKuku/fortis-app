@@ -11,7 +11,7 @@ import {
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { BorderRadius } from '@/constants/Sizes';
 import { type Slug } from 'react-native-body-highlighter';
 import {
   trackOnboardingStepCompleted,
@@ -205,7 +205,6 @@ export default function OnboardingMuscleFocusScreen() {
 const styles = StyleSheet.create({
   options: {
     gap: 12,
-    paddingBottom: Spacing['6xl'],
   },
   heatmapIcon: {
     width: 64,

@@ -51,7 +51,14 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { colors, isDark } = useTheme();
-  const { isAuthenticated, isLoading, user: authUser } = useAuth();
+  const {
+    isAuthenticated,
+    isLoading,
+    needsOnboarding,
+    profile,
+    profileResolved,
+    user: authUser,
+  } = useAuth();
   const { subscriptionStatus, getEntitlements, setSubscriptionStatus, user: superwallUser } = useUser();
   const { isSuperwallReady } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
@@ -166,6 +173,15 @@ export default function TabLayout() {
       router.replace('/onboarding/welcome');
     }
   }, [isLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || !profileResolved) {
+      return;
+    }
+    if (!profile || needsOnboarding) {
+      router.replace('/onboarding');
+    }
+  }, [isAuthenticated, isLoading, needsOnboarding, profile, profileResolved, router]);
 
   useEffect(() => {
     if (!isAuthenticated) {

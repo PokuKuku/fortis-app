@@ -61,9 +61,21 @@ export function OnboardingOptionCard({
           <View style={styles.leadingAccessory}>{leadingAccessory}</View>
         ) : null}
         <View style={styles.textStack}>
-          <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+          <Text
+            style={[styles.title, { color: colors.textPrimary }]}
+            numberOfLines={2}
+            adjustsFontSizeToFit
+            minimumFontScale={0.86}
+          >
+            {title}
+          </Text>
           {description && (
-            <Text style={[styles.description, { color: colors.textSecondary }]}>
+            <Text
+              style={[styles.description, { color: colors.textSecondary }]}
+              numberOfLines={3}
+              adjustsFontSizeToFit
+              minimumFontScale={0.9}
+            >
               {description}
             </Text>
           )}
@@ -107,6 +119,7 @@ const styles = StyleSheet.create({
   },
   textStack: {
     flex: 1,
+    minWidth: 0,
     gap: scale(Spacing.xs),
   },
   title: {

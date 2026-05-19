@@ -12,8 +12,7 @@ import {
 } from '@/src/services/onboardingAnalyticsService';
 
 const INTRO_TITLE = 'Now help Fortify get to know you better!';
-const COPY_TITLE = 'Custom program setup';
-const COPY_SUBTITLE = "Let's get you started with a program! You can change it or make your own later.";
+const COPY_SUBTITLE = "Help Fortify get to know you! In the meantime, we'll start you off with a custom program.";
 const TITLE_TYPEWRITER_START_DELAY_MS = 80;
 const TITLE_TYPEWRITER_INTERVAL_MS = 24;
 
@@ -43,11 +42,9 @@ export default function OnboardingProgramSetupIntroScreen() {
       emojiSize: isNarrow ? 42 : 48,
       visualMinHeight: isShort ? 318 : 360,
       clusterTopOffset: isShort ? -Spacing['2xl'] : -Spacing['3xl'],
-      titleFontSize: isNarrow ? 17 : 19,
-      subtitleFontSize: isNarrow ? 15 : 16,
-      subtitleLineHeight: isNarrow ? 21 : 23,
-      copyTitleHeight: isNarrow ? 26 : 29,
-      copySubtitleHeight: isNarrow ? 76 : 82,
+      subtitleFontSize: isNarrow ? 18 : 20,
+      subtitleLineHeight: isNarrow ? 25 : 28,
+      copySubtitleHeight: isNarrow ? 102 : 112,
     };
   }, [screenHeight, screenWidth]);
 
@@ -190,18 +187,6 @@ export default function OnboardingProgramSetupIntroScreen() {
           <View style={styles.copyBlock}>
             <Text
               style={[
-                styles.visualTitle,
-                {
-                  color: colors.textPrimary,
-                  fontSize: layout.titleFontSize,
-                  height: layout.copyTitleHeight,
-                },
-              ]}
-            >
-              {COPY_TITLE}
-            </Text>
-            <Text
-              style={[
                 styles.visualSubtitle,
                 {
                   color: colors.textSecondary,
@@ -259,16 +244,9 @@ const styles = StyleSheet.create({
   copyBlock: {
     width: '100%',
     alignItems: 'flex-start',
-    gap: Spacing.md,
-  },
-  visualTitle: {
-    fontFamily: 'BankGothicBT-Medium',
-    letterSpacing: 1.4,
-    textAlign: 'left',
-    textTransform: 'uppercase',
   },
   visualSubtitle: {
-    maxWidth: 320,
+    maxWidth: 350,
     fontWeight: '700',
     textAlign: 'left',
   },

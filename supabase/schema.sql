@@ -28,6 +28,7 @@ CREATE TABLE profiles (
   lifting_experience TEXT,
   workouts_per_week INTEGER,
   workout_schedule_days SMALLINT[],
+  workout_schedule_history JSONB,
   tried_other_apps TEXT,
   fitness_goal TEXT,
   biggest_challenge TEXT,

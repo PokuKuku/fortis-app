@@ -188,15 +188,11 @@ export function buildOnboardingProgramSpec(state: OnboardingState | null | undef
   };
 }
 
-const chooseBalancedSplitNames = (spec: Pick<OnboardingProgramSpec, 'workoutsPerWeek' | 'fitnessGoal'>): string[] => {
-  const count = Math.min(7, Math.max(1, spec.workoutsPerWeek));
+const chooseStandardSplitNames = (workoutsPerWeek: number): string[] => {
+  const count = Math.min(7, Math.max(1, workoutsPerWeek));
   if (count === 1) return ['Full Body'];
   if (count === 2) return ['Upper', 'Lower'];
-  if (count === 3) {
-    return spec.fitnessGoal === 'improve_strength'
-      ? ['Upper Strength', 'Lower Strength', 'Full Body']
-      : ['Push', 'Pull', 'Legs'];
-  }
+  if (count === 3) return ['Push', 'Pull', 'Legs'];
   if (count === 4) return ['Upper A', 'Lower A', 'Upper B', 'Lower B'];
   if (count === 5) return ['Push', 'Pull', 'Legs', 'Upper', 'Lower'];
   return ['Push A', 'Pull A', 'Legs A', 'Push B', 'Pull B', 'Legs B', 'Full Body'].slice(0, count);
@@ -206,105 +202,62 @@ const getSpecificFocuses = (focuses: MuscleFocus[]) => (
   focuses.filter((focus) => focus && focus !== 'balanced')
 );
 
-const formatFocusGroupName = (focuses: MuscleFocus[]) => (
-  focuses.map((focus) => MUSCLE_FOCUS_LABELS[focus]).join(' + ')
-);
-
-const splitFocusesAcrossWorkouts = (focuses: MuscleFocus[], count: number): MuscleFocus[][] => {
-  if (count <= focuses.length) {
-    const baseSize = Math.floor(focuses.length / count);
-    const remainder = focuses.length % count;
-    let cursor = 0;
-    return Array.from({ length: count }, (_, index) => {
-      const size = baseSize + (index < remainder ? 1 : 0);
-      const chunk = focuses.slice(cursor, cursor + size);
-      cursor += size;
-      return chunk;
-    });
-  }
-
-  return Array.from({ length: count }, (_, index) => [focuses[index % focuses.length]]);
-};
-
-const focusedWorkoutVariant = (
-  occurrence: number,
-  count: number,
-  focusCount: number,
-  fitnessGoal: OnboardingProgramSpec['fitnessGoal']
-) => {
-  if (count <= focusCount) {
-    return fitnessGoal === 'improve_strength' ? 'Strength' : 'Focus';
-  }
-
-  const variants = fitnessGoal === 'improve_strength'
-    ? ['Strength', 'Volume', 'Accessory', 'Power', 'Pump', 'Support', 'Finish']
-    : ['Strength', 'Volume', 'Accessory', 'Pump', 'Hypertrophy', 'Support', 'Finish'];
-  return variants[occurrence] ?? `Day ${occurrence + 1}`;
-};
-
-const chooseFocusedSplitWorkouts = (
-  spec: Pick<OnboardingProgramSpec, 'workoutsPerWeek' | 'muscleFocuses' | 'fitnessGoal'>
-): OnboardingProgramWorkoutBlueprint[] => {
-  const count = Math.min(7, Math.max(1, spec.workoutsPerWeek));
-  const focuses = getSpecificFocuses(spec.muscleFocuses);
-  const chunks = splitFocusesAcrossWorkouts(focuses, count);
-  const occurrences = new Map<string, number>();
-
-  return chunks.map((focusChunk) => {
-    const key = focusChunk.join('|');
-    const occurrence = occurrences.get(key) ?? 0;
-    occurrences.set(key, occurrence + 1);
-    const label = formatFocusGroupName(focusChunk);
-    const variant = focusedWorkoutVariant(occurrence, count, focuses.length, spec.fitnessGoal);
-    return {
-      name: `${label} ${variant}`,
-      focus: focusChunk,
-    };
-  });
-};
-
 const focusForWorkoutName = (name: string): MuscleFocus[] => {
   const lower = name.toLowerCase();
   if (lower.includes('push')) return ['chest', 'shoulders', 'arms'];
   if (lower.includes('pull')) return ['back', 'arms'];
-  if (lower.includes('upper')) return ['chest', 'back', 'shoulders'];
+  if (lower.includes('upper')) return ['chest', 'back', 'shoulders', 'arms'];
   if (lower.includes('lower') || lower.includes('legs')) return ['legs', 'glutes'];
-  return ['chest', 'back', 'legs', 'core'];
+  return ['chest', 'back', 'shoulders', 'arms', 'legs', 'glutes', 'core'];
+};
+
+const focusForStandardWorkout = (name: string, selectedFocuses: MuscleFocus[]): MuscleFocus[] => {
+  const splitFocuses = focusForWorkoutName(name);
+  const specificFocuses = getSpecificFocuses(selectedFocuses);
+  if (specificFocuses.length === 0) return splitFocuses;
+
+  const overlappingFocuses = specificFocuses.filter((focus) => splitFocuses.includes(focus));
+  return overlappingFocuses.length > 0 ? [...overlappingFocuses, ...splitFocuses] : splitFocuses;
 };
 
 const chooseProgramWorkouts = (
   spec: Pick<OnboardingProgramSpec, 'workoutsPerWeek' | 'muscleFocuses' | 'fitnessGoal'>
 ): OnboardingProgramWorkoutBlueprint[] => {
-  const specificFocuses = getSpecificFocuses(spec.muscleFocuses);
-  if (specificFocuses.length > 0) {
-    return chooseFocusedSplitWorkouts(spec);
-  }
-
-  return chooseBalancedSplitNames(spec).map((name) => ({
+  return chooseStandardSplitNames(spec.workoutsPerWeek).map((name) => ({
     name,
-    focus: focusForWorkoutName(name),
+    focus: focusForStandardWorkout(name, spec.muscleFocuses),
   }));
 };
 
 export function buildOnboardingProgramBlueprint(spec: OnboardingProgramSpec): OnboardingProgramBlueprint {
   const firstName = spec.userName?.split(/\s+/)[0];
-  const focusLabel = spec.muscleFocuses.includes('balanced')
+  const isBalanced = spec.muscleFocuses.includes('balanced');
+  const focusLabel = isBalanced
     ? 'Balanced training'
     : spec.muscleFocuses.map((focus) => MUSCLE_FOCUS_LABELS[focus]).join(', ');
   const workouts = chooseProgramWorkouts(spec);
   const scheduleLabel = spec.scheduleDays.length > 0
     ? spec.scheduleDays.map((day) => WEEKDAY_LABELS[day]).join(', ')
     : `${spec.workoutsPerWeek} days/week`;
+  const subtitle = isBalanced
+    ? `${spec.durationWeeks}-week ${focusLabel.toLowerCase()} plan`
+    : `${spec.durationWeeks}-week ${focusLabel.toLowerCase()} focus`;
 
   return {
     name: spec.programName?.trim() || (firstName ? `${firstName}'s Program` : 'Your Program'),
-    subtitle: `${spec.durationWeeks}-week ${focusLabel.toLowerCase()} plan`,
+    subtitle,
     environmentLabel: TRAINING_ENVIRONMENT_LABELS[spec.trainingEnvironment],
     scheduleLabel,
     focusLabel,
     durationWeeks: spec.durationWeeks,
     workouts,
   };
+}
+
+export function formatOnboardingFrequencySummary(workoutsPerWeek?: number | null): string | null {
+  if (typeof workoutsPerWeek !== 'number' || Number.isNaN(workoutsPerWeek)) return null;
+  const normalizedWorkoutsPerWeek = Math.min(7, Math.max(1, Math.round(workoutsPerWeek)));
+  return `${normalizedWorkoutsPerWeek} times a week`;
 }
 
 export async function savePendingOnboardingProgramSpec(spec: OnboardingProgramSpec): Promise<void> {
@@ -340,14 +293,19 @@ export async function clearPendingOnboardingProgramSpec(): Promise<void> {
 
 const normalized = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-const equipmentAllowed = (exercise: ExerciseWithSource, environment: TrainingEnvironment, workoutIndex: number) => {
+const HOME_EQUIPMENT = ['body only', 'bodyweight', 'body weight', 'dumbbell', 'bands', 'band', 'kettlebell', 'kettlebells'];
+const GYM_EQUIPMENT = ['barbell', 'dumbbell', 'cable', 'machine', 'smith', 'leg press', 'hack squat'];
+
+const usesHomeEquipment = (equipment: string) => HOME_EQUIPMENT.some((item) => equipment.includes(item));
+const usesGymEquipment = (equipment: string) => GYM_EQUIPMENT.some((item) => equipment.includes(item));
+
+const equipmentAllowed = (exercise: ExerciseWithSource, environment: TrainingEnvironment) => {
   const equipment = normalized(exercise.equipment);
   if (environment === 'gym') return true;
   if (environment === 'home') {
-    return ['body only', 'bodyweight', 'body weight', 'dumbbell', 'bands', 'band', 'kettlebell', 'kettlebells'].some((item) => equipment.includes(item));
+    return usesHomeEquipment(equipment);
   }
-  if (workoutIndex % 2 === 0) return true;
-  return ['body only', 'bodyweight', 'body weight', 'dumbbell', 'bands', 'band', 'kettlebell', 'kettlebells', 'cable'].some((item) => equipment.includes(item));
+  return true;
 };
 
 const exerciseMatchesMuscle = (exercise: ExerciseWithSource, focus: MuscleFocus) => {
@@ -372,18 +330,25 @@ const isLowValueGeneratedExercise = (exercise: ExerciseWithSource) => {
   return /\b(stretch|mobility|roll|warm up|warmup|cardio)\b/.test(text) || exercise.isHidden;
 };
 
+const hasExerciseMedia = (exercise: ExerciseWithSource) => exercise.images.some((image) => image.trim().length > 0);
+
 const scoreExercise = (exercise: ExerciseWithSource, focuses: MuscleFocus[], environment: TrainingEnvironment) => {
   let score = 0;
   focuses.forEach((focus) => {
     if (exerciseMatchesMuscle(exercise, focus)) score += 8;
   });
-  if (exercise.isCurated) score += 4;
-  if (!exercise.canonicalId) score += 2;
+  if (hasExerciseMedia(exercise)) score += 16;
+  else score -= 20;
   const equipment = normalized(exercise.equipment);
-  if (environment === 'gym' && ['barbell', 'dumbbell', 'cable', 'machine'].some((item) => equipment.includes(item))) score += 2;
-  if (environment === 'home' && ['body', 'dumbbell', 'band', 'kettlebell'].some((item) => equipment.includes(item))) score += 2;
+  if (exercise.isCurated && !exercise.canonicalId) score += 12;
+  else if (exercise.isCurated) score += 5;
+  else if (!exercise.canonicalId) score += 2;
+  if (exercise.source === 'custom') score -= 6;
+  if ((environment === 'gym' || environment === 'hybrid') && usesGymEquipment(equipment)) score += 6;
+  if ((environment === 'gym' || environment === 'hybrid') && usesHomeEquipment(equipment) && !usesGymEquipment(equipment)) score -= 2;
+  if (environment === 'home' && usesHomeEquipment(equipment)) score += 3;
   if (/\b(bench|press|row|pulldown|pull up|pull-up|squat|deadlift|lunge|leg press|hip thrust)\b/i.test(exercise.name)) score += 2;
-  if (/\b(assisted|reverse|decline close grip|behind neck)\b/i.test(exercise.name)) score -= 5;
+  if (/\b(assisted|reverse|decline close grip|behind neck|beginner)\b/i.test(exercise.name)) score -= 8;
   return score;
 };
 
@@ -449,24 +414,32 @@ export function buildDeterministicOnboardingProgram(
   const usableExercises = exercises.filter((exercise) => !isLowValueGeneratedExercise(exercise));
   if (usableExercises.length === 0) return null;
 
-  const workouts = blueprint.workouts.map((workout, workoutIndex) => {
+  const workouts = blueprint.workouts.map((workout) => {
     const requestedFocuses = workout.focus.includes('balanced') ? spec.muscleFocuses : workout.focus;
     const focuses = requestedFocuses.includes('balanced') ? focusForWorkoutName(workout.name) : requestedFocuses;
-    const ranked = usableExercises
-      .filter((exercise) => equipmentAllowed(exercise, spec.trainingEnvironment, workoutIndex))
-      .filter((exercise) => focuses.some((focus) => exerciseMatchesMuscle(exercise, focus)))
+    const eligibleExercises = usableExercises
+      .filter((exercise) => equipmentAllowed(exercise, spec.trainingEnvironment))
+      .filter((exercise) => focuses.some((focus) => exerciseMatchesMuscle(exercise, focus)));
+    const ranked = eligibleExercises
       .map((exercise) => ({ exercise, score: scoreExercise(exercise, focuses, spec.trainingEnvironment) }))
       .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name));
+    const rankedWithMedia = ranked.filter(({ exercise }) => hasExerciseMedia(exercise));
+    const rankedFallback = ranked.filter(({ exercise }) => !hasExerciseMedia(exercise));
 
     const selected: ExerciseWithSource[] = [];
     const groups = new Set<string>();
-    for (const { exercise } of ranked) {
-      if (selected.length >= targetExerciseCount) break;
-      const group = exercise.canonicalKey || exercise.canonicalId || normalized(exercise.name);
-      if (groups.has(group)) continue;
-      selected.push(exercise);
-      groups.add(group);
-    }
+    const addRankedExercises = (candidates: Array<{ exercise: ExerciseWithSource; score: number }>) => {
+      for (const { exercise } of candidates) {
+        if (selected.length >= targetExerciseCount) break;
+        const group = exercise.canonicalKey || exercise.canonicalId || normalized(exercise.name);
+        if (groups.has(group)) continue;
+        selected.push(exercise);
+        groups.add(group);
+      }
+    };
+
+    addRankedExercises(rankedWithMedia);
+    addRankedExercises(rankedFallback);
 
     return {
       name: workout.name,

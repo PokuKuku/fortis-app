@@ -217,7 +217,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.md,
     marginTop: -Spacing['2xl'],
-    paddingBottom: Spacing['6xl'],
   },
   animationWrap: {
     width: '100%',

@@ -120,6 +120,54 @@ export function getDateKey(date: Date): string {
   return format(date, 'yyyy-MM-dd');
 }
 
+export function buildWorkoutScheduleHistoryForChange({
+  previousDays,
+  nextDays,
+  currentHistory = [],
+  effectiveDate = new Date(),
+}: {
+  previousDays: number[];
+  nextDays: number[];
+  currentHistory?: WorkoutScheduleHistoryEntry[];
+  effectiveDate?: Date;
+}): WorkoutScheduleHistoryEntry[] {
+  const normalizedPrevious = normalizeWorkoutScheduleDays(previousDays);
+  const normalizedNext = normalizeWorkoutScheduleDays(nextDays);
+  const normalizedHistory = normalizeWorkoutScheduleHistory(currentHistory);
+
+  if (areWorkoutScheduleDaysEqual(normalizedPrevious, normalizedNext)) {
+    if (normalizedHistory.length > 0) return normalizedHistory;
+    return normalizeWorkoutScheduleHistory([
+      {
+        effectiveDateKey: '1970-01-01',
+        scheduleDays: normalizedNext,
+      },
+    ]);
+  }
+
+  const effectiveDateKey = getDateKey(effectiveDate);
+  const hasEarlierHistory = normalizedHistory.some(
+    (entry) => entry.effectiveDateKey < effectiveDateKey
+  );
+  const seededHistory = hasEarlierHistory
+    ? normalizedHistory
+    : [
+        {
+          effectiveDateKey: '1970-01-01',
+          scheduleDays: normalizedPrevious,
+        },
+        ...normalizedHistory.filter((entry) => entry.effectiveDateKey !== '1970-01-01'),
+      ];
+
+  return normalizeWorkoutScheduleHistory([
+    ...seededHistory.filter((entry) => entry.effectiveDateKey !== effectiveDateKey),
+    {
+      effectiveDateKey,
+      scheduleDays: normalizedNext,
+    },
+  ]);
+}
+
 export function getScheduleDaysForDate({
   date,
   scheduleDays,

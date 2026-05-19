@@ -113,8 +113,10 @@ describe('workoutRetention', () => {
       weekStart: new Date('2026-05-10T00:00:00'),
       scheduleDays: [1, 3, 5],
       sessions: [
+        session('previous-week', '2026-05-09T12:00:00', 'Previous Week'),
         session('monday', '2026-05-11T12:00:00', 'Upper'),
         session('friday', '2026-05-15T12:00:00', 'Lower'),
+        session('next-week', '2026-05-17T12:00:00', 'Next Week'),
       ],
     });
 
@@ -124,6 +126,15 @@ describe('workoutRetention', () => {
     expect(recap.scheduledDaysMissed).toBe(1);
     expect(recap.totalSets).toBe(2);
     expect(recap.notableExercises[0]).toMatchObject({ name: 'Bench Press', sets: 2 });
+    expect(recap.bestLifts).toEqual([
+      {
+        exerciseName: 'Bench Press',
+        reps: 10,
+        weight: 100,
+        weightUnit: 'lbs',
+        volume: 1000,
+      },
+    ]);
     expect(recap.prCount).toBe(0);
     expect(recap.prHighlights).toEqual([]);
   });

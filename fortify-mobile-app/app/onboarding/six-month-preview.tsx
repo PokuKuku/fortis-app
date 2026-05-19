@@ -29,7 +29,7 @@ const RAIL_STEPS = [
   },
   {
     label: 'Progress',
-    body: 'Use those adjustments to know what to push, repeat, or recover from next.',
+    body: 'Fortify proactively suggests what to push next session based on each exercise.',
     emoji: '🎯',
   },
 ] as const;
@@ -232,7 +232,6 @@ export default function OnboardingSixMonthPreviewScreen() {
 const styles = StyleSheet.create({
   stack: {
     gap: Spacing.md,
-    paddingBottom: Spacing['6xl'],
   },
   sectionStack: {
     gap: Spacing.sm,

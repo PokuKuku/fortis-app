@@ -181,7 +181,6 @@ const styles = StyleSheet.create({
   },
   cards: {
     gap: Spacing.md,
-    paddingBottom: Spacing['6xl'],
   },
   card: {
     flexDirection: 'row',

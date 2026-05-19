@@ -6,7 +6,7 @@ import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
-import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { BorderRadius } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import {
   trackOnboardingStepCompleted,
@@ -77,7 +77,7 @@ export default function OnboardingOtherAppsScreen() {
         ) : null
       }
     >
-      <View style={[styles.options, selected && styles.optionsWithFooter]}>
+      <View style={styles.options}>
         {OPTIONS.map((option) => (
           <OnboardingOptionCard
             key={option.value}
@@ -94,9 +94,6 @@ export default function OnboardingOtherAppsScreen() {
 const styles = StyleSheet.create({
   options: {
     gap: 12,
-  },
-  optionsWithFooter: {
-    paddingBottom: Spacing['6xl'],
   },
   floatingButton: {
     height: 54,

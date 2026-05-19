@@ -17,6 +17,7 @@ import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/s
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { type AccentColorName } from '@/src/utils/accentColors';
 import { DELETED_DEFAULT_PROGRAM_IDS_KEY, PROGRAM_PROGRESS_KEY } from '@/src/constants/storageKeys';
+import type { WorkoutScheduleHistoryEntry } from '@/src/utils/workoutSchedule';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
@@ -41,6 +42,7 @@ export interface Profile {
   lifting_experience?: 'none' | 'beginner' | 'intermediate' | 'advanced' | null;
   workouts_per_week?: number | null;
   workout_schedule_days?: number[] | null;
+  workout_schedule_history?: WorkoutScheduleHistoryEntry[] | null;
   tried_other_apps?: 'consistent' | 'occasionally' | 'stopped' | 'never' | null;
   fitness_goal?: 'build_muscle' | 'general_health' | 'lose_fat' | 'improve_strength' | 'stay_consistent' | null;
   biggest_challenge?: 'consistency' | 'plateaus' | 'starting_out' | 'time' | null;
@@ -85,6 +87,24 @@ export interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const isMissingWorkoutScheduleHistoryColumnError = (error: unknown): boolean => {
+  if (!error || typeof error !== 'object') return false;
+  const maybeError = error as { code?: string; message?: string };
+  const message = maybeError.message ?? '';
+  if (!message.includes('workout_schedule_history')) return false;
+  return (
+    maybeError.code === '42703' ||
+    maybeError.code === 'PGRST204' ||
+    message.toLowerCase().includes('schema cache') ||
+    message.toLowerCase().includes('column')
+  );
+};
+
+const omitWorkoutScheduleHistory = (updates: Partial<Profile>): Partial<Profile> => {
+  const { workout_schedule_history: _workoutScheduleHistory, ...fallbackUpdates } = updates;
+  return fallbackUpdates;
+};
 
 export function useAuth() {
   const context = useContext(AuthContext);
@@ -691,12 +711,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     try {
-      const { data, error } = await supabase
+      let attemptedHistoryFallback = false;
+      let updatesToSave = updates;
+      let { data, error } = await supabase
         .from('profiles')
-        .update(updates)
+        .update(updatesToSave)
         .eq('id', user.id)
         .select('id')
         .maybeSingle();
+
+      if (error && isMissingWorkoutScheduleHistoryColumnError(error)) {
+        attemptedHistoryFallback = true;
+        updatesToSave = omitWorkoutScheduleHistory(updates);
+        const retry = await supabase
+          .from('profiles')
+          .update(updatesToSave)
+          .eq('id', user.id)
+          .select('id')
+          .maybeSingle();
+        data = retry.data;
+        error = retry.error;
+      }
 
       if (error) {
         return { error: new Error(error.message) };
@@ -708,12 +743,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
           .upsert({
             id: user.id,
             email: user.email ?? '',
-            ...updates,
-            preferred_units: updates.preferred_units ?? 'imperial',
-            accent_color: updates.accent_color ?? 'midnight',
+            ...updatesToSave,
+            preferred_units: updatesToSave.preferred_units ?? 'imperial',
+            accent_color: updatesToSave.accent_color ?? 'midnight',
           }, { onConflict: 'id' });
 
-        if (upsertError) {
+        if (upsertError && isMissingWorkoutScheduleHistoryColumnError(upsertError) && !attemptedHistoryFallback) {
+          const fallbackUpdates = omitWorkoutScheduleHistory(updatesToSave);
+          const { error: retryUpsertError } = await supabase
+            .from('profiles')
+            .upsert({
+              id: user.id,
+              email: user.email ?? '',
+              ...fallbackUpdates,
+              preferred_units: fallbackUpdates.preferred_units ?? 'imperial',
+              accent_color: fallbackUpdates.accent_color ?? 'midnight',
+            }, { onConflict: 'id' });
+
+          if (retryUpsertError) {
+            return { error: new Error(retryUpsertError.message) };
+          }
+        } else if (upsertError) {
           return { error: new Error(upsertError.message) };
         }
       }

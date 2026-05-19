@@ -657,25 +657,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (loaded && loaded.status === 'in_progress') {
-        const now = new Date().toISOString();
-        const skippedState: PersistedInAppTourState = {
-          version: IN_APP_TOUR_VERSION,
-          status: 'skipped',
-          stepId: TOUR_STEPS[TOUR_STEPS.length - 1].id,
-          updatedAt: now,
-        };
-        setTourState(skippedState);
-        try {
-          await saveInAppTourState(skippedState);
-        } catch {
-          // Ignore storage failures; the in-memory skipped state still prevents this launch from resuming the tour.
-        }
-        void markTourSeenOnServer({ status: 'skipped', completedAt: now });
-        setTourLoaded(true);
-        return;
-      }
-
       setTourState(loaded);
       setTourLoaded(true);
     };

@@ -9,6 +9,7 @@ import {
   Dimensions,
   ActivityIndicator,
   Pressable,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -50,6 +51,12 @@ import { WeeklyProgressCarousel } from '@/src/components/program/WeeklyProgressC
 import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
+import {
+  loadPendingOnboardingProgramSpec,
+  ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT,
+  updatePendingOnboardingProgramSpec,
+  type OnboardingProgramSpec,
+} from '@/src/utils/onboardingProgram';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -59,6 +66,7 @@ type ProgramItem = {
   weeks: number;
   lastPerformed: string;
   isAiCreated?: boolean;
+  aiPayloadVersion?: string | null;
 };
 
 type WorkoutItem = {
@@ -145,6 +153,16 @@ const TEMPLATE_SYNC_PILL_PADDING_Y = scale(3);
 const TEMPLATE_SYNC_PILL_TEXT_SIZE = moderateScale(9);
 const TEMPLATE_SYNC_PILL_GAP = scale(4);
 const TEMPLATE_SYNC_ROW_MARGIN_TOP = scale(4);
+const ONBOARDING_PREVIEW_MARGIN_TOP = scale(18);
+const ONBOARDING_PREVIEW_MARGIN_BOTTOM = scale(24);
+const ONBOARDING_PREVIEW_PADDING = scale(18);
+const ONBOARDING_PREVIEW_RADIUS = scale(20);
+const ONBOARDING_PREVIEW_EYEBROW_SIZE = moderateScale(11);
+const ONBOARDING_PREVIEW_TITLE_SIZE = responsiveValue(18, 21, 24);
+const ONBOARDING_PREVIEW_BUTTON_PADDING_Y = scale(12);
+const ONBOARDING_PREVIEW_BUTTON_MARGIN_TOP = scale(18);
+const ONBOARDING_PREVIEW_BUTTON_RADIUS = scale(14);
+const ONBOARDING_PREVIEW_BUTTON_TEXT_SIZE = moderateScale(13);
 
 // Helper to format relative time
 function formatRelativeTime(dateString: string | null): string {
@@ -759,7 +777,16 @@ export default function ProgramsScreen() {
   const [scheduleEditorVisible, setScheduleEditorVisible] = useState(false);
   const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
+  const [onboardingProgramSpec, setOnboardingProgramSpec] = useState<OnboardingProgramSpec | null>(null);
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
+
+  const loadOnboardingProgramSpec = useCallback(async () => {
+    try {
+      setOnboardingProgramSpec(await loadPendingOnboardingProgramSpec());
+    } catch (error) {
+      console.warn('Failed to load onboarding program preview:', error);
+    }
+  }, []);
 
   const persistHomeCardOrder = useCallback(async (nextOrder: HomeCardOrderState) => {
     try {
@@ -768,6 +795,21 @@ export default function ProgramsScreen() {
       console.warn('Failed to persist home card order:', error);
     }
   }, [user?.id]);
+
+  useEffect(() => {
+    void loadOnboardingProgramSpec();
+
+    const subscription = DeviceEventEmitter.addListener(
+      ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT,
+      (spec: OnboardingProgramSpec | null) => {
+        setOnboardingProgramSpec(spec);
+      }
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [loadOnboardingProgramSpec]);
 
   useEffect(() => {
     if (!isAuthResolved) {
@@ -836,6 +878,7 @@ export default function ProgramsScreen() {
       weeks: p.durationWeeks || 0,
       lastPerformed: formatRelativeTime(p.lastPerformedAt),
       isAiCreated: p.isAiCreated,
+      aiPayloadVersion: p.aiPayloadVersion,
     }));
 
   // Templates (programs marked as isTemplate)
@@ -865,6 +908,18 @@ export default function ProgramsScreen() {
     () => sortItemsBySavedOrder(basePrograms, homeCardOrder.programIds),
     [basePrograms, homeCardOrder.programIds]
   );
+
+  const onboardingPreviewProgram = useMemo(() => {
+    if (onboardingProgramSpec?.status !== 'ready') {
+      return null;
+    }
+
+    const sourceSpecKey = `onboarding-program:${onboardingProgramSpec.id}`;
+    return programs.find((program) =>
+      program.id === onboardingProgramSpec.generatedProgramId ||
+      program.aiPayloadVersion === sourceSpecKey
+    ) ?? null;
+  }, [onboardingProgramSpec, programs]);
 
   const templates = useMemo(
     () => sortItemsBySavedOrder(baseTemplates, homeCardOrder.workoutIds),
@@ -970,7 +1025,7 @@ export default function ProgramsScreen() {
   } | null>(null);
 
   const handleSaveSchedule = async (days: number[]) => {
-    const { error } = await saveScheduleDays(days);
+    const { error } = await saveScheduleDays(days, { sessions: historySessions });
     if (error) {
       setToastMessage(error.message);
       setShowToast(true);
@@ -992,6 +1047,28 @@ export default function ProgramsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/programs/${programId}`);
   };
+
+  const handleOnboardingProgramPreviewPress = useCallback(async () => {
+    if (!onboardingPreviewProgram || !onboardingProgramSpec) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setOnboardingProgramSpec({
+      ...onboardingProgramSpec,
+      status: 'dismissed',
+      generatedProgramId: onboardingPreviewProgram.id,
+      updatedAt: new Date().toISOString(),
+    });
+
+    try {
+      await updatePendingOnboardingProgramSpec({
+        status: 'dismissed',
+        generatedProgramId: onboardingPreviewProgram.id,
+      });
+    } catch (error) {
+      console.warn('Failed to dismiss onboarding program preview:', error);
+    }
+    router.push(`/programs/${onboardingPreviewProgram.id}`);
+  }, [onboardingPreviewProgram, onboardingProgramSpec, router]);
 
   const handleKebabPress = (
     type: 'program' | 'workout',
@@ -1357,6 +1434,46 @@ export default function ProgramsScreen() {
             onEditSchedule={() => setScheduleEditorVisible(true)}
           />
 
+          {onboardingPreviewProgram && (
+            <TouchableOpacity
+              activeOpacity={0.84}
+              onPress={handleOnboardingProgramPreviewPress}
+              style={[
+                styles.onboardingProgramPreviewCard,
+                {
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                  borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+                },
+              ]}
+            >
+              <StainlessSteelPattern />
+              <View style={styles.onboardingProgramPreviewContent}>
+                <View style={styles.onboardingProgramPreviewHeader}>
+                  <View>
+                    <Text style={[styles.onboardingProgramPreviewEyebrow, { color: colors.accent }]}>
+                      FORTIFY AI
+                    </Text>
+                    <Text
+                      style={[styles.onboardingProgramPreviewTitle, { color: colors.textPrimary }]}
+                      numberOfLines={2}
+                    >
+                      {onboardingPreviewProgram.name}
+                    </Text>
+                  </View>
+                  <SparklesIcon color={colors.accent} size={MODAL_ICON_SIZE} strokeWidth={2} />
+                </View>
+                <LinearGradient
+                  colors={colors.accentGradient as unknown as [string, string, ...string[]]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.onboardingProgramPreviewButton}
+                >
+                  <Text style={styles.onboardingProgramPreviewButtonText}>VIEW PROGRAM</Text>
+                </LinearGradient>
+              </View>
+            </TouchableOpacity>
+          )}
+
           {/* Programs Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -1598,6 +1715,52 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: SECTION_SPACING,
+  },
+  onboardingProgramPreviewCard: {
+    marginTop: ONBOARDING_PREVIEW_MARGIN_TOP,
+    marginBottom: ONBOARDING_PREVIEW_MARGIN_BOTTOM,
+    borderRadius: ONBOARDING_PREVIEW_RADIUS,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 4,
+  },
+  onboardingProgramPreviewContent: {
+    padding: ONBOARDING_PREVIEW_PADDING,
+  },
+  onboardingProgramPreviewHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: scale(12),
+  },
+  onboardingProgramPreviewEyebrow: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: ONBOARDING_PREVIEW_EYEBROW_SIZE,
+    letterSpacing: 2,
+    marginBottom: scale(8),
+  },
+  onboardingProgramPreviewTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: ONBOARDING_PREVIEW_TITLE_SIZE,
+    lineHeight: ONBOARDING_PREVIEW_TITLE_SIZE * 1.18,
+    letterSpacing: 1.4,
+  },
+  onboardingProgramPreviewButton: {
+    marginTop: ONBOARDING_PREVIEW_BUTTON_MARGIN_TOP,
+    borderRadius: ONBOARDING_PREVIEW_BUTTON_RADIUS,
+    paddingVertical: ONBOARDING_PREVIEW_BUTTON_PADDING_Y,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingProgramPreviewButtonText: {
+    color: '#FFFFFF',
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: ONBOARDING_PREVIEW_BUTTON_TEXT_SIZE,
+    letterSpacing: 2,
   },
   sectionHeader: {
     flexDirection: 'row',

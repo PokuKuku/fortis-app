@@ -203,6 +203,12 @@ export default function AuthWelcomeScreen() {
         }
         if (Array.isArray(state?.workout_schedule_days) && !profileSnapshot?.workout_schedule_days?.length) {
           updates.workout_schedule_days = state.workout_schedule_days;
+          updates.workout_schedule_history = [
+            {
+              effectiveDateKey: '1970-01-01',
+              scheduleDays: state.workout_schedule_days,
+            },
+          ];
         }
 
         const { error } = await withTimeout(
@@ -266,8 +272,8 @@ export default function AuthWelcomeScreen() {
       return;
     }
 
-    console.log('[Routing] auth/index -> /onboarding/welcome (authenticated)');
-    router.replace('/onboarding/welcome');
+    console.log('[Routing] auth/index -> /paywall-gate (authenticated)');
+    router.replace('/paywall-gate');
   }, [
     isAuthenticated,
     isFocused,

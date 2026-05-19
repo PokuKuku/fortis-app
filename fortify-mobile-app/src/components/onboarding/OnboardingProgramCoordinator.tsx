@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useProgramsStore } from '@/src/store/programsStore';
 import * as ExerciseService from '@/src/services/exerciseService';
 import { generateOnboardingProgramWithAI } from '@/src/services/aiService';
@@ -54,7 +53,6 @@ const normalizeAIProgram = (
 
 export function OnboardingProgramCoordinator() {
   const { isAuthenticated, profile, profileResolved } = useAuth();
-  const { isTourActive } = useInAppTour();
   const programs = useProgramsStore((s) => s.programs);
   const hasFetchedPrograms = useProgramsStore((s) => s.hasFetchedPrograms);
   const fetchPrograms = useProgramsStore((s) => s.fetchPrograms);
@@ -72,8 +70,6 @@ export function OnboardingProgramCoordinator() {
 
   useEffect(() => {
     if (!isAuthenticated || !profileResolved || !profile?.onboarding_completed) return;
-    if (isTourActive) return;
-    if (!profile.has_seen_in_app_tour && !profile.in_app_tour_completed_at) return;
 
     let cancelled = false;
 
@@ -160,9 +156,6 @@ export function OnboardingProgramCoordinator() {
     fetchPrograms,
     hasFetchedPrograms,
     isAuthenticated,
-    isTourActive,
-    profile?.has_seen_in_app_tour,
-    profile?.in_app_tour_completed_at,
     profile?.onboarding_completed,
     profileResolved,
     programs.length,

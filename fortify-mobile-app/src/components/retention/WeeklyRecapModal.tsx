@@ -7,9 +7,10 @@ import {
   Share,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { FireIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import type { RefObject } from 'react';
@@ -47,15 +48,16 @@ const formatVolume = (volume: number, unit: string): string => {
   return `${Math.round(volume)} ${unit}`;
 };
 
-const formatPrHighlight = (highlight: WeeklyRecap['prHighlights'][number]): string => {
-  if (highlight.weight !== null) {
-    return `${highlight.weight} ${highlight.weightUnit ?? ''}`.trim();
-  }
-  return 'Bodyweight';
+const formatBestLift = (lift: WeeklyRecap['bestLifts'][number]): string => {
+  const reps = lift.reps ? `${lift.reps} reps` : null;
+  const weight = lift.weight ? `${lift.weight} ${lift.weightUnit ?? ''}`.trim() : 'Bodyweight';
+  return reps ? `${reps} x ${weight}` : weight;
 };
 
 export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRecapModalProps) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const viewShotRef = useRef<any>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -121,16 +123,38 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
 
   if (!visible || !recap) return null;
 
+  const isCompactHeight = windowHeight < 760;
+  const isNarrow = windowWidth < 390;
+  const horizontalPadding = isNarrow ? Spacing.lg : Spacing['2xl'];
+  const shareCardPadding = isCompactHeight ? Spacing.md : Spacing.lg;
+  const heatmapScale = isCompactHeight ? 0.34 : 0.4;
+  const heatmapMinHeight = isCompactHeight ? scale(132) : scale(158);
   const cardTheme = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
     borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
   };
 
   const shareCard = (
-    <View style={[styles.shareCard, { backgroundColor: colors.background }]}>
+    <View
+      style={[
+        styles.shareCard,
+        {
+          backgroundColor: colors.background,
+          minHeight: isCompactHeight ? scale(400) : scale(440),
+          padding: shareCardPadding,
+        },
+      ]}
+    >
       <StainlessSteelPattern />
       <View style={styles.shareHeader}>
-        <Text style={[styles.shareEyebrow, { color: colors.accent }]}>{userWeekLabel}</Text>
+        <Text
+          style={[styles.shareEyebrow, { color: colors.accent }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.82}
+        >
+          {userWeekLabel}
+        </Text>
         <View style={styles.streakInline}>
           <Text style={[styles.streakText, { color: colors.textPrimary }]}>{recap.streak}</Text>
           <FireIcon color="#FF4D4D" size={20} strokeWidth={2.4} />
@@ -165,16 +189,16 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
           <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Wks Missed</Text>
         </View>
         <View style={styles.detailItem}>
-          <Text style={[styles.detailValue, { color: colors.textPrimary }]}>{recap.prCount}</Text>
-          <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>PRs</Text>
+          <Text style={[styles.detailValue, { color: colors.textPrimary }]}>{recap.bestLifts.length}</Text>
+          <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Best Lifts</Text>
         </View>
       </View>
       <Text style={[styles.heatmapTitle, { color: colors.textPrimary }]}>Volume</Text>
-      <View style={styles.heatmapBlock}>
+      <View style={[styles.heatmapBlock, { minHeight: heatmapMinHeight }]}>
         <MuscleHeatmap
           muscleLevels={muscleLevels}
           gender={bodyType}
-          scale={0.42}
+          scale={heatmapScale}
           compact
         />
       </View>
@@ -185,8 +209,16 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <StainlessSteelPattern />
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
+        <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safeArea}>
+          <View
+            style={[
+              styles.header,
+              {
+                paddingHorizontal: horizontalPadding,
+                paddingTop: Math.max(insets.top + Spacing.md, Spacing['4xl']),
+              },
+            ]}
+          >
             <View style={styles.headerSpacer} />
             <View style={styles.headerTitleWrap}>
               <Text style={[styles.title, { color: colors.textPrimary }]}>Weekly recap</Text>
@@ -198,7 +230,13 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
 
           <ScrollView
             style={styles.scroll}
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[
+              styles.content,
+              {
+                paddingHorizontal: horizontalPadding,
+                paddingBottom: scale(84) + Math.max(insets.bottom, Spacing.md),
+              },
+            ]}
             showsVerticalScrollIndicator={false}
           >
             {ViewShotComponent ? (
@@ -209,19 +247,19 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
               shareCard
             )}
 
-            {recap.prHighlights.length > 0 ? (
+            {recap.bestLifts.length > 0 ? (
               <View style={[styles.sectionCard, cardTheme]}>
-                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>PRs Hit</Text>
-                {recap.prHighlights.map((highlight, index) => (
+                <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Best Lifts</Text>
+                {recap.bestLifts.map((lift, index) => (
                   <View
-                    key={`${highlight.exerciseName}-${highlight.date.toISOString()}-${index}`}
+                    key={`${lift.exerciseName}-${index}`}
                     style={styles.listRow}
                   >
                     <Text style={[styles.listLabel, { color: colors.textPrimary }]} numberOfLines={1}>
-                      {highlight.exerciseName}
+                      {lift.exerciseName}
                     </Text>
                     <Text style={[styles.listValue, { color: colors.textSecondary }]} numberOfLines={1}>
-                      {formatPrHighlight(highlight)}
+                      {formatBestLift(lift)}
                     </Text>
                   </View>
                 ))}
@@ -245,28 +283,18 @@ export function WeeklyRecapModal({ visible, recap, userName, onClose }: WeeklyRe
               )}
             </View>
 
-            <View style={[styles.sectionCard, cardTheme]}>
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Notable Exercises</Text>
-              {recap.notableExercises.length > 0 ? (
-                recap.notableExercises.map((exercise) => (
-                  <View key={exercise.name} style={styles.listRow}>
-                    <Text style={[styles.listLabel, { color: colors.textPrimary }]} numberOfLines={1}>
-                      {exercise.name}
-                    </Text>
-                    <Text style={[styles.listValue, { color: colors.textSecondary }]}>{exercise.sets} sets</Text>
-                  </View>
-                ))
-              ) : (
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                  Complete workouts this week to see exercise highlights.
-                </Text>
-              )}
-            </View>
-
             {shareError ? <Text style={[styles.errorText, { color: colors.error }]}>{shareError}</Text> : null}
           </ScrollView>
 
-          <View style={styles.footer}>
+          <View
+            style={[
+              styles.footer,
+              {
+                paddingHorizontal: horizontalPadding,
+                paddingBottom: Math.max(insets.bottom, Spacing.md),
+              },
+            ]}
+          >
             <Pressable
               onPress={handleShare}
               disabled={isSharing || !isCaptureReady}
@@ -353,8 +381,9 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   shareEyebrow: {
+    flex: 1,
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: moderateScale(16),
+    fontSize: moderateScale(20),
     letterSpacing: 1.4,
     textTransform: 'uppercase',
   },

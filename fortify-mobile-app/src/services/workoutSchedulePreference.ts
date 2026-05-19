@@ -4,8 +4,7 @@ import {
 } from '@/src/constants/storageKeys';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import {
-  areWorkoutScheduleDaysEqual,
-  getDateKey,
+  buildWorkoutScheduleHistoryForChange,
   normalizeWorkoutScheduleDays,
   normalizeWorkoutScheduleHistory,
   type WorkoutScheduleHistoryEntry,
@@ -51,41 +50,21 @@ export async function saveLocalWorkoutScheduleHistory(
 export async function recordWorkoutScheduleChange({
   previousDays,
   nextDays,
+  currentHistory,
   effectiveDate = new Date(),
 }: {
   previousDays: number[];
   nextDays: number[];
+  currentHistory?: WorkoutScheduleHistoryEntry[];
   effectiveDate?: Date;
 }): Promise<WorkoutScheduleHistoryEntry[]> {
-  const normalizedPrevious = normalizeWorkoutScheduleDays(previousDays);
-  const normalizedNext = normalizeWorkoutScheduleDays(nextDays);
-  const currentHistory = await loadLocalWorkoutScheduleHistory();
-
-  if (areWorkoutScheduleDaysEqual(normalizedPrevious, normalizedNext)) {
-    if (currentHistory.length > 0) return currentHistory;
-    return saveLocalWorkoutScheduleHistory([
-      {
-        effectiveDateKey: '1970-01-01',
-        scheduleDays: normalizedNext,
-      },
-    ]);
-  }
-
-  const effectiveDateKey = getDateKey(effectiveDate);
-  const seededHistory = currentHistory.length > 0
-    ? currentHistory
-    : [
-        {
-          effectiveDateKey: '1970-01-01',
-          scheduleDays: normalizedPrevious,
-        },
-      ];
-
-  return saveLocalWorkoutScheduleHistory([
-    ...seededHistory.filter((entry) => entry.effectiveDateKey !== effectiveDateKey),
-    {
-      effectiveDateKey,
-      scheduleDays: normalizedNext,
-    },
-  ]);
+  const sourceHistory = currentHistory ?? await loadLocalWorkoutScheduleHistory();
+  return saveLocalWorkoutScheduleHistory(
+    buildWorkoutScheduleHistoryForChange({
+      previousDays,
+      nextDays,
+      currentHistory: sourceHistory,
+      effectiveDate,
+    })
+  );
 }

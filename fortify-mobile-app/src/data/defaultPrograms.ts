@@ -1,6 +1,7 @@
-import { Program, ProgramExercise, ProgramWorkout } from '@/src/types/workout';
+import { Program, ProgramExercise } from '@/src/types/workout';
 
 const DEFAULT_CREATED_AT = '2024-01-01T00:00:00Z';
+export const REMOVED_DEFAULT_PROGRAM_IDS = new Set(['default-program-upper-lower']);
 
 const EXERCISE_IDS = {
   // Upper workout exercises
@@ -167,46 +168,7 @@ const buildTemplateProgram = (seed: TemplateSeed): Program => {
   };
 };
 
-const buildProgramWorkout = (
-  seed: TemplateSeed,
-  programId: string,
-  dayNumber: number
-): ProgramWorkout => {
-  const workoutId = `${programId}-day-${dayNumber}`;
-  return {
-    id: workoutId,
-    name: seed.name,
-    dayNumber,
-    exercises: buildExercises(seed.exercises, workoutId),
-  };
-};
-
 export const getDefaultTemplates = (): Program[] =>
   TEMPLATE_SEEDS.map(buildTemplateProgram);
 
-export const getDefaultPrograms = (): Program[] => {
-  const programId = 'default-program-upper-lower';
-
-  return [
-    {
-      id: programId,
-      name: 'Upper/Lower',
-      description:
-        'Classic two-day upper/lower split for balanced muscle growth. Compounds first, then isolation work.',
-      difficulty: 'intermediate',
-      goal: 'strength',
-      durationWeeks: 8,
-      isPublic: true,
-      isDefault: true,
-      isAiCreated: false,
-      isTemplate: false,
-      lastPerformedAt: null,
-      createdBy: 'Fortify',
-      createdAt: DEFAULT_CREATED_AT,
-      updatedAt: DEFAULT_CREATED_AT,
-      workouts: TEMPLATE_SEEDS.map((seed, index) =>
-        buildProgramWorkout(seed, programId, index + 1)
-      ),
-    },
-  ];
-};
+export const getDefaultPrograms = (): Program[] => [];

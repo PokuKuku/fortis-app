@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
@@ -13,7 +14,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { Spacing } from '@/constants/Sizes';
-import { moderateScale, responsiveValue, scale } from '@/src/utils/responsive';
+import { moderateScale, scale } from '@/src/utils/responsive';
 import { OnboardingProgressBar } from '@/src/components/onboarding/OnboardingProgressBar';
 
 interface OnboardingScreenProps {
@@ -78,10 +79,13 @@ export function OnboardingScreen({
   floatingFooter,
 }: OnboardingScreenProps) {
   const { colors } = useTheme();
-  const maxWidth = responsiveValue(360, 420, 480);
-  const horizontalPadding = scale(Spacing['2xl']);
-  const resolvedGap = scale(contentGap);
-  const resolvedTitleOffset = titleTopOffset ? scale(titleTopOffset) : 0;
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const isNarrowScreen = windowWidth < 380;
+  const isShortScreen = windowHeight < 700;
+  const maxWidth = windowWidth < 380 ? 360 : windowWidth < 420 ? 420 : 480;
+  const horizontalPadding = isNarrowScreen ? scale(Spacing.xl) : scale(Spacing['2xl']);
+  const resolvedGap = isShortScreen ? Math.max(scale(Spacing.md), scale(contentGap) - scale(Spacing.sm)) : scale(contentGap);
+  const resolvedTitleOffset = titleTopOffset && !isShortScreen ? scale(titleTopOffset) : 0;
   const resolvedTitleFontSize = typeof titleFontSize === 'number'
     ? moderateScale(titleFontSize)
     : undefined;
@@ -114,7 +118,7 @@ export function OnboardingScreen({
       style={[
         styles.titleBlock,
         resolvedTitleOffset ? { marginTop: resolvedTitleOffset } : null,
-        resolvedTitleMinHeight !== undefined ? { height: resolvedTitleMinHeight } : null,
+        resolvedTitleMinHeight !== undefined ? { minHeight: resolvedTitleMinHeight } : null,
       ]}
     >
       <Text
@@ -152,6 +156,12 @@ export function OnboardingScreen({
     ? [styles.bodySection, styles.bodySectionCentered]
     : styles.bodySection;
 
+  const shouldUseScrollView = useScrollView || isShortScreen;
+  const footerClearance = floatingFooter
+    ? (isShortScreen ? scale(112) : scale(128))
+    : scale(Spacing['3xl']);
+  const floatingFooterBottom = isShortScreen ? scale(Spacing.md) : scale(Spacing.lg);
+
   const contentBlockStyle = bodyAlign === 'center'
     ? [styles.contentBlock, styles.contentBlockFill, { gap: resolvedGap }]
     : [styles.contentBlock, { gap: resolvedGap }];
@@ -173,7 +183,7 @@ export function OnboardingScreen({
 
       <SafeAreaView style={[styles.safeArea, themedStyles.safeArea]} edges={safeAreaEdges}>
         {!hideHeader && (
-          <View style={styles.headerRow}>
+          <View style={[styles.headerRow, isShortScreen ? styles.headerRowCompact : null]}>
             <Pressable
               style={[styles.backButton, themedStyles.backButton, !onBack && styles.backButtonHidden]}
               onPress={() => {
@@ -197,11 +207,15 @@ export function OnboardingScreen({
           </View>
         )}
 
-        {useScrollView ? (
+        {shouldUseScrollView ? (
           <ScrollView
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[
+              styles.scrollContent,
+              isShortScreen ? styles.scrollContentCompact : null,
+              { paddingBottom: footerClearance },
+            ]}
             showsVerticalScrollIndicator={false}
-            scrollEnabled={scrollEnabled}
+            scrollEnabled={scrollEnabled || isShortScreen}
             keyboardShouldPersistTaps="handled"
           >
             <View style={contentBlockStyle}>
@@ -225,21 +239,21 @@ export function OnboardingScreen({
             {footerBlock}
           </ScrollView>
         ) : (
-          <View style={styles.staticContent}>
-          <View style={contentBlockStyle}>
-            {hasTopSectionContent ? (
-              <View style={styles.topSection}>
-                {headerAccessory ? (
-                  <View style={styles.headerAccessory}>{headerAccessory}</View>
-                ) : null}
-                {sectionLabel && (
-                  <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>
-                    {sectionLabel}
-                  </Text>
-                )}
-                {titlePlacement === 'top' ? titleBlock : null}
-              </View>
-            ) : null}
+          <View style={[styles.staticContent, { paddingBottom: footerClearance }]}>
+            <View style={contentBlockStyle}>
+              {hasTopSectionContent ? (
+                <View style={styles.topSection}>
+                  {headerAccessory ? (
+                    <View style={styles.headerAccessory}>{headerAccessory}</View>
+                  ) : null}
+                  {sectionLabel && (
+                    <Text style={[styles.sectionLabel, themedStyles.sectionLabel]}>
+                      {sectionLabel}
+                    </Text>
+                  )}
+                  {titlePlacement === 'top' ? titleBlock : null}
+                </View>
+              ) : null}
 
               <View style={bodyStyle}>{children}</View>
             </View>
@@ -250,7 +264,10 @@ export function OnboardingScreen({
         {floatingFooter ? (
           <View
             pointerEvents="box-none"
-            style={[styles.floatingFooter, { paddingHorizontal: horizontalPadding }]}
+            style={[
+              styles.floatingFooter,
+              { bottom: floatingFooterBottom, paddingHorizontal: horizontalPadding },
+            ]}
           >
             {floatingFooter}
           </View>
@@ -273,6 +290,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.lg,
+  },
+  headerRowCompact: {
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
   progressWrapper: {
     flex: 1,
@@ -302,6 +323,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: Spacing['3xl'],
     justifyContent: 'space-between',
+  },
+  scrollContentCompact: {
+    justifyContent: 'flex-start',
   },
   staticContent: {
     flex: 1,
@@ -354,6 +378,5 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    bottom: Spacing.lg + 50,
   },
 });
