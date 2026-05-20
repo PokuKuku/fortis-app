@@ -35,6 +35,7 @@ export const START_BUTTON_PRESET_KEY = 'start_button_preset_v1';
 export const WORKOUT_SCHEDULE_DAYS_KEY = 'workout_schedule_days_v1';
 export const WORKOUT_SCHEDULE_HISTORY_KEY = 'workout_schedule_history_v1';
 export const ONBOARDING_STATE_KEY = 'onboarding_state_v1';
+export const PENDING_ONBOARDING_AUTH_COMPLETION_KEY = 'pending_onboarding_auth_completion_v1';
 export const PENDING_ONBOARDING_PROGRAM_SPEC_KEY = 'pending_onboarding_program_spec_v1';
 export const PENDING_ONBOARDING_CONVERSION_CONTEXT_KEY = 'pending_onboarding_conversion_context_v1';
 

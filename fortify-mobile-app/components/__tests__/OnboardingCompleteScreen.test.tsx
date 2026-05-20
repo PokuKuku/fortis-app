@@ -8,6 +8,7 @@ const mockUpdateProfile = jest.fn();
 const mockClearOnboardingState = jest.fn();
 const mockClearInAppTourState = jest.fn();
 const mockGetOnboardingState = jest.fn();
+const mockMarkPendingOnboardingAuthCompletion = jest.fn();
 const mockAuthState = {
   updateProfile: mockUpdateProfile,
   isAuthenticated: false,
@@ -103,6 +104,10 @@ jest.mock('@/src/utils/onboardingConversion', () => ({
   savePendingOnboardingConversionContext: jest.fn(() => Promise.resolve()),
 }));
 
+jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
+  markPendingOnboardingAuthCompletion: () => mockMarkPendingOnboardingAuthCompletion(),
+}));
+
 jest.mock('@/src/components/onboarding/OnboardingScreen', () => ({
   OnboardingScreen: ({ children, floatingFooter }: { children: React.ReactNode; floatingFooter?: React.ReactNode }) => {
     const React = require('react');
@@ -161,6 +166,7 @@ describe('OnboardingCompleteScreen', () => {
     mockUpdateProfile.mockResolvedValue({ error: null });
     mockClearOnboardingState.mockResolvedValue(undefined);
     mockClearInAppTourState.mockResolvedValue(undefined);
+    mockMarkPendingOnboardingAuthCompletion.mockResolvedValue(undefined);
     mockGetOnboardingState.mockResolvedValue({
       full_name: 'Kwaku',
       gender: 'male',
@@ -191,11 +197,17 @@ describe('OnboardingCompleteScreen', () => {
       expect(screen.getByText("I'm ready")).toBeTruthy();
     });
 
-    fireEvent.press(screen.getByText("I'm ready"));
+    await act(async () => {
+      fireEvent.press(screen.getByText("I'm ready"));
+      await Promise.resolve();
+    });
 
-    expect(mockPush).toHaveBeenCalledWith({
-      pathname: '/auth',
-      params: { onboarding: 'complete' },
+    await waitFor(() => {
+      expect(mockMarkPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
+      expect(mockPush).toHaveBeenCalledWith({
+        pathname: '/auth',
+        params: { onboarding: 'complete' },
+      });
     });
     expect(mockReplace).not.toHaveBeenCalledWith('/paywall-gate');
     expect(mockUpdateProfile).not.toHaveBeenCalled();
@@ -230,6 +242,51 @@ describe('OnboardingCompleteScreen', () => {
 
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+    });
+  });
+
+  it('continues finalization after returning authenticated from auth', async () => {
+    const { rerender } = render(<OnboardingCompleteScreen />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(14_500);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("I'm ready")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("I'm ready"));
+      await Promise.resolve();
+    });
+
+    expect(mockPush).toHaveBeenCalledWith({
+      pathname: '/auth',
+      params: { onboarding: 'complete' },
+    });
+
+    mockAuthState.isAuthenticated = true;
+    mockAuthState.profile = {
+      full_name: null,
+      onboarding_completed: false,
+      preferred_units: 'imperial',
+    };
+
+    rerender(<OnboardingCompleteScreen />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(1_000);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({
+        full_name: 'Kwaku',
+        onboarding_completed: true,
+      }));
       expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
     });
   });

@@ -9,6 +9,7 @@ import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { hasPendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 
 const extractAuthParam = (url: string, key: string) => {
   try {
@@ -71,6 +72,12 @@ export default function AuthCallbackScreen() {
       if (sessionError) {
         setError(sessionError.message);
         setIsProcessing(false);
+        return;
+      }
+
+      const shouldFinalizeOnboarding = await hasPendingOnboardingAuthCompletion();
+      if (shouldFinalizeOnboarding) {
+        router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
         return;
       }
 

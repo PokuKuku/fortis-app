@@ -29,6 +29,11 @@ import {
   savePendingOnboardingProgramSpec,
 } from '@/src/utils/onboardingProgram';
 import { clearInAppTourState } from '@/src/services/inAppTourService';
+import {
+  clearPendingOnboardingAuthCompletion,
+  markPendingOnboardingAuthCompletion,
+  usePendingOnboardingAuthCompletion,
+} from '@/src/utils/onboardingAuthCompletion';
 
 const ONBOARDING_STATE_LOAD_TIMEOUT_MS = 4_000;
 const PROFILE_FINALIZATION_TIMEOUT_MS = 8_000;
@@ -70,17 +75,22 @@ export default function AuthWelcomeScreen() {
   const { colors, isDark } = useTheme();
   const { onboarding } = useLocalSearchParams<{ onboarding?: string }>();
   const onboardingValue = Array.isArray(onboarding) ? onboarding[0] : onboarding;
+  const {
+    isPending: hasPendingCompletionIntent,
+    isResolved: pendingCompletionIntentResolved,
+  } = usePendingOnboardingAuthCompletion();
+  const isOnboardingCompletionAuth = onboardingValue === 'complete' || hasPendingCompletionIntent;
   const showBack = Boolean(onboardingValue);
   const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
   const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
   const [isFinalizing, setIsFinalizing] = useState(false);
 
   useEffect(() => {
-    setAllowProfileCreation(onboardingValue === 'complete');
+    setAllowProfileCreation(isOnboardingCompletionAuth);
     return () => {
       setAllowProfileCreation(false);
     };
-  }, [onboardingValue, setAllowProfileCreation]);
+  }, [isOnboardingCompletionAuth, setAllowProfileCreation]);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -110,6 +120,7 @@ export default function AuthWelcomeScreen() {
   const isFocusedRef = useRef(isFocused);
   const isMountedRef = useRef(true);
   const onboardingFinalizeInFlightRef = useRef(false);
+  const didFinalizeOnboardingAuthRef = useRef(false);
   const isAuthProcessing =
     isFocused && (isLoading || isFinalizing || (isAuthenticated && !profileResolved));
 
@@ -126,17 +137,22 @@ export default function AuthWelcomeScreen() {
   // Finalize onboarding after sign-in from onboarding-complete auth entry.
   useEffect(() => {
     if (!isFocused) return;
-    if (onboardingValue !== 'complete') return;
+    if (!isOnboardingCompletionAuth) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
 
     if (profile?.onboarding_completed) {
+      if (didFinalizeOnboardingAuthRef.current) return;
+      didFinalizeOnboardingAuthRef.current = true;
+      void clearPendingOnboardingAuthCompletion();
       router.replace('/paywall-gate');
       return;
     }
 
+    if (didFinalizeOnboardingAuthRef.current) return;
     if (onboardingFinalizeInFlightRef.current) return;
 
     onboardingFinalizeInFlightRef.current = true;
+    didFinalizeOnboardingAuthRef.current = true;
     setIsFinalizing(true);
 
     const profileSnapshot = profile;
@@ -217,6 +233,7 @@ export default function AuthWelcomeScreen() {
           'Finalizing profile',
         );
         if (error) {
+          didFinalizeOnboardingAuthRef.current = false;
           if (isMountedRef.current && isFocusedRef.current) {
             router.replace('/onboarding/welcome');
           }
@@ -228,7 +245,9 @@ export default function AuthWelcomeScreen() {
         }
 
         await withTimeout(
-          clearInAppTourState().then(() => clearOnboardingState()),
+          clearInAppTourState()
+            .then(() => clearOnboardingState())
+            .then(() => clearPendingOnboardingAuthCompletion()),
           ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
           'Clearing onboarding and tour state',
         );
@@ -237,6 +256,7 @@ export default function AuthWelcomeScreen() {
           router.replace('/paywall-gate');
         }
       } catch (finalizeError) {
+        didFinalizeOnboardingAuthRef.current = false;
         console.warn('[Auth] Failed to finalize onboarding after sign-in:', finalizeError);
         if (isMountedRef.current && isFocusedRef.current) {
           router.replace('/onboarding/welcome');
@@ -252,7 +272,7 @@ export default function AuthWelcomeScreen() {
     isAuthenticated,
     isFocused,
     isLoading,
-    onboardingValue,
+    isOnboardingCompletionAuth,
     profile,
     profileResolved,
     router,
@@ -262,8 +282,9 @@ export default function AuthWelcomeScreen() {
   // Navigate when auth state changes in non-onboarding-complete auth entry paths.
   useEffect(() => {
     if (!isFocused) return;
+    if (onboardingValue !== 'complete' && !pendingCompletionIntentResolved) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
-    if (onboardingValue === 'complete') {
+    if (isOnboardingCompletionAuth) {
       return;
     }
 
@@ -279,7 +300,9 @@ export default function AuthWelcomeScreen() {
     isFocused,
     isLoading,
     needsOnboarding,
+    isOnboardingCompletionAuth,
     onboardingValue,
+    pendingCompletionIntentResolved,
     profile,
     profileResolved,
     router,
@@ -300,6 +323,9 @@ export default function AuthWelcomeScreen() {
     setIsLoadingGoogle(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (isOnboardingCompletionAuth) {
+        await markPendingOnboardingAuthCompletion();
+      }
 
       const { error: signInError } = await signInWithGoogle();
 
@@ -316,6 +342,9 @@ export default function AuthWelcomeScreen() {
     setIsLoadingApple(true);
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (isOnboardingCompletionAuth) {
+        await markPendingOnboardingAuthCompletion();
+      }
 
       const { error: signInError } = await signInWithApple();
 

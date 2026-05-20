@@ -35,6 +35,7 @@ import {
   buildOnboardingConversionContext,
   savePendingOnboardingConversionContext,
 } from '@/src/utils/onboardingConversion';
+import { markPendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 import type { MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { Typography } from '@/constants/Typography';
 import {
@@ -237,8 +238,8 @@ export default function OnboardingCompleteScreen() {
 
   const router = useRouter();
   const { colors, isDark } = useTheme();
-  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
-  const isCompactProgramPreview = windowWidth < 380 || windowHeight < 760;
+  const { width: windowWidth } = useWindowDimensions();
+  const isCompactProgramPreview = windowWidth < 380;
   const { updateProfile, isAuthenticated, profile } = useAuth();
   const didContinueRef = useRef(false);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -731,6 +732,13 @@ export default function OnboardingCompleteScreen() {
   );
 
   useEffect(() => {
+    if (!isAuthenticated || !returnedFromAuthRef.current) return;
+
+    didContinueRef.current = false;
+    returnedFromAuthRef.current = false;
+  }, [isAuthenticated]);
+
+  useEffect(() => {
     if (phase !== 'loading') return;
     const completedCount = LOADING_STEPS.filter((step) => progressPct >= step.completeAt).length;
     if (completedCount <= lastHapticStepRef.current) return;
@@ -808,6 +816,11 @@ export default function OnboardingCompleteScreen() {
 
     if (!isAuthenticated) {
       returnedFromAuthRef.current = true;
+      try {
+        await markPendingOnboardingAuthCompletion();
+      } catch (intentError) {
+        console.warn('[Onboarding] Failed to persist auth completion intent:', intentError);
+      }
       router.push({ pathname: '/auth', params: { onboarding: 'complete' } });
       return;
     }
@@ -938,6 +951,10 @@ export default function OnboardingCompleteScreen() {
     if (!isAuthenticated) return;
 
     const continueTimer = setTimeout(() => {
+      if (returnedFromAuthRef.current) {
+        didContinueRef.current = false;
+        returnedFromAuthRef.current = false;
+      }
       void handleContinue();
     }, AUTHENTICATED_AUTO_CONTINUE_DELAY_MS);
 
@@ -1400,9 +1417,10 @@ const styles = StyleSheet.create({
     width: 18,
   },
   programWorkoutName: {
-    ...Typography.bodySmall,
     flex: 1,
-    fontWeight: '700',
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 17,
+    letterSpacing: 0.6,
   },
   programHeatmap: {
     width: 148,

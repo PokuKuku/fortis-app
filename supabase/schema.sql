@@ -38,6 +38,7 @@ CREATE TABLE profiles (
   preferred_units TEXT DEFAULT 'imperial' CHECK (preferred_units IN ('imperial', 'metric')),
   accent_color TEXT DEFAULT 'midnight',
   theme TEXT DEFAULT 'dark' CHECK (theme IN ('light', 'dark')),
+  theme_mode TEXT DEFAULT 'light' CHECK (theme_mode IN ('system', 'light', 'dark')),
 
   -- Onboarding status
   onboarding_completed BOOLEAN DEFAULT FALSE,

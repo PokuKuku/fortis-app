@@ -14,6 +14,7 @@ import {
   loadPendingOnboardingConversionContext,
   type OnboardingConversionContext,
 } from '@/src/utils/onboardingConversion';
+import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const GATE_RETRY_DELAY_MS = 2_000;
@@ -23,6 +24,10 @@ export default function PaywallGateScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const { user: authUser, isAuthResolved, profile, profileResolved, needsOnboarding } = useAuth();
+  const {
+    isPending: hasPendingOnboardingAuthCompletion,
+    isResolved: pendingOnboardingAuthCompletionResolved,
+  } = usePendingOnboardingAuthCompletion();
   const { queueTourStartAfterPaywallClose } = useInAppTour();
   const {
     identify,
@@ -106,10 +111,25 @@ export default function PaywallGateScreen() {
     if (!profileResolved) {
       return;
     }
+    if (
+      !pendingOnboardingAuthCompletionResolved ||
+      (hasPendingOnboardingAuthCompletion && (!profile || needsOnboarding))
+    ) {
+      return;
+    }
     if (!profile || needsOnboarding) {
       router.replace('/onboarding');
     }
-  }, [authUserId, isAuthResolved, needsOnboarding, profile, profileResolved, router]);
+  }, [
+    authUserId,
+    hasPendingOnboardingAuthCompletion,
+    isAuthResolved,
+    needsOnboarding,
+    pendingOnboardingAuthCompletionResolved,
+    profile,
+    profileResolved,
+    router,
+  ]);
 
   const finishGate = useCallback(() => {
     if (hasNavigatedRef.current) {
@@ -258,7 +278,15 @@ export default function PaywallGateScreen() {
       return;
     }
 
-    if (!isAuthResolved || !isSuperwallReady || !profileResolved || !profile || needsOnboarding) {
+    if (
+      !isAuthResolved ||
+      !isSuperwallReady ||
+      !profileResolved ||
+      !pendingOnboardingAuthCompletionResolved ||
+      (hasPendingOnboardingAuthCompletion && (!profile || needsOnboarding)) ||
+      !profile ||
+      needsOnboarding
+    ) {
       scheduleRetry();
       return;
     }
@@ -311,11 +339,13 @@ export default function PaywallGateScreen() {
   }, [
     attempt,
     finishGate,
+    hasPendingOnboardingAuthCompletion,
     hasSuperwallError,
     isIdentityReady,
     isSuperwallReady,
     needsOnboarding,
     paywallContext,
+    pendingOnboardingAuthCompletionResolved,
     profile,
     profileResolved,
     registerPlacement,

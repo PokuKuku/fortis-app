@@ -7,6 +7,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate';
 const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortisDemoFinal888.mov');
 
@@ -36,6 +37,10 @@ export default function SplashScreen() {
   const rootNavigationState = useRootNavigationState();
   const { colors } = useTheme();
   const { isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved } = useAuth();
+  const {
+    isPending: hasPendingOnboardingAuthCompletion,
+    isResolved: pendingOnboardingAuthCompletionResolved,
+  } = usePendingOnboardingAuthCompletion();
   const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasNavigatedRef = useRef(false);
   const [minDelayPassed, setMinDelayPassed] = useState(false);
@@ -80,10 +85,18 @@ export default function SplashScreen() {
 
   useEffect(() => {
     const profileStateReady = !isAuthenticated || profileResolved;
+    const isWaitingForOnboardingCompletion =
+      isAuthenticated &&
+      profileStateReady &&
+      pendingOnboardingAuthCompletionResolved &&
+      hasPendingOnboardingAuthCompletion &&
+      (!profile || needsOnboarding);
     if (
       !minDelayPassed ||
       !isAuthResolved ||
       !profileStateReady ||
+      !pendingOnboardingAuthCompletionResolved ||
+      isWaitingForOnboardingCompletion ||
       hasNavigatedRef.current
     ) {
       return;
@@ -108,6 +121,8 @@ export default function SplashScreen() {
     needsOnboarding,
     profile,
     profileResolved,
+    pendingOnboardingAuthCompletionResolved,
+    hasPendingOnboardingAuthCompletion,
     onboardingWarmupReady,
     pathname,
     router,

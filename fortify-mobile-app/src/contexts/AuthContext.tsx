@@ -189,6 +189,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               email: session.user.email || '',
               preferred_units: 'imperial',
               accent_color: 'midnight',
+              theme_mode: 'light',
               onboarding_completed: false,
             })
             .select()

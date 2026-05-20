@@ -9,6 +9,7 @@ const mockGetEntitlements = jest.fn().mockResolvedValue({ active: [] });
 const mockSetSubscriptionStatus = jest.fn().mockResolvedValue(undefined);
 const mockQueueTourStartAfterPaywallClose = jest.fn();
 const mockReplace = jest.fn();
+const mockUsePendingOnboardingAuthCompletion = jest.fn();
 const mockSubscriptionStatusState: { status: string; entitlements?: Array<{ id: string; type: string }> } = {
   status: 'INACTIVE',
 };
@@ -83,6 +84,14 @@ jest.mock('@/src/contexts/ThemeContext', () => ({
   })),
 }));
 
+jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
+  usePendingOnboardingAuthCompletion: () => mockUsePendingOnboardingAuthCompletion(),
+}));
+
+jest.mock('@/src/utils/onboardingConversion', () => ({
+  loadPendingOnboardingConversionContext: jest.fn(() => Promise.resolve(null)),
+}));
+
 jest.mock('@/components/StainlessSteelPattern', () => ({
   StainlessSteelPattern: () => null,
 }));
@@ -105,6 +114,7 @@ describe('PaywallGateScreen', () => {
     mockAuthState.profile = { onboarding_completed: true };
     mockAuthState.profileResolved = true;
     mockAuthState.needsOnboarding = false;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: true });
     mockSuperwallUserState.appUserId = 'user-1';
     mockSubscriptionStatusState.status = 'INACTIVE';
     delete mockSubscriptionStatusState.entitlements;
@@ -170,6 +180,40 @@ describe('PaywallGateScreen', () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/onboarding');
     });
+    expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps loading instead of routing incomplete profiles to onboarding during pending completion', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+    mockAuthState.profile = { onboarding_completed: false };
+    mockAuthState.needsOnboarding = true;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+
+    render(<PaywallGateScreen />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+    expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
+  });
+
+  it('keeps loading instead of routing missing profiles to onboarding during pending completion', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+    mockAuthState.profile = null;
+    mockAuthState.needsOnboarding = false;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+
+    render(<PaywallGateScreen />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
   });
 

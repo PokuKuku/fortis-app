@@ -11,6 +11,9 @@ const mockSignInWithApple = jest.fn();
 const mockUpdateProfile = jest.fn();
 const mockGetOnboardingState = jest.fn();
 const mockClearOnboardingState = jest.fn();
+const mockHasPendingOnboardingAuthCompletion = jest.fn();
+const mockClearPendingOnboardingAuthCompletion = jest.fn();
+const mockUsePendingOnboardingAuthCompletion = jest.fn();
 
 let mockSearchParams: { onboarding?: string } = { onboarding: 'complete' };
 
@@ -114,6 +117,13 @@ jest.mock('@/src/utils/onboardingState', () => ({
   clearOnboardingState: () => mockClearOnboardingState(),
 }));
 
+jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
+  clearPendingOnboardingAuthCompletion: () => mockClearPendingOnboardingAuthCompletion(),
+  hasPendingOnboardingAuthCompletion: () => mockHasPendingOnboardingAuthCompletion(),
+  markPendingOnboardingAuthCompletion: jest.fn(),
+  usePendingOnboardingAuthCompletion: () => mockUsePendingOnboardingAuthCompletion(),
+}));
+
 jest.mock('@/components/StainlessSteelPattern', () => ({
   StainlessSteelPattern: () => null,
 }));
@@ -134,6 +144,9 @@ describe('AuthWelcomeScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSearchParams = { onboarding: 'complete' };
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: true });
+    mockHasPendingOnboardingAuthCompletion.mockResolvedValue(false);
+    mockClearPendingOnboardingAuthCompletion.mockResolvedValue(undefined);
     mockGetOnboardingState.mockResolvedValue({
       full_name: 'New User',
       gender: 'male',
@@ -171,7 +184,39 @@ describe('AuthWelcomeScreen', () => {
 
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
+      expect(mockClearPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
       expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
     });
+  });
+
+  it('finalizes onboarding when returning from auth callback with a pending completion intent', async () => {
+    mockSearchParams = {};
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+
+    render(<AuthWelcomeScreen />);
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
+      expect(mockClearPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+    });
+  });
+
+  it('does not route to onboarding while pending completion intent is still loading', async () => {
+    mockSearchParams = {};
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: false });
+
+    render(<AuthWelcomeScreen />);
+
+    await waitFor(() => {
+      expect(mockSetAllowProfileCreation).toHaveBeenCalledWith(false);
+    });
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+    expect(mockUpdateProfile).not.toHaveBeenCalled();
   });
 });
