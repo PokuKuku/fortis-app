@@ -7,7 +7,7 @@ This file documents the backend architecture, data model, security posture, and 
 Fortis uses Supabase as the backend:
 - Postgres database with Row Level Security (RLS) for all user data.
 - Supabase Auth for email/password and OAuth (Google/Apple).
-- Supabase Edge Functions for AI orchestration (OpenAI).
+- Supabase Edge Functions for AI orchestration (Gemini primary, OpenAI fallback where configured).
 
 Key goals:
 - Strong user data isolation via RLS.
@@ -57,8 +57,14 @@ Edge function: `supabase/functions/ai/index.ts`
 
 Flow:
 1) Client invokes `/functions/v1/ai` with user JWT.
-2) Edge function assembles context and calls OpenAI.
+2) Edge function assembles context and calls Gemini by default, with OpenAI fallback where configured.
 3) Response returns `answer` or `clarification` only (no DB writes).
+
+Voice Coach realtime flow:
+1) Client invokes `/functions/v1/ai-realtime-session` with user JWT and Voice Coach preferences.
+2) Edge function validates consent, subscription access, and realtime usage limits.
+3) Edge function uses `GEMINI_API_KEY` to mint a short-lived Gemini Live ephemeral token.
+4) Client connects directly to Gemini Live over WebSocket and streams realtime PCM audio.
 
 ## Important Migrations
 
@@ -77,6 +83,12 @@ If you introduce new tables, always add:
 
 Supabase secrets (Edge Functions):
 - `SERVICE_ROLE_KEY` (preferred)
+- `GEMINI_API_KEY`
+- `AI_MODEL` (optional, defaults to `gemini-3.1-flash-lite`)
+- `GEMINI_MODEL` (optional, Gemini-specific model override)
+- `GEMINI_LIVE_MODEL` (optional, defaults to `gemini-3.1-flash-live` for Voice Coach)
+- `AI_REALTIME_MAX_SESSION_SECONDS` (optional, defaults to 300)
+- `AI_REALTIME_MAX_DAY_SECONDS` (optional, defaults to 1200)
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (optional)
 - `OPENAI_FALLBACK_MODEL` (optional)
@@ -91,7 +103,7 @@ Must verify in Supabase dashboard:
 - Backups + PITR enabled and tested.
 - Alerts/monitoring configured (CPU, storage, error rate, edge function failures).
 - Storage bucket policies (if storage is used).
-- Rotate any exposed keys and update `SERVICE_ROLE_KEY` and `OPENAI_API_KEY`.
+- Rotate any exposed keys and update `SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, and `OPENAI_API_KEY`.
 
 ## Common Commands
 
@@ -108,11 +120,12 @@ supabase db lint --linked --dns-resolver https
 Deploy AI function:
 ```
 supabase functions deploy ai
+supabase functions deploy ai-realtime-session
 ```
 
 Set secrets:
 ```
-supabase secrets set SERVICE_ROLE_KEY=... OPENAI_API_KEY=...
+supabase secrets set SERVICE_ROLE_KEY=... GEMINI_API_KEY=... OPENAI_API_KEY=...
 ```
 
 ## Notes for Future Changes

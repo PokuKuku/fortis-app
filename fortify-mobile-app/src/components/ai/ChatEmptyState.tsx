@@ -18,7 +18,6 @@ import {
   ChevronRightIcon,
   CalendarDaysIcon,
   ChartBarIcon,
-  TrophyIcon,
   FireIcon,
 } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
@@ -43,8 +42,6 @@ const CARD_ICON_GLYPH_SIZE = scale(IconSizes.md);
 const CARD_CHEVRON_SIZE = scale(IconSizes.sm);
 const TITLE_FONT_SIZE = moderateScale(Typography.h2.fontSize as number);
 const TITLE_LINE_HEIGHT = moderateScale(Typography.h2.lineHeight as number);
-const BODY_FONT_SIZE = moderateScale(Typography.body.fontSize as number);
-const BODY_LINE_HEIGHT = moderateScale(Typography.body.lineHeight as number);
 const LABEL_FONT_SIZE = moderateScale(Typography.label.fontSize as number);
 const LABEL_LINE_HEIGHT = moderateScale(Typography.label.lineHeight as number);
 const CAPTION_FONT_SIZE = moderateScale(Typography.caption.fontSize as number);
@@ -67,11 +64,11 @@ const QUICK_ACTIONS: QuickAction[] = [
     prompt: 'Summarize my training progress over the last few months and key trends',
   },
   {
-    intent: 'FORTIS_ANALYST',
-    icon: TrophyIcon,
-    label: 'Consistency Streak',
-    description: 'Habit momentum',
-    prompt: "How consistent have I been recently and what's my current streak? Use this week if there's enough activity, otherwise use the last 4 weeks. Don't ask me to clarify the timeframe.",
+    intent: 'GENERAL_CHAT',
+    icon: FireIcon,
+    label: 'Back Workout',
+    description: 'Make me a back workout',
+    prompt: 'Make me a back workout',
   },
   {
     intent: 'FORTIS_ANALYST',
@@ -96,16 +93,15 @@ interface ChatEmptyStateProps {
 
 export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
   const { colors, isDark } = useTheme();
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, height } = useWindowDimensions();
   const titleLineHeight = Math.round(TITLE_LINE_HEIGHT * fontScale);
-  const bodyLineHeight = Math.round(BODY_LINE_HEIGHT * fontScale);
   const labelLineHeight = Math.round(LABEL_LINE_HEIGHT * fontScale);
   const captionLineHeight = Math.round(CAPTION_LINE_HEIGHT * fontScale);
+  const verticalOffset = Math.max(scale(52), Math.min(scale(96), height * 0.085));
 
   // Dynamic theme-aware styles
   const themedStyles = {
     title: { color: colors.textPrimary },
-    subtitle: { color: colors.textSecondary },
     card: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
@@ -115,7 +111,6 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
     },
     cardLabel: { color: colors.textPrimary },
     cardDescription: { color: colors.textSecondary },
-    hint: { color: colors.textTertiary },
   };
 
   const handleQuickAction = (action: QuickAction) => {
@@ -125,61 +120,53 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <Animated.View
-        entering={FadeIn.duration(400)}
-        style={styles.header}
-      >
-        <Text style={[styles.title, themedStyles.title, { lineHeight: titleLineHeight }]}>
-          Your Training Insights
-        </Text>
-        <Text style={[styles.subtitle, themedStyles.subtitle, { lineHeight: bodyLineHeight }]}>
-          Ask about your progress, PRs, programming ideas, and training questions
-        </Text>
-      </Animated.View>
+      <View style={[styles.centerStack, { paddingTop: verticalOffset }]}>
+        {/* Header */}
+        <Animated.View
+          entering={FadeIn.duration(400)}
+          style={styles.header}
+        >
+          <Text style={[styles.title, themedStyles.title, { lineHeight: titleLineHeight }]}>
+            Your Training Insights
+          </Text>
+        </Animated.View>
 
-      {/* Quick Actions Grid */}
-      <View style={styles.grid}>
-        {QUICK_ACTIONS.map((action, index) => (
-          <Animated.View
-            key={action.label}
-            entering={FadeInUp.duration(400)
-              .delay(100 + index * 80)
-              .easing(Easing.out(Easing.cubic))}
-            style={styles.gridItem}
-          >
-            <TouchableOpacity
-              style={[styles.card, themedStyles.card]}
-              onPress={() => handleQuickAction(action)}
-              activeOpacity={0.85}
-              accessibilityLabel={`${action.label}: ${action.description}`}
-              accessibilityHint={`Sends: ${action.prompt}`}
-              accessibilityRole="button"
+        {/* Quick Actions Grid */}
+        <View style={styles.grid}>
+          {QUICK_ACTIONS.map((action, index) => (
+            <Animated.View
+              key={action.label}
+              entering={FadeInUp.duration(400)
+                .delay(100 + index * 80)
+                .easing(Easing.out(Easing.cubic))}
+              style={styles.gridItem}
             >
-              <View style={styles.cardHeader}>
-                <View style={[styles.cardIcon, themedStyles.cardIcon]}>
-                  <action.icon color={colors.textSecondary} size={CARD_ICON_GLYPH_SIZE} />
+              <TouchableOpacity
+                style={[styles.card, themedStyles.card]}
+                onPress={() => handleQuickAction(action)}
+                activeOpacity={0.85}
+                accessibilityLabel={`${action.label}: ${action.description}`}
+                accessibilityHint={`Sends: ${action.prompt}`}
+                accessibilityRole="button"
+              >
+                <View style={styles.cardHeader}>
+                  <View style={[styles.cardIcon, themedStyles.cardIcon]}>
+                    <action.icon color={colors.textSecondary} size={CARD_ICON_GLYPH_SIZE} />
+                  </View>
+                  <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
                 </View>
-                <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
-              </View>
-              <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
-                {action.label}
-              </Text>
-              <Text style={[styles.cardDescription, themedStyles.cardDescription, { lineHeight: captionLineHeight }]}>
-                {action.description}
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        ))}
+                <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
+                  {action.label}
+                </Text>
+                <Text style={[styles.cardDescription, themedStyles.cardDescription, { lineHeight: captionLineHeight }]}>
+                  {action.description}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          ))}
+        </View>
       </View>
 
-      {/* Hint text */}
-      <Animated.Text
-        entering={FadeIn.duration(400).delay(500)}
-        style={[styles.hint, themedStyles.hint, { lineHeight: captionLineHeight }]}
-      >
-        Tap a quick action or type your own question
-      </Animated.Text>
     </View>
   );
 }
@@ -188,8 +175,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: GRID_HORIZONTAL_PADDING,
-    paddingTop: scale(Spacing['4xl']),
+    justifyContent: 'center',
     alignItems: 'center',
+  },
+  centerStack: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   header: {
     alignItems: 'center',
@@ -199,17 +190,8 @@ const styles = StyleSheet.create({
     ...Typography.h2,
     color: Colors.textPrimary,
     textAlign: 'center',
-    marginBottom: scale(Spacing.sm),
     fontSize: TITLE_FONT_SIZE,
     lineHeight: TITLE_LINE_HEIGHT,
-  },
-  subtitle: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    maxWidth: scale(300),
-    fontSize: BODY_FONT_SIZE,
-    lineHeight: BODY_LINE_HEIGHT,
   },
   grid: {
     flexDirection: 'row',
@@ -258,14 +240,6 @@ const styles = StyleSheet.create({
   cardDescription: {
     ...Typography.caption,
     color: Colors.textSecondary,
-    fontSize: CAPTION_FONT_SIZE,
-    lineHeight: CAPTION_LINE_HEIGHT,
-  },
-  hint: {
-    ...Typography.caption,
-    color: Colors.textTertiary,
-    marginTop: scale(Spacing['3xl']),
-    textAlign: 'center',
     fontSize: CAPTION_FONT_SIZE,
     lineHeight: CAPTION_LINE_HEIGHT,
   },

@@ -41,6 +41,8 @@ const WORKOUT_EDIT_CATALOG_LIMIT = Math.max(
   Number(Deno.env.get('AI_WORKOUT_EDIT_CATALOG_LIMIT') ?? '120')
 );
 const MAX_WORKOUT_TEMPLATE_EXERCISES = 10;
+const DEFAULT_MAIN_AI_MODEL = 'gemini-3.1-flash-lite';
+const DEFAULT_OPENAI_FALLBACK_MODEL = 'gpt-4o-mini';
 const CONTEXT_TOO_LARGE_MESSAGE =
   'That edit pulled in too much context. I trimmed it down, please try again.';
 const GENERIC_AI_ERROR_MESSAGE = 'Something went wrong on the AI side. Please try again.';
@@ -1801,15 +1803,31 @@ function modelSupportsChatCompletions(model: string): boolean {
   return true;
 }
 
+function isGeminiModel(model: string): boolean {
+  const lowerModel = model.toLowerCase();
+  return lowerModel.startsWith('gemini-') || lowerModel.startsWith('models/gemini-');
+}
+
+function normalizeGeminiModelName(model: string): string {
+  return model.startsWith('models/') ? model : `models/${model}`;
+}
+
 function resolveModelForRequest(request: AIRequest): string {
-  const baseModel = Deno.env.get('OPENAI_MODEL') || 'gpt-5.2-mini';
-  const fallbackModel = Deno.env.get('OPENAI_FALLBACK_MODEL') || 'gpt-4o-mini';
-  const analystOverride = Deno.env.get('OPENAI_ANALYST_MODEL');
-  const generalOverride = Deno.env.get('OPENAI_GENERAL_MODEL');
+  const baseModel =
+    Deno.env.get('AI_MODEL')
+    || Deno.env.get('GEMINI_MODEL')
+    || Deno.env.get('OPENAI_MODEL')
+    || DEFAULT_MAIN_AI_MODEL;
+  const fallbackModel = Deno.env.get('OPENAI_FALLBACK_MODEL') || DEFAULT_OPENAI_FALLBACK_MODEL;
+  const analystOverride = Deno.env.get('AI_ANALYST_MODEL') || Deno.env.get('OPENAI_ANALYST_MODEL');
+  const generalOverride = Deno.env.get('AI_GENERAL_MODEL') || Deno.env.get('OPENAI_GENERAL_MODEL');
 
   if (request.intent === 'FORTIS_ANALYST') {
     if (analystOverride) {
       return analystOverride;
+    }
+    if (isGeminiModel(baseModel)) {
+      return baseModel;
     }
     if (!modelSupportsChatCompletions(baseModel)) {
       return fallbackModel;
@@ -1831,7 +1849,7 @@ async function callAIProvider(
   const systemPrompt = buildAnswerPrompt(context, request.intent);
   const userMessage = buildUserMessage(request, context);
 
-  const responseText = await callOpenAIText(request, systemPrompt, userMessage, {
+  const responseText = await callModelText(request, systemPrompt, userMessage, {
     maxTokens: AI_MAX_TOKENS,
     temperature: 0.2,
   });
@@ -1846,7 +1864,7 @@ async function callAIProvider(
       requestId,
     });
     const strictPrompt = buildAnswerPrompt(context, request.intent, { strictInsight: true });
-    const retryText = await callOpenAIText(request, strictPrompt, userMessage, {
+    const retryText = await callModelText(request, strictPrompt, userMessage, {
       maxTokens: AI_MAX_TOKENS,
       temperature: 0.2,
     });
@@ -1860,22 +1878,30 @@ async function callAIProvider(
   return parsed;
 }
 
-async function callOpenAIText(
+async function callModelText(
   request: AIRequest,
   systemPrompt: string,
   userMessage: string,
   options?: { maxTokens?: number; temperature?: number }
 ): Promise<string> {
+  const model = resolveModelForRequest(request);
+  const historyMessages = getHistoryMessagesForRequest(request);
+  assertOpenAIInputWithinLimit(request, systemPrompt, userMessage, historyMessages);
+
+  if (isGeminiModel(model)) {
+    return await callGeminiText(request, systemPrompt, userMessage, {
+      maxTokens: options?.maxTokens,
+      temperature: options?.temperature,
+    }, model);
+  }
+
   const apiKey = Deno.env.get('OPENAI_API_KEY');
   if (!apiKey) {
     throw new Error('AI service configuration error');
   }
 
-  const model = resolveModelForRequest(request);
   const useResponses =
     Deno.env.get('OPENAI_USE_RESPONSES') === 'true' || model.includes('gpt-5');
-  const historyMessages = getHistoryMessagesForRequest(request);
-  assertOpenAIInputWithinLimit(request, systemPrompt, userMessage, historyMessages);
 
   // Only include temperature for models that support it (not o1/o3 reasoning models)
   const supportsTemp = modelSupportsTemperature(model);
@@ -1973,6 +1999,109 @@ async function callOpenAIText(
   }, model);
 }
 
+async function callGeminiText(
+  request: AIRequest,
+  systemPrompt: string,
+  userMessage: string,
+  options: { maxTokens?: number; temperature?: number },
+  model: string
+): Promise<string> {
+  const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
+  if (!apiKey) {
+    throw new Error('AI service configuration error');
+  }
+
+  const historyMessages = getHistoryMessagesForRequest(request);
+  const contents: Array<Record<string, unknown>> = historyMessages.map((message) => ({
+    role: message.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: message.content }],
+  }));
+
+  const userParts: Array<Record<string, unknown>> = [{ text: userMessage }];
+  if (request.image) {
+    userParts.push({
+      inline_data: {
+        mime_type: request.image.mimeType,
+        data: request.image.base64,
+      },
+    });
+  }
+  contents.push({ role: 'user', parts: userParts });
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/${normalizeGeminiModelName(model)}:generateContent`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        system_instruction: {
+          parts: [{ text: systemPrompt }],
+        },
+        contents,
+        generationConfig: {
+          candidateCount: 1,
+          ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
+          ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+        },
+      }),
+    }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Gemini API error:', errorText);
+    const providerError = mapGeminiError(errorText);
+    if (providerError.code === 'CONTEXT_TOO_LARGE') {
+      throw providerError;
+    }
+    return await fallbackFromGemini(request, systemPrompt, userMessage, options, model);
+  }
+
+  const data = await response.json();
+  const outputText = extractGeminiText(data);
+  if (!outputText) {
+    console.warn('[Gemini] Response missing output text', { model });
+    return await fallbackFromGemini(request, systemPrompt, userMessage, options, model);
+  }
+
+  return outputText;
+}
+
+async function fallbackFromGemini(
+  request: AIRequest,
+  systemPrompt: string,
+  userMessage: string,
+  options: { maxTokens?: number; temperature?: number } | undefined,
+  primaryModel: string
+): Promise<string> {
+  const configuredFallback = Deno.env.get('OPENAI_FALLBACK_MODEL') || DEFAULT_OPENAI_FALLBACK_MODEL;
+  if (!modelSupportsChatCompletions(configuredFallback)) {
+    throw new AIProviderError('LLM_ERROR', GENERIC_AI_ERROR_MESSAGE, 502, true);
+  }
+
+  try {
+    const supportsTemp = modelSupportsTemperature(configuredFallback);
+    return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
+      maxTokens: options?.maxTokens,
+      temperature: supportsTemp ? options?.temperature : undefined,
+    }, configuredFallback);
+  } catch (error) {
+    if (error instanceof AIProviderError && error.code === 'CONTEXT_TOO_LARGE') {
+      throw error;
+    }
+    console.error('[Gemini] OpenAI fallback failed', {
+      primaryModel,
+      fallbackModel: configuredFallback,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  throw new AIProviderError('LLM_ERROR', GENERIC_AI_ERROR_MESSAGE, 502, true);
+}
+
 async function fallbackFromOpenAIResponses(
   request: AIRequest,
   systemPrompt: string,
@@ -1981,7 +2110,7 @@ async function fallbackFromOpenAIResponses(
   primaryModel: string
 ): Promise<string> {
   const configuredFallback = Deno.env.get('OPENAI_FALLBACK_MODEL') || primaryModel;
-  const defaultFallback = 'gpt-4o-mini';
+  const defaultFallback = DEFAULT_OPENAI_FALLBACK_MODEL;
   const candidates = Array.from(new Set([configuredFallback, defaultFallback]));
 
   for (const candidate of candidates) {
@@ -2258,6 +2387,22 @@ function extractOpenAIChatText(data: unknown): string {
   }
 
   return typeof content === 'string' ? content : '';
+}
+
+function extractGeminiText(data: unknown): string {
+  const record = data as {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          text?: unknown;
+        }>;
+      };
+    }>;
+  };
+
+  return record?.candidates?.[0]?.content?.parts
+    ?.map((part) => (typeof part?.text === 'string' ? part.text : ''))
+    .join('') ?? '';
 }
 
 const FORTIS_VOICE_GUIDANCE = `
@@ -2598,6 +2743,30 @@ function mapOpenAIError(errorText: string): AIProviderError {
     .join(' ');
 
   if (/context_length_exceeded|maximum context length|too many tokens|reduce the length/i.test(combined)) {
+    return new AIProviderError('CONTEXT_TOO_LARGE', CONTEXT_TOO_LARGE_MESSAGE, 413, true);
+  }
+
+  return new AIProviderError('LLM_ERROR', GENERIC_AI_ERROR_MESSAGE, 502, true);
+}
+
+function mapGeminiError(errorText: string): AIProviderError {
+  let combined = errorText;
+  try {
+    const parsed = JSON.parse(errorText);
+    const error = parsed?.error;
+    if (error && typeof error === 'object') {
+      combined = [
+        typeof error.code === 'number' ? String(error.code) : undefined,
+        typeof error.status === 'string' ? error.status : undefined,
+        typeof error.message === 'string' ? error.message : undefined,
+        errorText,
+      ].filter(Boolean).join(' ');
+    }
+  } catch (_error) {
+    // Provider errors are not guaranteed to be JSON.
+  }
+
+  if (/context|token|too many|too large|request entity too large/i.test(combined)) {
     return new AIProviderError('CONTEXT_TOO_LARGE', CONTEXT_TOO_LARGE_MESSAGE, 413, true);
   }
 

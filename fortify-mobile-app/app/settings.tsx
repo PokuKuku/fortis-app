@@ -28,6 +28,7 @@ import {
   TrashIcon,
   DocumentTextIcon,
   MicrophoneIcon,
+  SparklesIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
@@ -49,6 +50,13 @@ import {
   getMicrophonePermissionStatus,
   openMicrophoneSettings,
 } from '@/src/services/microphonePermissionService';
+import { RealtimeCoachSettingsModal } from '@/src/components/ai/RealtimeCoachSettingsModal';
+import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
+import {
+  COACH_PERSONALITY_LABELS,
+  COACH_VOICE_LABELS,
+} from '@/src/types/realtimeCoach';
+import { getIntensityLabel } from '@/src/utils/realtimeCoach';
 
 interface SettingsRowProps {
   icon: React.ReactNode;
@@ -109,15 +117,21 @@ export default function SettingsScreen() {
   const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: Boolean(profile?.id),
   });
+  const {
+    preferences: realtimeCoachPreferences,
+    updatePreferences: updateRealtimeCoachPreferences,
+  } = useRealtimeCoachPreferences();
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
+  const [showVoiceCoachSettings, setShowVoiceCoachSettings] = useState(false);
   const [aiDataSharingAllowed, setAIDataSharingAllowed] = useState<boolean>(false);
   const [microphoneAllowed, setMicrophoneAllowed] = useState<boolean>(false);
 
   const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
   const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
+  const voiceCoachValue = `${COACH_PERSONALITY_LABELS[realtimeCoachPreferences.personality]} · ${COACH_VOICE_LABELS[realtimeCoachPreferences.voice]} · ${getIntensityLabel(realtimeCoachPreferences.intensity)}`;
 
   // Theme mode labels
   const themeModeLabel: Record<ThemeMode, string> = {
@@ -507,6 +521,21 @@ export default function SettingsScreen() {
                 colors={colors}
                 isDark={isDark}
               />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<SparklesIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Voice Coach"
+                value={voiceCoachValue}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowVoiceCoachSettings(true);
+                }}
+                showChevron
+                colors={colors}
+                isDark={isDark}
+              />
             </View>
           </View>
 
@@ -655,6 +684,15 @@ export default function SettingsScreen() {
       <AccentColorPicker
         visible={showAccentPicker}
         onClose={() => setShowAccentPicker(false)}
+      />
+
+      <RealtimeCoachSettingsModal
+        visible={showVoiceCoachSettings}
+        preferences={realtimeCoachPreferences}
+        onChange={(nextPreferences) => {
+          void updateRealtimeCoachPreferences(nextPreferences);
+        }}
+        onClose={() => setShowVoiceCoachSettings(false)}
       />
     </View>
   );

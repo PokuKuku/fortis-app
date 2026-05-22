@@ -16,6 +16,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { Typography } from '@/constants/Typography';
 import { useOnboardingFunnelScreen } from '@/src/services/onboardingAnalyticsService';
+import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 
 const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal888.mov');
 const WELCOME_TITLE_LINE_ONE = 'Gym Progress';
@@ -59,6 +60,10 @@ export default function OnboardingWelcomeScreen() {
     profileResolved,
     signOut,
   } = useAuth();
+  const {
+    isPending: hasPendingOnboardingAuthCompletion,
+    isResolved: pendingOnboardingAuthCompletionResolved,
+  } = usePendingOnboardingAuthCompletion();
   const [showSignInSheet, setShowSignInSheet] = useState(false);
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [isLoadingApple, setIsLoadingApple] = useState(false);
@@ -163,6 +168,12 @@ export default function OnboardingWelcomeScreen() {
     if (!showSignInSheet && !authInProgress) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
     if (!profile || needsOnboarding) {
+      if (
+        !pendingOnboardingAuthCompletionResolved ||
+        hasPendingOnboardingAuthCompletion
+      ) {
+        return;
+      }
       setShowSignInSheet(false);
       void (async () => {
         await signOut();
@@ -179,6 +190,8 @@ export default function OnboardingWelcomeScreen() {
     needsOnboarding,
     profile,
     profileResolved,
+    pendingOnboardingAuthCompletionResolved,
+    hasPendingOnboardingAuthCompletion,
     showSignInSheet,
     authInProgress,
     isFocused,

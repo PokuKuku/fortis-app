@@ -44,6 +44,7 @@ import { saveCustomExercise } from '@/src/services/exerciseService';
 import { startWorkoutFromStartPreset } from '@/src/services/startWorkoutFromPreset';
 import { triggerImmediateNavigationHaptic } from '@/src/components/haptics/navigationHaptics';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
+import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 
 type PrimaryTabRoute = 'history' | 'insights' | 'index' | 'profile';
 
@@ -59,6 +60,10 @@ export default function TabLayout() {
     profileResolved,
     user: authUser,
   } = useAuth();
+  const {
+    isPending: hasPendingOnboardingAuthCompletion,
+    isResolved: pendingOnboardingAuthCompletionResolved,
+  } = usePendingOnboardingAuthCompletion();
   const { subscriptionStatus, getEntitlements, setSubscriptionStatus, user: superwallUser } = useUser();
   const { isSuperwallReady } = useSuperwall((state) => ({
     isSuperwallReady: state.isConfigured && !state.isLoading,
@@ -179,9 +184,24 @@ export default function TabLayout() {
       return;
     }
     if (!profile || needsOnboarding) {
+      if (
+        !pendingOnboardingAuthCompletionResolved ||
+        hasPendingOnboardingAuthCompletion
+      ) {
+        return;
+      }
       router.replace('/onboarding');
     }
-  }, [isAuthenticated, isLoading, needsOnboarding, profile, profileResolved, router]);
+  }, [
+    hasPendingOnboardingAuthCompletion,
+    isAuthenticated,
+    isLoading,
+    needsOnboarding,
+    pendingOnboardingAuthCompletionResolved,
+    profile,
+    profileResolved,
+    router,
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated) {

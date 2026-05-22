@@ -27,6 +27,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 
 const signInSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -105,6 +106,10 @@ export default function EmailAuthScreen() {
     needsOnboarding,
   } = useAuth();
   const { colors, isDark } = useTheme();
+  const {
+    isPending: hasPendingOnboardingAuthCompletion,
+    isResolved: pendingOnboardingAuthCompletionResolved,
+  } = usePendingOnboardingAuthCompletion();
   const sourceValue = Array.isArray(source) ? source[0] : source;
   const modeValue = Array.isArray(mode) ? mode[0] : mode;
   const [isSignUp, setIsSignUp] = useState(modeValue === 'signup');
@@ -145,6 +150,12 @@ export default function EmailAuthScreen() {
     }
 
     if (!profile || needsOnboarding) {
+      if (
+        !pendingOnboardingAuthCompletionResolved ||
+        hasPendingOnboardingAuthCompletion
+      ) {
+        return;
+      }
       router.replace('/onboarding');
       return;
     }
@@ -154,6 +165,8 @@ export default function EmailAuthScreen() {
     isAuthenticated,
     needsOnboarding,
     pendingPostSignInRedirect,
+    pendingOnboardingAuthCompletionResolved,
+    hasPendingOnboardingAuthCompletion,
     profile,
     profileResolved,
     router,

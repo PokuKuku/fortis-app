@@ -38,12 +38,13 @@ import { AIIntent, AIConversationMessage } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
-import { ChatHeaderLogo } from '@/src/components/ai/ChatHeaderLogo';
 import { AIWorkoutPreviewModal } from '@/src/components/ai/AIWorkoutPreviewModal';
+import { RealtimeVoiceCoachScreen } from '@/src/components/ai/RealtimeVoiceCoachScreen';
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
-import { useProgramsStore } from '@/src/store/programsStore';
-import { useWorkoutStore } from '@/src/store/workoutStore';
-import { getExerciseById } from '@/src/services/exerciseService';
+import { useAIWorkoutTemplateActions } from '@/src/hooks/useAIWorkoutTemplateActions';
+import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
+import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
+import type { AIVoiceMode } from '@/src/types/realtimeCoach';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -234,6 +235,7 @@ export default function AIChatScreen() {
   const { colors, isDark } = useTheme();
   const isNavigating = useRef(false);
   const [inputText, setInputText] = useState('');
+  const [mode, setMode] = useState<AIVoiceMode>('chat');
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -262,20 +264,8 @@ export default function AIChatScreen() {
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
   const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
   const markWorkoutTemplateSaved = useAIStore((state) => state.markWorkoutTemplateSaved);
-  const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
-  const startWorkoutFromPlan = useWorkoutStore((state) => state.startWorkoutFromPlan);
-  const isWorkoutActive = useWorkoutStore((state) => state.isWorkoutActive);
 
   const messages = conversation?.messages || [];
-  const [previewMessageId, setPreviewMessageId] = useState<string | null>(null);
-  const [savingWorkoutMessageId, setSavingWorkoutMessageId] = useState<string | null>(null);
-  const [startingWorkoutMessageId, setStartingWorkoutMessageId] = useState<string | null>(null);
-  const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
-
-  const previewMessage = useMemo(
-    () => messages.find((message) => message.id === previewMessageId) ?? null,
-    [messages, previewMessageId]
-  );
   const currentWorkoutTemplateDraft = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       if (messages[i]?.workoutTemplate) {
@@ -284,6 +274,44 @@ export default function AIChatScreen() {
     }
     return undefined;
   }, [messages]);
+  const {
+    preferences: realtimePreferences,
+  } = useRealtimeCoachPreferences();
+  const {
+    phase: voicePhase,
+    error: voiceError,
+    transcriptOverlay,
+    voiceWorkoutMessages,
+    isActive: isVoiceActive,
+    start: startVoiceCoach,
+    stop: stopVoiceCoach,
+    markVoiceWorkoutSaved,
+  } = useRealtimeCoach({
+    preferences: realtimePreferences,
+    currentWorkoutTemplateDraft,
+  });
+  const voiceConversationMessages = useMemo<AIConversationMessage[]>(() => (
+    voiceWorkoutMessages.map((message) => ({
+      id: message.id,
+      role: 'assistant',
+      intent: 'GENERAL_CHAT',
+      content: message.text,
+      createdAt: new Date().toISOString(),
+      workoutTemplate: message.workoutTemplate,
+      savedWorkoutTemplateId: message.savedWorkoutTemplateId ?? null,
+    }))
+  ), [voiceWorkoutMessages]);
+  const chatWorkoutActions = useAIWorkoutTemplateActions({
+    messages,
+    conversationId: conversation?.id ?? null,
+    markWorkoutTemplateSaved,
+  });
+  const voiceWorkoutActions = useAIWorkoutTemplateActions({
+    messages: voiceConversationMessages,
+    conversationId: conversation?.id ?? null,
+    onWorkoutTemplateSaved: markVoiceWorkoutSaved,
+  });
+  const activeWorkoutActions = mode === 'voice' ? voiceWorkoutActions : chatWorkoutActions;
 
   // Calculate remaining requests (most restrictive limit) for inline warning
   const remaining = rateLimitStatus
@@ -341,10 +369,11 @@ export default function AIChatScreen() {
 
   const handleClose = useCallback(() => {
     if (isNavigating.current) return;
+    stopVoiceCoach();
     isNavigating.current = true;
     router.back();
     setTimeout(() => { isNavigating.current = false; }, 500);
-  }, [router]);
+  }, [router, stopVoiceCoach]);
 
   const panGesture = Gesture.Pan()
     .activeOffsetY(10)
@@ -360,8 +389,8 @@ export default function AIChatScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     clearConversation();
     clearError();
-    setTemplateSaveError(null);
-    setPreviewMessageId(null);
+    chatWorkoutActions.setTemplateSaveError(null);
+    chatWorkoutActions.setPreviewMessageId(null);
     setInputText('');
     shouldAutoScrollRef.current = true;
     setTimeout(() => {
@@ -386,19 +415,17 @@ export default function AIChatScreen() {
       ? { currentWorkoutTemplateDraft }
       : undefined;
 
-    setTemplateSaveError(null);
+    chatWorkoutActions.setTemplateSaveError(null);
     setInputText('');
     await sendMessage(intent, message, requestContext);
-  }, [currentWorkoutTemplateDraft, inputText, isSendingMessage, messages, sendMessage]);
+  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, sendMessage]);
 
   const handleSend = useCallback(async () => {
     await submitMessage(inputText);
   }, [inputText, submitMessage]);
 
   const handleQuickAction = (_intent: AIIntent, prompt: string) => {
-    // Intent is always FORTIS_ANALYST now, but we keep the parameter
-    // for interface compatibility with ChatEmptyState
-    setInputText(prompt);
+    void submitMessage(prompt);
   };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -416,150 +443,20 @@ export default function AIChatScreen() {
     await retryLastMessage();
   }, [retryLastMessage]);
 
-  const handleViewWorkoutTemplate = useCallback((message: AIConversationMessage) => {
-    if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
-      return;
-    }
+  const handleStartVoiceCoach = useCallback(async () => {
+    const allowed = await requestAIDataSharingConsent();
+    if (!allowed) return;
+    await startVoiceCoach();
+  }, [startVoiceCoach]);
+
+  const handleModeChange = useCallback((nextMode: AIVoiceMode) => {
+    if (nextMode === mode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTemplateSaveError(null);
-    setPreviewMessageId(message.id);
-  }, []);
-
-  const ensureWorkoutTemplateSaved = useCallback(async (message: AIConversationMessage) => {
-    if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
-      throw new Error('Missing workout template.');
+    if (nextMode === 'chat') {
+      stopVoiceCoach();
     }
-
-    if (message.savedWorkoutTemplateId) {
-      return message.savedWorkoutTemplateId;
-    }
-
-    const resolvedExercises = await Promise.all(
-      message.workoutTemplate.exercises.map(async (exercise) => {
-        const libraryExercise = await getExerciseById(exercise.exerciseId)
-          || await getExerciseById(exercise.exerciseName);
-
-        if (!libraryExercise) {
-          return null;
-        }
-
-        return {
-          exerciseId: libraryExercise.id,
-          exerciseName: libraryExercise.name,
-          sets: exercise.sets,
-          reps: exercise.reps,
-          restSeconds: exercise.restSeconds,
-        };
-      })
-    );
-    const validExercises = resolvedExercises.filter(
-      (exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise)
-    );
-
-    if (validExercises.length !== message.workoutTemplate.exercises.length) {
-      throw new Error('This AI workout includes exercises that are not in your app library.');
-    }
-
-    const createdTemplateId = await createWorkoutTemplate(
-      message.workoutTemplate.name,
-      validExercises,
-      {
-        description: message.workoutTemplate.description,
-        isAiCreated: true,
-        aiSourceChatId: conversation?.id ?? null,
-        aiPayloadVersion: 'ai_workout_template_v1',
-      }
-    );
-
-    if (!createdTemplateId) {
-      throw new Error('Failed to add workout to your templates.');
-    }
-
-    await markWorkoutTemplateSaved(message.id, createdTemplateId);
-    return createdTemplateId;
-  }, [conversation?.id, createWorkoutTemplate, markWorkoutTemplateSaved]);
-
-  const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
-    if (
-      !message.workoutTemplate
-      || !Array.isArray(message.workoutTemplate.exercises)
-      || message.savedWorkoutTemplateId
-      || savingWorkoutMessageId
-      || startingWorkoutMessageId
-    ) {
-      return;
-    }
-
-    setTemplateSaveError(null);
-    setSavingWorkoutMessageId(message.id);
-
-    try {
-      await ensureWorkoutTemplateSaved(message);
-      setPreviewMessageId(null);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch (saveError) {
-      console.warn('Failed to save AI workout template:', saveError);
-      setTemplateSaveError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'Failed to add workout to your templates.'
-      );
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setSavingWorkoutMessageId(null);
-    }
-  }, [ensureWorkoutTemplateSaved, savingWorkoutMessageId, startingWorkoutMessageId]);
-
-  const handleStartWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
-    if (
-      !message.workoutTemplate
-      || !Array.isArray(message.workoutTemplate.exercises)
-      || startingWorkoutMessageId
-      || savingWorkoutMessageId
-    ) {
-      return;
-    }
-
-    if (isWorkoutActive) {
-      setTemplateSaveError('Finish your current workout before starting another one.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      return;
-    }
-
-    setTemplateSaveError(null);
-    setPreviewMessageId(null);
-    setStartingWorkoutMessageId(message.id);
-
-    try {
-      const success = await startWorkoutFromPlan(
-        message.workoutTemplate.name,
-        message.workoutTemplate.exercises.map((exercise) => ({
-          exerciseId: exercise.exerciseId,
-          exerciseName: exercise.exerciseName,
-          sets: exercise.sets,
-          reps: exercise.reps,
-          restSeconds: exercise.restSeconds,
-        }))
-      );
-
-      if (!success) {
-        throw new Error('Failed to start workout from this AI workout.');
-      }
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.push('/workout/active');
-    } catch (startError) {
-      console.warn('Failed to start AI workout template:', startError);
-      setTemplateSaveError(
-        startError instanceof Error
-          ? startError.message
-          : 'Failed to start workout from this AI workout.'
-      );
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    } finally {
-      setStartingWorkoutMessageId(null);
-    }
-  }, [isWorkoutActive, router, savingWorkoutMessageId, startWorkoutFromPlan, startingWorkoutMessageId]);
+    setMode(nextMode);
+  }, [mode, stopVoiceCoach]);
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -568,11 +465,34 @@ export default function AIChatScreen() {
         {/* Header */}
         <GestureDetector gesture={panGesture}>
           <View style={[styles.header, themedStyles.header]}>
-            <View style={styles.headerLeft}>
-              <ChatHeaderLogo isLoading={isSendingMessage} />
+            <View style={styles.headerLeft} />
+            <View style={[styles.modeSwitch, {
+              backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
+            }]}>
+              {(['chat', 'voice'] as const).map((item) => {
+                const selected = mode === item;
+                return (
+                  <TouchableOpacity
+                    key={item}
+                    style={[
+                      styles.modeOption,
+                      selected && { backgroundColor: colors.accent },
+                    ]}
+                    onPress={() => handleModeChange(item)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[
+                      styles.modeOptionText,
+                      { color: selected ? Colors.white : colors.textSecondary },
+                    ]}>
+                      {item === 'chat' ? 'Chat' : 'Voice'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
             <View style={styles.headerRight}>
-              {messages.length > 0 && (
+              {mode === 'chat' && messages.length > 0 && (
                 <TouchableOpacity
                   style={styles.clearButton}
                   onPress={handleClear}
@@ -593,131 +513,150 @@ export default function AIChatScreen() {
         </GestureDetector>
 
         {/* Messages */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
-        keyboardVerticalOffset={0}
-      >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          onContentSizeChange={() => {
-            if (shouldAutoScrollRef.current) {
-              scrollToBottom(false);
-            }
-          }}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-        >
-          {messages.length === 0 && !isSendingMessage ? (
-            <ChatEmptyState onQuickAction={handleQuickAction} />
-          ) : (
-            <>
-              {messages.map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  message={message}
-                  isSavingWorkoutTemplate={savingWorkoutMessageId === message.id}
-                  isStartingWorkoutTemplate={startingWorkoutMessageId === message.id}
-                  onClarificationSelect={(option) => {
-                    const prompt = typeof option === 'string' ? option : option.label;
-                    void submitMessage(prompt);
-                  }}
-                  onViewWorkoutTemplate={handleViewWorkoutTemplate}
-                  onAddWorkoutTemplate={handleAddWorkoutTemplate}
-                  onStartWorkoutTemplate={handleStartWorkoutTemplate}
-                  isStartWorkoutTemplateDisabled={isWorkoutActive}
-                />
-              ))}
+        {mode === 'voice' ? (
+          <RealtimeVoiceCoachScreen
+            phase={voicePhase}
+            error={voiceError}
+            transcriptOverlay={transcriptOverlay}
+            voiceWorkoutMessages={voiceWorkoutMessages}
+            savingWorkoutMessageId={voiceWorkoutActions.savingWorkoutMessageId}
+            startingWorkoutMessageId={voiceWorkoutActions.startingWorkoutMessageId}
+            isWorkoutActive={voiceWorkoutActions.isWorkoutActive}
+            isActive={isVoiceActive}
+            templateSaveError={voiceWorkoutActions.templateSaveError}
+            onStart={handleStartVoiceCoach}
+            onStop={stopVoiceCoach}
+            onViewWorkoutTemplate={voiceWorkoutActions.handleViewWorkoutTemplate}
+            onAddWorkoutTemplate={voiceWorkoutActions.handleAddWorkoutTemplate}
+            onStartWorkoutTemplate={voiceWorkoutActions.handleStartWorkoutTemplate}
+          />
+        ) : (
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.content}
+            keyboardVerticalOffset={0}
+          >
+            <ScrollView
+              ref={scrollViewRef}
+              style={styles.messagesContainer}
+              contentContainerStyle={styles.messagesContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => {
+                if (shouldAutoScrollRef.current) {
+                  scrollToBottom(false);
+                }
+              }}
+              onScroll={handleScroll}
+              scrollEventThrottle={16}
+            >
+              {messages.length === 0 && !isSendingMessage ? (
+                <ChatEmptyState onQuickAction={handleQuickAction} />
+              ) : (
+                <>
+                  {messages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      message={message}
+                      isSavingWorkoutTemplate={chatWorkoutActions.savingWorkoutMessageId === message.id}
+                      isStartingWorkoutTemplate={chatWorkoutActions.startingWorkoutMessageId === message.id}
+                      onClarificationSelect={(option) => {
+                        const prompt = typeof option === 'string' ? option : option.label;
+                        void submitMessage(prompt);
+                      }}
+                      onViewWorkoutTemplate={chatWorkoutActions.handleViewWorkoutTemplate}
+                      onAddWorkoutTemplate={chatWorkoutActions.handleAddWorkoutTemplate}
+                      onStartWorkoutTemplate={chatWorkoutActions.handleStartWorkoutTemplate}
+                      isStartWorkoutTemplateDisabled={chatWorkoutActions.isWorkoutActive}
+                    />
+                  ))}
 
 
-              {/* Loading indicator */}
-              {isSendingMessage && (
+                  {/* Loading indicator */}
+                  {isSendingMessage && (
+                    <Animated.View
+                      entering={FadeIn.duration(200)}
+                      exiting={FadeOut.duration(150)}
+                      style={styles.loadingContainer}
+                    >
+                      <AnimatedLoadingSparkles />
+                      <Text style={[styles.loadingText, themedStyles.loadingText]}>{loadingMessage}</Text>
+                    </Animated.View>
+                  )}
+                </>
+              )}
+
+              {/* Rate limit warning - only shown when approaching limit */}
+              {showRateLimitWarning && (
                 <Animated.View
                   entering={FadeIn.duration(200)}
-                  exiting={FadeOut.duration(150)}
-                  style={styles.loadingContainer}
+                  style={styles.rateLimitWarning}
                 >
-                  <AnimatedLoadingSparkles />
-                  <Text style={[styles.loadingText, themedStyles.loadingText]}>{loadingMessage}</Text>
+                  <ExclamationTriangleIcon size={16} color={Colors.warning} />
+                  <Text style={styles.rateLimitWarningText}>
+                    {remaining} AI request{remaining !== 1 ? 's' : ''} remaining today
+                  </Text>
                 </Animated.View>
               )}
-            </>
-          )}
 
-          {/* Rate limit warning - only shown when approaching limit */}
-          {showRateLimitWarning && (
-            <Animated.View
-              entering={FadeIn.duration(200)}
-              style={styles.rateLimitWarning}
-            >
-              <ExclamationTriangleIcon size={16} color={Colors.warning} />
-              <Text style={styles.rateLimitWarningText}>
-                {remaining} AI request{remaining !== 1 ? 's' : ''} remaining today
-              </Text>
-            </Animated.View>
-          )}
+              {/* Error display */}
+              {error && (
+                <TouchableOpacity
+                  style={styles.errorContainer}
+                  onPress={lastFailedMessage ? handleRetry : clearError}
+                  activeOpacity={0.8}
+                  accessibilityLabel={lastFailedMessage ? "Retry failed message" : "Dismiss error"}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.errorText}>{error}</Text>
+                  <Text style={[styles.errorHint, themedStyles.errorHint]}>
+                    {lastFailedMessage ? 'Tap to retry' : 'Tap to dismiss'}
+                  </Text>
+                </TouchableOpacity>
+              )}
 
-          {/* Error display */}
-          {error && (
-            <TouchableOpacity
-              style={styles.errorContainer}
-              onPress={lastFailedMessage ? handleRetry : clearError}
-              activeOpacity={0.8}
-              accessibilityLabel={lastFailedMessage ? "Retry failed message" : "Dismiss error"}
-              accessibilityRole="button"
-            >
-              <Text style={styles.errorText}>{error}</Text>
-              <Text style={[styles.errorHint, themedStyles.errorHint]}>
-                {lastFailedMessage ? 'Tap to retry' : 'Tap to dismiss'}
-              </Text>
-            </TouchableOpacity>
-          )}
+              {chatWorkoutActions.templateSaveError && (
+                <TouchableOpacity
+                  style={styles.errorContainer}
+                  onPress={() => chatWorkoutActions.setTemplateSaveError(null)}
+                  activeOpacity={0.8}
+                  accessibilityLabel="Dismiss workout save error"
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.errorText}>{chatWorkoutActions.templateSaveError}</Text>
+                  <Text style={[styles.errorHint, themedStyles.errorHint]}>Tap to dismiss</Text>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
 
-          {templateSaveError && (
-            <TouchableOpacity
-              style={styles.errorContainer}
-              onPress={() => setTemplateSaveError(null)}
-              activeOpacity={0.8}
-              accessibilityLabel="Dismiss workout save error"
-              accessibilityRole="button"
-            >
-              <Text style={styles.errorText}>{templateSaveError}</Text>
-              <Text style={[styles.errorHint, themedStyles.errorHint]}>Tap to dismiss</Text>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
-
-        {/* Input */}
-        <ChatInput
-          value={inputText}
-          onChangeText={setInputText}
-          onSend={handleSend}
-          disabled={isSendingMessage}
-        />
-      </KeyboardAvoidingView>
+            {/* Input */}
+            <ChatInput
+              value={inputText}
+              onChangeText={setInputText}
+              onSend={handleSend}
+              disabled={isSendingMessage}
+            />
+          </KeyboardAvoidingView>
+        )}
 
       <AIWorkoutPreviewModal
-        visible={Boolean(previewMessage?.workoutTemplate)}
-        template={previewMessage?.workoutTemplate ?? null}
-        onClose={() => setPreviewMessageId(null)}
+        visible={Boolean(activeWorkoutActions.previewMessage?.workoutTemplate)}
+        template={activeWorkoutActions.previewMessage?.workoutTemplate ?? null}
+        onClose={() => activeWorkoutActions.setPreviewMessageId(null)}
         onStart={() => {
-          if (previewMessage) {
-            void handleStartWorkoutTemplate(previewMessage);
+          if (activeWorkoutActions.previewMessage) {
+            void activeWorkoutActions.handleStartWorkoutTemplate(activeWorkoutActions.previewMessage);
           }
         }}
         onAdd={() => {
-          if (previewMessage) {
-            void handleAddWorkoutTemplate(previewMessage);
+          if (activeWorkoutActions.previewMessage) {
+            void activeWorkoutActions.handleAddWorkoutTemplate(activeWorkoutActions.previewMessage);
           }
         }}
-        isStarting={previewMessage?.id === startingWorkoutMessageId}
-        isAdding={previewMessage?.id === savingWorkoutMessageId}
-        isAdded={Boolean(previewMessage?.savedWorkoutTemplateId)}
-        isStartDisabled={isWorkoutActive}
+        isStarting={activeWorkoutActions.previewMessage?.id === activeWorkoutActions.startingWorkoutMessageId}
+        isAdding={activeWorkoutActions.previewMessage?.id === activeWorkoutActions.savingWorkoutMessageId}
+        isAdded={Boolean(activeWorkoutActions.previewMessage?.savedWorkoutTemplateId)}
+        isStartDisabled={activeWorkoutActions.isWorkoutActive}
       />
       </SafeAreaView>
     </View>
@@ -743,11 +682,33 @@ const styles = StyleSheet.create({
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  modeSwitch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: BorderRadius.full,
+    padding: 3,
+    gap: 2,
+  },
+  modeOption: {
+    minWidth: 58,
+    minHeight: 30,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.sm,
+  },
+  modeOptionText: {
+    ...Typography.bodySmall,
+    fontWeight: '800',
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   clearButton: {
     paddingHorizontal: Spacing.md,

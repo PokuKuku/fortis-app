@@ -5,6 +5,8 @@ import {
   type MixpanelProperties,
 } from '@/src/lib/mixpanel';
 
+export const ONBOARDING_SCREEN_VIEWED_EVENT = 'onboarding_screen_viewed';
+
 export const ONBOARDING_FUNNEL_STEPS = [
   { funnelStep: 1, eventName: 'Welcome Screen', route: '/onboarding/welcome' },
   { funnelStep: 2, eventName: 'Profile Name', route: '/onboarding' },
@@ -58,14 +60,21 @@ export async function trackOnboardingFunnelScreen(
   }
 
   const identityProperties = await getMixpanelIdentityProperties();
+  const eventProperties = {
+    funnel_step: step.funnelStep,
+    screen_name: eventName,
+    route: step.route,
+    ...identityProperties,
+    ...properties,
+  };
+
+  await trackMixpanelEvent(ONBOARDING_SCREEN_VIEWED_EVENT, eventProperties, {
+    flush: true,
+  });
+
   await trackMixpanelEvent(
     eventName,
-    {
-      funnel_step: step.funnelStep,
-      screen_name: eventName,
-      ...identityProperties,
-      ...properties,
-    },
+    eventProperties,
     { flush: true }
   );
 }

@@ -7,6 +7,7 @@ const mockBack = jest.fn();
 const mockSignInWithEmail = jest.fn();
 const mockSignUpWithEmail = jest.fn();
 const mockSetAllowProfileCreation = jest.fn();
+const mockUsePendingOnboardingAuthCompletion = jest.fn();
 
 let mockSearchParams: { source?: string; mode?: string } = {
   source: 'onboarding',
@@ -39,6 +40,10 @@ jest.mock('@/src/contexts/ThemeContext', () => ({
       error: '#ef4444',
     },
   }),
+}));
+
+jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
+  usePendingOnboardingAuthCompletion: () => mockUsePendingOnboardingAuthCompletion(),
 }));
 
 jest.mock('@/components/StainlessSteelPattern', () => ({
@@ -109,6 +114,7 @@ describe('EmailAuthScreen', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSearchParams = { source: 'onboarding', mode: 'signin' };
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: true });
     mockAuthState = {
       signInWithEmail: mockSignInWithEmail.mockResolvedValue({ error: null }),
       signUpWithEmail: mockSignUpWithEmail.mockResolvedValue({ error: null }),
@@ -170,6 +176,60 @@ describe('EmailAuthScreen', () => {
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/onboarding');
+    });
+  });
+
+  it('keeps loading instead of routing to onboarding while onboarding completion is pending', async () => {
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+    const { getByPlaceholderText, getByText, rerender } = render(<EmailAuthScreen />);
+
+    fireEvent.changeText(getByPlaceholderText('your@email.com'), 'newuser@example.com');
+    fireEvent.changeText(getByPlaceholderText('Enter your password'), 'password123');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(mockSignInWithEmail).toHaveBeenCalledWith('newuser@example.com', 'password123');
+    });
+
+    mockAuthState = {
+      ...mockAuthState,
+      isAuthenticated: true,
+      profileResolved: true,
+      profile: null,
+      needsOnboarding: true,
+    };
+
+    rerender(<EmailAuthScreen />);
+
+    await waitFor(() => {
+      expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+    });
+  });
+
+  it('keeps loading instead of routing to onboarding until pending completion state resolves', async () => {
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: false });
+    const { getByPlaceholderText, getByText, rerender } = render(<EmailAuthScreen />);
+
+    fireEvent.changeText(getByPlaceholderText('your@email.com'), 'newuser@example.com');
+    fireEvent.changeText(getByPlaceholderText('Enter your password'), 'password123');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(mockSignInWithEmail).toHaveBeenCalledWith('newuser@example.com', 'password123');
+    });
+
+    mockAuthState = {
+      ...mockAuthState,
+      isAuthenticated: true,
+      profileResolved: true,
+      profile: null,
+      needsOnboarding: true,
+    };
+
+    rerender(<EmailAuthScreen />);
+
+    await waitFor(() => {
+      expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     });
   });
 

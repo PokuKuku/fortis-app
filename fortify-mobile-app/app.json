@@ -4,9 +4,9 @@
     "slug": "fortis",
     "version": "1.1.4",
     "orientation": "portrait",
-    "icon": "./assets/fortify_ai.png",
+    "icon": "./assets/fortify_new_icon.png",
     "notification": {
-      "icon": "./assets/fortify_ai.png",
+      "icon": "./assets/fortify_new_icon.png",
       "color": "#24252A"
     },
     "scheme": "fortis",
@@ -21,7 +21,7 @@
       "bundleIdentifier": "com.fortisfitness.app",
       "buildNumber": "8",
       "usesAppleSignIn": true,
-      "icon": "./assets/fortify_ai.png",
+      "icon": "./assets/fortify_new_icon.png",
       "infoPlist": {
         "CFBundleDisplayName": "Fortify AI",
         "CFBundleName": "FortifyAI",
@@ -45,19 +45,20 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/fortify_ai.png",
+        "foregroundImage": "./assets/fortify_new_icon.png",
         "backgroundColor": "#24252A"
       },
       "package": "com.fortis.app",
       "permissions": [
         "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
         "com.android.vending.BILLING"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/fortify_ai.png",
+      "favicon": "./assets/fortify_new_icon.png",
       "bundler": "metro"
     },
     "plugins": [

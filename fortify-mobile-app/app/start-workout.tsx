@@ -9,6 +9,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { startWorkoutFromStartPreset } from '@/src/services/startWorkoutFromPreset';
+import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 
 let widgetStartInFlight = false;
 let lastWidgetStartAt = 0;
@@ -19,6 +20,10 @@ export default function StartWorkoutDeepLinkScreen() {
   const rootNavigationState = useRootNavigationState();
   const { colors } = useTheme();
   const { isAuthResolved, isAuthenticated, needsOnboarding, profileResolved } = useAuth();
+  const {
+    isPending: hasPendingOnboardingAuthCompletion,
+    isResolved: pendingOnboardingAuthCompletionResolved,
+  } = usePendingOnboardingAuthCompletion();
   const hasHandledRef = useRef(false);
 
   useEffect(() => {
@@ -34,6 +39,13 @@ export default function StartWorkoutDeepLinkScreen() {
       }
 
       if (needsOnboarding) {
+        if (
+          !pendingOnboardingAuthCompletionResolved ||
+          hasPendingOnboardingAuthCompletion
+        ) {
+          hasHandledRef.current = false;
+          return;
+        }
         router.replace('/onboarding');
         return;
       }
@@ -81,7 +93,16 @@ export default function StartWorkoutDeepLinkScreen() {
     };
 
     void start();
-  }, [isAuthResolved, isAuthenticated, needsOnboarding, profileResolved, rootNavigationState?.key, router]);
+  }, [
+    hasPendingOnboardingAuthCompletion,
+    isAuthResolved,
+    isAuthenticated,
+    needsOnboarding,
+    pendingOnboardingAuthCompletionResolved,
+    profileResolved,
+    rootNavigationState?.key,
+    router,
+  ]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

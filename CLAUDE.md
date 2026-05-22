@@ -247,11 +247,15 @@ See `BACKEND.md` for detailed backend architecture, RLS patterns, and security d
 - Naming: `NNN_description.sql` (e.g., `000_initial_schema.sql`)
 - Run `ls supabase/migrations/` to see all migrations
 
-**AI Edge Function** (`supabase/functions/ai/index.ts`):
+**AI Edge Functions**:
 ```bash
 supabase functions deploy ai
-supabase secrets set OPENAI_API_KEY=<key>
+supabase functions deploy ai-realtime-session
+supabase secrets set GEMINI_API_KEY=<key> OPENAI_API_KEY=<fallback-key>
 ```
+
+- `supabase/functions/ai/index.ts`: standard chat/workout AI, Gemini by default.
+- `supabase/functions/ai-realtime-session/index.ts`: Voice Coach Gemini Live ephemeral token minting. Optional override: `GEMINI_LIVE_MODEL`.
 
 **Environment:** Copy `.env.example` to `.env.local` with Supabase URL/key.
 
