@@ -695,7 +695,7 @@ export default function TabLayout() {
           },
         }}
         options={{
-          title: 'AI',
+          title: 'Coach',
           tabBarIcon: ({ color, size = 18, focused }) => (
             <View style={styles.centerButtonContainer}>
               <TourAnchor id={TOUR_ANCHOR_IDS.aiChatButton}>

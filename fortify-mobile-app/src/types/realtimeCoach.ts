@@ -33,6 +33,21 @@ export interface RealtimeTranscriptOverlay {
   text: string;
 }
 
+export interface RealtimeCoachDebugStatus {
+  socketOpened: boolean;
+  setupComplete: boolean;
+  recordingStarted: boolean;
+  microphoneChunksSent: number;
+  serverMessagesReceived: number;
+  lastMicrophoneChunkBytes?: number;
+  lastServerMessageType?: string;
+  lastSocketClose?: string;
+  recordingChange?: boolean;
+  audioInterruption?: string;
+  micWatchdogTriggered?: boolean;
+  nativeAudioFallback?: 'voice_processing_unavailable' | null;
+}
+
 export type RealtimeCoachPhase =
   | 'idle'
   | 'connecting'

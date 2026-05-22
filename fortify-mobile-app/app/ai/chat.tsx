@@ -235,7 +235,7 @@ export default function AIChatScreen() {
   const { colors, isDark } = useTheme();
   const isNavigating = useRef(false);
   const [inputText, setInputText] = useState('');
-  const [mode, setMode] = useState<AIVoiceMode>('chat');
+  const [mode, setMode] = useState<AIVoiceMode>('voice');
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -281,6 +281,9 @@ export default function AIChatScreen() {
     phase: voicePhase,
     error: voiceError,
     transcriptOverlay,
+    userAudioLevel,
+    coachAudioLevel,
+    debugStatus,
     voiceWorkoutMessages,
     isActive: isVoiceActive,
     start: startVoiceCoach,
@@ -469,7 +472,7 @@ export default function AIChatScreen() {
             <View style={[styles.modeSwitch, {
               backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
             }]}>
-              {(['chat', 'voice'] as const).map((item) => {
+              {(['voice', 'chat'] as const).map((item) => {
                 const selected = mode === item;
                 return (
                   <TouchableOpacity
@@ -518,6 +521,9 @@ export default function AIChatScreen() {
             phase={voicePhase}
             error={voiceError}
             transcriptOverlay={transcriptOverlay}
+            userAudioLevel={userAudioLevel}
+            coachAudioLevel={coachAudioLevel}
+            debugStatus={debugStatus}
             voiceWorkoutMessages={voiceWorkoutMessages}
             savingWorkoutMessageId={voiceWorkoutActions.savingWorkoutMessageId}
             startingWorkoutMessageId={voiceWorkoutActions.startingWorkoutMessageId}

@@ -86,9 +86,9 @@ Supabase secrets (Edge Functions):
 - `GEMINI_API_KEY`
 - `AI_MODEL` (optional, defaults to `gemini-3.1-flash-lite`)
 - `GEMINI_MODEL` (optional, Gemini-specific model override)
-- `GEMINI_LIVE_MODEL` (optional, defaults to `gemini-3.1-flash-live` for Voice Coach)
-- `AI_REALTIME_MAX_SESSION_SECONDS` (optional, defaults to 300)
-- `AI_REALTIME_MAX_DAY_SECONDS` (optional, defaults to 1200)
+- `GEMINI_LIVE_MODEL` (optional, defaults to `gemini-3.1-flash-live-preview` for Voice Coach)
+- `AI_REALTIME_MAX_SESSION_SECONDS` (currently ignored while Voice Coach limits are disabled)
+- `AI_REALTIME_MAX_DAY_SECONDS` (currently ignored while Voice Coach limits are disabled)
 - `OPENAI_API_KEY`
 - `OPENAI_MODEL` (optional)
 - `OPENAI_FALLBACK_MODEL` (optional)

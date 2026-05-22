@@ -1,5 +1,14 @@
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
+import {
+  AIBaseContext,
+  buildCacheKey,
+  compactJson,
+  fetchAIUserContext,
+  fetchAnalytics,
+  fetchHistorySummary,
+  withContextCache,
+} from '../_shared/ai-context.ts';
 
 type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype';
 type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse' | 'sage';
@@ -19,7 +28,12 @@ const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
 const PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype'];
 const MAX_SECONDS_PER_SESSION = Math.max(60, Number(Deno.env.get('AI_REALTIME_MAX_SESSION_SECONDS') ?? '300'));
 const MAX_SECONDS_PER_DAY = Math.max(MAX_SECONDS_PER_SESSION, Number(Deno.env.get('AI_REALTIME_MAX_DAY_SECONDS') ?? '1200'));
-const GEMINI_LIVE_MODEL = Deno.env.get('GEMINI_LIVE_MODEL') || 'gemini-3.1-flash-live';
+const MAX_SECONDS_UNLIMITED = 24 * 60 * 60;
+const VOICE_COACH_CONTEXT_WEEKS = Math.max(
+  4,
+  Number(Deno.env.get('AI_REALTIME_CONTEXT_WEEKS') ?? '12')
+);
+const GEMINI_LIVE_MODEL = Deno.env.get('GEMINI_LIVE_MODEL') || 'gemini-3.1-flash-live-preview';
 const GEMINI_LIVE_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
 
@@ -52,7 +66,92 @@ function normalizePreferences(value: unknown): RealtimeCoachPreferences {
   };
 }
 
-function buildInstructions(preferences: RealtimeCoachPreferences): string {
+type VoiceCoachTrainingContext = AIBaseContext & {
+  contextWeeks: number;
+};
+
+function hasRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function buildVoiceCoachContextPayload(context: VoiceCoachTrainingContext): Record<string, unknown> {
+  const history = hasRecord(context.history) ? context.history : {};
+  const overview = hasRecord(history.overview) ? history.overview : {};
+  const trendSignals = hasRecord(history.trendSignals) ? history.trendSignals : {};
+  const analytics = hasRecord(context.analytics) ? context.analytics : {};
+  const userStats = hasRecord(analytics.userStats) ? analytics.userStats : null;
+  const muscleFrequency = Array.isArray(analytics.muscleGroupFrequency)
+    ? analytics.muscleGroupFrequency
+      .filter(hasRecord)
+      .map((entry) => ({
+        muscleGroup: stringOrNull(entry.muscleGroup),
+        timesTrained: numberOrNull(entry.timesTrained),
+        totalVolume: numberOrNull(entry.totalVolume),
+        lastTrained: stringOrNull(entry.lastTrained),
+      }))
+      .filter((entry) => entry.muscleGroup)
+    : [];
+
+  return {
+    scope: 'voice_coach_session_start',
+    recentTrainingWindowWeeks: context.contextWeeks,
+    userPreferences: {
+      preferredUnits: context.user.preferredUnits,
+      timezone: context.user.timezone,
+      goals: context.user.goals,
+      trainingExperience: context.user.trainingExperience,
+      latestBodyWeight: context.user.latestBodyWeight,
+    },
+    recentTrainingSummary: {
+      totalWorkouts: numberOrNull(overview.totalWorkouts),
+      avgWorkoutsPerWeek: numberOrNull(overview.avgWorkoutsPerWeek),
+      totalVolume: numberOrNull(overview.totalVolume),
+      totalDurationMinutes: numberOrNull(overview.totalDurationMinutes),
+      avgDurationMinutes: numberOrNull(overview.avgDurationMinutes),
+      avgVolumeRecent4Weeks: numberOrNull(trendSignals.avgVolumeRecent4Weeks),
+      avgVolumePrevious4Weeks: numberOrNull(trendSignals.avgVolumePrevious4Weeks),
+      volumeChangePct: numberOrNull(trendSignals.volumeChangePct),
+      avgWorkoutsRecent4Weeks: numberOrNull(trendSignals.avgWorkoutsRecent4Weeks),
+      avgWorkoutsPrevious4Weeks: numberOrNull(trendSignals.avgWorkoutsPrevious4Weeks),
+      workoutChangePct: numberOrNull(trendSignals.workoutChangePct),
+    },
+    lifetimeAnalytics: {
+      totalWorkouts: userStats ? numberOrNull(userStats.totalWorkouts) : null,
+      totalWorkoutDays: userStats ? numberOrNull(userStats.totalWorkoutDays) : null,
+      totalTimeSeconds: userStats ? numberOrNull(userStats.totalTimeSeconds) : null,
+      avgWorkoutDuration: userStats ? numberOrNull(userStats.avgWorkoutDuration) : null,
+      lastWorkoutDate: userStats ? stringOrNull(userStats.lastWorkoutDate) : null,
+      uniqueExercisesPerformed: userStats ? numberOrNull(userStats.uniqueExercisesPerformed) : null,
+      totalVolume: userStats ? numberOrNull(userStats.totalVolume) : null,
+      mostTrainedMuscleGroups: muscleFrequency.slice(0, 6),
+      leastTrainedMuscleGroups: muscleFrequency.slice(-6).reverse(),
+    },
+  };
+}
+
+function buildTrainingContextInstructions(context: VoiceCoachTrainingContext | null): string {
+  if (!context) {
+    return `\nPersonalization context: unavailable for this voice session.
+- Do not claim access to the user's training history, preferences, goals, or analytics unless the user states them in the conversation.`;
+  }
+
+  return `\nPersonalization context:
+The following JSON is trusted Fortify app context for this user. Use it when relevant, but never imply data that is not present. If the user asks for a detail not included here, say you do not have enough detail and ask one short follow-up only if needed.
+${compactJson(buildVoiceCoachContextPayload(context))}`;
+}
+
+function buildInstructions(
+  preferences: RealtimeCoachPreferences,
+  trainingContext: VoiceCoachTrainingContext | null = null
+): string {
   const intensityLabel = preferences.intensity < 0.34
     ? 'calm'
     : preferences.intensity < 0.67
@@ -72,8 +171,42 @@ Voice Coach rules:
 - Ask at most one question at a time.
 - If the user asks for a workout, briefly say you can build one, then ask for missing constraints only if necessary.
 - Do not claim form detection, rep counting, or medical diagnosis.
+- When answering training-history or progress questions, use the provided personalization context first and state the timeframe you are using.
+- If the personalization context has sparse or missing data, be direct about that instead of guessing.
 - Style intensity: ${intensityLabel}.
-- You are inside Fortify, a workout tracker and AI personal trainer.`;
+- You are inside Fortify, a workout tracker and AI personal trainer.${buildTrainingContextInstructions(trainingContext)}`;
+}
+
+async function assembleVoiceCoachTrainingContext(
+  adminClient: SupabaseClient,
+  userId: string
+): Promise<VoiceCoachTrainingContext | null> {
+  try {
+    const [user, history, analytics] = await Promise.all([
+      withContextCache(
+        buildCacheKey('voice-prefs', userId),
+        () => fetchAIUserContext(adminClient, userId)
+      ),
+      withContextCache(
+        buildCacheKey('voice-history', userId, VOICE_COACH_CONTEXT_WEEKS),
+        () => fetchHistorySummary(adminClient, userId, VOICE_COACH_CONTEXT_WEEKS)
+      ),
+      withContextCache(
+        buildCacheKey('voice-analytics', userId),
+        () => fetchAnalytics(adminClient, userId)
+      ),
+    ]);
+
+    return {
+      user,
+      history,
+      analytics,
+      contextWeeks: VOICE_COACH_CONTEXT_WEEKS,
+    };
+  } catch (error) {
+    console.warn('[ai-realtime-session] failed to assemble voice coach training context', error);
+    return null;
+  }
 }
 
 async function hasPaidOrTrialAccess(adminClient: SupabaseClient, userId: string): Promise<boolean> {
@@ -138,7 +271,11 @@ function normalizeGeminiModelName(model: string): string {
   return model.startsWith('models/') ? model : `models/${model}`;
 }
 
-async function createGeminiLiveToken(userId: string, preferences: RealtimeCoachPreferences) {
+async function createGeminiLiveToken(
+  userId: string,
+  preferences: RealtimeCoachPreferences,
+  trainingContext: VoiceCoachTrainingContext | null
+) {
   const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
   if (!apiKey) {
     throw new Error('Gemini API key is not configured.');
@@ -152,36 +289,34 @@ async function createGeminiLiveToken(userId: string, preferences: RealtimeCoachP
       'X-Goog-Request-Reason': `fortify-voice-coach:${userId}`,
     },
     body: JSON.stringify({
-      authToken: {
-        uses: 1,
-        expireTime: new Date(now + MAX_SECONDS_PER_SESSION * 1000 + 60_000).toISOString(),
-        newSessionExpireTime: new Date(now + 60_000).toISOString(),
-        bidiGenerateContentSetup: {
-          model: normalizeGeminiModelName(GEMINI_LIVE_MODEL),
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            temperature: 0.7,
-            speechConfig: {
-              voiceConfig: {
-                prebuiltVoiceConfig: {
-                  voiceName: GEMINI_VOICE_BY_COACH_VOICE[preferences.voice],
-                },
+      uses: 1,
+      expireTime: new Date(now + MAX_SECONDS_PER_SESSION * 1000 + 60_000).toISOString(),
+      newSessionExpireTime: new Date(now + 60_000).toISOString(),
+      bidiGenerateContentSetup: {
+        model: normalizeGeminiModelName(GEMINI_LIVE_MODEL),
+        generationConfig: {
+          responseModalities: ['AUDIO'],
+          temperature: 0.7,
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: GEMINI_VOICE_BY_COACH_VOICE[preferences.voice],
               },
             },
           },
-          systemInstruction: {
-            parts: [{ text: buildInstructions(preferences) }],
+        },
+        systemInstruction: {
+          parts: [{ text: buildInstructions(preferences, trainingContext) }],
+        },
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+        realtimeInputConfig: {
+          automaticActivityDetection: {
+            disabled: false,
+            prefixPaddingMs: 300,
+            silenceDurationMs: 650,
           },
-          inputAudioTranscription: {},
-          outputAudioTranscription: {},
-          realtimeInputConfig: {
-            automaticActivityDetection: {
-              disabled: false,
-              prefixPaddingMs: 300,
-              silenceDurationMs: 650,
-            },
-            activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
-          },
+          activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
         },
       },
     }),
@@ -190,7 +325,7 @@ async function createGeminiLiveToken(userId: string, preferences: RealtimeCoachP
   if (!response.ok) {
     const text = await response.text();
     console.error('[ai-realtime-session] Gemini token failed', text);
-    throw new Error('Unable to create Gemini Live session.');
+    throw new Error(`Gemini token failed (${response.status}): ${text}`);
   }
 
   return await response.json();
@@ -235,11 +370,12 @@ Deno.serve(async (req: Request) => {
 
     const usage = await reserveUsage(adminClient, user.id);
     if (!usage.allowed) {
-      return errorResponse('Voice Coach daily limit reached.', 'RATE_LIMITED', 429, true, usage.retryAfterSeconds, origin);
+      console.warn('[ai-realtime-session] usage reservation failed; continuing while realtime limits are disabled');
     }
 
     const preferences = normalizePreferences(body.preferences);
-    const token = await createGeminiLiveToken(user.id, preferences);
+    const trainingContext = await assembleVoiceCoachTrainingContext(adminClient, user.id);
+    const token = await createGeminiLiveToken(user.id, preferences, trainingContext);
     const accessToken = token?.name;
 
     if (typeof accessToken !== 'string' || accessToken.length === 0) {
@@ -254,15 +390,18 @@ Deno.serve(async (req: Request) => {
       model: GEMINI_LIVE_MODEL,
       voice: preferences.voice,
       usage: {
-        secondsUsedToday: usage.secondsUsedToday,
-        maxSecondsPerDay: MAX_SECONDS_PER_DAY,
-        maxSecondsPerSession: MAX_SECONDS_PER_SESSION,
+        secondsUsedToday: usage.secondsUsedToday ?? 0,
+        maxSecondsPerDay: MAX_SECONDS_UNLIMITED,
+        maxSecondsPerSession: MAX_SECONDS_UNLIMITED,
       },
     }, 200, origin);
   } catch (error) {
     console.error('[ai-realtime-session] request failed', error);
+    const message = error instanceof Error
+      ? error.message
+      : 'Unable to start Voice Coach right now.';
     return errorResponse(
-      'Unable to start Voice Coach right now.',
+      message,
       'INTERNAL_ERROR',
       500,
       true,

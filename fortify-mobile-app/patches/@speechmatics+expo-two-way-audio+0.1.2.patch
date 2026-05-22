@@ -1,0 +1,15 @@
+diff --git a/node_modules/@speechmatics/expo-two-way-audio/ios/AudioEngine.swift b/node_modules/@speechmatics/expo-two-way-audio/ios/AudioEngine.swift
+index 46d6b22..c929c01 100644
+--- a/node_modules/@speechmatics/expo-two-way-audio/ios/AudioEngine.swift
++++ b/node_modules/@speechmatics/expo-two-way-audio/ios/AudioEngine.swift
+@@ -105,7 +105,9 @@ class AudioEngine {
+             try input.setVoiceProcessingEnabled(true)
+         } catch {
+             print("Could not enable voice processing \(error)")
+-            return
++            // Continue without voice processing so mic capture still works in
++            // environments where VoiceProcessingIO is unavailable, such as
++            // some simulator/audio-device configurations.
+         }
+         
+         avAudioEngine.inputNode.isVoiceProcessingInputMuted = !isRecording

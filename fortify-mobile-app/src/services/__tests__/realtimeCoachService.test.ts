@@ -56,7 +56,7 @@ describe('realtimeCoachService', () => {
         accessToken: 'auth_tokens/test-token',
         liveEndpoint: 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained',
         expiresAt: '2026-05-22T22:00:00.000Z',
-        model: 'gemini-3.1-flash-live',
+        model: 'gemini-3.1-flash-live-preview',
         voice: 'marin',
         usage: {
           secondsUsedToday: 300,
@@ -104,5 +104,28 @@ describe('realtimeCoachService', () => {
     expect(response.type).toBe('error');
     expect(response.type === 'error' ? response.requestId : null).toBe('edge-request-id');
     expect(response.type === 'error' ? response.error.code : null).toBe('RATE_LIMITED');
+  });
+
+  it('exposes stale or invalid realtime session payload details in development debug mode', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        clientSecret: 'old-openai-secret',
+        model: 'gpt-realtime-mini',
+        voice: 'marin',
+        usage: {
+          secondsUsedToday: 300,
+          maxSecondsPerDay: 1200,
+          maxSecondsPerSession: 300,
+        },
+      },
+      error: null,
+      response: null,
+    });
+
+    const response = await createRealtimeCoachSession(preferences);
+
+    expect(response.type).toBe('error');
+    expect(response.type === 'error' ? response.error.message : null).toContain('Invalid realtime session response');
+    expect(response.type === 'error' ? response.error.message : null).toContain('clientSecret');
   });
 });

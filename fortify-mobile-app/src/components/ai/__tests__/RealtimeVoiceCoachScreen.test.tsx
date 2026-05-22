@@ -86,6 +86,15 @@ const defaultProps = {
   phase: 'listening' as const,
   error: null,
   transcriptOverlay: null,
+  userAudioLevel: 0,
+  coachAudioLevel: 0,
+  debugStatus: {
+    socketOpened: false,
+    setupComplete: false,
+    recordingStarted: false,
+    microphoneChunksSent: 0,
+    serverMessagesReceived: 0,
+  },
   voiceWorkoutMessages: [],
   savingWorkoutMessageId: null,
   startingWorkoutMessageId: null,
@@ -160,7 +169,7 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(queryByText('Finishing rep')).toBeNull();
   });
 
-  it('does not render raw technical startup errors', () => {
+  it('renders raw technical startup errors in development debug mode', () => {
     const { getByText, queryByText } = render(
       <RealtimeVoiceCoachScreen
         {...defaultProps}
@@ -168,7 +177,32 @@ describe('RealtimeVoiceCoachScreen', () => {
       />
     );
 
-    expect(queryByText("Cannot read property 'initialize' of undefined")).toBeNull();
-    expect(getByText('Voice Coach could not start. Try again in a moment.')).toBeTruthy();
+    expect(queryByText('Voice Coach could not start. Try again in a moment.')).toBeNull();
+    expect(getByText("Cannot read property 'initialize' of undefined")).toBeTruthy();
+  });
+
+  it('renders native audio diagnostics in the debug line', () => {
+    const { getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        debugStatus={{
+          socketOpened: true,
+          setupComplete: true,
+          recordingStarted: true,
+          recordingChange: true,
+          microphoneChunksSent: 0,
+          serverMessagesReceived: 1,
+          lastServerMessageType: 'setupComplete',
+          micWatchdogTriggered: true,
+          nativeAudioFallback: 'voice_processing_unavailable',
+          audioInterruption: 'began',
+        }}
+      />
+    );
+
+    expect(getByText(/nativeRec:yes/)).toBeTruthy();
+    expect(getByText(/micWatch:yes/)).toBeTruthy();
+    expect(getByText(/native:voice_processing_unavailable/)).toBeTruthy();
+    expect(getByText(/interrupt:began/)).toBeTruthy();
   });
 });

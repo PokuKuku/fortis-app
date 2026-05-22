@@ -13,6 +13,7 @@ import type { RealtimeCoachPhase } from '@/src/types/realtimeCoach';
 
 interface DumbbellVoiceVisualizerProps {
   phase: RealtimeCoachPhase;
+  coachAudioLevel?: number;
 }
 
 const PLATE_WIDTHS = [24, 20, 18];
@@ -78,15 +79,14 @@ function VisualizerBar({
   );
 }
 
-export function DumbbellVoiceVisualizer({ phase }: DumbbellVoiceVisualizerProps) {
+export function DumbbellVoiceVisualizer({ phase, coachAudioLevel = 0 }: DumbbellVoiceVisualizerProps) {
   const { colors, isDark } = useTheme();
-  const activityLevel = phase === 'user_speaking' || phase === 'coach_speaking'
-    ? 1
+  const normalizedCoachLevel = Math.max(0, Math.min(1, coachAudioLevel));
+  const activityLevel = phase === 'coach_speaking'
+    ? Math.max(0.28, normalizedCoachLevel)
     : phase === 'connecting'
       ? 0.68
-      : phase === 'listening'
-        ? 0.36
-        : 0;
+      : 0;
   const handleBackground = isDark ? 'rgba(255,255,255,0.32)' : 'rgba(0,0,0,0.44)';
 
   return (

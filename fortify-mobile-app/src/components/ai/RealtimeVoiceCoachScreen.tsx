@@ -16,6 +16,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
 import { DumbbellVoiceVisualizer } from '@/src/components/ai/DumbbellVoiceVisualizer';
 import {
+  type RealtimeCoachDebugStatus,
   type RealtimeCoachPhase,
   type RealtimeTranscriptOverlay,
   type VoiceWorkoutMessage,
@@ -26,6 +27,9 @@ interface RealtimeVoiceCoachScreenProps {
   phase: RealtimeCoachPhase;
   error: string | null;
   transcriptOverlay: RealtimeTranscriptOverlay | null;
+  userAudioLevel: number;
+  coachAudioLevel: number;
+  debugStatus: RealtimeCoachDebugStatus;
   voiceWorkoutMessages: VoiceWorkoutMessage[];
   savingWorkoutMessageId: string | null;
   startingWorkoutMessageId: string | null;
@@ -49,26 +53,21 @@ const asConversationMessage = (message: VoiceWorkoutMessage): AIConversationMess
   savedWorkoutTemplateId: message.savedWorkoutTemplateId ?? null,
 });
 
-const TECHNICAL_ERROR_PATTERNS = [
-  /cannot read property/i,
-  /undefined/i,
-  /native module/i,
-  /ExpoTwoWayAudio/i,
-  /TypeError/i,
-  /ReferenceError/i,
-  /Unhandled/i,
-  /stack/i,
-];
+function withOpacity(color: string, opacity: number): string {
+  if (!color.startsWith('#')) return color;
+  const hex = color.replace('#', '');
+  if (hex.length !== 6) return color;
+
+  const red = parseInt(hex.slice(0, 2), 16);
+  const green = parseInt(hex.slice(2, 4), 16);
+  const blue = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
+}
 
 const sanitizeVoiceCoachError = (message: string | null | undefined): string | null => {
   if (!message) return null;
   const trimmed = message.trim();
   if (!trimmed) return null;
-
-  if (TECHNICAL_ERROR_PATTERNS.some((pattern) => pattern.test(trimmed))) {
-    return 'Voice Coach could not start. Try again in a moment.';
-  }
-
   return trimmed;
 };
 
@@ -76,6 +75,9 @@ export function RealtimeVoiceCoachScreen({
   phase,
   error,
   transcriptOverlay,
+  userAudioLevel,
+  coachAudioLevel,
+  debugStatus,
   voiceWorkoutMessages,
   savingWorkoutMessageId,
   startingWorkoutMessageId,
@@ -98,8 +100,35 @@ export function RealtimeVoiceCoachScreen({
   const transcriptColor = visibleTranscript?.speaker === 'coach'
     ? colors.accent
     : colors.textPrimary;
+  const shouldVisualizeUserAudio = isActive && phase !== 'coach_speaking';
+  const clampedUserAudioLevel = Math.max(0, Math.min(1, userAudioLevel));
+  const normalizedUserLevel = shouldVisualizeUserAudio && clampedUserAudioLevel > 0.01
+    ? Math.max(0.08, clampedUserAudioLevel)
+    : 0;
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
+  const shouldShowDebugStatus = isActive
+    || phase === 'error'
+    || debugStatus.microphoneChunksSent > 0
+    || debugStatus.serverMessagesReceived > 0
+    || Boolean(debugStatus.lastSocketClose);
+  const debugText = [
+    `phase:${phase}`,
+    `ws:${debugStatus.socketOpened ? 'open' : 'no'}`,
+    `setup:${debugStatus.setupComplete ? 'yes' : 'no'}`,
+    `rec:${debugStatus.recordingStarted ? 'yes' : 'no'}`,
+    typeof debugStatus.recordingChange === 'boolean' ? `nativeRec:${debugStatus.recordingChange ? 'yes' : 'no'}` : null,
+    `mic:${debugStatus.microphoneChunksSent}`,
+    debugStatus.lastMicrophoneChunkBytes ? `bytes:${debugStatus.lastMicrophoneChunkBytes}` : null,
+    debugStatus.micWatchdogTriggered ? 'micWatch:yes' : null,
+    debugStatus.nativeAudioFallback ? `native:${debugStatus.nativeAudioFallback}` : null,
+    debugStatus.audioInterruption ? `interrupt:${debugStatus.audioInterruption}` : null,
+    `srv:${debugStatus.serverMessagesReceived}`,
+    debugStatus.lastServerMessageType ? `last:${debugStatus.lastServerMessageType}` : null,
+    `in:${clampedUserAudioLevel.toFixed(2)}`,
+    `out:${Math.max(0, Math.min(1, coachAudioLevel)).toFixed(2)}`,
+    debugStatus.lastSocketClose ? `close:${debugStatus.lastSocketClose}` : null,
+  ].filter(Boolean).join(' ');
 
   useEffect(() => {
     if (transcriptOverlay) {
@@ -130,7 +159,7 @@ export function RealtimeVoiceCoachScreen({
       showsVerticalScrollIndicator={false}
     >
       <View style={[styles.hero, { minHeight: heroMinHeight, paddingBottom: heroLift }]}>
-        <DumbbellVoiceVisualizer phase={phase} />
+        <DumbbellVoiceVisualizer phase={phase} coachAudioLevel={coachAudioLevel} />
         <View style={styles.transcriptSlot} pointerEvents="none">
           {visibleTranscript ? (
             <Animated.Text style={[styles.transcript, { color: transcriptColor, opacity: transcriptOpacity }]}>
@@ -140,13 +169,36 @@ export function RealtimeVoiceCoachScreen({
         </View>
         {displayError ? <Text style={styles.error}>{displayError}</Text> : null}
         {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
+        {shouldShowDebugStatus ? (
+          <Text style={[styles.debugText, { color: colors.textTertiary }]}>
+            {debugText}
+          </Text>
+        ) : null}
+
+        {[0, 1, 2].map((index) => (
+          <View
+            key={`user-audio-ring-${index}`}
+            pointerEvents="none"
+            style={[
+              styles.userAudioRing,
+              {
+                bottom: talkButtonBottom - 8 - index * 6,
+                width: 112 + index * 18 + normalizedUserLevel * (34 + index * 8),
+                height: 112 + index * 18 + normalizedUserLevel * (34 + index * 8),
+                borderColor: withOpacity(colors.accent, Math.max(0, (0.3 - index * 0.07) * normalizedUserLevel)),
+                opacity: normalizedUserLevel > 0 ? 1 : 0,
+              },
+            ]}
+          />
+        ))}
 
         <TouchableOpacity
           style={[
             styles.talkButtonRing,
             {
-              borderColor: isActive ? Colors.error : colors.accent,
+              borderColor: colors.accent,
               bottom: talkButtonBottom,
+              transform: [{ scale: 1 + normalizedUserLevel * 0.06 }],
             },
           ]}
           onPress={() => {
@@ -164,7 +216,10 @@ export function RealtimeVoiceCoachScreen({
           <View
             style={[
               styles.talkButtonCore,
-              { backgroundColor: isActive ? Colors.error : colors.accentLight },
+              {
+                backgroundColor: colors.accentLight,
+                transform: [{ scale: 1 + normalizedUserLevel * 0.1 }],
+              },
             ]}
           />
         </TouchableOpacity>
@@ -228,6 +283,12 @@ const styles = StyleSheet.create({
     color: Colors.error,
     textAlign: 'center',
   },
+  debugText: {
+    ...Typography.caption,
+    textAlign: 'center',
+    lineHeight: 16,
+    paddingHorizontal: Spacing.sm,
+  },
   talkButtonRing: {
     position: 'absolute',
     width: 96,
@@ -236,6 +297,11 @@ const styles = StyleSheet.create({
     borderWidth: 5,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  userAudioRing: {
+    position: 'absolute',
+    borderRadius: BorderRadius.full,
+    borderWidth: 2,
   },
   talkButtonCore: {
     width: 78,

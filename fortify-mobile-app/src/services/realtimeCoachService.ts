@@ -105,12 +105,29 @@ export async function createRealtimeCoachSession(
       || !data?.model
       || !data?.voice
     ) {
+      console.warn('[Voice Coach] invalid realtime session response', {
+        keys: data && typeof data === 'object' ? Object.keys(data) : [],
+        provider: data?.provider,
+        hasAccessToken: Boolean(data?.accessToken),
+        hasLiveEndpoint: Boolean(data?.liveEndpoint),
+        hasUsage: Boolean(data?.usage),
+        hasModel: Boolean(data?.model),
+        hasVoice: Boolean(data?.voice),
+      });
       return {
         type: 'error',
         requestId: Crypto.randomUUID(),
         error: {
           code: 'INTERNAL_ERROR',
-          message: 'Voice Coach returned an invalid session.',
+          message: `Invalid realtime session response: ${JSON.stringify({
+            keys: data && typeof data === 'object' ? Object.keys(data) : [],
+            provider: data?.provider,
+            hasAccessToken: Boolean(data?.accessToken),
+            hasLiveEndpoint: Boolean(data?.liveEndpoint),
+            hasUsage: Boolean(data?.usage),
+            hasModel: Boolean(data?.model),
+            hasVoice: Boolean(data?.voice),
+          })}`,
           retryable: true,
         },
       };
