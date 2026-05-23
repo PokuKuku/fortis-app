@@ -31,6 +31,7 @@ export function ChatWorkoutTemplateCard({
   const isBusy = isAdding || isStarting;
   const isStartBusy = isBusy || isStartDisabled;
   const exercises = Array.isArray(template.exercises) ? template.exercises : [];
+  const primaryButtonForeground = isAdded ? Colors.white : colors.accentForegroundOnFill;
 
   const themedStyles = {
     card: {
@@ -47,6 +48,7 @@ export function ChatWorkoutTemplateCard({
     primaryButton: {
       backgroundColor: isAdded ? Colors.success : colors.accent,
     },
+    primaryButtonText: { color: primaryButtonForeground },
     startButton: {
       backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
       borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
@@ -102,11 +104,11 @@ export function ChatWorkoutTemplateCard({
         disabled={isBusy || isAdded}
       >
         {isAdded ? (
-          <CheckIcon size={16} color={Colors.white} strokeWidth={2.2} />
+          <CheckIcon size={16} color={primaryButtonForeground} strokeWidth={2.2} />
         ) : (
-          <PlusIcon size={16} color={Colors.white} strokeWidth={2.2} />
+          <PlusIcon size={16} color={primaryButtonForeground} strokeWidth={2.2} />
         )}
-        <Text style={styles.primaryButtonText}>
+        <Text style={[styles.primaryButtonText, themedStyles.primaryButtonText]}>
           {isAdded ? 'Added' : isAdding ? 'Adding...' : 'Add to Workouts'}
         </Text>
       </TouchableOpacity>
@@ -176,7 +178,6 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
-    color: Colors.white,
   },
   buttonDisabled: {
     opacity: 0.72,

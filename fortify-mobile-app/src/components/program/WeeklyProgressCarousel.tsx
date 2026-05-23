@@ -161,7 +161,7 @@ export function WeeklyProgressCarousel({
                   ]}
                 >
                   {isComplete ? (
-                    <CheckIcon color={colors.white} size={18} strokeWidth={3} />
+                    <CheckIcon color={colors.accentForegroundOnFill} size={18} strokeWidth={3} />
                   ) : (
                     <Text
                       style={[

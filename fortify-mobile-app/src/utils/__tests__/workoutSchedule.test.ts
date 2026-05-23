@@ -4,6 +4,7 @@ import {
   buildSundayWeek,
   buildWeekProgressDays,
   deriveScheduleDaysFromWorkoutsPerWeek,
+  getCompletedWeekdaysForProgram,
   getScheduleDaysForDate,
   getScheduledWorkoutDayStreak,
   getWorkoutDayStreak,
@@ -31,6 +32,27 @@ function dailySessions(startDateKey: string, count: number): WorkoutSession[] {
     const key = completedAt.toISOString().slice(0, 10);
     return session(`workout-${key}`, `${key}T12:00:00`);
   });
+}
+
+function programSession(
+  localId: string,
+  completedAt: string | null,
+  programId?: string
+): WorkoutSession {
+  const startedAt = completedAt
+    ? new Date(completedAt)
+    : new Date('2026-05-11T12:00:00');
+
+  return {
+    localId,
+    name: 'Program Workout',
+    notes: '',
+    startedAt,
+    completedAt: completedAt ? new Date(completedAt) : null,
+    programId,
+    exercises: [],
+    isSynced: true,
+  };
 }
 
 describe('workoutSchedule', () => {
@@ -73,6 +95,24 @@ describe('workoutSchedule', () => {
     expect(days[3].completedSessions.map((item) => item.name)).toEqual(['Lower']);
     expect(days[5].isScheduled).toBe(true);
     expect(days[5].completedSessions).toEqual([]);
+  });
+
+  it('returns completed weekdays for only the requested program in the anchored week', () => {
+    const weekdays = getCompletedWeekdaysForProgram(
+      [
+        programSession('matching-monday', '2026-05-11T20:00:00', 'program-a'),
+        programSession('matching-monday-duplicate', '2026-05-11T21:00:00', 'program-a'),
+        programSession('matching-thursday', '2026-05-14T06:30:00', 'program-a'),
+        programSession('other-program', '2026-05-13T12:00:00', 'program-b'),
+        programSession('standalone', '2026-05-15T12:00:00'),
+        programSession('incomplete', null, 'program-a'),
+        programSession('outside-week', '2026-05-18T12:00:00', 'program-a'),
+      ],
+      'program-a',
+      new Date('2026-05-13T12:00:00')
+    );
+
+    expect(weekdays).toEqual([1, 4]);
   });
 
   it('counts only completed scheduled workout days in streaks and skips off days', () => {

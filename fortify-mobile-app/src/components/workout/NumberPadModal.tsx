@@ -402,7 +402,7 @@ export function NumberPadModal({
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
                 />
-                <Text style={styles.nextText}>Next</Text>
+                <Text style={[styles.nextText, { color: colors.accentForegroundOnFill }]}>Next</Text>
               </Pressable>
             </View>
           </View>
@@ -532,7 +532,6 @@ const styles = StyleSheet.create({
   nextText: {
     fontSize: NEXT_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
-    color: '#fff',
     textTransform: 'uppercase',
     zIndex: 10,
   },

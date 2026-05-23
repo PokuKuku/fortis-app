@@ -55,7 +55,7 @@ export default function OnboardingRatingScreen() {
 
   return (
     <OnboardingScreen
-      step={26}
+      step={25}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle
@@ -66,7 +66,7 @@ export default function OnboardingRatingScreen() {
       contentGap={Spacing.xl}
       floatingFooter={
         <GlassButton style={styles.button} onPress={() => void handleContinue()} hapticFeedback="impactMedium">
-          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
+          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>
             {reviewRequested ? 'Continue' : 'Next'}
           </Text>
         </GlassButton>

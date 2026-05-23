@@ -11,6 +11,7 @@ import type {
   RealtimeCoachPreferences,
   RealtimeCoachUsage,
   RealtimeTranscriptOverlay,
+  RealtimeTranscriptSpeaker,
   VoiceWorkoutMessage,
 } from '@/src/types/realtimeCoach';
 import {
@@ -43,6 +44,8 @@ type TwoWayAudioModule = {
 
 const TRANSCRIPT_IDLE_HIDE_MS = 1600;
 const MIC_STREAM_WATCHDOG_MS = 2000;
+const PLAYBACK_BUFFER_TARGET_BYTES = 4096;
+const PLAYBACK_BUFFER_FLUSH_MS = 24;
 const MISSING_NATIVE_AUDIO_MESSAGE =
   'Voice Coach needs an app update before live audio can start.';
 const GENERIC_VOICE_COACH_ERROR = 'Voice Coach could not start. Try again in a moment.';
@@ -101,7 +104,9 @@ const buildInstructions = (preferences: RealtimeCoachPreferences): string => {
 Voice Coach rules:
 - Speak naturally in short turns. Keep most answers under 20 seconds.
 - Ask at most one question at a time.
-- If the user asks for a workout, briefly say you can build one, then ask for missing constraints only if necessary.
+- If the user asks for a normal single-session workout, do not list exercises out loud. Say one short sentence that you are building it, then let Fortify drop the workout card in the chat.
+- Do not ask routine workout-generation questions about equipment, duration, exercise count, sets, or reps. Infer reasonable defaults.
+- Ask a follow-up only when the request is genuinely impossible or unsafe to answer without one.
 - Do not claim form detection, rep counting, or medical diagnosis.
 - Style intensity: ${intensityLabel}.
 - You are inside Fortify, a workout tracker and AI personal trainer.`;
@@ -135,7 +140,7 @@ const buildGeminiSetupMessage = (
         prefixPaddingMs: 300,
         silenceDurationMs: 650,
       },
-      activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+      activityHandling: 'NO_INTERRUPTION',
     },
   },
 });
@@ -222,6 +227,21 @@ const normalizeServerMessage = (data: unknown): string | null => {
   return null;
 };
 
+const normalizeTranscriptChunk = (text: string): string => text.replace(/\s+/g, ' ').trim();
+
+const appendTranscriptChunk = (current: string, nextChunk: string): string => {
+  const next = normalizeTranscriptChunk(nextChunk);
+  if (!next) return current;
+
+  const existing = normalizeTranscriptChunk(current);
+  if (!existing) return next;
+  if (next === existing || existing.endsWith(next)) return existing;
+  if (next.startsWith(existing)) return next;
+
+  const separator = /^[,.;:!?]/.test(next) || /[-'’/]$/.test(existing) ? '' : ' ';
+  return `${existing}${separator}${next}`;
+};
+
 const setVoiceCoachAudioMode = async (isActive: boolean) => {
   await Audio.setAudioModeAsync(isActive ? VOICE_COACH_ACTIVE_AUDIO_MODE : VOICE_COACH_IDLE_AUDIO_MODE);
 };
@@ -240,8 +260,15 @@ export function useRealtimeCoach({
   const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const micWatchdogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transcriptHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackFlushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackChunksRef = useRef<Uint8Array[]>([]);
+  const playbackBytesRef = useRef(0);
   const lastWorkoutPromptRef = useRef('');
   const latestUserTranscriptRef = useRef('');
+  const transcriptBuffersRef = useRef<Record<RealtimeTranscriptSpeaker, string>>({
+    user: '',
+    coach: '',
+  });
   const microphoneChunksSentRef = useRef(0);
   const isMountedRef = useRef(true);
 
@@ -280,6 +307,24 @@ export function useRealtimeCoach({
     clearTranscriptHideTimeout();
     setTranscriptOverlay(overlay);
   }, [clearTranscriptHideTimeout]);
+
+  const resetTranscriptBuffers = useCallback(() => {
+    transcriptBuffersRef.current = {
+      user: '',
+      coach: '',
+    };
+    latestUserTranscriptRef.current = '';
+  }, []);
+
+  const showTranscriptChunk = useCallback((overlay: RealtimeTranscriptOverlay): string => {
+    const nextText = appendTranscriptChunk(transcriptBuffersRef.current[overlay.speaker], overlay.text);
+    transcriptBuffersRef.current[overlay.speaker] = nextText;
+    if (overlay.speaker === 'user') {
+      latestUserTranscriptRef.current = nextText;
+    }
+    showTranscript({ speaker: overlay.speaker, text: nextText });
+    return nextText;
+  }, [showTranscript]);
 
   const cleanupMicrophoneSubscription = useCallback(() => {
     const subscription = microphoneSubscriptionRef.current;
@@ -332,17 +377,51 @@ export function useRealtimeCoach({
     }
   }, []);
 
+  const clearPlaybackQueue = useCallback(() => {
+    if (playbackFlushTimeoutRef.current) {
+      clearTimeout(playbackFlushTimeoutRef.current);
+      playbackFlushTimeoutRef.current = null;
+    }
+    playbackChunksRef.current = [];
+    playbackBytesRef.current = 0;
+  }, []);
+
+  const flushPlaybackQueue = useCallback(() => {
+    if (playbackFlushTimeoutRef.current) {
+      clearTimeout(playbackFlushTimeoutRef.current);
+      playbackFlushTimeoutRef.current = null;
+    }
+
+    const chunks = playbackChunksRef.current;
+    const byteLength = playbackBytesRef.current;
+    playbackChunksRef.current = [];
+    playbackBytesRef.current = 0;
+
+    const audio = audioRef.current;
+    if (!audio || chunks.length === 0 || byteLength === 0) return;
+
+    const merged = new Uint8Array(byteLength);
+    let offset = 0;
+    chunks.forEach((chunk) => {
+      merged.set(chunk, offset);
+      offset += chunk.byteLength;
+    });
+
+    audio.playPCMData(merged);
+  }, []);
+
   const cleanup = useCallback(() => {
     if (sessionTimeoutRef.current) {
       clearTimeout(sessionTimeoutRef.current);
       sessionTimeoutRef.current = null;
     }
     clearMicWatchdog();
+    clearPlaybackQueue();
     clearTranscriptHideTimeout();
     cleanupMicrophoneSubscription();
     cleanupVolumeSubscriptions();
     cleanupNativeAudioDiagnosticSubscriptions();
-    latestUserTranscriptRef.current = '';
+    resetTranscriptBuffers();
     if (isMountedRef.current) {
       setUserAudioLevel(0);
       setCoachAudioLevel(0);
@@ -372,7 +451,9 @@ export function useRealtimeCoach({
     cleanupNativeAudioDiagnosticSubscriptions,
     cleanupVolumeSubscriptions,
     clearMicWatchdog,
+    clearPlaybackQueue,
     clearTranscriptHideTimeout,
+    resetTranscriptBuffers,
   ]);
 
   const stop = useCallback(() => {
@@ -413,13 +494,26 @@ export function useRealtimeCoach({
     ]);
   }, [currentWorkoutTemplateDraft]);
 
+  const maybeGenerateWorkoutFromTranscript = useCallback((text: string) => {
+    if (!shouldGenerateWorkoutFromVoice(text)) return;
+    void handleWorkoutPrompt(text);
+  }, [handleWorkoutPrompt]);
+
   const playGeminiAudio = useCallback((base64: string) => {
-    const audio = audioRef.current;
-    if (!audio) return;
     const pcm24k = base64ToUint8Array(base64);
     const pcm16k = downsamplePcm16Mono(pcm24k);
-    audio.playPCMData(pcm16k);
-  }, []);
+    playbackChunksRef.current.push(pcm16k);
+    playbackBytesRef.current += pcm16k.byteLength;
+
+    if (playbackBytesRef.current >= PLAYBACK_BUFFER_TARGET_BYTES) {
+      flushPlaybackQueue();
+      return;
+    }
+
+    if (!playbackFlushTimeoutRef.current) {
+      playbackFlushTimeoutRef.current = setTimeout(flushPlaybackQueue, PLAYBACK_BUFFER_FLUSH_MS);
+    }
+  }, [flushPlaybackQueue]);
 
   const startMicrophoneStreaming = useCallback(() => {
     const audio = audioRef.current;
@@ -537,9 +631,9 @@ export function useRealtimeCoach({
       }
 
       if (action.type === 'transcript') {
-        showTranscript({ speaker: action.speaker, text: action.text });
+        const transcript = showTranscriptChunk({ speaker: action.speaker, text: action.text });
         if (action.speaker === 'user') {
-          latestUserTranscriptRef.current = action.text;
+          maybeGenerateWorkoutFromTranscript(transcript);
         }
         continue;
       }
@@ -551,10 +645,10 @@ export function useRealtimeCoach({
 
       if (action.type === 'turn_complete') {
         if (latestUserTranscriptRef.current) {
-          void handleWorkoutPrompt(latestUserTranscriptRef.current);
-          latestUserTranscriptRef.current = '';
+          maybeGenerateWorkoutFromTranscript(latestUserTranscriptRef.current);
         }
         hideTranscriptSoon();
+        resetTranscriptBuffers();
         continue;
       }
 
@@ -568,7 +662,14 @@ export function useRealtimeCoach({
         setPhase('error');
       }
     }
-  }, [handleWorkoutPrompt, hideTranscriptSoon, playGeminiAudio, showTranscript, startMicrophoneStreaming]);
+  }, [
+    hideTranscriptSoon,
+    maybeGenerateWorkoutFromTranscript,
+    playGeminiAudio,
+    resetTranscriptBuffers,
+    showTranscriptChunk,
+    startMicrophoneStreaming,
+  ]);
 
   const start = useCallback(async () => {
     if (phase === 'connecting' || phase === 'listening' || phase === 'user_speaking' || phase === 'coach_speaking') {
@@ -577,6 +678,7 @@ export function useRealtimeCoach({
 
     cleanup();
     microphoneChunksSentRef.current = 0;
+    resetTranscriptBuffers();
     setError(null);
     setTranscriptOverlay(null);
     setDebugStatus({

@@ -17,34 +17,26 @@ import {
 const OPTIONS: Array<{
   value: ProgressBlocker;
   title: string;
-  description: string;
 }> = [
   {
     value: 'no_plan',
-    title: '🧭 Not knowing what to do next',
-    description: 'Fortify builds the plan before you train.',
+    title: 'Not knowing what to do next',
   },
   {
     value: 'unclear_progress',
-    title: '📊 Not knowing if I am improving',
-    description: 'Progress trends show what is changing.',
+    title: 'Not knowing if I am improving',
   },
   {
     value: 'plateaus',
-    title: '🧱 Getting stuck at the same weights',
-    description: 'AI flags where to adjust.',
-  },
-  {
-    value: 'time',
-    title: '⏱️ Workouts taking too long',
-    description: 'Session length shapes each workout.',
+    title: 'Getting stuck at the same weights',
   },
   {
     value: 'accountability',
-    title: '🔔 Falling off my routine',
-    description: 'Schedule and reminders keep you moving.',
+    title: 'Falling off my routine',
   },
 ];
+
+const VALID_PROGRESS_BLOCKERS = new Set<ProgressBlocker>(OPTIONS.map((option) => option.value));
 
 const CHALLENGE_BY_BLOCKER: Record<ProgressBlocker, 'consistency' | 'plateaus' | 'starting_out' | 'time'> = {
   no_plan: 'starting_out',
@@ -68,7 +60,8 @@ export default function OnboardingProgressBlockerScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive) return;
-      setSelected(state?.progress_blocker ?? null);
+      const storedBlocker = state?.progress_blocker ?? null;
+      setSelected(storedBlocker && VALID_PROGRESS_BLOCKERS.has(storedBlocker) ? storedBlocker : null);
     };
 
     void loadState();
@@ -102,7 +95,7 @@ export default function OnboardingProgressBlockerScreen() {
       step={7}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is the biggest challenge you face in your fitness journey?"
-      subtitle="Pick the one Fortify should help solve first."
+      subtitle={undefined}
       titleNumberOfLines={4}
       onBack={() => router.back()}
       floatingFooter={
@@ -112,7 +105,7 @@ export default function OnboardingProgressBlockerScreen() {
           disabled={isDisabled}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >
@@ -121,7 +114,6 @@ export default function OnboardingProgressBlockerScreen() {
           <OnboardingOptionCard
             key={option.value}
             title={option.title}
-            description={option.description}
             selected={selected === option.value}
             onSelect={() => handleSelect(option.value)}
           />

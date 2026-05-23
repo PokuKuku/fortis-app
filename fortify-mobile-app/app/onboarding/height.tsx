@@ -108,7 +108,7 @@ export default function OnboardingHeightScreen() {
 
   return (
     <OnboardingScreen
-      step={21}
+      step={20}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your height?"
       subtitle="You can update this any time from your profile."
@@ -116,7 +116,7 @@ export default function OnboardingHeightScreen() {
       useScrollView={false}
       footer={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >

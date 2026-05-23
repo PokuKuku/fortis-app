@@ -97,7 +97,7 @@ export default function ActiveWorkoutScreen() {
     },
     emptyTitle: { color: colors.textSecondary },
     emptyDescription: { color: colors.textTertiary },
-    finishButtonText: { color: colors.white },
+    finishButtonText: { color: colors.accentForegroundOnFill },
     addButton: { borderColor: colors.accentBorder },
     addButtonText: { color: colors.accent },
     finishButtonShadow: { shadowColor: colors.accent },
@@ -786,7 +786,7 @@ export default function ActiveWorkoutScreen() {
       </View>
 
       <GlassButton style={[styles.finishButton, themedStyles.finishButtonShadow]} onPress={handleFinishWorkout}>
-        <Text style={styles.finishButtonText}>Finish Workout</Text>
+        <Text style={[styles.finishButtonText, themedStyles.finishButtonText]}>Finish Workout</Text>
       </GlassButton>
     </View>
   );
@@ -1087,7 +1087,6 @@ const styles = StyleSheet.create({
   finishButtonText: {
     fontSize: FINISH_BUTTON_TEXT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
-    color: Colors.white,
     textTransform: 'uppercase',
     letterSpacing: 1,
   },

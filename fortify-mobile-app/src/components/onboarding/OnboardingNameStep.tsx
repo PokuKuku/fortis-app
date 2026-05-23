@@ -86,7 +86,7 @@ export function OnboardingNameStep({ prewarm = false }: OnboardingNameStepProps)
           disabled={isDisabled}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >

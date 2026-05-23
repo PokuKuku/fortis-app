@@ -177,7 +177,6 @@ describe('OnboardingCompleteScreen', () => {
       workout_schedule_days: [1, 3, 5],
       training_environment: 'home',
       muscle_focuses: ['arms', 'shoulders'],
-      program_name: "Kwaku's Program",
     });
   });
 

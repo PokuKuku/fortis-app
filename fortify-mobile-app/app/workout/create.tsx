@@ -124,7 +124,7 @@ export default function CreateWorkoutScreen() {
       borderColor: colors.accentBorder,
     },
     addExercisesText: { color: colors.accent },
-    primaryActionText: { color: colors.white },
+    primaryActionText: { color: colors.accentForegroundOnFill },
     compactStatLabel: { color: colors.textTertiary },
     compactStatValue: { color: colors.accent },
   };
@@ -802,7 +802,7 @@ export default function CreateWorkoutScreen() {
                 disabled={!canSave}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color={colors.white} />
+                  <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
                 ) : (
                   <Text
                     style={[

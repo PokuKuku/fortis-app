@@ -372,7 +372,7 @@ export default function ExerciseDetailsScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.primaryMuscleTag}
                   >
-                    <Text style={[styles.primaryMuscleTagText, { color: colors.white }]}>
+                    <Text style={[styles.primaryMuscleTagText, { color: colors.accentForegroundOnFill }]}>
                       {getMuscleDisplayName(muscle as MuscleKey)}
                     </Text>
                   </LinearGradient>
@@ -408,7 +408,7 @@ export default function ExerciseDetailsScreen() {
                       end={{ x: 1, y: 1 }}
                       style={styles.instructionNumber}
                     >
-                      <Text style={[styles.instructionNumberText, { color: colors.white }]}>{index + 1}</Text>
+                      <Text style={[styles.instructionNumberText, { color: colors.accentForegroundOnFill }]}>{index + 1}</Text>
                     </LinearGradient>
                     <Text style={[styles.instructionText, themedStyles.instructionText]}>
                       {stripInstructionPrefix(instruction)}

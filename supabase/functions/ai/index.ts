@@ -663,6 +663,36 @@ function extractWorkoutEquipment(message: string): string[] {
   return Array.from(equipment);
 }
 
+type TrainingEnvironment = AIBaseContext['user']['trainingEnvironment'];
+
+function getDefaultEquipmentForTrainingEnvironment(environment: TrainingEnvironment): string[] {
+  if (environment === 'home') {
+    return ['body only', 'dumbbell', 'bands', 'kettlebells'];
+  }
+  return [];
+}
+
+function getWorkoutEquipmentPreferences(message: string, environment: TrainingEnvironment): string[] {
+  const explicitEquipment = extractWorkoutEquipment(message);
+  return explicitEquipment.length > 0
+    ? explicitEquipment
+    : getDefaultEquipmentForTrainingEnvironment(environment);
+}
+
+function equipmentAllowedForTrainingEnvironment(
+  entry: WorkoutGenerationExerciseCatalogEntry,
+  environment: TrainingEnvironment,
+  hasExplicitEquipment: boolean
+): boolean {
+  if (hasExplicitEquipment || environment !== 'home') {
+    return true;
+  }
+
+  return ['bodyweight', 'dumbbell', 'band', 'kettlebell'].includes(
+    normalizeEquipmentValue(entry.equipment)
+  );
+}
+
 function isOnboardingProgramRequest(request: AIRequest): boolean {
   return !!request.context?.onboardingProgramSpec;
 }
@@ -1233,6 +1263,7 @@ async function assembleContext(
         isTemplateEdit ? 'edit-targeted' : 'targeted',
         extractWorkoutTargetMuscles(request.message).join(','),
         extractWorkoutEquipment(request.message).join(','),
+        context.user.trainingEnvironment ?? 'default',
         request.context?.currentWorkoutTemplateDraft?.focus ?? 'none',
         request.context?.currentWorkoutTemplateDraft?.exercises
           ?.map((exercise) => exercise.exerciseId)
@@ -1246,7 +1277,9 @@ async function assembleContext(
             request.context.currentWorkoutTemplateDraft,
             parsedTemplateEdit
           )
-        : fetchWorkoutExerciseCatalog(supabase, request.message)
+        : fetchWorkoutExerciseCatalog(supabase, request.message, {
+            trainingEnvironment: context.user.trainingEnvironment,
+          })
     );
     if (!isTemplateEdit) {
       context.workoutPlan = buildWorkoutGenerationPlan(request.message);
@@ -1308,10 +1341,14 @@ async function fetchWorkoutExerciseCatalog(
   message: string,
   options: {
     broadSearch?: boolean;
+    trainingEnvironment?: TrainingEnvironment;
   } = {}
 ): Promise<WorkoutGenerationExerciseCatalogEntry[]> {
   const targetMuscles = extractWorkoutTargetMuscles(message);
-  const equipmentPreferences = extractWorkoutEquipment(message);
+  const equipmentPreferences = getWorkoutEquipmentPreferences(
+    message,
+    options.trainingEnvironment ?? null
+  );
   const catalog = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
 
   const addRows = (rows: WorkoutExerciseCatalogRow[] | null | undefined) => {
@@ -1401,7 +1438,17 @@ async function fetchWorkoutExerciseCatalog(
     await loadRows({ limit: 100 });
   }
 
-  return Array.from(catalog.values()).slice(0, 80);
+  const values = Array.from(catalog.values());
+  if (!requestHasExplicitEquipment(message) && options.trainingEnvironment === 'home') {
+    const homeValues = values.filter((entry) =>
+      equipmentAllowedForTrainingEnvironment(entry, 'home', false)
+    );
+    if (homeValues.length >= 8) {
+      return homeValues.slice(0, 80);
+    }
+  }
+
+  return values.slice(0, 80);
 }
 
 async function fetchWorkoutEditExerciseCatalog(
@@ -2212,8 +2259,10 @@ function buildAnswerPrompt(
 - Build exactly one single-session workout template, not a multi-day program.
 - Make the workout coherent: compounds before isolations, 4-10 exercises, or the explicit exercise count when the user asks for one, plus sensible set/rep schemes and realistic rest times.
 - Prefer exercises that match the requested body part, equipment, and experience level.
+- Use the user's training environment for equipment assumptions when no equipment is specified: gym means full gym, home means bodyweight/dumbbells/bands/kettlebells, hybrid means gym-quality choices unless the user asks for home. If training environment is unknown, assume full gym.
+- For normal single-session workout requests, infer reasonable defaults and generate the workout. Do not ask follow-up questions for routine missing details like equipment, duration, exercise count, sets, or reps.
 - Use WORKOUT STRUCTURE TO FILL when present: select one exercise per slot in order, keep the prescribed sets/reps/rest unless the user requested otherwise, and avoid near-duplicate movement patterns.
-- For broad requests without equipment constraints, assume a full gym and use realistic staples across available equipment.
+- For broad requests without equipment constraints and no known training environment, assume a full gym and use realistic staples across available equipment.
 - Prefer standard canonical/curated exercises over obscure variants. Avoid assisted, beginner, Smith-machine, rehab, stretching, and cardio variants unless the user asks for them.
 - Do not invent exercise IDs, names, or equipment.
 - Do not include exercise notes.
@@ -2241,7 +2290,8 @@ ${workoutTemplateGuidance}
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
 - Timezone: ${context.user.timezone}
-- Training experience: ${context.user.trainingExperience ?? 'unknown'}`;
+- Training experience: ${context.user.trainingExperience ?? 'unknown'}
+- Training environment: ${context.user.trainingEnvironment ?? 'unknown'}`;
 
     return `${basePrompt}
 
@@ -2313,9 +2363,8 @@ ${FORTIS_VOICE_GUIDANCE}
 - TRAINING HISTORY and ANALYTICS are provided for normal chat; use them when relevant.
 - Do not say you lack training data if TRAINING HISTORY or ANALYTICS are present.
 - For consistency, habit, streak, momentum, or adherence questions, infer the best timeframe from available history instead of asking the user to clarify. Use the current week when it has meaningful activity; otherwise use the last 4 weeks/month. State the timeframe you used.
-- If the user asks to create a workout template, respond with a structured outline in chat (do not save anything).
-- Ask at most two short questions only when required to build a reasonable outline. Prioritize: goal/body part and days per week.
-- If workout-template details are missing, ask the questions first instead of guessing.
+- If the user asks to create a workout template, infer reasonable defaults and generate it instead of asking for routine missing details.
+- Ask a follow-up only when the request is genuinely impossible or unsafe to answer without one.
 - For analysis/advice prompts, ask follow-up questions only when answering would be misleading without more information.
 - If you ask a follow-up question, keep it short and focused.
 ${workoutTemplateGuidance}
@@ -2336,7 +2385,8 @@ TEMPLATE OUTLINE FORMAT (when asked to create a template):
 USER PREFERENCES:
 - Units: ${context.user.preferredUnits}
 - Timezone: ${context.user.timezone}
-- Training experience: ${context.user.trainingExperience ?? 'unknown'}${insightGuidance}`;
+- Training experience: ${context.user.trainingExperience ?? 'unknown'}
+- Training environment: ${context.user.trainingEnvironment ?? 'unknown'}${insightGuidance}`;
 
   return `${basePrompt}
 
@@ -4409,7 +4459,8 @@ function scoreSlotCandidate(
   entry: WorkoutGenerationExerciseCatalogEntry,
   slot: WorkoutGenerationSlot,
   message: string,
-  selected: WorkoutGenerationExerciseCatalogEntry[]
+  selected: WorkoutGenerationExerciseCatalogEntry[],
+  trainingEnvironment: TrainingEnvironment
 ): number {
   const explicitEquipment = normalizeRequestedEquipment(message);
   const variantAllowed = isVariantAllowedByRequest(message);
@@ -4430,6 +4481,10 @@ function scoreSlotCandidate(
   }
 
   if (explicitEquipment.length > 0 && !equipmentMatches(entry, explicitEquipment)) {
+    return Number.NEGATIVE_INFINITY;
+  }
+
+  if (!equipmentAllowedForTrainingEnvironment(entry, trainingEnvironment, explicitEquipment.length > 0)) {
     return Number.NEGATIVE_INFINITY;
   }
 
@@ -4513,7 +4568,9 @@ function buildFallbackWorkoutTemplate(
   }
 
   const targetMuscles = extractWorkoutTargetMuscles(message);
-  const equipmentPreferences = extractWorkoutEquipment(message).map(normalizeEquipmentValue);
+  const trainingEnvironment = context.user.trainingEnvironment;
+  const equipmentPreferences = getWorkoutEquipmentPreferences(message, trainingEnvironment)
+    .map(normalizeEquipmentValue);
   const explicitEquipment = normalizeRequestedEquipment(message);
   const focus = inferWorkoutFocusLabel(message);
   const plan = context.workoutPlan ?? buildWorkoutGenerationPlan(message);
@@ -4528,7 +4585,7 @@ function buildFallbackWorkoutTemplate(
     const rankedForSlot = [...catalog]
       .map((entry) => ({
         entry,
-        score: scoreSlotCandidate(entry, slot, message, selected),
+        score: scoreSlotCandidate(entry, slot, message, selected, trainingEnvironment),
       }))
       .filter((item) => Number.isFinite(item.score) && item.score > 0)
       .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
@@ -4559,6 +4616,7 @@ function buildFallbackWorkoutTemplate(
       if (selected.length >= targetExerciseCount) break;
       if (seenFallbackGroups.has(getCanonicalGroup(entry))) continue;
       if (explicitEquipment.length > 0 && !equipmentMatches(entry, explicitEquipment)) continue;
+      if (!equipmentAllowedForTrainingEnvironment(entry, trainingEnvironment, explicitEquipment.length > 0)) continue;
       if (!isVariantAllowedByRequest(message) && isAssistedOrRegressionVariant(entry)) continue;
       if (isLowValueWorkoutVariant(entry)) continue;
       selected.push(entry);

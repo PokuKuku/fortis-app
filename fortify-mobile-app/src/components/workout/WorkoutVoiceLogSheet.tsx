@@ -945,7 +945,7 @@ export function WorkoutVoiceLogSheet({
                         end={{ x: 1, y: 1 }}
                         style={StyleSheet.absoluteFillObject}
                       />
-                      <ArrowPathIcon size={24} color={Colors.white} strokeWidth={2.4} />
+                      <ArrowPathIcon size={24} color={colors.accentForegroundOnFill} strokeWidth={2.4} />
                     </Pressable>
                   ) : (
                     <Pressable
@@ -964,7 +964,7 @@ export function WorkoutVoiceLogSheet({
                         end={{ x: 1, y: 1 }}
                         style={StyleSheet.absoluteFillObject}
                       />
-                      <MicrophoneIcon size={24} color={Colors.white} strokeWidth={2.4} />
+                      <MicrophoneIcon size={24} color={colors.accentForegroundOnFill} strokeWidth={2.4} />
                     </Pressable>
                   )}
                 </View>

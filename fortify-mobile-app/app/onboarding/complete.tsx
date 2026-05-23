@@ -871,6 +871,9 @@ export default function OnboardingCompleteScreen() {
       if (typeof state?.workouts_per_week === 'number' && shouldSetNumber(profile?.workouts_per_week)) {
         updates.workouts_per_week = state.workouts_per_week;
       }
+      if (state?.training_environment && !profile?.training_environment) {
+        updates.training_environment = state.training_environment;
+      }
       if (state?.tried_other_apps && !profile?.tried_other_apps) {
         updates.tried_other_apps = state.tried_other_apps;
       }
@@ -1040,7 +1043,7 @@ export default function OnboardingCompleteScreen() {
             disabled={isSaving}
             hapticFeedback="impactMedium"
           >
-            <Text allowFontScaling={false} style={[styles.continueButtonText, { color: colors.white }]}>
+            <Text allowFontScaling={false} style={[styles.continueButtonText, { color: colors.accentForegroundOnFill }]}>
               {isSaving ? 'Starting...' : "I'm ready"}
             </Text>
           </GlassButton>

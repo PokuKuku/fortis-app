@@ -144,7 +144,7 @@ export default function OnboardingThankYouScreen() {
 
   return (
     <OnboardingScreen
-      step={24}
+      step={23}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       subtitle={undefined}
@@ -156,7 +156,7 @@ export default function OnboardingThankYouScreen() {
       contentGap={Spacing.lg}
       floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
-          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
+          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>
             Continue
           </Text>
         </GlassButton>

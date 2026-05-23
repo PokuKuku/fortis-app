@@ -71,7 +71,7 @@ export default function OnboardingNotificationsScreen() {
 
   return (
     <OnboardingScreen
-      step={27}
+      step={26}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle
@@ -82,7 +82,7 @@ export default function OnboardingNotificationsScreen() {
       contentGap={Spacing.xl}
       floatingFooter={
         <GlassButton style={styles.button} onPress={finish} hapticFeedback="impactMedium">
-          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.white }]}>
+          <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>
             Next
           </Text>
         </GlassButton>
@@ -120,7 +120,7 @@ export default function OnboardingNotificationsScreen() {
               onPress={() => void handleAllow()}
               style={[styles.promptButton, styles.promptButtonPrimary, { backgroundColor: colors.accent }]}
             >
-              <Text allowFontScaling={false} style={[styles.promptButtonText, { color: colors.white }]}>
+              <Text allowFontScaling={false} style={[styles.promptButtonText, { color: colors.accentForegroundOnFill }]}>
                 Allow
               </Text>
             </Pressable>

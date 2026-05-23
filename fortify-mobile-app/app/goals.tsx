@@ -209,9 +209,9 @@ export default function GoalsScreen() {
                   disabled={isSavingWeight}
                 >
                   {isSavingWeight ? (
-                    <ActivityIndicator color={colors.white} size="small" />
+                    <ActivityIndicator color={colors.accentForegroundOnFill} size="small" />
                   ) : (
-                    <Text style={styles.primaryButtonText}>Save</Text>
+                    <Text style={[styles.primaryButtonText, { color: colors.accentForegroundOnFill }]}>Save</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -346,7 +346,6 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     ...Typography.button,
-    color: Colors.white,
   },
   emptyState: {
     padding: Spacing.xl,

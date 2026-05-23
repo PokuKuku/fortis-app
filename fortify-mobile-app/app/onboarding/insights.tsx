@@ -144,7 +144,7 @@ export default function OnboardingInsightsScreen() {
             onPress={handleContinue}
             hapticFeedback="impactMedium"
           >
-            <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+            <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
           </GlassButton>
         </View>
       }

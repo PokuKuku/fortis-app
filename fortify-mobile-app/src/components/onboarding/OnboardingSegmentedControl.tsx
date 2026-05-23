@@ -49,12 +49,14 @@ export function OnboardingSegmentedControl({
             onPress={() => handlePress(option.value)}
           >
             <Text
-              style={{
-                color: isSelected ? colors.textPrimary : colors.textSecondary,
-                fontFamily: 'BankGothicBT-Medium',
-                letterSpacing: moderateScale(1),
-                fontSize: moderateScale(14),
-              }}
+              style={[
+                styles.segmentLabel,
+                {
+                  color: isSelected ? colors.textPrimary : colors.textSecondary,
+                  letterSpacing: moderateScale(1),
+                  fontSize: moderateScale(14),
+                },
+              ]}
             >
               {option.label}
             </Text>
@@ -79,6 +81,11 @@ const styles = StyleSheet.create({
     paddingVertical: scale(Spacing.sm),
     borderWidth: 1,
     borderColor: 'transparent',
+  },
+  segmentLabel: {
+    width: '100%',
+    fontFamily: 'BankGothicBT-Medium',
+    textAlign: 'center',
   },
   segmentLeft: {
     borderTopLeftRadius: BorderRadius.full,

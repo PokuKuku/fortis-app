@@ -476,7 +476,7 @@ export function TimerSettingsModal({
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
                 />
-                <Text style={styles.saveButtonText}>
+                <Text style={[styles.saveButtonText, { color: colors.accentForegroundOnFill }]}>
                   {isDisabled ? 'DISABLE TIMER' : 'SAVE & CLOSE'}
                 </Text>
               </Pressable>
@@ -761,7 +761,6 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: FontSizes.base,
     fontFamily: 'BankGothicBT-Medium',
-    color: Colors.white,
     letterSpacing: 1.5,
   },
   buttonPressed: {

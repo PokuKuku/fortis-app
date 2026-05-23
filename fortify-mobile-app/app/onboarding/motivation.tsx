@@ -22,10 +22,10 @@ type Motivation =
   | 'discipline';
 
 const OPTIONS: Array<{ value: Motivation; title: string }> = [
-  { value: 'self_confidence', title: '🏆 Build confidence' },
-  { value: 'daily_energy', title: '⚡ Improve daily energy' },
-  { value: 'discipline', title: '🎯 Stay disciplined' },
-  { value: 'strength_capability', title: '🧠 Sharpen my mindset' },
+  { value: 'self_confidence', title: 'Build confidence' },
+  { value: 'daily_energy', title: 'Improve daily energy' },
+  { value: 'discipline', title: 'Stay disciplined' },
+  { value: 'strength_capability', title: 'Sharpen my mindset' },
 ];
 
 const VALID_MOTIVATIONS = new Set<Motivation>(OPTIONS.map((option) => option.value));
@@ -108,7 +108,7 @@ export default function OnboardingMotivationScreen() {
           disabled={isDisabled}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >

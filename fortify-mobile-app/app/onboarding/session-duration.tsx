@@ -103,11 +103,11 @@ export default function OnboardingSessionDurationScreen() {
       step={15}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="How much time are you able to spend per session?"
-      subtitle="We’ll shape each workout around this."
+      subtitle={undefined}
       onBack={() => router.back()}
       footer={
         <GlassButton style={styles.button} onPress={() => void handleContinue()} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >

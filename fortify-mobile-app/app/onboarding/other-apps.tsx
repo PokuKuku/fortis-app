@@ -16,10 +16,10 @@ import {
 type TriedApps = 'consistent' | 'occasionally' | 'stopped' | 'never';
 
 const OPTIONS: Array<{ value: TriedApps; title: string }> = [
-  { value: 'consistent', title: '✅ Yes, consistently' },
-  { value: 'occasionally', title: '🔄 Occasionally' },
-  { value: 'stopped', title: "⏸️ I've tried but stopped" },
-  { value: 'never', title: '🆕 Never' },
+  { value: 'consistent', title: 'Yes, consistently' },
+  { value: 'occasionally', title: 'Occasionally' },
+  { value: 'stopped', title: "I've tried but stopped" },
+  { value: 'never', title: 'Never' },
 ];
 
 export default function OnboardingOtherAppsScreen() {
@@ -72,7 +72,7 @@ export default function OnboardingOtherAppsScreen() {
             onPress={handleContinue}
             hapticFeedback="impactMedium"
           >
-            <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+            <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
           </GlassButton>
         ) : null
       }

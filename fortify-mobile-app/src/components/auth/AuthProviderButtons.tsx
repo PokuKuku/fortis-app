@@ -37,7 +37,7 @@ export function AuthProviderButtons({
     },
     oauthButtonText: { color: isDark ? colors.white : colors.textPrimary },
     dividerText: { color: colors.textSecondary },
-    emailButtonText: { color: colors.white },
+    emailButtonText: { color: colors.accentForegroundOnFill },
   };
 
   return (
@@ -165,7 +165,6 @@ const styles = StyleSheet.create({
   },
   emailButtonText: {
     ...Typography.button,
-    color: Colors.white,
     fontSize: 15,
   },
 });

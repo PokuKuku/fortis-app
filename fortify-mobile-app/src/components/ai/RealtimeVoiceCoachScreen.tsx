@@ -71,6 +71,41 @@ const sanitizeVoiceCoachError = (message: string | null | undefined): string | n
   return trimmed;
 };
 
+const TYPEWRITER_INTERVAL_MS = 18;
+const MAX_TRANSCRIPT_WINDOW_CHARS = 72;
+
+const formatTranscriptText = (text: string): string => {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+
+  const hasUppercaseLetter = /[A-Z]/.test(normalized);
+  const cased = hasUppercaseLetter
+    ? normalized
+    : normalized
+        .replace(/(^|[.!?]\s+)([a-z])/g, (_, prefix: string, letter: string) => `${prefix}${letter.toUpperCase()}`)
+        .replace(/\bi\b/g, 'I')
+        .replace(/\bi(['’]m|['’]ve|['’]ll|['’]d)\b/g, (_, suffix: string) => `I${suffix}`);
+
+  return cased;
+};
+
+const getFreshTranscriptWindow = (text: string): string => {
+  if (text.length <= MAX_TRANSCRIPT_WINDOW_CHARS) return text;
+
+  const words = text.split(' ');
+  const windowWords: string[] = [];
+
+  for (let index = words.length - 1; index >= 0; index -= 1) {
+    const candidate = [words[index], ...windowWords].join(' ');
+    if (candidate.length > MAX_TRANSCRIPT_WINDOW_CHARS && windowWords.length > 0) {
+      break;
+    }
+    windowWords.unshift(words[index]);
+  }
+
+  return windowWords.join(' ') || text.slice(-MAX_TRANSCRIPT_WINDOW_CHARS).trim();
+};
+
 export function RealtimeVoiceCoachScreen({
   phase,
   error,
@@ -93,10 +128,17 @@ export function RealtimeVoiceCoachScreen({
   const { colors } = useTheme();
   const { height } = useWindowDimensions();
   const [visibleTranscript, setVisibleTranscript] = useState<RealtimeTranscriptOverlay | null>(transcriptOverlay);
+  const [displayedTranscriptText, setDisplayedTranscriptText] = useState('');
   const transcriptOpacity = useRef(new Animated.Value(transcriptOverlay ? 1 : 0)).current;
-  const heroMinHeight = Math.max(500, Math.min(650, height - 230));
-  const heroLift = Math.max(76, Math.min(118, height * 0.12));
+  const typewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typewriterTextRef = useRef('');
+  const heroMinHeight = Math.max(620, height - 160);
   const talkButtonBottom = Math.max(28, Math.min(44, height * 0.044));
+  const visualizerTop = Math.max(168, Math.min(246, height * 0.25));
+  const middleSlotFrame = {
+    top: visualizerTop + 156 + Spacing.lg,
+    bottom: talkButtonBottom + 120,
+  };
   const transcriptColor = visibleTranscript?.speaker === 'coach'
     ? colors.accent
     : colors.textPrimary;
@@ -107,11 +149,15 @@ export function RealtimeVoiceCoachScreen({
     : 0;
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
-  const shouldShowDebugStatus = isActive
+  const hasVoiceCards = voiceWorkoutMessages.length > 0;
+  const hasMiddleContent = Boolean(visibleTranscript || displayError || displayTemplateSaveError || hasVoiceCards);
+  const shouldShowDebugStatus = !hasMiddleContent && (
+    isActive
     || phase === 'error'
     || debugStatus.microphoneChunksSent > 0
     || debugStatus.serverMessagesReceived > 0
-    || Boolean(debugStatus.lastSocketClose);
+    || Boolean(debugStatus.lastSocketClose)
+  );
   const debugText = [
     `phase:${phase}`,
     `ws:${debugStatus.socketOpened ? 'open' : 'no'}`,
@@ -129,6 +175,52 @@ export function RealtimeVoiceCoachScreen({
     `out:${Math.max(0, Math.min(1, coachAudioLevel)).toFixed(2)}`,
     debugStatus.lastSocketClose ? `close:${debugStatus.lastSocketClose}` : null,
   ].filter(Boolean).join(' ');
+
+  useEffect(() => () => {
+    if (typewriterTimeoutRef.current) {
+      clearTimeout(typewriterTimeoutRef.current);
+      typewriterTimeoutRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!transcriptOverlay) {
+      if (typewriterTimeoutRef.current) {
+        clearTimeout(typewriterTimeoutRef.current);
+        typewriterTimeoutRef.current = null;
+      }
+      typewriterTextRef.current = '';
+      setDisplayedTranscriptText('');
+      return;
+    }
+
+    const targetText = getFreshTranscriptWindow(formatTranscriptText(transcriptOverlay.text));
+    const existingText = typewriterTextRef.current;
+    const shouldContinue = targetText.startsWith(existingText) && existingText.length > 0;
+    const startingText = shouldContinue ? existingText : '';
+    typewriterTextRef.current = startingText;
+    setDisplayedTranscriptText(startingText);
+
+    if (typewriterTimeoutRef.current) {
+      clearTimeout(typewriterTimeoutRef.current);
+      typewriterTimeoutRef.current = null;
+    }
+
+    const step = () => {
+      const current = typewriterTextRef.current;
+      if (current.length >= targetText.length) {
+        typewriterTimeoutRef.current = null;
+        return;
+      }
+
+      const next = targetText.slice(0, current.length + 1);
+      typewriterTextRef.current = next;
+      setDisplayedTranscriptText(next);
+      typewriterTimeoutRef.current = setTimeout(step, TYPEWRITER_INTERVAL_MS);
+    };
+
+    typewriterTimeoutRef.current = setTimeout(step, TYPEWRITER_INTERVAL_MS);
+  }, [transcriptOverlay]);
 
   useEffect(() => {
     if (transcriptOverlay) {
@@ -158,22 +250,63 @@ export function RealtimeVoiceCoachScreen({
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <View style={[styles.hero, { minHeight: heroMinHeight, paddingBottom: heroLift }]}>
-        <DumbbellVoiceVisualizer phase={phase} coachAudioLevel={coachAudioLevel} />
-        <View style={styles.transcriptSlot} pointerEvents="none">
+      <View style={[styles.hero, { minHeight: heroMinHeight }]}>
+        <View style={[styles.visualizerAnchor, { top: visualizerTop }]}>
+          <DumbbellVoiceVisualizer phase={phase} coachAudioLevel={coachAudioLevel} />
+        </View>
+
+        <View
+          style={[
+            styles.betweenSlot,
+            middleSlotFrame,
+            { justifyContent: hasVoiceCards ? 'flex-start' : 'center' },
+          ]}
+        >
           {visibleTranscript ? (
-            <Animated.Text style={[styles.transcript, { color: transcriptColor, opacity: transcriptOpacity }]}>
-              {visibleTranscript.text}
-            </Animated.Text>
+            <View style={styles.transcriptSlot} pointerEvents="none">
+              <Animated.Text
+                allowFontScaling={false}
+                numberOfLines={2}
+                ellipsizeMode="clip"
+                style={[styles.transcript, { color: transcriptColor, opacity: transcriptOpacity }]}
+              >
+                {displayedTranscriptText}
+              </Animated.Text>
+            </View>
+          ) : null}
+          {displayError ? <Text style={styles.error}>{displayError}</Text> : null}
+          {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
+          {voiceWorkoutMessages.length > 0 ? (
+            <ScrollView
+              style={styles.voiceCardScroll}
+              contentContainerStyle={styles.workoutSection}
+              nestedScrollEnabled
+              showsVerticalScrollIndicator={false}
+            >
+              {voiceWorkoutMessages.map((message) => {
+                const conversationMessage = asConversationMessage(message);
+                return (
+                  <ChatWorkoutTemplateCard
+                    key={message.id}
+                    template={message.workoutTemplate}
+                    onView={() => onViewWorkoutTemplate(conversationMessage)}
+                    onAdd={() => onAddWorkoutTemplate(conversationMessage)}
+                    onStart={() => onStartWorkoutTemplate(conversationMessage)}
+                    isAdding={savingWorkoutMessageId === message.id}
+                    isAdded={Boolean(message.savedWorkoutTemplateId)}
+                    isStarting={startingWorkoutMessageId === message.id}
+                    isStartDisabled={isWorkoutActive}
+                  />
+                );
+              })}
+            </ScrollView>
+          ) : null}
+          {shouldShowDebugStatus ? (
+            <Text style={[styles.debugText, { color: colors.textTertiary }]}>
+              {debugText}
+            </Text>
           ) : null}
         </View>
-        {displayError ? <Text style={styles.error}>{displayError}</Text> : null}
-        {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
-        {shouldShowDebugStatus ? (
-          <Text style={[styles.debugText, { color: colors.textTertiary }]}>
-            {debugText}
-          </Text>
-        ) : null}
 
         {[0, 1, 2].map((index) => (
           <View
@@ -224,27 +357,6 @@ export function RealtimeVoiceCoachScreen({
           />
         </TouchableOpacity>
       </View>
-
-      {voiceWorkoutMessages.length > 0 ? (
-        <View style={styles.workoutSection}>
-          {voiceWorkoutMessages.map((message) => {
-            const conversationMessage = asConversationMessage(message);
-            return (
-              <ChatWorkoutTemplateCard
-                key={message.id}
-                template={message.workoutTemplate}
-                onView={() => onViewWorkoutTemplate(conversationMessage)}
-                onAdd={() => onAddWorkoutTemplate(conversationMessage)}
-                onStart={() => onStartWorkoutTemplate(conversationMessage)}
-                isAdding={savingWorkoutMessageId === message.id}
-                isAdded={Boolean(message.savedWorkoutTemplateId)}
-                isStarting={startingWorkoutMessageId === message.id}
-                isStartDisabled={isWorkoutActive}
-              />
-            );
-          })}
-        </View>
-      ) : null}
     </ScrollView>
   );
 }
@@ -262,19 +374,38 @@ const styles = StyleSheet.create({
   },
   hero: {
     flex: 1,
+    position: 'relative',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.xl,
+    justifyContent: 'flex-start',
     paddingTop: 0,
   },
+  visualizerAnchor: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  betweenSlot: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    width: '100%',
+    alignSelf: 'stretch',
+    gap: Spacing.sm,
+    overflow: 'hidden',
+  },
   transcript: {
-    ...Typography.body,
+    ...Typography.h4,
     textAlign: 'center',
-    lineHeight: 24,
+    lineHeight: 30,
     paddingHorizontal: Spacing.md,
+    textTransform: 'none',
+    maxHeight: 60,
+    overflow: 'hidden',
   },
   transcriptSlot: {
-    minHeight: 56,
+    minHeight: 60,
     justifyContent: 'center',
     width: '100%',
   },
@@ -308,7 +439,12 @@ const styles = StyleSheet.create({
     height: 78,
     borderRadius: BorderRadius.full,
   },
+  voiceCardScroll: {
+    width: '100%',
+    flex: 1,
+  },
   workoutSection: {
     gap: Spacing.md,
+    paddingBottom: Spacing.xs,
   },
 });

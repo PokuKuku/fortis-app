@@ -197,7 +197,7 @@ export function SaveAsTemplateModal({
                     onPress={handleSave}
                     disabled={isSaving || !templateName.trim()}
                   >
-                    <Text style={styles.saveButtonText}>
+                    <Text style={[styles.saveButtonText, { color: colors.accentForegroundOnFill }]}>
                       {isSaving ? 'Saving...' : 'Save Template'}
                     </Text>
                   </GlassButton>
@@ -331,7 +331,6 @@ const styles = StyleSheet.create({
   saveButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#fff',
   },
   // Success State
   successContainer: {

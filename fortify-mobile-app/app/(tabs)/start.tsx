@@ -39,7 +39,7 @@ export default function StartScreen() {
             gradientColors={colors.contrastGradient as unknown as string[]}
             onPress={handleOpenAIChat}
           >
-            <Text style={[styles.buttonText, { color: colors.white }]}>Open AI Chat</Text>
+            <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Open AI Chat</Text>
           </GlassButton>
         </View>
       </SafeAreaView>

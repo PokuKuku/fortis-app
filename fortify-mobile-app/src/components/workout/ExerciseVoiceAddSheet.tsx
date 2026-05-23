@@ -1108,9 +1108,9 @@ export function ExerciseVoiceAddSheet({
                           style={StyleSheet.absoluteFillObject}
                         />
                         {hasRetryState ? (
-                          <ArrowPathIcon size={24} color={Colors.white} strokeWidth={2.4} />
+                          <ArrowPathIcon size={24} color={colors.accentForegroundOnFill} strokeWidth={2.4} />
                         ) : (
-                          <MicrophoneIcon size={24} color={Colors.white} strokeWidth={2.4} />
+                          <MicrophoneIcon size={24} color={colors.accentForegroundOnFill} strokeWidth={2.4} />
                         )}
                       </Pressable>
                     )}

@@ -123,7 +123,7 @@ export default function OnboardingBirthdateScreen() {
 
   return (
     <OnboardingScreen
-      step={20}
+      step={19}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="When were you born?"
       subtitle={undefined}
@@ -136,7 +136,7 @@ export default function OnboardingBirthdateScreen() {
           onPress={handleContinue}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >

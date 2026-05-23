@@ -129,6 +129,16 @@ const resolveGoalPace = (value?: OnboardingState['goal_pace']): GoalPace => {
   return DEFAULT_GOAL_PACE;
 };
 
+export const deriveOnboardingFirstName = (fullName?: string | null): string | null => {
+  const firstName = fullName?.trim().split(/\s+/)[0];
+  return firstName || null;
+};
+
+export const buildDefaultOnboardingProgramName = (fullName?: string | null): string => {
+  const firstName = deriveOnboardingFirstName(fullName);
+  return firstName ? `${firstName}'s program` : 'Your program';
+};
+
 const resolveFitnessPriorities = (values?: OnboardingState['fitness_priorities']): FitnessPriority[] => {
   const valid = new Set<FitnessPriority>([
     'strength',
@@ -152,8 +162,10 @@ export function buildOnboardingProgramSpec(state: OnboardingState | null | undef
   const fitnessPriorities = resolveFitnessPriorities(state?.fitness_priorities);
   const sessionDurationMinutes = resolveSessionDurationMinutes(state?.session_duration_minutes);
   const goalPace = resolveGoalPace(state?.goal_pace);
+  const userName = state?.full_name?.trim() || null;
+  const programName = state?.program_name?.trim() || buildDefaultOnboardingProgramName(userName);
   const payloadForHash = JSON.stringify({
-    programName: state?.program_name?.trim() || null,
+    programName,
     trainingEnvironment,
     muscleFocuses,
     fitnessPriorities,
@@ -172,8 +184,8 @@ export function buildOnboardingProgramSpec(state: OnboardingState | null | undef
     createdAt: now,
     updatedAt: now,
     generatedProgramId: null,
-    userName: state?.full_name?.trim() || null,
-    programName: state?.program_name?.trim() || null,
+    userName,
+    programName,
     trainingEnvironment,
     muscleFocuses,
     primaryMuscleFocus: muscleFocuses[0] ?? null,
@@ -191,10 +203,10 @@ export function buildOnboardingProgramSpec(state: OnboardingState | null | undef
 
 export const resolveOnboardingProgramName = (
   spec: Pick<OnboardingProgramSpec, 'programName' | 'userName'>,
-  fallbackName?: string | null
+  _fallbackName?: string | null
 ) => {
-  const firstName = spec.userName?.split(/\s+/)[0];
-  return spec.programName?.trim() || fallbackName?.trim() || (firstName ? `${firstName}'s Program` : 'Your Program');
+  void _fallbackName;
+  return spec.programName?.trim() || buildDefaultOnboardingProgramName(spec.userName);
 };
 
 const chooseStandardSplitNames = (workoutsPerWeek: number): string[] => {

@@ -21,6 +21,7 @@ export interface AIUserContext {
   timezone: string;
   goals: unknown[];
   trainingExperience: string | null;
+  trainingEnvironment: 'gym' | 'home' | 'hybrid' | null;
   latestBodyWeight: {
     weight: number;
     unit: string;
@@ -40,6 +41,10 @@ export function compactJson(value: unknown): string {
 
 export function buildCacheKey(...parts: Array<string | number | boolean | null | undefined>): string {
   return parts.map((part) => (part === undefined || part === null ? 'na' : String(part))).join('|');
+}
+
+function normalizeTrainingEnvironment(value: unknown): AIUserContext['trainingEnvironment'] {
+  return value === 'gym' || value === 'home' || value === 'hybrid' ? value : null;
 }
 
 function getCachedValue<T>(key: string): { hit: boolean; value?: T } {
@@ -106,6 +111,7 @@ export async function fetchAIUserContext(
     timezone: prefs.timezone || 'UTC',
     goals: Array.isArray(prefs.goals) ? prefs.goals : [],
     trainingExperience: typeof prefs.lifting_experience === 'string' ? prefs.lifting_experience : null,
+    trainingEnvironment: normalizeTrainingEnvironment(prefs.training_environment),
     latestBodyWeight: latestWeight,
   };
 }

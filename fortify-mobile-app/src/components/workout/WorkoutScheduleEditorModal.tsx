@@ -86,7 +86,7 @@ export function WorkoutScheduleEditorModal({
               <Text
                 style={[
                   styles.dayText,
-                  { color: selected ? colors.white : colors.textPrimary },
+                  { color: selected ? colors.accentForegroundOnFill : colors.textPrimary },
                 ]}
               >
                 {label}

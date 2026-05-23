@@ -274,7 +274,7 @@ export default function OnboardingWelcomeScreen() {
             onPress={handleStart}
             hapticFeedback="impactMedium"
           >
-            <Text style={[styles.buttonText, { color: colors.white }]}>Get started</Text>
+            <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Get started</Text>
           </GlassButton>
 
           <View style={styles.signInRow}>

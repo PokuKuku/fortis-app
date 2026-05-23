@@ -99,8 +99,8 @@ export function WorkoutDetailModal({
         onPress={handleStart}
       >
         <View style={styles.startButtonContent}>
-          <PlayIcon color={Colors.white} size={20} strokeWidth={2.5} />
-          <Text style={styles.startButtonText}>Start Workout</Text>
+          <PlayIcon color={colors.accentForegroundOnFill} size={20} strokeWidth={2.5} />
+          <Text style={[styles.startButtonText, { color: colors.accentForegroundOnFill }]}>Start Workout</Text>
         </View>
       </GlassButton>
     </BaseModal>
@@ -153,6 +153,5 @@ const styles = StyleSheet.create({
   startButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-    color: Colors.white,
   },
 });

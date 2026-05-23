@@ -124,7 +124,7 @@ export default function OnboardingGenderScreen() {
           disabled={!selected}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >

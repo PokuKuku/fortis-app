@@ -64,7 +64,7 @@ export function RestTimerCompleteModal({
 
                 {/* Button */}
                 <GlassButton style={styles.button} onPress={onDismiss}>
-                  <Text style={styles.buttonText}>Let's Go</Text>
+                  <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Let's Go</Text>
                 </GlassButton>
               </View>
             </Pressable>
@@ -136,6 +136,5 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: '#fff',
   },
 });

@@ -16,10 +16,10 @@ import {
 type Challenge = 'consistency' | 'plateaus' | 'starting_out' | 'time';
 
 const OPTIONS: Array<{ value: Challenge; title: string }> = [
-  { value: 'consistency', title: '📆 Consistency' },
-  { value: 'plateaus', title: '🧱 Plateaus' },
-  { value: 'starting_out', title: '🚀 Starting out' },
-  { value: 'time', title: '⏱️ Time' },
+  { value: 'consistency', title: 'Consistency' },
+  { value: 'plateaus', title: 'Plateaus' },
+  { value: 'starting_out', title: 'Starting out' },
+  { value: 'time', title: 'Time' },
 ];
 
 export default function OnboardingChallengeScreen() {
@@ -92,7 +92,7 @@ export default function OnboardingChallengeScreen() {
           disabled={isDisabled}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >

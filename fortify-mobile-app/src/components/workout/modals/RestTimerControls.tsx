@@ -206,7 +206,12 @@ export function RestTimerControls({ visible, onClose }: RestTimerControlsProps) 
                     {isRunning ? (
                       <PauseIcon size={PLAY_ICON_SIZE} color="#fff" strokeWidth={2.5} />
                     ) : (
-                      <PlayIcon size={PLAY_ICON_SIZE} color="#fff" strokeWidth={2.5} style={{ marginLeft: PLAY_ICON_OFFSET }} />
+                      <PlayIcon
+                        size={PLAY_ICON_SIZE}
+                        color={colors.accentForegroundOnFill}
+                        strokeWidth={2.5}
+                        style={{ marginLeft: PLAY_ICON_OFFSET }}
+                      />
                     )}
                   </Pressable>
                 </View>

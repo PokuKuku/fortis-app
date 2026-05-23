@@ -262,7 +262,7 @@ export function ProfileHeader() {
             </View>
           )}
           <View style={[styles.cameraIconBadge, cameraIconBadgeStyle, { borderColor: colors.background }]}>
-            <CameraIcon color={colors.white} size={12} strokeWidth={2.5} />
+            <CameraIcon color={colors.accentForegroundOnFill} size={12} strokeWidth={2.5} />
           </View>
         </TouchableOpacity>
 

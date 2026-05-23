@@ -107,7 +107,7 @@ export default function ProfileScreen() {
                 style={[styles.signInButton, { backgroundColor: colors.accent }]}
                 onPress={() => router.push('/auth')}
               >
-                <Text style={styles.signInButtonText}>Sign In</Text>
+                <Text style={[styles.signInButtonText, { color: colors.accentForegroundOnFill }]}>Sign In</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -173,7 +173,6 @@ const styles = StyleSheet.create({
   },
   signInButtonText: {
     ...Typography.button,
-    color: '#FFFFFF',
     fontSize: BUTTON_TEXT_SIZE,
     lineHeight: BUTTON_LINE_HEIGHT,
   },

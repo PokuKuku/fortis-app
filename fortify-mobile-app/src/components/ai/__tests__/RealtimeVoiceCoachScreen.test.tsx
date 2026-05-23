@@ -78,9 +78,16 @@ jest.mock('@/src/components/ai/DumbbellVoiceVisualizer', () => ({
   DumbbellVoiceVisualizer: () => null,
 }));
 
-jest.mock('@/src/components/ai/ChatWorkoutTemplateCard', () => ({
-  ChatWorkoutTemplateCard: () => null,
-}));
+jest.mock('@/src/components/ai/ChatWorkoutTemplateCard', () => {
+  const React = require('react');
+  const { Text } = require('react-native');
+
+  return {
+    ChatWorkoutTemplateCard: ({ template }: { template: { name: string } }) => (
+      <Text>{`${template.name} Card`}</Text>
+    ),
+  };
+});
 
 const defaultProps = {
   phase: 'listening' as const,
@@ -111,6 +118,12 @@ const defaultProps = {
 const flattenTextStyle = (node: { props: { style: unknown } }): any =>
   StyleSheet.flatten(node.props.style as Parameters<typeof StyleSheet.flatten>[0]);
 
+const finishTypewriter = () => {
+  act(() => {
+    jest.advanceTimersByTime(1200);
+  });
+};
+
 describe('RealtimeVoiceCoachScreen', () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -136,6 +149,8 @@ describe('RealtimeVoiceCoachScreen', () => {
       />
     );
 
+    finishTypewriter();
+
     expect(flattenTextStyle(getByText('Working text')).color).toBe(mockColors.textPrimary);
   });
 
@@ -147,7 +162,75 @@ describe('RealtimeVoiceCoachScreen', () => {
       />
     );
 
+    finishTypewriter();
+
     expect(flattenTextStyle(getByText('Stay tight.')).color).toBe(mockColors.accent);
+  });
+
+  it('renders transcript text with larger type', () => {
+    const { getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        transcriptOverlay={{ speaker: 'coach', text: 'Stay tight.' }}
+      />
+    );
+
+    finishTypewriter();
+
+    expect(flattenTextStyle(getByText('Stay tight.')).fontSize).toBeGreaterThan(16);
+  });
+
+  it('caps transcript text to a two-line rolling window', () => {
+    const { getByText, queryByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        transcriptOverlay={{
+          speaker: 'coach',
+          text: 'this opening sentence should fall away once the live caption fills two lines and the newest words should remain visible now',
+        }}
+      />
+    );
+
+    finishTypewriter();
+
+    expect(queryByText(/This opening sentence/)).toBeNull();
+    const transcript = getByText(/newest words should remain visible/);
+    expect(transcript.props.numberOfLines).toBe(2);
+    expect(transcript.props.ellipsizeMode).toBe('clip');
+  });
+
+  it('capitalizes all-lowercase transcript text', () => {
+    const { getByText, queryByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        transcriptOverlay={{ speaker: 'user', text: "i need a chest workout. make it hard." }}
+      />
+    );
+
+    finishTypewriter();
+
+    expect(queryByText("i need a chest workout. make it hard.")).toBeNull();
+    expect(getByText("I need a chest workout. Make it hard.")).toBeTruthy();
+  });
+
+  it('types transcript text in progressively', () => {
+    const { getByText, queryByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        transcriptOverlay={{ speaker: 'coach', text: 'Rep one.' }}
+      />
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(18);
+    });
+
+    expect(getByText('R')).toBeTruthy();
+    expect(queryByText('Rep one.')).toBeNull();
+
+    finishTypewriter();
+
+    expect(getByText('Rep one.')).toBeTruthy();
   });
 
   it('removes transcript text after the fade-out completes', () => {
@@ -158,6 +241,7 @@ describe('RealtimeVoiceCoachScreen', () => {
       />
     );
 
+    finishTypewriter();
     expect(getByText('Finishing rep')).toBeTruthy();
 
     rerender(<RealtimeVoiceCoachScreen {...defaultProps} />);
@@ -204,5 +288,33 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(getByText(/micWatch:yes/)).toBeTruthy();
     expect(getByText(/native:voice_processing_unavailable/)).toBeTruthy();
     expect(getByText(/interrupt:began/)).toBeTruthy();
+  });
+
+  it('renders workout cards in the voice screen content', () => {
+    const { getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        voiceWorkoutMessages={[
+          {
+            id: 'voice-card-1',
+            text: 'I made a chest workout.',
+            workoutTemplate: {
+              name: 'Chest Workout',
+              focus: 'Chest',
+              exercises: [
+                {
+                  exerciseId: 'bench-press',
+                  exerciseName: 'Bench Press',
+                  sets: 4,
+                  reps: '6-10',
+                },
+              ],
+            },
+          },
+        ]}
+      />
+    );
+
+    expect(getByText('Chest Workout Card')).toBeTruthy();
   });
 });

@@ -397,7 +397,7 @@ export function CreateWorkoutModal({
                 {isSaving ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
-                  <Text style={styles.saveButtonText}>{saveButtonText}</Text>
+                  <Text style={[styles.saveButtonText, { color: colors.accentForegroundOnFill }]}>{saveButtonText}</Text>
                 )}
               </GlassButton>
             </View>
@@ -506,7 +506,6 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     ...Typography.button,
-    color: '#fff',
   },
   headerDivider: {
     height: StyleSheet.hairlineWidth,

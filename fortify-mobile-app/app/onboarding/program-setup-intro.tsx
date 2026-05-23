@@ -117,7 +117,7 @@ export default function OnboardingProgramSetupIntroScreen() {
             onPress={handleContinue}
             hapticFeedback="impactMedium"
           >
-            <Text style={[styles.buttonText, { color: colors.white }]}>Let&apos;s start!</Text>
+            <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Let&apos;s start!</Text>
           </GlassButton>
         </View>
       }

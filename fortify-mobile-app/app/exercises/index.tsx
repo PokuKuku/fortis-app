@@ -464,7 +464,7 @@ export default function ExercisesScreen() {
                   </Text>
                   {selectedMuscles.includes(muscle) && (
                     <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
-                      <Text style={styles.checkmarkText}>✓</Text>
+                      <Text style={[styles.checkmarkText, { color: colors.accentForegroundOnFill }]}>✓</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -528,7 +528,7 @@ export default function ExercisesScreen() {
                   </Text>
                   {selectedCategories.includes(category) && (
                     <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
-                      <Text style={styles.checkmarkText}>✓</Text>
+                      <Text style={[styles.checkmarkText, { color: colors.accentForegroundOnFill }]}>✓</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -592,7 +592,7 @@ export default function ExercisesScreen() {
                   </Text>
                   {selectedEquipment.includes(equipment) && (
                     <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
-                      <Text style={styles.checkmarkText}>✓</Text>
+                      <Text style={[styles.checkmarkText, { color: colors.accentForegroundOnFill }]}>✓</Text>
                     </View>
                   )}
                 </TouchableOpacity>
@@ -886,7 +886,6 @@ const styles = StyleSheet.create({
     // backgroundColor now applied via inline styles (colors.accent)
   },
   checkmarkText: {
-    color: '#fff',
     fontSize: CHECKMARK_TEXT_SIZE,
     fontWeight: 'bold',
   },

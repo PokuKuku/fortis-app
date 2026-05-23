@@ -323,7 +323,7 @@ export function TemplateNumberPad({
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
                 />
-                <Text style={styles.doneText}>Done</Text>
+                <Text style={[styles.doneText, { color: colors.accentForegroundOnFill }]}>Done</Text>
               </Pressable>
             </View>
           </View>
@@ -450,7 +450,6 @@ const styles = StyleSheet.create({
   doneText: {
     fontSize: 18,
     fontFamily: 'BankGothicBT-Medium',
-    color: '#fff',
     textTransform: 'uppercase',
     zIndex: 10,
   },

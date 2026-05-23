@@ -66,7 +66,7 @@ export default function OnboardingWorkoutScheduleScreen() {
       step={14}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What days do you plan to work out?"
-      subtitle="We’ll use this to show your weekly training progress."
+      subtitle={undefined}
       onBack={() => router.back()}
       footer={
         <GlassButton
@@ -75,7 +75,7 @@ export default function OnboardingWorkoutScheduleScreen() {
           disabled={selectedDays.length === 0}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >
@@ -99,7 +99,7 @@ export default function OnboardingWorkoutScheduleScreen() {
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={[styles.dayText, { color: selected ? colors.white : colors.textPrimary }]}>
+              <Text style={[styles.dayText, { color: selected ? colors.accentForegroundOnFill : colors.textPrimary }]}>
                 {label}
               </Text>
             </Pressable>
@@ -116,6 +116,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: Spacing.md,
     justifyContent: 'center',
+    marginTop: 128,
   },
   dayButton: {
     width: 92,

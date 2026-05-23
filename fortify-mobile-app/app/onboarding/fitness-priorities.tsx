@@ -18,12 +18,12 @@ import {
 type FitnessPriority = 'strength' | 'muscle_growth' | 'fat_loss' | 'conditioning' | 'mobility' | 'consistency';
 type PriorityLevel = 'off' | 'medium' | 'high';
 
-const OPTIONS: Array<{ value: FitnessPriority; icon: string; title: string; description: string }> = [
-  { value: 'strength', icon: '🏋️', title: 'Strength', description: 'Heavier lifts and measurable progression' },
-  { value: 'muscle_growth', icon: '💪', title: 'Muscle Growth', description: 'More hypertrophy-focused training volume' },
-  { value: 'conditioning', icon: '🫀', title: 'Conditioning', description: 'Work capacity and heart-rate challenge' },
-  { value: 'mobility', icon: '🤸', title: 'Mobility', description: 'Movement quality and joint-friendly work' },
-  { value: 'consistency', icon: '📅', title: 'Consistency', description: 'A plan that is easier to repeat' },
+const OPTIONS: Array<{ value: FitnessPriority; title: string; description: string }> = [
+  { value: 'strength', title: 'Strength', description: 'Heavier lifts and measurable progression' },
+  { value: 'muscle_growth', title: 'Muscle Growth', description: 'More hypertrophy-focused training volume' },
+  { value: 'conditioning', title: 'Conditioning', description: 'Work capacity and heart-rate challenge' },
+  { value: 'mobility', title: 'Mobility', description: 'Movement quality and joint-friendly work' },
+  { value: 'consistency', title: 'Consistency', description: 'A plan that is easier to repeat' },
 ];
 
 const VALID_PRIORITIES = new Set<FitnessPriority>(OPTIONS.map((option) => option.value));
@@ -116,7 +116,7 @@ export default function OnboardingFitnessPrioritiesScreen() {
           disabled={isDisabled}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >
@@ -129,9 +129,6 @@ export default function OnboardingFitnessPrioritiesScreen() {
               style={styles.tuningCard}
             >
               <View style={[styles.priorityHeader, isCompactLayout && styles.priorityHeaderCompact]}>
-                <Text style={[styles.priorityIcon, isCompactLayout && styles.priorityIconCompact]}>
-                  {option.icon}
-                </Text>
                 <View style={styles.priorityTextStack}>
                   <Text
                     style={[
@@ -187,16 +184,7 @@ const styles = StyleSheet.create({
     marginBottom: scale(Spacing.sm),
   },
   priorityHeaderCompact: {
-    gap: scale(Spacing.sm),
     marginBottom: scale(Spacing.xs),
-  },
-  priorityIcon: {
-    fontSize: moderateScale(22),
-    lineHeight: moderateScale(28),
-  },
-  priorityIconCompact: {
-    fontSize: moderateScale(20),
-    lineHeight: moderateScale(24),
   },
   priorityTextStack: {
     flex: 1,

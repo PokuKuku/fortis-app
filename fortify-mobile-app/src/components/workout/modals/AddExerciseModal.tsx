@@ -1011,12 +1011,12 @@ export function AddExerciseModal({
               <View style={styles.voiceFooter}>
                 {voicePhase === 'listening' ? (
                   <GlassButton style={styles.voiceActionButton} onPress={() => { void stopVoiceCapture(); }}>
-                    <Text style={styles.addButtonText}>Stop</Text>
+                    <Text style={[styles.addButtonText, { color: colors.accentForegroundOnFill }]}>Stop</Text>
                   </GlassButton>
                 ) : (
                   <GlassButton style={styles.voiceActionButton} onPress={() => { void startVoiceCapture(); }}>
-                    <ArrowPathIcon size={18} color="#fff" strokeWidth={2} />
-                    <Text style={styles.addButtonText}>Redo</Text>
+                    <ArrowPathIcon size={18} color={colors.accentForegroundOnFill} strokeWidth={2} />
+                    <Text style={[styles.addButtonText, { color: colors.accentForegroundOnFill }]}>Redo</Text>
                   </GlassButton>
                 )}
               </View>
@@ -1050,7 +1050,7 @@ export function AddExerciseModal({
           {!replaceMode && selectedExercises.length > 0 && (
             <View style={[styles.addButtonContainer, themedStyles.addButtonContainer]}>
               <GlassButton style={styles.addButton} onPress={handleAddExercises}>
-                <Text style={styles.addButtonText}>
+                <Text style={[styles.addButtonText, { color: colors.accentForegroundOnFill }]}>
                   Add {selectedExercises.length} Exercise{selectedExercises.length > 1 ? 's' : ''}
                 </Text>
               </GlassButton>
@@ -1400,6 +1400,5 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-    color: '#fff',
   },
 });

@@ -70,15 +70,12 @@ export default function OnboardingSixMonthPreviewScreen() {
   const benefitTiles = useMemo<OnboardingValueBenefitTile[]>(() => {
     return [
       {
-        emoji: '💪',
         value: '31%-33%+ increase in strength',
       },
       {
-        emoji: '📈',
         value: '10%-11%+ increase in muscle size',
       },
       {
-        emoji: '⚡',
         value: 'Enhanced metabolic health',
       },
     ];
@@ -145,7 +142,7 @@ export default function OnboardingSixMonthPreviewScreen() {
       primary_challenge: primaryChallenge,
       progress_blocker: state?.progress_blocker ?? null,
     });
-    router.push('/onboarding/program-name');
+    router.push('/onboarding/metrics-intro');
   };
 
   return (
@@ -162,7 +159,7 @@ export default function OnboardingSixMonthPreviewScreen() {
       onBack={() => router.back()}
       floatingFooter={
         <GlassButton style={styles.floatingButton} onPress={handleContinue} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >

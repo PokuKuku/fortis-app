@@ -29,6 +29,7 @@ CREATE TABLE profiles (
   workouts_per_week INTEGER,
   workout_schedule_days SMALLINT[],
   workout_schedule_history JSONB,
+  training_environment TEXT CHECK (training_environment IN ('gym', 'home', 'hybrid')),
   tried_other_apps TEXT,
   fitness_goal TEXT,
   biggest_challenge TEXT,

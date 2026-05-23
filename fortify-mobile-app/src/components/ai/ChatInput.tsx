@@ -367,7 +367,7 @@ export function ChatInput({
             accessibilityRole="button"
           >
             <PaperAirplaneIcon
-              color={canSend ? Colors.white : colors.textTertiary}
+              color={canSend ? colors.accentForegroundOnFill : colors.textTertiary}
               size={IconSizes.md}
             />
           </AnimatedTouchableOpacity>

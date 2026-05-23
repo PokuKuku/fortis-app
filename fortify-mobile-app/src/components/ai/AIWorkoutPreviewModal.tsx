@@ -5,7 +5,6 @@ import { BaseModal } from '@/src/components/ui/BaseModal';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, FontSizes, IconSizes, Spacing } from '@/constants/Sizes';
-import { Colors } from '@/constants/Colors';
 import { HubExerciseRow } from '@/src/components/hub';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -126,7 +125,7 @@ export function AIWorkoutPreviewModal({
       backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
       borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
     },
-    startButtonText: { color: Colors.white },
+    startButtonText: { color: colors.accentForegroundOnFill },
     addButton: {
       backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
       borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
@@ -208,7 +207,7 @@ export function AIWorkoutPreviewModal({
           disabled={isStarting || isAdding || isStartDisabled}
         >
           <View style={styles.addButtonContent}>
-            <PlayIcon color={Colors.white} size={IconSizes.md} strokeWidth={2.2} />
+            <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.md} strokeWidth={2.2} />
             <Text style={[styles.startButtonText, themedStyles.startButtonText]} numberOfLines={1}>
               {isStarting ? 'Starting Workout...' : isStartDisabled ? 'Workout Active' : 'Start Workout'}
             </Text>
@@ -326,7 +325,6 @@ const styles = StyleSheet.create({
   addButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-    color: Colors.white,
     flexShrink: 1,
   },
   startButtonText: {

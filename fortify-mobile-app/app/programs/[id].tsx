@@ -28,12 +28,10 @@ import { WorkoutStackPreview } from '@/src/components/program/WorkoutStackPrevie
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import {
-  buildSundayWeek,
-  getSessionsForDate,
+  getCompletedWeekdaysForProgram,
   WEEKDAY_LABELS,
   WEEKDAY_SHORT_LABELS,
 } from '@/src/utils/workoutSchedule';
-import type { WorkoutSession } from '@/src/types/workout';
 
 // Difficulty badge colors - beginner uses accent from theme
 const getDifficultyColors = (accentOverlay: string, accent: string): Record<string, { bg: string; text: string }> => ({
@@ -203,7 +201,7 @@ function ProgramScheduleRow({
               ]}
             >
               {isComplete ? (
-                <CheckIcon color={colors.white} size={17} strokeWidth={3} />
+                <CheckIcon color={colors.accentForegroundOnFill} size={17} strokeWidth={3} />
               ) : (
                 <Text
                   style={[
@@ -454,11 +452,8 @@ export default function ProgramDetailScreen() {
     }, {});
   }, [orderedWorkouts, scheduleDays]);
   const completedWeekdays = useMemo(() => {
-    const weekDays = buildSundayWeek(new Date());
-    return weekDays
-      .filter((day) => getSessionsForDate(completedSessions as WorkoutSession[], day).length > 0)
-      .map((day) => day.getDay());
-  }, [completedSessions]);
+    return getCompletedWeekdaysForProgram(completedSessions, id, new Date());
+  }, [completedSessions, id]);
 
   const handleSetWorkoutAsNext = useCallback((workout: ProgramWorkout) => {
     if (!id || orderedWorkouts.length === 0) return;
@@ -586,8 +581,8 @@ export default function ProgramDetailScreen() {
             disabled={!isProgressLoaded}
           >
             <View style={styles.startButtonContent}>
-              <PlayIcon color={colors.white} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={[styles.startButtonText, { color: colors.white }]}>Continue Program</Text>
+              <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.lg} strokeWidth={2.5} />
+              <Text style={[styles.startButtonText, { color: colors.accentForegroundOnFill }]}>Continue Program</Text>
             </View>
           </GlassButton>
         </Animated.View>

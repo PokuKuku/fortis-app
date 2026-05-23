@@ -56,11 +56,11 @@ const GOAL_TO_DEFAULT_OUTCOME: Record<FitnessGoal, FitnessOutcome> = {
 };
 
 const OPTIONS: Array<{ value: FitnessOutcome; title: string }> = [
-  { value: 'build_visible_muscle', title: '💪 Build visible muscle' },
-  { value: 'strength_progress', title: '🏋️ Get stronger' },
-  { value: 'improve_conditioning', title: '🫀 Improve conditioning' },
-  { value: 'move_better', title: '🤸 Move better' },
-  { value: 'training_consistency', title: '📅 Train consistently' },
+  { value: 'build_visible_muscle', title: 'Build visible muscle' },
+  { value: 'strength_progress', title: 'Get stronger' },
+  { value: 'improve_conditioning', title: 'Improve conditioning' },
+  { value: 'move_better', title: 'Move better' },
+  { value: 'training_consistency', title: 'Train consistently' },
 ];
 
 const VALID_OUTCOMES = new Set<FitnessOutcome>(Object.keys(OUTCOME_TO_GOAL) as FitnessOutcome[]);
@@ -176,7 +176,7 @@ export default function OnboardingGoalScreen() {
           disabled={isDisabled}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >

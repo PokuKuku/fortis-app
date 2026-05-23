@@ -59,6 +59,7 @@ export function WorkoutCompleteModal({
       borderColor: colors.accent,
     },
     saveTemplateButtonText: { color: colors.accent },
+    doneButtonText: { color: colors.accentForegroundOnFill },
     saveTemplateButtonPressed: {
       backgroundColor: colors.accentOverlay,
     },
@@ -173,7 +174,7 @@ export function WorkoutCompleteModal({
                     </Pressable>
                   )}
                   <GlassButton style={styles.doneButton} onPress={handleConfirm}>
-                    <Text style={styles.doneButtonText}>Done</Text>
+                    <Text style={[styles.doneButtonText, themedStyles.doneButtonText]}>Done</Text>
                   </GlassButton>
                 </View>
               </View>
@@ -297,6 +298,5 @@ const styles = StyleSheet.create({
   doneButtonText: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#fff',
   },
 });

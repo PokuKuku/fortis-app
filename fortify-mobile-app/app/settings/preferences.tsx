@@ -283,7 +283,7 @@ function ReminderTimeDial({
             style={[
               styles.dialMarkText,
               isCompact && styles.dialMarkTextCompact,
-              { color: mark.isSelected ? colors.white : colors.textSecondary },
+              { color: mark.isSelected ? colors.accentForegroundOnFill : colors.textSecondary },
             ]}
           >
             {mark.label}
@@ -891,7 +891,7 @@ export default function SettingsPreferencesScreen() {
                     allowFontScaling={false}
                     style={[
                       styles.dialModeButtonText,
-                      { color: selected ? colors.white : colors.textSecondary },
+                      { color: selected ? colors.accentForegroundOnFill : colors.textSecondary },
                     ]}
                   >
                     {mode === 'hour' ? 'Hour' : 'Minute'}
@@ -932,7 +932,7 @@ export default function SettingsPreferencesScreen() {
                   }}
                   activeOpacity={0.75}
                 >
-                  <Text allowFontScaling={false} style={[styles.periodText, { color: selected ? colors.white : colors.textPrimary }]}>
+                  <Text allowFontScaling={false} style={[styles.periodText, { color: selected ? colors.accentForegroundOnFill : colors.textPrimary }]}>
                     {period}
                   </Text>
                 </TouchableOpacity>

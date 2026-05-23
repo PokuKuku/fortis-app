@@ -171,7 +171,7 @@ export default function OnboardingSourceScreen() {
 
   return (
     <OnboardingScreen
-      step={23}
+      step={22}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Where did you hear about Fortify?"
       subtitle={undefined}
@@ -184,7 +184,7 @@ export default function OnboardingSourceScreen() {
             onPress={handleContinue}
             hapticFeedback="impactMedium"
           >
-            <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+            <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
           </GlassButton>
         ) : null
       }

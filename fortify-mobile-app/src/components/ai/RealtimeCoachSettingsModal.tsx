@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BaseModal } from '@/src/components/ui/BaseModal';
-import { Colors } from '@/constants/Colors';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -127,7 +126,7 @@ export function RealtimeCoachSettingsModal({
                 >
                   <Text style={[
                     styles.optionText,
-                    { color: selected ? Colors.white : colors.textPrimary },
+                    { color: selected ? colors.accentForegroundOnFill : colors.textPrimary },
                   ]}>
                     {COACH_PERSONALITY_LABELS[personality]}
                   </Text>

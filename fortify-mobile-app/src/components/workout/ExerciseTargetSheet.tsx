@@ -19,7 +19,6 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { DEFAULT_TARGET_REPS, parseRepRange } from '@/src/utils/workoutProgression';
@@ -262,7 +261,7 @@ export function ExerciseTargetSheet({
                   end={{ x: 0, y: 1 }}
                   style={StyleSheet.absoluteFillObject}
                 />
-                <Text style={styles.saveText}>Save Target</Text>
+                <Text style={[styles.saveText, { color: colors.accentForegroundOnFill }]}>Save Target</Text>
               </Pressable>
             </View>
           </Animated.View>
@@ -462,7 +461,6 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   saveText: {
-    color: Colors.white,
     fontSize: FontSizes.base,
     fontFamily: 'BankGothicBT-Medium',
     fontWeight: '800',

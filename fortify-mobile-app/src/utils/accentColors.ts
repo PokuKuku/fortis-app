@@ -191,6 +191,7 @@ export function generateAccentThemeColors(colorName: AccentColorName, isDark: bo
     accent: palette.base,
     accentLight: palette.light,
     accentDark: palette.dark,
+    accentForegroundOnFill: colorName === 'slate' ? '#1A1A1A' : '#ffffff',
 
     // Button gradient
     accentGradient: getAccentGradient(colorName, isDark),

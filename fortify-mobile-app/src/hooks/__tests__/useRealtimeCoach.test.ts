@@ -3,6 +3,7 @@ import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
 
 const mockCreateRealtimeCoachSession = jest.fn();
 const mockGenerateVoiceWorkoutTemplate = jest.fn();
+const mockShouldGenerateWorkoutFromVoice = jest.fn((_text?: string) => false);
 const mockSetAudioModeAsync = jest.fn((_mode: unknown) => Promise.resolve());
 const mockInitialize = jest.fn(() => Promise.resolve(true));
 const mockToggleRecording = jest.fn((_value: boolean) => true);
@@ -51,7 +52,7 @@ jest.mock('@/src/services/realtimeCoachService', () => ({
 }));
 
 jest.mock('@/src/utils/realtimeCoach', () => ({
-  shouldGenerateWorkoutFromVoice: () => false,
+  shouldGenerateWorkoutFromVoice: (text: string) => mockShouldGenerateWorkoutFromVoice(text),
 }));
 
 class MockWebSocket {
@@ -128,6 +129,25 @@ describe('useRealtimeCoach', () => {
         }),
       };
     });
+    mockShouldGenerateWorkoutFromVoice.mockReturnValue(false);
+    mockGenerateVoiceWorkoutTemplate.mockResolvedValue({
+      type: 'answer',
+      answer: {
+        text: 'I built a chest workout.',
+        workoutTemplate: {
+          name: 'Chest Workout',
+          focus: 'Chest',
+          exercises: [
+            {
+              exerciseId: 'exercise-1',
+              exerciseName: 'Bench Press',
+              sets: 4,
+              reps: '6-10',
+            },
+          ],
+        },
+      },
+    });
     mockCreateRealtimeCoachSession.mockResolvedValue({
       type: 'session',
       session: {
@@ -171,6 +191,15 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
+  it('configures Gemini so speaker output does not interrupt itself', async () => {
+    const { hook, socket } = await startConnectedSession();
+    const setupMessage = JSON.parse(socket.sentMessages[0]);
+
+    expect(setupMessage.setup.realtimeInputConfig.activityHandling).toBe('NO_INTERRUPTION');
+
+    hook.unmount();
+  });
+
   it('does not show the watchdog error once microphone chunks are emitted', async () => {
     const { hook, socket } = await startConnectedSession();
 
@@ -198,6 +227,54 @@ describe('useRealtimeCoach', () => {
 
     expect(hook.result.current.debugStatus.recordingChange).toBe(true);
     expect(hook.result.current.debugStatus.audioInterruption).toBe('began');
+
+    hook.unmount();
+  });
+
+  it('accumulates transcript chunks into the visible overlay', async () => {
+    const { hook, socket } = await startConnectedSession();
+
+    act(() => {
+      socket.message(JSON.stringify({
+        serverContent: {
+          outputTranscription: { text: 'I built' },
+        },
+      }));
+      socket.message(JSON.stringify({
+        serverContent: {
+          outputTranscription: { text: 'your workout.' },
+        },
+      }));
+    });
+
+    expect(hook.result.current.transcriptOverlay).toEqual({
+      speaker: 'coach',
+      text: 'I built your workout.',
+    });
+
+    hook.unmount();
+  });
+
+  it('generates a workout card from accumulated user transcript chunks', async () => {
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string) => /chest workout/i.test(text ?? ''));
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'make me a' },
+        },
+      }));
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'chest workout' },
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me a chest workout', undefined);
+    expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Chest Workout');
 
     hook.unmount();
   });

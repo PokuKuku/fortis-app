@@ -17,17 +17,17 @@ import type { TrainingEnvironment } from '@/src/utils/onboardingProgram';
 const OPTIONS: Array<{ value: TrainingEnvironment; title: string; description: string }> = [
   {
     value: 'gym',
-    title: '🏋️ Gym',
+    title: 'Gym',
     description: 'Full gym access: barbells, machines, cables, dumbbells.',
   },
   {
     value: 'home',
-    title: '🏠 Home',
+    title: 'Home',
     description: 'Minimal setup: bodyweight, dumbbells, bands, and space to train.',
   },
   {
     value: 'hybrid',
-    title: '🔁 Hybrid',
+    title: 'Hybrid',
     description: 'A mix of gym days and home sessions.',
   },
 ];
@@ -73,7 +73,7 @@ export default function OnboardingTrainingEnvironmentScreen() {
       step={10}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Where will you train most often?"
-      subtitle="This helps Fortify build a program with exercises you can actually do."
+      subtitle="This helps Fortify know what exercises you can actually do."
       onBack={() => router.back()}
       footer={
         <GlassButton
@@ -82,7 +82,7 @@ export default function OnboardingTrainingEnvironmentScreen() {
           disabled={!selected}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >

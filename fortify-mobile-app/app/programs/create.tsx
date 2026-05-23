@@ -127,7 +127,7 @@ export default function CreateProgramScreen() {
     addWorkoutButton: { borderColor: colors.accentBorder },
     addWorkoutText: { color: colors.accent },
     statValue: { color: colors.accent },
-    primaryActionText: { color: colors.white },
+    primaryActionText: { color: colors.accentForegroundOnFill },
     dayBadge: { backgroundColor: colors.accentOverlay },
     dayBadgeText: { color: colors.accent },
     compactStatLabel: { color: colors.textTertiary },
@@ -784,7 +784,7 @@ export default function CreateProgramScreen() {
                 disabled={!canSave}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color={colors.white} />
+                  <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
                 ) : (
                   <Text
                     style={[
@@ -936,7 +936,7 @@ export default function CreateProgramScreen() {
                 {!activeWorkoutId && selectedTemplateIds.length > 0 ? (
                   <View style={[styles.modalActionBar, themedStyles.modalActionBar]}>
                     <GlassButton style={styles.modalAddButton} onPress={handleAddSelectedTemplates}>
-                      <Text style={styles.modalAddButtonText}>
+                      <Text style={[styles.modalAddButtonText, { color: colors.accentForegroundOnFill }]}>
                         Add {selectedTemplateIds.length} Workout{selectedTemplateIds.length > 1 ? 's' : ''}
                       </Text>
                     </GlassButton>
@@ -1496,7 +1496,6 @@ const styles = StyleSheet.create({
   modalAddButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-    color: '#fff',
   },
   bottomActions: {
     paddingTop: Spacing.lg,

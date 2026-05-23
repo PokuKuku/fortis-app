@@ -224,11 +224,11 @@ export default function WorkoutDetailScreen() {
             </Text>
             {replacementTemplateId ? (
               <GlassButton style={styles.notFoundPrimaryButton} onPress={handleOpenReplacement}>
-                <Text style={styles.notFoundPrimaryButtonText}>Open updated workout</Text>
+                <Text style={[styles.notFoundPrimaryButtonText, { color: colors.accentForegroundOnFill }]}>Open updated workout</Text>
               </GlassButton>
             ) : (
               <GlassButton style={styles.notFoundPrimaryButton} onPress={handleGoToPrograms}>
-                <Text style={styles.notFoundPrimaryButtonText}>Back to workouts</Text>
+                <Text style={[styles.notFoundPrimaryButtonText, { color: colors.accentForegroundOnFill }]}>Back to workouts</Text>
               </GlassButton>
             )}
             <Pressable onPress={handleBack} style={styles.notFoundSecondaryAction}>
@@ -286,8 +286,8 @@ export default function WorkoutDetailScreen() {
             onPress={handleStartWorkout}
           >
             <View style={styles.startButtonContent}>
-              <PlayIcon color={Colors.white} size={IconSizes.lg} strokeWidth={2.5} />
-              <Text style={styles.startButtonText}>Start Workout</Text>
+              <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.lg} strokeWidth={2.5} />
+              <Text style={[styles.startButtonText, { color: colors.accentForegroundOnFill }]}>Start Workout</Text>
             </View>
           </GlassButton>
         </Animated.View>
@@ -427,7 +427,6 @@ const styles = StyleSheet.create({
   notFoundPrimaryButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-    color: Colors.white,
   },
   notFoundSecondaryAction: {
     marginTop: Spacing.md,
@@ -471,7 +470,6 @@ const styles = StyleSheet.create({
   startButtonText: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: Colors.white,
   },
   section: {
     marginBottom: Spacing['2xl'],

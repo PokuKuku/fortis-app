@@ -201,6 +201,9 @@ export default function AuthWelcomeScreen() {
             updates.workouts_per_week = state.workouts_per_week;
           }
         }
+        if (state?.training_environment && !profileSnapshot?.training_environment) {
+          updates.training_environment = state.training_environment;
+        }
         if (state?.tried_other_apps && !profileSnapshot?.tried_other_apps) {
           updates.tried_other_apps = state.tried_other_apps;
         }

@@ -135,7 +135,7 @@ export default function OnboardingMetricsIntroScreen() {
 
   return (
     <OnboardingScreen
-      step={19}
+      step={18}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="You’re good to go!"
       subtitle="Now please answer a few quick questions to further tailor your experience."
@@ -144,7 +144,7 @@ export default function OnboardingMetricsIntroScreen() {
       useScrollView={false}
       footer={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >

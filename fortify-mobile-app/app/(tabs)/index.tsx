@@ -426,7 +426,7 @@ function ToastNotification({
           end={{ x: 1, y: 1 }}
           style={styles.toast}
         >
-          <Text style={styles.toastText}>{message}</Text>
+          <Text style={[styles.toastText, { color: colors.accentForegroundOnFill }]}>{message}</Text>
         </LinearGradient>
       </Animated.View>
     </View>
@@ -1529,7 +1529,7 @@ export default function ProgramsScreen() {
                     end={{ x: 1, y: 1 }}
                     style={styles.onboardingProgramPreviewButton}
                   >
-                    <Text style={styles.onboardingProgramPreviewButtonText}>VIEW PROGRAM</Text>
+                    <Text style={[styles.onboardingProgramPreviewButtonText, { color: colors.accentForegroundOnFill }]}>VIEW PROGRAM</Text>
                   </LinearGradient>
                 </View>
               </TouchableOpacity>
@@ -1819,7 +1819,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   onboardingProgramPreviewButtonText: {
-    color: '#FFFFFF',
     fontFamily: 'BankGothicBT-Medium',
     fontSize: ONBOARDING_PREVIEW_BUTTON_TEXT_SIZE,
     letterSpacing: 2,
@@ -2158,7 +2157,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toastText: {
-    color: '#fff',
     fontSize: TOAST_TEXT_SIZE,
     fontWeight: '600',
     textAlign: 'center',

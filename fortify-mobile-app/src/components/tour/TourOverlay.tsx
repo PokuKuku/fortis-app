@@ -205,7 +205,7 @@ export function TourOverlay({
     },
     bodyText: { color: colors.textPrimary },
     highlightBorder: { borderColor: colors.accent },
-    primaryText: { color: colors.white },
+    primaryText: { color: colors.accentForegroundOnFill },
     arrow: { borderTopColor: '#FFFFFF' },
     arrowLine: { backgroundColor: '#FFFFFF' },
   };

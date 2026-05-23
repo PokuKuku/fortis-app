@@ -91,7 +91,7 @@ export default function OnboardingSocialProofScreen() {
 
   return (
     <OnboardingScreen
-      step={25}
+      step={24}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle
@@ -102,7 +102,7 @@ export default function OnboardingSocialProofScreen() {
       contentGap={Spacing.lg}
       floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >

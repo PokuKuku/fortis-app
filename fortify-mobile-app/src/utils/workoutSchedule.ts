@@ -207,6 +207,26 @@ export function getSessionsForDate(
   });
 }
 
+export function getCompletedWeekdaysForProgram(
+  sessions: WorkoutSession[],
+  programId: string | undefined,
+  anchorDate: Date
+): number[] {
+  if (!programId) return [];
+
+  const weekDateKeys = new Set(buildSundayWeek(anchorDate).map(getDateKey));
+  const completedWeekdays = new Set<number>();
+
+  sessions.forEach((session) => {
+    if (!session.completedAt || session.programId !== programId) return;
+    const completedDateKey = getDateKey(session.completedAt);
+    if (!weekDateKeys.has(completedDateKey)) return;
+    completedWeekdays.add(session.completedAt.getDay());
+  });
+
+  return Array.from(completedWeekdays).sort((a, b) => a - b);
+}
+
 export function getWorkoutDayStreak({
   sessions,
   today = new Date(),

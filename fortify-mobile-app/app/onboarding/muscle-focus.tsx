@@ -174,7 +174,7 @@ export default function OnboardingMuscleFocusScreen() {
       step={11}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What areas do you want to focus on?"
-      subtitle="Select all that apply"
+      subtitle={undefined}
       onBack={() => router.back()}
       floatingFooter={
         <GlassButton
@@ -183,19 +183,21 @@ export default function OnboardingMuscleFocusScreen() {
           disabled={isDisabled}
           hapticFeedback="impactMedium"
         >
-          <Text style={[styles.buttonText, { color: colors.white }]}>Next</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
     >
       <View style={styles.options}>
         {OPTIONS.map((option) => (
-          <OnboardingOptionCard
-            key={option.value}
-            title={option.title}
-            leadingAccessory={<MuscleFocusHeatmapIcon option={option} />}
-            selected={selected.includes(option.value)}
-            onSelect={() => handleSelect(option.value)}
-          />
+          <View key={option.value} style={styles.optionTile}>
+            <OnboardingOptionCard
+              title={option.title}
+              leadingAccessory={<MuscleFocusHeatmapIcon option={option} />}
+              selected={selected.includes(option.value)}
+              layout="grid"
+              onSelect={() => handleSelect(option.value)}
+            />
+          </View>
         ))}
       </View>
     </OnboardingScreen>
@@ -204,7 +206,12 @@ export default function OnboardingMuscleFocusScreen() {
 
 const styles = StyleSheet.create({
   options: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
+  },
+  optionTile: {
+    width: '48%',
   },
   heatmapIcon: {
     width: 64,

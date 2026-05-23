@@ -234,6 +234,8 @@ export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const isNavigating = useRef(false);
+  const hasAutoStartedVoiceRef = useRef(false);
+  const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const [inputText, setInputText] = useState('');
   const [mode, setMode] = useState<AIVoiceMode>('voice');
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
@@ -452,6 +454,29 @@ export default function AIChatScreen() {
     await startVoiceCoach();
   }, [startVoiceCoach]);
 
+  useEffect(() => {
+    stopVoiceCoachRef.current = stopVoiceCoach;
+  }, [stopVoiceCoach]);
+
+  useEffect(() => () => {
+    stopVoiceCoachRef.current();
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'voice') {
+      hasAutoStartedVoiceRef.current = false;
+      stopVoiceCoach();
+      return;
+    }
+
+    if (hasAutoStartedVoiceRef.current) {
+      return;
+    }
+
+    hasAutoStartedVoiceRef.current = true;
+    void handleStartVoiceCoach();
+  }, [handleStartVoiceCoach, mode, stopVoiceCoach]);
+
   const handleModeChange = useCallback((nextMode: AIVoiceMode) => {
     if (nextMode === mode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -486,7 +511,7 @@ export default function AIChatScreen() {
                   >
                     <Text style={[
                       styles.modeOptionText,
-                      { color: selected ? Colors.white : colors.textSecondary },
+                      { color: selected ? colors.accentForegroundOnFill : colors.textSecondary },
                     ]}>
                       {item === 'chat' ? 'Chat' : 'Voice'}
                     </Text>

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { CheckIcon } from 'react-native-heroicons/solid';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 
 export type OnboardingValueBenefitTile = {
   value: string;
-  emoji: string;
 };
 
 type ValueMotionPanelProps = {
@@ -92,15 +92,8 @@ export function OnboardingValueMotionPanel({
                 },
               ]}
             >
-              <View
-                style={[
-                  styles.emojiBadge,
-                  { backgroundColor: colors.glassBackground, borderColor: colors.glassBorder },
-                ]}
-              >
-                <Text style={styles.emojiText}>
-                  {tile.emoji}
-                </Text>
+              <View style={[styles.checkBadge, { backgroundColor: colors.accent }]}>
+                <CheckIcon color={colors.accentForegroundOnFill} size={15} />
               </View>
               <View style={styles.benefitCopy}>
                 <Text
@@ -163,18 +156,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     overflow: 'hidden',
   },
-  emojiBadge: {
-    width: 38,
-    height: 38,
+  checkBadge: {
+    width: 28,
+    height: 28,
     borderRadius: BorderRadius.full,
-    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emojiText: {
-    fontSize: 18,
-    lineHeight: 22,
-    textAlign: 'center',
+    flexShrink: 0,
   },
   benefitCopy: {
     flex: 1,

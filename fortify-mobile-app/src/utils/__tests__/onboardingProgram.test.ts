@@ -47,7 +47,7 @@ describe('onboarding program helpers', () => {
 
     expect(spec.trainingEnvironment).toBe('hybrid');
     expect(spec.muscleFocuses).toEqual(['chest', 'back']);
-    expect(preview.name).toBe("Kwaku's Program");
+    expect(preview.name).toBe("Kwaku's program");
     expect(preview.environmentLabel).toBe('Hybrid');
     expect(preview.scheduleLabel).toBe('Mon, Tue, Thu, Sat');
     expect(preview.subtitle).toBe('10-week chest, back focus');
@@ -68,6 +68,15 @@ describe('onboarding program helpers', () => {
 
     expect(buildOnboardingProgramBlueprint(spec).name).toBe('Project Iron');
     expect(resolveOnboardingProgramName(spec, "Kwaku's Program")).toBe('Project Iron');
+  });
+
+  it('falls back to a generic onboarding program name when no first name is available', () => {
+    const spec = buildOnboardingProgramSpec({
+      workouts_per_week: 3,
+    } as OnboardingState);
+
+    expect(buildOnboardingProgramBlueprint(spec).name).toBe('Your program');
+    expect(resolveOnboardingProgramName(spec, 'AI Template Name')).toBe('Your program');
   });
 
   it('uses standard split names for balanced and focused strength plans', () => {
@@ -147,7 +156,7 @@ describe('onboarding program helpers', () => {
     ]);
 
     expect(payload).not.toBeNull();
-    expect(payload?.name).toBe("Jason's Program");
+    expect(payload?.name).toBe("Jason's program");
     expect(payload?.workouts).toHaveLength(2);
     expect(payload?.workouts[0].exercises.length).toBeGreaterThanOrEqual(3);
     expect(payload?.workouts[1].exercises.length).toBeGreaterThanOrEqual(3);

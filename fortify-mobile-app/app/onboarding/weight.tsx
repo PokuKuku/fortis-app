@@ -96,7 +96,7 @@ export default function OnboardingWeightScreen() {
 
   return (
     <OnboardingScreen
-      step={22}
+      step={21}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your weight?"
       subtitle="You can update this any time from your profile."
@@ -104,7 +104,7 @@ export default function OnboardingWeightScreen() {
       useScrollView={false}
       footer={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
-          <Text style={[styles.buttonText, { color: colors.white }]}>Continue</Text>
+          <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>
       }
     >
