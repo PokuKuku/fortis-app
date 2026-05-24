@@ -20,11 +20,11 @@ const OPTIONS: Array<{
 }> = [
   {
     value: 'no_plan',
-    title: 'Not knowing what to do next',
+    title: 'Staying motivated when life gets busy',
   },
   {
     value: 'unclear_progress',
-    title: 'Not knowing if I am improving',
+    title: 'Not knowing what to change',
   },
   {
     value: 'plateaus',
@@ -39,7 +39,7 @@ const OPTIONS: Array<{
 const VALID_PROGRESS_BLOCKERS = new Set<ProgressBlocker>(OPTIONS.map((option) => option.value));
 
 const CHALLENGE_BY_BLOCKER: Record<ProgressBlocker, 'consistency' | 'plateaus' | 'starting_out' | 'time'> = {
-  no_plan: 'starting_out',
+  no_plan: 'consistency',
   unclear_progress: 'plateaus',
   plateaus: 'plateaus',
   time: 'time',

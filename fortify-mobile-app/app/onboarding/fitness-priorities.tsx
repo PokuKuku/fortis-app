@@ -18,12 +18,12 @@ import {
 type FitnessPriority = 'strength' | 'muscle_growth' | 'fat_loss' | 'conditioning' | 'mobility' | 'consistency';
 type PriorityLevel = 'off' | 'medium' | 'high';
 
-const OPTIONS: Array<{ value: FitnessPriority; title: string; description: string }> = [
-  { value: 'strength', title: 'Strength', description: 'Heavier lifts and measurable progression' },
-  { value: 'muscle_growth', title: 'Muscle Growth', description: 'More hypertrophy-focused training volume' },
-  { value: 'conditioning', title: 'Conditioning', description: 'Work capacity and heart-rate challenge' },
-  { value: 'mobility', title: 'Mobility', description: 'Movement quality and joint-friendly work' },
-  { value: 'consistency', title: 'Consistency', description: 'A plan that is easier to repeat' },
+const OPTIONS: Array<{ value: FitnessPriority; title: string }> = [
+  { value: 'strength', title: 'Strength' },
+  { value: 'muscle_growth', title: 'Muscle Growth' },
+  { value: 'conditioning', title: 'Conditioning' },
+  { value: 'mobility', title: 'Mobility' },
+  { value: 'consistency', title: 'Consistency' },
 ];
 
 const VALID_PRIORITIES = new Set<FitnessPriority>(OPTIONS.map((option) => option.value));
@@ -142,16 +142,6 @@ export default function OnboardingFitnessPrioritiesScreen() {
                   >
                     {option.title}
                   </Text>
-                  <Text
-                    numberOfLines={2}
-                    style={[
-                      styles.priorityDescription,
-                      isCompactLayout && styles.priorityDescriptionCompact,
-                      { color: colors.textSecondary },
-                    ]}
-                  >
-                    {option.description}
-                  </Text>
                 </View>
               </View>
               <OnboardingSegmentedControl
@@ -190,22 +180,16 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: scale(Spacing.xs),
+    alignItems: 'center',
   },
   priorityTitle: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(16),
     letterSpacing: moderateScale(1.2),
+    textAlign: 'center',
   },
   priorityTitleCompact: {
     fontSize: moderateScale(15),
-  },
-  priorityDescription: {
-    fontSize: moderateScale(14),
-    lineHeight: moderateScale(19),
-  },
-  priorityDescriptionCompact: {
-    fontSize: moderateScale(13),
-    lineHeight: moderateScale(17),
   },
   button: {
     height: 54,

@@ -81,6 +81,7 @@ function MiniCalendarDay({
   isToday,
   onPress,
   textColor,
+  selectedTextColor,
   todayBorderColor,
   selectedStyles,
 }: {
@@ -89,6 +90,7 @@ function MiniCalendarDay({
   isToday: boolean;
   onPress: () => void;
   textColor: string;
+  selectedTextColor: string;
   todayBorderColor: string;
   selectedStyles: { backgroundColor: string; shadowColor: string };
 }) {
@@ -127,7 +129,7 @@ function MiniCalendarDay({
           style={[
             styles.dayButtonText,
             { color: textColor },
-            isSelected && styles.dayButtonTextSelected,
+            isSelected && [styles.dayButtonTextSelected, { color: selectedTextColor }],
             isToday && !isSelected && styles.dayButtonTextToday,
           ]}
         >
@@ -176,6 +178,7 @@ export function DateSelector({
     },
     dayHeaderText: { color: colors.textTertiary },
     dayText: colors.textPrimary,
+    selectedDayText: colors.accentForegroundOnFill,
     todayBorder: isDark ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.2)',
     dayButtonSelected: {
       backgroundColor: colors.accent,
@@ -433,6 +436,7 @@ export function DateSelector({
                     isToday={isToday(day)}
                     onPress={() => day && handleDayPress(day)}
                     textColor={themedStyles.dayText}
+                    selectedTextColor={themedStyles.selectedDayText}
                     todayBorderColor={themedStyles.todayBorder}
                     selectedStyles={themedStyles.dayButtonSelected}
                   />
@@ -600,7 +604,6 @@ const styles = StyleSheet.create({
     color: '#DFE2E6',
   },
   dayButtonTextSelected: {
-    color: '#1a1a1a',
     fontWeight: '700',
   },
   dayButtonTextToday: {

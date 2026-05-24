@@ -46,6 +46,9 @@ export interface RealtimeCoachDebugStatus {
   audioInterruption?: string;
   micWatchdogTriggered?: boolean;
   nativeAudioFallback?: 'voice_processing_unavailable' | null;
+  pushToTalkActive?: boolean;
+  userTurnMicrophoneChunksSent?: number;
+  userTurnMicrophoneChunksReceived?: number;
 }
 
 export type RealtimeCoachPhase =

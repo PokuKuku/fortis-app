@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   ScrollView,
@@ -31,13 +31,15 @@ interface RealtimeVoiceCoachScreenProps {
   coachAudioLevel: number;
   debugStatus: RealtimeCoachDebugStatus;
   voiceWorkoutMessages: VoiceWorkoutMessage[];
+  isGeneratingVoiceWorkout: boolean;
   savingWorkoutMessageId: string | null;
   startingWorkoutMessageId: string | null;
   isWorkoutActive: boolean;
   isActive: boolean;
+  isUserTurnActive: boolean;
   templateSaveError?: string | null;
-  onStart: () => void;
-  onStop: () => void;
+  onTalkStart: () => void;
+  onTalkEnd: () => void;
   onViewWorkoutTemplate: (message: AIConversationMessage) => void;
   onAddWorkoutTemplate: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate: (message: AIConversationMessage) => void;
@@ -71,178 +73,97 @@ const sanitizeVoiceCoachError = (message: string | null | undefined): string | n
   return trimmed;
 };
 
-const TYPEWRITER_INTERVAL_MS = 18;
-const MAX_TRANSCRIPT_WINDOW_CHARS = 72;
-
-const formatTranscriptText = (text: string): string => {
-  const normalized = text.replace(/\s+/g, ' ').trim();
-  if (!normalized) return '';
-
-  const hasUppercaseLetter = /[A-Z]/.test(normalized);
-  const cased = hasUppercaseLetter
-    ? normalized
-    : normalized
-        .replace(/(^|[.!?]\s+)([a-z])/g, (_, prefix: string, letter: string) => `${prefix}${letter.toUpperCase()}`)
-        .replace(/\bi\b/g, 'I')
-        .replace(/\bi(['’]m|['’]ve|['’]ll|['’]d)\b/g, (_, suffix: string) => `I${suffix}`);
-
-  return cased;
-};
-
-const getFreshTranscriptWindow = (text: string): string => {
-  if (text.length <= MAX_TRANSCRIPT_WINDOW_CHARS) return text;
-
-  const words = text.split(' ');
-  const windowWords: string[] = [];
-
-  for (let index = words.length - 1; index >= 0; index -= 1) {
-    const candidate = [words[index], ...windowWords].join(' ');
-    if (candidate.length > MAX_TRANSCRIPT_WINDOW_CHARS && windowWords.length > 0) {
-      break;
-    }
-    windowWords.unshift(words[index]);
-  }
-
-  return windowWords.join(' ') || text.slice(-MAX_TRANSCRIPT_WINDOW_CHARS).trim();
-};
-
 export function RealtimeVoiceCoachScreen({
   phase,
   error,
-  transcriptOverlay,
+  transcriptOverlay: _transcriptOverlay,
   userAudioLevel,
   coachAudioLevel,
   debugStatus,
   voiceWorkoutMessages,
+  isGeneratingVoiceWorkout,
   savingWorkoutMessageId,
   startingWorkoutMessageId,
   isWorkoutActive,
   isActive,
+  isUserTurnActive,
   templateSaveError,
-  onStart,
-  onStop,
+  onTalkStart,
+  onTalkEnd,
   onViewWorkoutTemplate,
   onAddWorkoutTemplate,
   onStartWorkoutTemplate,
 }: RealtimeVoiceCoachScreenProps) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const { height } = useWindowDimensions();
-  const [visibleTranscript, setVisibleTranscript] = useState<RealtimeTranscriptOverlay | null>(transcriptOverlay);
-  const [displayedTranscriptText, setDisplayedTranscriptText] = useState('');
-  const transcriptOpacity = useRef(new Animated.Value(transcriptOverlay ? 1 : 0)).current;
-  const typewriterTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const typewriterTextRef = useRef('');
+  const voiceCardAnimationsRef = useRef<Record<string, Animated.Value>>({});
+  const animatedVoiceCardIdsRef = useRef<Set<string>>(new Set());
+  const pendingWorkoutCardAnimation = useRef(new Animated.Value(0)).current;
   const heroMinHeight = Math.max(620, height - 160);
   const talkButtonBottom = Math.max(28, Math.min(44, height * 0.044));
   const visualizerTop = Math.max(168, Math.min(246, height * 0.25));
+  const middleSlotBottom = talkButtonBottom + 72;
   const middleSlotFrame = {
     top: visualizerTop + 156 + Spacing.lg,
-    bottom: talkButtonBottom + 120,
+    bottom: middleSlotBottom,
   };
-  const transcriptColor = visibleTranscript?.speaker === 'coach'
-    ? colors.accent
-    : colors.textPrimary;
-  const shouldVisualizeUserAudio = isActive && phase !== 'coach_speaking';
+  const middleSlotHeight = Math.max(96, heroMinHeight - middleSlotFrame.top - middleSlotFrame.bottom);
+  const shouldVisualizeUserAudio = isUserTurnActive && phase !== 'coach_speaking';
+  const isTalkButtonReady = debugStatus.setupComplete && phase !== 'connecting' && phase !== 'error';
   const clampedUserAudioLevel = Math.max(0, Math.min(1, userAudioLevel));
   const normalizedUserLevel = shouldVisualizeUserAudio && clampedUserAudioLevel > 0.01
     ? Math.max(0.08, clampedUserAudioLevel)
     : 0;
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
-  const hasVoiceCards = voiceWorkoutMessages.length > 0;
-  const hasMiddleContent = Boolean(visibleTranscript || displayError || displayTemplateSaveError || hasVoiceCards);
-  const shouldShowDebugStatus = !hasMiddleContent && (
-    isActive
-    || phase === 'error'
-    || debugStatus.microphoneChunksSent > 0
-    || debugStatus.serverMessagesReceived > 0
-    || Boolean(debugStatus.lastSocketClose)
-  );
-  const debugText = [
-    `phase:${phase}`,
-    `ws:${debugStatus.socketOpened ? 'open' : 'no'}`,
-    `setup:${debugStatus.setupComplete ? 'yes' : 'no'}`,
-    `rec:${debugStatus.recordingStarted ? 'yes' : 'no'}`,
-    typeof debugStatus.recordingChange === 'boolean' ? `nativeRec:${debugStatus.recordingChange ? 'yes' : 'no'}` : null,
-    `mic:${debugStatus.microphoneChunksSent}`,
-    debugStatus.lastMicrophoneChunkBytes ? `bytes:${debugStatus.lastMicrophoneChunkBytes}` : null,
-    debugStatus.micWatchdogTriggered ? 'micWatch:yes' : null,
-    debugStatus.nativeAudioFallback ? `native:${debugStatus.nativeAudioFallback}` : null,
-    debugStatus.audioInterruption ? `interrupt:${debugStatus.audioInterruption}` : null,
-    `srv:${debugStatus.serverMessagesReceived}`,
-    debugStatus.lastServerMessageType ? `last:${debugStatus.lastServerMessageType}` : null,
-    `in:${clampedUserAudioLevel.toFixed(2)}`,
-    `out:${Math.max(0, Math.min(1, coachAudioLevel)).toFixed(2)}`,
-    debugStatus.lastSocketClose ? `close:${debugStatus.lastSocketClose}` : null,
-  ].filter(Boolean).join(' ');
+  const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
+  const pendingWorkoutCardStyle = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)',
+  };
 
-  useEffect(() => () => {
-    if (typewriterTimeoutRef.current) {
-      clearTimeout(typewriterTimeoutRef.current);
-      typewriterTimeoutRef.current = null;
+  const getVoiceCardAnimation = (messageId: string): Animated.Value => {
+    if (!voiceCardAnimationsRef.current[messageId]) {
+      voiceCardAnimationsRef.current[messageId] = new Animated.Value(0);
     }
-  }, []);
+    return voiceCardAnimationsRef.current[messageId];
+  };
 
   useEffect(() => {
-    if (!transcriptOverlay) {
-      if (typewriterTimeoutRef.current) {
-        clearTimeout(typewriterTimeoutRef.current);
-        typewriterTimeoutRef.current = null;
-      }
-      typewriterTextRef.current = '';
-      setDisplayedTranscriptText('');
-      return;
-    }
-
-    const targetText = getFreshTranscriptWindow(formatTranscriptText(transcriptOverlay.text));
-    const existingText = typewriterTextRef.current;
-    const shouldContinue = targetText.startsWith(existingText) && existingText.length > 0;
-    const startingText = shouldContinue ? existingText : '';
-    typewriterTextRef.current = startingText;
-    setDisplayedTranscriptText(startingText);
-
-    if (typewriterTimeoutRef.current) {
-      clearTimeout(typewriterTimeoutRef.current);
-      typewriterTimeoutRef.current = null;
-    }
-
-    const step = () => {
-      const current = typewriterTextRef.current;
-      if (current.length >= targetText.length) {
-        typewriterTimeoutRef.current = null;
-        return;
-      }
-
-      const next = targetText.slice(0, current.length + 1);
-      typewriterTextRef.current = next;
-      setDisplayedTranscriptText(next);
-      typewriterTimeoutRef.current = setTimeout(step, TYPEWRITER_INTERVAL_MS);
-    };
-
-    typewriterTimeoutRef.current = setTimeout(step, TYPEWRITER_INTERVAL_MS);
-  }, [transcriptOverlay]);
-
-  useEffect(() => {
-    if (transcriptOverlay) {
-      setVisibleTranscript(transcriptOverlay);
-      Animated.timing(transcriptOpacity, {
-        toValue: 1,
-        duration: 120,
-        useNativeDriver: true,
-      }).start();
-      return;
-    }
-
-    Animated.timing(transcriptOpacity, {
-      toValue: 0,
-      duration: 220,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (finished) {
-        setVisibleTranscript(null);
+    const currentMessageIds = new Set(voiceWorkoutMessages.map((message) => message.id));
+    Object.keys(voiceCardAnimationsRef.current).forEach((messageId) => {
+      if (!currentMessageIds.has(messageId)) {
+        delete voiceCardAnimationsRef.current[messageId];
+        animatedVoiceCardIdsRef.current.delete(messageId);
       }
     });
-  }, [transcriptOpacity, transcriptOverlay]);
+
+    voiceWorkoutMessages.forEach((message) => {
+      const cardAnimation = getVoiceCardAnimation(message.id);
+      if (animatedVoiceCardIdsRef.current.has(message.id)) return;
+      animatedVoiceCardIdsRef.current.add(message.id);
+      Animated.spring(cardAnimation, {
+        toValue: 1,
+        friction: 7,
+        tension: 115,
+        useNativeDriver: true,
+      }).start();
+    });
+  }, [voiceWorkoutMessages]);
+
+  useEffect(() => {
+    if (!isGeneratingVoiceWorkout) {
+      pendingWorkoutCardAnimation.setValue(0);
+      return;
+    }
+
+    Animated.spring(pendingWorkoutCardAnimation, {
+      toValue: 1,
+      friction: 7,
+      tension: 115,
+      useNativeDriver: true,
+    }).start();
+  }, [isGeneratingVoiceWorkout, pendingWorkoutCardAnimation]);
 
   return (
     <ScrollView
@@ -256,55 +177,100 @@ export function RealtimeVoiceCoachScreen({
         </View>
 
         <View
+          testID="voice-middle-content-slot"
           style={[
             styles.betweenSlot,
             middleSlotFrame,
+            { height: middleSlotHeight },
             { justifyContent: hasVoiceCards ? 'flex-start' : 'center' },
           ]}
         >
-          {visibleTranscript ? (
-            <View style={styles.transcriptSlot} pointerEvents="none">
-              <Animated.Text
-                allowFontScaling={false}
-                numberOfLines={2}
-                ellipsizeMode="clip"
-                style={[styles.transcript, { color: transcriptColor, opacity: transcriptOpacity }]}
-              >
-                {displayedTranscriptText}
-              </Animated.Text>
-            </View>
-          ) : null}
           {displayError ? <Text style={styles.error}>{displayError}</Text> : null}
           {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
-          {voiceWorkoutMessages.length > 0 ? (
+          {hasVoiceCards ? (
             <ScrollView
-              style={styles.voiceCardScroll}
+              testID="voice-card-scroll"
+              style={[styles.voiceCardScroll, { maxHeight: middleSlotHeight }]}
               contentContainerStyle={styles.workoutSection}
               nestedScrollEnabled
               showsVerticalScrollIndicator={false}
             >
+              {isGeneratingVoiceWorkout ? (
+                <Animated.View
+                  testID="voice-workout-loading-card"
+                  style={[
+                    styles.voiceCardShell,
+                    {
+                      opacity: pendingWorkoutCardAnimation,
+                      transform: [
+                        {
+                          translateY: pendingWorkoutCardAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [14, 0],
+                          }),
+                        },
+                        {
+                          scale: pendingWorkoutCardAnimation.interpolate({
+                            inputRange: [0, 0.7, 1],
+                            outputRange: [0.96, 1.02, 1],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <View style={[styles.pendingWorkoutCard, pendingWorkoutCardStyle]}>
+                    <Text style={[styles.pendingWorkoutTitle, { color: colors.textPrimary }]}>
+                      Building Workout
+                    </Text>
+                    <Text style={[styles.pendingWorkoutMeta, { color: colors.textSecondary }]}>
+                      Coming up...
+                    </Text>
+                  </View>
+                </Animated.View>
+              ) : null}
               {voiceWorkoutMessages.map((message) => {
                 const conversationMessage = asConversationMessage(message);
+                const cardAnimation = getVoiceCardAnimation(message.id);
                 return (
-                  <ChatWorkoutTemplateCard
+                  <Animated.View
                     key={message.id}
-                    template={message.workoutTemplate}
-                    onView={() => onViewWorkoutTemplate(conversationMessage)}
-                    onAdd={() => onAddWorkoutTemplate(conversationMessage)}
-                    onStart={() => onStartWorkoutTemplate(conversationMessage)}
-                    isAdding={savingWorkoutMessageId === message.id}
-                    isAdded={Boolean(message.savedWorkoutTemplateId)}
-                    isStarting={startingWorkoutMessageId === message.id}
-                    isStartDisabled={isWorkoutActive}
-                  />
+                    testID={`voice-card-shell-${message.id}`}
+                    style={[
+                      styles.voiceCardShell,
+                      {
+                        opacity: cardAnimation,
+                        transform: [
+                          {
+                            translateY: cardAnimation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [14, 0],
+                            }),
+                          },
+                          {
+                            scale: cardAnimation.interpolate({
+                              inputRange: [0, 0.7, 1],
+                              outputRange: [0.96, 1.02, 1],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <ChatWorkoutTemplateCard
+                      template={message.workoutTemplate}
+                      onView={() => onViewWorkoutTemplate(conversationMessage)}
+                      onAdd={() => onAddWorkoutTemplate(conversationMessage)}
+                      onStart={() => onStartWorkoutTemplate(conversationMessage)}
+                      isAdding={savingWorkoutMessageId === message.id}
+                      isAdded={Boolean(message.savedWorkoutTemplateId)}
+                      isStarting={startingWorkoutMessageId === message.id}
+                      isStartDisabled={isWorkoutActive}
+                    />
+                  </Animated.View>
                 );
               })}
             </ScrollView>
-          ) : null}
-          {shouldShowDebugStatus ? (
-            <Text style={[styles.debugText, { color: colors.textTertiary }]}>
-              {debugText}
-            </Text>
           ) : null}
         </View>
 
@@ -331,20 +297,27 @@ export function RealtimeVoiceCoachScreen({
             {
               borderColor: colors.accent,
               bottom: talkButtonBottom,
+              opacity: isTalkButtonReady ? 1 : 0.38,
               transform: [{ scale: 1 + normalizedUserLevel * 0.06 }],
             },
           ]}
           onPress={() => {
+            // Press-and-hold uses press-in/out; onPress is intentionally inert.
+          }}
+          onPressIn={() => {
+            if (!isTalkButtonReady) return;
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            if (isActive) {
-              onStop();
-            } else {
-              onStart();
-            }
+            onTalkStart();
+          }}
+          onPressOut={() => {
+            if (!isTalkButtonReady) return;
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onTalkEnd();
           }}
           activeOpacity={0.84}
           accessibilityRole="button"
-          accessibilityLabel={isActive ? 'Stop Voice Coach' : 'Start Voice Coach'}
+          accessibilityLabel="Hold to talk to Voice Coach"
+          accessibilityState={{ disabled: !isTalkButtonReady }}
         >
           <View
             style={[
@@ -388,37 +361,16 @@ const styles = StyleSheet.create({
   },
   betweenSlot: {
     position: 'absolute',
-    left: 0,
-    right: 0,
-    width: '100%',
+    left: -Spacing.sm,
+    right: -Spacing.sm,
     alignSelf: 'stretch',
     gap: Spacing.sm,
-    overflow: 'hidden',
-  },
-  transcript: {
-    ...Typography.h4,
-    textAlign: 'center',
-    lineHeight: 30,
-    paddingHorizontal: Spacing.md,
-    textTransform: 'none',
-    maxHeight: 60,
-    overflow: 'hidden',
-  },
-  transcriptSlot: {
-    minHeight: 60,
-    justifyContent: 'center',
-    width: '100%',
+    overflow: 'visible',
   },
   error: {
     ...Typography.bodySmall,
     color: Colors.error,
     textAlign: 'center',
-  },
-  debugText: {
-    ...Typography.caption,
-    textAlign: 'center',
-    lineHeight: 16,
-    paddingHorizontal: Spacing.sm,
   },
   talkButtonRing: {
     position: 'absolute',
@@ -443,8 +395,27 @@ const styles = StyleSheet.create({
     width: '100%',
     flex: 1,
   },
+  voiceCardShell: {
+    width: '100%',
+  },
+  pendingWorkoutCard: {
+    width: '100%',
+    borderRadius: BorderRadius.xl,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    gap: Spacing.xs,
+  },
+  pendingWorkoutTitle: {
+    ...Typography.h4,
+  },
+  pendingWorkoutMeta: {
+    ...Typography.bodySmall,
+  },
   workoutSection: {
     gap: Spacing.md,
-    paddingBottom: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.md,
+    paddingBottom: Spacing['2xl'],
   },
 });

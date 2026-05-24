@@ -8,12 +8,36 @@ import {
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
 
-export const shouldGenerateWorkoutFromVoice = (text: string): boolean => {
+const WORKOUT_EDIT_REGEX =
+  /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
+
+const WORKOUT_RESIZE_REGEXES = [
+  /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
+  /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b[\s\S]{0,30}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
+  /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
+];
+
+export const shouldGenerateWorkoutFromVoice = (text: string, hasCurrentWorkoutDraft = false): boolean => {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
 
-  return /\b(make|create|build|generate|design|write|plan|give me|need|want)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i.test(normalized)
-    || /\b(full body|upper body|lower body|push|pull|legs|chest|back|shoulders|arms|core)\b[\s\S]{0,60}\b(workout|routine|session|template)\b/i.test(normalized);
+  if (/\b(didn['’]?t|do not|don['’]?t|not|never|stop|cancel)\b[\s\S]{0,60}\b(workout|routine|session|template)\b/i.test(normalized)) {
+    return false;
+  }
+
+  if (/\b(i['’]?ll|i will|i can|let me|i am|i['’]?m)\b[\s\S]{0,60}\b(build|make|create|generate|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i.test(normalized)) {
+    return false;
+  }
+
+  if (hasCurrentWorkoutDraft && (
+    WORKOUT_EDIT_REGEX.test(normalized)
+    || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized))
+  )) {
+    return true;
+  }
+
+  return /\b(make|create|build|generate|design|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i.test(normalized)
+    || /\bgive me\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i.test(normalized);
 };
 
 export const normalizeRealtimeCoachPhase = (value: unknown): RealtimeCoachPhase =>

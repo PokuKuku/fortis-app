@@ -249,8 +249,7 @@ export default function AuthWelcomeScreen() {
 
         await withTimeout(
           clearInAppTourState()
-            .then(() => clearOnboardingState())
-            .then(() => clearPendingOnboardingAuthCompletion()),
+            .then(() => clearOnboardingState()),
           ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
           'Clearing onboarding and tour state',
         );

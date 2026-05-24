@@ -112,6 +112,11 @@ const WORKOUT_GENERATION_REGEX =
   /\b(?:(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workout|routine|session|template)\b/i;
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
+const WORKOUT_RESIZE_REGEXES = [
+  /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
+  /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b[\s\S]{0,30}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
+  /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
+];
 
 
 // Animated sparkles for loading indicator
@@ -172,7 +177,11 @@ const inferIntentFromMessage = (message: string): AIIntent => {
     return 'GENERAL_CHAT';
   }
 
-  if (WORKOUT_GENERATION_REGEX.test(normalized) || WORKOUT_EDIT_REGEX.test(normalized)) {
+  if (
+    WORKOUT_GENERATION_REGEX.test(normalized)
+    || WORKOUT_EDIT_REGEX.test(normalized)
+    || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized))
+  ) {
     return 'GENERAL_CHAT';
   }
 
@@ -196,7 +205,8 @@ const shouldAttachWorkoutDraft = (message: string): boolean => {
     return false;
   }
 
-  return WORKOUT_EDIT_REGEX.test(normalized);
+  return WORKOUT_EDIT_REGEX.test(normalized)
+    || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized));
 };
 
 const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
@@ -287,9 +297,13 @@ export default function AIChatScreen() {
     coachAudioLevel,
     debugStatus,
     voiceWorkoutMessages,
+    isGeneratingVoiceWorkout,
     isActive: isVoiceActive,
+    isUserTurnActive,
     start: startVoiceCoach,
     stop: stopVoiceCoach,
+    beginUserTurn,
+    endUserTurn,
     markVoiceWorkoutSaved,
   } = useRealtimeCoach({
     preferences: realtimePreferences,
@@ -550,13 +564,22 @@ export default function AIChatScreen() {
             coachAudioLevel={coachAudioLevel}
             debugStatus={debugStatus}
             voiceWorkoutMessages={voiceWorkoutMessages}
+            isGeneratingVoiceWorkout={isGeneratingVoiceWorkout}
             savingWorkoutMessageId={voiceWorkoutActions.savingWorkoutMessageId}
             startingWorkoutMessageId={voiceWorkoutActions.startingWorkoutMessageId}
             isWorkoutActive={voiceWorkoutActions.isWorkoutActive}
             isActive={isVoiceActive}
+            isUserTurnActive={isUserTurnActive}
             templateSaveError={voiceWorkoutActions.templateSaveError}
-            onStart={handleStartVoiceCoach}
-            onStop={stopVoiceCoach}
+            onTalkStart={() => {
+              void (async () => {
+                if (!isVoiceActive) {
+                  await handleStartVoiceCoach();
+                }
+                await beginUserTurn();
+              })();
+            }}
+            onTalkEnd={endUserTurn}
             onViewWorkoutTemplate={voiceWorkoutActions.handleViewWorkoutTemplate}
             onAddWorkoutTemplate={voiceWorkoutActions.handleAddWorkoutTemplate}
             onStartWorkoutTemplate={voiceWorkoutActions.handleStartWorkoutTemplate}

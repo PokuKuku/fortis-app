@@ -166,7 +166,7 @@ export default function OnboardingMuscleFocusScreen() {
       muscle_focuses: selected.join(', '),
       muscle_focus: selected[0] ?? null,
     });
-    router.push('/onboarding/fitness-priorities');
+    router.push('/onboarding/consistency');
   };
 
   return (
@@ -188,17 +188,20 @@ export default function OnboardingMuscleFocusScreen() {
       }
     >
       <View style={styles.options}>
-        {OPTIONS.map((option) => (
-          <View key={option.value} style={styles.optionTile}>
-            <OnboardingOptionCard
-              title={option.title}
-              leadingAccessory={<MuscleFocusHeatmapIcon option={option} />}
-              selected={selected.includes(option.value)}
-              layout="grid"
-              onSelect={() => handleSelect(option.value)}
-            />
-          </View>
-        ))}
+        {OPTIONS.map((option, index) => {
+          const isLastOddTile = OPTIONS.length % 2 === 1 && index === OPTIONS.length - 1;
+          return (
+            <View key={option.value} style={[styles.optionTile, isLastOddTile && styles.centeredOptionTile]}>
+              <OnboardingOptionCard
+                title={option.title}
+                leadingAccessory={<MuscleFocusHeatmapIcon option={option} />}
+                selected={selected.includes(option.value)}
+                layout="grid"
+                onSelect={() => handleSelect(option.value)}
+              />
+            </View>
+          );
+        })}
       </View>
     </OnboardingScreen>
   );
@@ -212,6 +215,9 @@ const styles = StyleSheet.create({
   },
   optionTile: {
     width: '48%',
+  },
+  centeredOptionTile: {
+    marginLeft: '26%',
   },
   heatmapIcon: {
     width: 64,

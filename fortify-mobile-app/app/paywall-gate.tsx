@@ -14,7 +14,10 @@ import {
   loadPendingOnboardingConversionContext,
   type OnboardingConversionContext,
 } from '@/src/utils/onboardingConversion';
-import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
+import {
+  clearPendingOnboardingAuthCompletion,
+  usePendingOnboardingAuthCompletion,
+} from '@/src/utils/onboardingAuthCompletion';
 
 const POST_SIGN_UP_PLACEMENT = 'fortis_first';
 const GATE_RETRY_DELAY_MS = 2_000;
@@ -56,6 +59,20 @@ export default function PaywallGateScreen() {
   useEffect(() => {
     subscriptionStatusRef.current = subscriptionStatus;
   }, [subscriptionStatus]);
+
+  useEffect(() => {
+    if (
+      pendingOnboardingAuthCompletionResolved &&
+      hasPendingOnboardingAuthCompletion &&
+      profile?.onboarding_completed === true
+    ) {
+      void clearPendingOnboardingAuthCompletion();
+    }
+  }, [
+    hasPendingOnboardingAuthCompletion,
+    pendingOnboardingAuthCompletionResolved,
+    profile?.onboarding_completed,
+  ]);
 
   useEffect(() => {
     let isActive = true;

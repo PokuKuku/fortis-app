@@ -210,12 +210,6 @@ function ThemedAppContent({
               }}
             />
             <Stack.Screen
-              name="onboarding/fitness-priorities"
-              options={{
-                ...ONBOARDING_TRANSITION,
-              }}
-            />
-            <Stack.Screen
               name="onboarding/motivation"
               options={{
                 ...ONBOARDING_TRANSITION,

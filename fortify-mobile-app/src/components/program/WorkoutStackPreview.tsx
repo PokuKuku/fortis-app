@@ -68,7 +68,7 @@ export function WorkoutStackPreview({
       color: colors.textSecondary,
     },
     dayBadgeTextNext: {
-      color: colors.background,
+      color: colors.accentForegroundOnFill,
     },
     workoutName: {
       color: colors.textPrimary,

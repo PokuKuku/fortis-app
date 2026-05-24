@@ -4,7 +4,7 @@ import { AppState } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as Crypto from 'expo-crypto';
 import { createRealtimeCoachSession, generateVoiceWorkoutTemplate } from '@/src/services/realtimeCoachService';
-import type { AIRequestContext } from '@/src/types/ai';
+import type { AIRequestContext, AIWorkoutTemplate } from '@/src/types/ai';
 import type {
   RealtimeCoachDebugStatus,
   RealtimeCoachPhase,
@@ -44,8 +44,12 @@ type TwoWayAudioModule = {
 
 const TRANSCRIPT_IDLE_HIDE_MS = 1600;
 const MIC_STREAM_WATCHDOG_MS = 2000;
+const USER_TURN_RELEASE_DRAIN_MS = 180;
 const PLAYBACK_BUFFER_TARGET_BYTES = 4096;
 const PLAYBACK_BUFFER_FLUSH_MS = 24;
+const PLAYBACK_MIC_SUPPRESSION_GUARD_MS = 450;
+const PCM16_MONO_BYTES_PER_SAMPLE = 2;
+const PCM16_MONO_PLAYBACK_RATE = 16000;
 const MISSING_NATIVE_AUDIO_MESSAGE =
   'Voice Coach needs an app update before live audio can start.';
 const GENERIC_VOICE_COACH_ERROR = 'Voice Coach could not start. Try again in a moment.';
@@ -104,7 +108,8 @@ const buildInstructions = (preferences: RealtimeCoachPreferences): string => {
 Voice Coach rules:
 - Speak naturally in short turns. Keep most answers under 20 seconds.
 - Ask at most one question at a time.
-- If the user asks for a normal single-session workout, do not list exercises out loud. Say one short sentence that you are building it, then let Fortify drop the workout card in the chat.
+- If the user asks for a normal single-session workout, never say "chat", "card", or "screen", and never refer to where the workout will appear. Do not list exercises out loud. Say only a short delay-safe phrase like "Coming up." or "I'll build that now.", then stop talking while Fortify builds the workout.
+- If the user asks to revise the workout Fortify just built, including adding/removing/replacing exercises or changing the number of exercises, use the same short delay-safe phrase and let Fortify update it.
 - Do not ask routine workout-generation questions about equipment, duration, exercise count, sets, or reps. Infer reasonable defaults.
 - Ask a follow-up only when the request is genuinely impossible or unsafe to answer without one.
 - Do not claim form detection, rep counting, or medical diagnosis.
@@ -136,9 +141,7 @@ const buildGeminiSetupMessage = (
     outputAudioTranscription: {},
     realtimeInputConfig: {
       automaticActivityDetection: {
-        disabled: false,
-        prefixPaddingMs: 300,
-        silenceDurationMs: 650,
+        disabled: true,
       },
       activityHandling: 'NO_INTERRUPTION',
     },
@@ -259,12 +262,21 @@ export function useRealtimeCoach({
   const audioInterruptionSubscriptionRef = useRef<{ remove?: () => void } | (() => void) | null>(null);
   const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const micWatchdogTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userTurnEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transcriptHideTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackFlushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playbackMicSuppressionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playbackChunksRef = useRef<Uint8Array[]>([]);
   const playbackBytesRef = useRef(0);
+  const playbackMicSuppressedUntilRef = useRef(0);
+  const setupCompleteRef = useRef(false);
+  const isUserTurnActiveRef = useRef(false);
+  const pendingUserTurnRef = useRef(false);
   const lastWorkoutPromptRef = useRef('');
+  const latestVoiceWorkoutTemplateDraftRef = useRef<AIWorkoutTemplate | null>(null);
   const latestUserTranscriptRef = useRef('');
+  const userTurnMicrophoneChunksSentRef = useRef(0);
+  const userTurnMicrophoneChunksReceivedRef = useRef(0);
   const transcriptBuffersRef = useRef<Record<RealtimeTranscriptSpeaker, string>>({
     user: '',
     coach: '',
@@ -286,6 +298,8 @@ export function useRealtimeCoach({
   });
   const [usage, setUsage] = useState<RealtimeCoachUsage | null>(null);
   const [voiceWorkoutMessages, setVoiceWorkoutMessages] = useState<VoiceWorkoutMessage[]>([]);
+  const [isGeneratingVoiceWorkout, setIsGeneratingVoiceWorkout] = useState(false);
+  const [isUserTurnActive, setIsUserTurnActive] = useState(false);
 
   const clearTranscriptHideTimeout = useCallback(() => {
     if (transcriptHideTimeoutRef.current) {
@@ -377,13 +391,46 @@ export function useRealtimeCoach({
     }
   }, []);
 
+  const clearUserTurnEndTimeout = useCallback(() => {
+    if (userTurnEndTimeoutRef.current) {
+      clearTimeout(userTurnEndTimeoutRef.current);
+      userTurnEndTimeoutRef.current = null;
+    }
+  }, []);
+
   const clearPlaybackQueue = useCallback(() => {
     if (playbackFlushTimeoutRef.current) {
       clearTimeout(playbackFlushTimeoutRef.current);
       playbackFlushTimeoutRef.current = null;
     }
+    if (playbackMicSuppressionTimeoutRef.current) {
+      clearTimeout(playbackMicSuppressionTimeoutRef.current);
+      playbackMicSuppressionTimeoutRef.current = null;
+    }
     playbackChunksRef.current = [];
     playbackBytesRef.current = 0;
+    playbackMicSuppressedUntilRef.current = 0;
+  }, []);
+
+  const suppressMicForPlayback = useCallback((pcmByteLength: number) => {
+    if (playbackMicSuppressionTimeoutRef.current) {
+      clearTimeout(playbackMicSuppressionTimeoutRef.current);
+      playbackMicSuppressionTimeoutRef.current = null;
+    }
+
+    const playbackDurationMs = Math.ceil(
+      (pcmByteLength / PCM16_MONO_BYTES_PER_SAMPLE / PCM16_MONO_PLAYBACK_RATE) * 1000
+    );
+
+    const now = Date.now();
+    const suppressionStart = Math.max(now, playbackMicSuppressedUntilRef.current);
+    playbackMicSuppressedUntilRef.current = suppressionStart + playbackDurationMs + PLAYBACK_MIC_SUPPRESSION_GUARD_MS;
+    playbackMicSuppressionTimeoutRef.current = setTimeout(() => {
+      if (Date.now() >= playbackMicSuppressedUntilRef.current) {
+        playbackMicSuppressionTimeoutRef.current = null;
+        playbackMicSuppressedUntilRef.current = 0;
+      }
+    }, playbackMicSuppressedUntilRef.current - now);
   }, []);
 
   const flushPlaybackQueue = useCallback(() => {
@@ -407,8 +454,9 @@ export function useRealtimeCoach({
       offset += chunk.byteLength;
     });
 
+    suppressMicForPlayback(byteLength);
     audio.playPCMData(merged);
-  }, []);
+  }, [suppressMicForPlayback]);
 
   const cleanup = useCallback(() => {
     if (sessionTimeoutRef.current) {
@@ -416,19 +464,29 @@ export function useRealtimeCoach({
       sessionTimeoutRef.current = null;
     }
     clearMicWatchdog();
+    clearUserTurnEndTimeout();
     clearPlaybackQueue();
     clearTranscriptHideTimeout();
     cleanupMicrophoneSubscription();
     cleanupVolumeSubscriptions();
     cleanupNativeAudioDiagnosticSubscriptions();
     resetTranscriptBuffers();
+    setupCompleteRef.current = false;
+    isUserTurnActiveRef.current = false;
+    pendingUserTurnRef.current = false;
+    userTurnMicrophoneChunksSentRef.current = 0;
+    userTurnMicrophoneChunksReceivedRef.current = 0;
     if (isMountedRef.current) {
       setUserAudioLevel(0);
       setCoachAudioLevel(0);
       setDebugStatus((current) => ({
         ...current,
         recordingStarted: false,
+        pushToTalkActive: false,
+        userTurnMicrophoneChunksSent: 0,
+        userTurnMicrophoneChunksReceived: 0,
       }));
+      setIsUserTurnActive(false);
     }
 
     try {
@@ -451,6 +509,7 @@ export function useRealtimeCoach({
     cleanupNativeAudioDiagnosticSubscriptions,
     cleanupVolumeSubscriptions,
     clearMicWatchdog,
+    clearUserTurnEndTimeout,
     clearPlaybackQueue,
     clearTranscriptHideTimeout,
     resetTranscriptBuffers,
@@ -469,35 +528,48 @@ export function useRealtimeCoach({
 
   const handleWorkoutPrompt = useCallback(async (prompt: string) => {
     const trimmed = prompt.trim();
-    if (!trimmed || trimmed === lastWorkoutPromptRef.current || !shouldGenerateWorkoutFromVoice(trimmed)) {
+    const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
+    if (!trimmed || trimmed === lastWorkoutPromptRef.current || !shouldGenerateWorkoutFromVoice(trimmed, Boolean(draft))) {
       return;
     }
 
     lastWorkoutPromptRef.current = trimmed;
-    const response = await generateVoiceWorkoutTemplate(trimmed, currentWorkoutTemplateDraft ? {
-      currentWorkoutTemplateDraft,
-    } : undefined);
+    setIsGeneratingVoiceWorkout(true);
 
-    const template = response.type === 'answer' ? response.answer?.workoutTemplate : undefined;
-    if (!template || !Array.isArray(template.exercises) || template.exercises.length === 0) {
-      return;
+    try {
+      const response = await generateVoiceWorkoutTemplate(trimmed, draft ? {
+        currentWorkoutTemplateDraft: draft,
+      } : undefined);
+
+      const template = response.type === 'answer' ? response.answer?.workoutTemplate : undefined;
+      if (!template || !Array.isArray(template.exercises) || template.exercises.length === 0) {
+        return;
+      }
+
+      latestVoiceWorkoutTemplateDraftRef.current = template;
+      setVoiceWorkoutMessages((current) => [
+        ...current,
+        {
+          id: Crypto.randomUUID(),
+          text: response.answer?.text ?? "Here's the workout.",
+          workoutTemplate: template,
+          savedWorkoutTemplateId: null,
+        },
+      ]);
+    } catch (workoutError) {
+      console.warn('[Voice Coach] workout generation failed', workoutError);
+    } finally {
+      if (isMountedRef.current) {
+        setIsGeneratingVoiceWorkout(false);
+      }
     }
-
-    setVoiceWorkoutMessages((current) => [
-      ...current,
-      {
-        id: Crypto.randomUUID(),
-        text: response.answer?.text ?? "Here's the workout.",
-        workoutTemplate: template,
-        savedWorkoutTemplateId: null,
-      },
-    ]);
   }, [currentWorkoutTemplateDraft]);
 
   const maybeGenerateWorkoutFromTranscript = useCallback((text: string) => {
-    if (!shouldGenerateWorkoutFromVoice(text)) return;
+    const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
+    if (!shouldGenerateWorkoutFromVoice(text, Boolean(draft))) return;
     void handleWorkoutPrompt(text);
-  }, [handleWorkoutPrompt]);
+  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt]);
 
   const playGeminiAudio = useCallback((base64: string) => {
     const pcm24k = base64ToUint8Array(base64);
@@ -515,7 +587,7 @@ export function useRealtimeCoach({
     }
   }, [flushPlaybackQueue]);
 
-  const startMicrophoneStreaming = useCallback(() => {
+  const installMicrophoneStreaming = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) {
       throw new Error('This build does not include realtime audio support yet. Rebuild the dev app and try again.');
@@ -526,7 +598,10 @@ export function useRealtimeCoach({
       const socket = socketRef.current;
       const chunk = normalizeMicrophoneChunk(event.data);
       if (!isSocketOpen(socket) || !chunk?.byteLength) return;
+      if (!isUserTurnActiveRef.current) return;
+      userTurnMicrophoneChunksReceivedRef.current += 1;
       microphoneChunksSentRef.current += 1;
+      userTurnMicrophoneChunksSentRef.current += 1;
       socket.send(JSON.stringify({
         realtimeInput: {
           audio: {
@@ -538,6 +613,8 @@ export function useRealtimeCoach({
       setDebugStatus((current) => ({
         ...current,
         microphoneChunksSent: microphoneChunksSentRef.current,
+        userTurnMicrophoneChunksSent: userTurnMicrophoneChunksSentRef.current,
+        userTurnMicrophoneChunksReceived: userTurnMicrophoneChunksReceivedRef.current,
         lastMicrophoneChunkBytes: chunk.byteLength,
         micWatchdogTriggered: false,
         nativeAudioFallback: null,
@@ -545,18 +622,58 @@ export function useRealtimeCoach({
       setError((current) => current === MICROPHONE_STREAM_ERROR ? null : current);
     }) ?? null;
 
+    setDebugStatus((current) => ({
+      ...current,
+      recordingStarted: false,
+      pushToTalkActive: false,
+      userTurnMicrophoneChunksSent: 0,
+      userTurnMicrophoneChunksReceived: 0,
+    }));
+  }, [cleanupMicrophoneSubscription]);
+
+  const startUserTurn = useCallback((): boolean => {
+    const audio = audioRef.current;
+    const socket = socketRef.current;
+    if (!audio || !isSocketOpen(socket) || !setupCompleteRef.current) return false;
+
+    clearMicWatchdog();
+    clearUserTurnEndTimeout();
+    clearPlaybackQueue();
+    latestUserTranscriptRef.current = '';
+    transcriptBuffersRef.current.user = '';
+    userTurnMicrophoneChunksSentRef.current = 0;
+    userTurnMicrophoneChunksReceivedRef.current = 0;
+    isUserTurnActiveRef.current = true;
+    pendingUserTurnRef.current = false;
+    setIsUserTurnActive(true);
+    setPhase('user_speaking');
+    socket.send(JSON.stringify({
+      realtimeInput: {
+        activityStart: {},
+      },
+    }));
+
     const isRecording = audio.toggleRecording(true);
     setDebugStatus((current) => ({
       ...current,
       recordingStarted: Boolean(isRecording),
+      pushToTalkActive: true,
+      userTurnMicrophoneChunksSent: 0,
+      userTurnMicrophoneChunksReceived: 0,
     }));
     if (!isRecording) {
+      isUserTurnActiveRef.current = false;
+      setIsUserTurnActive(false);
+      setDebugStatus((current) => ({
+        ...current,
+        recordingStarted: false,
+        pushToTalkActive: false,
+      }));
       throw new Error('Microphone recording did not start.');
     }
 
-    clearMicWatchdog();
     micWatchdogTimeoutRef.current = setTimeout(() => {
-      if (!isMountedRef.current || microphoneChunksSentRef.current > 0) return;
+      if (!isMountedRef.current || !isUserTurnActiveRef.current || userTurnMicrophoneChunksReceivedRef.current > 0) return;
       try {
         audioRef.current?.bypassVoiceProcessing?.(true);
       } catch {
@@ -569,7 +686,54 @@ export function useRealtimeCoach({
       }));
       setError(MICROPHONE_STREAM_ERROR);
     }, MIC_STREAM_WATCHDOG_MS);
-  }, [cleanupMicrophoneSubscription, clearMicWatchdog]);
+
+    return true;
+  }, [clearMicWatchdog, clearPlaybackQueue, clearUserTurnEndTimeout]);
+
+  const finishUserTurn = useCallback(() => {
+    pendingUserTurnRef.current = false;
+    if (!isUserTurnActiveRef.current) return;
+
+    clearMicWatchdog();
+    if (userTurnEndTimeoutRef.current) return;
+
+    userTurnEndTimeoutRef.current = setTimeout(() => {
+      userTurnEndTimeoutRef.current = null;
+      if (!isMountedRef.current || !isUserTurnActiveRef.current) return;
+
+      const socket = socketRef.current;
+      isUserTurnActiveRef.current = false;
+      setIsUserTurnActive(false);
+
+      try {
+        audioRef.current?.toggleRecording(false);
+      } catch {
+        // Native audio may already be torn down.
+      }
+
+      if (isSocketOpen(socket)) {
+        socket.send(JSON.stringify({
+          realtimeInput: {
+            activityEnd: {},
+          },
+        }));
+      }
+
+      setDebugStatus((current) => ({
+        ...current,
+        recordingStarted: false,
+        pushToTalkActive: false,
+      }));
+
+      if (latestUserTranscriptRef.current) {
+        maybeGenerateWorkoutFromTranscript(latestUserTranscriptRef.current);
+      }
+
+      transcriptBuffersRef.current.user = '';
+      latestUserTranscriptRef.current = '';
+      setPhase((current) => (current === 'user_speaking' ? 'listening' : current));
+    }, USER_TURN_RELEASE_DRAIN_MS);
+  }, [clearMicWatchdog, maybeGenerateWorkoutFromTranscript]);
 
   const startVolumeMonitoring = useCallback((audio: TwoWayAudioModule) => {
     cleanupVolumeSubscriptions();
@@ -619,9 +783,20 @@ export function useRealtimeCoach({
 
     for (const action of actions) {
       if (action.type === 'setup_complete') {
+        setupCompleteRef.current = true;
         setDebugStatus((current) => ({ ...current, setupComplete: true }));
-        startMicrophoneStreaming();
-        setPhase('listening');
+        installMicrophoneStreaming();
+        if (pendingUserTurnRef.current) {
+          try {
+            startUserTurn();
+          } catch (turnError) {
+            pendingUserTurnRef.current = false;
+            setError(turnError instanceof Error ? turnError.message : GENERIC_VOICE_COACH_ERROR);
+            setPhase('error');
+          }
+        } else {
+          setPhase('listening');
+        }
         continue;
       }
 
@@ -631,9 +806,12 @@ export function useRealtimeCoach({
       }
 
       if (action.type === 'transcript') {
-        const transcript = showTranscriptChunk({ speaker: action.speaker, text: action.text });
         if (action.speaker === 'user') {
-          maybeGenerateWorkoutFromTranscript(transcript);
+          const transcript = appendTranscriptChunk(transcriptBuffersRef.current.user, action.text);
+          transcriptBuffersRef.current.user = transcript;
+          latestUserTranscriptRef.current = transcript;
+        } else {
+          showTranscriptChunk({ speaker: action.speaker, text: action.text });
         }
         continue;
       }
@@ -644,11 +822,12 @@ export function useRealtimeCoach({
       }
 
       if (action.type === 'turn_complete') {
-        if (latestUserTranscriptRef.current) {
+        if (!isUserTurnActiveRef.current && latestUserTranscriptRef.current) {
           maybeGenerateWorkoutFromTranscript(latestUserTranscriptRef.current);
+          latestUserTranscriptRef.current = '';
         }
         hideTranscriptSoon();
-        resetTranscriptBuffers();
+        transcriptBuffersRef.current.coach = '';
         continue;
       }
 
@@ -666,9 +845,9 @@ export function useRealtimeCoach({
     hideTranscriptSoon,
     maybeGenerateWorkoutFromTranscript,
     playGeminiAudio,
-    resetTranscriptBuffers,
+    installMicrophoneStreaming,
     showTranscriptChunk,
-    startMicrophoneStreaming,
+    startUserTurn,
   ]);
 
   const start = useCallback(async () => {
@@ -678,6 +857,7 @@ export function useRealtimeCoach({
 
     cleanup();
     microphoneChunksSentRef.current = 0;
+    setupCompleteRef.current = false;
     resetTranscriptBuffers();
     setError(null);
     setTranscriptOverlay(null);
@@ -687,6 +867,8 @@ export function useRealtimeCoach({
       recordingStarted: false,
       microphoneChunksSent: 0,
       serverMessagesReceived: 0,
+      pushToTalkActive: false,
+      userTurnMicrophoneChunksSent: 0,
     });
     setPhase('connecting');
 
@@ -776,12 +958,17 @@ export function useRealtimeCoach({
           // Native audio may already be torn down.
         }
         audioRef.current = null;
+        setupCompleteRef.current = false;
+        isUserTurnActiveRef.current = false;
+        pendingUserTurnRef.current = false;
+        setIsUserTurnActive(false);
         void setVoiceCoachAudioMode(false).catch(() => {
           // Audio mode reset is best-effort after socket close.
         });
         setDebugStatus((current) => ({
           ...current,
           recordingStarted: false,
+          pushToTalkActive: false,
           lastSocketClose: `${event.code}${event.reason ? ` ${event.reason}` : ''}`,
         }));
         if (isMountedRef.current && phase !== 'stopped') {
@@ -818,6 +1005,28 @@ export function useRealtimeCoach({
     startVolumeMonitoring,
     stop,
   ]);
+
+  const beginUserTurn = useCallback(async () => {
+    if (isUserTurnActiveRef.current) return;
+
+    pendingUserTurnRef.current = true;
+    try {
+      if (startUserTurn()) return;
+    } catch (turnError) {
+      pendingUserTurnRef.current = false;
+      setError(turnError instanceof Error ? turnError.message : GENERIC_VOICE_COACH_ERROR);
+      setPhase('error');
+      return;
+    }
+
+    if (phase === 'idle' || phase === 'stopped' || phase === 'error') {
+      await start();
+    }
+  }, [phase, start, startUserTurn]);
+
+  const endUserTurn = useCallback(() => {
+    finishUserTurn();
+  }, [finishUserTurn]);
 
   const markVoiceWorkoutSaved = useCallback((messageId: string, templateId: string) => {
     setVoiceWorkoutMessages((current) => current.map((message) => (
@@ -864,9 +1073,13 @@ export function useRealtimeCoach({
     coachAudioLevel,
     debugStatus,
     voiceWorkoutMessages,
+    isGeneratingVoiceWorkout,
     isActive,
+    isUserTurnActive,
     start,
     stop,
+    beginUserTurn,
+    endUserTurn,
     setError,
     markVoiceWorkoutSaved,
   };

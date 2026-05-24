@@ -111,7 +111,7 @@ export default function OnboardingHeightScreen() {
       step={20}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your height?"
-      subtitle="You can update this any time from your profile."
+      subtitle=" "
       onBack={() => router.back()}
       useScrollView={false}
       footer={

@@ -184,7 +184,7 @@ describe('AuthWelcomeScreen', () => {
 
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
-      expect(mockClearPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
+      expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
       expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
     });
   });
@@ -201,7 +201,7 @@ describe('AuthWelcomeScreen', () => {
 
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
-      expect(mockClearPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
+      expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
       expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
     });
   });

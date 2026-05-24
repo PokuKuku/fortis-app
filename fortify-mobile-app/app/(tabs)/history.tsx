@@ -193,6 +193,8 @@ function AnimatedDay({
   if (intensity) {
     backgroundColor = intensityColors[`level${intensity}`];
   }
+  const dayTextColor = intensity ? colors.accentForegroundOnFill : colors.textPrimary;
+  const selectedDayTextColor = intensity ? colors.accentForegroundOnFill : colors.accent;
 
   const handlePressIn = () => {
     scale.value = withTiming(0.9, { duration: 100 });
@@ -224,10 +226,10 @@ function AnimatedDay({
         <Text
           style={[
             styles.dayText,
-            { color: colors.textPrimary },
+            { color: dayTextColor },
             isDisabled && { color: colors.textSecondary, opacity: 0.3 },
-            isDisabledHighlighted && { color: colors.textPrimary, opacity: isDark ? 0.9 : 0.85 },
-            isSelected && { color: colors.accent, fontWeight: '700' },
+            isDisabledHighlighted && { color: colors.accentForegroundOnFill, opacity: isDark ? 0.9 : 0.85 },
+            isSelected && { color: selectedDayTextColor, fontWeight: '700' },
           ]}
         >
           {date.day}

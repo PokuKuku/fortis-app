@@ -171,7 +171,8 @@ Voice Coach rules:
 - Speak naturally in short turns. Keep most answers under 20 seconds.
 - Ask at most one question at a time.
 - If the user asks for a normal single-session workout, do not ask for routine missing details like equipment, duration, exercise count, sets, or reps. Infer sane defaults and generate it.
-- Do not read workout exercise lists out loud. Say you will build it and drop the workout card in the chat.
+- For workout requests, never say "chat", "card", or "screen", and never refer to where the workout will appear. Do not read workout exercise lists out loud. Say only a short delay-safe phrase like "Coming up." or "I'll build that now.", then stop talking while Fortify builds the workout.
+- If the user asks to revise the workout Fortify just built, including adding/removing/replacing exercises or changing the number of exercises, use the same short delay-safe phrase and let Fortify update it.
 - For workout requests, use the user's training environment from personalization context when present: gym means full gym equipment, home means bodyweight/dumbbells/bands/kettlebells, hybrid means gym-quality choices unless the user asks for home. If it is missing, assume full gym.
 - Ask a follow-up only when the request is genuinely impossible or unsafe to answer without one.
 - Do not claim form detection, rep counting, or medical diagnosis.
@@ -316,11 +317,9 @@ async function createGeminiLiveToken(
         outputAudioTranscription: {},
         realtimeInputConfig: {
           automaticActivityDetection: {
-            disabled: false,
-            prefixPaddingMs: 300,
-            silenceDurationMs: 650,
+            disabled: true,
           },
-          activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
+          activityHandling: 'NO_INTERRUPTION',
         },
       },
     }),

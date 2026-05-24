@@ -1541,6 +1541,8 @@ async function fetchWorkoutEditExerciseCatalog(
   });
 
   const targetText = [
+    editRequest.action === 'resize' ? draft.focus : undefined,
+    editRequest.action === 'resize' ? draft.name : undefined,
     ...parseWorkoutEditRequests(message).flatMap((request) => [
       request.targetPhrase,
       request.sourcePhrase,
@@ -1557,7 +1559,7 @@ async function fetchWorkoutEditExerciseCatalog(
     .filter((token) => token.length >= 3)
     .slice(0, 5);
 
-  if (editRequest.action === 'add' || editRequest.action === 'replace') {
+  if (editRequest.action === 'add' || editRequest.action === 'replace' || editRequest.action === 'resize') {
     for (const token of searchTokens) {
       if (catalog.size >= WORKOUT_EDIT_CATALOG_LIMIT) break;
       await loadRows({ nameToken: token, limit: 30 });
@@ -3237,12 +3239,13 @@ function isReplacementRequest(message: string): boolean {
   return /\b(replace|swap|switch)\b/i.test(message);
 }
 
-type WorkoutEditAction = 'add' | 'remove' | 'replace' | 'unknown';
+type WorkoutEditAction = 'add' | 'remove' | 'replace' | 'resize' | 'unknown';
 
 type ParsedWorkoutEditRequest = {
   action: WorkoutEditAction;
   sourcePhrase?: string;
   targetPhrase?: string;
+  targetCount?: number;
 };
 
 type SearchableExerciseCandidate = {
@@ -3291,7 +3294,29 @@ function cleanRequestedExercisePhrase(value: string | undefined): string | undef
   return cleaned || undefined;
 }
 
+function parseWorkoutResizeRequest(message: string): ParsedWorkoutEditRequest | null {
+  const targetCount = extractRequestedExerciseCount(message);
+  if (!targetCount) {
+    return null;
+  }
+
+  const normalized = message.trim().toLowerCase();
+  const referencesExistingWorkout =
+    /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b/i.test(normalized)
+    || /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b/i.test(normalized)
+    || /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i.test(normalized);
+
+  return referencesExistingWorkout
+    ? { action: 'resize', targetCount }
+    : null;
+}
+
 function parseSingleWorkoutEditRequest(message: string): ParsedWorkoutEditRequest {
+  const resizeRequest = parseWorkoutResizeRequest(message);
+  if (resizeRequest) {
+    return resizeRequest;
+  }
+
   const replacementPatterns: Array<{ regex: RegExp; sourceIndex: number; targetIndex: number }> = [
     { regex: /\breplace\s+(.+?)\s+with\s+(.+)$/i, sourceIndex: 1, targetIndex: 2 },
     { regex: /\bswap\s+(.+?)\s+for\s+(.+)$/i, sourceIndex: 1, targetIndex: 2 },
@@ -3336,7 +3361,7 @@ function parseSingleWorkoutEditRequest(message: string): ParsedWorkoutEditReques
 }
 
 function parseWorkoutEditRequests(message: string): ParsedWorkoutEditRequest[] {
-  const actionPattern = '(?:add|include|insert|put in|put|bring in|remove|take out|exclude|drop|delete|without|skip|replace|swap|switch)';
+  const actionPattern = '(?:add|include|insert|put in|put|bring in|remove|take out|exclude|drop|delete|without|skip|replace|swap|switch|make|change|set|turn|have|keep|give)';
   const prepared = message
     .replace(new RegExp(`[,.;]\\s*(?=\\b${actionPattern}\\b)`, 'gi'), ' and ')
     .replace(/\s+/g, ' ')
@@ -3521,6 +3546,8 @@ function buildUnchangedWorkoutEditText(
 ): string {
   const target = request.targetPhrase ?? request.sourcePhrase ?? 'that exercise';
   switch (request.action) {
+    case 'resize':
+      return `I couldn't confidently resize ${draft.name}, so I left it unchanged.`;
     case 'add':
       return `I couldn't confidently match "${target}" to an exercise in your library, so I left ${draft.name} unchanged.`;
     case 'remove':
@@ -3616,6 +3643,84 @@ function resolveWorkoutEditOperation(
       template: draft,
       text: `I left ${draft.name} unchanged.`,
       changed: false,
+    };
+  }
+
+  if (request.action === 'resize') {
+    const targetCount = Math.max(3, Math.min(MAX_WORKOUT_TEMPLATE_EXERCISES, request.targetCount ?? exercises.length));
+    if (targetCount === exercises.length) {
+      return {
+        template: draft,
+        text: `${draft.name} already has ${targetCount} exercises.`,
+        changed: false,
+      };
+    }
+
+    if (targetCount < exercises.length) {
+      const nextExercises = exercises.slice(0, targetCount);
+      return {
+        template: {
+          ...draft,
+          estimatedDurationMinutes: Math.max(20, (draft.estimatedDurationMinutes ?? 45) - (exercises.length - targetCount) * 10),
+          exercises: nextExercises,
+        },
+        text: `Updated ${draft.name} to ${targetCount} exercises.`,
+        changed: true,
+        summary: `set it to ${targetCount} exercises`,
+      };
+    }
+
+    const existingIds = new Set(exercises.map((exercise) => exercise.exerciseId));
+    const existingCanonicalGroups = new Set(
+      catalog
+        .filter((entry) => existingIds.has(entry.id))
+        .map(getCanonicalGroup)
+    );
+    const focusText = [draft.focus, draft.name, request.targetPhrase, request.sourcePhrase]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ');
+    const targetMuscles = extractWorkoutTargetMuscles(focusText);
+    const equipmentPreferences = extractWorkoutEquipment(focusText).map(normalizeEquipmentValue);
+    const additions: AIWorkoutTemplateExercise[] = [];
+    const rankedAdditions = catalog
+      .filter((entry) => !existingIds.has(entry.id))
+      .map((entry) => ({
+        entry,
+        score: scoreCatalogExercise(entry, targetMuscles, equipmentPreferences),
+      }))
+      .filter(({ entry, score }) => score > 0 && !existingCanonicalGroups.has(getCanonicalGroup(entry)))
+      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
+
+    for (const { entry } of rankedAdditions) {
+      if (exercises.length + additions.length >= targetCount) break;
+      existingCanonicalGroups.add(getCanonicalGroup(entry));
+      const compound = entry.mechanic === 'compound' || isCompoundExerciseName(entry.name);
+      additions.push({
+        exerciseId: entry.id,
+        exerciseName: toWorkoutTitleCase(entry.name),
+        sets: 3,
+        reps: compound ? '8-10' : '10-15',
+        restSeconds: compound ? 90 : 60,
+      });
+    }
+
+    if (exercises.length + additions.length < targetCount) {
+      return {
+        template: draft,
+        text: `I couldn't confidently add enough exercises to make ${draft.name} a ${targetCount}-exercise workout.`,
+        changed: false,
+      };
+    }
+
+    return {
+      template: {
+        ...draft,
+        estimatedDurationMinutes: Math.min(120, (draft.estimatedDurationMinutes ?? 45) + additions.length * 10),
+        exercises: [...exercises, ...additions],
+      },
+      text: `Updated ${draft.name} to ${targetCount} exercises.`,
+      changed: true,
+      summary: `set it to ${targetCount} exercises`,
     };
   }
 

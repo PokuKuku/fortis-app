@@ -10,6 +10,7 @@ const mockSetSubscriptionStatus = jest.fn().mockResolvedValue(undefined);
 const mockQueueTourStartAfterPaywallClose = jest.fn();
 const mockReplace = jest.fn();
 const mockUsePendingOnboardingAuthCompletion = jest.fn();
+const mockClearPendingOnboardingAuthCompletion = jest.fn().mockResolvedValue(undefined);
 const mockSubscriptionStatusState: { status: string; entitlements?: Array<{ id: string; type: string }> } = {
   status: 'INACTIVE',
 };
@@ -85,6 +86,7 @@ jest.mock('@/src/contexts/ThemeContext', () => ({
 }));
 
 jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
+  clearPendingOnboardingAuthCompletion: () => mockClearPendingOnboardingAuthCompletion(),
   usePendingOnboardingAuthCompletion: () => mockUsePendingOnboardingAuthCompletion(),
 }));
 
@@ -215,6 +217,21 @@ describe('PaywallGateScreen', () => {
 
     expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
+  });
+
+  it('clears pending onboarding completion after the completed profile reaches the gate', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+
+    render(<PaywallGateScreen />);
+
+    await waitFor(() => {
+      expect(mockClearPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
+    });
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
   });
 
 });

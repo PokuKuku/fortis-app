@@ -826,6 +826,12 @@ export default function OnboardingCompleteScreen() {
     }
 
     setIsSaving(true);
+    try {
+      await markPendingOnboardingAuthCompletion();
+    } catch (intentError) {
+      console.warn('[Onboarding] Failed to persist auth completion intent:', intentError);
+    }
+
     if (phase === 'ready') {
       await new Promise<void>((resolve) => {
         Animated.timing(summaryAnim, {
