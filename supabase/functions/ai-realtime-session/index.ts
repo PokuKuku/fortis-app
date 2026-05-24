@@ -26,9 +26,8 @@ interface RealtimeSessionRequest {
 
 const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
 const PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype'];
-const MAX_SECONDS_PER_SESSION = Math.max(60, Number(Deno.env.get('AI_REALTIME_MAX_SESSION_SECONDS') ?? '300'));
-const MAX_SECONDS_PER_DAY = Math.max(MAX_SECONDS_PER_SESSION, Number(Deno.env.get('AI_REALTIME_MAX_DAY_SECONDS') ?? '1200'));
-const MAX_SECONDS_UNLIMITED = 24 * 60 * 60;
+const MAX_SECONDS_PER_SESSION = Math.max(60, Number(Deno.env.get('AI_REALTIME_MAX_SESSION_SECONDS') ?? '1800'));
+const MAX_SECONDS_PER_DAY = Math.max(MAX_SECONDS_PER_SESSION, Number(Deno.env.get('AI_REALTIME_MAX_DAY_SECONDS') ?? '7200'));
 const VOICE_COACH_CONTEXT_WEEKS = Math.max(
   4,
   Number(Deno.env.get('AI_REALTIME_CONTEXT_WEEKS') ?? '12')
@@ -231,6 +230,12 @@ async function hasPaidOrTrialAccess(adminClient: SupabaseClient, userId: string)
 
 async function reserveUsage(adminClient: SupabaseClient, userId: string) {
   const today = new Date().toISOString().slice(0, 10);
+  const tomorrowUtc = new Date(`${today}T00:00:00.000Z`);
+  tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
+  const retryAfterTomorrowSeconds = Math.max(
+    60,
+    Math.ceil((tomorrowUtc.getTime() - Date.now()) / 1000)
+  );
   const { data: existing, error: existingError } = await adminClient
     .from('ai_realtime_usage')
     .select('seconds_reserved,sessions_started')
@@ -240,14 +245,15 @@ async function reserveUsage(adminClient: SupabaseClient, userId: string) {
 
   if (existingError) {
     console.error('[ai-realtime-session] usage lookup failed', existingError.message);
-    return { allowed: false, retryAfterSeconds: 60, secondsUsedToday: MAX_SECONDS_PER_DAY };
+    return { allowed: false, reason: 'internal', retryAfterSeconds: 60, secondsUsedToday: MAX_SECONDS_PER_DAY };
   }
 
   const secondsUsedToday = Number(existing?.seconds_reserved ?? 0);
   if (secondsUsedToday + MAX_SECONDS_PER_SESSION > MAX_SECONDS_PER_DAY) {
     return {
       allowed: false,
-      retryAfterSeconds: 60 * 60,
+      reason: 'rate_limited',
+      retryAfterSeconds: retryAfterTomorrowSeconds,
       secondsUsedToday,
     };
   }
@@ -266,7 +272,7 @@ async function reserveUsage(adminClient: SupabaseClient, userId: string) {
 
   if (upsertError) {
     console.error('[ai-realtime-session] usage reserve failed', upsertError.message);
-    return { allowed: false, retryAfterSeconds: 60, secondsUsedToday };
+    return { allowed: false, reason: 'internal', retryAfterSeconds: 60, secondsUsedToday };
   }
 
   return { allowed: true, secondsUsedToday: nextSeconds };
@@ -373,7 +379,25 @@ Deno.serve(async (req: Request) => {
 
     const usage = await reserveUsage(adminClient, user.id);
     if (!usage.allowed) {
-      console.warn('[ai-realtime-session] usage reservation failed; continuing while realtime limits are disabled');
+      if (usage.reason === 'rate_limited') {
+        return errorResponse(
+          "You've reached today's Voice Coach limit. Try again tomorrow.",
+          'RATE_LIMITED',
+          429,
+          true,
+          usage.retryAfterSeconds,
+          origin
+        );
+      }
+
+      return errorResponse(
+        'Voice Coach is taking a quick breather. Try again in a minute.',
+        'INTERNAL_ERROR',
+        503,
+        true,
+        usage.retryAfterSeconds,
+        origin
+      );
     }
 
     const preferences = normalizePreferences(body.preferences);
@@ -394,8 +418,8 @@ Deno.serve(async (req: Request) => {
       voice: preferences.voice,
       usage: {
         secondsUsedToday: usage.secondsUsedToday ?? 0,
-        maxSecondsPerDay: MAX_SECONDS_UNLIMITED,
-        maxSecondsPerSession: MAX_SECONDS_UNLIMITED,
+        maxSecondsPerDay: MAX_SECONDS_PER_DAY,
+        maxSecondsPerSession: MAX_SECONDS_PER_SESSION,
       },
     }, 200, origin);
   } catch (error) {

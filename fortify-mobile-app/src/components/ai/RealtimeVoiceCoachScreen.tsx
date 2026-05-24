@@ -73,6 +73,13 @@ const sanitizeVoiceCoachError = (message: string | null | undefined): string | n
   return trimmed;
 };
 
+const isFriendlyVoiceNotice = (message: string | null): boolean =>
+  Boolean(message && (
+    /voice coach limit/i.test(message)
+    || /try again tomorrow/i.test(message)
+    || /quick breather/i.test(message)
+  ));
+
 export function RealtimeVoiceCoachScreen({
   phase,
   error,
@@ -116,6 +123,7 @@ export function RealtimeVoiceCoachScreen({
     : 0;
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
+  const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
   const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -185,7 +193,14 @@ export function RealtimeVoiceCoachScreen({
             { justifyContent: hasVoiceCards ? 'flex-start' : 'center' },
           ]}
         >
-          {displayError ? <Text style={styles.error}>{displayError}</Text> : null}
+          {displayError ? (
+            <Text style={[
+              shouldShowErrorAsNotice ? styles.notice : styles.error,
+              shouldShowErrorAsNotice ? { color: colors.textSecondary } : null,
+            ]}>
+              {displayError}
+            </Text>
+          ) : null}
           {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
           {hasVoiceCards ? (
             <ScrollView
@@ -371,6 +386,11 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
     color: Colors.error,
     textAlign: 'center',
+  },
+  notice: {
+    ...Typography.body,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
   },
   talkButtonRing: {
     position: 'absolute',

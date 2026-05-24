@@ -172,6 +172,19 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(getByText("Cannot read property 'initialize' of undefined")).toBeTruthy();
   });
 
+  it('renders voice limit messages as neutral notices instead of red errors', () => {
+    const { getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        error="You've reached today's Voice Coach limit. Try again tomorrow."
+      />
+    );
+
+    const notice = getByText("You've reached today's Voice Coach limit. Try again tomorrow.");
+    const noticeStyle = StyleSheet.flatten(notice.props.style);
+    expect(noticeStyle.color).toBe(mockColors.textSecondary);
+  });
+
   it('does not render native audio diagnostics in the clean idle voice screen', () => {
     const { queryByText } = render(
       <RealtimeVoiceCoachScreen
