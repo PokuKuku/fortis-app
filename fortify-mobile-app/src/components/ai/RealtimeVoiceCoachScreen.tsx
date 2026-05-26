@@ -70,6 +70,16 @@ const sanitizeVoiceCoachError = (message: string | null | undefined): string | n
   if (!message) return null;
   const trimmed = message.trim();
   if (!trimmed) return null;
+
+  if (
+    /voice coach connection failed/i.test(trimmed)
+    || /websocket/i.test(trimmed)
+    || /_defaultPrevented|_timeStamp|_bubbles|_cancelable|_composed/i.test(trimmed)
+    || (/^\{[\s\S]*\}$/.test(trimmed) && /"type"\s*:\s*"error"/i.test(trimmed))
+  ) {
+    return 'Voice Coach had trouble connecting. Check your connection and try again.';
+  }
+
   return trimmed;
 };
 
@@ -78,6 +88,7 @@ const isFriendlyVoiceNotice = (message: string | null): boolean =>
     /voice coach limit/i.test(message)
     || /try again tomorrow/i.test(message)
     || /quick breather/i.test(message)
+    || /trouble connecting/i.test(message)
   ));
 
 export function RealtimeVoiceCoachScreen({
@@ -102,16 +113,21 @@ export function RealtimeVoiceCoachScreen({
   onStartWorkoutTemplate,
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const voiceCardAnimationsRef = useRef<Record<string, Animated.Value>>({});
   const animatedVoiceCardIdsRef = useRef<Set<string>>(new Set());
   const pendingWorkoutCardAnimation = useRef(new Animated.Value(0)).current;
-  const heroMinHeight = Math.max(620, height - 160);
-  const talkButtonBottom = Math.max(28, Math.min(44, height * 0.044));
-  const visualizerTop = Math.max(168, Math.min(246, height * 0.25));
-  const middleSlotBottom = talkButtonBottom + 72;
+  const heroMinHeight = Math.max(680, height - 120);
+  const viewportScale = Math.max(0.78, Math.min(1, Math.min(width / 390, height / 844)));
+  const visualizerHeight = 156 * viewportScale;
+  const talkButtonSize = Math.round(96 * viewportScale);
+  const talkButtonCoreSize = Math.round(78 * viewportScale);
+  const talkButtonBorderWidth = Math.max(4, Math.round(5 * viewportScale));
+  const talkButtonBottom = Math.max(20, Math.min(38, height * 0.038));
+  const visualizerTop = Math.max(138, Math.min(190, height * 0.2));
+  const middleSlotBottom = talkButtonBottom + talkButtonSize + Spacing.md;
   const middleSlotFrame = {
-    top: visualizerTop + 156 + Spacing.lg,
+    top: visualizerTop + visualizerHeight + Spacing.md,
     bottom: middleSlotBottom,
   };
   const middleSlotHeight = Math.max(96, heroMinHeight - middleSlotFrame.top - middleSlotFrame.bottom);
@@ -125,6 +141,7 @@ export function RealtimeVoiceCoachScreen({
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
   const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
+  const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
     borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)',
@@ -174,14 +191,14 @@ export function RealtimeVoiceCoachScreen({
   }, [isGeneratingVoiceWorkout, pendingWorkoutCardAnimation]);
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={[styles.hero, { minHeight: heroMinHeight }]}>
+    <View style={[styles.container, styles.content]}>
+      <View style={styles.hero}>
         <View style={[styles.visualizerAnchor, { top: visualizerTop }]}>
-          <DumbbellVoiceVisualizer phase={phase} coachAudioLevel={coachAudioLevel} />
+          <DumbbellVoiceVisualizer
+            phase={phase}
+            coachAudioLevel={coachAudioLevel}
+            scale={viewportScale}
+          />
         </View>
 
         <View
@@ -206,7 +223,13 @@ export function RealtimeVoiceCoachScreen({
             <ScrollView
               testID="voice-card-scroll"
               style={[styles.voiceCardScroll, { maxHeight: middleSlotHeight }]}
-              contentContainerStyle={styles.workoutSection}
+              contentContainerStyle={[
+                styles.workoutSection,
+                {
+                  paddingHorizontal: cardHorizontalInset,
+                  paddingBottom: Math.max(Spacing.xl, Math.round(Spacing['2xl'] * viewportScale)),
+                },
+              ]}
               nestedScrollEnabled
               showsVerticalScrollIndicator={false}
             >
@@ -281,6 +304,7 @@ export function RealtimeVoiceCoachScreen({
                       isAdded={Boolean(message.savedWorkoutTemplateId)}
                       isStarting={startingWorkoutMessageId === message.id}
                       isStartDisabled={isWorkoutActive}
+                      displayScale={viewportScale}
                     />
                   </Animated.View>
                 );
@@ -297,8 +321,8 @@ export function RealtimeVoiceCoachScreen({
               styles.userAudioRing,
               {
                 bottom: talkButtonBottom - 8 - index * 6,
-                width: 112 + index * 18 + normalizedUserLevel * (34 + index * 8),
-                height: 112 + index * 18 + normalizedUserLevel * (34 + index * 8),
+                width: talkButtonSize + 16 + index * 18 * viewportScale + normalizedUserLevel * (34 + index * 8) * viewportScale,
+                height: talkButtonSize + 16 + index * 18 * viewportScale + normalizedUserLevel * (34 + index * 8) * viewportScale,
                 borderColor: withOpacity(colors.accent, Math.max(0, (0.3 - index * 0.07) * normalizedUserLevel)),
                 opacity: normalizedUserLevel > 0 ? 1 : 0,
               },
@@ -310,6 +334,10 @@ export function RealtimeVoiceCoachScreen({
           style={[
             styles.talkButtonRing,
             {
+              width: talkButtonSize,
+              height: talkButtonSize,
+              borderRadius: talkButtonSize / 2,
+              borderWidth: talkButtonBorderWidth,
               borderColor: colors.accent,
               bottom: talkButtonBottom,
               opacity: isTalkButtonReady ? 1 : 0.38,
@@ -338,6 +366,9 @@ export function RealtimeVoiceCoachScreen({
             style={[
               styles.talkButtonCore,
               {
+                width: talkButtonCoreSize,
+                height: talkButtonCoreSize,
+                borderRadius: talkButtonCoreSize / 2,
                 backgroundColor: colors.accentLight,
                 transform: [{ scale: 1 + normalizedUserLevel * 0.1 }],
               },
@@ -345,7 +376,7 @@ export function RealtimeVoiceCoachScreen({
           />
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -354,14 +385,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    flexGrow: 1,
     paddingHorizontal: Spacing.lg,
     paddingTop: 0,
-    paddingBottom: Spacing['2xl'],
-    gap: Spacing.xl,
+    paddingBottom: 0,
   },
   hero: {
     flex: 1,
+    width: '100%',
     position: 'relative',
     alignItems: 'center',
     justifyContent: 'flex-start',
@@ -394,10 +424,6 @@ const styles = StyleSheet.create({
   },
   talkButtonRing: {
     position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: BorderRadius.full,
-    borderWidth: 5,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -407,9 +433,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   talkButtonCore: {
-    width: 78,
-    height: 78,
-    borderRadius: BorderRadius.full,
   },
   voiceCardScroll: {
     width: '100%',
@@ -434,7 +457,6 @@ const styles = StyleSheet.create({
   },
   workoutSection: {
     gap: Spacing.md,
-    paddingHorizontal: Spacing.sm,
     paddingTop: Spacing.md,
     paddingBottom: Spacing['2xl'],
   },

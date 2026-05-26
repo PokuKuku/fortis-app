@@ -11,21 +11,36 @@ import {
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
 
+const WORKOUT_NOUN_PATTERN = String.raw`(?:work\s*out|workout|routine|session|template|training\s+day|lift|day)`;
+const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|shoulders?|arms?|biceps|triceps|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
+const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|design|plan|craft|write)`;
+const EXERCISE_COUNT_PATTERN = String.raw`(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)`;
+
 const WORKOUT_RESIZE_REGEXES = [
   /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
   /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b[\s\S]{0,30}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
   /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
 ];
 
+const WORKOUT_CREATE_REGEXES = [
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,100}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
+  new RegExp(String.raw`\bgive\s+me\b[\s\S]{0,100}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,80}\b${WORKOUT_FOCUS_PATTERN}\b[\s\S]{0,40}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,60}\b${WORKOUT_FOCUS_PATTERN}\b\s+(?:day|lift|session|routine)\b`, 'i'),
+  new RegExp(String.raw`\bgive\s+me\b[\s\S]{0,60}\b${WORKOUT_FOCUS_PATTERN}\b\s+(?:day|lift|session|routine)\b`, 'i'),
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,100}\b${EXERCISE_COUNT_PATTERN}\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b[\s\S]{0,80}\b${WORKOUT_FOCUS_PATTERN}\b`, 'i'),
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,100}\b${WORKOUT_FOCUS_PATTERN}\b[\s\S]{0,80}\b${EXERCISE_COUNT_PATTERN}\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b`, 'i'),
+];
+
 export const shouldGenerateWorkoutFromVoice = (text: string, hasCurrentWorkoutDraft = false): boolean => {
   const normalized = text.trim().toLowerCase();
   if (!normalized) return false;
 
-  if (/\b(didn['’]?t|do not|don['’]?t|not|never|stop|cancel)\b[\s\S]{0,60}\b(workout|routine|session|template)\b/i.test(normalized)) {
+  if (/\b(didn['’]?t|do not|don['’]?t|not|never|stop|cancel)\b[\s\S]{0,60}\b(work\s*out|workout|routine|session|template)\b/i.test(normalized)) {
     return false;
   }
 
-  if (/\b(i['’]?ll|i will|i can|let me|i am|i['’]?m)\b[\s\S]{0,60}\b(build|make|create|generate|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i.test(normalized)) {
+  if (new RegExp(String.raw`\b(i['’]?ll|i will|i can|let me|i am|i['’]?m)\b[\s\S]{0,60}\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,80}\b${WORKOUT_NOUN_PATTERN}\b`, 'i').test(normalized)) {
     return false;
   }
 
@@ -36,8 +51,7 @@ export const shouldGenerateWorkoutFromVoice = (text: string, hasCurrentWorkoutDr
     return true;
   }
 
-  return /\b(make|create|build|generate|design|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i.test(normalized)
-    || /\bgive me\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i.test(normalized);
+  return WORKOUT_CREATE_REGEXES.some((regex) => regex.test(normalized));
 };
 
 export const normalizeRealtimeCoachPhase = (value: unknown): RealtimeCoachPhase =>

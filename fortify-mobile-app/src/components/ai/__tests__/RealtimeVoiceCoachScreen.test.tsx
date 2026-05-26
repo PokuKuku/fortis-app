@@ -160,16 +160,17 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(queryByText('Finishing rep')).toBeNull();
   });
 
-  it('renders raw technical startup errors in development debug mode', () => {
+  it('sanitizes raw technical connection errors before rendering', () => {
     const { getByText, queryByText } = render(
       <RealtimeVoiceCoachScreen
         {...defaultProps}
-        error="Cannot read property 'initialize' of undefined"
+        error={'Voice Coach connection failed: {"_defaultPrevented":false,"_timeStamp":89366044.300541,"type":"error","_bubbles":false}'}
       />
     );
 
     expect(queryByText('Voice Coach could not start. Try again in a moment.')).toBeNull();
-    expect(getByText("Cannot read property 'initialize' of undefined")).toBeTruthy();
+    expect(queryByText(/_defaultPrevented/)).toBeNull();
+    expect(getByText('Voice Coach had trouble connecting. Check your connection and try again.')).toBeTruthy();
   });
 
   it('renders voice limit messages as neutral notices instead of red errors', () => {

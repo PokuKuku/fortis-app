@@ -10,6 +10,7 @@ export type GeminiLiveEventAction =
   | { type: 'phase'; phase: RealtimeCoachPhase }
   | { type: 'transcript'; speaker: RealtimeTranscriptSpeaker; text: string }
   | { type: 'audio'; base64: string; mimeType?: string }
+  | { type: 'tool_call'; id: string; name: string; args: Record<string, unknown> }
   | { type: 'error'; message: string }
   | { type: 'turn_complete' }
   | { type: 'go_away' };
@@ -25,6 +26,45 @@ const getNestedRecord = (value: unknown, key: string): Record<string, unknown> |
 const getString = (record: Record<string, unknown> | null, key: string): string => {
   const value = record?.[key];
   return typeof value === 'string' ? value : '';
+};
+
+const getArray = (record: Record<string, unknown> | null, camelKey: string, snakeKey: string): unknown[] => {
+  const value = record?.[camelKey] ?? record?.[snakeKey];
+  return Array.isArray(value) ? value : [];
+};
+
+const coerceToolArgs = (value: unknown): Record<string, unknown> => {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+};
+
+const getToolCalls = (message: GeminiLiveMessage): Array<{ id: string; name: string; args: Record<string, unknown> }> => {
+  const toolCall = getNestedRecord(message, 'toolCall') ?? getNestedRecord(message, 'tool_call');
+  return getArray(toolCall, 'functionCalls', 'function_calls').flatMap((call) => {
+    if (!call || typeof call !== 'object') return [];
+    const callRecord = call as Record<string, unknown>;
+    const name = typeof callRecord.name === 'string' ? callRecord.name : '';
+    if (!name) return [];
+    return [{
+      id: typeof callRecord.id === 'string' ? callRecord.id : name,
+      name,
+      args: coerceToolArgs(callRecord.args ?? callRecord.arguments ?? callRecord.argsJson ?? callRecord.args_json),
+    }];
+  });
 };
 
 const getAudioParts = (serverContent: Record<string, unknown>): Array<{ base64: string; mimeType?: string }> => {
@@ -53,6 +93,10 @@ export function parseGeminiLiveMessage(raw: string): GeminiLiveEventAction[] {
 
   if (message.setupComplete) {
     actions.push({ type: 'setup_complete' });
+  }
+
+  for (const toolCall of getToolCalls(message)) {
+    actions.push({ type: 'tool_call', ...toolCall });
   }
 
   const serverContent = getNestedRecord(message, 'serverContent');

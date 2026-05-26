@@ -15,6 +15,7 @@ interface ChatWorkoutTemplateCardProps {
   isAdded?: boolean;
   isStarting?: boolean;
   isStartDisabled?: boolean;
+  displayScale?: number;
 }
 
 export function ChatWorkoutTemplateCard({
@@ -26,12 +27,15 @@ export function ChatWorkoutTemplateCard({
   isAdded = false,
   isStarting = false,
   isStartDisabled = false,
+  displayScale = 1,
 }: ChatWorkoutTemplateCardProps) {
   const { colors, isDark } = useTheme();
   const isBusy = isAdding || isStarting;
   const isStartBusy = isBusy || isStartDisabled;
   const exercises = Array.isArray(template.exercises) ? template.exercises : [];
   const primaryButtonForeground = isAdded ? Colors.white : colors.accentForegroundOnFill;
+  const cardScale = Math.max(0.86, Math.min(1, displayScale));
+  const iconSize = Math.max(14, Math.round(16 * cardScale));
 
   const themedStyles = {
     card: {
@@ -62,53 +66,94 @@ export function ChatWorkoutTemplateCard({
   ].filter(Boolean);
 
   return (
-    <View style={[styles.card, themedStyles.card]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, themedStyles.title]} numberOfLines={1}>
+    <View style={[
+      styles.card,
+      {
+        padding: Math.round(Spacing.md * cardScale),
+        gap: Math.round(Spacing.md * cardScale),
+        marginTop: Math.round(Spacing.sm * cardScale),
+      },
+      themedStyles.card,
+    ]}>
+      <View style={[styles.header, { gap: Math.max(3, Math.round(4 * cardScale)) }]}>
+        <Text
+          style={[styles.title, { fontSize: FontSizes.base * cardScale }, themedStyles.title]}
+          numberOfLines={1}
+        >
           {template.name}
         </Text>
         {metaParts.length > 0 && (
-          <Text style={[styles.meta, themedStyles.meta]} numberOfLines={1}>
+          <Text
+            style={[styles.meta, { fontSize: FontSizes.sm * cardScale }, themedStyles.meta]}
+            numberOfLines={1}
+          >
             {metaParts.join(' • ')}
           </Text>
         )}
       </View>
 
-      <View style={styles.topActions}>
+      <View style={[styles.topActions, { gap: Math.round(Spacing.sm * cardScale) }]}>
         <TouchableOpacity
-          style={[styles.secondaryButton, themedStyles.secondaryButton]}
+          style={[
+            styles.secondaryButton,
+            {
+              minHeight: Math.max(34, Math.round(38 * cardScale)),
+              gap: Math.max(5, Math.round(6 * cardScale)),
+            },
+            themedStyles.secondaryButton,
+          ]}
           onPress={onView}
           activeOpacity={0.75}
         >
-          <EyeIcon size={16} color={colors.textPrimary} strokeWidth={2} />
-          <Text style={[styles.secondaryButtonText, themedStyles.secondaryButtonText]}>View</Text>
+          <EyeIcon size={iconSize} color={colors.textPrimary} strokeWidth={2} />
+          <Text
+            style={[styles.secondaryButtonText, { fontSize: FontSizes.sm * cardScale }, themedStyles.secondaryButtonText]}
+          >
+            View
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.startButton, themedStyles.startButton, isStartBusy && styles.buttonDisabled]}
+          style={[
+            styles.startButton,
+            {
+              minHeight: Math.max(34, Math.round(38 * cardScale)),
+              gap: Math.max(5, Math.round(6 * cardScale)),
+            },
+            themedStyles.startButton,
+            isStartBusy && styles.buttonDisabled,
+          ]}
           onPress={onStart}
           activeOpacity={0.8}
           disabled={isStartBusy}
         >
-          <PlayIcon size={16} color={colors.textPrimary} strokeWidth={2.2} />
-          <Text style={[styles.startButtonText, themedStyles.startButtonText]}>
+          <PlayIcon size={iconSize} color={colors.textPrimary} strokeWidth={2.2} />
+          <Text style={[styles.startButtonText, { fontSize: FontSizes.sm * cardScale }, themedStyles.startButtonText]}>
             {isStarting ? 'Starting...' : isStartDisabled ? 'Workout Active' : 'Start'}
           </Text>
         </TouchableOpacity>
       </View>
 
       <TouchableOpacity
-        style={[styles.primaryButton, themedStyles.primaryButton, (isBusy || isAdded) && styles.buttonDisabled]}
+        style={[
+          styles.primaryButton,
+          {
+            minHeight: Math.max(36, Math.round(40 * cardScale)),
+            gap: Math.max(5, Math.round(6 * cardScale)),
+          },
+          themedStyles.primaryButton,
+          (isBusy || isAdded) && styles.buttonDisabled,
+        ]}
         onPress={onAdd}
         activeOpacity={0.8}
         disabled={isBusy || isAdded}
       >
         {isAdded ? (
-          <CheckIcon size={16} color={primaryButtonForeground} strokeWidth={2.2} />
+          <CheckIcon size={iconSize} color={primaryButtonForeground} strokeWidth={2.2} />
         ) : (
-          <PlusIcon size={16} color={primaryButtonForeground} strokeWidth={2.2} />
+          <PlusIcon size={iconSize} color={primaryButtonForeground} strokeWidth={2.2} />
         )}
-        <Text style={[styles.primaryButtonText, themedStyles.primaryButtonText]}>
+        <Text style={[styles.primaryButtonText, { fontSize: FontSizes.sm * cardScale }, themedStyles.primaryButtonText]}>
           {isAdded ? 'Added' : isAdding ? 'Adding...' : 'Add to Workouts'}
         </Text>
       </TouchableOpacity>

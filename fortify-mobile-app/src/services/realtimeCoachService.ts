@@ -6,6 +6,7 @@ import type { AIRequestContext, AIResponse } from '@/src/types/ai';
 import type {
   RealtimeCoachPreferences,
   RealtimeCoachSession,
+  RealtimeCoachUsage,
 } from '@/src/types/realtimeCoach';
 
 export type RealtimeCoachServiceResponse =
@@ -65,6 +66,7 @@ export async function createRealtimeCoachSession(
   try {
     const { data, error, response } = await supabase.functions.invoke('ai-realtime-session', {
       body: {
+        action: 'start_session',
         preferences,
         aiDataSharingConsent: true,
       },
@@ -147,6 +149,36 @@ export async function createRealtimeCoachSession(
         retryable: true,
       },
     };
+  }
+}
+
+export async function reportRealtimeCoachUsage(secondsUsed: number): Promise<RealtimeCoachUsage | null> {
+  if (!isSupabaseConfigured()) return null;
+
+  const normalizedSeconds = Math.max(0, Math.floor(secondsUsed));
+  if (!Number.isFinite(normalizedSeconds) || normalizedSeconds <= 0) return null;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+
+  try {
+    const { data, error } = await supabase.functions.invoke('ai-realtime-session', {
+      body: {
+        action: 'record_usage',
+        aiDataSharingConsent: true,
+        secondsUsed: normalizedSeconds,
+      },
+    });
+
+    if (error) {
+      console.warn('[Voice Coach] failed to report usage', error.message);
+      return null;
+    }
+
+    return data?.usage ?? null;
+  } catch (error) {
+    console.warn('[Voice Coach] failed to report usage', error);
+    return null;
   }
 }
 

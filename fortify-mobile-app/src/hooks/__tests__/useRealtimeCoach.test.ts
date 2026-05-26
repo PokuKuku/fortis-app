@@ -4,6 +4,7 @@ import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 const mockCreateRealtimeCoachSession = jest.fn();
 const mockGenerateVoiceWorkoutTemplate = jest.fn();
+const mockReportRealtimeCoachUsage = jest.fn();
 const mockShouldGenerateWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
 const mockSetAudioModeAsync = jest.fn((_mode: unknown) => Promise.resolve());
 const mockInitialize = jest.fn(() => Promise.resolve(true));
@@ -50,6 +51,7 @@ jest.mock('@speechmatics/expo-two-way-audio', () => ({
 jest.mock('@/src/services/realtimeCoachService', () => ({
   createRealtimeCoachSession: (preferences: unknown) => mockCreateRealtimeCoachSession(preferences),
   generateVoiceWorkoutTemplate: (prompt: unknown, context: unknown) => mockGenerateVoiceWorkoutTemplate(prompt, context),
+  reportRealtimeCoachUsage: (secondsUsed: unknown) => mockReportRealtimeCoachUsage(secondsUsed),
 }));
 
 jest.mock('@/src/utils/realtimeCoach', () => ({
@@ -156,6 +158,11 @@ describe('useRealtimeCoach', () => {
       };
     });
     mockShouldGenerateWorkoutFromVoice.mockReturnValue(false);
+    mockReportRealtimeCoachUsage.mockResolvedValue({
+      secondsUsedToday: 30,
+      maxSecondsPerDay: 7200,
+      maxSecondsPerSession: 1800,
+    });
     mockGenerateVoiceWorkoutTemplate.mockResolvedValue({
       type: 'answer',
       answer: {
@@ -207,6 +214,27 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
+  it('reports actual connected usage on heartbeat and stop', async () => {
+    const { hook } = await startConnectedSession();
+
+    await act(async () => {
+      jest.advanceTimersByTime(30000);
+      await Promise.resolve();
+    });
+
+    expect(mockReportRealtimeCoachUsage).toHaveBeenCalledWith(30);
+
+    await act(async () => {
+      jest.advanceTimersByTime(12000);
+      hook.result.current.stop();
+      await Promise.resolve();
+    });
+
+    expect(mockReportRealtimeCoachUsage).toHaveBeenCalledWith(12);
+
+    hook.unmount();
+  });
+
   it('shows a mic watchdog error when push-to-talk recording starts but no microphone chunks arrive', async () => {
     const { hook } = await startConnectedSession();
 
@@ -237,9 +265,31 @@ describe('useRealtimeCoach', () => {
 
     expect(setupMessage.setup.realtimeInputConfig.activityHandling).toBe('NO_INTERRUPTION');
     expect(setupMessage.setup.realtimeInputConfig.automaticActivityDetection.disabled).toBe(true);
+    expect(setupMessage.setup.tools[0].functionDeclarations[0].name).toBe('create_or_update_workout');
     expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('Coming up.');
+    expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('call the create_or_update_workout tool immediately');
     expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('never say "chat"');
+    expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('Always speak English');
     expect(setupMessage.setup.systemInstruction.parts[0].text).not.toContain('in the chat');
+
+    hook.unmount();
+  });
+
+  it('shows a friendly message for low-level socket errors', async () => {
+    const { hook, socket } = await startConnectedSession();
+
+    act(() => {
+      socket.onerror?.({
+        _defaultPrevented: false,
+        _timeStamp: 89366044.300541,
+        type: 'error',
+      });
+    });
+
+    expect(hook.result.current.phase).toBe('error');
+    expect(hook.result.current.error).toBe(
+      'Voice Coach had trouble connecting. Check your connection and try again.'
+    );
 
     hook.unmount();
   });
@@ -458,6 +508,127 @@ describe('useRealtimeCoach', () => {
 
     expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me a chest workout', undefined);
     expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Chest Workout');
+
+    hook.unmount();
+  });
+
+  it('starts voice workout generation from a Gemini Live tool call', async () => {
+    let resolveWorkout: (value: unknown) => void = () => {};
+    mockGenerateVoiceWorkoutTemplate.mockReturnValue(new Promise((resolve) => {
+      resolveWorkout = resolve;
+    }));
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'call-1',
+              name: 'create_or_update_workout',
+              args: {
+                prompt: 'make me a chest workout',
+              },
+            },
+          ],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me a chest workout', undefined);
+    expect(hook.result.current.isGeneratingVoiceWorkout).toBe(true);
+
+    await act(async () => {
+      resolveWorkout({
+        type: 'answer',
+        answer: {
+          text: 'I built a chest workout.',
+          workoutTemplate: {
+            name: 'Chest Workout',
+            focus: 'Chest',
+            exercises: [
+              {
+                exerciseId: 'exercise-1',
+                exerciseName: 'Bench Press',
+                sets: 4,
+                reps: '6-10',
+              },
+            ],
+          },
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(hook.result.current.isGeneratingVoiceWorkout).toBe(false);
+    expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Chest Workout');
+    expect(socket.sentMessages.some((message) => (
+      message.includes('"toolResponse"')
+      && message.includes('"id":"call-1"')
+      && message.includes('"status":"workout_ready"')
+    ))).toBe(true);
+
+    hook.unmount();
+  });
+
+  it('allows the same workout prompt to be retried if generation returns no card', async () => {
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string) => /back workout/i.test(text ?? ''));
+    mockGenerateVoiceWorkoutTemplate
+      .mockResolvedValueOnce({
+        type: 'answer',
+        answer: {
+          text: 'Coming up.',
+        },
+      })
+      .mockResolvedValueOnce({
+        type: 'answer',
+        answer: {
+          text: 'I built a back workout.',
+          workoutTemplate: {
+            name: 'Back Workout',
+            focus: 'Back',
+            exercises: [
+              {
+                exerciseId: 'exercise-2',
+                exerciseName: 'Lat Pulldown',
+                sets: 4,
+                reps: '8-12',
+              },
+            ],
+          },
+        },
+      });
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      await hook.result.current.beginUserTurn();
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'make me a back workout' },
+        },
+      }));
+      hook.result.current.endUserTurn();
+      jest.advanceTimersByTime(180);
+      await Promise.resolve();
+    });
+
+    expect(hook.result.current.voiceWorkoutMessages).toHaveLength(0);
+
+    await act(async () => {
+      await hook.result.current.beginUserTurn();
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'make me a back workout' },
+        },
+      }));
+      hook.result.current.endUserTurn();
+      jest.advanceTimersByTime(180);
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledTimes(2);
+    expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Back Workout');
 
     hook.unmount();
   });

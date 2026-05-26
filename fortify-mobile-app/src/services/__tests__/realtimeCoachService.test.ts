@@ -23,7 +23,10 @@ jest.mock('expo-crypto', () => ({
   randomUUID: () => 'test-request-id',
 }));
 
-import { createRealtimeCoachSession } from '@/src/services/realtimeCoachService';
+import {
+  createRealtimeCoachSession,
+  reportRealtimeCoachUsage,
+} from '@/src/services/realtimeCoachService';
 
 const preferences = {
   personality: 'direct' as const,
@@ -75,8 +78,35 @@ describe('realtimeCoachService', () => {
     expect(response.type === 'session' ? response.session.accessToken : null).toBe('auth_tokens/test-token');
     expect(mockInvoke).toHaveBeenCalledWith('ai-realtime-session', {
       body: {
+        action: 'start_session',
         preferences,
         aiDataSharingConsent: true,
+      },
+    });
+  });
+
+  it('reports actual realtime usage seconds', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        type: 'usage_recorded',
+        usage: {
+          secondsUsedToday: 45,
+          maxSecondsPerDay: 7200,
+          maxSecondsPerSession: 1800,
+        },
+      },
+      error: null,
+      response: null,
+    });
+
+    const usage = await reportRealtimeCoachUsage(45.8);
+
+    expect(usage?.secondsUsedToday).toBe(45);
+    expect(mockInvoke).toHaveBeenCalledWith('ai-realtime-session', {
+      body: {
+        action: 'record_usage',
+        aiDataSharingConsent: true,
+        secondsUsed: 45,
       },
     });
   });

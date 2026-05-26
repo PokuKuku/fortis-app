@@ -20,8 +20,10 @@ interface RealtimeCoachPreferences {
 }
 
 interface RealtimeSessionRequest {
+  action?: 'start_session' | 'record_usage';
   preferences?: Partial<RealtimeCoachPreferences>;
   aiDataSharingConsent?: boolean;
+  secondsUsed?: number;
 }
 
 const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
@@ -42,6 +44,23 @@ const GEMINI_VOICE_BY_COACH_VOICE: Record<AICoachVoice, string> = {
   coral: 'Aoede',
   verse: 'Charon',
   sage: 'Fenrir',
+};
+
+const VOICE_WORKOUT_TOOL_NAME = 'create_or_update_workout';
+
+const VOICE_WORKOUT_TOOL_DECLARATION = {
+  name: VOICE_WORKOUT_TOOL_NAME,
+  description: 'Create or revise a Fortify workout card when the user explicitly asks for a workout, training day, lift, session, exercise count change, or workout exercise edit.',
+  parameters: {
+    type: 'object',
+    properties: {
+      prompt: {
+        type: 'string',
+        description: 'The user workout request rewritten as a concise English command, preserving body part, equipment, exercise count, and edit details.',
+      },
+    },
+    required: ['prompt'],
+  },
 };
 
 const isVoice = (value: unknown): value is AICoachVoice =>
@@ -168,7 +187,9 @@ function buildInstructions(
 
 Voice Coach rules:
 - Speak naturally in short turns. Keep most answers under 20 seconds.
+- Always speak English. If the user speaks another language, understand it if possible, but respond only in English.
 - Ask at most one question at a time.
+- When the user asks to create or revise a workout, call the ${VOICE_WORKOUT_TOOL_NAME} tool immediately with the user's full request rewritten in English. Do not only say you will build it.
 - If the user asks for a normal single-session workout, do not ask for routine missing details like equipment, duration, exercise count, sets, or reps. Infer sane defaults and generate it.
 - For workout requests, never say "chat", "card", or "screen", and never refer to where the workout will appear. Do not read workout exercise lists out loud. Say only a short delay-safe phrase like "Coming up." or "I'll build that now.", then stop talking while Fortify builds the workout.
 - If the user asks to revise the workout Fortify just built, including adding/removing/replacing exercises or changing the number of exercises, use the same short delay-safe phrase and let Fortify update it.
@@ -228,7 +249,7 @@ async function hasPaidOrTrialAccess(adminClient: SupabaseClient, userId: string)
   return data?.status === 'active' || data?.status === 'trialing';
 }
 
-async function reserveUsage(adminClient: SupabaseClient, userId: string) {
+async function getUsageStatus(adminClient: SupabaseClient, userId: string) {
   const today = new Date().toISOString().slice(0, 10);
   const tomorrowUtc = new Date(`${today}T00:00:00.000Z`);
   tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
@@ -249,33 +270,90 @@ async function reserveUsage(adminClient: SupabaseClient, userId: string) {
   }
 
   const secondsUsedToday = Number(existing?.seconds_reserved ?? 0);
-  if (secondsUsedToday + MAX_SECONDS_PER_SESSION > MAX_SECONDS_PER_DAY) {
+  if (secondsUsedToday >= MAX_SECONDS_PER_DAY) {
     return {
       allowed: false,
       reason: 'rate_limited',
       retryAfterSeconds: retryAfterTomorrowSeconds,
       secondsUsedToday,
+      maxSecondsForSession: 0,
     };
   }
 
-  const nextSeconds = secondsUsedToday + MAX_SECONDS_PER_SESSION;
+  return {
+    allowed: true,
+    secondsUsedToday,
+    maxSecondsForSession: Math.min(MAX_SECONDS_PER_SESSION, Math.max(1, MAX_SECONDS_PER_DAY - secondsUsedToday)),
+  };
+}
+
+async function recordSessionStarted(adminClient: SupabaseClient, userId: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: existing, error: existingError } = await adminClient
+    .from('ai_realtime_usage')
+    .select('seconds_reserved,sessions_started')
+    .eq('user_id', userId)
+    .eq('usage_date', today)
+    .maybeSingle();
+
+  if (existingError) {
+    console.warn('[ai-realtime-session] session start usage lookup failed', existingError.message);
+    return;
+  }
+
   const nextSessions = Number(existing?.sessions_started ?? 0) + 1;
   const { error: upsertError } = await adminClient
     .from('ai_realtime_usage')
     .upsert({
       user_id: userId,
       usage_date: today,
-      seconds_reserved: nextSeconds,
+      seconds_reserved: Number(existing?.seconds_reserved ?? 0),
       sessions_started: nextSessions,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,usage_date' });
 
   if (upsertError) {
-    console.error('[ai-realtime-session] usage reserve failed', upsertError.message);
-    return { allowed: false, reason: 'internal', retryAfterSeconds: 60, secondsUsedToday };
+    console.warn('[ai-realtime-session] session start usage update failed', upsertError.message);
+  }
+}
+
+async function recordActualUsage(adminClient: SupabaseClient, userId: string, secondsUsed: number) {
+  const today = new Date().toISOString().slice(0, 10);
+  const secondsToRecord = Math.min(
+    MAX_SECONDS_PER_SESSION,
+    Math.max(0, Math.floor(Number.isFinite(secondsUsed) ? secondsUsed : 0))
+  );
+
+  const { data: existing, error: existingError } = await adminClient
+    .from('ai_realtime_usage')
+    .select('seconds_reserved,sessions_started')
+    .eq('user_id', userId)
+    .eq('usage_date', today)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error('[ai-realtime-session] actual usage lookup failed', existingError.message);
+    return { recordedSeconds: 0, secondsUsedToday: MAX_SECONDS_PER_DAY };
   }
 
-  return { allowed: true, secondsUsedToday: nextSeconds };
+  const currentSeconds = Number(existing?.seconds_reserved ?? 0);
+  const nextSeconds = Math.min(MAX_SECONDS_PER_DAY, currentSeconds + secondsToRecord);
+  const { error: upsertError } = await adminClient
+    .from('ai_realtime_usage')
+    .upsert({
+      user_id: userId,
+      usage_date: today,
+      seconds_reserved: nextSeconds,
+      sessions_started: Number(existing?.sessions_started ?? 0),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,usage_date' });
+
+  if (upsertError) {
+    console.error('[ai-realtime-session] actual usage update failed', upsertError.message);
+    return { recordedSeconds: 0, secondsUsedToday: currentSeconds };
+  }
+
+  return { recordedSeconds: nextSeconds - currentSeconds, secondsUsedToday: nextSeconds };
 }
 
 function normalizeGeminiModelName(model: string): string {
@@ -285,7 +363,8 @@ function normalizeGeminiModelName(model: string): string {
 async function createGeminiLiveToken(
   userId: string,
   preferences: RealtimeCoachPreferences,
-  trainingContext: VoiceCoachTrainingContext | null
+  trainingContext: VoiceCoachTrainingContext | null,
+  maxSessionSeconds: number
 ) {
   const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
   if (!apiKey) {
@@ -301,7 +380,7 @@ async function createGeminiLiveToken(
     },
     body: JSON.stringify({
       uses: 1,
-      expireTime: new Date(now + MAX_SECONDS_PER_SESSION * 1000 + 60_000).toISOString(),
+      expireTime: new Date(now + maxSessionSeconds * 1000 + 60_000).toISOString(),
       newSessionExpireTime: new Date(now + 60_000).toISOString(),
       bidiGenerateContentSetup: {
         model: normalizeGeminiModelName(GEMINI_LIVE_MODEL),
@@ -319,6 +398,11 @@ async function createGeminiLiveToken(
         systemInstruction: {
           parts: [{ text: buildInstructions(preferences, trainingContext) }],
         },
+        tools: [
+          {
+            functionDeclarations: [VOICE_WORKOUT_TOOL_DECLARATION],
+          },
+        ],
         inputAudioTranscription: {},
         outputAudioTranscription: {},
         realtimeInputConfig: {
@@ -372,12 +456,24 @@ Deno.serve(async (req: Request) => {
       return errorResponse('AI data sharing consent is required.', 'CONSENT_REQUIRED', 403, false, undefined, origin);
     }
 
+    if (body.action === 'record_usage') {
+      const usage = await recordActualUsage(adminClient, user.id, Number(body.secondsUsed ?? 0));
+      return jsonResponse({
+        type: 'usage_recorded',
+        usage: {
+          secondsUsedToday: usage.secondsUsedToday,
+          maxSecondsPerDay: MAX_SECONDS_PER_DAY,
+          maxSecondsPerSession: MAX_SECONDS_PER_SESSION,
+        },
+      }, 200, origin);
+    }
+
     const hasAccess = await hasPaidOrTrialAccess(adminClient, user.id);
     if (!hasAccess) {
       return errorResponse('Voice Coach requires an active trial or subscription.', 'SUBSCRIPTION_REQUIRED', 403, false, undefined, origin);
     }
 
-    const usage = await reserveUsage(adminClient, user.id);
+    const usage = await getUsageStatus(adminClient, user.id);
     if (!usage.allowed) {
       if (usage.reason === 'rate_limited') {
         return errorResponse(
@@ -402,7 +498,9 @@ Deno.serve(async (req: Request) => {
 
     const preferences = normalizePreferences(body.preferences);
     const trainingContext = await assembleVoiceCoachTrainingContext(adminClient, user.id);
-    const token = await createGeminiLiveToken(user.id, preferences, trainingContext);
+    await recordSessionStarted(adminClient, user.id);
+    const maxSessionSeconds = usage.maxSecondsForSession ?? MAX_SECONDS_PER_SESSION;
+    const token = await createGeminiLiveToken(user.id, preferences, trainingContext, maxSessionSeconds);
     const accessToken = token?.name;
 
     if (typeof accessToken !== 'string' || accessToken.length === 0) {
@@ -419,7 +517,7 @@ Deno.serve(async (req: Request) => {
       usage: {
         secondsUsedToday: usage.secondsUsedToday ?? 0,
         maxSecondsPerDay: MAX_SECONDS_PER_DAY,
-        maxSecondsPerSession: MAX_SECONDS_PER_SESSION,
+        maxSecondsPerSession: maxSessionSeconds,
       },
     }, 200, origin);
   } catch (error) {

@@ -50,6 +50,33 @@ describe('geminiLive', () => {
     ]);
   });
 
+  it('maps Gemini Live function calls into tool actions', () => {
+    const actions = parseGeminiLiveMessage(JSON.stringify({
+      toolCall: {
+        functionCalls: [
+          {
+            id: 'call-1',
+            name: 'create_or_update_workout',
+            args: {
+              prompt: 'make me a chest workout',
+            },
+          },
+        ],
+      },
+    }));
+
+    expect(actions).toEqual([
+      {
+        type: 'tool_call',
+        id: 'call-1',
+        name: 'create_or_update_workout',
+        args: {
+          prompt: 'make me a chest workout',
+        },
+      },
+    ]);
+  });
+
   it('round-trips PCM chunks through base64', () => {
     const chunk = new Uint8Array([0, 1, 2, 255]);
     expect(base64ToUint8Array(uint8ArrayToBase64(chunk))).toEqual(chunk);
