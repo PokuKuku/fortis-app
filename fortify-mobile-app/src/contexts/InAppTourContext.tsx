@@ -16,6 +16,7 @@ import {
 } from '@/src/services/inAppTourService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
+import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
 
 type TourStepId =
   | 'welcome'
@@ -284,6 +285,37 @@ const USER_DRIVEN_NAV_STEP_IDS: ReadonlySet<TourStepId> = new Set([
 ]);
 const ANCHOR_RECT_JITTER_PX = 2;
 
+const TOUR_PRO_GATE_BYPASS_STEPS: Partial<Record<PaywallPlacement, ReadonlySet<TourStepId>>> = {
+  [PAYWALL_PLACEMENTS.voiceExerciseAdd]: new Set([
+    'open_add_with_voice',
+    'add_with_voice',
+    'confirm_add_with_voice',
+    'voice_add_multiple',
+  ]),
+  [PAYWALL_PLACEMENTS.voiceSetLog]: new Set([
+    'open_voice_log',
+    'log_with_voice',
+    'confirm_voice_log',
+    'voice_log_result',
+  ]),
+  [PAYWALL_PLACEMENTS.aiChat]: new Set([
+    'ai_chat_open',
+    'ai_chat_overview',
+  ]),
+};
+
+export function shouldBypassProGateForTourState(params: {
+  activeStepId: TourStepId | null;
+  isTourActive: boolean;
+  placement: PaywallPlacement;
+}): boolean {
+  if (!params.isTourActive || !params.activeStepId) {
+    return false;
+  }
+
+  return Boolean(TOUR_PRO_GATE_BYPASS_STEPS[params.placement]?.has(params.activeStepId));
+}
+
 const getStepIndexById = (stepId: string): number => {
   const index = TOUR_STEPS.findIndex((step) => step.id === stepId);
   return index === -1 ? 0 : index;
@@ -300,6 +332,7 @@ type InAppTourContextValue = {
   currentStepNumber: number | null;
   totalSteps: number;
   queueTourStartAfterPaywallClose: () => void;
+  shouldBypassProGateForTour: (placement: PaywallPlacement) => boolean;
 };
 
 const InAppTourContext = createContext<InAppTourContextValue | null>(null);
@@ -357,7 +390,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const isOnStepRoute = useCallback(
     (route: TourRoute) => {
       if (route === '/(tabs)') {
-        return segments[0] === '(tabs)' && (segments.length === 1 || segments[1] === 'index');
+        const routeSegments = segments as readonly string[];
+        return routeSegments[0] === '(tabs)' && (routeSegments.length === 1 || routeSegments[1] === 'index');
       }
 
       const normalizedRoute = route.replace('/(tabs)', '');
@@ -829,6 +863,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     currentStepNumber: logicalStep ? getStepIndexById(logicalStep.id) + 1 : null,
     totalSteps: TOUR_STEPS.length,
     queueTourStartAfterPaywallClose,
+    shouldBypassProGateForTour: (placement) => shouldBypassProGateForTourState({
+      activeStepId: logicalStep?.id ?? null,
+      isTourActive,
+      placement,
+    }),
   }), [advanceStep, finishTour, isTourActive, logicalStep, queueTourStartAfterPaywallClose, registerAnchorRect, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {

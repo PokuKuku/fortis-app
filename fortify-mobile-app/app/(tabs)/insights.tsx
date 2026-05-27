@@ -30,6 +30,8 @@ import { scale, moderateScale } from '@/src/utils/responsive';
 import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonomy';
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -770,6 +772,7 @@ export default function InsightsScreen() {
   const { insights, isLoading, isRefreshing, refresh, dismissInsight, snoozeInsightType } = useTrainingInsights();
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
+  const { runProFeature } = useProFeatureGate();
   const isFocused = useIsFocused();
 
   const exerciseNameById = useMemo(() => {
@@ -901,10 +904,23 @@ export default function InsightsScreen() {
 
   const openInsightChat = async (insight: TrainingInsight, prompt: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
-    const allowed = await requestAIDataSharingConsent();
-    if (!allowed) return;
-    void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
-    router.push('/ai/chat');
+    await runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.insightAskFortify,
+        params: {
+          source: 'insights',
+          action: 'ask_fortify',
+          insightId: insight.id,
+          insightType: insight.type,
+        },
+      },
+      async () => {
+        const allowed = await requestAIDataSharingConsent();
+        if (!allowed) return false;
+        void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
+        router.push('/ai/chat');
+      },
+    );
   };
 
   const handleInsightWhyPress = (insight: TrainingInsight) => {

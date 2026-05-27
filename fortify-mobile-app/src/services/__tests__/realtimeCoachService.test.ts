@@ -25,6 +25,7 @@ jest.mock('expo-crypto', () => ({
 
 import {
   createRealtimeCoachSession,
+  generateRealtimeCoachScriptAudio,
   reportRealtimeCoachUsage,
 } from '@/src/services/realtimeCoachService';
 
@@ -109,6 +110,55 @@ describe('realtimeCoachService', () => {
         secondsUsed: 45,
       },
     });
+  });
+
+  it('invokes the realtime session function to generate creator script audio', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        type: 'script_audio',
+        audioBase64: 'AAAA',
+        mimeType: 'audio/pcm;rate=24000',
+        sampleRate: 24000,
+        voice: 'marin',
+      },
+      error: null,
+      response: null,
+    });
+
+    const response = await generateRealtimeCoachScriptAudio('Your excuses need a deload.', preferences);
+
+    expect(response.type).toBe('script_audio');
+    expect(response.type === 'script_audio' ? response.audio.audioBase64 : null).toBe('AAAA');
+    expect(mockInvoke).toHaveBeenCalledWith('ai-realtime-session', {
+      body: {
+        action: 'generate_script_audio',
+        script: 'Your excuses need a deload.',
+        preferences,
+        aiDataSharingConsent: true,
+      },
+    });
+  });
+
+  it('normalizes creator script allowlist errors', async () => {
+    mockInvoke.mockResolvedValue({
+      data: null,
+      error: new Error('Function failed'),
+      response: {
+        json: async () => ({
+          type: 'error',
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Voice Coach script controls are not enabled for this account.',
+            retryable: false,
+          },
+        }),
+      },
+    });
+
+    const response = await generateRealtimeCoachScriptAudio('Say this.', preferences);
+
+    expect(response.type).toBe('error');
+    expect(response.type === 'error' ? response.error.code : null).toBe('FORBIDDEN');
   });
 
   it('normalizes edge function errors', async () => {

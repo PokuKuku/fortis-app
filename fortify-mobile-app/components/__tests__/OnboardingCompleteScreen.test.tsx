@@ -208,7 +208,7 @@ describe('OnboardingCompleteScreen', () => {
         params: { onboarding: 'complete' },
       });
     });
-    expect(mockReplace).not.toHaveBeenCalledWith('/paywall-gate');
+    expect(mockReplace).not.toHaveBeenCalledWith('/(tabs)');
     expect(mockUpdateProfile).not.toHaveBeenCalled();
     expect(mockClearOnboardingState).not.toHaveBeenCalled();
   });
@@ -241,7 +241,7 @@ describe('OnboardingCompleteScreen', () => {
 
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
-      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
   });
 
@@ -286,7 +286,7 @@ describe('OnboardingCompleteScreen', () => {
         full_name: 'Kwaku',
         onboarding_completed: true,
       }));
-      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
   });
 });

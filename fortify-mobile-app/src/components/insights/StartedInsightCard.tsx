@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { BorderRadius, FontSizes, FontWeights, Spacing } from '@/constants/Sizes';
+import { BorderRadius, FontWeights, Spacing } from '@/constants/Sizes';
 import { moderateScale, scale } from '@/src/utils/responsive';
 
 export function StartedInsightCard() {
@@ -15,14 +15,12 @@ export function StartedInsightCard() {
     subtitle: { color: colors.textSecondary },
     bullet: { color: colors.textSecondary },
     tip: { color: colors.textTertiary },
-    accent: { color: colors.accent },
   };
 
   return (
     <View style={[styles.card, themedStyles.card]}>
       <View style={styles.headerRow}>
         <Text style={[styles.title, themedStyles.title]}>Get Started</Text>
-        <Text style={[styles.badge, themedStyles.accent]}>Started</Text>
       </View>
 
       <Text style={[styles.subtitle, themedStyles.subtitle]}>
@@ -62,12 +60,6 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(18),
     fontWeight: FontWeights.bold,
     letterSpacing: 0.2,
-  },
-  badge: {
-    fontSize: FontSizes.xs,
-    fontWeight: FontWeights.bold,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
   },
   subtitle: {
     fontSize: moderateScale(14),

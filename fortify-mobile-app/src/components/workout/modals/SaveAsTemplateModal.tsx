@@ -12,6 +12,8 @@ import { useProgramsStore } from '@/src/store/programsStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
 interface SaveAsTemplateModalProps {
   visible: boolean;
@@ -30,8 +32,11 @@ export function SaveAsTemplateModal({
   const [templateName, setTemplateName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const programs = useProgramsStore(s => s.programs);
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
   const setActiveSessionProgramContext = useWorkoutStore(s => s.setActiveSessionProgramContext);
+  const { canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
+  const savedWorkoutTemplateCount = programs.filter((program) => program.isTemplate).length;
 
   // Theme-aware styles
   const themedStyles = {
@@ -70,12 +75,7 @@ export function SaveAsTemplateModal({
     })),
   }));
 
-  const handleSave = async () => {
-    if (!templateName.trim() || exercisesForTemplate.length === 0) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      return;
-    }
-
+  const saveTemplate = async () => {
     setIsSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -119,6 +119,30 @@ export function SaveAsTemplateModal({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!templateName.trim() || exercisesForTemplate.length === 0) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      return;
+    }
+
+    if (!canCreateWorkoutTemplate(savedWorkoutTemplateCount)) {
+      await runProFeature(
+        {
+          placement: PAYWALL_PLACEMENTS.workoutLimit,
+          params: {
+            source: 'active_workout',
+            action: 'save_as_template',
+            workoutTemplateCount: savedWorkoutTemplateCount,
+          },
+        },
+        saveTemplate,
+      );
+      return;
+    }
+
+    await saveTemplate();
   };
 
   const handleClose = () => {

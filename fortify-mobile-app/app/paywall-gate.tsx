@@ -10,6 +10,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { shouldShowPaywallGateConfigError } from '@/src/components/superwall/superwallGuards';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import {
   loadPendingOnboardingConversionContext,
   type OnboardingConversionContext,
@@ -19,7 +20,7 @@ import {
   usePendingOnboardingAuthCompletion,
 } from '@/src/utils/onboardingAuthCompletion';
 
-const POST_SIGN_UP_PLACEMENT = 'fortis_first';
+const POST_SIGN_UP_PLACEMENT = PAYWALL_PLACEMENTS.postSignUp;
 const GATE_RETRY_DELAY_MS = 2_000;
 const IDENTITY_SYNC_MAX_RETRIES = 3;
 
@@ -234,38 +235,23 @@ export default function PaywallGateScreen() {
         return;
       }
 
-      if (hasActiveSubscriptionRef.current) {
-        finishGate();
-        return;
-      }
-
-      scheduleRetry();
+      finishGate();
     },
-    [finishGate, scheduleRetry],
+    [finishGate],
   );
 
   const handleSkip = useCallback(
     (_reason: PaywallSkippedReason) => {
-      if (hasActiveSubscriptionRef.current) {
-        finishGate();
-        return;
-      }
-
-      scheduleRetry();
+      finishGate();
     },
-    [finishGate, scheduleRetry],
+    [finishGate],
   );
 
   const handleError = useCallback(
     (_error: string) => {
-      if (hasActiveSubscriptionRef.current) {
-        finishGate();
-        return;
-      }
-
-      scheduleRetry();
+      finishGate();
     },
-    [finishGate, scheduleRetry],
+    [finishGate],
   );
 
   const { registerPlacement } = usePlacement({
@@ -291,7 +277,7 @@ export default function PaywallGateScreen() {
       hasSuperwallError,
       hasNavigated: hasNavigatedRef.current,
     })) {
-      scheduleRetry();
+      finishGate();
       return;
     }
 
@@ -333,7 +319,7 @@ export default function PaywallGateScreen() {
       }
 
       if (!access.wasVerified) {
-        scheduleRetry();
+        finishGate();
         return;
       }
 
@@ -350,7 +336,7 @@ export default function PaywallGateScreen() {
           params: paywallContext ?? undefined,
         });
       } catch {
-        scheduleRetry();
+        finishGate();
       }
     })();
   }, [

@@ -1,6 +1,7 @@
 import {
   coerceRealtimeCoachPreferences,
   getIntensityLabel,
+  isCreatorVoiceScriptsEnabled,
   normalizeRealtimeCoachPhase,
   shouldGenerateWorkoutFromVoice,
 } from '@/src/utils/realtimeCoach';
@@ -27,11 +28,11 @@ describe('realtimeCoach utils', () => {
 
   it('normalizes preferences and clamps intensity', () => {
     expect(coerceRealtimeCoachPreferences({
-      personality: 'drill_sergeant',
+      personality: 'roast',
       voice: 'cedar',
       intensity: 2,
     })).toEqual({
-      personality: 'drill_sergeant',
+      personality: 'roast',
       voice: 'cedar',
       intensity: 1,
     });
@@ -53,5 +54,31 @@ describe('realtimeCoach utils', () => {
     expect(getIntensityLabel(0.1)).toBe('Calm');
     expect(getIntensityLabel(0.5)).toBe('Sharp');
     expect(getIntensityLabel(0.9)).toBe('Hard');
+  });
+
+  it('gates creator voice scripts by public flag and email allowlist', () => {
+    const originalEnabled = process.env.EXPO_PUBLIC_ENABLE_CREATOR_VOICE_SCRIPTS;
+    const originalEmails = process.env.EXPO_PUBLIC_CREATOR_VOICE_SCRIPT_EMAILS;
+
+    process.env.EXPO_PUBLIC_ENABLE_CREATOR_VOICE_SCRIPTS = 'true';
+    process.env.EXPO_PUBLIC_CREATOR_VOICE_SCRIPT_EMAILS = 'creator@example.com, other@example.com';
+
+    expect(isCreatorVoiceScriptsEnabled('Creator@Example.com')).toBe(true);
+    expect(isCreatorVoiceScriptsEnabled('user@example.com')).toBe(false);
+
+    process.env.EXPO_PUBLIC_ENABLE_CREATOR_VOICE_SCRIPTS = 'false';
+    expect(isCreatorVoiceScriptsEnabled('creator@example.com')).toBe(false);
+
+    if (originalEnabled === undefined) {
+      delete process.env.EXPO_PUBLIC_ENABLE_CREATOR_VOICE_SCRIPTS;
+    } else {
+      process.env.EXPO_PUBLIC_ENABLE_CREATOR_VOICE_SCRIPTS = originalEnabled;
+    }
+
+    if (originalEmails === undefined) {
+      delete process.env.EXPO_PUBLIC_CREATOR_VOICE_SCRIPT_EMAILS;
+    } else {
+      process.env.EXPO_PUBLIC_CREATOR_VOICE_SCRIPT_EMAILS = originalEmails;
+    }
   });
 });

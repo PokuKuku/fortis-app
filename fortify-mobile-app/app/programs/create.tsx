@@ -40,6 +40,8 @@ import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
 import Animated, { Easing, LinearTransition, SlideInDown, SlideOutDown, runOnJS } from 'react-native-reanimated';
 import { responsiveValue, scale } from '@/src/utils/responsive';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 const HEADER_COLLAPSE_THRESHOLD = scale(48);
@@ -151,6 +153,8 @@ export default function CreateProgramScreen() {
   const fetchPrograms = useProgramsStore(s => s.fetchPrograms);
   const programs = useProgramsStore(s => s.programs);
   const templates = useMemo(() => programs.filter(p => p.isTemplate), [programs]);
+  const programCount = useMemo(() => programs.filter(p => !p.isTemplate).length, [programs]);
+  const { canCreateProgram, runProFeature } = useProFeatureGate();
   const templateMap = useMemo(
     () => new Map(templates.map(template => [template.id, template])),
     [templates]
@@ -528,6 +532,21 @@ export default function CreateProgramScreen() {
 
     if (isEditing && programId && useProgramProgressStore.getState().progressByProgram[programId]) {
       setShowEditIntentModal(true);
+      return;
+    }
+
+    if (!isEditing && !canCreateProgram(programCount)) {
+      await runProFeature(
+        {
+          placement: PAYWALL_PLACEMENTS.programLimit,
+          params: {
+            source: 'program_builder',
+            action: 'create_program',
+            programCount,
+          },
+        },
+        performSave,
+      );
       return;
     }
 

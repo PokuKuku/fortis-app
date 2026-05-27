@@ -10,6 +10,7 @@ const mockColors = {
   textPrimary: '#F7F7F7',
   textSecondary: '#CCCCCC',
   textTertiary: '#999999',
+  accentForegroundOnFill: '#000000',
 };
 
 jest.mock('@/src/contexts/ThemeContext', () => ({
@@ -228,6 +229,41 @@ describe('RealtimeVoiceCoachScreen', () => {
 
     expect(onTalkStart).toHaveBeenCalledTimes(1);
     expect(onTalkEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('hides creator script controls by default', () => {
+    const { queryByTestId } = render(<RealtimeVoiceCoachScreen {...defaultProps} />);
+
+    expect(queryByTestId('creator-script-controls')).toBeNull();
+  });
+
+  it('shows creator script controls and submits entered text when enabled', () => {
+    const onSpeakCreatorScript = jest.fn(() => true);
+    const { getByTestId, getByPlaceholderText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        isCreatorScriptEnabled
+        onSpeakCreatorScript={onSpeakCreatorScript}
+      />
+    );
+
+    fireEvent.changeText(getByPlaceholderText('Type roast script'), 'Your warmup has more commitment than your workout.');
+    fireEvent.press(getByTestId('creator-script-speak-button'));
+
+    expect(getByTestId('creator-script-controls')).toBeTruthy();
+    expect(onSpeakCreatorScript).toHaveBeenCalledWith('Your warmup has more commitment than your workout.');
+  });
+
+  it('renders creator script errors', () => {
+    const { getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        isCreatorScriptEnabled
+        creatorScriptError="Script text is required."
+      />
+    );
+
+    expect(getByText('Script text is required.')).toBeTruthy();
   });
 
   it('dims and disables the talk button while connecting', () => {

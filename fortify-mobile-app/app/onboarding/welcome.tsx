@@ -182,8 +182,8 @@ export default function OnboardingWelcomeScreen() {
       return;
     }
     setShowSignInSheet(false);
-    console.log('[Routing] onboarding/welcome -> /paywall-gate');
-    router.replace('/paywall-gate');
+    console.log('[Routing] onboarding/welcome -> /(tabs)');
+    router.replace('/(tabs)');
   }, [
     isAuthenticated,
     isLoading,

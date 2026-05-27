@@ -25,6 +25,9 @@ jest.mock('expo-router', () => ({
 }));
 
 jest.mock('expo-superwall', () => ({
+  usePlacement: jest.fn(() => ({
+    registerPlacement: jest.fn(),
+  })),
   useSuperwall: jest.fn((selector: (state: any) => any) =>
     selector({ isConfigured: false, isLoading: false }),
   ),

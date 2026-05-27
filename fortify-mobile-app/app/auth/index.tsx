@@ -144,7 +144,7 @@ export default function AuthWelcomeScreen() {
       if (didFinalizeOnboardingAuthRef.current) return;
       didFinalizeOnboardingAuthRef.current = true;
       void clearPendingOnboardingAuthCompletion();
-      router.replace('/paywall-gate');
+      router.replace('/(tabs)');
       return;
     }
 
@@ -255,7 +255,7 @@ export default function AuthWelcomeScreen() {
         );
 
         if (isMountedRef.current && isFocusedRef.current) {
-          router.replace('/paywall-gate');
+          router.replace('/(tabs)');
         }
       } catch (finalizeError) {
         didFinalizeOnboardingAuthRef.current = false;
@@ -295,8 +295,8 @@ export default function AuthWelcomeScreen() {
       return;
     }
 
-    console.log('[Routing] auth/index -> /paywall-gate (authenticated)');
-    router.replace('/paywall-gate');
+    console.log('[Routing] auth/index -> /(tabs) (authenticated)');
+    router.replace('/(tabs)');
   }, [
     isAuthenticated,
     isFocused,

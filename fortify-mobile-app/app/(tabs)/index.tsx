@@ -57,6 +57,8 @@ import {
   updatePendingOnboardingProgramSpec,
   type OnboardingProgramSpec,
 } from '@/src/utils/onboardingProgram';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -766,6 +768,7 @@ export default function ProgramsScreen() {
   const duplicateWorkoutInStore = useProgramsStore(s => s.duplicateWorkoutTemplate);
   const appendTemplateToProgram = useProgramsStore(s => s.appendTemplateToProgram);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
+  const { canCreateProgram, canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
   const loadProgress = useProgramProgressStore(s => s.loadProgress);
   const isProgramProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const progressByProgram = useProgramProgressStore(s => s.progressByProgram);
@@ -1153,23 +1156,61 @@ export default function ProgramsScreen() {
 
   const handleDuplicate = async () => {
     if (openKebab.type === 'program' && openKebab.id !== null) {
-      const newProgramId = await duplicateProgramInStore(openKebab.id);
-      if (newProgramId) {
-        // Trigger entering animation for the new card
-        const cardKey = `program-${newProgramId}`;
-        setAnimatingCards(prev => ({ ...prev, [cardKey]: 'entering' }));
-        // Show toast notification
-        setToastMessage('Program duplicated!');
-        setShowToast(true);
+      const duplicateProgram = async () => {
+        const newProgramId = await duplicateProgramInStore(openKebab.id as string);
+        if (newProgramId) {
+          // Trigger entering animation for the new card
+          const cardKey = `program-${newProgramId}`;
+          setAnimatingCards(prev => ({ ...prev, [cardKey]: 'entering' }));
+          // Show toast notification
+          setToastMessage('Program duplicated!');
+          setShowToast(true);
+        }
+      };
+
+      if (!canCreateProgram(basePrograms.length)) {
+        await runProFeature(
+          {
+            placement: PAYWALL_PLACEMENTS.programLimit,
+            params: {
+              source: 'home',
+              action: 'duplicate_program',
+              programCount: basePrograms.length,
+            },
+          },
+          duplicateProgram,
+        );
+        return;
       }
+
+      await duplicateProgram();
     } else if (openKebab.type === 'workout' && openKebab.id !== null) {
-      const newWorkoutId = await duplicateWorkoutInStore(openKebab.id);
-      if (newWorkoutId) {
-        const cardKey = `workout-${newWorkoutId}`;
-        setAnimatingCards(prev => ({ ...prev, [cardKey]: 'entering' }));
-        setToastMessage('Workout duplicated!');
-        setShowToast(true);
+      const duplicateWorkout = async () => {
+        const newWorkoutId = await duplicateWorkoutInStore(openKebab.id as string);
+        if (newWorkoutId) {
+          const cardKey = `workout-${newWorkoutId}`;
+          setAnimatingCards(prev => ({ ...prev, [cardKey]: 'entering' }));
+          setToastMessage('Workout duplicated!');
+          setShowToast(true);
+        }
+      };
+
+      if (!canCreateWorkoutTemplate(baseTemplates.length)) {
+        await runProFeature(
+          {
+            placement: PAYWALL_PLACEMENTS.workoutLimit,
+            params: {
+              source: 'home',
+              action: 'duplicate_workout_template',
+              workoutTemplateCount: baseTemplates.length,
+            },
+          },
+          duplicateWorkout,
+        );
+        return;
       }
+
+      await duplicateWorkout();
     }
   };
 
@@ -1329,11 +1370,45 @@ export default function ProgramsScreen() {
   };
 
   const handleAddProgramPress = () => {
+    if (!canCreateProgram(basePrograms.length)) {
+      void runProFeature(
+        {
+          placement: PAYWALL_PLACEMENTS.programLimit,
+          params: {
+            source: 'home',
+            action: 'open_create_program',
+            programCount: basePrograms.length,
+          },
+        },
+        () => {
+          router.push('/programs/create');
+        },
+      );
+      return;
+    }
+
     router.push('/programs/create');
   };
 
   // Handle add workout from kebab menu
   const handleAddWorkoutPress = () => {
+    if (!canCreateWorkoutTemplate(baseTemplates.length)) {
+      void runProFeature(
+        {
+          placement: PAYWALL_PLACEMENTS.workoutLimit,
+          params: {
+            source: 'home',
+            action: 'open_create_workout_template',
+            workoutTemplateCount: baseTemplates.length,
+          },
+        },
+        () => {
+          router.push('/workout/create');
+        },
+      );
+      return;
+    }
+
     router.push('/workout/create');
   };
 

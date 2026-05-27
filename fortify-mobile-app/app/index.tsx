@@ -8,7 +8,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
-type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate';
+type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/(tabs)';
 const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortisDemoFinal888.mov');
 
 const resolveStartupRoute = ({
@@ -28,7 +28,7 @@ const resolveStartupRoute = ({
     return '/onboarding';
   }
 
-  return '/paywall-gate';
+  return '/(tabs)';
 };
 
 export default function SplashScreen() {

@@ -175,7 +175,7 @@ describe('AuthWelcomeScreen', () => {
     mockClearOnboardingState.mockResolvedValue(undefined);
   });
 
-  it('finalizes onboarding-complete auth flow exactly once and routes to paywall', async () => {
+  it('finalizes onboarding-complete auth flow exactly once and routes to limited app', async () => {
     render(<AuthWelcomeScreen />);
 
     await waitFor(() => {
@@ -185,7 +185,7 @@ describe('AuthWelcomeScreen', () => {
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
       expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
-      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
   });
 
@@ -202,7 +202,7 @@ describe('AuthWelcomeScreen', () => {
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
       expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
-      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
   });
 

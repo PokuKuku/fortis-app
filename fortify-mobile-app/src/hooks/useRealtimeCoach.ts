@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Buffer } from 'buffer';
 import { AppState } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
 import {
   createRealtimeCoachSession,
+  generateRealtimeCoachScriptAudio,
   generateVoiceWorkoutTemplate,
   reportRealtimeCoachUsage,
 } from '@/src/services/realtimeCoachService';
@@ -61,6 +63,7 @@ const GENERIC_VOICE_COACH_ERROR = 'Voice Coach could not start. Try again in a m
 const VOICE_COACH_CONNECTION_ERROR = 'Voice Coach had trouble connecting. Check your connection and try again.';
 const MICROPHONE_STREAM_ERROR =
   'Microphone stream is not emitting audio. On iOS Simulator, check host microphone input or test on a physical iPhone.';
+const EMPTY_CREATOR_SCRIPT_ERROR = 'Type a roast script first.';
 
 const VOICE_COACH_ACTIVE_AUDIO_MODE = {
   allowsRecordingIOS: true,
@@ -80,6 +83,11 @@ const VOICE_COACH_IDLE_AUDIO_MODE = {
   interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
   shouldDuckAndroid: true,
   playThroughEarpieceAndroid: false,
+} as const;
+
+const CREATOR_SCRIPT_AUDIO_MODE = {
+  ...VOICE_COACH_IDLE_AUDIO_MODE,
+  playsInSilentModeIOS: true,
 } as const;
 
 const GEMINI_VOICE_BY_COACH_VOICE: Record<RealtimeCoachPreferences['voice'], string> = {
@@ -113,6 +121,29 @@ const isSocketOpen = (socket: WebSocket | null): socket is WebSocket =>
 const normalizeGeminiModelName = (model: string) =>
   model.startsWith('models/') ? model : `models/${model}`;
 
+const createWavBase64FromPcm16 = (pcmBase64: string, sampleRate: number): string => {
+  const pcm = Buffer.from(pcmBase64, 'base64');
+  const header = Buffer.alloc(44);
+  const byteRate = sampleRate * PCM16_MONO_BYTES_PER_SAMPLE;
+  const blockAlign = PCM16_MONO_BYTES_PER_SAMPLE;
+
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(blockAlign, 32);
+  header.writeUInt16LE(PCM16_MONO_BYTES_PER_SAMPLE * 8, 34);
+  header.write('data', 36);
+  header.writeUInt32LE(pcm.length, 40);
+
+  return Buffer.concat([header, pcm]).toString('base64');
+};
+
 const buildInstructions = (preferences: RealtimeCoachPreferences): string => {
   const intensityLabel = preferences.intensity < 0.34
     ? 'calm'
@@ -122,6 +153,8 @@ const buildInstructions = (preferences: RealtimeCoachPreferences): string => {
   const persona =
     preferences.personality === 'drill_sergeant'
       ? 'You are a blunt strength coach. Be demanding and confront weak training decisions, but only critique behavior, effort, and logged training choices. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
+      : preferences.personality === 'roast'
+        ? 'You are a sharp, funny strength coach with roast-comedy energy. Make playful jokes about effort, consistency, skipped sets, inflated excuses, and logged training choices, but keep it fitness-only. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
       : preferences.personality === 'hype'
         ? 'You are a high-energy strength coach. Celebrate wins, keep momentum high, and make the user feel ready to train.'
         : 'You are a direct strength coach. Be specific, useful, concise, and a little challenging.';
@@ -285,6 +318,7 @@ export function useRealtimeCoach({
 }: UseRealtimeCoachOptions) {
   const socketRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<TwoWayAudioModule | null>(null);
+  const creatorScriptSoundRef = useRef<Audio.Sound | null>(null);
   const microphoneSubscriptionRef = useRef<{ remove?: () => void } | (() => void) | null>(null);
   const inputVolumeSubscriptionRef = useRef<{ remove?: () => void } | (() => void) | null>(null);
   const outputVolumeSubscriptionRef = useRef<{ remove?: () => void } | (() => void) | null>(null);
@@ -334,6 +368,8 @@ export function useRealtimeCoach({
   const [voiceWorkoutMessages, setVoiceWorkoutMessages] = useState<VoiceWorkoutMessage[]>([]);
   const [isGeneratingVoiceWorkout, setIsGeneratingVoiceWorkout] = useState(false);
   const [isUserTurnActive, setIsUserTurnActive] = useState(false);
+  const [isSpeakingCreatorScript, setIsSpeakingCreatorScript] = useState(false);
+  const [creatorScriptError, setCreatorScriptError] = useState<string | null>(null);
 
   const clearTranscriptHideTimeout = useCallback(() => {
     if (transcriptHideTimeoutRef.current) {
@@ -446,6 +482,16 @@ export function useRealtimeCoach({
     playbackMicSuppressedUntilRef.current = 0;
   }, []);
 
+  const unloadCreatorScriptSound = useCallback(() => {
+    const sound = creatorScriptSoundRef.current;
+    creatorScriptSoundRef.current = null;
+    if (sound) {
+      void sound.unloadAsync().catch(() => {
+        // Script playback may already be unloaded.
+      });
+    }
+  }, []);
+
   const clearUsageReportInterval = useCallback(() => {
     if (usageReportIntervalRef.current) {
       clearInterval(usageReportIntervalRef.current);
@@ -535,6 +581,7 @@ export function useRealtimeCoach({
     clearMicWatchdog();
     clearUserTurnEndTimeout();
     clearPlaybackQueue();
+    unloadCreatorScriptSound();
     clearTranscriptHideTimeout();
     cleanupMicrophoneSubscription();
     cleanupVolumeSubscriptions();
@@ -556,6 +603,7 @@ export function useRealtimeCoach({
         userTurnMicrophoneChunksReceived: 0,
       }));
       setIsUserTurnActive(false);
+      setIsSpeakingCreatorScript(false);
     }
 
     try {
@@ -583,6 +631,7 @@ export function useRealtimeCoach({
     clearTranscriptHideTimeout,
     finalizeUsageReporting,
     resetTranscriptBuffers,
+    unloadCreatorScriptSound,
   ]);
 
   const stop = useCallback(() => {
@@ -595,6 +644,78 @@ export function useRealtimeCoach({
       setPhase('stopped');
     }
   }, [cleanup]);
+
+  const speakCreatorScript = useCallback(async (script: string): Promise<boolean> => {
+    const trimmed = script.trim();
+    if (!trimmed) {
+      setCreatorScriptError(EMPTY_CREATOR_SCRIPT_ERROR);
+      return false;
+    }
+
+    setCreatorScriptError(null);
+    setIsSpeakingCreatorScript(true);
+    unloadCreatorScriptSound();
+
+    try {
+      const response = await generateRealtimeCoachScriptAudio(trimmed, preferences);
+      if (response.type === 'error') {
+        setCreatorScriptError(response.error.message);
+        return false;
+      }
+
+      const sampleRate = Number.isFinite(response.audio.sampleRate)
+        ? response.audio.sampleRate
+        : 24000;
+      const wavBase64 = createWavBase64FromPcm16(response.audio.audioBase64, sampleRate);
+      const fileUri = `${FileSystem.cacheDirectory ?? ''}voice-coach-script-${Date.now()}.wav`;
+
+      if (!FileSystem.cacheDirectory) {
+        throw new Error('Script audio cache is not available on this device.');
+      }
+
+      await Audio.setAudioModeAsync(CREATOR_SCRIPT_AUDIO_MODE);
+      await FileSystem.writeAsStringAsync(fileUri, wavBase64, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: fileUri },
+        { shouldPlay: true },
+        (status) => {
+          if (!status.isLoaded) return;
+          if (status.didJustFinish) {
+            unloadCreatorScriptSound();
+            if (isMountedRef.current) {
+              setIsSpeakingCreatorScript(false);
+              setPhase((current) => (
+                current === 'coach_speaking'
+                  ? socketRef.current
+                    ? 'listening'
+                    : 'stopped'
+                  : current
+              ));
+            }
+            void setVoiceCoachAudioMode(false).catch(() => {
+              // Audio mode reset is best-effort after script playback.
+            });
+          }
+        }
+      );
+
+      creatorScriptSoundRef.current = sound;
+      setPhase('coach_speaking');
+      setTranscriptOverlay(null);
+      return true;
+    } catch (scriptError) {
+      console.warn('[Voice Coach] script playback failed', scriptError);
+      setCreatorScriptError(scriptError instanceof Error ? scriptError.message : 'Unable to play Voice Coach script.');
+      return false;
+    } finally {
+      if (isMountedRef.current && !creatorScriptSoundRef.current) {
+        setIsSpeakingCreatorScript(false);
+      }
+    }
+  }, [preferences, unloadCreatorScriptSound]);
 
   const sendGeminiToolResponse = useCallback((
     id: string,
@@ -1228,12 +1349,15 @@ export function useRealtimeCoach({
     debugStatus,
     voiceWorkoutMessages,
     isGeneratingVoiceWorkout,
+    isSpeakingCreatorScript,
+    creatorScriptError,
     isActive,
     isUserTurnActive,
     start,
     stop,
     beginUserTurn,
     endUserTurn,
+    speakCreatorScript,
     setError,
     markVoiceWorkoutSaved,
   };

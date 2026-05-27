@@ -55,6 +55,8 @@ import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { useAuth } from '@/src/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 import { MicrophoneIcon } from 'react-native-heroicons/outline';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const LIST_PADDING_TOP = Math.max(0, scale(Spacing.lg) - scale(6));
@@ -125,6 +127,7 @@ export default function ActiveWorkoutScreen() {
   const programs = useProgramsStore(s => s.programs);
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
   const updateProgramWorkout = useProgramsStore(s => s.updateProgramWorkout);
+  const { runProFeature } = useProFeatureGate();
   const elapsed = useElapsedTime();
 
   const templateForSession = useMemo(() => {
@@ -368,28 +371,40 @@ export default function ActiveWorkoutScreen() {
 
   const handleOpenVoiceAdd = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const permission = await ensureMicrophonePermission();
-    if (permission.granted) {
-      setShowVoiceAddSheet(true);
-      return;
-    }
+    await runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.voiceExerciseAdd,
+        params: {
+          source: 'active_workout',
+          action: 'open_voice_exercise_add',
+          exerciseCount: activeSession?.exercises.length ?? 0,
+        },
+      },
+      async () => {
+        const permission = await ensureMicrophonePermission();
+        if (permission.granted) {
+          setShowVoiceAddSheet(true);
+          return;
+        }
 
-    Alert.alert(
-      'Microphone access required',
-      permission.status === 'undetermined'
-        ? 'Microphone access is required to add exercises by voice.'
-        : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
-      permission.status === 'undetermined'
-        ? [{ text: 'OK' }]
-        : [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                void openMicrophoneSettings();
-              },
-            },
-          ]
+        Alert.alert(
+          'Microphone access required',
+          permission.status === 'undetermined'
+            ? 'Microphone access is required to add exercises by voice.'
+            : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
+          permission.status === 'undetermined'
+            ? [{ text: 'OK' }]
+            : [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    void openMicrophoneSettings();
+                  },
+                },
+              ]
+        );
+      },
     );
   };
 
@@ -681,31 +696,43 @@ export default function ActiveWorkoutScreen() {
 
   // Exercise card renderer
   const handleVoiceLog = async (exerciseLocalId: string) => {
-    const permission = await ensureMicrophonePermission();
-    if (permission.granted) {
-      setVoiceExerciseLocalId(exerciseLocalId);
-      if (isTourActive && activeStepId === 'open_voice_log') {
-        advanceStep();
-      }
-      return;
-    }
+    await runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.voiceSetLog,
+        params: {
+          source: 'active_workout',
+          action: 'open_voice_set_log',
+          exerciseLocalId,
+        },
+      },
+      async () => {
+        const permission = await ensureMicrophonePermission();
+        if (permission.granted) {
+          setVoiceExerciseLocalId(exerciseLocalId);
+          if (isTourActive && activeStepId === 'open_voice_log') {
+            advanceStep();
+          }
+          return;
+        }
 
-    Alert.alert(
-      'Microphone access required',
-      permission.status === 'undetermined'
-        ? 'Microphone access is required to use voice logging.'
-        : 'Microphone access is off. Enable it in Settings to use voice logging.',
-      permission.status === 'undetermined'
-        ? [{ text: 'OK' }]
-        : [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                void openMicrophoneSettings();
-              },
-            },
-          ]
+        Alert.alert(
+          'Microphone access required',
+          permission.status === 'undetermined'
+            ? 'Microphone access is required to use voice logging.'
+            : 'Microphone access is off. Enable it in Settings to use voice logging.',
+          permission.status === 'undetermined'
+            ? [{ text: 'OK' }]
+            : [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    void openMicrophoneSettings();
+                  },
+                },
+              ]
+        );
+      },
     );
   };
 

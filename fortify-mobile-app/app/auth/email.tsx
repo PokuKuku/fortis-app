@@ -160,7 +160,7 @@ export default function EmailAuthScreen() {
       return;
     }
 
-    router.replace('/paywall-gate');
+    router.replace('/(tabs)');
   }, [
     isAuthenticated,
     needsOnboarding,

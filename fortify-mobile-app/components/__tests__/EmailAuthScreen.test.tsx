@@ -126,7 +126,7 @@ describe('EmailAuthScreen', () => {
     };
   });
 
-  it('routes to paywall gate after successful email sign-in once auth state resolves', async () => {
+  it('routes to limited app after successful email sign-in once auth state resolves', async () => {
     const { getByPlaceholderText, getByText, rerender } = render(<EmailAuthScreen />);
 
     fireEvent.changeText(getByPlaceholderText('your@email.com'), 'reviewer@example.com');
@@ -149,7 +149,7 @@ describe('EmailAuthScreen', () => {
     rerender(<EmailAuthScreen />);
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
   });
 

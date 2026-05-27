@@ -1,9 +1,10 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useWindowDimensions,
   View,
@@ -37,13 +38,19 @@ interface RealtimeVoiceCoachScreenProps {
   isWorkoutActive: boolean;
   isActive: boolean;
   isUserTurnActive: boolean;
+  isCreatorScriptEnabled?: boolean;
+  isSpeakingCreatorScript?: boolean;
+  creatorScriptError?: string | null;
   templateSaveError?: string | null;
   onTalkStart: () => void;
   onTalkEnd: () => void;
+  onSpeakCreatorScript?: (script: string) => Promise<boolean> | boolean;
   onViewWorkoutTemplate: (message: AIConversationMessage) => void;
   onAddWorkoutTemplate: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate: (message: AIConversationMessage) => void;
 }
+
+const CREATOR_SCRIPT_MAX_CHARS = 500;
 
 const asConversationMessage = (message: VoiceWorkoutMessage): AIConversationMessage => ({
   id: message.id,
@@ -105,14 +112,19 @@ export function RealtimeVoiceCoachScreen({
   isWorkoutActive,
   isActive,
   isUserTurnActive,
+  isCreatorScriptEnabled = false,
+  isSpeakingCreatorScript = false,
+  creatorScriptError = null,
   templateSaveError,
   onTalkStart,
   onTalkEnd,
+  onSpeakCreatorScript,
   onViewWorkoutTemplate,
   onAddWorkoutTemplate,
   onStartWorkoutTemplate,
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
+  const [creatorScript, setCreatorScript] = useState('');
   const { width, height } = useWindowDimensions();
   const voiceCardAnimationsRef = useRef<Record<string, Animated.Value>>({});
   const animatedVoiceCardIdsRef = useRef<Set<string>>(new Set());
@@ -132,7 +144,7 @@ export function RealtimeVoiceCoachScreen({
   };
   const middleSlotHeight = Math.max(96, heroMinHeight - middleSlotFrame.top - middleSlotFrame.bottom);
   const shouldVisualizeUserAudio = isUserTurnActive && phase !== 'coach_speaking';
-  const isTalkButtonReady = debugStatus.setupComplete && phase !== 'connecting' && phase !== 'error';
+  const isTalkButtonReady = (!isActive || debugStatus.setupComplete) && phase !== 'connecting' && phase !== 'error';
   const clampedUserAudioLevel = Math.max(0, Math.min(1, userAudioLevel));
   const normalizedUserLevel = shouldVisualizeUserAudio && clampedUserAudioLevel > 0.01
     ? Math.max(0.08, clampedUserAudioLevel)
@@ -146,6 +158,16 @@ export function RealtimeVoiceCoachScreen({
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
     borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)',
   };
+  const creatorScriptPanelStyle = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)',
+  };
+  const creatorScriptInputStyle = {
+    backgroundColor: isDark ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.62)',
+    borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+    color: colors.textPrimary,
+  };
+  const creatorScriptTop = Math.max(8, visualizerTop - 118);
 
   const getVoiceCardAnimation = (messageId: string): Animated.Value => {
     if (!voiceCardAnimationsRef.current[messageId]) {
@@ -190,9 +212,63 @@ export function RealtimeVoiceCoachScreen({
     }).start();
   }, [isGeneratingVoiceWorkout, pendingWorkoutCardAnimation]);
 
+  const handleSpeakCreatorScript = () => {
+    if (!onSpeakCreatorScript || isSpeakingCreatorScript) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    void onSpeakCreatorScript(creatorScript);
+  };
+
   return (
     <View style={[styles.container, styles.content]}>
       <View style={styles.hero}>
+        {isCreatorScriptEnabled ? (
+          <View
+            testID="creator-script-controls"
+            style={[
+              styles.creatorScriptPanel,
+              creatorScriptPanelStyle,
+              { top: creatorScriptTop },
+            ]}
+          >
+            <TextInput
+              testID="creator-script-input"
+              value={creatorScript}
+              onChangeText={(next) => setCreatorScript(next.slice(0, CREATOR_SCRIPT_MAX_CHARS))}
+              placeholder="Type roast script"
+              placeholderTextColor={colors.textTertiary}
+              style={[styles.creatorScriptInput, creatorScriptInputStyle]}
+              multiline
+              maxLength={CREATOR_SCRIPT_MAX_CHARS}
+              returnKeyType="done"
+            />
+            <View style={styles.creatorScriptFooter}>
+              <Text style={[styles.creatorScriptCount, { color: colors.textTertiary }]}>
+                {creatorScript.length}/{CREATOR_SCRIPT_MAX_CHARS}
+              </Text>
+              <TouchableOpacity
+                testID="creator-script-speak-button"
+                style={[
+                  styles.creatorScriptButton,
+                  {
+                    backgroundColor: colors.accent,
+                    opacity: isSpeakingCreatorScript ? 0.56 : 1,
+                  },
+                ]}
+                onPress={handleSpeakCreatorScript}
+                disabled={isSpeakingCreatorScript}
+                activeOpacity={0.82}
+              >
+                <Text style={[styles.creatorScriptButtonText, { color: colors.accentForegroundOnFill }]}>
+                  {isSpeakingCreatorScript ? 'Speaking' : 'Speak'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {creatorScriptError ? (
+              <Text style={styles.creatorScriptError}>{creatorScriptError}</Text>
+            ) : null}
+          </View>
+        ) : null}
+
         <View style={[styles.visualizerAnchor, { top: visualizerTop }]}>
           <DumbbellVoiceVisualizer
             phase={phase}
@@ -403,6 +479,54 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  creatorScriptPanel: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
+    zIndex: 2,
+  },
+  creatorScriptInput: {
+    ...Typography.bodySmall,
+    minHeight: 52,
+    maxHeight: 76,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    textAlignVertical: 'top',
+  },
+  creatorScriptFooter: {
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  creatorScriptCount: {
+    ...Typography.caption,
+  },
+  creatorScriptButton: {
+    minWidth: 86,
+    minHeight: 34,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+  },
+  creatorScriptButtonText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+  },
+  creatorScriptError: {
+    ...Typography.caption,
+    color: Colors.error,
   },
   betweenSlot: {
     position: 'absolute',

@@ -23,6 +23,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { useProgramsStore } from '@/src/store/programsStore';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
 import { ExerciseVoiceAddSheet } from '@/src/components/workout/ExerciseVoiceAddSheet';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
@@ -42,6 +43,8 @@ import { format } from 'date-fns';
 import { runOnJS } from 'react-native-reanimated';
 import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSettingsModal';
 import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 const HEADER_COLLAPSE_THRESHOLD = scale(48);
@@ -69,6 +72,8 @@ export default function CreateWorkoutScreen() {
   const isEditingTemplate = mode === 'template' && !!templateId;
   const isEditingProgramWorkout = mode === 'program' && !!programId && !!workoutId;
   const { isTourActive, activeStepId, advanceStep } = useInAppTour();
+  const programs = useProgramsStore(s => s.programs);
+  const { canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
   const shouldAnchorAddWithVoice = isTourActive && activeStepId === 'open_add_with_voice';
   const shouldAdvanceVoiceTutorial =
     isTourActive &&
@@ -168,30 +173,43 @@ export default function CreateWorkoutScreen() {
 
   const handleOpenVoiceAdd = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const permission = await ensureMicrophonePermission();
-    if (permission.granted) {
-      setShowVoiceAddSheet(true);
-      return;
-    }
+    await runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.voiceExerciseAdd,
+        params: {
+          source: 'workout_builder',
+          action: 'open_voice_exercise_add',
+          mode,
+          exerciseCount: editorSession?.exercises.length ?? 0,
+        },
+      },
+      async () => {
+        const permission = await ensureMicrophonePermission();
+        if (permission.granted) {
+          setShowVoiceAddSheet(true);
+          return;
+        }
 
-    Alert.alert(
-      'Microphone access required',
-      permission.status === 'undetermined'
-        ? 'Microphone access is required to add exercises by voice.'
-        : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
-      permission.status === 'undetermined'
-        ? [{ text: 'OK' }]
-        : [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Open Settings',
-              onPress: () => {
-                void openMicrophoneSettings();
-              },
-            },
-          ]
+        Alert.alert(
+          'Microphone access required',
+          permission.status === 'undetermined'
+            ? 'Microphone access is required to add exercises by voice.'
+            : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
+          permission.status === 'undetermined'
+            ? [{ text: 'OK' }]
+            : [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Open Settings',
+                  onPress: () => {
+                    void openMicrophoneSettings();
+                  },
+                },
+              ]
+        );
+      },
     );
-  }, [openMicrophoneSettings]);
+  }, [editorSession?.exercises.length, mode, runProFeature]);
 
   useEffect(() => {
     if (!shouldAnchorAddWithVoice) return;
@@ -295,6 +313,10 @@ export default function CreateWorkoutScreen() {
     (editorSession?.exercises?.length ?? 0) > 0 &&
     (mode !== 'log' || hasLoggedSets) &&
     !isSaving;
+  const savedWorkoutTemplateCount = useMemo(
+    () => programs.filter((program) => program.isTemplate).length,
+    [programs],
+  );
   const useScrollableHeaderDetails = mode !== 'log';
   const showCompactStats = !showHeaderDetails && mode !== 'log' && exerciseCount > 0;
 
@@ -383,9 +405,7 @@ export default function CreateWorkoutScreen() {
   }, [router]);
 
   // Handle save
-  const handleSave = async () => {
-    if (!canSave) return;
-
+  const performSave = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsSaving(true);
 
@@ -435,6 +455,28 @@ export default function CreateWorkoutScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setIsSaving(false);
     }
+  };
+
+  const handleSave = async () => {
+    if (!canSave) return;
+
+    const isCreatingSavedWorkoutTemplate = mode !== 'log' && !isEditingTemplate && !isEditingProgramWorkout;
+    if (isCreatingSavedWorkoutTemplate && !canCreateWorkoutTemplate(savedWorkoutTemplateCount)) {
+      await runProFeature(
+        {
+          placement: PAYWALL_PLACEMENTS.workoutLimit,
+          params: {
+            source: 'workout_builder',
+            action: 'create_workout_template',
+            workoutTemplateCount: savedWorkoutTemplateCount,
+          },
+        },
+        performSave,
+      );
+      return;
+    }
+
+    await performSave();
   };
 
   const handleSaveTimerSettings = (normal: number, warmup: number, dropset: number) => {

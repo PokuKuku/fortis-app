@@ -4,9 +4,25 @@ import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 const mockCreateRealtimeCoachSession = jest.fn();
 const mockGenerateVoiceWorkoutTemplate = jest.fn();
+const mockGenerateRealtimeCoachScriptAudio = jest.fn();
 const mockReportRealtimeCoachUsage = jest.fn();
 const mockShouldGenerateWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
 const mockSetAudioModeAsync = jest.fn((_mode: unknown) => Promise.resolve());
+const mockSoundUnloadAsync = jest.fn(() => Promise.resolve());
+const mockSoundCreateAsync = jest.fn((
+  _source?: unknown,
+  _initialStatus?: unknown,
+  _onPlaybackStatusUpdate?: unknown
+) => Promise.resolve({
+  sound: {
+    unloadAsync: mockSoundUnloadAsync,
+  },
+}));
+const mockWriteAsStringAsync = jest.fn((
+  _fileUri?: unknown,
+  _contents?: unknown,
+  _options?: unknown
+) => Promise.resolve());
 const mockInitialize = jest.fn(() => Promise.resolve(true));
 const mockToggleRecording = jest.fn((_value: boolean) => true);
 const mockTearDown = jest.fn();
@@ -28,6 +44,10 @@ const audioListeners: Partial<Record<AudioEventName, (event: { data: unknown }) 
 jest.mock('expo-av', () => ({
   Audio: {
     setAudioModeAsync: (mode: unknown) => mockSetAudioModeAsync(mode),
+    Sound: {
+      createAsync: (source: unknown, initialStatus: unknown, onPlaybackStatusUpdate: unknown) =>
+        mockSoundCreateAsync(source, initialStatus, onPlaybackStatusUpdate),
+    },
   },
   InterruptionModeAndroid: {
     DuckOthers: 'DuckOthers',
@@ -50,8 +70,19 @@ jest.mock('@speechmatics/expo-two-way-audio', () => ({
 
 jest.mock('@/src/services/realtimeCoachService', () => ({
   createRealtimeCoachSession: (preferences: unknown) => mockCreateRealtimeCoachSession(preferences),
+  generateRealtimeCoachScriptAudio: (script: unknown, preferences: unknown) =>
+    mockGenerateRealtimeCoachScriptAudio(script, preferences),
   generateVoiceWorkoutTemplate: (prompt: unknown, context: unknown) => mockGenerateVoiceWorkoutTemplate(prompt, context),
   reportRealtimeCoachUsage: (secondsUsed: unknown) => mockReportRealtimeCoachUsage(secondsUsed),
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
+  cacheDirectory: 'file:///cache/',
+  EncodingType: {
+    Base64: 'base64',
+  },
+  writeAsStringAsync: (fileUri: unknown, contents: unknown, options: unknown) =>
+    mockWriteAsStringAsync(fileUri, contents, options),
 }));
 
 jest.mock('@/src/utils/realtimeCoach', () => ({
@@ -158,6 +189,16 @@ describe('useRealtimeCoach', () => {
       };
     });
     mockShouldGenerateWorkoutFromVoice.mockReturnValue(false);
+    mockGenerateRealtimeCoachScriptAudio.mockResolvedValue({
+      type: 'script_audio',
+      audio: {
+        type: 'script_audio',
+        audioBase64: Buffer.from(new Uint8Array([0, 0, 1, 0])).toString('base64'),
+        mimeType: 'audio/pcm;rate=24000',
+        sampleRate: 24000,
+        voice: 'marin',
+      },
+    });
     mockReportRealtimeCoachUsage.mockResolvedValue({
       secondsUsedToday: 30,
       maxSecondsPerDay: 7200,
@@ -231,6 +272,68 @@ describe('useRealtimeCoach', () => {
     });
 
     expect(mockReportRealtimeCoachUsage).toHaveBeenCalledWith(12);
+
+    hook.unmount();
+  });
+
+  it('generates and plays creator script audio without starting a realtime session', async () => {
+    const hook = renderHook(() => useRealtimeCoach({ preferences }));
+
+    await act(async () => {
+      const didSpeak = await hook.result.current.speakCreatorScript('Your excuses need a deload.');
+      expect(didSpeak).toBe(true);
+    });
+
+    expect(mockCreateRealtimeCoachSession).not.toHaveBeenCalled();
+    expect(mockGenerateRealtimeCoachScriptAudio).toHaveBeenCalledWith('Your excuses need a deload.', preferences);
+    expect(mockWriteAsStringAsync).toHaveBeenCalledWith(
+      expect.stringContaining('voice-coach-script-'),
+      expect.any(String),
+      { encoding: 'base64' }
+    );
+    expect(mockSoundCreateAsync).toHaveBeenCalledWith(
+      { uri: expect.stringContaining('voice-coach-script-') },
+      { shouldPlay: true },
+      expect.any(Function)
+    );
+    expect(hook.result.current.isSpeakingCreatorScript).toBe(true);
+
+    hook.unmount();
+  });
+
+  it('surfaces creator script validation errors without calling the service', async () => {
+    const hook = renderHook(() => useRealtimeCoach({ preferences }));
+
+    await act(async () => {
+      const didSpeak = await hook.result.current.speakCreatorScript('   ');
+      expect(didSpeak).toBe(false);
+    });
+
+    expect(mockGenerateRealtimeCoachScriptAudio).not.toHaveBeenCalled();
+    expect(hook.result.current.creatorScriptError).toBe('Type a roast script first.');
+
+    hook.unmount();
+  });
+
+  it('surfaces creator script service errors', async () => {
+    mockGenerateRealtimeCoachScriptAudio.mockResolvedValue({
+      type: 'error',
+      requestId: 'request-1',
+      error: {
+        code: 'FORBIDDEN',
+        message: 'Voice Coach script controls are not enabled for this account.',
+        retryable: false,
+      },
+    });
+    const hook = renderHook(() => useRealtimeCoach({ preferences }));
+
+    await act(async () => {
+      const didSpeak = await hook.result.current.speakCreatorScript('Say this.');
+      expect(didSpeak).toBe(false);
+    });
+
+    expect(hook.result.current.creatorScriptError).toBe('Voice Coach script controls are not enabled for this account.');
+    expect(hook.result.current.isSpeakingCreatorScript).toBe(false);
 
     hook.unmount();
   });

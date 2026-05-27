@@ -85,3 +85,19 @@ export const getIntensityLabel = (intensity: number): string => {
   if (intensity < 0.67) return 'Sharp';
   return 'Hard';
 };
+
+export const isCreatorVoiceScriptsEnabled = (email?: string | null): boolean => {
+  if (process.env.EXPO_PUBLIC_ENABLE_CREATOR_VOICE_SCRIPTS !== 'true') {
+    return false;
+  }
+
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (!normalizedEmail) return false;
+
+  const allowedEmails = (process.env.EXPO_PUBLIC_CREATOR_VOICE_SCRIPT_EMAILS ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+
+  return allowedEmails.includes('*') || allowedEmails.includes(normalizedEmail);
+};

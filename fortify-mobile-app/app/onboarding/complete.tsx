@@ -946,7 +946,7 @@ export default function OnboardingCompleteScreen() {
       } catch (clearError) {
         console.warn('[Onboarding] Failed to clear local onboarding state:', clearError);
       }
-      router.replace('/paywall-gate');
+      router.replace('/(tabs)');
     } catch (error) {
       console.warn('[Onboarding] Failed to finalize onboarding:', error);
       didContinueRef.current = false;

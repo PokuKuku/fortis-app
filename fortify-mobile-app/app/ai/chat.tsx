@@ -44,7 +44,11 @@ import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { useAIWorkoutTemplateActions } from '@/src/hooks/useAIWorkoutTemplateActions';
 import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
 import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
+import { useAuth } from '@/src/contexts/AuthContext';
 import type { AIVoiceMode } from '@/src/types/realtimeCoach';
+import { isCreatorVoiceScriptsEnabled } from '@/src/utils/realtimeCoach';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -243,8 +247,9 @@ const shouldInheritAnalystIntent = (
 export default function AIChatScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
+  const { profile, user } = useAuth();
+  const { runProFeature } = useProFeatureGate();
   const isNavigating = useRef(false);
-  const hasAutoStartedVoiceRef = useRef(false);
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const [inputText, setInputText] = useState('');
   const [mode, setMode] = useState<AIVoiceMode>('voice');
@@ -298,17 +303,21 @@ export default function AIChatScreen() {
     debugStatus,
     voiceWorkoutMessages,
     isGeneratingVoiceWorkout,
+    isSpeakingCreatorScript,
+    creatorScriptError,
     isActive: isVoiceActive,
     isUserTurnActive,
     start: startVoiceCoach,
     stop: stopVoiceCoach,
     beginUserTurn,
     endUserTurn,
+    speakCreatorScript,
     markVoiceWorkoutSaved,
   } = useRealtimeCoach({
     preferences: realtimePreferences,
     currentWorkoutTemplateDraft,
   });
+  const isCreatorScriptEnabled = isCreatorVoiceScriptsEnabled(profile?.email ?? user?.email ?? null);
   const voiceConversationMessages = useMemo<AIConversationMessage[]>(() => (
     voiceWorkoutMessages.map((message) => ({
       id: message.id,
@@ -324,11 +333,13 @@ export default function AIChatScreen() {
     messages,
     conversationId: conversation?.id ?? null,
     markWorkoutTemplateSaved,
+    saveWorkoutPlacement: PAYWALL_PLACEMENTS.workoutLimit,
   });
   const voiceWorkoutActions = useAIWorkoutTemplateActions({
     messages: voiceConversationMessages,
     conversationId: conversation?.id ?? null,
     onWorkoutTemplateSaved: markVoiceWorkoutSaved,
+    saveWorkoutPlacement: PAYWALL_PLACEMENTS.voiceWorkoutCreate,
   });
   const activeWorkoutActions = mode === 'voice' ? voiceWorkoutActions : chatWorkoutActions;
 
@@ -421,23 +432,35 @@ export default function AIChatScreen() {
     const message = rawMessage.trim();
     if (!message || isSendingMessage) return;
 
-    const allowed = await requestAIDataSharingConsent();
-    if (!allowed) return;
+    await runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.aiChat,
+        params: {
+          source: 'ai_chat',
+          action: 'send_message',
+          messageLength: message.length,
+        },
+      },
+      async () => {
+        const allowed = await requestAIDataSharingConsent();
+        if (!allowed) return;
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const inferredIntent = inferIntentFromMessage(message);
-    const lastIntent = getLastIntent(messages);
-    const intent = shouldInheritAnalystIntent(message, inferredIntent, lastIntent)
-      ? 'FORTIS_ANALYST'
-      : inferredIntent;
-    const requestContext = currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)
-      ? { currentWorkoutTemplateDraft }
-      : undefined;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const inferredIntent = inferIntentFromMessage(message);
+        const lastIntent = getLastIntent(messages);
+        const intent = shouldInheritAnalystIntent(message, inferredIntent, lastIntent)
+          ? 'FORTIS_ANALYST'
+          : inferredIntent;
+        const requestContext = currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)
+          ? { currentWorkoutTemplateDraft }
+          : undefined;
 
-    chatWorkoutActions.setTemplateSaveError(null);
-    setInputText('');
-    await sendMessage(intent, message, requestContext);
-  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, sendMessage]);
+        chatWorkoutActions.setTemplateSaveError(null);
+        setInputText('');
+        await sendMessage(intent, message, requestContext);
+      },
+    );
+  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, runProFeature, sendMessage]);
 
   const handleSend = useCallback(async () => {
     await submitMessage(inputText);
@@ -456,17 +479,39 @@ export default function AIChatScreen() {
 
   // Retry failed message
   const handleRetry = useCallback(async () => {
-    const allowed = await requestAIDataSharingConsent();
-    if (!allowed) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await retryLastMessage();
-  }, [retryLastMessage]);
+    await runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.aiChat,
+        params: {
+          source: 'ai_chat',
+          action: 'retry_message',
+        },
+      },
+      async () => {
+        const allowed = await requestAIDataSharingConsent();
+        if (!allowed) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        await retryLastMessage();
+      },
+    );
+  }, [retryLastMessage, runProFeature]);
 
-  const handleStartVoiceCoach = useCallback(async () => {
-    const allowed = await requestAIDataSharingConsent();
-    if (!allowed) return;
-    await startVoiceCoach();
-  }, [startVoiceCoach]);
+  const handleStartVoiceCoach = useCallback(async () => (
+    runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.aiVoiceCoach,
+        params: {
+          source: 'ai_chat',
+          action: 'start_voice_coach',
+        },
+      },
+      async () => {
+        const allowed = await requestAIDataSharingConsent();
+        if (!allowed) return false;
+        await startVoiceCoach();
+      },
+    )
+  ), [runProFeature, startVoiceCoach]);
 
   useEffect(() => {
     stopVoiceCoachRef.current = stopVoiceCoach;
@@ -478,27 +523,31 @@ export default function AIChatScreen() {
 
   useEffect(() => {
     if (mode !== 'voice') {
-      hasAutoStartedVoiceRef.current = false;
       stopVoiceCoach();
-      return;
     }
-
-    if (hasAutoStartedVoiceRef.current) {
-      return;
-    }
-
-    hasAutoStartedVoiceRef.current = true;
-    void handleStartVoiceCoach();
-  }, [handleStartVoiceCoach, mode, stopVoiceCoach]);
+  }, [mode, stopVoiceCoach]);
 
   const handleModeChange = useCallback((nextMode: AIVoiceMode) => {
     if (nextMode === mode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (nextMode === 'chat') {
-      stopVoiceCoach();
+      void runProFeature(
+        {
+          placement: PAYWALL_PLACEMENTS.aiChat,
+          params: {
+            source: 'ai_chat',
+            action: 'switch_to_chat',
+          },
+        },
+        () => {
+          stopVoiceCoach();
+          setMode(nextMode);
+        },
+      );
+      return;
     }
     setMode(nextMode);
-  }, [mode, stopVoiceCoach]);
+  }, [mode, runProFeature, stopVoiceCoach]);
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -570,16 +619,21 @@ export default function AIChatScreen() {
             isWorkoutActive={voiceWorkoutActions.isWorkoutActive}
             isActive={isVoiceActive}
             isUserTurnActive={isUserTurnActive}
+            isCreatorScriptEnabled={isCreatorScriptEnabled}
+            isSpeakingCreatorScript={isSpeakingCreatorScript}
+            creatorScriptError={creatorScriptError}
             templateSaveError={voiceWorkoutActions.templateSaveError}
             onTalkStart={() => {
               void (async () => {
                 if (!isVoiceActive) {
-                  await handleStartVoiceCoach();
+                  const didStart = await handleStartVoiceCoach();
+                  if (!didStart) return;
                 }
                 await beginUserTurn();
               })();
             }}
             onTalkEnd={endUserTurn}
+            onSpeakCreatorScript={speakCreatorScript}
             onViewWorkoutTemplate={voiceWorkoutActions.handleViewWorkoutTemplate}
             onAddWorkoutTemplate={voiceWorkoutActions.handleAddWorkoutTemplate}
             onStartWorkoutTemplate={voiceWorkoutActions.handleStartWorkoutTemplate}

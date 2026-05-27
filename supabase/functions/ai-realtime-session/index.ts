@@ -10,7 +10,7 @@ import {
   withContextCache,
 } from '../_shared/ai-context.ts';
 
-type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype';
+type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype' | 'roast';
 type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse' | 'sage';
 
 interface RealtimeCoachPreferences {
@@ -20,21 +20,25 @@ interface RealtimeCoachPreferences {
 }
 
 interface RealtimeSessionRequest {
-  action?: 'start_session' | 'record_usage';
+  action?: 'start_session' | 'record_usage' | 'generate_script_audio';
   preferences?: Partial<RealtimeCoachPreferences>;
   aiDataSharingConsent?: boolean;
   secondsUsed?: number;
+  script?: string;
 }
 
 const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
-const PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype'];
+const PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype', 'roast'];
 const MAX_SECONDS_PER_SESSION = Math.max(60, Number(Deno.env.get('AI_REALTIME_MAX_SESSION_SECONDS') ?? '1800'));
 const MAX_SECONDS_PER_DAY = Math.max(MAX_SECONDS_PER_SESSION, Number(Deno.env.get('AI_REALTIME_MAX_DAY_SECONDS') ?? '7200'));
+const MAX_CREATOR_SCRIPT_CHARS = Math.max(1, Number(Deno.env.get('AI_VOICE_SCRIPT_MAX_CHARS') ?? '500'));
 const VOICE_COACH_CONTEXT_WEEKS = Math.max(
   4,
   Number(Deno.env.get('AI_REALTIME_CONTEXT_WEEKS') ?? '12')
 );
 const GEMINI_LIVE_MODEL = Deno.env.get('GEMINI_LIVE_MODEL') || 'gemini-3.1-flash-live-preview';
+const GEMINI_TTS_MODEL = Deno.env.get('GEMINI_TTS_MODEL') || 'gemini-3.1-flash-tts-preview';
+const GEMINI_TTS_SAMPLE_RATE = 24000;
 const GEMINI_LIVE_ENDPOINT =
   'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained';
 
@@ -68,6 +72,21 @@ const isVoice = (value: unknown): value is AICoachVoice =>
 
 const isPersonality = (value: unknown): value is AICoachPersonality =>
   typeof value === 'string' && PERSONALITIES.includes(value as AICoachPersonality);
+
+function getAllowedCreatorEmails(): string[] {
+  return (Deno.env.get('AI_VOICE_SCRIPT_CREATOR_EMAILS') ?? '')
+    .split(',')
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isCreatorScriptAllowed(email?: string | null): boolean {
+  const normalizedEmail = email?.trim().toLowerCase();
+  if (!normalizedEmail) return false;
+
+  const allowedEmails = getAllowedCreatorEmails();
+  return allowedEmails.includes('*') || allowedEmails.includes(normalizedEmail);
+}
 
 function normalizePreferences(value: unknown): RealtimeCoachPreferences {
   const candidate = value && typeof value === 'object'
@@ -179,6 +198,8 @@ function buildInstructions(
   const persona =
     preferences.personality === 'drill_sergeant'
       ? 'You are a blunt strength coach. Be demanding and confront weak training decisions, but only critique behavior, effort, and logged training choices. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
+      : preferences.personality === 'roast'
+      ? 'You are a sharp, funny strength coach with roast-comedy energy. Make playful jokes about effort, consistency, skipped sets, inflated excuses, and logged training choices, but keep it fitness-only. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
       : preferences.personality === 'hype'
       ? 'You are a high-energy strength coach. Celebrate wins, keep momentum high, and make the user feel ready to train.'
       : 'You are a direct strength coach. Be specific, useful, concise, and a little challenging.';
@@ -360,6 +381,120 @@ function normalizeGeminiModelName(model: string): string {
   return model.startsWith('models/') ? model : `models/${model}`;
 }
 
+function normalizeGeminiRestModelName(model: string): string {
+  return model.startsWith('models/') ? model.slice('models/'.length) : model;
+}
+
+function getScriptStyleInstruction(preferences: RealtimeCoachPreferences): string {
+  const intensityLabel = preferences.intensity < 0.34
+    ? 'controlled'
+    : preferences.intensity < 0.67
+    ? 'sharp'
+    : 'hard-hitting';
+
+  if (preferences.personality === 'roast') {
+    return `Deliver it like a ${intensityLabel}, funny strength coach roast for a workout app video.`;
+  }
+
+  if (preferences.personality === 'drill_sergeant') {
+    return `Deliver it like a ${intensityLabel}, blunt strength coach.`;
+  }
+
+  if (preferences.personality === 'hype') {
+    return `Deliver it like a ${intensityLabel}, high-energy strength coach.`;
+  }
+
+  return `Deliver it like a ${intensityLabel}, direct strength coach.`;
+}
+
+function buildCreatorScriptTtsPrompt(script: string, preferences: RealtimeCoachPreferences): string {
+  return `${getScriptStyleInstruction(preferences)}
+Read only the quoted transcript. Do not add any extra words before or after it.
+
+"${script}"`;
+}
+
+async function generateCreatorScriptAudio(
+  userId: string,
+  script: string,
+  preferences: RealtimeCoachPreferences
+) {
+  const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
+  if (!apiKey) {
+    throw new Error('Gemini API key is not configured.');
+  }
+
+  const model = normalizeGeminiRestModelName(GEMINI_TTS_MODEL);
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-Request-Reason': `fortify-voice-script:${userId}`,
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          parts: [
+            {
+              text: buildCreatorScriptTtsPrompt(script, preferences),
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: GEMINI_VOICE_BY_COACH_VOICE[preferences.voice],
+            },
+          },
+        },
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error('[ai-realtime-session] Gemini TTS failed', text);
+    throw new Error(`Gemini TTS failed (${response.status}): ${text}`);
+  }
+
+  const payload = await response.json();
+  const parts = Array.isArray(payload?.candidates?.[0]?.content?.parts)
+    ? payload.candidates[0].content.parts
+    : [];
+  const audioPart = parts.find((part: unknown) => {
+    if (!part || typeof part !== 'object') return false;
+    const record = part as {
+      inlineData?: { data?: unknown };
+      inline_data?: { data?: unknown };
+    };
+    return (
+      typeof record.inlineData?.data === 'string'
+      || typeof record.inline_data?.data === 'string'
+    );
+  }) as { inlineData?: { data?: string; mimeType?: string; mime_type?: string }; inline_data?: { data?: string; mimeType?: string; mime_type?: string } } | undefined;
+  const inlineData = audioPart?.inlineData ?? audioPart?.inline_data;
+
+  if (!inlineData?.data) {
+    console.error('[ai-realtime-session] Gemini TTS response missing inline audio', payload);
+    throw new Error('Gemini TTS response did not include audio.');
+  }
+
+  return {
+    type: 'script_audio',
+    audioBase64: inlineData.data,
+    mimeType: typeof inlineData.mimeType === 'string'
+      ? inlineData.mimeType
+      : typeof inlineData.mime_type === 'string'
+      ? inlineData.mime_type
+      : `audio/pcm;rate=${GEMINI_TTS_SAMPLE_RATE}`,
+    sampleRate: GEMINI_TTS_SAMPLE_RATE,
+    voice: preferences.voice,
+  };
+}
+
 async function createGeminiLiveToken(
   userId: string,
   preferences: RealtimeCoachPreferences,
@@ -473,6 +608,26 @@ Deno.serve(async (req: Request) => {
       return errorResponse('Voice Coach requires an active trial or subscription.', 'SUBSCRIPTION_REQUIRED', 403, false, undefined, origin);
     }
 
+    const preferences = normalizePreferences(body.preferences);
+
+    if (body.action === 'generate_script_audio') {
+      if (!isCreatorScriptAllowed(user.email)) {
+        return errorResponse('Voice Coach script controls are not enabled for this account.', 'FORBIDDEN', 403, false, undefined, origin);
+      }
+
+      const script = typeof body.script === 'string' ? body.script.trim() : '';
+      if (!script) {
+        return errorResponse('Script text is required.', 'VALIDATION_ERROR', 400, false, undefined, origin);
+      }
+
+      if (script.length > MAX_CREATOR_SCRIPT_CHARS) {
+        return errorResponse(`Script must be ${MAX_CREATOR_SCRIPT_CHARS} characters or fewer.`, 'VALIDATION_ERROR', 400, false, undefined, origin);
+      }
+
+      const scriptAudio = await generateCreatorScriptAudio(user.id, script, preferences);
+      return jsonResponse(scriptAudio, 200, origin);
+    }
+
     const usage = await getUsageStatus(adminClient, user.id);
     if (!usage.allowed) {
       if (usage.reason === 'rate_limited') {
@@ -496,7 +651,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const preferences = normalizePreferences(body.preferences);
     const trainingContext = await assembleVoiceCoachTrainingContext(adminClient, user.id);
     await recordSessionStarted(adminClient, user.id);
     const maxSessionSeconds = usage.maxSecondsForSession ?? MAX_SECONDS_PER_SESSION;
