@@ -7,6 +7,7 @@ import {
   type RealtimeCoachPhase,
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
+import { sanitizeCustomScenarioInstructions } from '@/src/utils/realtimeCoachPrompt';
 
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
@@ -77,7 +78,12 @@ export const coerceRealtimeCoachPreferences = (
     ? Math.min(1, Math.max(0, value.intensity))
     : DEFAULT_REALTIME_COACH_PREFERENCES.intensity;
 
-  return { personality, voice, intensity };
+  return {
+    personality,
+    voice,
+    intensity,
+    customInstructions: sanitizeCustomScenarioInstructions(value.customInstructions),
+  };
 };
 
 export const getIntensityLabel = (intensity: number): string => {

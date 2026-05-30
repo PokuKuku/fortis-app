@@ -8,6 +8,7 @@ import {
   type AICoachVoice,
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
+import { sanitizeCustomScenarioInstructions } from '@/src/utils/realtimeCoachPrompt';
 
 const isVoice = (value: unknown): value is AICoachVoice =>
   typeof value === 'string' && COACH_VOICES.includes(value as AICoachVoice);
@@ -35,6 +36,7 @@ export const normalizeRealtimeCoachPreferences = (
       ? candidate.voice
       : DEFAULT_REALTIME_COACH_PREFERENCES.voice,
     intensity,
+    customInstructions: sanitizeCustomScenarioInstructions(candidate.customInstructions),
   };
 };
 

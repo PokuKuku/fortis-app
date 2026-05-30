@@ -45,7 +45,7 @@ import { useAIWorkoutTemplateActions } from '@/src/hooks/useAIWorkoutTemplateAct
 import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
 import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
 import { useAuth } from '@/src/contexts/AuthContext';
-import type { AIVoiceMode } from '@/src/types/realtimeCoach';
+import type { AIVoiceMode, RealtimeCoachPreferences } from '@/src/types/realtimeCoach';
 import { isCreatorVoiceScriptsEnabled } from '@/src/utils/realtimeCoach';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
@@ -293,6 +293,7 @@ export default function AIChatScreen() {
   }, [messages]);
   const {
     preferences: realtimePreferences,
+    updatePreferences: updateRealtimePreferences,
   } = useRealtimeCoachPreferences();
   const {
     phase: voicePhase,
@@ -342,6 +343,13 @@ export default function AIChatScreen() {
     saveWorkoutPlacement: PAYWALL_PLACEMENTS.voiceWorkoutCreate,
   });
   const activeWorkoutActions = mode === 'voice' ? voiceWorkoutActions : chatWorkoutActions;
+
+  const handleRealtimePreferencesChange = useCallback((nextPreferences: RealtimeCoachPreferences) => {
+    if (isVoiceActive) {
+      stopVoiceCoach();
+    }
+    void updateRealtimePreferences(nextPreferences);
+  }, [isVoiceActive, stopVoiceCoach, updateRealtimePreferences]);
 
   // Calculate remaining requests (most restrictive limit) for inline warning
   const remaining = rateLimitStatus
@@ -619,10 +627,12 @@ export default function AIChatScreen() {
             isWorkoutActive={voiceWorkoutActions.isWorkoutActive}
             isActive={isVoiceActive}
             isUserTurnActive={isUserTurnActive}
+            preferences={realtimePreferences}
             isCreatorScriptEnabled={isCreatorScriptEnabled}
             isSpeakingCreatorScript={isSpeakingCreatorScript}
             creatorScriptError={creatorScriptError}
             templateSaveError={voiceWorkoutActions.templateSaveError}
+            onPreferencesChange={handleRealtimePreferencesChange}
             onTalkStart={() => {
               void (async () => {
                 if (!isVoiceActive) {

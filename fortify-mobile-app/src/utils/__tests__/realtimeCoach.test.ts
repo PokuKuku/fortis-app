@@ -5,6 +5,11 @@ import {
   normalizeRealtimeCoachPhase,
   shouldGenerateWorkoutFromVoice,
 } from '@/src/utils/realtimeCoach';
+import {
+  buildVoiceCoachInstructions,
+  sanitizeCustomScenarioInstructions,
+} from '@/src/utils/realtimeCoachPrompt';
+import { normalizeRealtimeCoachPreferences } from '@/src/services/realtimeCoachPreferencesService';
 
 describe('realtimeCoach utils', () => {
   it('detects workout generation voice prompts', () => {
@@ -35,17 +40,90 @@ describe('realtimeCoach utils', () => {
       personality: 'roast',
       voice: 'cedar',
       intensity: 1,
+      customInstructions: '',
     });
 
     expect(coerceRealtimeCoachPreferences({
       personality: 'invalid' as never,
       voice: 'invalid' as never,
       intensity: -1,
+      customInstructions: '\u0000 be wild '.trim(),
     })).toEqual({
       personality: 'direct',
       voice: 'marin',
       intensity: 0,
+      customInstructions: 'be wild',
     });
+  });
+
+  it('normalizes persisted custom scenario preferences', () => {
+    expect(normalizeRealtimeCoachPreferences({
+      personality: 'direct',
+      intensity: 0.55,
+      voice: 'marin',
+    })).toEqual({
+      personality: 'direct',
+      intensity: 0.55,
+      voice: 'marin',
+      customInstructions: '',
+    });
+
+    expect(normalizeRealtimeCoachPreferences({
+      personality: 'roast',
+      intensity: 0.55,
+      voice: 'marin',
+      customInstructions: 42,
+    })).toEqual({
+      personality: 'roast',
+      intensity: 0.55,
+      voice: 'marin',
+      customInstructions: '',
+    });
+
+    expect(normalizeRealtimeCoachPreferences({
+      personality: 'roast',
+      intensity: 0.55,
+      voice: 'marin',
+      customInstructions: ` ${'x'.repeat(520)} `,
+    }).customInstructions).toHaveLength(500);
+  });
+
+  it('builds custom scenario prompt constraints with safety boundaries', () => {
+    const standardPrompt = buildVoiceCoachInstructions({
+      personality: 'direct',
+      intensity: 0.55,
+      voice: 'marin',
+      customInstructions: '',
+    }, { workoutToolName: 'create_or_update_workout' });
+
+    expect(standardPrompt).toContain('Keep spoken responses under 15-20 words');
+    expect(standardPrompt).toContain('call the create_or_update_workout tool immediately');
+
+    const roastPrompt = buildVoiceCoachInstructions({
+      personality: 'roast',
+      intensity: 0.9,
+      voice: 'marin',
+      customInstructions: 'Act like a toxic gym bro\u0000 who calls 135 lbs a warm-up.',
+    }, { workoutToolName: 'create_or_update_workout' });
+
+    expect(roastPrompt).toContain('No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.');
+    expect(roastPrompt).toContain('never override Fortify workout tracking behavior');
+    expect(roastPrompt).toContain('Creator custom instructions: Act like a toxic gym bro who calls 135 lbs a warm-up.');
+
+    const drillPrompt = buildVoiceCoachInstructions({
+      personality: 'drill_sergeant',
+      intensity: 0.9,
+      voice: 'marin',
+      customInstructions: '',
+    }, { workoutToolName: 'create_or_update_workout' });
+
+    expect(drillPrompt).toContain('only critique behavior, effort, and logged training choices');
+  });
+
+  it('sanitizes custom scenario instructions', () => {
+    expect(sanitizeCustomScenarioInstructions('\u0000  Act mean.\n')).toBe('Act mean.');
+    expect(sanitizeCustomScenarioInstructions(123)).toBe('');
+    expect(sanitizeCustomScenarioInstructions('x'.repeat(520))).toHaveLength(500);
   });
 
   it('normalizes phases and labels intensity', () => {

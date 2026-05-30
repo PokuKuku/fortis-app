@@ -10,13 +10,16 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { Cog6ToothIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { BorderRadius, Spacing } from '@/constants/Sizes';
+import { BorderRadius, IconSizes, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
+import { CustomScenarioSheet } from '@/src/components/ai/CustomScenarioSheet';
 import { DumbbellVoiceVisualizer } from '@/src/components/ai/DumbbellVoiceVisualizer';
 import {
+  type RealtimeCoachPreferences,
   type RealtimeCoachDebugStatus,
   type RealtimeCoachPhase,
   type RealtimeTranscriptOverlay,
@@ -38,10 +41,12 @@ interface RealtimeVoiceCoachScreenProps {
   isWorkoutActive: boolean;
   isActive: boolean;
   isUserTurnActive: boolean;
+  preferences: RealtimeCoachPreferences;
   isCreatorScriptEnabled?: boolean;
   isSpeakingCreatorScript?: boolean;
   creatorScriptError?: string | null;
   templateSaveError?: string | null;
+  onPreferencesChange: (preferences: RealtimeCoachPreferences) => void;
   onTalkStart: () => void;
   onTalkEnd: () => void;
   onSpeakCreatorScript?: (script: string) => Promise<boolean> | boolean;
@@ -112,10 +117,12 @@ export function RealtimeVoiceCoachScreen({
   isWorkoutActive,
   isActive,
   isUserTurnActive,
+  preferences,
   isCreatorScriptEnabled = false,
   isSpeakingCreatorScript = false,
   creatorScriptError = null,
   templateSaveError,
+  onPreferencesChange,
   onTalkStart,
   onTalkEnd,
   onSpeakCreatorScript,
@@ -125,6 +132,7 @@ export function RealtimeVoiceCoachScreen({
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
   const [creatorScript, setCreatorScript] = useState('');
+  const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
   const { width, height } = useWindowDimensions();
   const voiceCardAnimationsRef = useRef<Record<string, Animated.Value>>({});
   const animatedVoiceCardIdsRef = useRef<Set<string>>(new Set());
@@ -221,6 +229,26 @@ export function RealtimeVoiceCoachScreen({
   return (
     <View style={[styles.container, styles.content]}>
       <View style={styles.hero}>
+        <TouchableOpacity
+          testID="custom-scenario-gear"
+          style={[
+            styles.scenarioGearButton,
+            {
+              backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.035)',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+            },
+          ]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setScenarioSheetVisible(true);
+          }}
+          activeOpacity={0.72}
+          accessibilityRole="button"
+          accessibilityLabel="Open custom voice scenarios"
+        >
+          <Cog6ToothIcon color={colors.textSecondary} size={IconSizes.md} strokeWidth={1.8} />
+        </TouchableOpacity>
+
         {isCreatorScriptEnabled ? (
           <View
             testID="creator-script-controls"
@@ -452,6 +480,13 @@ export function RealtimeVoiceCoachScreen({
           />
         </TouchableOpacity>
       </View>
+
+      <CustomScenarioSheet
+        visible={isScenarioSheetVisible}
+        preferences={preferences}
+        onChange={onPreferencesChange}
+        onClose={() => setScenarioSheetVisible(false)}
+      />
     </View>
   );
 }
@@ -472,6 +507,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 0,
+  },
+  scenarioGearButton: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: 0,
+    zIndex: 4,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.72,
   },
   visualizerAnchor: {
     position: 'absolute',

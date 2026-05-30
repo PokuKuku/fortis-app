@@ -28,6 +28,7 @@ import {
   uint8ArrayToBase64,
 } from '@/src/utils/geminiLive';
 import { shouldGenerateWorkoutFromVoice } from '@/src/utils/realtimeCoach';
+import { buildVoiceCoachInstructions } from '@/src/utils/realtimeCoachPrompt';
 
 interface UseRealtimeCoachOptions {
   preferences: RealtimeCoachPreferences;
@@ -144,37 +145,6 @@ const createWavBase64FromPcm16 = (pcmBase64: string, sampleRate: number): string
   return Buffer.concat([header, pcm]).toString('base64');
 };
 
-const buildInstructions = (preferences: RealtimeCoachPreferences): string => {
-  const intensityLabel = preferences.intensity < 0.34
-    ? 'calm'
-    : preferences.intensity < 0.67
-      ? 'sharp'
-      : 'hard-edged';
-  const persona =
-    preferences.personality === 'drill_sergeant'
-      ? 'You are a blunt strength coach. Be demanding and confront weak training decisions, but only critique behavior, effort, and logged training choices. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
-      : preferences.personality === 'roast'
-        ? 'You are a sharp, funny strength coach with roast-comedy energy. Make playful jokes about effort, consistency, skipped sets, inflated excuses, and logged training choices, but keep it fitness-only. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
-      : preferences.personality === 'hype'
-        ? 'You are a high-energy strength coach. Celebrate wins, keep momentum high, and make the user feel ready to train.'
-        : 'You are a direct strength coach. Be specific, useful, concise, and a little challenging.';
-
-  return `${persona}
-
-Voice Coach rules:
-- Speak naturally in short turns. Keep most answers under 20 seconds.
-- Always speak English. If the user speaks another language, understand it if possible, but respond only in English.
-- Ask at most one question at a time.
-- When the user asks to create or revise a workout, call the ${VOICE_WORKOUT_TOOL_NAME} tool immediately with the user's full request rewritten in English. Do not only say you will build it.
-- If the user asks for a normal single-session workout, never say "chat", "card", or "screen", and never refer to where the workout will appear. Do not list exercises out loud. Say only a short delay-safe phrase like "Coming up." or "I'll build that now.", then stop talking while Fortify builds the workout.
-- If the user asks to revise the workout Fortify just built, including adding/removing/replacing exercises or changing the number of exercises, use the same short delay-safe phrase and let Fortify update it.
-- Do not ask routine workout-generation questions about equipment, duration, exercise count, sets, or reps. Infer reasonable defaults.
-- Ask a follow-up only when the request is genuinely impossible or unsafe to answer without one.
-- Do not claim form detection, rep counting, or medical diagnosis.
-- Style intensity: ${intensityLabel}.
-- You are inside Fortify, a workout tracker and AI personal trainer.`;
-};
-
 const buildGeminiSetupMessage = (
   model: string,
   preferences: RealtimeCoachPreferences
@@ -193,7 +163,11 @@ const buildGeminiSetupMessage = (
       },
     },
     systemInstruction: {
-      parts: [{ text: buildInstructions(preferences) }],
+      parts: [{
+        text: buildVoiceCoachInstructions(preferences, {
+          workoutToolName: VOICE_WORKOUT_TOOL_NAME,
+        }),
+      }],
     },
     tools: [
       {

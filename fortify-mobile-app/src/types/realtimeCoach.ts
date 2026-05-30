@@ -8,6 +8,7 @@ export interface RealtimeCoachPreferences {
   personality: AICoachPersonality;
   intensity: number;
   voice: AICoachVoice;
+  customInstructions?: string;
 }
 
 export interface RealtimeCoachUsage {
@@ -97,4 +98,5 @@ export const DEFAULT_REALTIME_COACH_PREFERENCES: RealtimeCoachPreferences = {
   personality: 'direct',
   intensity: 0.55,
   voice: 'marin',
+  customInstructions: '',
 };

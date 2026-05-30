@@ -33,6 +33,7 @@ const preferences = {
   personality: 'direct' as const,
   intensity: 0.55,
   voice: 'marin' as const,
+  customInstructions: 'Act like every missed rep is a content opportunity.',
 };
 
 describe('realtimeCoachService', () => {
