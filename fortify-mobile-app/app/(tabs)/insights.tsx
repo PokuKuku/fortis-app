@@ -1077,9 +1077,9 @@ export default function InsightsScreen() {
             <View style={styles.insightsList}>
               {showStartedCard && <StartedInsightCard />}
 
-              {weeklyVerdict && (
+              {workoutRecap && (
                 <InsightCard
-                  insight={weeklyVerdict}
+                  insight={workoutRecap}
                   onWhyPress={handleInsightWhyPress}
                   onDismiss={handleDismissInsight}
                   onOpenChart={handleOpenChart}
@@ -1087,9 +1087,9 @@ export default function InsightsScreen() {
                 />
               )}
 
-              {workoutRecap && (
+              {weeklyVerdict && (
                 <InsightCard
-                  insight={workoutRecap}
+                  insight={weeklyVerdict}
                   onWhyPress={handleInsightWhyPress}
                   onDismiss={handleDismissInsight}
                   onOpenChart={handleOpenChart}

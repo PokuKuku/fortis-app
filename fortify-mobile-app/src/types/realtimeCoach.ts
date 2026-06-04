@@ -1,7 +1,7 @@
 import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 export type AIVoiceMode = 'chat' | 'voice';
-export type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype' | 'roast';
+export type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
 export type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse' | 'sage';
 
 export interface RealtimeCoachPreferences {
@@ -77,7 +77,7 @@ export interface VoiceWorkoutMessage {
 }
 
 export const COACH_VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
-export const COACH_PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype', 'roast'];
+export const COACH_PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype', 'roast', 'custom'];
 
 export const COACH_VOICE_LABELS: Record<AICoachVoice, string> = {
   marin: 'Marin',
@@ -92,6 +92,7 @@ export const COACH_PERSONALITY_LABELS: Record<AICoachPersonality, string> = {
   drill_sergeant: 'Drill',
   hype: 'Hype',
   roast: 'Roast',
+  custom: 'Custom Coach',
 };
 
 export const DEFAULT_REALTIME_COACH_PREFERENCES: RealtimeCoachPreferences = {

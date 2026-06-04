@@ -2,6 +2,11 @@ import React from 'react';
 import { act, render, waitFor } from '@testing-library/react-native';
 
 const mockRegisterPlacement = jest.fn();
+let mockPlacementHandlers: {
+  onDismiss?: (paywallInfo: unknown, result: { type: string }) => void;
+  onSkip?: (reason: unknown) => void;
+  onError?: (error: string) => void;
+} = {};
 const mockIdentify = jest.fn().mockResolvedValue(undefined);
 const mockRefresh = jest.fn().mockResolvedValue(undefined);
 const mockSignOut = jest.fn().mockResolvedValue(undefined);
@@ -36,9 +41,12 @@ const mockSuperwallUserState = {
 jest.mock(
   'expo-superwall',
   () => ({
-    usePlacement: jest.fn(() => ({
-      registerPlacement: mockRegisterPlacement,
-    })),
+    usePlacement: jest.fn((handlers) => {
+      mockPlacementHandlers = handlers;
+      return {
+        registerPlacement: mockRegisterPlacement,
+      };
+    }),
     useSuperwall: jest.fn((selector: (state: any) => any) =>
       selector(mockSuperwallState),
     ),
@@ -108,6 +116,7 @@ describe('PaywallGateScreen', () => {
   beforeEach(() => {
     jest.useRealTimers();
     jest.clearAllMocks();
+    mockPlacementHandlers = {};
     mockSuperwallState.isConfigured = false;
     mockSuperwallState.isLoading = false;
     mockSuperwallState.configurationError = new Error('config failed');
@@ -219,7 +228,7 @@ describe('PaywallGateScreen', () => {
     expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
   });
 
-  it('clears pending onboarding completion after the completed profile reaches the gate', async () => {
+  it('keeps pending onboarding completion until the post-onboarding paywall closes', async () => {
     mockSuperwallState.isConfigured = true;
     mockSuperwallState.configurationError = null;
     mockAuthState.profile = { onboarding_completed: true };
@@ -229,9 +238,64 @@ describe('PaywallGateScreen', () => {
     render(<PaywallGateScreen />);
 
     await waitFor(() => {
+      expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
+    });
+    expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
+
+    await act(async () => {
+      mockPlacementHandlers.onDismiss?.({}, { type: 'declined' });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
       expect(mockClearPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
     expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+  });
+
+  it('does not clear pending onboarding completion when Superwall skips during the sticky gate', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+
+    render(<PaywallGateScreen />);
+
+    await waitFor(() => {
+      expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
+    });
+
+    await act(async () => {
+      mockPlacementHandlers.onSkip?.('paywall_not_available');
+      await Promise.resolve();
+    });
+
+    expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalledWith('/(tabs)');
+  });
+
+  it('does not clear pending onboarding completion when Superwall errors during the sticky gate', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+
+    render(<PaywallGateScreen />);
+
+    await waitFor(() => {
+      expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
+    });
+
+    await act(async () => {
+      mockPlacementHandlers.onError?.('paywall failed');
+      await Promise.resolve();
+    });
+
+    expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalledWith('/(tabs)');
   });
 
 });

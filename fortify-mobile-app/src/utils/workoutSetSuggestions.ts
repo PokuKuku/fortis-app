@@ -1,4 +1,4 @@
-interface SetValueSource {
+export interface SetValueSource {
   weight?: number | null;
   reps?: number | null;
   setType?: string | null;

@@ -22,6 +22,10 @@ describe('realtimeCoach utils', () => {
     expect(shouldGenerateWorkoutFromVoice('Build me a five exercise leg day')).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Plan shoulders with four exercises')).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('I want an upper body routine')).toBe(false);
+    expect(shouldGenerateWorkoutFromVoice("I'm hitting chest today")).toBe(false);
+    expect(shouldGenerateWorkoutFromVoice("I'm doing legs later")).toBe(false);
+    expect(shouldGenerateWorkoutFromVoice('I need to train back')).toBe(false);
+    expect(shouldGenerateWorkoutFromVoice('today is push day')).toBe(false);
     expect(shouldGenerateWorkoutFromVoice('Can you make my back pain go away?')).toBe(false);
     expect(shouldGenerateWorkoutFromVoice('How should I warm up?')).toBe(false);
     expect(shouldGenerateWorkoutFromVoice("I didn't ask for a workout")).toBe(false);
@@ -33,11 +37,11 @@ describe('realtimeCoach utils', () => {
 
   it('normalizes preferences and clamps intensity', () => {
     expect(coerceRealtimeCoachPreferences({
-      personality: 'roast',
+      personality: 'custom',
       voice: 'cedar',
       intensity: 2,
     })).toEqual({
-      personality: 'roast',
+      personality: 'custom',
       voice: 'cedar',
       intensity: 1,
       customInstructions: '',
@@ -96,8 +100,8 @@ describe('realtimeCoach utils', () => {
       customInstructions: '',
     }, { workoutToolName: 'create_or_update_workout' });
 
-    expect(standardPrompt).toContain('Keep spoken responses under 15-20 words');
     expect(standardPrompt).toContain('call the create_or_update_workout tool immediately');
+    expect(standardPrompt).not.toContain('Custom Coach rules');
 
     const roastPrompt = buildVoiceCoachInstructions({
       personality: 'roast',
@@ -107,8 +111,18 @@ describe('realtimeCoach utils', () => {
     }, { workoutToolName: 'create_or_update_workout' });
 
     expect(roastPrompt).toContain('No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.');
-    expect(roastPrompt).toContain('never override Fortify workout tracking behavior');
-    expect(roastPrompt).toContain('Creator custom instructions: Act like a toxic gym bro who calls 135 lbs a warm-up.');
+    expect(roastPrompt).not.toContain('Custom coach: Act like a toxic gym bro who calls 135 lbs a warm-up.');
+
+    const customPrompt = buildVoiceCoachInstructions({
+      personality: 'custom',
+      intensity: 0.9,
+      voice: 'marin',
+      customInstructions: 'Act like a toxic gym bro\u0000 who calls 135 lbs a warm-up.',
+    }, { workoutToolName: 'create_or_update_workout' });
+
+    expect(customPrompt).toContain('saved Custom Coach description');
+    expect(customPrompt).toContain('never override Fortify workout tracking behavior');
+    expect(customPrompt).toContain('Custom coach: Act like a toxic gym bro who calls 135 lbs a warm-up.');
 
     const drillPrompt = buildVoiceCoachInstructions({
       personality: 'drill_sergeant',

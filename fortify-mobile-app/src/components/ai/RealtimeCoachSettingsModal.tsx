@@ -3,8 +3,10 @@ import {
   LayoutChangeEvent,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View,
 } from 'react-native';
@@ -14,7 +16,6 @@ import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import {
-  COACH_PERSONALITIES,
   COACH_PERSONALITY_LABELS,
   COACH_VOICE_LABELS,
   COACH_VOICES,
@@ -23,6 +24,10 @@ import {
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
 import { getIntensityLabel } from '@/src/utils/realtimeCoach';
+import {
+  MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS,
+  sanitizeCustomScenarioInstructions,
+} from '@/src/utils/realtimeCoachPrompt';
 
 interface RealtimeCoachSettingsModalProps {
   visible: boolean;
@@ -31,6 +36,8 @@ interface RealtimeCoachSettingsModalProps {
   onClose: () => void;
 }
 
+const COACHING_STYLE_OPTIONS: AICoachPersonality[] = ['direct', 'drill_sergeant', 'roast'];
+
 export function RealtimeCoachSettingsModal({
   visible,
   preferences,
@@ -38,15 +45,17 @@ export function RealtimeCoachSettingsModal({
   onClose,
 }: RealtimeCoachSettingsModalProps) {
   const { colors, isDark } = useTheme();
-  const { width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const [sliderWidth, setSliderWidth] = useState(1);
   const [draftIntensity, setDraftIntensity] = useState(preferences.intensity);
   const draftIntensityRef = useRef(preferences.intensity);
   const modalWidth = Math.min(380, Math.max(320, windowWidth - Spacing.xl * 2));
+  const maxContentHeight = Math.max(320, windowHeight - Spacing['4xl'] * 2 - 120);
   const optionBg = isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.045)';
   const sliderBg = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
   const sliderKnobSize = 22;
   const usableSliderWidth = Math.max(1, sliderWidth - sliderKnobSize);
+  const isCustomCoachSelected = preferences.personality === 'custom';
 
   useEffect(() => {
     draftIntensityRef.current = preferences.intensity;
@@ -58,9 +67,22 @@ export function RealtimeCoachSettingsModal({
     onChange({ ...preferences, personality });
   };
 
+  const selectCustomCoach = () => {
+    if (isCustomCoachSelected) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onChange({ ...preferences, personality: 'custom' });
+  };
+
   const updateVoice = (voice: AICoachVoice) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onChange({ ...preferences, voice });
+  };
+
+  const updateCustomCoach = (value: string) => {
+    onChange({
+      ...preferences,
+      customInstructions: sanitizeCustomScenarioInstructions(value),
+    });
   };
 
   const handleSliderLayout = (event: LayoutChangeEvent) => {
@@ -104,11 +126,16 @@ export function RealtimeCoachSettingsModal({
       titleStyle={styles.title}
       width={modalWidth}
     >
-      <View style={styles.content}>
+      <ScrollView
+        style={{ maxHeight: maxContentHeight }}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.controlBlock}>
-          <Text style={[styles.controlLabel, { color: colors.textSecondary }]}>Personality</Text>
+          <Text style={[styles.controlLabel, { color: colors.textSecondary }]}>Coaching Style</Text>
           <View style={styles.optionRow}>
-            {COACH_PERSONALITIES.map((personality) => {
+            {COACHING_STYLE_OPTIONS.map((personality) => {
               const selected = personality === preferences.personality;
               return (
                 <Pressable
@@ -194,7 +221,52 @@ export function RealtimeCoachSettingsModal({
             })}
           </View>
         </View>
-      </View>
+
+        <View style={styles.controlBlock}>
+          <View style={styles.controlLabelRow}>
+            <Pressable
+              testID="realtime-coach-custom-coach-select-button"
+              onPress={selectCustomCoach}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isCustomCoachSelected }}
+            >
+              <Text
+                style={[
+                  styles.controlLabel,
+                  {
+                    color: isCustomCoachSelected ? colors.accent : colors.textSecondary,
+                  },
+                ]}
+              >
+                Custom Coach
+              </Text>
+            </Pressable>
+            <Text style={[styles.controlValue, { color: colors.textTertiary }]}>
+              {(preferences.customInstructions ?? '').length}/{MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS}
+            </Text>
+          </View>
+          <TextInput
+            testID="realtime-coach-custom-coach-input"
+            value={preferences.customInstructions ?? ''}
+            onChangeText={updateCustomCoach}
+            placeholder="Describe your coach here"
+            placeholderTextColor={colors.textTertiary}
+            style={[
+              styles.customCoachInput,
+              {
+                backgroundColor: isDark ? 'rgba(255,255,255,0.065)' : 'rgba(0,0,0,0.035)',
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)',
+                color: colors.textPrimary,
+              },
+            ]}
+            multiline
+            maxLength={MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS}
+            textAlignVertical="top"
+            returnKeyType="done"
+          />
+        </View>
+      </ScrollView>
     </BaseModal>
   );
 }
@@ -217,6 +289,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: Spacing.md,
   },
   controlLabel: {
     ...Typography.labelSmall,
@@ -280,5 +353,14 @@ const styles = StyleSheet.create({
   sliderKnob: {
     position: 'absolute',
     borderWidth: 4,
+  },
+  customCoachInput: {
+    ...Typography.body,
+    minHeight: 112,
+    maxHeight: 160,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
   },
 });

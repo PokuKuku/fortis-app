@@ -8,20 +8,26 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
-type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/(tabs)';
+type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate' | '/(tabs)';
 const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortisDemoFinal888.mov');
 
 const resolveStartupRoute = ({
   isAuthenticated,
   needsOnboarding,
   hasProfile,
+  hasPendingOnboardingCompletion,
 }: {
   isAuthenticated: boolean;
   needsOnboarding: boolean;
   hasProfile: boolean;
+  hasPendingOnboardingCompletion: boolean;
 }): StartupRoute => {
   if (!isAuthenticated) {
     return '/onboarding/welcome';
+  }
+
+  if (hasPendingOnboardingCompletion) {
+    return '/paywall-gate';
   }
 
   if (!hasProfile || needsOnboarding) {
@@ -106,6 +112,7 @@ export default function SplashScreen() {
       isAuthenticated,
       needsOnboarding,
       hasProfile: Boolean(profile),
+      hasPendingOnboardingCompletion: hasPendingOnboardingAuthCompletion,
     });
     const requiresOnboardingWarmup = nextRoute === '/onboarding/welcome' || nextRoute === '/onboarding';
     if (requiresOnboardingWarmup && !onboardingWarmupReady) {

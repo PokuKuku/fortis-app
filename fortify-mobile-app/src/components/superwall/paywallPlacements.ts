@@ -8,6 +8,7 @@ export const PAYWALL_PLACEMENTS = {
   voiceWorkoutCreate: 'fortis_voice_workout_create',
   programLimit: 'fortis_program_limit',
   workoutLimit: 'fortis_workout_limit',
+  workoutStreak: 'fortis_workout_streak',
 } as const;
 
 export type PaywallPlacement =

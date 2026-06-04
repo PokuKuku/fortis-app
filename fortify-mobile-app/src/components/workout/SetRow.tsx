@@ -8,7 +8,7 @@ import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
 import { responsiveValue, moderateScale, scale } from '@/src/utils/responsive';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getAccentRgba } from '@/src/utils/accentColors';
-import { mergeSetValueSuggestion } from '@/src/utils/workoutSetSuggestions';
+import { getWorkoutSetInputSuggestion } from '@/src/utils/workoutSetInputSuggestion';
 import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
@@ -280,7 +280,7 @@ export function SetRow({
   const set = exercise?.sets.find(s => s.localId === setLocalId);
 
 
-  if (!set) return null;
+  if (!exercise || !set) return null;
 
   const applyValueToRemainingSets = (field: 'weight' | 'reps') => {
     if (!allowApplyToRemaining || !exercise) return false;
@@ -318,7 +318,7 @@ export function SetRow({
       longPressHandledRef.current = null;
       return;
     }
-    openNumberPad(exerciseLocalId, setLocalId, field);
+    openNumberPad(exerciseLocalId, setLocalId, field, inputSuggestion);
   };
 
   const applyCompletionToRemainingSets = () => {
@@ -336,14 +336,14 @@ export function SetRow({
       }
       const absoluteIndex = setIndex + offset;
       const previousSetForRow = absoluteIndex > 0 ? exercise.sets[absoluteIndex - 1] : undefined;
-      const typeIndexForRow = exercise.sets
-        .slice(0, absoluteIndex)
-        .filter((candidate) => candidate.setType === s.setType)
-        .length;
-      const suggestedSetForRow = suggestedPerformance?.sets
-        ?.filter((candidate) => candidate.setType === s.setType)[typeIndexForRow];
       const inputSuggestionForRow = allowAutoFill
-        ? mergeSetValueSuggestion(previousSetForRow, suggestedSetForRow, s.setType)
+        ? getWorkoutSetInputSuggestion({
+            exercise,
+            previousSet: previousSetForRow,
+            setIndex: absoluteIndex,
+            setType: s.setType,
+            suggestedPerformance,
+          })
         : undefined;
       let pendingWeight: number | null = null;
       let pendingReps: number | null = null;
@@ -565,10 +565,13 @@ export function SetRow({
 
   // Use last performance if available, otherwise fall back to baseline
   const effectivePerformance = previousSetPerformance || baselineSetPerformance;
-  const suggestedSetsOfType = suggestedPerformance?.sets
-    ?.filter(s => s.setType === set?.setType) ?? [];
-  const suggestedSetPerformance = suggestedSetsOfType[typeIndex];
-  const inputSuggestion = mergeSetValueSuggestion(previousSet, suggestedSetPerformance, set?.setType);
+  const inputSuggestion = getWorkoutSetInputSuggestion({
+    exercise,
+    previousSet,
+    setIndex,
+    setType: set.setType,
+    suggestedPerformance,
+  });
 
   const recordedWeightUnit = effectivePerformance?.weightUnit
     || previousUnitRef.current

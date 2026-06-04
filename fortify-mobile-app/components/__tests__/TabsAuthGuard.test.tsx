@@ -183,4 +183,16 @@ describe('Tabs auth guard', () => {
       expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     });
   });
+
+  it('routes completed profiles with pending onboarding completion to the paywall gate', async () => {
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+
+    render(<TabLayout />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+    });
+  });
 });

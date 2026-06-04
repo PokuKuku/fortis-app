@@ -1,8 +1,7 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { RealtimeVoiceCoachScreen } from '@/src/components/ai/RealtimeVoiceCoachScreen';
-import type { RealtimeCoachPreferences } from '@/src/types/realtimeCoach';
 
 const mockColors = {
   accent: '#44AAFF',
@@ -96,16 +95,9 @@ jest.mock('react-native-heroicons/outline', () => {
   const { Text } = require('react-native');
 
   return {
-    Cog6ToothIcon: () => <Text>gear</Text>,
+    XMarkIcon: () => <Text>x</Text>,
   };
 });
-
-const preferences: RealtimeCoachPreferences = {
-  personality: 'direct',
-  intensity: 0.55,
-  voice: 'marin',
-  customInstructions: '',
-};
 
 const defaultProps = {
   phase: 'listening' as const,
@@ -127,14 +119,13 @@ const defaultProps = {
   isWorkoutActive: false,
   isActive: true,
   isUserTurnActive: false,
-  preferences,
   templateSaveError: null,
-  onPreferencesChange: jest.fn(),
   onTalkStart: jest.fn(),
   onTalkEnd: jest.fn(),
   onViewWorkoutTemplate: jest.fn(),
   onAddWorkoutTemplate: jest.fn(),
   onStartWorkoutTemplate: jest.fn(),
+  onDismissWorkoutTemplate: jest.fn(),
 };
 
 describe('RealtimeVoiceCoachScreen', () => {
@@ -250,55 +241,6 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(onTalkEnd).toHaveBeenCalledTimes(1);
   });
 
-  it('opens custom scenario settings from the gear button', () => {
-    const { getByTestId, getByText, queryByText } = render(<RealtimeVoiceCoachScreen {...defaultProps} />);
-
-    expect(queryByText('Custom Scenarios')).toBeNull();
-
-    fireEvent.press(getByTestId('custom-scenario-gear'));
-
-    expect(getByText('Custom Scenarios')).toBeTruthy();
-    expect(getByText('Standard Coach')).toBeTruthy();
-    expect(getByText('Drill Sergeant')).toBeTruthy();
-    expect(getByText('Roast Master')).toBeTruthy();
-  });
-
-  it('updates the voice scenario preset from the sheet', () => {
-    const onPreferencesChange = jest.fn();
-    const { getByTestId } = render(
-      <RealtimeVoiceCoachScreen
-        {...defaultProps}
-        onPreferencesChange={onPreferencesChange}
-      />
-    );
-
-    fireEvent.press(getByTestId('custom-scenario-gear'));
-    fireEvent.press(getByTestId('custom-scenario-preset-roast'));
-
-    expect(onPreferencesChange).toHaveBeenCalledWith({
-      ...preferences,
-      personality: 'roast',
-    });
-  });
-
-  it('updates capped custom scenario instructions from the sheet', () => {
-    const onPreferencesChange = jest.fn();
-    const longInstructions = ` ${'act tough '.repeat(80)}`;
-    const { getByTestId } = render(
-      <RealtimeVoiceCoachScreen
-        {...defaultProps}
-        onPreferencesChange={onPreferencesChange}
-      />
-    );
-
-    fireEvent.press(getByTestId('custom-scenario-gear'));
-    fireEvent.changeText(getByTestId('custom-scenario-instructions-input'), longInstructions);
-
-    const updatedPreferences = onPreferencesChange.mock.calls[0]?.[0] as RealtimeCoachPreferences;
-    expect(updatedPreferences.customInstructions).toHaveLength(500);
-    expect(updatedPreferences.customInstructions?.startsWith('act tough')).toBe(true);
-  });
-
   it('hides creator script controls by default', () => {
     const { queryByTestId } = render(<RealtimeVoiceCoachScreen {...defaultProps} />);
 
@@ -396,7 +338,45 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(cardScrollStyle.maxHeight).toBe(slotStyle.height);
     expect(cardScrollStyle.maxHeight).toBeGreaterThan(190);
     expect(cardShellStyle.width).toBe('100%');
-    expect(cardShellStyle.transform).toHaveLength(2);
+    expect(cardShellStyle.transform).toHaveLength(4);
+  });
+
+  it('dismisses voice workout cards from the close button', () => {
+    const onDismissWorkoutTemplate = jest.fn();
+    const { getByTestId } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        onDismissWorkoutTemplate={onDismissWorkoutTemplate}
+        voiceWorkoutMessages={[
+          {
+            id: 'voice-card-1',
+            text: 'I made a chest workout.',
+            workoutTemplate: {
+              name: 'Chest Workout',
+              focus: 'Chest',
+              exercises: [
+                {
+                  exerciseId: 'bench-press',
+                  exerciseName: 'Bench Press',
+                  sets: 4,
+                  reps: '6-10',
+                },
+              ],
+            },
+          },
+        ]}
+      />
+    );
+
+    fireEvent.press(getByTestId('voice-card-dismiss-voice-card-1'));
+
+    expect(onDismissWorkoutTemplate).not.toHaveBeenCalled();
+
+    act(() => {
+      jest.advanceTimersByTime(300);
+    });
+
+    expect(onDismissWorkoutTemplate).toHaveBeenCalledWith('voice-card-1');
   });
 
   it('renders a pending workout card while voice workout generation is delayed', () => {

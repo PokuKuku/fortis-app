@@ -30,7 +30,6 @@ import {
 } from '@/src/utils/onboardingProgram';
 import { clearInAppTourState } from '@/src/services/inAppTourService';
 import {
-  clearPendingOnboardingAuthCompletion,
   markPendingOnboardingAuthCompletion,
   usePendingOnboardingAuthCompletion,
 } from '@/src/utils/onboardingAuthCompletion';
@@ -143,8 +142,7 @@ export default function AuthWelcomeScreen() {
     if (profile?.onboarding_completed) {
       if (didFinalizeOnboardingAuthRef.current) return;
       didFinalizeOnboardingAuthRef.current = true;
-      void clearPendingOnboardingAuthCompletion();
-      router.replace('/(tabs)');
+      router.replace('/paywall-gate');
       return;
     }
 
@@ -255,7 +253,7 @@ export default function AuthWelcomeScreen() {
         );
 
         if (isMountedRef.current && isFocusedRef.current) {
-          router.replace('/(tabs)');
+          router.replace('/paywall-gate');
         }
       } catch (finalizeError) {
         didFinalizeOnboardingAuthRef.current = false;
@@ -295,6 +293,11 @@ export default function AuthWelcomeScreen() {
       return;
     }
 
+    if (hasPendingCompletionIntent) {
+      router.replace('/paywall-gate');
+      return;
+    }
+
     console.log('[Routing] auth/index -> /(tabs) (authenticated)');
     router.replace('/(tabs)');
   }, [
@@ -303,6 +306,7 @@ export default function AuthWelcomeScreen() {
     isLoading,
     needsOnboarding,
     isOnboardingCompletionAuth,
+    hasPendingCompletionIntent,
     onboardingValue,
     pendingCompletionIntentResolved,
     profile,

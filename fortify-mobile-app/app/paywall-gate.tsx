@@ -62,20 +62,6 @@ export default function PaywallGateScreen() {
   }, [subscriptionStatus]);
 
   useEffect(() => {
-    if (
-      pendingOnboardingAuthCompletionResolved &&
-      hasPendingOnboardingAuthCompletion &&
-      profile?.onboarding_completed === true
-    ) {
-      void clearPendingOnboardingAuthCompletion();
-    }
-  }, [
-    hasPendingOnboardingAuthCompletion,
-    pendingOnboardingAuthCompletionResolved,
-    profile?.onboarding_completed,
-  ]);
-
-  useEffect(() => {
     let isActive = true;
 
     const loadContext = async () => {
@@ -155,8 +141,12 @@ export default function PaywallGateScreen() {
     }
 
     hasNavigatedRef.current = true;
-    queueTourStartAfterPaywallClose();
-    router.replace('/(tabs)');
+    void clearPendingOnboardingAuthCompletion()
+      .catch(() => undefined)
+      .finally(() => {
+        queueTourStartAfterPaywallClose();
+        router.replace('/(tabs)');
+      });
   }, [queueTourStartAfterPaywallClose, router]);
 
   const scheduleRetry = useCallback(() => {
@@ -175,6 +165,15 @@ export default function PaywallGateScreen() {
       }
     }, GATE_RETRY_DELAY_MS);
   }, []);
+
+  const handleTransientGateFailure = useCallback(() => {
+    if (hasPendingOnboardingAuthCompletion) {
+      scheduleRetry();
+      return;
+    }
+
+    finishGate();
+  }, [finishGate, hasPendingOnboardingAuthCompletion, scheduleRetry]);
 
   const syncAccessOnce = useCallback(async () => {
     try {
@@ -242,16 +241,16 @@ export default function PaywallGateScreen() {
 
   const handleSkip = useCallback(
     (_reason: PaywallSkippedReason) => {
-      finishGate();
+      handleTransientGateFailure();
     },
-    [finishGate],
+    [handleTransientGateFailure],
   );
 
   const handleError = useCallback(
     (_error: string) => {
-      finishGate();
+      handleTransientGateFailure();
     },
-    [finishGate],
+    [handleTransientGateFailure],
   );
 
   const { registerPlacement } = usePlacement({
@@ -277,7 +276,7 @@ export default function PaywallGateScreen() {
       hasSuperwallError,
       hasNavigated: hasNavigatedRef.current,
     })) {
-      finishGate();
+      handleTransientGateFailure();
       return;
     }
 
@@ -319,7 +318,7 @@ export default function PaywallGateScreen() {
       }
 
       if (!access.wasVerified) {
-        finishGate();
+        handleTransientGateFailure();
         return;
       }
 
@@ -336,7 +335,7 @@ export default function PaywallGateScreen() {
           params: paywallContext ?? undefined,
         });
       } catch {
-        finishGate();
+        handleTransientGateFailure();
       }
     })();
   }, [
@@ -344,6 +343,7 @@ export default function PaywallGateScreen() {
     finishGate,
     hasPendingOnboardingAuthCompletion,
     hasSuperwallError,
+    handleTransientGateFailure,
     isIdentityReady,
     isSuperwallReady,
     needsOnboarding,

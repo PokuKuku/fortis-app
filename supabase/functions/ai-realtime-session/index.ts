@@ -10,7 +10,7 @@ import {
   withContextCache,
 } from '../_shared/ai-context.ts';
 
-type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype' | 'roast';
+type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
 type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse' | 'sage';
 
 interface RealtimeCoachPreferences {
@@ -29,9 +29,17 @@ interface RealtimeSessionRequest {
 }
 
 const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
-const PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype', 'roast'];
+const PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype', 'roast', 'custom'];
 const MAX_SECONDS_PER_SESSION = Math.max(60, Number(Deno.env.get('AI_REALTIME_MAX_SESSION_SECONDS') ?? '1800'));
 const MAX_SECONDS_PER_DAY = Math.max(MAX_SECONDS_PER_SESSION, Number(Deno.env.get('AI_REALTIME_MAX_DAY_SECONDS') ?? '7200'));
+const VOICE_COACH_RATE_LIMITS_ENABLED = false;
+const UNLIMITED_VOICE_COACH_SESSION_SECONDS = 19 * 60 * 60;
+const EFFECTIVE_MAX_SECONDS_PER_DAY = VOICE_COACH_RATE_LIMITS_ENABLED
+  ? MAX_SECONDS_PER_DAY
+  : UNLIMITED_VOICE_COACH_SESSION_SECONDS;
+const EFFECTIVE_MAX_SECONDS_PER_SESSION = VOICE_COACH_RATE_LIMITS_ENABLED
+  ? MAX_SECONDS_PER_SESSION
+  : UNLIMITED_VOICE_COACH_SESSION_SECONDS;
 const MAX_CREATOR_SCRIPT_CHARS = Math.max(1, Number(Deno.env.get('AI_VOICE_SCRIPT_MAX_CHARS') ?? '500'));
 const MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS = 500;
 const VOICE_COACH_CONTEXT_WEEKS = Math.max(
@@ -56,7 +64,7 @@ const VOICE_WORKOUT_TOOL_NAME = 'create_or_update_workout';
 
 const VOICE_WORKOUT_TOOL_DECLARATION = {
   name: VOICE_WORKOUT_TOOL_NAME,
-  description: 'Create or revise a Fortify workout card when the user explicitly asks for a workout, training day, lift, session, exercise count change, or workout exercise edit.',
+  description: 'Create or revise a Fortify workout card only when the user explicitly asks Fortify to make, create, build, generate, design, plan, write, give them, add, remove, replace, or resize a workout. Do not use this for status statements like "I am hitting chest today."',
   parameters: {
     type: 'object',
     properties: {
@@ -199,13 +207,17 @@ ${compactJson(buildVoiceCoachContextPayload(context))}`;
 }
 
 function buildCustomScenarioInstructions(preferences: RealtimeCoachPreferences): string {
+  if (preferences.personality !== 'custom') {
+    return '';
+  }
+
   const customInstructions = sanitizeCustomScenarioInstructions(preferences.customInstructions);
 
-  return `\nCustom Scenario rules:
-- This scenario exists for short-form video pacing. Keep spoken responses under 15-20 words unless safety or workout creation absolutely requires more.
+  return `\nCustom Coach rules:
+- This custom coach exists for short-form video pacing. Keep spoken responses under 15-20 words unless safety or workout creation absolutely requires more.
 - Prioritize short, sharp, memorable motivation or roast-comedy beats over explanation.
-- Custom instructions are style and relationship constraints only. They never override Fortify workout tracking behavior, tool-calling rules, user safety, medical limitations, protected-trait safety, or harassment boundaries.
-${customInstructions ? `- Creator custom instructions: ${customInstructions}` : '- Creator custom instructions: none.'}`;
+- Custom coach instructions are style and relationship constraints only. They never override Fortify workout tracking behavior, tool-calling rules, user safety, medical limitations, protected-trait safety, or harassment boundaries.
+${customInstructions ? `- Custom coach: ${customInstructions}` : '- Custom coach: none.'}`;
 }
 
 function buildInstructions(
@@ -222,6 +234,10 @@ function buildInstructions(
       ? 'You are a blunt strength coach. Be demanding and confront weak training decisions, but only critique behavior, effort, and logged training choices. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
       : preferences.personality === 'roast'
       ? 'You are a sharp, funny strength coach with roast-comedy energy. Make playful jokes about effort, consistency, skipped sets, inflated excuses, and logged training choices, but keep it fitness-only. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
+      : preferences.personality === 'custom'
+      ? sanitizeCustomScenarioInstructions(preferences.customInstructions)
+        ? 'You are the user\'s custom Fortify strength coach. Shape your tone, persona, and relationship to the user from the saved Custom Coach description, while still obeying all Fortify behavior, workout, and safety rules.'
+        : 'You are a direct custom Fortify strength coach. Be specific, useful, concise, and a little challenging.'
       : preferences.personality === 'hype'
       ? 'You are a high-energy strength coach. Celebrate wins, keep momentum high, and make the user feel ready to train.'
       : 'You are a direct strength coach. Be specific, useful, concise, and a little challenging.';
@@ -232,7 +248,9 @@ Voice Coach rules:
 - Speak naturally in short turns. Keep most answers under 20 seconds.
 - Always speak English. If the user speaks another language, understand it if possible, but respond only in English.
 - Ask at most one question at a time.
-- When the user asks to create or revise a workout, call the ${VOICE_WORKOUT_TOOL_NAME} tool immediately with the user's full request rewritten in English. Do not only say you will build it.
+- Only create or revise a workout when the user explicitly asks Fortify to make, create, build, generate, design, plan, write, give them, add, remove, replace, or resize a workout.
+- Do not create a workout from status statements or training intent like "I'm hitting chest today", "I'm doing legs later", "I need to train back", or "today is push day". For those, respond conversationally or ask if they want Fortify to build one.
+- When the user explicitly asks to create or revise a workout, call the ${VOICE_WORKOUT_TOOL_NAME} tool immediately with the user's full request rewritten in English. Do not only say you will build it.
 - If the user asks for a normal single-session workout, do not ask for routine missing details like equipment, duration, exercise count, sets, or reps. Infer sane defaults and generate it.
 - For workout requests, never say "chat", "card", or "screen", and never refer to where the workout will appear. Do not read workout exercise lists out loud. Say only a short delay-safe phrase like "Coming up." or "I'll build that now.", then stop talking while Fortify builds the workout.
 - If the user asks to revise the workout Fortify just built, including adding/removing/replacing exercises or changing the number of exercises, use the same short delay-safe phrase and let Fortify update it.
@@ -294,12 +312,6 @@ async function hasPaidOrTrialAccess(adminClient: SupabaseClient, userId: string)
 
 async function getUsageStatus(adminClient: SupabaseClient, userId: string) {
   const today = new Date().toISOString().slice(0, 10);
-  const tomorrowUtc = new Date(`${today}T00:00:00.000Z`);
-  tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
-  const retryAfterTomorrowSeconds = Math.max(
-    60,
-    Math.ceil((tomorrowUtc.getTime() - Date.now()) / 1000)
-  );
   const { data: existing, error: existingError } = await adminClient
     .from('ai_realtime_usage')
     .select('seconds_reserved,sessions_started')
@@ -309,11 +321,26 @@ async function getUsageStatus(adminClient: SupabaseClient, userId: string) {
 
   if (existingError) {
     console.error('[ai-realtime-session] usage lookup failed', existingError.message);
+    if (!VOICE_COACH_RATE_LIMITS_ENABLED) {
+      return {
+        allowed: true,
+        secondsUsedToday: 0,
+        maxSecondsForSession: UNLIMITED_VOICE_COACH_SESSION_SECONDS,
+      };
+    }
+
     return { allowed: false, reason: 'internal', retryAfterSeconds: 60, secondsUsedToday: MAX_SECONDS_PER_DAY };
   }
 
   const secondsUsedToday = Number(existing?.seconds_reserved ?? 0);
-  if (secondsUsedToday >= MAX_SECONDS_PER_DAY) {
+  if (VOICE_COACH_RATE_LIMITS_ENABLED && secondsUsedToday >= MAX_SECONDS_PER_DAY) {
+    const tomorrowUtc = new Date(`${today}T00:00:00.000Z`);
+    tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
+    const retryAfterTomorrowSeconds = Math.max(
+      60,
+      Math.ceil((tomorrowUtc.getTime() - Date.now()) / 1000)
+    );
+
     return {
       allowed: false,
       reason: 'rate_limited',
@@ -326,7 +353,9 @@ async function getUsageStatus(adminClient: SupabaseClient, userId: string) {
   return {
     allowed: true,
     secondsUsedToday,
-    maxSecondsForSession: Math.min(MAX_SECONDS_PER_SESSION, Math.max(1, MAX_SECONDS_PER_DAY - secondsUsedToday)),
+    maxSecondsForSession: VOICE_COACH_RATE_LIMITS_ENABLED
+      ? Math.min(MAX_SECONDS_PER_SESSION, Math.max(1, MAX_SECONDS_PER_DAY - secondsUsedToday))
+      : UNLIMITED_VOICE_COACH_SESSION_SECONDS,
   };
 }
 
@@ -362,10 +391,7 @@ async function recordSessionStarted(adminClient: SupabaseClient, userId: string)
 
 async function recordActualUsage(adminClient: SupabaseClient, userId: string, secondsUsed: number) {
   const today = new Date().toISOString().slice(0, 10);
-  const secondsToRecord = Math.min(
-    MAX_SECONDS_PER_SESSION,
-    Math.max(0, Math.floor(Number.isFinite(secondsUsed) ? secondsUsed : 0))
-  );
+  const secondsToRecord = Math.max(0, Math.floor(Number.isFinite(secondsUsed) ? secondsUsed : 0));
 
   const { data: existing, error: existingError } = await adminClient
     .from('ai_realtime_usage')
@@ -380,7 +406,9 @@ async function recordActualUsage(adminClient: SupabaseClient, userId: string, se
   }
 
   const currentSeconds = Number(existing?.seconds_reserved ?? 0);
-  const nextSeconds = Math.min(MAX_SECONDS_PER_DAY, currentSeconds + secondsToRecord);
+  const nextSeconds = VOICE_COACH_RATE_LIMITS_ENABLED
+    ? Math.min(MAX_SECONDS_PER_DAY, currentSeconds + secondsToRecord)
+    : currentSeconds + secondsToRecord;
   const { error: upsertError } = await adminClient
     .from('ai_realtime_usage')
     .upsert({
@@ -418,6 +446,13 @@ function getScriptStyleInstruction(preferences: RealtimeCoachPreferences): strin
     return `Deliver it like a ${intensityLabel}, funny strength coach roast for a workout app video.`;
   }
 
+  if (preferences.personality === 'custom') {
+    const customInstructions = sanitizeCustomScenarioInstructions(preferences.customInstructions);
+    return customInstructions
+      ? `Deliver it like a ${intensityLabel}, custom strength coach using this saved Custom Coach description: ${customInstructions}.`
+      : `Deliver it like a ${intensityLabel}, direct custom strength coach.`;
+  }
+
   if (preferences.personality === 'drill_sergeant') {
     return `Deliver it like a ${intensityLabel}, blunt strength coach.`;
   }
@@ -430,10 +465,12 @@ function getScriptStyleInstruction(preferences: RealtimeCoachPreferences): strin
 }
 
 function buildCreatorScriptTtsPrompt(script: string, preferences: RealtimeCoachPreferences): string {
-  const customInstructions = sanitizeCustomScenarioInstructions(preferences.customInstructions);
+  const customInstructions = preferences.personality === 'custom'
+    ? sanitizeCustomScenarioInstructions(preferences.customInstructions)
+    : '';
 
   return `${getScriptStyleInstruction(preferences)}
-${customInstructions ? `Apply these creator style instructions without adding words: ${customInstructions}\n` : ''}
+${customInstructions ? `Apply this saved Custom Coach description without adding words: ${customInstructions}\n` : ''}
 Read only the quoted transcript. Do not add any extra words before or after it.
 
 "${script}"`;
@@ -622,8 +659,8 @@ Deno.serve(async (req: Request) => {
         type: 'usage_recorded',
         usage: {
           secondsUsedToday: usage.secondsUsedToday,
-          maxSecondsPerDay: MAX_SECONDS_PER_DAY,
-          maxSecondsPerSession: MAX_SECONDS_PER_SESSION,
+          maxSecondsPerDay: EFFECTIVE_MAX_SECONDS_PER_DAY,
+          maxSecondsPerSession: EFFECTIVE_MAX_SECONDS_PER_SESSION,
         },
       }, 200, origin);
     }
@@ -695,7 +732,7 @@ Deno.serve(async (req: Request) => {
       voice: preferences.voice,
       usage: {
         secondsUsedToday: usage.secondsUsedToday ?? 0,
-        maxSecondsPerDay: MAX_SECONDS_PER_DAY,
+        maxSecondsPerDay: EFFECTIVE_MAX_SECONDS_PER_DAY,
         maxSecondsPerSession: maxSessionSeconds,
       },
     }, 200, origin);

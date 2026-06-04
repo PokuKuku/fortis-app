@@ -29,27 +29,39 @@ export default function OnboardingNotificationsScreen() {
     trackOnboardingStepCompleted('notifications_prompt');
   };
 
-  const finish = () => {
+  const requestNotificationPermissionIfNeeded = async () => {
+    const alreadyRequested = await getScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY);
+    if (alreadyRequested === 'true') return;
+
+    if (typeof Notifications.getPermissionsAsync === 'function') {
+      const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
+      if (!granted && status !== 'granted' && canAskAgain) {
+        if (typeof Notifications.requestPermissionsAsync === 'function') {
+          await Notifications.requestPermissionsAsync();
+        }
+      }
+    }
+
+    await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
+  };
+
+  const finish = async () => {
     markStepComplete();
-    router.push('/onboarding/complete');
+
+    try {
+      await requestNotificationPermissionIfNeeded();
+    } catch {
+      // Best effort only.
+    } finally {
+      router.push('/onboarding/complete');
+    }
   };
 
   const handleAllow = async () => {
     markStepComplete();
 
     try {
-      const alreadyRequested = await getScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY);
-      if (alreadyRequested !== 'true') {
-        if (typeof Notifications.getPermissionsAsync === 'function') {
-          const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
-          if (!granted && status !== 'granted' && canAskAgain) {
-            if (typeof Notifications.requestPermissionsAsync === 'function') {
-              await Notifications.requestPermissionsAsync();
-            }
-          }
-        }
-        await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
-      }
+      await requestNotificationPermissionIfNeeded();
     } catch {
       // Best effort only.
     } finally {
@@ -61,7 +73,7 @@ export default function OnboardingNotificationsScreen() {
     markStepComplete();
 
     try {
-      await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
+      await requestNotificationPermissionIfNeeded();
     } catch {
       // Best effort only.
     } finally {
@@ -81,7 +93,7 @@ export default function OnboardingNotificationsScreen() {
       bodyAlign="center"
       contentGap={Spacing.xl}
       floatingFooter={
-        <GlassButton style={styles.button} onPress={finish} hapticFeedback="impactMedium">
+        <GlassButton style={styles.button} onPress={() => void finish()} hapticFeedback="impactMedium">
           <Text allowFontScaling={false} style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>
             Next
           </Text>

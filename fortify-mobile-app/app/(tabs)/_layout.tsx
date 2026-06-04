@@ -180,6 +180,14 @@ export default function TabLayout() {
     if (isLoading || !isAuthenticated || !profileResolved) {
       return;
     }
+    if (
+      pendingOnboardingAuthCompletionResolved &&
+      hasPendingOnboardingAuthCompletion &&
+      profile?.onboarding_completed === true
+    ) {
+      router.replace('/paywall-gate');
+      return;
+    }
     if (!profile || needsOnboarding) {
       if (
         !pendingOnboardingAuthCompletionResolved ||

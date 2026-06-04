@@ -241,7 +241,7 @@ describe('OnboardingCompleteScreen', () => {
 
     await waitFor(() => {
       expect(mockClearOnboardingState).toHaveBeenCalledTimes(1);
-      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
     });
   });
 
@@ -286,7 +286,7 @@ describe('OnboardingCompleteScreen', () => {
         full_name: 'Kwaku',
         onboarding_completed: true,
       }));
-      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
     });
   });
 });

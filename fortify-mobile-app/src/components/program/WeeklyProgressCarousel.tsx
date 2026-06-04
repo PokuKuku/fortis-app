@@ -24,6 +24,9 @@ import {
   type WeekProgressDay,
   type WorkoutScheduleHistoryEntry,
 } from '@/src/utils/workoutSchedule';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
+import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { ACCENT_COLORS } from '@/src/utils/accentColors';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = scale(24);
@@ -60,6 +63,7 @@ export function WeeklyProgressCarousel({
   onEditSchedule,
 }: WeeklyProgressCarouselProps) {
   const { colors, isDark } = useTheme();
+  const { isPro, runProFeature } = useProFeatureGate();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const modalStyles = useModalStyles();
   const listRef = useRef<FlatList<WeekPage>>(null);
@@ -111,6 +115,21 @@ export function WeeklyProgressCarousel({
       editScheduleTimeoutRef.current = null;
       onEditSchedule();
     }, 260);
+  };
+
+  const handleWorkoutStreakUpgradePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+    void runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.workoutStreak,
+        params: {
+          source: 'weekly_progress',
+          action: 'view_workout_streak',
+          streak,
+        },
+      },
+      () => true,
+    );
   };
 
   const renderWeek = ({ item }: { item: WeekPage }) => {
@@ -188,12 +207,26 @@ export function WeeklyProgressCarousel({
       <View style={styles.container}>
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{headerDateLabel}</Text>
-          <View style={styles.streakInline}>
-            <Text style={[styles.streakText, { color: colors.textPrimary }]}>
-              {streak}
-            </Text>
-            <FireIcon color="#FF4D4D" size={20} strokeWidth={2.4} />
-          </View>
+          {isPro ? (
+            <View style={styles.streakInline}>
+              <Text style={[styles.streakText, { color: colors.textPrimary }]}>
+                {streak}
+              </Text>
+              <FireIcon color="#FF4D4D" size={20} strokeWidth={2.4} />
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go Pro to view workout streak"
+              onPress={handleWorkoutStreakUpgradePress}
+              style={({ pressed }) => [
+                styles.streakUpgradeButton,
+                pressed && styles.streakUpgradeButtonPressed,
+              ]}
+            >
+              <Text style={styles.streakUpgradeText}>Go Pro</Text>
+            </Pressable>
+          )}
         </View>
         <FlatList
           ref={listRef}
@@ -354,6 +387,28 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(20),
     letterSpacing: 0.8,
     textTransform: 'uppercase',
+  },
+  streakUpgradeButton: {
+    minHeight: scale(30),
+    paddingHorizontal: scale(12),
+    borderRadius: scale(15),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: ACCENT_COLORS.amber.base,
+    borderWidth: 1,
+    borderColor: ACCENT_COLORS.amber.light,
+  },
+  streakUpgradeButtonPressed: {
+    opacity: 0.82,
+    transform: [{ scale: 0.98 }],
+  },
+  streakUpgradeText: {
+    color: '#1C1403',
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: moderateScale(11),
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   daysRow: {
     flexDirection: 'row',

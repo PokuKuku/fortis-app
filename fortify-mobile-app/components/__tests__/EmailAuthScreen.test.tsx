@@ -233,6 +233,38 @@ describe('EmailAuthScreen', () => {
     });
   });
 
+  it('continues redirecting after pending completion state resolves late', async () => {
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: false });
+    const { getByPlaceholderText, getByText, rerender } = render(<EmailAuthScreen />);
+
+    fireEvent.changeText(getByPlaceholderText('your@email.com'), 'newuser@example.com');
+    fireEvent.changeText(getByPlaceholderText('Enter your password'), 'password123');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(mockSignInWithEmail).toHaveBeenCalledWith('newuser@example.com', 'password123');
+    });
+
+    mockAuthState = {
+      ...mockAuthState,
+      isAuthenticated: true,
+      profileResolved: true,
+      profile: null,
+      needsOnboarding: true,
+    };
+
+    rerender(<EmailAuthScreen />);
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+    rerender(<EmailAuthScreen />);
+
+    await waitFor(() => {
+      expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+    });
+  });
+
   it('routes onboarding-complete email sign-in through auth finalization flow', async () => {
     mockSearchParams = { source: 'onboarding-complete', mode: 'signin' };
 

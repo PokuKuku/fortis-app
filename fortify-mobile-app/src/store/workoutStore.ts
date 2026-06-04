@@ -220,6 +220,10 @@ interface WorkoutState {
     pendingValue: string;
     hasError: boolean;
     shouldReplaceOnNextInput?: boolean;
+    inputSuggestion?: {
+      weight: number | null;
+      reps: number | null;
+    };
   } | null;
   validationErrorsBySet: Record<string, { weight?: boolean; reps?: boolean }>;
   validationErrorsTrigger: number;
@@ -349,7 +353,12 @@ interface WorkoutState {
   loadBodyType: () => Promise<void>;
 
   // Actions - Number Pad
-  openNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
+  openNumberPad: (
+    exerciseLocalId: string,
+    setLocalId: string,
+    inputType: 'weight' | 'reps',
+    inputSuggestion?: { weight: number | null; reps: number | null }
+  ) => void;
   closeNumberPad: () => void;
   updatePendingValue: (value: string) => void;
   setNumberPadError: (hasError: boolean) => void;
@@ -387,7 +396,12 @@ interface WorkoutState {
     setLocalId: string,
     setType: SetType
   ) => void;
-  openEditorNumberPad: (exerciseLocalId: string, setLocalId: string, inputType: 'weight' | 'reps') => void;
+  openEditorNumberPad: (
+    exerciseLocalId: string,
+    setLocalId: string,
+    inputType: 'weight' | 'reps',
+    inputSuggestion?: { weight: number | null; reps: number | null }
+  ) => void;
   closeEditorNumberPad: () => void;
   updateEditorExerciseNotes: (localId: string, notes: string) => void;
   updateEditorExerciseTarget: (
@@ -2209,7 +2223,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     // Number Pad Actions
     // ========================================
 
-    openNumberPad: (exerciseLocalId, setLocalId, inputType) => {
+    openNumberPad: (exerciseLocalId, setLocalId, inputType, inputSuggestion) => {
       const { activeSession, activeNumberPad } = get();
 
       if (
@@ -2256,6 +2270,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           pendingValue,
           hasError: false,
           shouldReplaceOnNextInput,
+          inputSuggestion,
         },
       });
     },
@@ -2824,7 +2839,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       get().updateEditorSet(exerciseLocalId, setLocalId, { setType });
     },
 
-    openEditorNumberPad: (exerciseLocalId, setLocalId, inputType) => {
+    openEditorNumberPad: (exerciseLocalId, setLocalId, inputType, inputSuggestion) => {
       const { editorSession, activeNumberPad } = get();
 
       if (
@@ -2870,6 +2885,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           pendingValue,
           hasError: false,
           shouldReplaceOnNextInput,
+          inputSuggestion,
         },
       });
     },

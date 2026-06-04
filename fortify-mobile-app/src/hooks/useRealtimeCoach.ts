@@ -103,7 +103,7 @@ const VOICE_WORKOUT_TOOL_NAME = 'create_or_update_workout';
 
 const VOICE_WORKOUT_TOOL_DECLARATION = {
   name: VOICE_WORKOUT_TOOL_NAME,
-  description: 'Create or revise a Fortify workout card when the user explicitly asks for a workout, training day, lift, session, exercise count change, or workout exercise edit.',
+  description: 'Create or revise a Fortify workout card only when the user explicitly asks Fortify to make, create, build, generate, design, plan, write, give them, add, remove, replace, or resize a workout. Do not use this for status statements like "I am hitting chest today."',
   parameters: {
     type: 'object',
     properties: {
@@ -1285,6 +1285,16 @@ export function useRealtimeCoach({
     )));
   }, []);
 
+  const dismissVoiceWorkoutMessage = useCallback((messageId: string) => {
+    setVoiceWorkoutMessages((current) => {
+      const nextMessages = current.filter((message) => message.id !== messageId);
+      latestVoiceWorkoutTemplateDraftRef.current = nextMessages.length > 0
+        ? nextMessages[nextMessages.length - 1].workoutTemplate
+        : null;
+      return nextMessages;
+    });
+  }, []);
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
       if (state !== 'active') {
@@ -1334,5 +1344,6 @@ export function useRealtimeCoach({
     speakCreatorScript,
     setError,
     markVoiceWorkoutSaved,
+    dismissVoiceWorkoutMessage,
   };
 }

@@ -10,7 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, { Easing, FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -44,10 +44,11 @@ export function CustomScenarioSheet({
   const { width, height } = useWindowDimensions();
   const sheetWidth = Math.min(width, 520);
   const sheetMaxHeight = Math.max(360, height * 0.72);
-  const selectedPersonality = SCENARIO_PRESETS.some((preset) => preset.value === preferences.personality)
+  const selectedPresetPersonality = SCENARIO_PRESETS.some((preset) => preset.value === preferences.personality)
     ? preferences.personality
-    : 'direct';
+    : null;
   const customInstructions = preferences.customInstructions ?? '';
+  const isCustomCoachSelected = preferences.personality === 'custom';
 
   const sheetStyle = {
     width: sheetWidth,
@@ -64,11 +65,16 @@ export function CustomScenarioSheet({
     borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)',
     color: colors.textPrimary,
   };
-
   const updatePersonality = (personality: AICoachPersonality) => {
-    if (personality === selectedPersonality) return;
+    if (personality === preferences.personality) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onChange({ ...preferences, personality });
+  };
+
+  const selectCustomCoach = () => {
+    if (isCustomCoachSelected) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onChange({ ...preferences, personality: 'custom' });
   };
 
   const updateCustomInstructions = (value: string) => {
@@ -89,8 +95,8 @@ export function CustomScenarioSheet({
       statusBarTranslucent
     >
       <Animated.View
-        entering={FadeIn.duration(160)}
-        exiting={FadeOut.duration(120)}
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
         style={[
           styles.backdrop,
           { backgroundColor: isDark ? 'rgba(0,0,0,0.64)' : 'rgba(0,0,0,0.36)' },
@@ -107,25 +113,18 @@ export function CustomScenarioSheet({
           pointerEvents="box-none"
         >
           <Animated.View
-            entering={SlideInDown.duration(260)}
-            exiting={SlideOutDown.duration(200)}
+            entering={SlideInDown.duration(320).easing(Easing.out(Easing.cubic))}
+            exiting={SlideOutDown.duration(240).easing(Easing.in(Easing.cubic))}
             style={[styles.sheet, sheetStyle]}
           >
             <View style={styles.handle} />
             <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.textPrimary }]}>Custom Scenarios</Text>
-              <Pressable
-                onPress={onClose}
-                hitSlop={12}
-                style={({ pressed }) => [styles.doneButton, pressed && styles.pressed]}
-              >
-                <Text style={[styles.doneText, { color: colors.accent }]}>Done</Text>
-              </Pressable>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>Coaching Style</Text>
             </View>
 
             <View style={[styles.segmented, segmentedStyle]}>
               {SCENARIO_PRESETS.map((preset) => {
-                const selected = preset.value === selectedPersonality;
+                const selected = preset.value === selectedPresetPersonality;
                 return (
                   <Pressable
                     key={preset.value}
@@ -153,9 +152,24 @@ export function CustomScenarioSheet({
 
             <View style={styles.inputBlock}>
               <View style={styles.labelRow}>
-                <Text style={[styles.label, { color: colors.textSecondary }]}>
-                  Custom Instructions (Optional)
-                </Text>
+                <Pressable
+                  testID="custom-coach-select-button"
+                  onPress={selectCustomCoach}
+                  hitSlop={10}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isCustomCoachSelected }}
+                >
+                  <Text
+                    style={[
+                      styles.label,
+                      {
+                        color: isCustomCoachSelected ? colors.accent : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    Custom Coach
+                  </Text>
+                </Pressable>
                 <Text style={[styles.count, { color: colors.textTertiary }]}>
                   {customInstructions.length}/{MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS}
                 </Text>
@@ -164,7 +178,7 @@ export function CustomScenarioSheet({
                 testID="custom-scenario-instructions-input"
                 value={customInstructions}
                 onChangeText={updateCustomInstructions}
-                placeholder="Act like a toxic gym bro who tells me 135 lbs is a warm-up if I log a light set"
+                placeholder="Describe your coach here"
                 placeholderTextColor={colors.textTertiary}
                 style={[styles.input, inputStyle]}
                 multiline
@@ -211,7 +225,7 @@ const styles = StyleSheet.create({
     minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: Spacing.md,
   },
   title: {
@@ -220,18 +234,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0,
-  },
-  doneButton: {
-    minHeight: 34,
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.xs,
-  },
-  pressed: {
-    opacity: 0.62,
-  },
-  doneText: {
-    ...Typography.labelSmall,
-    fontWeight: '700',
   },
   segmented: {
     minHeight: 48,

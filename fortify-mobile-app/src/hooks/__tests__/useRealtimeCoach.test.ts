@@ -57,6 +57,10 @@ jest.mock('expo-av', () => ({
   },
 }));
 
+jest.mock('expo-crypto', () => ({
+  randomUUID: () => 'voice-workout-message-id',
+}));
+
 jest.mock('@speechmatics/expo-two-way-audio', () => ({
   initialize: () => mockInitialize(),
   getMicrophonePermissionsAsync: () => mockGetMicrophonePermissionsAsync(),
@@ -552,7 +556,12 @@ describe('useRealtimeCoach', () => {
       await hook.result.current.beginUserTurn();
       socket.message(JSON.stringify({
         serverContent: {
-          inputTranscription: { text: 'make me a chest workout' },
+          inputTranscription: { text: 'make me a' },
+        },
+      }));
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'chest workout' },
         },
       }));
       await Promise.resolve();

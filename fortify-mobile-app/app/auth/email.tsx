@@ -141,10 +141,9 @@ export default function EmailAuthScreen() {
     if (!pendingPostSignInRedirect) return;
     if (!isAuthenticated || !profileResolved) return;
 
-    setPendingPostSignInRedirect(false);
-    setIsLoading(false);
-
     if (sourceValue === 'onboarding-complete') {
+      setPendingPostSignInRedirect(false);
+      setIsLoading(false);
       router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
       return;
     }
@@ -156,10 +155,14 @@ export default function EmailAuthScreen() {
       ) {
         return;
       }
+      setPendingPostSignInRedirect(false);
+      setIsLoading(false);
       router.replace('/onboarding');
       return;
     }
 
+    setPendingPostSignInRedirect(false);
+    setIsLoading(false);
     router.replace('/(tabs)');
   }, [
     isAuthenticated,

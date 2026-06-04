@@ -57,6 +57,7 @@ import * as Haptics from 'expo-haptics';
 import { MicrophoneIcon } from 'react-native-heroicons/outline';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { resolveActiveNumberPadSetUpdates } from '@/src/utils/activeWorkoutNumberPad';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const LIST_PADDING_TOP = Math.max(0, scale(Spacing.lg) - scale(6));
@@ -630,47 +631,25 @@ export default function ActiveWorkoutScreen() {
     const currentSet = exercise?.sets.find(s => s.localId === setLocalId);
     const wasCompleted = currentSet?.isCompleted ?? false;
 
-    // If no value entered, try to autofill from previous set
-    let finalValue = value;
-    if (finalValue === null) {
-      if (exercise) {
-        const setIndex = exercise.sets.findIndex(s => s.localId === setLocalId);
-        if (setIndex > 0) {
-          const previousSet = exercise.sets[setIndex - 1];
-          finalValue = previousSet[inputType];
-        }
-      }
-    }
+    const updates = resolveActiveNumberPadSetUpdates({
+      exercise,
+      inputSuggestion: activeNumberPad.inputSuggestion,
+      inputType,
+      setLocalId,
+      value,
+    });
 
-    // Allow empty weight to default to zero
-    if (finalValue === null && inputType === 'weight') {
-      finalValue = 0;
-    }
-
-    // Validate: reps still require a value (either typed or autofilled)
-    if (finalValue === null) {
+    if (!updates) {
       setNumberPadError(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
-    // Save the value (and default weight to 0 when logging reps)
-    const updates: { weight?: number; reps?: number } = inputType === 'weight'
-      ? { weight: finalValue }
-      : { reps: finalValue };
-    if (inputType === 'reps') {
-      const setIndex = exercise?.sets.findIndex(s => s.localId === setLocalId) ?? -1;
-      const set = setIndex >= 0 ? exercise?.sets[setIndex] : undefined;
-      const previousSet = setIndex > 0 ? exercise?.sets[setIndex - 1] : undefined;
-      if (set && set.weight === null && previousSet?.weight == null) {
-        updates.weight = 0;
-      }
-    }
     updateSet(exerciseLocalId, setLocalId, updates);
 
     if (inputType === 'weight') {
       // Switch to reps input (keyboard stays open)
-      openNumberPad(exerciseLocalId, setLocalId, 'reps');
+      openNumberPad(exerciseLocalId, setLocalId, 'reps', activeNumberPad.inputSuggestion);
     } else {
       // inputType === 'reps' → complete the set and close keyboard
       if (!wasCompleted) {

@@ -25,7 +25,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
-import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon, Cog6ToothIcon } from 'react-native-heroicons/outline';
 import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
@@ -39,6 +39,7 @@ import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
 import { AIWorkoutPreviewModal } from '@/src/components/ai/AIWorkoutPreviewModal';
+import { CustomScenarioSheet } from '@/src/components/ai/CustomScenarioSheet';
 import { RealtimeVoiceCoachScreen } from '@/src/components/ai/RealtimeVoiceCoachScreen';
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { useAIWorkoutTemplateActions } from '@/src/hooks/useAIWorkoutTemplateActions';
@@ -253,6 +254,7 @@ export default function AIChatScreen() {
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const [inputText, setInputText] = useState('');
   const [mode, setMode] = useState<AIVoiceMode>('voice');
+  const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -314,6 +316,7 @@ export default function AIChatScreen() {
     endUserTurn,
     speakCreatorScript,
     markVoiceWorkoutSaved,
+    dismissVoiceWorkoutMessage,
   } = useRealtimeCoach({
     preferences: realtimePreferences,
     currentWorkoutTemplateDraft,
@@ -564,7 +567,29 @@ export default function AIChatScreen() {
         {/* Header */}
         <GestureDetector gesture={panGesture}>
           <View style={[styles.header, themedStyles.header]}>
-            <View style={styles.headerLeft} />
+            <View style={styles.headerLeft}>
+              {mode === 'voice' && (
+                <TouchableOpacity
+                  testID="custom-scenario-gear"
+                  style={[
+                    styles.scenarioHeaderButton,
+                    {
+                      backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.035)',
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                    },
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setScenarioSheetVisible(true);
+                  }}
+                  activeOpacity={0.72}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open coaching style"
+                >
+                  <Cog6ToothIcon color={colors.textSecondary} size={IconSizes.md} strokeWidth={1.8} />
+                </TouchableOpacity>
+              )}
+            </View>
             <View style={[styles.modeSwitch, {
               backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)',
             }]}>
@@ -627,12 +652,10 @@ export default function AIChatScreen() {
             isWorkoutActive={voiceWorkoutActions.isWorkoutActive}
             isActive={isVoiceActive}
             isUserTurnActive={isUserTurnActive}
-            preferences={realtimePreferences}
             isCreatorScriptEnabled={isCreatorScriptEnabled}
             isSpeakingCreatorScript={isSpeakingCreatorScript}
             creatorScriptError={creatorScriptError}
             templateSaveError={voiceWorkoutActions.templateSaveError}
-            onPreferencesChange={handleRealtimePreferencesChange}
             onTalkStart={() => {
               void (async () => {
                 if (!isVoiceActive) {
@@ -647,6 +670,7 @@ export default function AIChatScreen() {
             onViewWorkoutTemplate={voiceWorkoutActions.handleViewWorkoutTemplate}
             onAddWorkoutTemplate={voiceWorkoutActions.handleAddWorkoutTemplate}
             onStartWorkoutTemplate={voiceWorkoutActions.handleStartWorkoutTemplate}
+            onDismissWorkoutTemplate={dismissVoiceWorkoutMessage}
           />
         ) : (
           <KeyboardAvoidingView
@@ -776,6 +800,12 @@ export default function AIChatScreen() {
         isAdded={Boolean(activeWorkoutActions.previewMessage?.savedWorkoutTemplateId)}
         isStartDisabled={activeWorkoutActions.isWorkoutActive}
       />
+      <CustomScenarioSheet
+        visible={isScenarioSheetVisible}
+        preferences={realtimePreferences}
+        onChange={handleRealtimePreferencesChange}
+        onClose={() => setScenarioSheetVisible(false)}
+      />
       </SafeAreaView>
     </View>
   );
@@ -838,6 +868,15 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: Spacing.xs,
+  },
+  scenarioHeaderButton: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.72,
   },
   content: {
     flex: 1,

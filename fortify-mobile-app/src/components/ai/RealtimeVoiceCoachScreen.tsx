@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   ScrollView,
@@ -10,16 +10,14 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { Cog6ToothIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, IconSizes, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
-import { CustomScenarioSheet } from '@/src/components/ai/CustomScenarioSheet';
 import { DumbbellVoiceVisualizer } from '@/src/components/ai/DumbbellVoiceVisualizer';
 import {
-  type RealtimeCoachPreferences,
   type RealtimeCoachDebugStatus,
   type RealtimeCoachPhase,
   type RealtimeTranscriptOverlay,
@@ -41,18 +39,17 @@ interface RealtimeVoiceCoachScreenProps {
   isWorkoutActive: boolean;
   isActive: boolean;
   isUserTurnActive: boolean;
-  preferences: RealtimeCoachPreferences;
   isCreatorScriptEnabled?: boolean;
   isSpeakingCreatorScript?: boolean;
   creatorScriptError?: string | null;
   templateSaveError?: string | null;
-  onPreferencesChange: (preferences: RealtimeCoachPreferences) => void;
   onTalkStart: () => void;
   onTalkEnd: () => void;
   onSpeakCreatorScript?: (script: string) => Promise<boolean> | boolean;
   onViewWorkoutTemplate: (message: AIConversationMessage) => void;
   onAddWorkoutTemplate: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate: (message: AIConversationMessage) => void;
+  onDismissWorkoutTemplate: (messageId: string) => void;
 }
 
 const CREATOR_SCRIPT_MAX_CHARS = 500;
@@ -117,25 +114,25 @@ export function RealtimeVoiceCoachScreen({
   isWorkoutActive,
   isActive,
   isUserTurnActive,
-  preferences,
   isCreatorScriptEnabled = false,
   isSpeakingCreatorScript = false,
   creatorScriptError = null,
   templateSaveError,
-  onPreferencesChange,
   onTalkStart,
   onTalkEnd,
   onSpeakCreatorScript,
   onViewWorkoutTemplate,
   onAddWorkoutTemplate,
   onStartWorkoutTemplate,
+  onDismissWorkoutTemplate,
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
   const [creatorScript, setCreatorScript] = useState('');
-  const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
   const { width, height } = useWindowDimensions();
   const voiceCardAnimationsRef = useRef<Record<string, Animated.Value>>({});
+  const voiceCardDismissAnimationsRef = useRef<Record<string, Animated.Value>>({});
   const animatedVoiceCardIdsRef = useRef<Set<string>>(new Set());
+  const [dismissingVoiceCardIds, setDismissingVoiceCardIds] = useState<Set<string>>(() => new Set());
   const pendingWorkoutCardAnimation = useRef(new Animated.Value(0)).current;
   const heroMinHeight = Math.max(680, height - 120);
   const viewportScale = Math.max(0.78, Math.min(1, Math.min(width / 390, height / 844)));
@@ -184,6 +181,13 @@ export function RealtimeVoiceCoachScreen({
     return voiceCardAnimationsRef.current[messageId];
   };
 
+  const getVoiceCardDismissAnimation = (messageId: string): Animated.Value => {
+    if (!voiceCardDismissAnimationsRef.current[messageId]) {
+      voiceCardDismissAnimationsRef.current[messageId] = new Animated.Value(1);
+    }
+    return voiceCardDismissAnimationsRef.current[messageId];
+  };
+
   useEffect(() => {
     const currentMessageIds = new Set(voiceWorkoutMessages.map((message) => message.id));
     Object.keys(voiceCardAnimationsRef.current).forEach((messageId) => {
@@ -191,6 +195,15 @@ export function RealtimeVoiceCoachScreen({
         delete voiceCardAnimationsRef.current[messageId];
         animatedVoiceCardIdsRef.current.delete(messageId);
       }
+    });
+    Object.keys(voiceCardDismissAnimationsRef.current).forEach((messageId) => {
+      if (!currentMessageIds.has(messageId)) {
+        delete voiceCardDismissAnimationsRef.current[messageId];
+      }
+    });
+    setDismissingVoiceCardIds((current) => {
+      const next = new Set(Array.from(current).filter((messageId) => currentMessageIds.has(messageId)));
+      return next.size === current.size ? current : next;
     });
 
     voiceWorkoutMessages.forEach((message) => {
@@ -226,29 +239,41 @@ export function RealtimeVoiceCoachScreen({
     void onSpeakCreatorScript(creatorScript);
   };
 
+  const handleDismissVoiceCard = useCallback((messageId: string) => {
+    if (dismissingVoiceCardIds.has(messageId)) return;
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDismissingVoiceCardIds((current) => new Set(current).add(messageId));
+
+    const dismissAnimation = getVoiceCardDismissAnimation(messageId);
+    Animated.sequence([
+      Animated.timing(dismissAnimation, {
+        toValue: 1.035,
+        duration: 80,
+        useNativeDriver: true,
+      }),
+      Animated.timing(dismissAnimation, {
+        toValue: 0,
+        duration: 160,
+        useNativeDriver: true,
+      }),
+    ]).start(({ finished }) => {
+      setDismissingVoiceCardIds((current) => {
+        const next = new Set(current);
+        next.delete(messageId);
+        return next;
+      });
+      dismissAnimation.setValue(1);
+
+      if (finished) {
+        onDismissWorkoutTemplate(messageId);
+      }
+    });
+  }, [dismissingVoiceCardIds, onDismissWorkoutTemplate]);
+
   return (
     <View style={[styles.container, styles.content]}>
       <View style={styles.hero}>
-        <TouchableOpacity
-          testID="custom-scenario-gear"
-          style={[
-            styles.scenarioGearButton,
-            {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.035)',
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-            },
-          ]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setScenarioSheetVisible(true);
-          }}
-          activeOpacity={0.72}
-          accessibilityRole="button"
-          accessibilityLabel="Open custom voice scenarios"
-        >
-          <Cog6ToothIcon color={colors.textSecondary} size={IconSizes.md} strokeWidth={1.8} />
-        </TouchableOpacity>
-
         {isCreatorScriptEnabled ? (
           <View
             testID="creator-script-controls"
@@ -374,6 +399,8 @@ export function RealtimeVoiceCoachScreen({
               {voiceWorkoutMessages.map((message) => {
                 const conversationMessage = asConversationMessage(message);
                 const cardAnimation = getVoiceCardAnimation(message.id);
+                const dismissAnimation = getVoiceCardDismissAnimation(message.id);
+                const isDismissing = dismissingVoiceCardIds.has(message.id);
                 return (
                   <Animated.View
                     key={message.id}
@@ -381,7 +408,14 @@ export function RealtimeVoiceCoachScreen({
                     style={[
                       styles.voiceCardShell,
                       {
-                        opacity: cardAnimation,
+                        opacity: Animated.multiply(
+                          cardAnimation,
+                          dismissAnimation.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, 1],
+                            extrapolate: 'clamp',
+                          })
+                        ),
                         transform: [
                           {
                             translateY: cardAnimation.interpolate({
@@ -393,6 +427,20 @@ export function RealtimeVoiceCoachScreen({
                             scale: cardAnimation.interpolate({
                               inputRange: [0, 0.7, 1],
                               outputRange: [0.96, 1.02, 1],
+                            }),
+                          },
+                          {
+                            scale: dismissAnimation.interpolate({
+                              inputRange: [0, 1, 1.035],
+                              outputRange: [0.94, 1, 1.035],
+                              extrapolate: 'clamp',
+                            }),
+                          },
+                          {
+                            translateY: dismissAnimation.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: [-8, 0],
+                              extrapolate: 'clamp',
                             }),
                           },
                         ],
@@ -410,6 +458,26 @@ export function RealtimeVoiceCoachScreen({
                       isStartDisabled={isWorkoutActive}
                       displayScale={viewportScale}
                     />
+                    <TouchableOpacity
+                      testID={`voice-card-dismiss-${message.id}`}
+                      style={[
+                        styles.voiceCardDismissButton,
+                        {
+                          backgroundColor: isDark ? 'rgba(0,0,0,0.34)' : 'rgba(255,255,255,0.72)',
+                          borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                        },
+                      ]}
+                      onPress={() => {
+                        handleDismissVoiceCard(message.id);
+                      }}
+                      disabled={isDismissing}
+                      activeOpacity={0.74}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close workout preview"
+                      accessibilityState={{ disabled: isDismissing }}
+                    >
+                      <XMarkIcon size={Math.max(16, Math.round(IconSizes.sm * viewportScale))} color={colors.textSecondary} strokeWidth={2.2} />
+                    </TouchableOpacity>
                   </Animated.View>
                 );
               })}
@@ -480,13 +548,6 @@ export function RealtimeVoiceCoachScreen({
           />
         </TouchableOpacity>
       </View>
-
-      <CustomScenarioSheet
-        visible={isScenarioSheetVisible}
-        preferences={preferences}
-        onChange={onPreferencesChange}
-        onClose={() => setScenarioSheetVisible(false)}
-      />
     </View>
   );
 }
@@ -507,19 +568,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 0,
-  },
-  scenarioGearButton: {
-    position: 'absolute',
-    top: Spacing.sm,
-    right: 0,
-    zIndex: 4,
-    width: 40,
-    height: 40,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.72,
   },
   visualizerAnchor: {
     position: 'absolute',
@@ -612,6 +660,19 @@ const styles = StyleSheet.create({
   },
   voiceCardShell: {
     width: '100%',
+    position: 'relative',
+  },
+  voiceCardDismissButton: {
+    position: 'absolute',
+    top: Spacing.lg,
+    right: Spacing.sm,
+    zIndex: 3,
+    width: 30,
+    height: 30,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pendingWorkoutCard: {
     width: '100%',
