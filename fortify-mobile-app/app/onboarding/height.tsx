@@ -108,7 +108,7 @@ export default function OnboardingHeightScreen() {
 
   return (
     <OnboardingScreen
-      step={20}
+      step={22}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your height?"
       subtitle=" "

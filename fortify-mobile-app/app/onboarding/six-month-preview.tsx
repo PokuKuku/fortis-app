@@ -142,7 +142,7 @@ export default function OnboardingSixMonthPreviewScreen() {
       primary_challenge: primaryChallenge,
       progress_blocker: state?.progress_blocker ?? null,
     });
-    router.push('/onboarding/metrics-intro');
+    router.push('/onboarding/coach-personality');
   };
 
   return (

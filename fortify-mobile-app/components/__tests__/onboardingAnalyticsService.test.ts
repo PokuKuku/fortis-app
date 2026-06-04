@@ -1,9 +1,10 @@
 const mockFlushMixpanel = jest.fn();
+const mockTrackMixpanelEvent = jest.fn(() => Promise.resolve());
 
 jest.mock('@/src/lib/mixpanel', () => ({
   flushMixpanel: (...args: unknown[]) => mockFlushMixpanel(...args),
   getMixpanelIdentityProperties: jest.fn(() => Promise.resolve({ distinct_id: 'anon-123' })),
-  trackMixpanelEvent: jest.fn(() => Promise.resolve()),
+  trackMixpanelEvent: mockTrackMixpanelEvent,
 }));
 
 describe('onboardingAnalyticsService', () => {
@@ -11,13 +12,37 @@ describe('onboardingAnalyticsService', () => {
     jest.clearAllMocks();
   });
 
-  it('flushes pending events on onboarding step completion', () => {
+  it('tracks onboarding step completion with the configured step index', async () => {
     mockFlushMixpanel.mockResolvedValue(undefined);
     const { trackOnboardingStepCompleted } = require('@/src/services/onboardingAnalyticsService');
 
-    trackOnboardingStepCompleted('profile_name');
+    trackOnboardingStepCompleted('coach_personality');
 
-    expect(mockFlushMixpanel).toHaveBeenCalledTimes(1);
+    await Promise.resolve();
+
+    expect(mockTrackMixpanelEvent).toHaveBeenCalledWith(
+      'Onboarding Step Completed',
+      expect.objectContaining({
+        step_id: 'coach_personality',
+        step_index: 18,
+        distinct_id: 'anon-123',
+      }),
+      { flush: true }
+    );
+
+    trackOnboardingStepCompleted('coach_voice');
+
+    await Promise.resolve();
+
+    expect(mockTrackMixpanelEvent).toHaveBeenCalledWith(
+      'Onboarding Step Completed',
+      expect.objectContaining({
+        step_id: 'coach_voice',
+        step_index: 19,
+        distinct_id: 'anon-123',
+      }),
+      { flush: true }
+    );
   });
 
   it('swallows rejected tracking calls', async () => {

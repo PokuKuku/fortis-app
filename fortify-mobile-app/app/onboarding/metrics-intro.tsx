@@ -135,7 +135,7 @@ export default function OnboardingMetricsIntroScreen() {
 
   return (
     <OnboardingScreen
-      step={18}
+      step={20}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="You’re good to go!"
       subtitle="Now please answer a few quick questions to further tailor your experience."

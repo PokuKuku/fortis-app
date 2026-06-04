@@ -171,7 +171,7 @@ export default function OnboardingSourceScreen() {
 
   return (
     <OnboardingScreen
-      step={22}
+      step={24}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="Where did you hear about Fortify?"
       subtitle={undefined}

@@ -123,7 +123,7 @@ export default function OnboardingBirthdateScreen() {
 
   return (
     <OnboardingScreen
-      step={19}
+      step={21}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="When were you born?"
       subtitle={undefined}

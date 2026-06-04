@@ -16,6 +16,7 @@ import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import {
+  CANON_COACH_PERSONALITIES,
   COACH_PERSONALITY_LABELS,
   COACH_VOICE_LABELS,
   COACH_VOICES,
@@ -36,8 +37,6 @@ interface RealtimeCoachSettingsModalProps {
   onClose: () => void;
 }
 
-const COACHING_STYLE_OPTIONS: AICoachPersonality[] = ['direct', 'drill_sergeant', 'roast'];
-
 export function RealtimeCoachSettingsModal({
   visible,
   preferences,
@@ -56,6 +55,13 @@ export function RealtimeCoachSettingsModal({
   const sliderKnobSize = 22;
   const usableSliderWidth = Math.max(1, sliderWidth - sliderKnobSize);
   const isCustomCoachSelected = preferences.personality === 'custom';
+  const coachingStyleOptions = useMemo<AICoachPersonality[]>(() => {
+    if (preferences.personality === 'hype') {
+      return [...CANON_COACH_PERSONALITIES, 'hype'];
+    }
+
+    return CANON_COACH_PERSONALITIES;
+  }, [preferences.personality]);
 
   useEffect(() => {
     draftIntensityRef.current = preferences.intensity;
@@ -135,7 +141,7 @@ export function RealtimeCoachSettingsModal({
         <View style={styles.controlBlock}>
           <Text style={[styles.controlLabel, { color: colors.textSecondary }]}>Coaching Style</Text>
           <View style={styles.optionRow}>
-            {COACHING_STYLE_OPTIONS.map((personality) => {
+            {coachingStyleOptions.map((personality) => {
               const selected = personality === preferences.personality;
               return (
                 <Pressable
@@ -310,8 +316,8 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   option: {
-    flex: 1,
-    minWidth: 0,
+    width: '48%',
+    flexGrow: 1,
     minHeight: 44,
     borderRadius: BorderRadius.full,
     borderWidth: 1,

@@ -37,11 +37,11 @@ describe('realtimeCoach utils', () => {
 
   it('normalizes preferences and clamps intensity', () => {
     expect(coerceRealtimeCoachPreferences({
-      personality: 'custom',
+      personality: 'supportive',
       voice: 'cedar',
       intensity: 2,
     })).toEqual({
-      personality: 'custom',
+      personality: 'supportive',
       voice: 'cedar',
       intensity: 1,
       customInstructions: '',
@@ -61,6 +61,17 @@ describe('realtimeCoach utils', () => {
   });
 
   it('normalizes persisted custom scenario preferences', () => {
+    expect(normalizeRealtimeCoachPreferences({
+      personality: 'supportive',
+      intensity: 0.55,
+      voice: 'marin',
+    })).toEqual({
+      personality: 'supportive',
+      intensity: 0.55,
+      voice: 'marin',
+      customInstructions: '',
+    });
+
     expect(normalizeRealtimeCoachPreferences({
       personality: 'direct',
       intensity: 0.55,
@@ -93,6 +104,16 @@ describe('realtimeCoach utils', () => {
   });
 
   it('builds custom scenario prompt constraints with safety boundaries', () => {
+    const supportivePrompt = buildVoiceCoachInstructions({
+      personality: 'supportive',
+      intensity: 0.55,
+      voice: 'marin',
+      customInstructions: '',
+    }, { workoutToolName: 'create_or_update_workout' });
+
+    expect(supportivePrompt).toContain('supportive Fortify strength coach');
+    expect(supportivePrompt).toContain('without guilt, shame, vague cheerleading');
+
     const standardPrompt = buildVoiceCoachInstructions({
       personality: 'direct',
       intensity: 0.55,

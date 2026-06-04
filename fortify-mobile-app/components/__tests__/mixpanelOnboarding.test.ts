@@ -85,6 +85,8 @@ describe('mixpanelOnboarding', () => {
       'Q16. Session Duration',
       'Q17. Goal Pace',
       'Q9. Six Month Preview',
+      'Q19. Voice Coach Personality',
+      'Q20. Voice Coach Voice',
       'Metrics Intro',
       'Q3. Whats your birthdate?',
       "Q4. What's your height?",
@@ -99,7 +101,7 @@ describe('mixpanelOnboarding', () => {
       'Q7. Fitness Background',
     ]);
     expect(ONBOARDING_FUNNEL_STEPS.map((step) => step.funnelStep)).toEqual(
-      [...Array.from({ length: 29 }, (_, index) => index + 1), 98, 99]
+      [...Array.from({ length: 31 }, (_, index) => index + 1), 98, 99]
     );
   });
 

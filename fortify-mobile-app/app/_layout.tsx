@@ -198,6 +198,18 @@ function ThemedAppContent({
               }}
             />
             <Stack.Screen
+              name="onboarding/coach-personality"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
+              name="onboarding/coach-voice"
+              options={{
+                ...ONBOARDING_TRANSITION,
+              }}
+            />
+            <Stack.Screen
               name="onboarding/goal"
               options={{
                 ...ONBOARDING_TRANSITION,

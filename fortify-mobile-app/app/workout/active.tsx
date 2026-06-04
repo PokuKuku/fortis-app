@@ -87,6 +87,8 @@ export default function ActiveWorkoutScreen() {
   const addExercises = useWorkoutStore(s => s.addExercises);
   const workoutStartTime = useWorkoutStore(s => s.workoutStartTime);
   const pausedElapsedSeconds = useWorkoutStore(s => s.pausedElapsedSeconds);
+  const completedSessions = useWorkoutStore(s => s.completedSessions);
+  const openFirstWorkoutStreakModal = useWorkoutStore(s => s.openFirstWorkoutStreakModal);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -513,17 +515,14 @@ export default function ActiveWorkoutScreen() {
     });
   };
 
-  // Handle confirm finish
-  const handleConfirmFinish = async () => {
-    if (isNavigating.current) return;
-    isNavigating.current = true;
-    await finishWorkout();
-    setShowFinishModal(false);
-    setFinishSnapshot(null);
+  const navigateAfterWorkoutFinish = (afterNavigate?: () => void) => {
     if (router.canGoBack()) {
       router.back();
     } else {
       router.replace('/(tabs)');
+    }
+    if (afterNavigate) {
+      setTimeout(afterNavigate, 260);
     }
     setTimeout(() => { isNavigating.current = false; }, 500);
   };
@@ -531,15 +530,21 @@ export default function ActiveWorkoutScreen() {
   const finishWorkoutAndNavigate = async () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
-    await finishWorkout();
+    const shouldShowFirstWorkoutStreak = completedSessions.length === 0;
+    const completedSession = await finishWorkout();
     setShowFinishModal(false);
+    setShowSaveTemplateModal(false);
     setFinishSnapshot(null);
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)');
+    if (completedSession && shouldShowFirstWorkoutStreak) {
+      navigateAfterWorkoutFinish(openFirstWorkoutStreakModal);
+      return;
     }
-    setTimeout(() => { isNavigating.current = false; }, 500);
+    navigateAfterWorkoutFinish();
+  };
+
+  // Handle confirm finish
+  const handleConfirmFinish = async () => {
+    await finishWorkoutAndNavigate();
   };
 
   // Handle save as template

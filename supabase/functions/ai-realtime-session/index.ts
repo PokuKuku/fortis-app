@@ -10,8 +10,8 @@ import {
   withContextCache,
 } from '../_shared/ai-context.ts';
 
-type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
-type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse' | 'sage';
+type AICoachPersonality = 'supportive' | 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
+type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse';
 
 interface RealtimeCoachPreferences {
   personality: AICoachPersonality;
@@ -28,8 +28,8 @@ interface RealtimeSessionRequest {
   script?: string;
 }
 
-const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
-const PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype', 'roast', 'custom'];
+const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse'];
+const PERSONALITIES: AICoachPersonality[] = ['supportive', 'direct', 'drill_sergeant', 'hype', 'roast', 'custom'];
 const MAX_SECONDS_PER_SESSION = Math.max(60, Number(Deno.env.get('AI_REALTIME_MAX_SESSION_SECONDS') ?? '1800'));
 const MAX_SECONDS_PER_DAY = Math.max(MAX_SECONDS_PER_SESSION, Number(Deno.env.get('AI_REALTIME_MAX_DAY_SECONDS') ?? '7200'));
 const VOICE_COACH_RATE_LIMITS_ENABLED = false;
@@ -57,7 +57,6 @@ const GEMINI_VOICE_BY_COACH_VOICE: Record<AICoachVoice, string> = {
   cedar: 'Puck',
   coral: 'Aoede',
   verse: 'Charon',
-  sage: 'Fenrir',
 };
 
 const VOICE_WORKOUT_TOOL_NAME = 'create_or_update_workout';
@@ -230,7 +229,9 @@ function buildInstructions(
     ? 'sharp'
     : 'hard-edged';
   const persona =
-    preferences.personality === 'drill_sergeant'
+    preferences.personality === 'supportive'
+      ? 'You are a supportive Fortify strength coach. Be warm, calm, practical, and confidence-building while still giving clear training direction. Encourage effort and consistency without guilt, shame, vague cheerleading, or permissive advice that ignores safety.'
+      : preferences.personality === 'drill_sergeant'
       ? 'You are a blunt strength coach. Be demanding and confront weak training decisions, but only critique behavior, effort, and logged training choices. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
       : preferences.personality === 'roast'
       ? 'You are a sharp, funny strength coach with roast-comedy energy. Make playful jokes about effort, consistency, skipped sets, inflated excuses, and logged training choices, but keep it fitness-only. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.'
@@ -444,6 +445,10 @@ function getScriptStyleInstruction(preferences: RealtimeCoachPreferences): strin
 
   if (preferences.personality === 'roast') {
     return `Deliver it like a ${intensityLabel}, funny strength coach roast for a workout app video.`;
+  }
+
+  if (preferences.personality === 'supportive') {
+    return `Deliver it like a ${intensityLabel}, supportive strength coach.`;
   }
 
   if (preferences.personality === 'custom') {

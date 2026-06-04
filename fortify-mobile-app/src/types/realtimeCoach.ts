@@ -1,8 +1,8 @@
 import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 export type AIVoiceMode = 'chat' | 'voice';
-export type AICoachPersonality = 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
-export type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse' | 'sage';
+export type AICoachPersonality = 'supportive' | 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
+export type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse';
 
 export interface RealtimeCoachPreferences {
   personality: AICoachPersonality;
@@ -76,22 +76,23 @@ export interface VoiceWorkoutMessage {
   savedWorkoutTemplateId?: string | null;
 }
 
-export const COACH_VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse', 'sage'];
-export const COACH_PERSONALITIES: AICoachPersonality[] = ['direct', 'drill_sergeant', 'hype', 'roast', 'custom'];
+export const COACH_VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse'];
+export const CANON_COACH_PERSONALITIES: AICoachPersonality[] = ['supportive', 'direct', 'drill_sergeant', 'roast'];
+export const COACH_PERSONALITIES: AICoachPersonality[] = ['supportive', 'direct', 'drill_sergeant', 'hype', 'roast', 'custom'];
 
 export const COACH_VOICE_LABELS: Record<AICoachVoice, string> = {
   marin: 'Marin',
   cedar: 'Cedar',
   coral: 'Coral',
   verse: 'Verse',
-  sage: 'Sage',
 };
 
 export const COACH_PERSONALITY_LABELS: Record<AICoachPersonality, string> = {
-  direct: 'Direct',
-  drill_sergeant: 'Drill',
+  supportive: 'Supportive',
+  direct: 'Practical',
+  drill_sergeant: 'Drill Sergeant',
   hype: 'Hype',
-  roast: 'Roast',
+  roast: 'Tough Love',
   custom: 'Custom Coach',
 };
 

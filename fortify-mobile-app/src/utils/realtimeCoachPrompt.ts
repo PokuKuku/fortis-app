@@ -22,6 +22,10 @@ const getIntensityLabelForPrompt = (intensity: number): string => {
 export const getVoiceCoachPersonaInstruction = (
   preferences: RealtimeCoachPreferences
 ): string => {
+  if (preferences.personality === 'supportive') {
+    return 'You are a supportive Fortify strength coach. Be warm, calm, practical, and confidence-building while still giving clear training direction. Encourage effort and consistency without guilt, shame, vague cheerleading, or permissive advice that ignores safety.';
+  }
+
   if (preferences.personality === 'drill_sergeant') {
     return 'You are a blunt strength coach. Be demanding and confront weak training decisions, but only critique behavior, effort, and logged training choices. No body shaming, identity attacks, slurs, sexual content, protected-trait references, or medical claims.';
   }

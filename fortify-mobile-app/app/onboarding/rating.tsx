@@ -55,7 +55,7 @@ export default function OnboardingRatingScreen() {
 
   return (
     <OnboardingScreen
-      step={25}
+      step={27}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle

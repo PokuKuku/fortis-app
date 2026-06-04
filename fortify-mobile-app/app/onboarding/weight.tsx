@@ -96,7 +96,7 @@ export default function OnboardingWeightScreen() {
 
   return (
     <OnboardingScreen
-      step={21}
+      step={23}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your weight?"
       subtitle="You can update this any time from your profile."

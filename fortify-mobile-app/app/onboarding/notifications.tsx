@@ -83,7 +83,7 @@ export default function OnboardingNotificationsScreen() {
 
   return (
     <OnboardingScreen
-      step={26}
+      step={28}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle

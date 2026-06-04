@@ -210,6 +210,7 @@ interface WorkoutState {
   // UI state
   isLoading: boolean;
   showRestTimerComplete: boolean;
+  showFirstWorkoutStreakModal: boolean;
   workoutOverlayCount: number;
 
   // Number pad state
@@ -259,6 +260,8 @@ interface WorkoutState {
   startWorkoutFromProgram: (programId: string, programWorkoutId: string) => Promise<boolean>;
   finishWorkout: () => Promise<WorkoutSession | null>;
   cancelWorkout: () => void;
+  openFirstWorkoutStreakModal: () => void;
+  dismissFirstWorkoutStreakModal: () => void;
   updateWorkoutName: (name: string) => void;
   updateWorkoutNotes: (notes: string) => void;
   setActiveSessionProgramContext: (programId: string, programWorkoutId?: string) => void;
@@ -454,6 +457,7 @@ export const useWorkoutStore = create<WorkoutState>()(
     restTimerNextStartSeconds: null,
     isLoading: false,
     showRestTimerComplete: false,
+    showFirstWorkoutStreakModal: false,
     workoutOverlayCount: 0,
     activeNumberPad: null,
     validationErrorsBySet: {},
@@ -951,6 +955,14 @@ export const useWorkoutStore = create<WorkoutState>()(
         });
 
       return completedSession;
+    },
+
+    openFirstWorkoutStreakModal: () => {
+      set({ showFirstWorkoutStreakModal: true });
+    },
+
+    dismissFirstWorkoutStreakModal: () => {
+      set({ showFirstWorkoutStreakModal: false });
     },
 
     cancelWorkout: () => {

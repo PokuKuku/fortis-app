@@ -33,6 +33,7 @@ import { useProgramsStore } from '@/src/store/programsStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore, type StartPreset } from '@/src/store/startPresetStore';
 import { StartButtonConfigModal } from '@/src/components/workout/modals/StartButtonConfigModal';
+import { FirstWorkoutStreakModal } from '@/src/components/workout/modals/FirstWorkoutStreakModal';
 import {
   CATEGORIES,
   EQUIPMENT_TYPES,
@@ -92,6 +93,8 @@ export default function TabLayout() {
   };
   const isExercises = pathname?.includes('/exercises');
   const isWorkoutActive = useWorkoutStore(s => s.isWorkoutActive);
+  const showFirstWorkoutStreakModal = useWorkoutStore(s => s.showFirstWorkoutStreakModal);
+  const dismissFirstWorkoutStreakModal = useWorkoutStore(s => s.dismissFirstWorkoutStreakModal);
   const { programs, fetchPrograms, isLoading: isProgramsLoading } = useProgramsStore();
   const loadProgramProgress = useProgramProgressStore(s => s.loadProgress);
   const startPreset = useStartPresetStore(s => s.preset);
@@ -783,6 +786,12 @@ export default function TabLayout() {
       onConfirm={handleConfirmStartPreset}
       onClose={() => setStartConfigVisible(false)}
       forceTemplateId={null}
+    />
+
+    <FirstWorkoutStreakModal
+      visible={showFirstWorkoutStreakModal}
+      userName={profile?.full_name}
+      onClose={dismissFirstWorkoutStreakModal}
     />
 
     {/* Plus Button */}
