@@ -30,19 +30,6 @@ describe('onboardingAnalyticsService', () => {
       { flush: true }
     );
 
-    trackOnboardingStepCompleted('coach_voice');
-
-    await Promise.resolve();
-
-    expect(mockTrackMixpanelEvent).toHaveBeenCalledWith(
-      'Onboarding Step Completed',
-      expect.objectContaining({
-        step_id: 'coach_voice',
-        step_index: 19,
-        distinct_id: 'anon-123',
-      }),
-      { flush: true }
-    );
   });
 
   it('swallows rejected tracking calls', async () => {

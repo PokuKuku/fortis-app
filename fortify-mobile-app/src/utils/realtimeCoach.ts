@@ -55,6 +55,14 @@ export const shouldGenerateWorkoutFromVoice = (text: string, hasCurrentWorkoutDr
   return WORKOUT_CREATE_REGEXES.some((regex) => regex.test(normalized));
 };
 
+export const shouldEditWorkoutFromVoice = (text: string, hasCurrentWorkoutDraft = false): boolean => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || !hasCurrentWorkoutDraft) return false;
+
+  return WORKOUT_EDIT_REGEX.test(normalized)
+    || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized));
+};
+
 export const normalizeRealtimeCoachPhase = (value: unknown): RealtimeCoachPhase =>
   value === 'connecting'
   || value === 'listening'

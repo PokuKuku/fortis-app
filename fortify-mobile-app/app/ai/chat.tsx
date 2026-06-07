@@ -50,6 +50,8 @@ import type { AIVoiceMode, RealtimeCoachPreferences } from '@/src/types/realtime
 import { isCreatorVoiceScriptsEnabled } from '@/src/utils/realtimeCoach';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
+import { shouldAutoStartVoiceCoach } from '@/src/utils/aiChatTour';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -122,7 +124,6 @@ const WORKOUT_RESIZE_REGEXES = [
   /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b[\s\S]{0,30}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
   /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
 ];
-
 
 // Animated sparkles for loading indicator
 function AnimatedLoadingSparkles() {
@@ -250,8 +251,10 @@ export default function AIChatScreen() {
   const { colors, isDark } = useTheme();
   const { profile, user } = useAuth();
   const { runProFeature } = useProFeatureGate();
+  const { isTourActive, activeStepId } = useInAppTour();
   const isNavigating = useRef(false);
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
+  const hasRequestedInitialVoiceStartRef = useRef(false);
   const [inputText, setInputText] = useState('');
   const [mode, setMode] = useState<AIVoiceMode>('voice');
   const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
@@ -525,6 +528,45 @@ export default function AIChatScreen() {
   ), [runProFeature, startVoiceCoach]);
 
   useEffect(() => {
+    if (mode !== 'voice') {
+      hasRequestedInitialVoiceStartRef.current = false;
+      return;
+    }
+
+    if (!shouldAutoStartVoiceCoach(isTourActive, activeStepId)) {
+      hasRequestedInitialVoiceStartRef.current = false;
+      if (isVoiceActive) {
+        stopVoiceCoach();
+      }
+      return;
+    }
+
+    if (isVoiceActive || hasRequestedInitialVoiceStartRef.current) {
+      return;
+    }
+
+    hasRequestedInitialVoiceStartRef.current = true;
+    void handleStartVoiceCoach();
+  }, [activeStepId, handleStartVoiceCoach, isTourActive, isVoiceActive, mode, stopVoiceCoach]);
+
+  const handleBeginVoiceTurn = useCallback(async () => (
+    runProFeature(
+      {
+        placement: PAYWALL_PLACEMENTS.aiVoiceCoach,
+        params: {
+          source: 'ai_chat',
+          action: 'start_voice_coach',
+        },
+      },
+      async () => {
+        const allowed = await requestAIDataSharingConsent();
+        if (!allowed) return false;
+        await beginUserTurn();
+      },
+    )
+  ), [beginUserTurn, runProFeature]);
+
+  useEffect(() => {
     stopVoiceCoachRef.current = stopVoiceCoach;
   }, [stopVoiceCoach]);
 
@@ -657,13 +699,11 @@ export default function AIChatScreen() {
             creatorScriptError={creatorScriptError}
             templateSaveError={voiceWorkoutActions.templateSaveError}
             onTalkStart={() => {
-              void (async () => {
-                if (!isVoiceActive) {
-                  const didStart = await handleStartVoiceCoach();
-                  if (!didStart) return;
-                }
-                await beginUserTurn();
-              })();
+              if (isVoiceActive) {
+                void beginUserTurn();
+                return;
+              }
+              void handleBeginVoiceTurn();
             }}
             onTalkEnd={endUserTurn}
             onSpeakCreatorScript={speakCreatorScript}

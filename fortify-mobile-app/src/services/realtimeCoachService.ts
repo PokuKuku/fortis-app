@@ -314,5 +314,8 @@ export async function generateVoiceWorkoutTemplate(
   prompt: string,
   context?: AIRequestContext
 ): Promise<AIResponse> {
-  return sendAIMessage('GENERAL_CHAT', prompt, context);
+  return sendAIMessage('GENERAL_CHAT', prompt, {
+    ...context,
+    voiceWorkoutOnly: true,
+  });
 }

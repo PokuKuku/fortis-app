@@ -19,6 +19,7 @@ export interface AIRequestContext {
   insightId?: string;
   periodWeeks?: number;
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+  voiceWorkoutOnly?: boolean;
   onboardingProgramSpec?: {
     id: string;
     trainingEnvironment: 'gym' | 'home' | 'hybrid';

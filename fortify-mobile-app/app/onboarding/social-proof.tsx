@@ -91,7 +91,7 @@ export default function OnboardingSocialProofScreen() {
 
   return (
     <OnboardingScreen
-      step={26}
+      step={25}
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title=""
       hideTitle

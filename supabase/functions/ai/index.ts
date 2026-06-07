@@ -89,6 +89,7 @@ interface AIRequest {
     insightId?: string;
     periodWeeks?: number;
     currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+    voiceWorkoutOnly?: boolean;
     onboardingProgramSpec?: AIOnboardingProgramSpec;
   };
   history?: Array<{
@@ -629,6 +630,10 @@ function shouldHandleWorkoutTemplateRequest(request: AIRequest): boolean {
   }
 
   return parseWorkoutEditRequest(request.message).action !== 'unknown';
+}
+
+function isVoiceWorkoutOnlyRequest(request: AIRequest): boolean {
+  return request.context?.voiceWorkoutOnly === true && shouldHandleWorkoutTemplateRequest(request);
 }
 
 function getWorkoutTemplateEditRequest(request: AIRequest): ParsedWorkoutEditRequest | null {
@@ -1679,7 +1684,49 @@ async function callAIProvider(
   context: AIContext,
   requestId: string
 ): Promise<unknown> {
-  const systemPrompt = buildAnswerPrompt(context, request.intent);
+  const voiceWorkoutOnly = isVoiceWorkoutOnlyRequest(request);
+  const currentDraft = sanitizeWorkoutTemplate(
+    context.currentWorkoutTemplateDraft,
+    context.exerciseCatalog ?? []
+  );
+  const parsedEditRequest = currentDraft ? parseWorkoutEditRequest(request.message) : null;
+  if (
+    voiceWorkoutOnly
+    && currentDraft
+    && context.exerciseCatalog?.length
+    && parsedEditRequest
+    && parsedEditRequest.action !== 'unknown'
+  ) {
+    const deterministicEdit = resolveWorkoutTemplateEdit(
+      request.message,
+      currentDraft,
+      context.exerciseCatalog
+    );
+
+    if (deterministicEdit.clarification) {
+      return {
+        type: 'clarification',
+        requestId,
+        clarification: {
+          question: deterministicEdit.clarification.question,
+          options: deterministicEdit.clarification.options,
+          workoutTemplate: deterministicEdit.template,
+        },
+      };
+    }
+
+    return {
+      type: 'answer',
+      requestId,
+      answer: {
+        text: deterministicEdit.text,
+        citations: [],
+        workoutTemplate: deterministicEdit.template,
+      },
+    };
+  }
+
+  const systemPrompt = buildAnswerPrompt(context, request.intent, { voiceWorkoutOnly });
   const userMessage = buildUserMessage(request, context);
 
   const responseText = await callModelText(request, systemPrompt, userMessage, {
@@ -2252,7 +2299,7 @@ FORTIFY VOICE:
 function buildAnswerPrompt(
   context: AIContext,
   intent: AIIntent,
-  options: { strictInsight?: boolean } = {}
+  options: { strictInsight?: boolean; voiceWorkoutOnly?: boolean } = {}
 ): string {
   const workoutTemplateGuidance = context.exerciseCatalog?.length
     ? `
@@ -2277,6 +2324,46 @@ function buildAnswerPrompt(
 - If the user is clearly asking for a brand-new workout, you may replace the current draft entirely.`
     : `
 - If the user asks for a workout, you may provide a text outline only.`;
+
+  if (intent === 'GENERAL_CHAT' && options.voiceWorkoutOnly && context.exerciseCatalog?.length) {
+    return `You are Fortis AI, generating one high-quality strength workout template for the Fortify voice coach.
+
+Rules:
+${workoutTemplateGuidance}
+- Return only valid JSON. No markdown.
+- Keep answer.text to one short natural sentence. The app card displays workout details.
+- Never include citations for this voice workout response.
+- Preserve generation quality: coherent ordering, sensible sets/reps/rest, requested body part/equipment/count, and canonical exercises.
+
+User preferences:
+- Units: ${context.user.preferredUnits}
+- Training experience: ${context.user.trainingExperience ?? 'unknown'}
+- Training environment: ${context.user.trainingEnvironment ?? 'unknown'}
+
+Response JSON:
+{
+  "type": "answer",
+  "answer": {
+    "text": "Short acknowledgement of the generated workout.",
+    "citations": [],
+    "workoutTemplate": {
+      "name": "Workout name",
+      "description": "Optional short description",
+      "focus": "Focus",
+      "estimatedDurationMinutes": 50,
+      "exercises": [
+        {
+          "exerciseId": "catalog-id",
+          "exerciseName": "Catalog Exercise Name",
+          "sets": 3,
+          "reps": "8-12",
+          "restSeconds": 90
+        }
+      ]
+    }
+  }
+}`;
+  }
 
   if (intent === 'GENERAL_CHAT') {
     const basePrompt = `You are Fortis AI, a conversational training assistant for a strength training workout app.
@@ -3286,6 +3373,7 @@ function cleanRequestedExercisePhrase(value: string | undefined): string | undef
   const cleaned = value
     .replace(/\b(please|thanks|thank you)\b/gi, '')
     .replace(/\b(to|into|in)\s+(the\s+)?workout\b/gi, '')
+    .replace(/\b(to|into|in)\s+(it|this|that|the\s+plan|the\s+preview)\b/gi, '')
     .replace(/\bfor me\b/gi, '')
     .replace(/^[\s,.:;-]+|[\s,.:;-]+$/g, '')
     .replace(/\b(a|an|one|another)\b\s+/gi, '')

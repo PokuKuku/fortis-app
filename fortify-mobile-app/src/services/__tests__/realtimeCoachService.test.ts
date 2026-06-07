@@ -25,6 +25,7 @@ jest.mock('expo-crypto', () => ({
 
 import {
   createRealtimeCoachSession,
+  generateVoiceWorkoutTemplate,
   generateRealtimeCoachScriptAudio,
   reportRealtimeCoachUsage,
 } from '@/src/services/realtimeCoachService';
@@ -136,6 +137,71 @@ describe('realtimeCoachService', () => {
         script: 'Your excuses need a deload.',
         preferences,
         aiDataSharingConsent: true,
+      },
+    });
+  });
+
+  it('marks voice workout template generation as workout-only', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        type: 'answer',
+        requestId: 'ai-request-id',
+        answer: {
+          text: 'Built.',
+          citations: [],
+          workoutTemplate: {
+            name: 'Chest Workout',
+            focus: 'Chest',
+            exercises: [
+              {
+                exerciseId: 'exercise-1',
+                exerciseName: 'Bench Press',
+                sets: 4,
+                reps: '6-10',
+                restSeconds: 120,
+              },
+            ],
+          },
+        },
+      },
+      error: null,
+      response: null,
+    });
+
+    const response = await generateVoiceWorkoutTemplate('make me a chest workout', {
+      currentWorkoutTemplateDraft: {
+        name: 'Existing Workout',
+        exercises: [
+          {
+            exerciseId: 'exercise-2',
+            exerciseName: 'Cable Fly',
+            sets: 3,
+            reps: '10-15',
+          },
+        ],
+      },
+    });
+
+    expect(response.type).toBe('answer');
+    expect(mockInvoke).toHaveBeenCalledWith('ai', {
+      body: {
+        intent: 'GENERAL_CHAT',
+        message: 'make me a chest workout',
+        context: {
+          currentWorkoutTemplateDraft: {
+            name: 'Existing Workout',
+            exercises: [
+              {
+                exerciseId: 'exercise-2',
+                exerciseName: 'Cable Fly',
+                sets: 3,
+                reps: '10-15',
+              },
+            ],
+          },
+          voiceWorkoutOnly: true,
+        },
+        history: undefined,
       },
     });
   });

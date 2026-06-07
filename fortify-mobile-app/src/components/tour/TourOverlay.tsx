@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SpeakerWaveIcon } from 'react-native-heroicons/outline';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -35,6 +36,7 @@ type TourOverlayProps = {
   stepLabel?: string | null;
   primaryAction?: Action | null;
   secondaryAction?: Action | null;
+  auxiliaryAction?: Action | null;
   showArrow?: boolean;
   centerTooltip?: boolean;
   showHighlight?: boolean;
@@ -74,6 +76,7 @@ export function TourOverlay({
   anchorRect,
   body,
   primaryAction,
+  auxiliaryAction,
   showArrow = false,
   centerTooltip = false,
   showHighlight = true,
@@ -196,6 +199,10 @@ export function TourOverlay({
     screenWidth,
   ]);
   const shouldShowTooltip = visible && !hideTooltip;
+  const arrowPointsUp = Boolean(
+    paddedRect
+    && (placement === 'below' || (placement === 'auto' && tooltipPos.top >= paddedRect.y + paddedRect.height))
+  );
 
   const themedStyles = {
     overlay: { backgroundColor: TOUR_DIM_BACKGROUND },
@@ -204,9 +211,11 @@ export function TourOverlay({
       borderColor: colors.glassBorder,
     },
     bodyText: { color: colors.textPrimary },
+    auxiliaryText: { color: colors.textSecondary },
     highlightBorder: { borderColor: colors.accent },
     primaryText: { color: colors.accentForegroundOnFill },
     arrow: { borderTopColor: '#FFFFFF' },
+    arrowUp: { borderBottomColor: '#FFFFFF' },
     arrowLine: { backgroundColor: '#FFFFFF' },
   };
 
@@ -349,7 +358,7 @@ export function TourOverlay({
 
   const arrowAnimatedStyle = useAnimatedStyle(() => ({
     opacity: tooltipOpacity.value,
-    transform: [{ translateY: arrowAnim.value * ARROW_BOB_DISTANCE }],
+    transform: [{ translateY: arrowAnim.value * ARROW_BOB_DISTANCE * (arrowPointsUp ? -1 : 1) }],
   }));
 
   const tooltipPositionAnimatedStyle = useAnimatedStyle(() => ({
@@ -433,13 +442,28 @@ export function TourOverlay({
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
     const centerX = paddedRect.x + paddedRect.width / 2;
     const left = clamp(centerX - ARROW_WIDTH / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - ARROW_WIDTH);
-    const topCandidate = paddedRect.y - ARROW_GAP - ARROW_HEIGHT;
+    const topCandidate = arrowPointsUp
+      ? paddedRect.y + paddedRect.height + ARROW_GAP
+      : paddedRect.y - ARROW_GAP - ARROW_HEIGHT;
     const top = clamp(topCandidate, safeTop, screenHeight - insets.bottom - ARROW_HEIGHT);
 
     return (
-      <Animated.View style={[styles.arrow, { left, top }, arrowAnimatedStyle]} pointerEvents="none">
-        <View style={[styles.arrowLine, themedStyles.arrowLine]} />
-        <View style={[styles.arrowHead, themedStyles.arrow]} />
+      <Animated.View
+        testID={arrowPointsUp ? 'tour-arrow-up' : 'tour-arrow-down'}
+        style={[styles.arrow, { left, top }, arrowAnimatedStyle]}
+        pointerEvents="none"
+      >
+        {arrowPointsUp ? (
+          <>
+            <View style={[styles.arrowHeadUp, themedStyles.arrowUp]} />
+            <View style={[styles.arrowLine, themedStyles.arrowLine]} />
+          </>
+        ) : (
+          <>
+            <View style={[styles.arrowLine, themedStyles.arrowLine]} />
+            <View style={[styles.arrowHead, themedStyles.arrow]} />
+          </>
+        )}
       </Animated.View>
     );
   };
@@ -477,6 +501,19 @@ export function TourOverlay({
             }}
           >
             <Text style={[styles.bodyText, themedStyles.bodyText, centerTooltip && styles.bodyTextCentered]}>{body}</Text>
+
+            {auxiliaryAction ? (
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel={auxiliaryAction.label}
+                disabled={auxiliaryAction.disabled}
+                onPress={auxiliaryAction.onPress}
+                style={[styles.auxiliaryButton, auxiliaryAction.disabled && styles.auxiliaryButtonDisabled]}
+              >
+                <SpeakerWaveIcon color={colors.textSecondary} size={scale(18)} />
+                <Text style={[styles.auxiliaryText, themedStyles.auxiliaryText]}>{auxiliaryAction.label}</Text>
+              </TouchableOpacity>
+            ) : null}
 
             {primaryAction ? (
               <GlassButton
@@ -526,6 +563,22 @@ const styles = StyleSheet.create({
   bodyTextCentered: {
     textAlign: 'center',
   },
+  auxiliaryButton: {
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    minHeight: scale(40),
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+  },
+  auxiliaryButtonDisabled: {
+    opacity: 0.6,
+  },
+  auxiliaryText: {
+    fontSize: moderateScale(14),
+    fontWeight: FontWeights.semibold,
+  },
   primaryButton: {
     marginTop: Spacing.lg,
     height: scale(44),
@@ -562,6 +615,16 @@ const styles = StyleSheet.create({
     borderLeftWidth: ARROW_WIDTH / 2,
     borderRightWidth: ARROW_WIDTH / 2,
     borderTopWidth: ARROW_WIDTH * 0.6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  arrowHeadUp: {
+    marginBottom: scale(2),
+    width: 0,
+    height: 0,
+    borderLeftWidth: ARROW_WIDTH / 2,
+    borderRightWidth: ARROW_WIDTH / 2,
+    borderBottomWidth: ARROW_WIDTH * 0.6,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
   },

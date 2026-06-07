@@ -692,10 +692,11 @@ export default function ActiveWorkoutScreen() {
       async () => {
         const permission = await ensureMicrophonePermission();
         if (permission.granted) {
-          setVoiceExerciseLocalId(exerciseLocalId);
           if (isTourActive && activeStepId === 'open_voice_log') {
             advanceStep();
+            return;
           }
+          setVoiceExerciseLocalId(exerciseLocalId);
           return;
         }
 

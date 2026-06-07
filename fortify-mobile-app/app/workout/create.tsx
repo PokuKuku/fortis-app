@@ -214,6 +214,7 @@ export default function CreateWorkoutScreen() {
   useEffect(() => {
     if (!shouldAnchorAddWithVoice) return;
     if (!showVoiceAddSheet) return;
+    setShowVoiceAddSheet(false);
     void advanceStep();
   }, [advanceStep, shouldAnchorAddWithVoice, showVoiceAddSheet]);
 

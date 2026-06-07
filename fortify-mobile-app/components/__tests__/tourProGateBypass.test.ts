@@ -1,6 +1,14 @@
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { shouldBypassProGateForTourState } from '@/src/contexts/InAppTourContext';
 
+jest.mock('expo-av', () => ({
+  Audio: {
+    Sound: {
+      createAsync: jest.fn(),
+    },
+  },
+}));
+
 describe('shouldBypassProGateForTourState', () => {
   it('bypasses voice exercise add during the workout builder voice-add tour steps', () => {
     expect(shouldBypassProGateForTourState({
@@ -9,7 +17,7 @@ describe('shouldBypassProGateForTourState', () => {
       placement: PAYWALL_PLACEMENTS.voiceExerciseAdd,
     })).toBe(true);
     expect(shouldBypassProGateForTourState({
-      activeStepId: 'add_with_voice',
+      activeStepId: 'voice_add_multiple',
       isTourActive: true,
       placement: PAYWALL_PLACEMENTS.voiceExerciseAdd,
     })).toBe(true);
@@ -22,7 +30,7 @@ describe('shouldBypassProGateForTourState', () => {
       placement: PAYWALL_PLACEMENTS.voiceSetLog,
     })).toBe(true);
     expect(shouldBypassProGateForTourState({
-      activeStepId: 'confirm_voice_log',
+      activeStepId: 'voice_log_result',
       isTourActive: true,
       placement: PAYWALL_PLACEMENTS.voiceSetLog,
     })).toBe(true);

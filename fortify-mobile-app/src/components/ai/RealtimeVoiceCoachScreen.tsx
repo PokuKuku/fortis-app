@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  Easing,
   ScrollView,
   StyleSheet,
   Text,
@@ -53,6 +54,7 @@ interface RealtimeVoiceCoachScreenProps {
 }
 
 const CREATOR_SCRIPT_MAX_CHARS = 500;
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
 
 const asConversationMessage = (message: VoiceWorkoutMessage): AIConversationMessage => ({
   id: message.id,
@@ -63,17 +65,6 @@ const asConversationMessage = (message: VoiceWorkoutMessage): AIConversationMess
   workoutTemplate: message.workoutTemplate,
   savedWorkoutTemplateId: message.savedWorkoutTemplateId ?? null,
 });
-
-function withOpacity(color: string, opacity: number): string {
-  if (!color.startsWith('#')) return color;
-  const hex = color.replace('#', '');
-  if (hex.length !== 6) return color;
-
-  const red = parseInt(hex.slice(0, 2), 16);
-  const green = parseInt(hex.slice(2, 4), 16);
-  const blue = parseInt(hex.slice(4, 6), 16);
-  return `rgba(${red}, ${green}, ${blue}, ${opacity})`;
-}
 
 const sanitizeVoiceCoachError = (message: string | null | undefined): string | null => {
   if (!message) return null;
@@ -134,6 +125,7 @@ export function RealtimeVoiceCoachScreen({
   const animatedVoiceCardIdsRef = useRef<Set<string>>(new Set());
   const [dismissingVoiceCardIds, setDismissingVoiceCardIds] = useState<Set<string>>(() => new Set());
   const pendingWorkoutCardAnimation = useRef(new Animated.Value(0)).current;
+  const userAudioScaleAnimation = useRef(new Animated.Value(0)).current;
   const heroMinHeight = Math.max(680, height - 120);
   const viewportScale = Math.max(0.78, Math.min(1, Math.min(width / 390, height / 844)));
   const visualizerHeight = 156 * viewportScale;
@@ -154,6 +146,14 @@ export function RealtimeVoiceCoachScreen({
   const normalizedUserLevel = shouldVisualizeUserAudio && clampedUserAudioLevel > 0.01
     ? Math.max(0.08, clampedUserAudioLevel)
     : 0;
+  const talkButtonAudioScale = userAudioScaleAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.32],
+  });
+  const talkButtonCoreAudioScale = userAudioScaleAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.2],
+  });
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
@@ -187,6 +187,15 @@ export function RealtimeVoiceCoachScreen({
     }
     return voiceCardDismissAnimationsRef.current[messageId];
   };
+
+  useEffect(() => {
+    Animated.timing(userAudioScaleAnimation, {
+      toValue: normalizedUserLevel,
+      duration: normalizedUserLevel > 0 ? 85 : 140,
+      easing: normalizedUserLevel > 0 ? Easing.out(Easing.quad) : Easing.inOut(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [normalizedUserLevel, userAudioScaleAnimation]);
 
   useEffect(() => {
     const currentMessageIds = new Set(voiceWorkoutMessages.map((message) => message.id));
@@ -485,24 +494,7 @@ export function RealtimeVoiceCoachScreen({
           ) : null}
         </View>
 
-        {[0, 1, 2].map((index) => (
-          <View
-            key={`user-audio-ring-${index}`}
-            pointerEvents="none"
-            style={[
-              styles.userAudioRing,
-              {
-                bottom: talkButtonBottom - 8 - index * 6,
-                width: talkButtonSize + 16 + index * 18 * viewportScale + normalizedUserLevel * (34 + index * 8) * viewportScale,
-                height: talkButtonSize + 16 + index * 18 * viewportScale + normalizedUserLevel * (34 + index * 8) * viewportScale,
-                borderColor: withOpacity(colors.accent, Math.max(0, (0.3 - index * 0.07) * normalizedUserLevel)),
-                opacity: normalizedUserLevel > 0 ? 1 : 0,
-              },
-            ]}
-          />
-        ))}
-
-        <TouchableOpacity
+        <AnimatedTouchableOpacity
           style={[
             styles.talkButtonRing,
             {
@@ -513,7 +505,7 @@ export function RealtimeVoiceCoachScreen({
               borderColor: colors.accent,
               bottom: talkButtonBottom,
               opacity: isTalkButtonReady ? 1 : 0.38,
-              transform: [{ scale: 1 + normalizedUserLevel * 0.06 }],
+              transform: [{ scale: talkButtonAudioScale }],
             },
           ]}
           onPress={() => {
@@ -534,7 +526,7 @@ export function RealtimeVoiceCoachScreen({
           accessibilityLabel="Hold to talk to Voice Coach"
           accessibilityState={{ disabled: !isTalkButtonReady }}
         >
-          <View
+          <Animated.View
             style={[
               styles.talkButtonCore,
               {
@@ -542,11 +534,11 @@ export function RealtimeVoiceCoachScreen({
                 height: talkButtonCoreSize,
                 borderRadius: talkButtonCoreSize / 2,
                 backgroundColor: colors.accentLight,
-                transform: [{ scale: 1 + normalizedUserLevel * 0.1 }],
+                transform: [{ scale: talkButtonCoreAudioScale }],
               },
             ]}
           />
-        </TouchableOpacity>
+        </AnimatedTouchableOpacity>
       </View>
     </View>
   );
@@ -646,11 +638,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  userAudioRing: {
-    position: 'absolute',
-    borderRadius: BorderRadius.full,
-    borderWidth: 2,
   },
   talkButtonCore: {
   },

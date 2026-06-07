@@ -82,14 +82,14 @@ export default function OnboardingCoachPersonalityScreen() {
       coach_personality: 'pick_later',
       saved_coach_personality: PICK_LATER_PERSONALITY,
     });
-    router.push('/onboarding/coach-voice');
+    router.push('/onboarding/metrics-intro');
   };
 
   const handleContinue = () => {
     trackOnboardingStepCompleted('coach_personality', {
       coach_personality: selectedPersonality,
     });
-    router.push('/onboarding/coach-voice');
+    router.push('/onboarding/metrics-intro');
   };
 
   return (
@@ -118,6 +118,7 @@ export default function OnboardingCoachPersonalityScreen() {
         ))}
         <OnboardingOptionCard
           title="I'll pick later"
+          description="Create a custom AI tone later."
           selected={false}
           onSelect={() => void handlePickLater()}
         />

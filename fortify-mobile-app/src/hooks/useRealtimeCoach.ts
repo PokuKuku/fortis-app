@@ -27,7 +27,7 @@ import {
   parseGeminiLiveMessage,
   uint8ArrayToBase64,
 } from '@/src/utils/geminiLive';
-import { shouldGenerateWorkoutFromVoice } from '@/src/utils/realtimeCoach';
+import { shouldEditWorkoutFromVoice, shouldGenerateWorkoutFromVoice } from '@/src/utils/realtimeCoach';
 import { buildVoiceCoachInstructions } from '@/src/utils/realtimeCoachPrompt';
 
 interface UseRealtimeCoachOptions {
@@ -65,6 +65,7 @@ const VOICE_COACH_CONNECTION_ERROR = 'Voice Coach had trouble connecting. Check 
 const MICROPHONE_STREAM_ERROR =
   'Microphone stream is not emitting audio. On iOS Simulator, check host microphone input or test on a physical iPhone.';
 const EMPTY_CREATOR_SCRIPT_ERROR = 'Type a roast script first.';
+const MAX_RECENT_COACH_PHRASES = 6;
 
 const VOICE_COACH_ACTIVE_AUDIO_MODE = {
   allowsRecordingIOS: true,
@@ -103,7 +104,7 @@ const VOICE_WORKOUT_TOOL_NAME = 'create_or_update_workout';
 
 const VOICE_WORKOUT_TOOL_DECLARATION = {
   name: VOICE_WORKOUT_TOOL_NAME,
-  description: 'Create or revise a Fortify workout card only when the user explicitly asks Fortify to make, create, build, generate, design, plan, write, give them, add, remove, replace, or resize a workout. Do not use this for status statements like "I am hitting chest today."',
+  description: 'Create or revise the current Fortify workout preview only when the user explicitly asks Fortify to make, create, build, generate, design, plan, write, give them, add, remove, replace, or resize a workout. Follow-up edit requests like "remove incline press" or "swap bench for dumbbells" should revise the current preview. Do not use this for status statements like "I am hitting chest today."',
   parameters: {
     type: 'object',
     properties: {
@@ -317,6 +318,7 @@ export function useRealtimeCoach({
   const workoutHandledThisTurnRef = useRef(false);
   const latestVoiceWorkoutTemplateDraftRef = useRef<AIWorkoutTemplate | null>(null);
   const latestUserTranscriptRef = useRef('');
+  const recentCoachPhrasesRef = useRef<string[]>([]);
   const userTurnMicrophoneChunksSentRef = useRef(0);
   const userTurnMicrophoneChunksReceivedRef = useRef(0);
   const transcriptBuffersRef = useRef<Record<RealtimeTranscriptSpeaker, string>>({
@@ -372,6 +374,16 @@ export function useRealtimeCoach({
       coach: '',
     };
     latestUserTranscriptRef.current = '';
+  }, []);
+
+  const rememberCoachPhrase = useCallback((text: string) => {
+    const normalized = normalizeTranscriptChunk(text);
+    if (!normalized) return;
+
+    recentCoachPhrasesRef.current = [
+      normalized,
+      ...recentCoachPhrasesRef.current.filter((phrase) => phrase !== normalized),
+    ].slice(0, MAX_RECENT_COACH_PHRASES);
   }, []);
 
   const showTranscriptChunk = useCallback((overlay: RealtimeTranscriptOverlay): string => {
@@ -727,10 +739,11 @@ export function useRealtimeCoach({
 
     inFlightWorkoutPromptRef.current = trimmed;
     workoutHandledThisTurnRef.current = true;
+    const shouldReplaceLatestVoiceWorkout = shouldEditWorkoutFromVoice(trimmed, Boolean(draft));
     setIsGeneratingVoiceWorkout(true);
 
     try {
-      const response = await generateVoiceWorkoutTemplate(trimmed, draft ? {
+      const response = await generateVoiceWorkoutTemplate(trimmed, shouldReplaceLatestVoiceWorkout && draft ? {
         currentWorkoutTemplateDraft: draft,
       } : undefined);
 
@@ -740,15 +753,26 @@ export function useRealtimeCoach({
       }
 
       latestVoiceWorkoutTemplateDraftRef.current = template;
-      setVoiceWorkoutMessages((current) => [
-        ...current,
-        {
+      setVoiceWorkoutMessages((current) => {
+        const nextMessage: VoiceWorkoutMessage = {
           id: Crypto.randomUUID(),
           text: response.answer?.text ?? "Here's the workout.",
           workoutTemplate: template,
           savedWorkoutTemplateId: null,
-        },
-      ]);
+        };
+
+        if (shouldReplaceLatestVoiceWorkout && current.length > 0) {
+          return [
+            ...current.slice(0, -1),
+            nextMessage,
+          ];
+        }
+
+        return [
+          ...current,
+          nextMessage,
+        ];
+      });
       return true;
     } catch (workoutError) {
       console.warn('[Voice Coach] workout generation failed', workoutError);
@@ -776,10 +800,15 @@ export function useRealtimeCoach({
       return;
     }
 
+    const transcriptPrompt = latestUserTranscriptRef.current.trim();
+    const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
+    const shouldPreferTranscriptEdit = shouldEditWorkoutFromVoice(transcriptPrompt, Boolean(draft));
     const promptValue = args.prompt ?? args.request ?? args.text;
-    const prompt = typeof promptValue === 'string'
-      ? promptValue.trim()
-      : latestUserTranscriptRef.current.trim();
+    const prompt = shouldPreferTranscriptEdit
+      ? transcriptPrompt
+      : typeof promptValue === 'string'
+        ? promptValue.trim()
+        : transcriptPrompt;
 
     if (!prompt) {
       sendGeminiToolResponse(id, name, {
@@ -789,13 +818,15 @@ export function useRealtimeCoach({
       return;
     }
 
-    const created = await handleWorkoutPrompt(prompt, { force: true });
     sendGeminiToolResponse(id, name, {
-      ok: created,
+      ok: true,
       prompt,
-      status: created ? 'workout_ready' : 'workout_not_created',
+      status: 'workout_building_started',
+      spokenInstruction: 'Say only a short acknowledgement that Fortify is starting the build. Do not describe the workout. Do not repeat a previous acknowledgement phrase from this session.',
+      recentCoachPhrases: recentCoachPhrasesRef.current,
     });
-  }, [handleWorkoutPrompt, sendGeminiToolResponse]);
+    void handleWorkoutPrompt(prompt, { force: true });
+  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt, sendGeminiToolResponse]);
 
   const maybeGenerateWorkoutFromTranscript = useCallback((text: string) => {
     if (workoutHandledThisTurnRef.current) return;
@@ -820,10 +851,15 @@ export function useRealtimeCoach({
     }
   }, [flushPlaybackQueue]);
 
-  const installMicrophoneStreaming = useCallback(() => {
+  const installMicrophoneStreaming = useCallback((): boolean => {
     const audio = audioRef.current;
     if (!audio) {
-      throw new Error('This build does not include realtime audio support yet. Rebuild the dev app and try again.');
+      setDebugStatus((current) => ({
+        ...current,
+        setupComplete: false,
+        nativeAudioFallback: 'voice_processing_unavailable',
+      }));
+      return false;
     }
 
     cleanupMicrophoneSubscription();
@@ -862,6 +898,7 @@ export function useRealtimeCoach({
       userTurnMicrophoneChunksSent: 0,
       userTurnMicrophoneChunksReceived: 0,
     }));
+    return true;
   }, [cleanupMicrophoneSubscription]);
 
   const startUserTurn = useCallback((): boolean => {
@@ -1017,9 +1054,16 @@ export function useRealtimeCoach({
 
     for (const action of actions) {
       if (action.type === 'setup_complete') {
+        if (!audioRef.current || !isSocketOpen(socketRef.current)) {
+          continue;
+        }
         setupCompleteRef.current = true;
         setDebugStatus((current) => ({ ...current, setupComplete: true }));
-        installMicrophoneStreaming();
+        if (!installMicrophoneStreaming()) {
+          setupCompleteRef.current = false;
+          setPhase('stopped');
+          continue;
+        }
         if (pendingUserTurnRef.current) {
           try {
             startUserTurn();
@@ -1065,6 +1109,7 @@ export function useRealtimeCoach({
           maybeGenerateWorkoutFromTranscript(latestUserTranscriptRef.current);
           latestUserTranscriptRef.current = '';
         }
+        rememberCoachPhrase(transcriptBuffersRef.current.coach);
         hideTranscriptSoon();
         transcriptBuffersRef.current.coach = '';
         continue;
@@ -1086,6 +1131,7 @@ export function useRealtimeCoach({
     maybeGenerateWorkoutFromTranscript,
     playGeminiAudio,
     installMicrophoneStreaming,
+    rememberCoachPhrase,
     showTranscriptChunk,
     startUserTurn,
   ]);

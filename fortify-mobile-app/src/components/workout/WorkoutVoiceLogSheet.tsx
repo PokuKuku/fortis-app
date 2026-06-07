@@ -38,7 +38,6 @@ import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
-import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getMicrophonePermissionStatus } from '@/src/services/microphonePermissionService';
 import { createVoiceLogFileName, interpretWorkoutVoiceLog } from '@/src/services/workoutVoiceService';
@@ -210,7 +209,6 @@ export function WorkoutVoiceLogSheet({
   onClose,
 }: WorkoutVoiceLogSheetProps) {
   const { colors, isDark } = useTheme();
-  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const session = useWorkoutStore((state) => state.activeSession);
@@ -485,23 +483,6 @@ export function WorkoutVoiceLogSheet({
   const handleApply = () => {
     if (!exerciseLocalId || !interpretation) return;
 
-    const isVoiceLogTutorialStep =
-      isTourActive && (activeStepId === 'log_with_voice' || activeStepId === 'confirm_voice_log');
-
-    const isTutorialVoiceLogMatch = (
-      interpretation.sets === 3
-      && interpretation.weight === 225
-      && interpretation.reps === 5
-      && interpretation.setType === 'normal'
-      && voiceLogPlan?.canApply
-    );
-
-    if (isVoiceLogTutorialStep && !isTutorialVoiceLogMatch) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setErrorMessage('For this tour step, say "3 sets of 225 for 5 reps." Tap Retry and try again.');
-      return;
-    }
-
     const result = applyVoiceLog(exerciseLocalId, interpretation);
     if (!result) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -511,11 +492,6 @@ export function WorkoutVoiceLogSheet({
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onClose();
-    if (isTourActive && activeStepId === 'confirm_voice_log') {
-      setTimeout(() => {
-        advanceStep();
-      }, 150);
-    }
   };
 
   const summaryBadges = interpretation
@@ -538,26 +514,12 @@ export function WorkoutVoiceLogSheet({
     interpretation
     && voiceLogPlan?.canApply
   );
-  const isTutorialVoiceLogMatch = !!(
-    interpretation
-    && interpretation.sets === 3
-    && interpretation.weight === 225
-    && interpretation.reps === 5
-    && interpretation.setType === 'normal'
-      && voiceLogPlan?.canApply
-  );
   const applyEnabled = canApply && phase === 'review';
   const missingLabel = getMissingFieldsLabel(voiceLogPlan?.unresolvedFields ?? interpretation?.missingFields ?? []);
-  const localTooltipStepId =
-    activeStepId === 'log_with_voice' || activeStepId === 'confirm_voice_log'
-      ? activeStepId
-      : null;
-  const shouldShowLocalTooltip = visible && isTourActive && !!localTooltipStepId;
-  const isRecordVoiceTooltipStep = localTooltipStepId === 'log_with_voice';
-  const localTooltipTarget = localTooltipStepId === 'confirm_voice_log' ? applyButtonLayout : heroButtonLayout;
-  const localTooltipBody = localTooltipStepId === 'confirm_voice_log'
-    ? 'Tap Apply to log those sets to this exercise.'
-    : 'Tap the button and say "3 sets of 225 for 5 reps." Tap again to finish the recording.';
+  const shouldShowLocalTooltip = false;
+  const isRecordVoiceTooltipStep = false;
+  const localTooltipTarget = heroButtonLayout;
+  const localTooltipBody = '';
 
   const handleContainerLayout = (event: LayoutChangeEvent) => {
     const { x, y, width, height } = event.nativeEvent.layout;
@@ -653,16 +615,13 @@ export function WorkoutVoiceLogSheet({
     if (isRecordVoiceTooltipStep) {
       return -effectiveTooltipHeight - scale(18);
     }
-    if (localTooltipStepId === 'confirm_voice_log') {
-      return -effectiveTooltipHeight - scale(18);
-    }
     if (!containerLayout || !localTooltipTarget) {
       return LOCAL_TOOLTIP_TOP_OFFSET;
     }
 
     const maxTop = Math.max(scale(16), localTooltipTarget.y - effectiveTooltipHeight - scale(12));
     return Math.min(LOCAL_TOOLTIP_TOP_OFFSET, maxTop);
-  }, [containerLayout, isRecordVoiceTooltipStep, localTooltipHeight, localTooltipStepId, localTooltipTarget]);
+  }, [containerLayout, isRecordVoiceTooltipStep, localTooltipHeight, localTooltipTarget]);
 
   const localArrowLeft = useMemo(() => {
     if (!localTooltipTarget) return scale(150);
@@ -717,20 +676,6 @@ export function WorkoutVoiceLogSheet({
   const localVerticalArrowAnimatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: localArrowAnim.value * (LOCAL_ARROW_BOB_DISTANCE * 0.7) }],
   }));
-
-  useEffect(() => {
-    if (
-      !visible ||
-      !isTourActive ||
-      activeStepId !== 'log_with_voice' ||
-      phase !== 'review' ||
-      !isTutorialVoiceLogMatch
-    ) {
-      return;
-    }
-
-    advanceStep();
-  }, [activeStepId, advanceStep, isTourActive, isTutorialVoiceLogMatch, phase, visible]);
 
   const waveformHeights = useMemo(() => (
     Array.from({ length: WAVE_BAR_COUNT }, (_, index) => {

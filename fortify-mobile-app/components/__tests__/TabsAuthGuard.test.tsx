@@ -153,6 +153,14 @@ jest.mock('@/components/GlassButton', () => ({
   GlassButton: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 
+jest.mock('@/src/components/retention/WorkoutRetentionCoordinator', () => ({
+  WorkoutRetentionCoordinator: () => null,
+}));
+
+jest.mock('@/src/components/workout/modals/FirstWorkoutStreakModal', () => ({
+  FirstWorkoutStreakModal: () => null,
+}));
+
 const TabLayout = require('@/app/(tabs)/_layout').default;
 
 describe('Tabs auth guard', () => {
