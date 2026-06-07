@@ -145,6 +145,23 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(queryByText('Working text')).toBeNull();
   });
 
+  it('shows when realtime mode is actively listening', () => {
+    const { getByTestId, queryByLabelText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        interactionMode="realtime"
+        debugStatus={{
+          ...defaultProps.debugStatus,
+          recordingStarted: true,
+          microphoneChunksSent: 2,
+        }}
+      />
+    );
+
+    expect(getByTestId('realtime-listening-status').props.children).toBe('Listening hands-free');
+    expect(queryByLabelText('Hold to talk to Voice Coach')).toBeNull();
+  });
+
   it('does not render transcript overlay text', () => {
     const { queryByText } = render(
       <RealtimeVoiceCoachScreen

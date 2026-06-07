@@ -20,12 +20,13 @@ import {
   NativeSyntheticEvent,
   Animated as RNAnimated,
   Easing,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
-import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon, Cog6ToothIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
 import { SparklesIcon as SparklesSolid } from 'react-native-heroicons/solid';
 import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
@@ -34,7 +35,7 @@ import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAIStore } from '@/src/store/aiStore';
-import { AIIntent, AIConversationMessage } from '@/src/types/ai';
+import { AIIntent, AIConversationMessage, AIPendingMedia } from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
@@ -52,6 +53,9 @@ import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { shouldAutoStartVoiceCoach } from '@/src/utils/aiChatTour';
+import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
+import { VoiceSettingsPopover, type VoiceInteractionMode } from '@/src/components/ai/VoiceSettingsPopover';
+import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -258,6 +262,10 @@ export default function AIChatScreen() {
   const [inputText, setInputText] = useState('');
   const [mode, setMode] = useState<AIVoiceMode>('voice');
   const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<VoiceInteractionMode>('push_to_talk');
+  const [pendingChatMedia, setPendingChatMedia] = useState<AIPendingMedia[]>([]);
+  const [pendingVoiceMedia, setPendingVoiceMedia] = useState<AIPendingMedia[]>([]);
+  const [isPickingVoiceMedia, setIsPickingVoiceMedia] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
@@ -298,8 +306,11 @@ export default function AIChatScreen() {
   }, [messages]);
   const {
     preferences: realtimePreferences,
+    isLoaded: areRealtimePreferencesLoaded,
     updatePreferences: updateRealtimePreferences,
   } = useRealtimeCoachPreferences();
+  const realtimePreferencesSignature = JSON.stringify(realtimePreferences);
+  const activeVoicePreferencesSignatureRef = useRef<string | null>(null);
   const {
     phase: voicePhase,
     error: voiceError,
@@ -320,9 +331,12 @@ export default function AIChatScreen() {
     speakCreatorScript,
     markVoiceWorkoutSaved,
     dismissVoiceWorkoutMessage,
+    sendVisualContext,
   } = useRealtimeCoach({
     preferences: realtimePreferences,
     currentWorkoutTemplateDraft,
+    interactionMode,
+    onVisualContextConsumed: () => setPendingVoiceMedia([]),
   });
   const isCreatorScriptEnabled = isCreatorVoiceScriptsEnabled(profile?.email ?? user?.email ?? null);
   const voiceConversationMessages = useMemo<AIConversationMessage[]>(() => (
@@ -436,6 +450,7 @@ export default function AIChatScreen() {
     chatWorkoutActions.setTemplateSaveError(null);
     chatWorkoutActions.setPreviewMessageId(null);
     setInputText('');
+    setPendingChatMedia([]);
     shouldAutoScrollRef.current = true;
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: false });
@@ -443,7 +458,7 @@ export default function AIChatScreen() {
   };
 
   const submitMessage = useCallback(async (rawMessage: string) => {
-    const message = rawMessage.trim();
+    const message = rawMessage.trim() || (pendingChatMedia.length > 0 ? 'Analyze this media.' : '');
     if (!message || isSendingMessage) return;
 
     await runProFeature(
@@ -471,10 +486,55 @@ export default function AIChatScreen() {
 
         chatWorkoutActions.setTemplateSaveError(null);
         setInputText('');
-        await sendMessage(intent, message, requestContext);
+        const attachments = pendingChatMedia.map(({ id, uri, kind, label }) => ({ id, uri, kind, label }));
+        const response = await sendMessage(
+          intent,
+          message,
+          requestContext,
+          flattenAIMediaImages(pendingChatMedia),
+          attachments
+        );
+        if (response.type !== 'error') {
+          setPendingChatMedia([]);
+        }
       },
     );
-  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, runProFeature, sendMessage]);
+  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, pendingChatMedia, runProFeature, sendMessage]);
+
+  const pickMedia = useCallback(async (target: 'chat' | 'voice') => {
+    const shouldRestartVoice = target === 'voice' && interactionMode === 'realtime' && isVoiceActive;
+    if (target === 'voice') setIsPickingVoiceMedia(true);
+    if (shouldRestartVoice) {
+      hasRequestedInitialVoiceStartRef.current = false;
+      stopVoiceCoach();
+    }
+    try {
+      const selected = await pickAIMediaFromLibrary();
+      if (selected.length > 0) {
+        if (target === 'chat') setPendingChatMedia(selected);
+        else setPendingVoiceMedia(selected);
+      }
+    } catch (pickerError) {
+      Alert.alert('Unable to add media', pickerError instanceof Error ? pickerError.message : 'Try again.');
+    } finally {
+      if (target === 'voice') setIsPickingVoiceMedia(false);
+    }
+  }, [interactionMode, isVoiceActive, stopVoiceCoach]);
+
+  useEffect(() => {
+    if (!isVoiceActive || !debugStatus.setupComplete || pendingVoiceMedia.length === 0) return;
+    sendVisualContext(flattenAIMediaImages(pendingVoiceMedia));
+  }, [debugStatus.setupComplete, isVoiceActive, pendingVoiceMedia, sendVisualContext]);
+
+  const handleInteractionModeChange = useCallback((nextMode: VoiceInteractionMode) => {
+    if (nextMode === interactionMode) return;
+    const shouldRestart = isVoiceActive;
+    if (shouldRestart) {
+      hasRequestedInitialVoiceStartRef.current = false;
+      stopVoiceCoach();
+    }
+    setInteractionMode(nextMode);
+  }, [interactionMode, isVoiceActive, stopVoiceCoach]);
 
   const handleSend = useCallback(async () => {
     await submitMessage(inputText);
@@ -528,8 +588,36 @@ export default function AIChatScreen() {
   ), [runProFeature, startVoiceCoach]);
 
   useEffect(() => {
+    if (!areRealtimePreferencesLoaded) return;
+
+    const previousSignature = activeVoicePreferencesSignatureRef.current;
+    activeVoicePreferencesSignatureRef.current = realtimePreferencesSignature;
+    if (previousSignature === null || previousSignature === realtimePreferencesSignature) {
+      return;
+    }
+
+    hasRequestedInitialVoiceStartRef.current = false;
+    if (isVoiceActive) {
+      stopVoiceCoach();
+    }
+  }, [
+    areRealtimePreferencesLoaded,
+    isVoiceActive,
+    realtimePreferencesSignature,
+    stopVoiceCoach,
+  ]);
+
+  useEffect(() => {
     if (mode !== 'voice') {
       hasRequestedInitialVoiceStartRef.current = false;
+      return;
+    }
+
+    if (!areRealtimePreferencesLoaded) {
+      return;
+    }
+
+    if (isPickingVoiceMedia) {
       return;
     }
 
@@ -547,7 +635,16 @@ export default function AIChatScreen() {
 
     hasRequestedInitialVoiceStartRef.current = true;
     void handleStartVoiceCoach();
-  }, [activeStepId, handleStartVoiceCoach, isTourActive, isVoiceActive, mode, stopVoiceCoach]);
+  }, [
+    activeStepId,
+    areRealtimePreferencesLoaded,
+    handleStartVoiceCoach,
+    isPickingVoiceMedia,
+    isTourActive,
+    isVoiceActive,
+    mode,
+    stopVoiceCoach,
+  ]);
 
   const handleBeginVoiceTurn = useCallback(async () => (
     runProFeature(
@@ -611,25 +708,12 @@ export default function AIChatScreen() {
           <View style={[styles.header, themedStyles.header]}>
             <View style={styles.headerLeft}>
               {mode === 'voice' && (
-                <TouchableOpacity
-                  testID="custom-scenario-gear"
-                  style={[
-                    styles.scenarioHeaderButton,
-                    {
-                      backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.035)',
-                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                    },
-                  ]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setScenarioSheetVisible(true);
-                  }}
-                  activeOpacity={0.72}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open coaching style"
-                >
-                  <Cog6ToothIcon color={colors.textSecondary} size={IconSizes.md} strokeWidth={1.8} />
-                </TouchableOpacity>
+                <VoiceSettingsPopover
+                  interactionMode={interactionMode}
+                  onInteractionModeChange={handleInteractionModeChange}
+                  onOpenCoachingStyle={() => setScenarioSheetVisible(true)}
+                  onAddMedia={() => { void pickMedia('voice'); }}
+                />
               )}
             </View>
             <View style={[styles.modeSwitch, {
@@ -711,6 +795,9 @@ export default function AIChatScreen() {
             onAddWorkoutTemplate={voiceWorkoutActions.handleAddWorkoutTemplate}
             onStartWorkoutTemplate={voiceWorkoutActions.handleStartWorkoutTemplate}
             onDismissWorkoutTemplate={dismissVoiceWorkoutMessage}
+            interactionMode={interactionMode}
+            pendingMedia={pendingVoiceMedia}
+            onRemovePendingMedia={(id) => setPendingVoiceMedia((current) => current.filter((item) => item.id !== id))}
           />
         ) : (
           <KeyboardAvoidingView
@@ -812,11 +899,17 @@ export default function AIChatScreen() {
             </ScrollView>
 
             {/* Input */}
+            <AIMediaPreviewStrip
+              media={pendingChatMedia}
+              onRemove={(id) => setPendingChatMedia((current) => current.filter((item) => item.id !== id))}
+            />
             <ChatInput
               value={inputText}
               onChangeText={setInputText}
               onSend={handleSend}
               disabled={isSendingMessage}
+              hasAttachments={pendingChatMedia.length > 0}
+              onAddMedia={() => { void pickMedia('chat'); }}
             />
           </KeyboardAvoidingView>
         )}

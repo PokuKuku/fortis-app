@@ -13,6 +13,7 @@ export type GeminiLiveEventAction =
   | { type: 'tool_call'; id: string; name: string; args: Record<string, unknown> }
   | { type: 'error'; message: string }
   | { type: 'turn_complete' }
+  | { type: 'interrupted' }
   | { type: 'go_away' };
 
 type GeminiLiveMessage = Record<string, unknown>;
@@ -121,6 +122,7 @@ export function parseGeminiLiveMessage(raw: string): GeminiLiveEventAction[] {
     }
 
     if (serverContent.interrupted === true) {
+      actions.push({ type: 'interrupted' });
       actions.push({ type: 'phase', phase: 'listening' });
       actions.push({ type: 'turn_complete' });
     }

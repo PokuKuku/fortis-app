@@ -52,11 +52,6 @@ import {
 } from '@/src/services/microphonePermissionService';
 import { RealtimeCoachSettingsModal } from '@/src/components/ai/RealtimeCoachSettingsModal';
 import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
-import {
-  COACH_PERSONALITY_LABELS,
-  COACH_VOICE_LABELS,
-} from '@/src/types/realtimeCoach';
-import { getIntensityLabel } from '@/src/utils/realtimeCoach';
 
 interface SettingsRowProps {
   icon: React.ReactNode;
@@ -131,7 +126,6 @@ export default function SettingsScreen() {
 
   const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
   const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
-  const voiceCoachValue = `${COACH_PERSONALITY_LABELS[realtimeCoachPreferences.personality]} · ${COACH_VOICE_LABELS[realtimeCoachPreferences.voice]} · ${getIntensityLabel(realtimeCoachPreferences.intensity)}`;
 
   // Theme mode labels
   const themeModeLabel: Record<ThemeMode, string> = {
@@ -527,7 +521,6 @@ export default function SettingsScreen() {
               <SettingsRow
                 icon={<SparklesIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Voice Coach"
-                value={voiceCoachValue}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   setShowVoiceCoachSettings(true);

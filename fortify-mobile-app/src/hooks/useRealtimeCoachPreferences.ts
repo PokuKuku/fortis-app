@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   getRealtimeCoachPreferences,
   setRealtimeCoachPreferences,
+  subscribeToRealtimeCoachPreferences,
 } from '@/src/services/realtimeCoachPreferencesService';
 import {
   DEFAULT_REALTIME_COACH_PREFERENCES,
@@ -16,6 +17,12 @@ export function useRealtimeCoachPreferences() {
 
   useEffect(() => {
     let mounted = true;
+    const unsubscribe = subscribeToRealtimeCoachPreferences((nextPreferences) => {
+      if (mounted) {
+        setPreferencesState(nextPreferences);
+      }
+    });
+
     void getRealtimeCoachPreferences()
       .then((loaded) => {
         if (mounted) {
@@ -30,6 +37,7 @@ export function useRealtimeCoachPreferences() {
 
     return () => {
       mounted = false;
+      unsubscribe();
     };
   }, []);
 

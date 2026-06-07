@@ -18,6 +18,8 @@ import {
   AIRateLimitWindow,
   AIWorkoutTemplate,
   AIWorkoutTemplateExercise,
+  AIImage,
+  AIAttachmentDisplay,
 } from '../types/ai';
 import * as aiService from '../services/aiService';
 import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
@@ -182,6 +184,8 @@ interface LastFailedMessage {
   intent: AIIntent;
   message: string;
   context?: AIRequestContext;
+  images?: AIImage[];
+  attachments?: AIAttachmentDisplay[];
 }
 
 interface AIState {
@@ -191,7 +195,13 @@ interface AIState {
   lastFailedMessage: LastFailedMessage | null;
   rateLimitStatus: AIRateLimitStatus | null;
 
-  sendMessage: (intent: AIIntent, message: string, context?: AIRequestContext) => Promise<AIResponse>;
+  sendMessage: (
+    intent: AIIntent,
+    message: string,
+    context?: AIRequestContext,
+    images?: AIImage[],
+    attachments?: AIAttachmentDisplay[]
+  ) => Promise<AIResponse>;
   retryLastMessage: () => Promise<AIResponse | null>;
   checkRateLimits: () => Promise<void>;
   loadConversation: () => Promise<void>;
@@ -210,7 +220,7 @@ export const useAIStore = create<AIState>()(
     lastFailedMessage: null,
     rateLimitStatus: null,
 
-    sendMessage: async (intent, message, context) => {
+    sendMessage: async (intent, message, context, images, attachments) => {
       const { conversation, persistConversation } = get();
 
       const userMessage: AIConversationMessage = {
@@ -219,6 +229,7 @@ export const useAIStore = create<AIState>()(
         content: message,
         intent,
         createdAt: new Date().toISOString(),
+        attachments,
       };
 
       const updatedConversation: AIConversation = conversation
@@ -242,11 +253,13 @@ export const useAIStore = create<AIState>()(
         intent,
         message,
         context,
+        images,
+        attachments,
       };
 
       try {
         const history = buildConversationHistory(updatedConversation.messages, intent);
-        const response = await aiService.sendAIMessage(intent, message, context, history);
+        const response = await aiService.sendAIMessage(intent, message, context, history, images);
         const isRateLimited = response.type === 'error' && response.error?.code === 'RATE_LIMITED';
         const friendlyErrorMessage = response.type === 'error'
           ? makeFriendlyAIErrorMessage(response.error)
@@ -337,7 +350,9 @@ export const useAIStore = create<AIState>()(
       return sendMessage(
         lastFailedMessage.intent,
         lastFailedMessage.message,
-        lastFailedMessage.context
+        lastFailedMessage.context,
+        lastFailedMessage.images,
+        lastFailedMessage.attachments
       );
     },
 

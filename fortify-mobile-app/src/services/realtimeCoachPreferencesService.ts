@@ -10,6 +10,10 @@ import {
 } from '@/src/types/realtimeCoach';
 import { sanitizeCustomScenarioInstructions } from '@/src/utils/realtimeCoachPrompt';
 
+type RealtimeCoachPreferencesListener = (preferences: RealtimeCoachPreferences) => void;
+
+const listeners = new Set<RealtimeCoachPreferencesListener>();
+
 const isVoice = (value: unknown): value is AICoachVoice =>
   typeof value === 'string' && COACH_VOICES.includes(value as AICoachVoice);
 
@@ -56,8 +60,19 @@ export async function getRealtimeCoachPreferences(): Promise<RealtimeCoachPrefer
 export async function setRealtimeCoachPreferences(
   preferences: RealtimeCoachPreferences
 ): Promise<void> {
+  const normalizedPreferences = normalizeRealtimeCoachPreferences(preferences);
   await setScopedItem(
     AI_REALTIME_COACH_PREFERENCES_KEY,
-    JSON.stringify(normalizeRealtimeCoachPreferences(preferences))
+    JSON.stringify(normalizedPreferences)
   );
+  listeners.forEach((listener) => listener(normalizedPreferences));
+}
+
+export function subscribeToRealtimeCoachPreferences(
+  listener: RealtimeCoachPreferencesListener
+): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }

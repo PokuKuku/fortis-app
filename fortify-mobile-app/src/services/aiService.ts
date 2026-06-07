@@ -13,6 +13,7 @@ import {
   AIRequestContext,
   AIResponse,
   AIRateLimitStatus,
+  AIImage,
 } from '../types/ai';
 import type { OnboardingProgramSpec } from '@/src/utils/onboardingProgram';
 import { hasAIDataSharingConsent } from '@/src/services/aiConsentService';
@@ -33,7 +34,8 @@ export async function sendAIMessage(
   intent: AIIntent,
   message: string,
   context?: AIRequestContext,
-  history?: AIChatMessage[]
+  history?: AIChatMessage[],
+  images?: AIImage[]
 ): Promise<AIResponse> {
   const hasConsent = await hasAIDataSharingConsent();
   if (!hasConsent) {
@@ -78,6 +80,7 @@ export async function sendAIMessage(
     message,
     context,
     history,
+    images,
   };
 
   try {

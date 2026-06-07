@@ -83,6 +83,7 @@ describe('realtimeCoachService', () => {
       body: {
         action: 'start_session',
         preferences,
+        interactionMode: 'push_to_talk',
         aiDataSharingConsent: true,
       },
     });

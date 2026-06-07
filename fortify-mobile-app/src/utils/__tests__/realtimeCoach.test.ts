@@ -3,6 +3,7 @@ import {
   getIntensityLabel,
   isCreatorVoiceScriptsEnabled,
   normalizeRealtimeCoachPhase,
+  shouldEditWorkoutFromVoice,
   shouldGenerateWorkoutFromVoice,
 } from '@/src/utils/realtimeCoach';
 import {
@@ -31,6 +32,9 @@ describe('realtimeCoach utils', () => {
     expect(shouldGenerateWorkoutFromVoice("I didn't ask for a workout")).toBe(false);
     expect(shouldGenerateWorkoutFromVoice("I'll build you a chest workout")).toBe(false);
     expect(shouldGenerateWorkoutFromVoice('Add dips', true)).toBe(true);
+    expect(shouldGenerateWorkoutFromVoice('Add a different exercise', true)).toBe(true);
+    expect(shouldEditWorkoutFromVoice('Remove incline press', true)).toBe(true);
+    expect(shouldEditWorkoutFromVoice('Add a different exercise', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make it five exercises', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make it five exercises')).toBe(false);
   });
@@ -122,6 +126,7 @@ describe('realtimeCoach utils', () => {
     }, { workoutToolName: 'create_or_update_workout' });
 
     expect(standardPrompt).toContain('call the create_or_update_workout tool immediately');
+    expect(standardPrompt).toContain('Do not say that routine workout or fitness information is not health or medical advice');
     expect(standardPrompt).not.toContain('Custom Coach rules');
 
     const roastPrompt = buildVoiceCoachInstructions({

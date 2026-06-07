@@ -10,7 +10,7 @@ import {
   generateVoiceWorkoutTemplate,
   reportRealtimeCoachUsage,
 } from '@/src/services/realtimeCoachService';
-import type { AIRequestContext, AIWorkoutTemplate } from '@/src/types/ai';
+import type { AIImage, AIRequestContext, AIWorkoutTemplate } from '@/src/types/ai';
 import type {
   RealtimeCoachDebugStatus,
   RealtimeCoachPhase,
@@ -33,6 +33,8 @@ import { buildVoiceCoachInstructions } from '@/src/utils/realtimeCoachPrompt';
 interface UseRealtimeCoachOptions {
   preferences: RealtimeCoachPreferences;
   currentWorkoutTemplateDraft?: AIRequestContext['currentWorkoutTemplateDraft'];
+  interactionMode?: 'push_to_talk' | 'realtime';
+  onVisualContextConsumed?: () => void;
 }
 
 type TwoWayAudioModule = {
@@ -56,6 +58,9 @@ const USAGE_REPORT_INTERVAL_MS = 30_000;
 const PLAYBACK_BUFFER_TARGET_BYTES = 4096;
 const PLAYBACK_BUFFER_FLUSH_MS = 24;
 const PLAYBACK_MIC_SUPPRESSION_GUARD_MS = 450;
+const REALTIME_SPEECH_START_RMS = 0.012;
+const REALTIME_SPEECH_END_RMS = 0.008;
+const REALTIME_SPEECH_END_DELAY_MS = 550;
 const PCM16_MONO_BYTES_PER_SAMPLE = 2;
 const PCM16_MONO_PLAYBACK_RATE = 16000;
 const MISSING_NATIVE_AUDIO_MESSAGE =
@@ -66,6 +71,35 @@ const MICROPHONE_STREAM_ERROR =
   'Microphone stream is not emitting audio. On iOS Simulator, check host microphone input or test on a physical iPhone.';
 const EMPTY_CREATOR_SCRIPT_ERROR = 'Type a roast script first.';
 const MAX_RECENT_COACH_PHRASES = 6;
+
+const getEditedWorkoutName = (sourceName: string, existingNames: string[]): string => {
+  const rootName = sourceName.trim().replace(/\s+\(\d+\)$/, '') || 'Workout';
+  const escapedRootName = rootName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const namePattern = new RegExp(`^${escapedRootName}(?: \\((\\d+)\\))?$`, 'i');
+  const highestRevision = existingNames.reduce((highest, name) => {
+    const match = name.trim().match(namePattern);
+    if (!match) return highest;
+    return Math.max(highest, match[1] ? Number.parseInt(match[1], 10) : 0);
+  }, 0);
+
+  return `${rootName} (${highestRevision + 1})`;
+};
+
+const workoutsHaveSameExercises = (
+  left: AIWorkoutTemplate,
+  right: AIWorkoutTemplate
+): boolean => (
+  left.exercises.length === right.exercises.length
+  && left.exercises.every((exercise, index) => {
+    const candidate = right.exercises[index];
+    return Boolean(candidate)
+      && exercise.exerciseId === candidate.exerciseId
+      && exercise.exerciseName === candidate.exerciseName
+      && exercise.sets === candidate.sets
+      && exercise.reps === candidate.reps
+      && exercise.restSeconds === candidate.restSeconds;
+  })
+);
 
 const VOICE_COACH_ACTIVE_AUDIO_MODE = {
   allowsRecordingIOS: true,
@@ -97,7 +131,6 @@ const GEMINI_VOICE_BY_COACH_VOICE: Record<RealtimeCoachPreferences['voice'], str
   cedar: 'Puck',
   coral: 'Aoede',
   verse: 'Charon',
-  sage: 'Fenrir',
 };
 
 const VOICE_WORKOUT_TOOL_NAME = 'create_or_update_workout';
@@ -148,7 +181,8 @@ const createWavBase64FromPcm16 = (pcmBase64: string, sampleRate: number): string
 
 const buildGeminiSetupMessage = (
   model: string,
-  preferences: RealtimeCoachPreferences
+  preferences: RealtimeCoachPreferences,
+  interactionMode: 'push_to_talk' | 'realtime'
 ) => ({
   setup: {
     model: normalizeGeminiModelName(model),
@@ -181,7 +215,7 @@ const buildGeminiSetupMessage = (
       automaticActivityDetection: {
         disabled: true,
       },
-      activityHandling: 'NO_INTERRUPTION',
+      activityHandling: interactionMode === 'realtime' ? 'START_OF_ACTIVITY_INTERRUPTS' : 'NO_INTERRUPTION',
     },
   },
 });
@@ -252,6 +286,19 @@ const normalizeMicrophoneChunk = (data: unknown): Uint8Array | null => {
   return null;
 };
 
+const calculatePcm16Rms = (chunk: Uint8Array): number => {
+  const sampleCount = Math.floor(chunk.byteLength / PCM16_MONO_BYTES_PER_SAMPLE);
+  if (sampleCount === 0) return 0;
+
+  const view = new DataView(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+  let sumSquares = 0;
+  for (let index = 0; index < sampleCount; index += 1) {
+    const normalizedSample = view.getInt16(index * PCM16_MONO_BYTES_PER_SAMPLE, true) / 32768;
+    sumSquares += normalizedSample * normalizedSample;
+  }
+  return Math.sqrt(sumSquares / sampleCount);
+};
+
 const getServerMessageDebugType = (raw: string): string => {
   try {
     const parsed = JSON.parse(raw) as Record<string, unknown>;
@@ -290,6 +337,8 @@ const setVoiceCoachAudioMode = async (isActive: boolean) => {
 export function useRealtimeCoach({
   preferences,
   currentWorkoutTemplateDraft,
+  interactionMode = 'push_to_talk',
+  onVisualContextConsumed,
 }: UseRealtimeCoachOptions) {
   const socketRef = useRef<WebSocket | null>(null);
   const audioRef = useRef<TwoWayAudioModule | null>(null);
@@ -314,6 +363,9 @@ export function useRealtimeCoach({
   const setupCompleteRef = useRef(false);
   const isUserTurnActiveRef = useRef(false);
   const pendingUserTurnRef = useRef(false);
+  const visualContextPendingRef = useRef(false);
+  const realtimeSpeechActiveRef = useRef(false);
+  const realtimeSpeechEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightWorkoutPromptRef = useRef('');
   const workoutHandledThisTurnRef = useRef(false);
   const latestVoiceWorkoutTemplateDraftRef = useRef<AIWorkoutTemplate | null>(null);
@@ -454,6 +506,13 @@ export function useRealtimeCoach({
     }
   }, []);
 
+  const clearRealtimeSpeechEndTimeout = useCallback(() => {
+    if (realtimeSpeechEndTimeoutRef.current) {
+      clearTimeout(realtimeSpeechEndTimeoutRef.current);
+      realtimeSpeechEndTimeoutRef.current = null;
+    }
+  }, []);
+
   const clearPlaybackQueue = useCallback(() => {
     if (playbackFlushTimeoutRef.current) {
       clearTimeout(playbackFlushTimeoutRef.current);
@@ -566,6 +625,7 @@ export function useRealtimeCoach({
     finalizeUsageReporting();
     clearMicWatchdog();
     clearUserTurnEndTimeout();
+    clearRealtimeSpeechEndTimeout();
     clearPlaybackQueue();
     unloadCreatorScriptSound();
     clearTranscriptHideTimeout();
@@ -576,6 +636,7 @@ export function useRealtimeCoach({
     setupCompleteRef.current = false;
     isUserTurnActiveRef.current = false;
     pendingUserTurnRef.current = false;
+    realtimeSpeechActiveRef.current = false;
     userTurnMicrophoneChunksSentRef.current = 0;
     userTurnMicrophoneChunksReceivedRef.current = 0;
     if (isMountedRef.current) {
@@ -613,6 +674,7 @@ export function useRealtimeCoach({
     cleanupVolumeSubscriptions,
     clearMicWatchdog,
     clearUserTurnEndTimeout,
+    clearRealtimeSpeechEndTimeout,
     clearPlaybackQueue,
     clearTranscriptHideTimeout,
     finalizeUsageReporting,
@@ -739,11 +801,11 @@ export function useRealtimeCoach({
 
     inFlightWorkoutPromptRef.current = trimmed;
     workoutHandledThisTurnRef.current = true;
-    const shouldReplaceLatestVoiceWorkout = shouldEditWorkoutFromVoice(trimmed, Boolean(draft));
+    const shouldCreateEditedVoiceWorkout = shouldEditWorkoutFromVoice(trimmed, Boolean(draft));
     setIsGeneratingVoiceWorkout(true);
 
     try {
-      const response = await generateVoiceWorkoutTemplate(trimmed, shouldReplaceLatestVoiceWorkout && draft ? {
+      const response = await generateVoiceWorkoutTemplate(trimmed, shouldCreateEditedVoiceWorkout && draft ? {
         currentWorkoutTemplateDraft: draft,
       } : undefined);
 
@@ -751,22 +813,28 @@ export function useRealtimeCoach({
       if (!template || !Array.isArray(template.exercises) || template.exercises.length === 0) {
         return false;
       }
+      if (shouldCreateEditedVoiceWorkout && draft && workoutsHaveSameExercises(draft, template)) {
+        return false;
+      }
 
-      latestVoiceWorkoutTemplateDraftRef.current = template;
       setVoiceWorkoutMessages((current) => {
+        const nextTemplate = shouldCreateEditedVoiceWorkout && draft
+          ? {
+              ...template,
+              name: getEditedWorkoutName(draft.name, [
+                draft.name,
+                ...current.map((message) => message.workoutTemplate.name),
+              ]),
+            }
+          : template;
         const nextMessage: VoiceWorkoutMessage = {
           id: Crypto.randomUUID(),
           text: response.answer?.text ?? "Here's the workout.",
-          workoutTemplate: template,
+          workoutTemplate: nextTemplate,
           savedWorkoutTemplateId: null,
         };
 
-        if (shouldReplaceLatestVoiceWorkout && current.length > 0) {
-          return [
-            ...current.slice(0, -1),
-            nextMessage,
-          ];
-        }
+        latestVoiceWorkoutTemplateDraftRef.current = nextTemplate;
 
         return [
           ...current,
@@ -851,6 +919,44 @@ export function useRealtimeCoach({
     }
   }, [flushPlaybackQueue]);
 
+  const updateRealtimeSpeechActivity = useCallback((chunk: Uint8Array) => {
+    if (interactionMode !== 'realtime' || !setupCompleteRef.current) return;
+    const socket = socketRef.current;
+    if (!isSocketOpen(socket)) return;
+
+    const rms = calculatePcm16Rms(chunk);
+    if (rms >= REALTIME_SPEECH_START_RMS) {
+      clearRealtimeSpeechEndTimeout();
+      if (!realtimeSpeechActiveRef.current) {
+        realtimeSpeechActiveRef.current = true;
+        latestUserTranscriptRef.current = '';
+        transcriptBuffersRef.current.user = '';
+        workoutHandledThisTurnRef.current = false;
+        clearPlaybackQueue();
+        socket.send(JSON.stringify({ realtimeInput: { activityStart: {} } }));
+        setPhase('user_speaking');
+      }
+      return;
+    }
+
+    if (
+      realtimeSpeechActiveRef.current
+      && rms <= REALTIME_SPEECH_END_RMS
+      && !realtimeSpeechEndTimeoutRef.current
+    ) {
+      realtimeSpeechEndTimeoutRef.current = setTimeout(() => {
+        realtimeSpeechEndTimeoutRef.current = null;
+        if (!realtimeSpeechActiveRef.current) return;
+        realtimeSpeechActiveRef.current = false;
+        const currentSocket = socketRef.current;
+        if (isSocketOpen(currentSocket)) {
+          currentSocket.send(JSON.stringify({ realtimeInput: { activityEnd: {} } }));
+        }
+        setPhase((current) => current === 'user_speaking' ? 'listening' : current);
+      }, REALTIME_SPEECH_END_DELAY_MS);
+    }
+  }, [clearPlaybackQueue, clearRealtimeSpeechEndTimeout, interactionMode]);
+
   const installMicrophoneStreaming = useCallback((): boolean => {
     const audio = audioRef.current;
     if (!audio) {
@@ -867,7 +973,8 @@ export function useRealtimeCoach({
       const socket = socketRef.current;
       const chunk = normalizeMicrophoneChunk(event.data);
       if (!isSocketOpen(socket) || !chunk?.byteLength) return;
-      if (!isUserTurnActiveRef.current) return;
+      if (interactionMode !== 'realtime' && !isUserTurnActiveRef.current) return;
+      updateRealtimeSpeechActivity(chunk);
       userTurnMicrophoneChunksReceivedRef.current += 1;
       microphoneChunksSentRef.current += 1;
       userTurnMicrophoneChunksSentRef.current += 1;
@@ -899,7 +1006,25 @@ export function useRealtimeCoach({
       userTurnMicrophoneChunksReceived: 0,
     }));
     return true;
-  }, [cleanupMicrophoneSubscription]);
+  }, [cleanupMicrophoneSubscription, interactionMode, updateRealtimeSpeechActivity]);
+
+  const armMicrophoneWatchdog = useCallback(() => {
+    clearMicWatchdog();
+    micWatchdogTimeoutRef.current = setTimeout(() => {
+      if (!isMountedRef.current || !isUserTurnActiveRef.current || userTurnMicrophoneChunksReceivedRef.current > 0) return;
+      try {
+        audioRef.current?.bypassVoiceProcessing?.(true);
+      } catch {
+        // The fallback is best-effort; the watchdog message is the useful signal.
+      }
+      setDebugStatus((current) => ({
+        ...current,
+        micWatchdogTriggered: true,
+        nativeAudioFallback: 'voice_processing_unavailable',
+      }));
+      setError(MICROPHONE_STREAM_ERROR);
+    }, MIC_STREAM_WATCHDOG_MS);
+  }, [clearMicWatchdog]);
 
   const startUserTurn = useCallback((): boolean => {
     const audio = audioRef.current;
@@ -943,23 +1068,10 @@ export function useRealtimeCoach({
       throw new Error('Microphone recording did not start.');
     }
 
-    micWatchdogTimeoutRef.current = setTimeout(() => {
-      if (!isMountedRef.current || !isUserTurnActiveRef.current || userTurnMicrophoneChunksReceivedRef.current > 0) return;
-      try {
-        audioRef.current?.bypassVoiceProcessing?.(true);
-      } catch {
-        // The fallback is best-effort; the watchdog message is the useful signal.
-      }
-      setDebugStatus((current) => ({
-        ...current,
-        micWatchdogTriggered: true,
-        nativeAudioFallback: 'voice_processing_unavailable',
-      }));
-      setError(MICROPHONE_STREAM_ERROR);
-    }, MIC_STREAM_WATCHDOG_MS);
+    armMicrophoneWatchdog();
 
     return true;
-  }, [clearMicWatchdog, clearPlaybackQueue, clearUserTurnEndTimeout]);
+  }, [armMicrophoneWatchdog, clearMicWatchdog, clearPlaybackQueue, clearUserTurnEndTimeout]);
 
   const finishUserTurn = useCallback(() => {
     pendingUserTurnRef.current = false;
@@ -1012,7 +1124,8 @@ export function useRealtimeCoach({
       'onInputVolumeLevelData',
       (event) => {
         if (typeof event.data !== 'number') return;
-        setUserAudioLevel(Math.max(0, Math.min(1, event.data)));
+        const level = Math.max(0, Math.min(1, event.data));
+        setUserAudioLevel(level);
       }
     ) ?? null;
     outputVolumeSubscriptionRef.current = audio.addExpoTwoWayAudioEventListener(
@@ -1064,6 +1177,24 @@ export function useRealtimeCoach({
           setPhase('stopped');
           continue;
         }
+        if (interactionMode === 'realtime') {
+          userTurnMicrophoneChunksSentRef.current = 0;
+          userTurnMicrophoneChunksReceivedRef.current = 0;
+          const isRecording = audioRef.current.toggleRecording(true);
+          isUserTurnActiveRef.current = Boolean(isRecording);
+          setIsUserTurnActive(Boolean(isRecording));
+          setDebugStatus((current) => ({
+            ...current,
+            recordingStarted: Boolean(isRecording),
+            pushToTalkActive: false,
+          }));
+          if (isRecording) {
+            armMicrophoneWatchdog();
+          } else {
+            setError('Microphone recording did not start. Switch to push-and-hold mode and try again.');
+            setPhase('error');
+          }
+        }
         if (pendingUserTurnRef.current) {
           try {
             startUserTurn();
@@ -1112,6 +1243,15 @@ export function useRealtimeCoach({
         rememberCoachPhrase(transcriptBuffersRef.current.coach);
         hideTranscriptSoon();
         transcriptBuffersRef.current.coach = '';
+        if (visualContextPendingRef.current) {
+          visualContextPendingRef.current = false;
+          onVisualContextConsumed?.();
+        }
+        continue;
+      }
+
+      if (action.type === 'interrupted') {
+        clearPlaybackQueue();
         continue;
       }
 
@@ -1126,9 +1266,13 @@ export function useRealtimeCoach({
       }
     }
   }, [
+    clearPlaybackQueue,
+    armMicrophoneWatchdog,
     hideTranscriptSoon,
     handleWorkoutToolCall,
+    interactionMode,
     maybeGenerateWorkoutFromTranscript,
+    onVisualContextConsumed,
     playGeminiAudio,
     installMicrophoneStreaming,
     rememberCoachPhrase,
@@ -1185,7 +1329,7 @@ export function useRealtimeCoach({
       startNativeAudioDiagnostics(audio);
       startVolumeMonitoring(audio);
 
-      const sessionResponse = await createRealtimeCoachSession(preferences);
+      const sessionResponse = await createRealtimeCoachSession(preferences, interactionMode);
       if (sessionResponse.type === 'error') {
         cleanup();
         void setVoiceCoachAudioMode(false).catch(() => {
@@ -1209,7 +1353,7 @@ export function useRealtimeCoach({
         clearUsageReportInterval();
         usageReportIntervalRef.current = setInterval(reportElapsedUsage, USAGE_REPORT_INTERVAL_MS);
         setDebugStatus((current) => ({ ...current, socketOpened: true }));
-        socket.send(JSON.stringify(buildGeminiSetupMessage(sessionResponse.session.model, preferences)));
+        socket.send(JSON.stringify(buildGeminiSetupMessage(sessionResponse.session.model, preferences, interactionMode)));
       };
 
       socket.onmessage = (event) => {
@@ -1293,6 +1437,7 @@ export function useRealtimeCoach({
     clearUsageReportInterval,
     handleGeminiMessage,
     finalizeUsageReporting,
+    interactionMode,
     phase,
     preferences,
     reportElapsedUsage,
@@ -1302,6 +1447,10 @@ export function useRealtimeCoach({
   ]);
 
   const beginUserTurn = useCallback(async () => {
+    if (interactionMode === 'realtime') {
+      if (phase === 'idle' || phase === 'stopped' || phase === 'error') await start();
+      return;
+    }
     if (isUserTurnActiveRef.current) return;
 
     pendingUserTurnRef.current = true;
@@ -1317,11 +1466,30 @@ export function useRealtimeCoach({
     if (phase === 'idle' || phase === 'stopped' || phase === 'error') {
       await start();
     }
-  }, [phase, start, startUserTurn]);
+  }, [interactionMode, phase, start, startUserTurn]);
 
   const endUserTurn = useCallback(() => {
+    if (interactionMode === 'realtime') return;
     finishUserTurn();
-  }, [finishUserTurn]);
+  }, [finishUserTurn, interactionMode]);
+
+  const sendVisualContext = useCallback((images: AIImage[]): boolean => {
+    const socket = socketRef.current;
+    if (!isSocketOpen(socket) || !setupCompleteRef.current || images.length === 0) return false;
+    socket.send(JSON.stringify({
+      clientContent: {
+        turns: [{
+          role: 'user',
+          parts: images.map((image) => ({
+            inlineData: { mimeType: image.mimeType, data: image.base64 },
+          })),
+        }],
+        turnComplete: false,
+      },
+    }));
+    visualContextPendingRef.current = true;
+    return true;
+  }, []);
 
   const markVoiceWorkoutSaved = useCallback((messageId: string, templateId: string) => {
     setVoiceWorkoutMessages((current) => current.map((message) => (
@@ -1387,6 +1555,7 @@ export function useRealtimeCoach({
     stop,
     beginUserTurn,
     endUserTurn,
+    sendVisualContext,
     speakCreatorScript,
     setError,
     markVoiceWorkoutSaved,

@@ -50,6 +50,16 @@ describe('geminiLive', () => {
     ]);
   });
 
+  it('maps interruptions so queued coach audio can be cleared', () => {
+    expect(parseGeminiLiveMessage(JSON.stringify({
+      serverContent: { interrupted: true },
+    }))).toEqual([
+      { type: 'interrupted' },
+      { type: 'phase', phase: 'listening' },
+      { type: 'turn_complete' },
+    ]);
+  });
+
   it('maps Gemini Live function calls into tool actions', () => {
     const actions = parseGeminiLiveMessage(JSON.stringify({
       toolCall: {

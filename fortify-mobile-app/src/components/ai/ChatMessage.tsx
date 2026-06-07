@@ -27,6 +27,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplateCard';
 import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
+import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
@@ -229,6 +230,9 @@ export function ChatMessage({
       entering={FadeIn.duration(300).delay(delay)}
       style={[styles.container, isUser ? [styles.userContainer, themedStyles.userContainer] : styles.aiContainer]}
     >
+      {isUser && message.attachments && message.attachments.length > 0 && (
+        <AIMediaPreviewStrip media={message.attachments} />
+      )}
       <View style={[styles.content, isUser ? styles.userContent : styles.aiContent]}>
         {isUser ? (
           <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>

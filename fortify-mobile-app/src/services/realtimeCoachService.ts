@@ -37,7 +37,8 @@ export type RealtimeCoachScriptAudioResponse =
   | Extract<RealtimeCoachServiceResponse, { type: 'error' }>;
 
 export async function createRealtimeCoachSession(
-  preferences: RealtimeCoachPreferences
+  preferences: RealtimeCoachPreferences,
+  interactionMode: 'push_to_talk' | 'realtime' = 'push_to_talk'
 ): Promise<RealtimeCoachServiceResponse> {
   const hasConsent = await hasAIDataSharingConsent();
   if (!hasConsent) {
@@ -82,6 +83,7 @@ export async function createRealtimeCoachSession(
       body: {
         action: 'start_session',
         preferences,
+        interactionMode,
         aiDataSharingConsent: true,
       },
     });

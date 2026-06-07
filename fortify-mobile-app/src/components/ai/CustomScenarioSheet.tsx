@@ -65,6 +65,18 @@ export function CustomScenarioSheet({
     borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.09)',
     color: colors.textPrimary,
   };
+  const customCoachPillStyle = {
+    backgroundColor: isCustomCoachSelected
+      ? colors.accent
+      : isDark
+        ? 'rgba(255,255,255,0.055)'
+        : 'rgba(0,0,0,0.045)',
+    borderColor: isCustomCoachSelected
+      ? colors.accent
+      : isDark
+        ? 'rgba(255,255,255,0.1)'
+        : 'rgba(0,0,0,0.1)',
+  };
   const updatePersonality = (personality: AICoachPersonality) => {
     if (personality === preferences.personality) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -155,15 +167,17 @@ export function CustomScenarioSheet({
                 <Pressable
                   testID="custom-coach-select-button"
                   onPress={selectCustomCoach}
-                  hitSlop={10}
                   accessibilityRole="button"
                   accessibilityState={{ selected: isCustomCoachSelected }}
+                  style={[styles.customCoachPill, customCoachPillStyle]}
                 >
                   <Text
                     style={[
-                      styles.label,
+                      styles.customCoachPillText,
                       {
-                        color: isCustomCoachSelected ? colors.accent : colors.textSecondary,
+                        color: isCustomCoachSelected
+                          ? colors.accentForegroundOnFill
+                          : colors.textSecondary,
                       },
                     ]}
                   >
@@ -268,9 +282,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.md,
   },
-  label: {
-    ...Typography.labelSmall,
+  customCoachPill: {
+    minHeight: 38,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xs,
+  },
+  customCoachPillText: {
     fontFamily: 'BankGothicBT-Medium',
+    fontSize: 11,
     fontWeight: '500',
     textTransform: 'uppercase',
     letterSpacing: 0,

@@ -26,6 +26,7 @@ interface RealtimeSessionRequest {
   aiDataSharingConsent?: boolean;
   secondsUsed?: number;
   script?: string;
+  interactionMode?: 'push_to_talk' | 'realtime';
 }
 
 const VOICES: AICoachVoice[] = ['marin', 'cedar', 'coral', 'verse'];
@@ -260,6 +261,7 @@ Voice Coach rules:
 - For workout requests, use the user's training environment from personalization context when present: gym means full gym equipment, home means bodyweight/dumbbells/bands/kettlebells, hybrid means gym-quality choices unless the user asks for home. If it is missing, assume full gym.
 - Ask a follow-up only when the request is genuinely impossible or unsafe to answer without one.
 - Do not claim form detection, rep counting, or medical diagnosis.
+- Do not say that routine workout or fitness information is not health or medical advice. Only mention medical limitations when the user describes pain, injury, symptoms, diagnosis, or asks for medical guidance.
 - When answering training-history or progress questions, use the provided personalization context first and state the timeframe you are using.
 - If the personalization context has sparse or missing data, be direct about that instead of guessing.
 - Style intensity: ${intensityLabel}.
@@ -568,7 +570,8 @@ async function createGeminiLiveToken(
   userId: string,
   preferences: RealtimeCoachPreferences,
   trainingContext: VoiceCoachTrainingContext | null,
-  maxSessionSeconds: number
+  maxSessionSeconds: number,
+  interactionMode: 'push_to_talk' | 'realtime'
 ) {
   const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
   if (!apiKey) {
@@ -613,7 +616,9 @@ async function createGeminiLiveToken(
           automaticActivityDetection: {
             disabled: true,
           },
-          activityHandling: 'NO_INTERRUPTION',
+          activityHandling: interactionMode === 'realtime'
+            ? 'START_OF_ACTIVITY_INTERRUPTS'
+            : 'NO_INTERRUPTION',
         },
       },
     }),
@@ -723,7 +728,8 @@ Deno.serve(async (req: Request) => {
     const trainingContext = await assembleVoiceCoachTrainingContext(adminClient, user.id);
     await recordSessionStarted(adminClient, user.id);
     const maxSessionSeconds = usage.maxSecondsForSession ?? MAX_SECONDS_PER_SESSION;
-    const token = await createGeminiLiveToken(user.id, preferences, trainingContext, maxSessionSeconds);
+    const interactionMode = body.interactionMode === 'realtime' ? 'realtime' : 'push_to_talk';
+    const token = await createGeminiLiveToken(user.id, preferences, trainingContext, maxSessionSeconds, interactionMode);
     const accessToken = token?.name;
 
     if (typeof accessToken !== 'string' || accessToken.length === 0) {

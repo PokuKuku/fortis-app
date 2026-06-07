@@ -27,7 +27,7 @@
         "CFBundleName": "FortifyAI",
         "NSMicrophoneUsageDescription": "Fortify uses your microphone so you can dictate messages to the AI assistant.",
         "NSSpeechRecognitionUsageDescription": "Fortify uses speech recognition so your voice messages can appear as text while you speak.",
-        "NSPhotoLibraryUsageDescription": "Turning on Photo access will allow us to display your chosen photo for your profile.",
+        "NSPhotoLibraryUsageDescription": "Fortify uses Photo access for profile pictures and to attach photos or videos to AI chat.",
         "UIApplicationShortcutItems": [
           {
             "UIApplicationShortcutItemType": "com.fortisfitness.app.delete-feedback",

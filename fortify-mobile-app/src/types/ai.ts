@@ -47,6 +47,30 @@ export interface AIRequest {
   message: string;
   context?: AIRequestContext;
   history?: AIChatMessage[];
+  image?: AIImage;
+  images?: AIImage[];
+}
+
+export type AIImageMimeType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
+export interface AIImage {
+  base64: string;
+  mimeType: AIImageMimeType;
+}
+
+export interface AIAttachmentDisplay {
+  id: string;
+  uri: string;
+  kind: 'image' | 'video';
+  label?: string;
+}
+
+export interface AIPendingMedia {
+  id: string;
+  uri: string;
+  kind: 'image' | 'video';
+  label?: string;
+  images: AIImage[];
 }
 
 export interface AIResponse {
@@ -147,6 +171,7 @@ export interface AIConversationMessage {
   clarification?: AIClarification;
   workoutTemplate?: AIWorkoutTemplate;
   savedWorkoutTemplateId?: string | null;
+  attachments?: AIAttachmentDisplay[];
 }
 
 export interface AIConversation {

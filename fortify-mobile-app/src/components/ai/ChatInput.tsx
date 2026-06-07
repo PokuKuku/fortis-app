@@ -26,7 +26,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import { MicrophoneIcon, PaperAirplaneIcon } from 'react-native-heroicons/outline';
+import { MicrophoneIcon, PaperAirplaneIcon, PlusIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -37,6 +37,8 @@ interface ChatInputProps {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
+  onAddMedia?: () => void;
+  hasAttachments?: boolean;
   disabled?: boolean;
   placeholder?: string;
 }
@@ -81,6 +83,8 @@ export function ChatInput({
   value,
   onChangeText,
   onSend,
+  onAddMedia,
+  hasAttachments = false,
   disabled = false,
   placeholder = 'Ask about your training...',
 }: ChatInputProps) {
@@ -123,7 +127,7 @@ export function ChatInput({
 
   const isVoiceBusy = voicePhase !== 'idle';
   const hasTypedValue = value.trim().length > 0;
-  const canSend = hasTypedValue && !disabled && !isVoiceBusy;
+  const canSend = (hasTypedValue || hasAttachments) && !disabled && !isVoiceBusy;
   const canUseVoice = !disabled;
 
   const borderOpacity = useSharedValue(0);
@@ -352,6 +356,20 @@ export function ChatInput({
               size={IconSizes.md}
             />
           </AnimatedTouchableOpacity>
+
+          {onAddMedia && (
+            <AnimatedTouchableOpacity
+              testID="chat-add-media"
+              style={[styles.actionButton, themedStyles.actionButton, actionButtonStyle]}
+              onPress={onAddMedia}
+              disabled={disabled}
+              activeOpacity={0.8}
+              accessibilityLabel="Add photos or video"
+              accessibilityRole="button"
+            >
+              <PlusIcon color={colors.textSecondary} size={IconSizes.md} />
+            </AnimatedTouchableOpacity>
+          )}
 
           <AnimatedTouchableOpacity
             style={[

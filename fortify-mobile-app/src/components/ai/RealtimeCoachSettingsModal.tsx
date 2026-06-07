@@ -48,6 +48,8 @@ export function RealtimeCoachSettingsModal({
   const [sliderWidth, setSliderWidth] = useState(1);
   const [draftIntensity, setDraftIntensity] = useState(preferences.intensity);
   const draftIntensityRef = useRef(preferences.intensity);
+  const sliderRef = useRef<View>(null);
+  const sliderPageXRef = useRef<number | null>(null);
   const modalWidth = Math.min(380, Math.max(320, windowWidth - Spacing.xl * 2));
   const maxContentHeight = Math.max(320, windowHeight - Spacing['4xl'] * 2 - 120);
   const optionBg = isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.045)';
@@ -93,12 +95,18 @@ export function RealtimeCoachSettingsModal({
 
   const handleSliderLayout = (event: LayoutChangeEvent) => {
     setSliderWidth(Math.max(1, event.nativeEvent.layout.width));
+    sliderRef.current?.measureInWindow((pageX) => {
+      sliderPageXRef.current = pageX;
+    });
   };
 
-  const setDraftIntensityFromX = useCallback((locationX: number) => {
+  const setDraftIntensityFromPageX = useCallback((pageX: number) => {
+    const sliderPageX = sliderPageXRef.current;
+    if (sliderPageX === null) return;
+
     const intensity = Math.min(
       1,
-      Math.max(0, (locationX - sliderKnobSize / 2) / usableSliderWidth)
+      Math.max(0, (pageX - sliderPageX - sliderKnobSize / 2) / usableSliderWidth)
     );
     draftIntensityRef.current = intensity;
     setDraftIntensity(intensity);
@@ -112,14 +120,18 @@ export function RealtimeCoachSettingsModal({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
-      setDraftIntensityFromX(event.nativeEvent.locationX);
+      const pageX = event.nativeEvent.pageX;
+      sliderRef.current?.measureInWindow((sliderPageX) => {
+        sliderPageXRef.current = sliderPageX;
+        setDraftIntensityFromPageX(pageX);
+      });
     },
     onPanResponderMove: (event) => {
-      setDraftIntensityFromX(event.nativeEvent.locationX);
+      setDraftIntensityFromPageX(event.nativeEvent.pageX);
     },
     onPanResponderRelease: commitDraftIntensity,
     onPanResponderTerminate: commitDraftIntensity,
-  }), [commitDraftIntensity, setDraftIntensityFromX]);
+  }), [commitDraftIntensity, setDraftIntensityFromPageX]);
 
   const knobLeft = draftIntensity * usableSliderWidth;
   const knobCenter = knobLeft + sliderKnobSize / 2;
@@ -177,6 +189,7 @@ export function RealtimeCoachSettingsModal({
             </Text>
           </View>
           <View
+            ref={sliderRef}
             onLayout={handleSliderLayout}
             style={styles.sliderTouchArea}
             {...sliderResponder.panHandlers}

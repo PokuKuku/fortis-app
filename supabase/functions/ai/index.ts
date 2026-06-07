@@ -97,6 +97,7 @@ interface AIRequest {
     content: string;
   }>;
   image?: AIImage;
+  images?: AIImage[];
 }
 
 interface AIWorkoutTemplateExercise {
@@ -364,6 +365,8 @@ function sanitizeUserInput(input: string): string {
 
 const VALID_IMAGE_MIME_TYPES: AIImageMimeType[] = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
+const MAX_IMAGE_COUNT = 4;
+const MAX_TOTAL_IMAGE_SIZE_BYTES = 12 * 1024 * 1024;
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_HISTORY_MESSAGE_CHARS = 2000;
 const MAX_HISTORY_TOTAL_CHARS = 12000;
@@ -373,7 +376,7 @@ function validateRequest(body: unknown): string | null {
     return 'Request body must be a JSON object';
   }
 
-  const { intent, message, image, context, history } = body as Record<string, unknown>;
+  const { intent, message, image, images, context, history } = body as Record<string, unknown>;
 
   if (!intent || typeof intent !== 'string') {
     return 'Missing or invalid intent';
@@ -452,14 +455,20 @@ function validateRequest(body: unknown): string | null {
     }
   }
 
-  // Validate image if present
-  if (image) {
-    if (typeof image !== 'object') {
-      return 'Image must be an object';
+  const imageCandidates = images !== undefined ? images : image ? [image] : [];
+  if (!Array.isArray(imageCandidates)) {
+    return 'Images must be an array';
+  }
+  if (imageCandidates.length > MAX_IMAGE_COUNT) {
+    return `Images must contain at most ${MAX_IMAGE_COUNT} items`;
+  }
+
+  let totalImageSize = 0;
+  for (const candidate of imageCandidates) {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+      return 'Each image must be an object';
     }
-
-    const { base64, mimeType } = image as Record<string, unknown>;
-
+    const { base64, mimeType } = candidate as Record<string, unknown>;
     if (!base64 || typeof base64 !== 'string') {
       return 'Image must have a base64 string';
     }
@@ -490,6 +499,10 @@ function validateRequest(body: unknown): string | null {
     if (estimatedSize < 100) {
       return 'Image appears to be corrupt or empty';
     }
+    totalImageSize += estimatedSize;
+  }
+  if (totalImageSize > MAX_TOTAL_IMAGE_SIZE_BYTES) {
+    return `Images exceed the ${MAX_TOTAL_IMAGE_SIZE_BYTES / 1024 / 1024}MB total limit`;
   }
 
   return null;
@@ -1545,10 +1558,15 @@ async function fetchWorkoutEditExerciseCatalog(
     });
   });
 
+  const parsedEditRequests = parseWorkoutEditRequests(message);
+  const needsDraftFocus = editRequest.action === 'resize'
+    || parsedEditRequests.some((request) => (
+      request.action === 'add' && isGenericExerciseAdditionPhrase(request.targetPhrase)
+    ));
   const targetText = [
-    editRequest.action === 'resize' ? draft.focus : undefined,
-    editRequest.action === 'resize' ? draft.name : undefined,
-    ...parseWorkoutEditRequests(message).flatMap((request) => [
+    needsDraftFocus ? draft.focus : undefined,
+    needsDraftFocus ? draft.name : undefined,
+    ...parsedEditRequests.flatMap((request) => [
       request.targetPhrase,
       request.sourcePhrase,
     ]),
@@ -1700,7 +1718,8 @@ async function callAIProvider(
     const deterministicEdit = resolveWorkoutTemplateEdit(
       request.message,
       currentDraft,
-      context.exerciseCatalog
+      context.exerciseCatalog,
+      { resolveAmbiguousAdds: true }
     );
 
     if (deterministicEdit.clarification) {
@@ -1801,15 +1820,16 @@ async function callModelText(
       });
     }
 
-    if (request.image) {
+    const requestImages = getRequestImages(request);
+    if (requestImages.length > 0) {
       input.push({
         role: 'user',
         content: [
           { type: 'input_text', text: userMessage },
-          {
+          ...requestImages.map((image) => ({
             type: 'input_image',
-            image_url: `data:${request.image.mimeType};base64,${request.image.base64}`,
-          },
+            image_url: `data:${image.mimeType};base64,${image.base64}`,
+          })),
         ],
       });
     } else {
@@ -1898,11 +1918,11 @@ async function callGeminiText(
   }));
 
   const userParts: Array<Record<string, unknown>> = [{ text: userMessage }];
-  if (request.image) {
+  for (const image of getRequestImages(request)) {
     userParts.push({
       inline_data: {
-        mime_type: request.image.mimeType,
-        data: request.image.base64,
+        mime_type: image.mimeType,
+        data: image.base64,
       },
     });
   }
@@ -2040,17 +2060,18 @@ async function callOpenAIChatCompletions(
     messages.push({ role: message.role, content: message.content });
   }
 
-  if (request.image) {
+  const requestImages = getRequestImages(request);
+  if (requestImages.length > 0) {
     messages.push({
       role: 'user',
       content: [
         { type: 'text', text: userMessage },
-        {
+        ...requestImages.map((image) => ({
           type: 'image_url',
           image_url: {
-            url: `data:${request.image.mimeType};base64,${request.image.base64}`,
+            url: `data:${image.mimeType};base64,${image.base64}`,
           },
-        },
+        })),
       ],
     });
   } else {
@@ -2374,6 +2395,7 @@ CORE PRINCIPLES:
 - If the user asks for training analysis, answer with available context when possible. Ask for a timeframe only when the answer would be misleading without it.
 - Keep responses concise but helpful. Provide actionable guidance when relevant.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
+- Do not include routine health-advice or medical-advice disclaimers. Only mention medical limitations when the user describes pain, injury, symptoms, diagnosis, or asks for medical guidance.
 ${FORTIS_VOICE_GUIDANCE}
 ${workoutTemplateGuidance}
 
@@ -2450,6 +2472,7 @@ ${FORTIS_VOICE_GUIDANCE}
 - Do not refer to yourself as a coach.
 - Be concise but useful. Prioritize actionable information and clear evidence.
 - Never provide medical advice. If injury/pain is mentioned, suggest consulting a healthcare provider.
+- Do not include routine health-advice or medical-advice disclaimers. Only mention medical limitations when the user describes pain, injury, symptoms, diagnosis, or asks for medical guidance.
 - TRAINING HISTORY and ANALYTICS are provided for normal chat; use them when relevant.
 - Do not say you lack training data if TRAINING HISTORY or ANALYTICS are present.
 - For consistency, habit, streak, momentum, or adherence questions, infer the best timeframe from available history instead of asking the user to clarify. Use the current week when it has meaningful activity; otherwise use the last 4 weeks/month. State the timeframe you used.
@@ -2604,6 +2627,13 @@ function getHistoryMessagesForRequest(
   }
 
   return normalizeHistoryMessages(request.history, request.message);
+}
+
+function getRequestImages(request: AIRequest): AIImage[] {
+  if (Array.isArray(request.images)) {
+    return request.images;
+  }
+  return request.image ? [request.image] : [];
 }
 
 function estimateTextInputChars(
@@ -3383,6 +3413,13 @@ function cleanRequestedExercisePhrase(value: string | undefined): string | undef
   return cleaned || undefined;
 }
 
+function isGenericExerciseAdditionPhrase(value: string | undefined): boolean {
+  if (!value) return true;
+  const normalized = normalizeSearchText(value);
+  return /^(?:(?:a|an|one) )?(?:different|another|new|other)(?: exercise| movement| lift| one)?$/.test(normalized)
+    || /^(?:exercise|movement|lift|one)$/.test(normalized);
+}
+
 function parseWorkoutResizeRequest(message: string): ParsedWorkoutEditRequest | null {
   const targetCount = extractRequestedExerciseCount(message);
   if (!targetCount) {
@@ -3723,7 +3760,8 @@ function buildDraftClarificationOptions(
 function resolveWorkoutEditOperation(
   request: ParsedWorkoutEditRequest,
   draft: AIWorkoutTemplate,
-  catalog: WorkoutGenerationExerciseCatalogEntry[]
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  options: { resolveAmbiguousAdds?: boolean } = {}
 ): WorkoutEditResolution {
   const exercises = [...draft.exercises];
 
@@ -3815,8 +3853,78 @@ function resolveWorkoutEditOperation(
 
   if (request.action === 'add') {
     const existingIds = new Set(exercises.map((exercise) => exercise.exerciseId));
+    if (isGenericExerciseAdditionPhrase(request.targetPhrase)) {
+      const existingCanonicalGroups = new Set(
+        catalog
+          .filter((entry) => existingIds.has(entry.id))
+          .map(getCanonicalGroup)
+      );
+      const targetMuscles = extractWorkoutTargetMuscles([draft.focus, draft.name].filter(Boolean).join(' '));
+      const addition = catalog
+        .filter((entry) => !existingIds.has(entry.id) && !existingCanonicalGroups.has(getCanonicalGroup(entry)))
+        .map((entry) => ({
+          entry,
+          score: scoreCatalogExercise(entry, targetMuscles, []),
+        }))
+        .filter(({ score }) => score > 0)
+        .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name))[0]?.entry;
+
+      if (!addition) {
+        return {
+          template: draft,
+          text: `I couldn't confidently find another exercise for ${draft.name}, so I left it unchanged.`,
+          changed: false,
+        };
+      }
+
+      const compound = isCompoundExerciseName(addition.name);
+      return {
+        template: {
+          ...draft,
+          estimatedDurationMinutes: Math.min(120, (draft.estimatedDurationMinutes ?? 45) + 10),
+          exercises: [
+            ...exercises,
+            {
+              exerciseId: addition.id,
+              exerciseName: toWorkoutTitleCase(addition.name),
+              sets: 3,
+              reps: compound ? '8-10' : '10-15',
+              restSeconds: compound ? 90 : 60,
+            },
+          ].slice(0, MAX_WORKOUT_TEMPLATE_EXERCISES),
+        },
+        text: `Added ${toWorkoutTitleCase(addition.name)} to ${draft.name}.`,
+        changed: true,
+        summary: `added ${toWorkoutTitleCase(addition.name)}`,
+      };
+    }
+
     const rankedMatches = findCatalogMatchesFromPhrase(request.targetPhrase, catalog, existingIds);
     if (!isConfidentExerciseMatch(rankedMatches.map((entry) => entry.score))) {
+      if (options.resolveAmbiguousAdds && (rankedMatches[0]?.score ?? 0) >= 60) {
+        const addition = rankedMatches[0].entry;
+        const compound = isCompoundExerciseName(addition.name);
+        return {
+          template: {
+            ...draft,
+            estimatedDurationMinutes: Math.min(120, (draft.estimatedDurationMinutes ?? 45) + 10),
+            exercises: [
+              ...exercises,
+              {
+                exerciseId: addition.id,
+                exerciseName: toWorkoutTitleCase(addition.name),
+                sets: 3,
+                reps: compound ? '8-10' : '10-15',
+                restSeconds: compound ? 90 : 60,
+              },
+            ].slice(0, MAX_WORKOUT_TEMPLATE_EXERCISES),
+          },
+          text: `Added ${toWorkoutTitleCase(addition.name)} to ${draft.name}.`,
+          changed: true,
+          summary: `added ${toWorkoutTitleCase(addition.name)}`,
+        };
+      }
+
       if (shouldOfferExerciseClarification(rankedMatches.map((entry) => entry.score))) {
         return {
           template: draft,
@@ -3901,7 +4009,7 @@ function resolveWorkoutEditOperation(
       (exercise) => exercise.exerciseId !== sourceExercise.exerciseId
     );
 
-    if (nextExercises.length >= 3) {
+    if (nextExercises.length >= 1) {
       return {
         template: {
           ...draft,
@@ -3916,7 +4024,7 @@ function resolveWorkoutEditOperation(
 
     return {
       template: draft,
-      text: `I kept ${sourceExercise.exerciseName} in ${draft.name} because removing it would make the workout too short.`,
+      text: `I kept ${sourceExercise.exerciseName} in ${draft.name} because a workout needs at least one exercise.`,
       changed: false,
     };
   }
@@ -3992,7 +4100,8 @@ function joinEditSummaries(summaries: string[]): string {
 function resolveWorkoutTemplateEdit(
   message: string,
   draft: AIWorkoutTemplate,
-  catalog: WorkoutGenerationExerciseCatalogEntry[]
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  options: { resolveAmbiguousAdds?: boolean } = {}
 ): WorkoutEditResolution {
   const requests = parseWorkoutEditRequests(message);
   if (requests.length === 0) {
@@ -4009,7 +4118,7 @@ function resolveWorkoutTemplateEdit(
   const unchangedNotes: string[] = [];
 
   for (const request of requests) {
-    const result = resolveWorkoutEditOperation(request, currentDraft, catalog);
+    const result = resolveWorkoutEditOperation(request, currentDraft, catalog, options);
     if (result.clarification) {
       const appliedText = summaries.length > 0
         ? `I ${joinEditSummaries(summaries)}. `

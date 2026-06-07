@@ -25,6 +25,8 @@ import {
   type VoiceWorkoutMessage,
 } from '@/src/types/realtimeCoach';
 import type { AIConversationMessage } from '@/src/types/ai';
+import type { AIPendingMedia } from '@/src/types/ai';
+import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 
 interface RealtimeVoiceCoachScreenProps {
   phase: RealtimeCoachPhase;
@@ -51,6 +53,9 @@ interface RealtimeVoiceCoachScreenProps {
   onAddWorkoutTemplate: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate: (message: AIConversationMessage) => void;
   onDismissWorkoutTemplate: (messageId: string) => void;
+  interactionMode?: 'push_to_talk' | 'realtime';
+  pendingMedia?: AIPendingMedia[];
+  onRemovePendingMedia?: (id: string) => void;
 }
 
 const CREATOR_SCRIPT_MAX_CHARS = 500;
@@ -116,6 +121,9 @@ export function RealtimeVoiceCoachScreen({
   onAddWorkoutTemplate,
   onStartWorkoutTemplate,
   onDismissWorkoutTemplate,
+  interactionMode = 'push_to_talk',
+  pendingMedia = [],
+  onRemovePendingMedia,
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
   const [creatorScript, setCreatorScript] = useState('');
@@ -134,7 +142,9 @@ export function RealtimeVoiceCoachScreen({
   const talkButtonBorderWidth = Math.max(4, Math.round(5 * viewportScale));
   const talkButtonBottom = Math.max(20, Math.min(38, height * 0.038));
   const visualizerTop = Math.max(138, Math.min(190, height * 0.2));
-  const middleSlotBottom = talkButtonBottom + talkButtonSize + Spacing.md;
+  const middleSlotBottom = interactionMode === 'realtime'
+    ? talkButtonBottom
+    : talkButtonBottom + talkButtonSize + Spacing.md;
   const middleSlotFrame = {
     top: visualizerTop + visualizerHeight + Spacing.md,
     bottom: middleSlotBottom,
@@ -158,6 +168,15 @@ export function RealtimeVoiceCoachScreen({
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
   const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
+  const realtimeStatus = interactionMode === 'realtime'
+    ? phase === 'connecting'
+      ? 'Connecting hands-free mode...'
+      : debugStatus.recordingStarted && debugStatus.microphoneChunksSent > 0
+        ? 'Listening hands-free'
+        : debugStatus.recordingStarted
+          ? 'Starting microphone...'
+          : 'Microphone is not active'
+    : null;
   const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -283,6 +302,9 @@ export function RealtimeVoiceCoachScreen({
   return (
     <View style={[styles.container, styles.content]}>
       <View style={styles.hero}>
+        <View style={styles.pendingMedia}>
+          <AIMediaPreviewStrip media={pendingMedia} onRemove={onRemovePendingMedia} />
+        </View>
         {isCreatorScriptEnabled ? (
           <View
             testID="creator-script-controls"
@@ -357,6 +379,14 @@ export function RealtimeVoiceCoachScreen({
             </Text>
           ) : null}
           {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
+          {realtimeStatus && !displayError ? (
+            <Text
+              testID="realtime-listening-status"
+              style={[styles.realtimeStatus, { color: colors.textSecondary }]}
+            >
+              {realtimeStatus}
+            </Text>
+          ) : null}
           {hasVoiceCards ? (
             <ScrollView
               testID="voice-card-scroll"
@@ -494,7 +524,7 @@ export function RealtimeVoiceCoachScreen({
           ) : null}
         </View>
 
-        <AnimatedTouchableOpacity
+        {interactionMode === 'push_to_talk' && <AnimatedTouchableOpacity
           style={[
             styles.talkButtonRing,
             {
@@ -538,7 +568,7 @@ export function RealtimeVoiceCoachScreen({
               },
             ]}
           />
-        </AnimatedTouchableOpacity>
+        </AnimatedTouchableOpacity>}
       </View>
     </View>
   );
@@ -560,6 +590,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-start',
     paddingTop: 0,
+  },
+  pendingMedia: {
+    position: 'absolute',
+    top: Spacing.xs,
+    left: -Spacing.lg,
+    right: -Spacing.lg,
+    zIndex: 4,
   },
   visualizerAnchor: {
     position: 'absolute',
@@ -633,6 +670,10 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: 'center',
     paddingHorizontal: Spacing.lg,
+  },
+  realtimeStatus: {
+    ...Typography.bodySmall,
+    textAlign: 'center',
   },
   talkButtonRing: {
     position: 'absolute',
