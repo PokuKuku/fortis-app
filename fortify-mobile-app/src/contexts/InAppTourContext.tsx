@@ -18,9 +18,10 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
 import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
 import { useTourNarration } from '@/src/hooks/useTourNarration';
-import { AI_CHAT_OVERVIEW_COPY } from '@/src/utils/aiChatTour';
+import { AI_CHAT_OVERVIEW_COPY, getAIChatTourNarrationVoice } from '@/src/utils/aiChatTour';
 
-const AI_CHAT_TOUR_NARRATION = require('@/assets/audio/ai-chat-overview.m4a');
+const AI_CHAT_TOUR_NARRATION_DEFAULT = require('@/assets/audio/ai-chat-overview.m4a');
+const AI_CHAT_TOUR_NARRATION_CEDAR = require('@/assets/audio/ai-chat-overview-cedar.m4a');
 
 type TourStepId =
   | 'welcome'
@@ -890,12 +891,15 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     isMainAppRoute &&
     isOverlayStepOnRoute
   );
+  const aiChatTourNarration = getAIChatTourNarrationVoice(profile?.gender) === 'cedar'
+    ? AI_CHAT_TOUR_NARRATION_CEDAR
+    : AI_CHAT_TOUR_NARRATION_DEFAULT;
   const {
     isPlaying: isTourNarrationPlaying,
     replay: replayTourNarration,
   } = useTourNarration({
     enabled: showOverlay && overlayStep?.id === 'ai_chat_overview',
-    source: AI_CHAT_TOUR_NARRATION,
+    source: aiChatTourNarration,
   });
 
   const auxiliaryAction = useMemo(() => {

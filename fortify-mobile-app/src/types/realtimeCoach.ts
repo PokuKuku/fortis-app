@@ -1,6 +1,7 @@
 import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 export type AIVoiceMode = 'chat' | 'voice';
+export type RealtimeVoiceInteractionMode = 'push_to_talk' | 'realtime';
 export type AICoachPersonality = 'supportive' | 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
 export type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse';
 
@@ -9,6 +10,7 @@ export interface RealtimeCoachPreferences {
   intensity: number;
   voice: AICoachVoice;
   customInstructions?: string;
+  interactionMode?: RealtimeVoiceInteractionMode;
 }
 
 export interface RealtimeCoachUsage {
@@ -101,4 +103,5 @@ export const DEFAULT_REALTIME_COACH_PREFERENCES: RealtimeCoachPreferences = {
   intensity: 0.55,
   voice: 'marin',
   customInstructions: '',
+  interactionMode: 'push_to_talk',
 };

@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fortify",
     "slug": "fortis",
-    "version": "1.2.0",
+    "version": "1.2.1",
     "orientation": "portrait",
     "icon": "./assets/fortify_new_icon.png",
     "notification": {
@@ -66,6 +66,7 @@
       "expo-notifications",
       "expo-secure-store",
       "expo-video",
+      "expo-localization",
       "./plugins/withSuperwallXcode26Fix",
       "./plugins/withStartWorkoutWidget",
       [

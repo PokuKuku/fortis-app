@@ -6,7 +6,9 @@ import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
+import { getRealtimeCoachPreferences, setRealtimeCoachPreferences } from '@/src/services/realtimeCoachPreferencesService';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
+import { applyOnboardingGenderCoachVoice } from '@/src/utils/onboardingCoachVoice';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius } from '@/constants/Sizes';
@@ -91,9 +93,15 @@ export default function OnboardingGenderScreen() {
     };
   }, []);
 
+  const applyCoachVoiceForGender = async (value: GenderOption) => {
+    const currentPreferences = await getRealtimeCoachPreferences();
+    await setRealtimeCoachPreferences(applyOnboardingGenderCoachVoice(currentPreferences, value));
+  };
+
   const handleSelect = (value: GenderOption) => {
     setSelected(value);
     void updateOnboardingState({ gender: value });
+    void applyCoachVoiceForGender(value);
     if (value === 'female') {
       void setBodyType('female');
     } else {

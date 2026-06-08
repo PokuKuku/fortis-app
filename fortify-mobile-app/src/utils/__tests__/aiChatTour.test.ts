@@ -1,6 +1,10 @@
 import fs from 'fs';
 import path from 'path';
-import { AI_CHAT_OVERVIEW_COPY, shouldAutoStartVoiceCoach } from '@/src/utils/aiChatTour';
+import {
+  AI_CHAT_OVERVIEW_COPY,
+  getAIChatTourNarrationVoice,
+  shouldAutoStartVoiceCoach,
+} from '@/src/utils/aiChatTour';
 
 describe('shouldAutoStartVoiceCoach', () => {
   it('suppresses realtime startup during the tour', () => {
@@ -13,6 +17,14 @@ describe('shouldAutoStartVoiceCoach', () => {
   it('preserves realtime startup outside the tour', () => {
     expect(shouldAutoStartVoiceCoach(false, 'ai_chat_overview')).toBe(true);
     expect(shouldAutoStartVoiceCoach(false, null)).toBe(true);
+  });
+
+  it('uses Cedar tour narration only for male users', () => {
+    expect(getAIChatTourNarrationVoice('male')).toBe('cedar');
+    expect(getAIChatTourNarrationVoice('female')).toBe('default');
+    expect(getAIChatTourNarrationVoice('other')).toBe('default');
+    expect(getAIChatTourNarrationVoice(null)).toBe('default');
+    expect(getAIChatTourNarrationVoice()).toBe('default');
   });
 
   it('uses overview copy without hyphens or em dashes', () => {

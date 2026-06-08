@@ -91,6 +91,7 @@ export const coerceRealtimeCoachPreferences = (
     voice,
     intensity,
     customInstructions: sanitizeCustomScenarioInstructions(value.customInstructions),
+    interactionMode: value.interactionMode === 'realtime' ? 'realtime' : 'push_to_talk',
   };
 };
 

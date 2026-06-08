@@ -11,6 +11,7 @@ import {
   sanitizeCustomScenarioInstructions,
 } from '@/src/utils/realtimeCoachPrompt';
 import { normalizeRealtimeCoachPreferences } from '@/src/services/realtimeCoachPreferencesService';
+import { applyOnboardingGenderCoachVoice, getCoachVoiceForOnboardingGender } from '@/src/utils/onboardingCoachVoice';
 
 describe('realtimeCoach utils', () => {
   it('detects workout generation voice prompts', () => {
@@ -49,6 +50,7 @@ describe('realtimeCoach utils', () => {
       voice: 'cedar',
       intensity: 1,
       customInstructions: '',
+      interactionMode: 'push_to_talk',
     });
 
     expect(coerceRealtimeCoachPreferences({
@@ -61,7 +63,28 @@ describe('realtimeCoach utils', () => {
       voice: 'marin',
       intensity: 0,
       customInstructions: 'be wild',
+      interactionMode: 'push_to_talk',
     });
+  });
+
+  it('selects Cedar for male onboarding gender and keeps the current default voice otherwise', () => {
+    expect(getCoachVoiceForOnboardingGender('male')).toBe('cedar');
+    expect(getCoachVoiceForOnboardingGender('female')).toBe('marin');
+    expect(getCoachVoiceForOnboardingGender('other')).toBe('marin');
+
+    expect(applyOnboardingGenderCoachVoice({
+      personality: 'direct',
+      intensity: 0.5,
+      voice: 'verse',
+      interactionMode: 'push_to_talk',
+    }, 'male').voice).toBe('cedar');
+
+    expect(applyOnboardingGenderCoachVoice({
+      personality: 'direct',
+      intensity: 0.5,
+      voice: 'cedar',
+      interactionMode: 'push_to_talk',
+    }, 'other').voice).toBe('marin');
   });
 
   it('normalizes persisted custom scenario preferences', () => {
@@ -74,6 +97,7 @@ describe('realtimeCoach utils', () => {
       intensity: 0.55,
       voice: 'marin',
       customInstructions: '',
+      interactionMode: 'push_to_talk',
     });
 
     expect(normalizeRealtimeCoachPreferences({
@@ -85,6 +109,7 @@ describe('realtimeCoach utils', () => {
       intensity: 0.55,
       voice: 'marin',
       customInstructions: '',
+      interactionMode: 'push_to_talk',
     });
 
     expect(normalizeRealtimeCoachPreferences({
@@ -97,6 +122,7 @@ describe('realtimeCoach utils', () => {
       intensity: 0.55,
       voice: 'marin',
       customInstructions: '',
+      interactionMode: 'push_to_talk',
     });
 
     expect(normalizeRealtimeCoachPreferences({

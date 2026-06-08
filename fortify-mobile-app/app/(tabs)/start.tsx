@@ -2,6 +2,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { usePostHog } from 'posthog-react-native';
 import { GlassButton } from '@/components/GlassButton';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -13,12 +14,14 @@ const PLACEHOLDER_TEXT_SIZE = moderateScale(16);
 
 export default function StartScreen() {
   const router = useRouter();
+  const posthog = usePostHog();
   const { colors, isDark } = useTheme();
 
   const handleOpenAIChat = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const allowed = await requestAIDataSharingConsent();
     if (!allowed) return;
+    posthog.capture('ai_chat_opened', { entry_point: 'start_tab' });
     router.push('/ai/chat');
   };
 

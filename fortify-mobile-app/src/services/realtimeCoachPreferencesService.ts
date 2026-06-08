@@ -6,6 +6,7 @@ import {
   DEFAULT_REALTIME_COACH_PREFERENCES,
   type AICoachPersonality,
   type AICoachVoice,
+  type RealtimeVoiceInteractionMode,
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
 import { sanitizeCustomScenarioInstructions } from '@/src/utils/realtimeCoachPrompt';
@@ -19,6 +20,9 @@ const isVoice = (value: unknown): value is AICoachVoice =>
 
 const isPersonality = (value: unknown): value is AICoachPersonality =>
   typeof value === 'string' && COACH_PERSONALITIES.includes(value as AICoachPersonality);
+
+const isInteractionMode = (value: unknown): value is RealtimeVoiceInteractionMode =>
+  value === 'push_to_talk' || value === 'realtime';
 
 export const normalizeRealtimeCoachPreferences = (
   value: unknown
@@ -41,6 +45,9 @@ export const normalizeRealtimeCoachPreferences = (
       : DEFAULT_REALTIME_COACH_PREFERENCES.voice,
     intensity,
     customInstructions: sanitizeCustomScenarioInstructions(candidate.customInstructions),
+    interactionMode: isInteractionMode(candidate.interactionMode)
+      ? candidate.interactionMode
+      : DEFAULT_REALTIME_COACH_PREFERENCES.interactionMode,
   };
 };
 

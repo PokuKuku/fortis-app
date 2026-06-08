@@ -71,7 +71,7 @@ export default function OnboardingWeightScreen() {
     const normalizedKg = clamp(roundTo(weightKg, 1), KG_MIN, KG_MAX);
 
     await updateOnboardingState({ weight_kg: normalizedKg, preferred_units: unit });
-    trackOnboardingStepCompleted('body_metrics', {
+    trackOnboardingStepCompleted('weight', {
       weight_kg: normalizedKg,
       preferred_units: unit,
     });

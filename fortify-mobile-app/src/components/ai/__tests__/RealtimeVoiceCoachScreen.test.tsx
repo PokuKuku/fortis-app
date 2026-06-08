@@ -145,8 +145,8 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(queryByText('Working text')).toBeNull();
   });
 
-  it('shows when realtime mode is actively listening', () => {
-    const { getByTestId, queryByLabelText } = render(
+  it('hides the talk button and realtime status text in realtime mode', () => {
+    const { queryByTestId, queryByLabelText, queryByText } = render(
       <RealtimeVoiceCoachScreen
         {...defaultProps}
         interactionMode="realtime"
@@ -158,7 +158,8 @@ describe('RealtimeVoiceCoachScreen', () => {
       />
     );
 
-    expect(getByTestId('realtime-listening-status').props.children).toBe('Listening hands-free');
+    expect(queryByTestId('realtime-listening-status')).toBeNull();
+    expect(queryByText('Listening hands-free')).toBeNull();
     expect(queryByLabelText('Hold to talk to Voice Coach')).toBeNull();
   });
 

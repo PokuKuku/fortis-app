@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePostHog } from 'posthog-react-native';
 import {
   View,
   Text,
@@ -95,6 +96,7 @@ const getFriendlyAuthErrorMessage = (rawMessage: string): string => {
 
 export default function EmailAuthScreen() {
   const router = useRouter();
+  const posthog = usePostHog();
   const { source, mode } = useLocalSearchParams<{ source?: string; mode?: string }>();
   const {
     signInWithEmail,
@@ -259,10 +261,12 @@ export default function EmailAuthScreen() {
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       if (!isSignUp) {
+        posthog.capture('user_signed_in', { method: 'email', source: sourceValue ?? null });
         setIsLoading(false);
         setPendingPostSignInRedirect(true);
         return;
       }
+      posthog.capture('user_signed_up', { method: 'email', source: sourceValue ?? null });
       setIsLoading(false);
       if (isSignUp) {
         setConfirmationNotice(

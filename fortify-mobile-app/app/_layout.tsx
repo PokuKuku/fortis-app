@@ -15,10 +15,10 @@ import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { SuperwallProvider } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
-import { MixpanelAuthSync } from '@/src/components/analytics/MixpanelAuthSync';
-import { MixpanelRouteTracker } from '@/src/components/analytics/MixpanelRouteTracker';
-import { initializeMixpanel } from '@/src/lib/mixpanel';
-import { RevenueCatAnalyticsSync } from '@/src/components/revenuecat/RevenueCatAnalyticsSync';
+import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
+import { PostHogRouteTracker } from '@/src/components/analytics/PostHogRouteTracker';
+import { PostHogProvider } from 'posthog-react-native';
+import { posthog } from '@/src/config/posthog';
 import { WorkoutRetentionCoordinator } from '@/src/components/retention/WorkoutRetentionCoordinator';
 import { OnboardingProgramCoordinator } from '@/src/components/onboarding/OnboardingProgramCoordinator';
 
@@ -52,12 +52,21 @@ function ThemedAppContent({
     segments[0] === 'auth';
 
   return (
+    <PostHogProvider
+      client={posthog}
+      debug={__DEV__}
+      autocapture={{
+        captureScreens: false,
+        captureTouches: true,
+        propsToCapture: ['testID'],
+        maxElementsCaptured: 20,
+      }}
+    >
     <AuthProvider>
       <SuperwallAuthSync />
       <SuperwallPurchaseRecovery />
-      <RevenueCatAnalyticsSync />
-      <MixpanelAuthSync />
-      <MixpanelRouteTracker />
+      <PostHogAuthSync />
+      <PostHogRouteTracker />
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
         <DragDropProvider>
@@ -431,6 +440,7 @@ function ThemedAppContent({
         </DragDropProvider>
       </InAppTourProvider>
     </AuthProvider>
+    </PostHogProvider>
   );
 }
 
@@ -450,12 +460,6 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
-
-  useEffect(() => {
-    void initializeMixpanel().catch((error) => {
-      console.warn('[Mixpanel] Startup initialization failed:', error);
-    });
-  }, []);
 
   // Load persisted preferences on app start
   useEffect(() => {

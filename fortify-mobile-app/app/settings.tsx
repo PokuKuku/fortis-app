@@ -682,9 +682,7 @@ export default function SettingsScreen() {
       <RealtimeCoachSettingsModal
         visible={showVoiceCoachSettings}
         preferences={realtimeCoachPreferences}
-        onChange={(nextPreferences) => {
-          void updateRealtimeCoachPreferences(nextPreferences);
-        }}
+        onChange={updateRealtimeCoachPreferences}
         onClose={() => setShowVoiceCoachSettings(false)}
       />
     </View>

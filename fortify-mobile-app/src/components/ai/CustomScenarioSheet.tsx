@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -24,9 +25,11 @@ import {
 interface CustomScenarioSheetProps {
   visible: boolean;
   preferences: RealtimeCoachPreferences;
-  onChange: (preferences: RealtimeCoachPreferences) => void;
+  onChange: (preferences: RealtimeCoachPreferences) => Promise<void> | void;
   onClose: () => void;
 }
+
+const CUSTOM_COACH_SAVE_ERROR = 'Couldn’t save Custom Coach. Try again.';
 
 const SCENARIO_PRESETS: Array<{ label: string; value: AICoachPersonality }> = [
   { label: 'Standard Coach', value: 'direct' },
@@ -42,13 +45,31 @@ export function CustomScenarioSheet({
 }: CustomScenarioSheetProps) {
   const { colors, isDark } = useTheme();
   const { width, height } = useWindowDimensions();
+  const inputRef = useRef<TextInput>(null);
+  const wasVisibleRef = useRef(false);
+  const [customInstructionsDraft, setCustomInstructionsDraft] = useState('');
+  const [isSavingCustomCoach, setIsSavingCustomCoach] = useState(false);
+  const [customCoachSaveError, setCustomCoachSaveError] = useState<string | null>(null);
   const sheetWidth = Math.min(width, 520);
   const sheetMaxHeight = Math.max(360, height * 0.72);
   const selectedPresetPersonality = SCENARIO_PRESETS.some((preset) => preset.value === preferences.personality)
     ? preferences.personality
     : null;
-  const customInstructions = preferences.customInstructions ?? '';
+  const savedCustomInstructions = sanitizeCustomScenarioInstructions(preferences.customInstructions);
   const isCustomCoachSelected = preferences.personality === 'custom';
+  const sanitizedDraft = sanitizeCustomScenarioInstructions(customInstructionsDraft);
+  const isCustomCoachSaveDisabled = isSavingCustomCoach
+    || !sanitizedDraft
+    || (isCustomCoachSelected && sanitizedDraft === savedCustomInstructions);
+
+  useEffect(() => {
+    if (visible && !wasVisibleRef.current) {
+      setCustomInstructionsDraft(savedCustomInstructions);
+      setCustomCoachSaveError(null);
+      setIsSavingCustomCoach(false);
+    }
+    wasVisibleRef.current = visible;
+  }, [savedCustomInstructions, visible]);
 
   const sheetStyle = {
     width: sheetWidth,
@@ -80,20 +101,32 @@ export function CustomScenarioSheet({
   const updatePersonality = (personality: AICoachPersonality) => {
     if (personality === preferences.personality) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onChange({ ...preferences, personality });
+    void onChange({ ...preferences, personality });
   };
 
   const selectCustomCoach = () => {
-    if (isCustomCoachSelected) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    onChange({ ...preferences, personality: 'custom' });
+    inputRef.current?.focus();
   };
 
-  const updateCustomInstructions = (value: string) => {
-    onChange({
-      ...preferences,
-      customInstructions: sanitizeCustomScenarioInstructions(value),
-    });
+  const saveCustomCoach = async () => {
+    if (isCustomCoachSaveDisabled) return;
+
+    setIsSavingCustomCoach(true);
+    setCustomCoachSaveError(null);
+    try {
+      await onChange({
+        ...preferences,
+        personality: 'custom',
+        customInstructions: sanitizedDraft,
+      });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      onClose();
+    } catch {
+      setCustomCoachSaveError(CUSTOM_COACH_SAVE_ERROR);
+    } finally {
+      setIsSavingCustomCoach(false);
+    }
   };
 
   if (!visible) return null;
@@ -185,13 +218,17 @@ export function CustomScenarioSheet({
                   </Text>
                 </Pressable>
                 <Text style={[styles.count, { color: colors.textTertiary }]}>
-                  {customInstructions.length}/{MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS}
+                  {customInstructionsDraft.length}/{MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS}
                 </Text>
               </View>
               <TextInput
+                ref={inputRef}
                 testID="custom-scenario-instructions-input"
-                value={customInstructions}
-                onChangeText={updateCustomInstructions}
+                value={customInstructionsDraft}
+                onChangeText={(value) => {
+                  setCustomInstructionsDraft(value);
+                  setCustomCoachSaveError(null);
+                }}
                 placeholder="Describe your coach here"
                 placeholderTextColor={colors.textTertiary}
                 style={[styles.input, inputStyle]}
@@ -200,6 +237,36 @@ export function CustomScenarioSheet({
                 textAlignVertical="top"
                 returnKeyType="done"
               />
+              {customCoachSaveError ? (
+                <Text
+                  testID="custom-coach-save-error"
+                  style={[styles.saveError, { color: colors.error }]}
+                >
+                  {customCoachSaveError}
+                </Text>
+              ) : null}
+              <Pressable
+                testID="custom-coach-save-button"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: isCustomCoachSaveDisabled }}
+                disabled={isCustomCoachSaveDisabled}
+                onPress={() => { void saveCustomCoach(); }}
+                style={({ pressed }) => [
+                  styles.saveButton,
+                  {
+                    backgroundColor: colors.accent,
+                    opacity: isCustomCoachSaveDisabled ? 0.42 : pressed ? 0.78 : 1,
+                  },
+                ]}
+              >
+                {isSavingCustomCoach ? (
+                  <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
+                ) : (
+                  <Text style={[styles.saveButtonText, { color: colors.accentForegroundOnFill }]}>
+                    Save Custom Coach
+                  </Text>
+                )}
+              </Pressable>
             </View>
           </Animated.View>
         </KeyboardAvoidingView>
@@ -309,5 +376,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
+  },
+  saveError: {
+    ...Typography.caption,
+    textAlign: 'center',
+  },
+  saveButton: {
+    minHeight: 48,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  saveButtonText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
   },
 });

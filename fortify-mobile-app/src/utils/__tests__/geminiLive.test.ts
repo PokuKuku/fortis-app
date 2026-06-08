@@ -56,7 +56,6 @@ describe('geminiLive', () => {
     }))).toEqual([
       { type: 'interrupted' },
       { type: 'phase', phase: 'listening' },
-      { type: 'turn_complete' },
     ]);
   });
 

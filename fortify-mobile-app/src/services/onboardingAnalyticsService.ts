@@ -1,92 +1,34 @@
+import { posthog } from '@/src/config/posthog';
 import {
-  flushMixpanel,
-  getMixpanelIdentityProperties,
-  trackMixpanelEvent,
-  type MixpanelProperties,
-} from '@/src/lib/mixpanel';
+  getOnboardingStepProperties,
+  type OnboardingStepId,
+} from '@/src/lib/posthogOnboarding';
 export {
   ONBOARDING_FUNNEL_STEPS,
   trackOnboardingFunnelScreen,
   useOnboardingFunnelScreen,
-} from '@/src/lib/mixpanelOnboarding';
+} from '@/src/lib/posthogOnboarding';
 
-const ONBOARDING_STEP_INDEX = {
-  profile_name: 1,
-  gender: 2,
-  fitness_goals: 3,
-  fitness_motivations: 4,
-  lifting_experience: 5,
-  tried_other_apps: 6,
-  progress_blocker: 7,
-  insights_preview: 8,
-  program_setup_intro: 9,
-  training_environment: 10,
-  muscle_focus: 11,
-  fitness_priorities: 12,
-  workout_consistency: 13,
-  workout_schedule: 14,
-  session_duration: 15,
-  goal_pace: 16,
-  six_month_preview: 17,
-  coach_personality: 18,
-  metrics_intro: 19,
-  birthdate: 20,
-  body_metrics: 21,
-  referral_source: 23,
-  privacy_thank_you: 24,
-  social_proof: 25,
-  app_rating: 26,
-  notifications_prompt: 27,
-  biggest_challenges: 99,
-  fitness_background: 99,
-} as const;
-
-type OnboardingStepId = keyof typeof ONBOARDING_STEP_INDEX;
-
-function flushPendingOnboardingEvents(reason: string): void {
-  void flushMixpanel().catch((error) => {
-    console.warn('[OnboardingAnalytics] Flush failed:', reason, error);
-  });
-}
+type OnboardingProperties = Record<string, unknown>;
 
 export function trackOnboardingStepCompleted(
   stepId: OnboardingStepId,
-  properties: MixpanelProperties = {}
+  properties: OnboardingProperties = {}
 ): void {
-  const stepIndex = ONBOARDING_STEP_INDEX[stepId];
-  void (async () => {
-    const identityProperties = await getMixpanelIdentityProperties();
-    await trackMixpanelEvent(
-      'Onboarding Step Completed',
-      {
-        step_id: stepId,
-        step_index: stepIndex,
-        ...identityProperties,
-        ...properties,
-      },
-      { flush: true }
-    );
-  })().catch((error) => {
-    console.warn('[OnboardingAnalytics] Step completion failed:', stepId, error);
-    flushPendingOnboardingEvents('step_completed_fallback');
-  });
+  const stepProperties = getOnboardingStepProperties(stepId);
+  if (!stepProperties) return;
+
+  const onboardingProperties = {
+    ...stepProperties,
+    ...properties,
+  };
+  posthog.capture('onboarding_step_completed', onboardingProperties);
 }
 
-export function trackOnboardingFinished(properties: MixpanelProperties = {}): void {
-  void (async () => {
-    const identityProperties = await getMixpanelIdentityProperties();
-    await trackMixpanelEvent(
-      'Onboarding Finished',
-      {
-        step_id: 'onboarding_finished',
-        step_index: 28,
-        ...identityProperties,
-        ...properties,
-      },
-      { flush: true }
-    );
-  })().catch((error) => {
-    console.warn('[OnboardingAnalytics] Finished event failed:', error);
-    flushPendingOnboardingEvents('onboarding_finished_fallback');
-  });
+export function trackOnboardingFinished(properties: OnboardingProperties = {}): void {
+  const onboardingProperties = {
+    ...getOnboardingStepProperties('onboarding_complete'),
+    ...properties,
+  };
+  posthog.capture('onboarding_completed', onboardingProperties);
 }

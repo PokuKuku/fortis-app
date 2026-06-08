@@ -168,15 +168,6 @@ export function RealtimeVoiceCoachScreen({
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
   const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
-  const realtimeStatus = interactionMode === 'realtime'
-    ? phase === 'connecting'
-      ? 'Connecting hands-free mode...'
-      : debugStatus.recordingStarted && debugStatus.microphoneChunksSent > 0
-        ? 'Listening hands-free'
-        : debugStatus.recordingStarted
-          ? 'Starting microphone...'
-          : 'Microphone is not active'
-    : null;
   const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -379,14 +370,6 @@ export function RealtimeVoiceCoachScreen({
             </Text>
           ) : null}
           {displayTemplateSaveError ? <Text style={styles.error}>{displayTemplateSaveError}</Text> : null}
-          {realtimeStatus && !displayError ? (
-            <Text
-              testID="realtime-listening-status"
-              style={[styles.realtimeStatus, { color: colors.textSecondary }]}
-            >
-              {realtimeStatus}
-            </Text>
-          ) : null}
           {hasVoiceCards ? (
             <ScrollView
               testID="voice-card-scroll"
@@ -670,10 +653,6 @@ const styles = StyleSheet.create({
     ...Typography.body,
     textAlign: 'center',
     paddingHorizontal: Spacing.lg,
-  },
-  realtimeStatus: {
-    ...Typography.bodySmall,
-    textAlign: 'center',
   },
   talkButtonRing: {
     position: 'absolute',

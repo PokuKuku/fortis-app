@@ -124,7 +124,6 @@ export function parseGeminiLiveMessage(raw: string): GeminiLiveEventAction[] {
     if (serverContent.interrupted === true) {
       actions.push({ type: 'interrupted' });
       actions.push({ type: 'phase', phase: 'listening' });
-      actions.push({ type: 'turn_complete' });
     }
 
     if (serverContent.turnComplete === true) {

@@ -48,44 +48,18 @@ jest.mock('@/src/lib/supabase', () => ({
   isSupabaseConfigured: () => false,
 }));
 
-jest.mock('mixpanel-react-native', () => ({
-  Mixpanel: jest.fn().mockImplementation(() => ({
-    init: jest.fn().mockResolvedValue(undefined),
-    track: jest.fn(),
-    identify: jest.fn().mockResolvedValue(undefined),
-    clearSuperProperties: jest.fn(),
-    registerSuperProperties: jest.fn(),
+jest.mock('posthog-react-native', () => {
+  const client = {
+    capture: jest.fn(),
+    screen: jest.fn(),
+    identify: jest.fn(),
     reset: jest.fn(),
-    getPeople: jest.fn(() => ({
-      set: jest.fn(),
-    })),
-  })),
-}));
+  };
 
-jest.mock('@mixpanel/react-native-session-replay', () => ({
-  MPSessionReplay: {
-    initialize: jest.fn().mockResolvedValue(undefined),
-    identify: jest.fn().mockResolvedValue(undefined),
-    startRecording: jest.fn().mockResolvedValue(undefined),
-    stopRecording: jest.fn().mockResolvedValue(undefined),
-    isRecording: jest.fn().mockResolvedValue(false),
-    getReplayId: jest.fn().mockResolvedValue(null),
-    flush: jest.fn().mockResolvedValue(undefined),
-  },
-  MPSessionReplayConfig: jest.fn().mockImplementation((config = {}) => ({
-    ...config,
-    toJSON: jest.fn(() => JSON.stringify(config)),
-  })),
-  MPSessionReplayMask: {
-    Text: 'text',
-    Web: 'web',
-    Map: 'map',
-    Image: 'image',
-  },
-  MPSessionReplayRemoteSettingsMode: {
-    Disabled: 'disabled',
-    Strict: 'strict',
-    Fallback: 'fallback',
-  },
-  MPSessionReplayView: 'MPSessionReplayView',
-}));
+  return {
+    __esModule: true,
+    default: jest.fn().mockImplementation(() => client),
+    PostHogProvider: ({ children }) => children,
+    usePostHog: jest.fn(() => client),
+  };
+});

@@ -16,12 +16,11 @@ import {
 import { BorderRadius, IconSizes, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
-
-export type VoiceInteractionMode = 'push_to_talk' | 'realtime';
+import type { RealtimeVoiceInteractionMode } from '@/src/types/realtimeCoach';
 
 interface VoiceSettingsPopoverProps {
-  interactionMode: VoiceInteractionMode;
-  onInteractionModeChange: (mode: VoiceInteractionMode) => void;
+  interactionMode: RealtimeVoiceInteractionMode;
+  onInteractionModeChange: (mode: RealtimeVoiceInteractionMode) => void;
   onOpenCoachingStyle: () => void;
   onAddMedia: () => void;
 }

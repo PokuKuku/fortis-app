@@ -478,6 +478,107 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
+  it('does not transmit realtime ambient silence until a speech turn starts', async () => {
+    const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
+
+    act(() => {
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(0) });
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(0) });
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(0) });
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityStart')).toBe(0);
+    expect(countRealtimeInputMessages(socket)).toBe(0);
+
+    act(() => {
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityStart')).toBe(1);
+    expect(countRealtimeInputMessages(socket)).toBe(4);
+
+    hook.unmount();
+  });
+
+  it('does not treat coach playback captured by the microphone as realtime user speech', async () => {
+    const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
+
+    act(() => {
+      socket.message(audioMessage());
+      jest.advanceTimersByTime(24);
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityStart')).toBe(0);
+    expect(countRealtimeInputMessages(socket)).toBe(0);
+
+    act(() => {
+      jest.advanceTimersByTime(700);
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityStart')).toBe(1);
+    expect(countRealtimeInputMessages(socket)).toBe(1);
+    hook.unmount();
+  });
+
+  it('accepts realtime speech promptly after multi-chunk coach playback finishes', async () => {
+    const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
+
+    act(() => {
+      socket.message(audioMessage());
+      jest.advanceTimersByTime(24);
+      socket.message(audioMessage());
+      jest.advanceTimersByTime(24);
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityStart')).toBe(0);
+
+    act(() => {
+      jest.advanceTimersByTime(450);
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityStart')).toBe(1);
+    expect(countRealtimeInputMessages(socket)).toBe(1);
+    hook.unmount();
+  });
+
+  it('starts a realtime turn for quieter speech PCM', async () => {
+    const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
+
+    act(() => {
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(250) });
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityStart')).toBe(1);
+    expect(countRealtimeInputMessages(socket)).toBe(1);
+    hook.unmount();
+  });
+
+  it('does not end a realtime speech turn during quiet voiced audio', async () => {
+    const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
+
+    act(() => {
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(0) });
+      jest.advanceTimersByTime(300);
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(350) });
+      jest.advanceTimersByTime(300);
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityEnd')).toBe(0);
+
+    act(() => {
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(0) });
+      jest.advanceTimersByTime(550);
+    });
+
+    expect(countRealtimeActivityMessages(socket, 'activityEnd')).toBe(1);
+    hook.unmount();
+  });
+
   it('retries realtime microphone input when continuous recording emits no chunks', async () => {
     const { hook } = await startConnectedSession({ interactionMode: 'realtime' });
 
@@ -731,6 +832,47 @@ describe('useRealtimeCoach', () => {
     expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me a chest workout', undefined);
     expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Chest Workout');
 
+    hook.unmount();
+  });
+
+  it('finalizes realtime transcript side effects when Gemini completes the turn', async () => {
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string) => /chest workout/i.test(text ?? ''));
+    const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'make me a chest workout' },
+        },
+      }));
+      socket.message(JSON.stringify({
+        serverContent: {
+          turnComplete: true,
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me a chest workout', undefined);
+    hook.unmount();
+  });
+
+  it('does not finalize a partial realtime transcript when coach playback is interrupted', async () => {
+    mockShouldGenerateWorkoutFromVoice.mockReturnValue(true);
+    const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
+
+    act(() => {
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'make me a' },
+          interrupted: true,
+        },
+      }));
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).not.toHaveBeenCalled();
+    expect(hook.result.current.phase).toBe('user_speaking');
     hook.unmount();
   });
 

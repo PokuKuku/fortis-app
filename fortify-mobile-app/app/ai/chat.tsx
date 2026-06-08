@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { usePostHog } from 'posthog-react-native';
 import {
   View,
   Text,
@@ -47,14 +48,14 @@ import { useAIWorkoutTemplateActions } from '@/src/hooks/useAIWorkoutTemplateAct
 import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
 import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
 import { useAuth } from '@/src/contexts/AuthContext';
-import type { AIVoiceMode, RealtimeCoachPreferences } from '@/src/types/realtimeCoach';
+import type { AIVoiceMode, RealtimeCoachPreferences, RealtimeVoiceInteractionMode } from '@/src/types/realtimeCoach';
 import { isCreatorVoiceScriptsEnabled } from '@/src/utils/realtimeCoach';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { shouldAutoStartVoiceCoach } from '@/src/utils/aiChatTour';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
-import { VoiceSettingsPopover, type VoiceInteractionMode } from '@/src/components/ai/VoiceSettingsPopover';
+import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
 
 // Helpful app tips shown while waiting for AI responses
@@ -252,6 +253,7 @@ const shouldInheritAnalystIntent = (
 
 export default function AIChatScreen() {
   const router = useRouter();
+  const posthog = usePostHog();
   const { colors, isDark } = useTheme();
   const { profile, user } = useAuth();
   const { runProFeature } = useProFeatureGate();
@@ -262,7 +264,6 @@ export default function AIChatScreen() {
   const [inputText, setInputText] = useState('');
   const [mode, setMode] = useState<AIVoiceMode>('voice');
   const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
-  const [interactionMode, setInteractionMode] = useState<VoiceInteractionMode>('push_to_talk');
   const [pendingChatMedia, setPendingChatMedia] = useState<AIPendingMedia[]>([]);
   const [pendingVoiceMedia, setPendingVoiceMedia] = useState<AIPendingMedia[]>([]);
   const [isPickingVoiceMedia, setIsPickingVoiceMedia] = useState(false);
@@ -309,6 +310,7 @@ export default function AIChatScreen() {
     isLoaded: areRealtimePreferencesLoaded,
     updatePreferences: updateRealtimePreferences,
   } = useRealtimeCoachPreferences();
+  const interactionMode = realtimePreferences.interactionMode ?? 'push_to_talk';
   const realtimePreferencesSignature = JSON.stringify(realtimePreferences);
   const activeVoicePreferencesSignatureRef = useRef<string | null>(null);
   const {
@@ -364,11 +366,11 @@ export default function AIChatScreen() {
   });
   const activeWorkoutActions = mode === 'voice' ? voiceWorkoutActions : chatWorkoutActions;
 
-  const handleRealtimePreferencesChange = useCallback((nextPreferences: RealtimeCoachPreferences) => {
+  const handleRealtimePreferencesChange = useCallback(async (nextPreferences: RealtimeCoachPreferences) => {
     if (isVoiceActive) {
       stopVoiceCoach();
     }
-    void updateRealtimePreferences(nextPreferences);
+    await updateRealtimePreferences(nextPreferences);
   }, [isVoiceActive, stopVoiceCoach, updateRealtimePreferences]);
 
   // Calculate remaining requests (most restrictive limit) for inline warning
@@ -484,6 +486,12 @@ export default function AIChatScreen() {
           ? { currentWorkoutTemplateDraft }
           : undefined;
 
+        posthog.capture('ai_message_sent', {
+          intent,
+          message_length: message.length,
+          has_attachments: pendingChatMedia.length > 0,
+          conversation_length: messages.length,
+        });
         chatWorkoutActions.setTemplateSaveError(null);
         setInputText('');
         const attachments = pendingChatMedia.map(({ id, uri, kind, label }) => ({ id, uri, kind, label }));
@@ -499,7 +507,7 @@ export default function AIChatScreen() {
         }
       },
     );
-  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, pendingChatMedia, runProFeature, sendMessage]);
+  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
 
   const pickMedia = useCallback(async (target: 'chat' | 'voice') => {
     const shouldRestartVoice = target === 'voice' && interactionMode === 'realtime' && isVoiceActive;
@@ -526,15 +534,18 @@ export default function AIChatScreen() {
     sendVisualContext(flattenAIMediaImages(pendingVoiceMedia));
   }, [debugStatus.setupComplete, isVoiceActive, pendingVoiceMedia, sendVisualContext]);
 
-  const handleInteractionModeChange = useCallback((nextMode: VoiceInteractionMode) => {
+  const handleInteractionModeChange = useCallback((nextMode: RealtimeVoiceInteractionMode) => {
     if (nextMode === interactionMode) return;
     const shouldRestart = isVoiceActive;
     if (shouldRestart) {
       hasRequestedInitialVoiceStartRef.current = false;
       stopVoiceCoach();
     }
-    setInteractionMode(nextMode);
-  }, [interactionMode, isVoiceActive, stopVoiceCoach]);
+    void updateRealtimePreferences((current) => ({
+      ...current,
+      interactionMode: nextMode,
+    }));
+  }, [interactionMode, isVoiceActive, stopVoiceCoach, updateRealtimePreferences]);
 
   const handleSend = useCallback(async () => {
     await submitMessage(inputText);

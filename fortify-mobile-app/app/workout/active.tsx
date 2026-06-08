@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { usePostHog } from 'posthog-react-native';
 import {
   View,
   Text,
@@ -81,6 +82,7 @@ const HEADER_COLLAPSE_THRESHOLD = scale(48);
 
 export default function ActiveWorkoutScreen() {
   const router = useRouter();
+  const posthog = usePostHog();
   const { colors, isDark } = useTheme();
   const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const activeSession = useWorkoutStore(s => s.activeSession);
@@ -239,6 +241,14 @@ export default function ActiveWorkoutScreen() {
   }, [showRestTimerComplete, showAddExerciseModal, dismissRestTimerComplete]);
 
   useEffect(() => {
+    posthog.capture('workout_started', {
+      from_program: Boolean(activeSession?.programId),
+      exercise_count: activeSession?.exercises?.length ?? 0,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!pendingSaveTemplateModalOpen || showFinishModal) {
       return;
     }
@@ -355,6 +365,10 @@ export default function ActiveWorkoutScreen() {
   const handleConfirmCancel = () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
+    posthog.capture('workout_cancelled', {
+      exercise_count: activeSession?.exercises?.length ?? 0,
+      elapsed_seconds: elapsed,
+    });
     cancelWorkout();
     setShowCancelModal(false);
     if (router.canGoBack()) {
@@ -530,6 +544,12 @@ export default function ActiveWorkoutScreen() {
   const finishWorkoutAndNavigate = async () => {
     if (isNavigating.current) return;
     isNavigating.current = true;
+    posthog.capture('workout_completed', {
+      exercise_count: activeSession?.exercises?.length ?? 0,
+      elapsed_seconds: elapsed,
+      is_first_workout: completedSessions.length === 0,
+      from_program: Boolean(activeSession?.programId),
+    });
     const shouldShowFirstWorkoutStreak = completedSessions.length === 0;
     const completedSession = await finishWorkout();
     setShowFinishModal(false);

@@ -1,10 +1,9 @@
-const mockFlushMixpanel = jest.fn();
-const mockTrackMixpanelEvent = jest.fn(() => Promise.resolve());
+const mockPostHogCapture = jest.fn();
 
-jest.mock('@/src/lib/mixpanel', () => ({
-  flushMixpanel: (...args: unknown[]) => mockFlushMixpanel(...args),
-  getMixpanelIdentityProperties: jest.fn(() => Promise.resolve({ distinct_id: 'anon-123' })),
-  trackMixpanelEvent: mockTrackMixpanelEvent,
+jest.mock('@/src/config/posthog', () => ({
+  posthog: {
+    capture: (...args: unknown[]) => mockPostHogCapture(...args),
+  },
 }));
 
 describe('onboardingAnalyticsService', () => {
@@ -12,32 +11,39 @@ describe('onboardingAnalyticsService', () => {
     jest.clearAllMocks();
   });
 
-  it('tracks onboarding step completion with the configured step index', async () => {
-    mockFlushMixpanel.mockResolvedValue(undefined);
+  it('tracks onboarding step completion with the configured step index', () => {
     const { trackOnboardingStepCompleted } = require('@/src/services/onboardingAnalyticsService');
 
     trackOnboardingStepCompleted('coach_personality');
 
-    await Promise.resolve();
-
-    expect(mockTrackMixpanelEvent).toHaveBeenCalledWith(
-      'Onboarding Step Completed',
+    expect(mockPostHogCapture).toHaveBeenCalledWith(
+      'onboarding_step_completed',
       expect.objectContaining({
         step_id: 'coach_personality',
-        step_index: 18,
-        distinct_id: 'anon-123',
-      }),
-      { flush: true }
+        step_index: 20,
+        screen_name: 'Q19. Voice Coach Personality',
+        funnel_step: 20,
+        route: '/onboarding/coach-personality',
+      })
     );
-
   });
 
-  it('swallows rejected tracking calls', async () => {
-    mockFlushMixpanel.mockRejectedValue(new Error('tracking failed'));
+  it('tracks onboarding completion in PostHog', () => {
     const { trackOnboardingFinished } = require('@/src/services/onboardingAnalyticsService');
 
-    expect(() => trackOnboardingFinished()).not.toThrow();
+    trackOnboardingFinished({ fitness_goal: 'build_muscle' });
 
-    await Promise.resolve();
+    expect(mockPostHogCapture).toHaveBeenCalledWith(
+      'onboarding_completed',
+      expect.objectContaining({
+        step_id: 'onboarding_complete',
+        step_index: 30,
+        screen_name: 'Onboarding Complete Page',
+        funnel_step: 30,
+        route: '/onboarding/complete',
+        fitness_goal: 'build_muscle',
+      })
+    );
   });
+
 });

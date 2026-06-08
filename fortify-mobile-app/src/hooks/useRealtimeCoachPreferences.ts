@@ -48,7 +48,12 @@ export function useRealtimeCoachPreferences() {
   ) => {
     const resolved = typeof next === 'function' ? next(preferences) : next;
     setPreferencesState(resolved);
-    await setRealtimeCoachPreferences(resolved);
+    try {
+      await setRealtimeCoachPreferences(resolved);
+    } catch (error) {
+      setPreferencesState(preferences);
+      throw error;
+    }
   }, [preferences]);
 
   return {

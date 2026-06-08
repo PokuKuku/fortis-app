@@ -99,7 +99,7 @@ export default function OnboardingHeightScreen() {
       : Math.round((FEET_VALUES[feetIndex] * 12 + INCH_VALUES[inchIndex]) * 2.54);
 
     await updateOnboardingState({ height_cm: heightCm, preferred_units: unit });
-    trackOnboardingStepCompleted('body_metrics', {
+    trackOnboardingStepCompleted('height', {
       height_cm: heightCm,
       preferred_units: unit,
     });

@@ -7,6 +7,7 @@ let mockStoredPreferences: RealtimeCoachPreferences = {
   intensity: 0.55,
   voice: 'marin',
   customInstructions: '',
+  interactionMode: 'push_to_talk',
 };
 const mockListeners = new Set<(preferences: RealtimeCoachPreferences) => void>();
 
@@ -30,6 +31,7 @@ describe('useRealtimeCoachPreferences', () => {
       intensity: 0.55,
       voice: 'marin',
       customInstructions: '',
+      interactionMode: 'push_to_talk',
     };
     mockListeners.clear();
   });
@@ -55,5 +57,24 @@ describe('useRealtimeCoachPreferences', () => {
 
     settingsHook.unmount();
     coachHook.unmount();
+  });
+
+  it('persists the selected interaction mode for future consumers', async () => {
+    const settingsHook = renderHook(() => useRealtimeCoachPreferences());
+    await waitFor(() => expect(settingsHook.result.current.isLoaded).toBe(true));
+
+    await act(async () => {
+      await settingsHook.result.current.updatePreferences((current) => ({
+        ...current,
+        interactionMode: 'realtime',
+      }));
+    });
+    settingsHook.unmount();
+
+    const reopenedHook = renderHook(() => useRealtimeCoachPreferences());
+    await waitFor(() => expect(reopenedHook.result.current.isLoaded).toBe(true));
+
+    expect(reopenedHook.result.current.preferences.interactionMode).toBe('realtime');
+    reopenedHook.unmount();
   });
 });
