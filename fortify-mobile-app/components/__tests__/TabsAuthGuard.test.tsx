@@ -3,6 +3,11 @@ import { render, waitFor } from '@testing-library/react-native';
 
 const mockReplace = jest.fn();
 const mockUsePendingOnboardingAuthCompletion = jest.fn();
+const mockReconcileSubscriptionStatus = jest.fn();
+const mockSuperwallState = {
+  isConfigured: false,
+  isLoading: false,
+};
 
 const mockAuthState = {
   isAuthenticated: true,
@@ -29,7 +34,7 @@ jest.mock('expo-superwall', () => ({
     registerPlacement: jest.fn(),
   })),
   useSuperwall: jest.fn((selector: (state: any) => any) =>
-    selector({ isConfigured: false, isLoading: false }),
+    selector(mockSuperwallState),
   ),
   useUser: jest.fn(() => ({
     subscriptionStatus: { status: 'INACTIVE' },
@@ -118,10 +123,7 @@ jest.mock('@/src/services/startWorkoutFromPreset', () => ({
 }));
 
 jest.mock('@/src/components/superwall/subscriptionStatusSync', () => ({
-  reconcileSubscriptionStatus: jest.fn(() => Promise.resolve({
-    wasVerified: false,
-    hasActiveSubscription: false,
-  })),
+  reconcileSubscriptionStatus: (...args: unknown[]) => mockReconcileSubscriptionStatus(...args),
 }));
 
 jest.mock('@/src/components/haptics/navigationHaptics', () => ({
@@ -172,6 +174,12 @@ describe('Tabs auth guard', () => {
     mockAuthState.profileResolved = true;
     mockAuthState.needsOnboarding = true;
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: true });
+    mockSuperwallState.isConfigured = false;
+    mockSuperwallState.isLoading = false;
+    mockReconcileSubscriptionStatus.mockResolvedValue({
+      wasVerified: false,
+      hasActiveSubscription: false,
+    });
   });
 
   it('routes incomplete profiles to onboarding when there is no pending completion', async () => {
@@ -202,5 +210,55 @@ describe('Tabs auth guard', () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
     });
+  });
+
+  it('routes completed users to the paywall gate after verifying no active entitlement', async () => {
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockSuperwallState.isConfigured = true;
+    mockReconcileSubscriptionStatus.mockResolvedValue({
+      wasVerified: true,
+      hasActiveSubscription: false,
+    });
+
+    render(<TabLayout />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+    });
+  });
+
+  it('keeps completed users in the app when entitlement verification fails', async () => {
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockSuperwallState.isConfigured = true;
+    mockReconcileSubscriptionStatus.mockResolvedValue({
+      wasVerified: false,
+      hasActiveSubscription: false,
+    });
+
+    render(<TabLayout />);
+
+    await waitFor(() => {
+      expect(mockReconcileSubscriptionStatus).toHaveBeenCalled();
+    });
+    expect(mockReplace).not.toHaveBeenCalledWith('/paywall-gate');
+  });
+
+  it('keeps completed users in the app when an active entitlement is verified', async () => {
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockSuperwallState.isConfigured = true;
+    mockReconcileSubscriptionStatus.mockResolvedValue({
+      wasVerified: true,
+      hasActiveSubscription: true,
+    });
+
+    render(<TabLayout />);
+
+    await waitFor(() => {
+      expect(mockReconcileSubscriptionStatus).toHaveBeenCalled();
+    });
+    expect(mockReplace).not.toHaveBeenCalledWith('/paywall-gate');
   });
 });

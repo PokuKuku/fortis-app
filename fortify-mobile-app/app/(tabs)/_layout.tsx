@@ -158,7 +158,14 @@ export default function TabLayout() {
 
         lastAccessSyncAtRef.current = Date.now();
 
-        void reconciliation;
+        if (
+          reconciliation.wasVerified &&
+          !reconciliation.hasActiveSubscription &&
+          profileResolved &&
+          profile?.onboarding_completed === true
+        ) {
+          router.replace('/paywall-gate');
+        }
       } finally {
         accessSyncInFlightRef.current = false;
       }
@@ -169,6 +176,9 @@ export default function TabLayout() {
       isIdentityReadyForAccessCheck,
       isLoading,
       isSuperwallReady,
+      profile?.onboarding_completed,
+      profileResolved,
+      router,
       setSubscriptionStatus,
     ],
   );

@@ -17,6 +17,7 @@ import type { PartialSuperwallOptions } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallDebugEvents } from '@/src/components/superwall/SuperwallDebugEvents';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
+import { SubscriptionAccessGuard } from '@/src/components/superwall/SubscriptionAccessGuard';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
 import { PostHogRouteTracker } from '@/src/components/analytics/PostHogRouteTracker';
 import { PostHogProvider } from 'posthog-react-native';
@@ -68,6 +69,7 @@ function ThemedAppContent({
       <SuperwallAuthSync />
       <SuperwallDebugEvents />
       <SuperwallPurchaseRecovery />
+      <SubscriptionAccessGuard />
       <PostHogAuthSync />
       <PostHogRouteTracker />
       {!disableThemeSync && <ThemeAuthSync />}
