@@ -130,7 +130,7 @@ export default function OnboardingBirthdateScreen() {
       contentGap={Spacing.lg}
       onBack={() => router.back()}
       useScrollView={false}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}

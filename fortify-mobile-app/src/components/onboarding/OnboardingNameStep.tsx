@@ -79,7 +79,7 @@ export function OnboardingNameStep({ prewarm = false }: OnboardingNameStepProps)
               router.replace({ pathname: '/onboarding/welcome', params: { returning: '1' } });
             }
       }
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}

@@ -75,7 +75,7 @@ export default function OnboardingTrainingEnvironmentScreen() {
       title="Where will you train most often?"
       subtitle="This helps Fortify know what exercises you can actually do."
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}

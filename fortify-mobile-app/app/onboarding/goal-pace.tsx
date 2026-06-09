@@ -74,7 +74,7 @@ export default function OnboardingGoalPaceScreen() {
       title="What pace do you want to reach your goals?"
       subtitle={undefined}
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={() => void handleContinue()} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>

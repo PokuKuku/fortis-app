@@ -102,7 +102,7 @@ export default function OnboardingWeightScreen() {
       subtitle="You can update this any time from your profile."
       onBack={() => router.back()}
       useScrollView={false}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>

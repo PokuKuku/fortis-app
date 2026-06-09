@@ -137,7 +137,7 @@ export default function OnboardingInsightsScreen() {
       useScrollView={false}
       bodyAlign="center"
       contentGap={Spacing.lg}
-      footer={
+      floatingFooter={
         <View style={styles.footerSlot} pointerEvents={showContinue ? 'auto' : 'none'}>
           <GlassButton
             style={[styles.button, !showContinue && styles.buttonHidden]}

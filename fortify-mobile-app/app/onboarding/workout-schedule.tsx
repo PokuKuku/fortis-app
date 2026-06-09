@@ -75,7 +75,7 @@ export default function OnboardingWorkoutScheduleScreen() {
       title="What days do you plan to work out?"
       subtitle={undefined}
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}

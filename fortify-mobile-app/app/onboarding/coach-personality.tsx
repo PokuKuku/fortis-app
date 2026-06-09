@@ -100,7 +100,7 @@ export default function OnboardingCoachPersonalityScreen() {
       subtitle="You can change this later."
       onBack={() => router.back()}
       contentGap={Spacing.xl}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>

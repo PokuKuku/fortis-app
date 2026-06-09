@@ -110,7 +110,7 @@ export default function OnboardingProgramSetupIntroScreen() {
       titleAdjustsFontSizeToFit
       titleMinimumFontScale={0.86}
       titleMinHeight={74}
-      footer={
+      floatingFooter={
         <View style={styles.footerSlot} pointerEvents={isTitleComplete ? 'auto' : 'none'}>
           <GlassButton
             style={[styles.button, !isTitleComplete && styles.buttonHidden]}

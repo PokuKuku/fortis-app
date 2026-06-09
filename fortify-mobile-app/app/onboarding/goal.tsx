@@ -169,7 +169,7 @@ export default function OnboardingGoalScreen() {
       title="What fitness outcome do you want to achieve with Fortify?"
       subtitle="Select up to 3. Rank in order of importance."
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}

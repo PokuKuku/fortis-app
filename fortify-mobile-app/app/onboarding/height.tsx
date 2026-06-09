@@ -114,7 +114,7 @@ export default function OnboardingHeightScreen() {
       subtitle=" "
       onBack={() => router.back()}
       useScrollView={false}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>

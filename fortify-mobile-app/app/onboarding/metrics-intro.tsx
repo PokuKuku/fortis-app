@@ -142,7 +142,7 @@ export default function OnboardingMetricsIntroScreen() {
       onBack={() => router.back()}
       bodyAlign="center"
       useScrollView={false}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Continue</Text>
         </GlassButton>

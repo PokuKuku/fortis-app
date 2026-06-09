@@ -96,7 +96,7 @@ export default function OnboardingExperienceScreen() {
       totalSteps={TOTAL_ONBOARDING_STEPS}
       title="What is your experience level with lifting?"
       onBack={handleBack}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}

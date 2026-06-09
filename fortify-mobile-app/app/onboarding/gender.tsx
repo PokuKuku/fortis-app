@@ -125,7 +125,7 @@ export default function OnboardingGenderScreen() {
       title="Choose your gender"
       subtitle=""
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}

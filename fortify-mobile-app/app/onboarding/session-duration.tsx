@@ -105,7 +105,7 @@ export default function OnboardingSessionDurationScreen() {
       title="How much time are you able to spend per session?"
       subtitle={undefined}
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton style={styles.button} onPress={() => void handleContinue()} hapticFeedback="impactMedium">
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>

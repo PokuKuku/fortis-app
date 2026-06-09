@@ -85,7 +85,7 @@ export default function OnboardingChallengeScreen() {
       title="What are your biggest challenges toward your goals?"
       subtitle="Rank all that apply. Tap in order of importance."
       onBack={() => router.back()}
-      footer={
+      floatingFooter={
         <GlassButton
           style={styles.button}
           onPress={handleContinue}
