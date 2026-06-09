@@ -10,7 +10,7 @@ import { useAuth, type Profile } from '@/src/contexts/AuthContext';
 import {
   clearInAppTourState,
   loadInAppTourState,
-  markInProgressTourSkipped,
+  resumeInProgressTourAtStep,
   saveInAppTourState,
   type PersistedInAppTourState,
 } from '@/src/services/inAppTourService';
@@ -229,7 +229,7 @@ const TOUR_STEPS: TourStep[] = [
     route: '/(tabs)',
     body: 'Need help? Open Profile, tap Settings, then use Send Feedback or Report a Bug in the Support section.\n\nWelcome to smarter training!',
     mode: 'blocking',
-    primaryActionLabel: 'Done',
+    primaryActionLabel: 'Sounds good!',
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
@@ -674,9 +674,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (loaded?.status === 'in_progress') {
-        const skipped = markInProgressTourSkipped(loaded);
-        await setTourStateAndPersist(skipped);
-        void markTourSeenOnServer({ status: 'skipped', completedAt: skipped.updatedAt });
+        const resumed = resumeInProgressTourAtStep(
+          loaded,
+          TOUR_STEPS[TOUR_STEPS.length - 1].id,
+        );
+        await setTourStateAndPersist(resumed);
         setTourLoaded(true);
         return;
       }
@@ -700,6 +702,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     segments[0] !== 'paywall-gate';
   const hasSeenServer = Boolean(
     profile?.has_seen_in_app_tour &&
+    profile?.in_app_tour_completed_at &&
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
   );
   const hasSeenLocal = tourState?.status === 'completed' || tourState?.status === 'skipped';

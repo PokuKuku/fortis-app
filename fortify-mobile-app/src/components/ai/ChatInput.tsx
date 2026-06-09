@@ -40,6 +40,7 @@ interface ChatInputProps {
   onAddMedia?: () => void;
   hasAttachments?: boolean;
   disabled?: boolean;
+  suppressVoicePermissionPrompt?: boolean;
   placeholder?: string;
 }
 
@@ -86,6 +87,7 @@ export function ChatInput({
   onAddMedia,
   hasAttachments = false,
   disabled = false,
+  suppressVoicePermissionPrompt = false,
   placeholder = 'Ask about your training...',
 }: ChatInputProps) {
   const { colors, isDark } = useTheme();
@@ -247,7 +249,7 @@ export function ChatInput({
   }, [canSend, onSend]);
 
   const handleMicPress = useCallback(async () => {
-    if (!canUseVoice) return;
+    if (!canUseVoice || suppressVoicePermissionPrompt) return;
 
     if (!ExpoSpeechRecognitionModule) {
       Alert.alert(
@@ -297,7 +299,7 @@ export function ChatInput({
         error instanceof Error ? error.message : 'Unable to start voice dictation right now.'
       );
     }
-  }, [canUseVoice, resetVoiceState, showVoicePermissionAlert, voicePhase]);
+  }, [canUseVoice, resetVoiceState, showVoicePermissionAlert, suppressVoicePermissionPrompt, voicePhase]);
 
   return (
     <View style={[styles.wrapper, themedStyles.wrapper]}>

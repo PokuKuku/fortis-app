@@ -184,6 +184,11 @@ export default function CreateWorkoutScreen() {
         },
       },
       async () => {
+        if (isTourActive && activeStepId === 'open_add_with_voice') {
+          setShowVoiceAddSheet(true);
+          return;
+        }
+
         const permission = await ensureMicrophonePermission();
         if (permission.granted) {
           setShowVoiceAddSheet(true);
@@ -209,7 +214,7 @@ export default function CreateWorkoutScreen() {
         );
       },
     );
-  }, [editorSession?.exercises.length, mode, runProFeature]);
+  }, [activeStepId, editorSession?.exercises.length, isTourActive, mode, runProFeature]);
 
   useEffect(() => {
     if (!shouldAnchorAddWithVoice) return;

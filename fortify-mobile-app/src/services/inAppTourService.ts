@@ -29,12 +29,13 @@ export const parseInAppTourState = (raw: string | null): PersistedInAppTourState
   }
 };
 
-export const markInProgressTourSkipped = (
+export const resumeInProgressTourAtStep = (
   state: PersistedInAppTourState,
+  stepId: string,
   updatedAt: string = new Date().toISOString()
 ): PersistedInAppTourState => ({
   ...state,
-  status: 'skipped',
+  stepId,
   updatedAt,
 });
 

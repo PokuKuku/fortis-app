@@ -398,6 +398,11 @@ export default function ActiveWorkoutScreen() {
         },
       },
       async () => {
+        if (isTourActive) {
+          setShowVoiceAddSheet(true);
+          return;
+        }
+
         const permission = await ensureMicrophonePermission();
         if (permission.granted) {
           setShowVoiceAddSheet(true);
@@ -710,12 +715,13 @@ export default function ActiveWorkoutScreen() {
         },
       },
       async () => {
+        if (isTourActive && activeStepId === 'open_voice_log') {
+          advanceStep();
+          return;
+        }
+
         const permission = await ensureMicrophonePermission();
         if (permission.granted) {
-          if (isTourActive && activeStepId === 'open_voice_log') {
-            advanceStep();
-            return;
-          }
           setVoiceExerciseLocalId(exerciseLocalId);
           return;
         }

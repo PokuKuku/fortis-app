@@ -53,7 +53,7 @@ import { isCreatorVoiceScriptsEnabled } from '@/src/utils/realtimeCoach';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
-import { shouldAutoStartVoiceCoach } from '@/src/utils/aiChatTour';
+import { shouldAutoStartVoiceCoach, shouldPromptForFeatureAccess } from '@/src/utils/aiChatTour';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
@@ -473,6 +473,7 @@ export default function AIChatScreen() {
         },
       },
       async () => {
+        if (!shouldPromptForFeatureAccess(isTourActive)) return;
         const allowed = await requestAIDataSharingConsent();
         if (!allowed) return;
 
@@ -507,7 +508,7 @@ export default function AIChatScreen() {
         }
       },
     );
-  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
+  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
 
   const pickMedia = useCallback(async (target: 'chat' | 'voice') => {
     const shouldRestartVoice = target === 'voice' && interactionMode === 'realtime' && isVoiceActive;
@@ -573,13 +574,14 @@ export default function AIChatScreen() {
         },
       },
       async () => {
+        if (!shouldPromptForFeatureAccess(isTourActive)) return;
         const allowed = await requestAIDataSharingConsent();
         if (!allowed) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         await retryLastMessage();
       },
     );
-  }, [retryLastMessage, runProFeature]);
+  }, [isTourActive, retryLastMessage, runProFeature]);
 
   const handleStartVoiceCoach = useCallback(async () => (
     runProFeature(
@@ -591,12 +593,13 @@ export default function AIChatScreen() {
         },
       },
       async () => {
+        if (!shouldPromptForFeatureAccess(isTourActive)) return false;
         const allowed = await requestAIDataSharingConsent();
         if (!allowed) return false;
         await startVoiceCoach();
       },
     )
-  ), [runProFeature, startVoiceCoach]);
+  ), [isTourActive, runProFeature, startVoiceCoach]);
 
   useEffect(() => {
     if (!areRealtimePreferencesLoaded) return;
@@ -667,12 +670,13 @@ export default function AIChatScreen() {
         },
       },
       async () => {
+        if (!shouldPromptForFeatureAccess(isTourActive)) return false;
         const allowed = await requestAIDataSharingConsent();
         if (!allowed) return false;
         await beginUserTurn();
       },
     )
-  ), [beginUserTurn, runProFeature]);
+  ), [beginUserTurn, isTourActive, runProFeature]);
 
   useEffect(() => {
     stopVoiceCoachRef.current = stopVoiceCoach;
@@ -919,6 +923,7 @@ export default function AIChatScreen() {
               onChangeText={setInputText}
               onSend={handleSend}
               disabled={isSendingMessage}
+              suppressVoicePermissionPrompt={isTourActive}
               hasAttachments={pendingChatMedia.length > 0}
               onAddMedia={() => { void pickMedia('chat'); }}
             />

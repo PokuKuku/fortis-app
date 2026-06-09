@@ -13,7 +13,9 @@ import { InAppTourProvider } from '@/src/contexts/InAppTourContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
 import { SuperwallProvider } from 'expo-superwall';
+import type { PartialSuperwallOptions } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
+import { SuperwallDebugEvents } from '@/src/components/superwall/SuperwallDebugEvents';
 import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallPurchaseRecovery';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
 import { PostHogRouteTracker } from '@/src/components/analytics/PostHogRouteTracker';
@@ -64,6 +66,7 @@ function ThemedAppContent({
     >
     <AuthProvider>
       <SuperwallAuthSync />
+      <SuperwallDebugEvents />
       <SuperwallPurchaseRecovery />
       <PostHogAuthSync />
       <PostHogRouteTracker />
@@ -523,11 +526,22 @@ export default function RootLayout() {
     __DEV__ &&
     process.env.EXPO_PUBLIC_BYPASS_APP_TRANSACTION_CHECK === 'true';
 
-  const superwallOptions = {
+  const superwallOptions: PartialSuperwallOptions = {
     // Enable this only for local iOS StoreKit testing in development.
     shouldBypassAppTransactionCheck,
     // Observe purchases that might complete outside of Superwall's paywall UI.
     shouldObservePurchases: true,
+    logging: {
+      level: __DEV__ ? 'debug' : 'warn',
+      scopes: [
+        'configManager',
+        'network',
+        'productsManager',
+        'storeKitManager',
+        'placements',
+        'paywallPresentation',
+      ],
+    },
   };
 
   return (

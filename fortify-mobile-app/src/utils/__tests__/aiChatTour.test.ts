@@ -4,6 +4,7 @@ import {
   AI_CHAT_OVERVIEW_COPY,
   getAIChatTourNarrationVoice,
   shouldAutoStartVoiceCoach,
+  shouldPromptForFeatureAccess,
 } from '@/src/utils/aiChatTour';
 
 describe('shouldAutoStartVoiceCoach', () => {
@@ -17,6 +18,11 @@ describe('shouldAutoStartVoiceCoach', () => {
   it('preserves realtime startup outside the tour', () => {
     expect(shouldAutoStartVoiceCoach(false, 'ai_chat_overview')).toBe(true);
     expect(shouldAutoStartVoiceCoach(false, null)).toBe(true);
+  });
+
+  it('defers feature access prompts until after the tour', () => {
+    expect(shouldPromptForFeatureAccess(true)).toBe(false);
+    expect(shouldPromptForFeatureAccess(false)).toBe(true);
   });
 
   it('uses Cedar tour narration only for male users', () => {

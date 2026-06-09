@@ -9,3 +9,7 @@ export const shouldAutoStartVoiceCoach = (
   isTourActive: boolean,
   _activeStepId: string | null
 ): boolean => !isTourActive;
+
+export const shouldPromptForFeatureAccess = (
+  isTourActive: boolean
+): boolean => !isTourActive;

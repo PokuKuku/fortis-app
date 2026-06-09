@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Text, StyleSheet, View } from 'react-native';
+import { Text, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
@@ -12,6 +12,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius } from '@/constants/Sizes';
+import { scale } from '@/src/utils/responsive';
 import { type Slug } from 'react-native-body-highlighter';
 import {
   trackOnboardingStepCompleted,
@@ -19,6 +20,8 @@ import {
 } from '@/src/services/onboardingAnalyticsService';
 import type { MuscleFocus } from '@/src/utils/onboardingProgram';
 import type { MuscleKey } from '@/src/utils/muscleTaxonomy';
+
+const GRID_GAP = 12;
 
 type MuscleFocusOption = {
   value: MuscleFocus;
@@ -120,9 +123,15 @@ export default function OnboardingMuscleFocusScreen() {
   useOnboardingFunnelScreen('Q15. Muscle Focus');
 
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const { colors } = useTheme();
   const [selected, setSelected] = useState<MuscleFocus[]>([]);
   const isDisabled = selected.length === 0;
+  const maxScreenWidth = windowWidth < 380 ? 360 : windowWidth < 420 ? 420 : 480;
+  const horizontalPadding = windowWidth < 380 ? scale(20) : scale(24);
+  const contentWidth = Math.min(windowWidth, maxScreenWidth) - (horizontalPadding * 2);
+  const optionTileWidth = Math.floor((contentWidth - GRID_GAP) / 2);
+  const centeredOptionOffset = Math.floor((contentWidth - optionTileWidth) / 2);
 
   useEffect(() => {
     let isActive = true;
@@ -173,7 +182,7 @@ export default function OnboardingMuscleFocusScreen() {
     <OnboardingScreen
       step={11}
       totalSteps={TOTAL_ONBOARDING_STEPS}
-      title="What areas do you want to focus on?"
+      title="Want to focus on?"
       subtitle={undefined}
       onBack={() => router.back()}
       floatingFooter={
@@ -191,7 +200,16 @@ export default function OnboardingMuscleFocusScreen() {
         {OPTIONS.map((option, index) => {
           const isLastOddTile = OPTIONS.length % 2 === 1 && index === OPTIONS.length - 1;
           return (
-            <View key={option.value} style={[styles.optionTile, isLastOddTile && styles.centeredOptionTile]}>
+            <View
+              key={option.value}
+              style={[
+                styles.optionTile,
+                {
+                  width: optionTileWidth,
+                  marginLeft: isLastOddTile ? centeredOptionOffset : 0,
+                },
+              ]}
+            >
               <OnboardingOptionCard
                 title={option.title}
                 leadingAccessory={<MuscleFocusHeatmapIcon option={option} />}
@@ -211,13 +229,9 @@ const styles = StyleSheet.create({
   options: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: GRID_GAP,
   },
   optionTile: {
-    width: '48%',
-  },
-  centeredOptionTile: {
-    marginLeft: '26%',
   },
   heatmapIcon: {
     width: 64,

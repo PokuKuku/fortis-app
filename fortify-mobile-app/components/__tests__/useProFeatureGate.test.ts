@@ -70,7 +70,7 @@ describe('useProFeatureGate', () => {
     expect(mockRegisterPlacement).not.toHaveBeenCalled();
   });
 
-  it('does not bypass unrelated placements during the tour', async () => {
+  it('runs feature-gated actions without registering Superwall placements while feature paywalls are disabled', async () => {
     mockShouldBypassProGateForTour.mockImplementation(
       (placement) => placement === PAYWALL_PLACEMENTS.voiceExerciseAdd,
     );
@@ -79,12 +79,10 @@ describe('useProFeatureGate', () => {
 
     await expect(result.current.runProFeature({
       placement: PAYWALL_PLACEMENTS.programLimit,
-    }, action)).resolves.toBe(false);
+    }, action)).resolves.toBe(true);
 
-    expect(action).not.toHaveBeenCalled();
-    expect(mockRegisterPlacement).toHaveBeenCalledWith(expect.objectContaining({
-      placement: PAYWALL_PLACEMENTS.programLimit,
-    }));
+    expect(action).toHaveBeenCalledTimes(1);
+    expect(mockRegisterPlacement).not.toHaveBeenCalled();
   });
 
   it('still runs Pro users immediately without registering a Superwall placement', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
@@ -8,6 +8,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { scale } from '@/src/utils/responsive';
 import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
@@ -21,8 +22,14 @@ export default function OnboardingWorkoutScheduleScreen() {
   useOnboardingFunnelScreen('Q10. Workout Schedule');
 
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const maxScreenWidth = windowWidth < 380 ? 360 : windowWidth < 420 ? 420 : 480;
+  const horizontalPadding = windowWidth < 380 ? scale(20) : scale(24);
+  const contentWidth = Math.min(windowWidth, maxScreenWidth) - (horizontalPadding * 2);
+  const dayGap = scale(Spacing.md);
+  const dayButtonWidth = Math.floor((contentWidth - (dayGap * 2)) / 3);
 
   useEffect(() => {
     let isActive = true;
@@ -79,15 +86,21 @@ export default function OnboardingWorkoutScheduleScreen() {
         </GlassButton>
       }
     >
-      <View style={styles.daysGrid}>
+      <View style={[styles.daysGrid, { gap: dayGap }]}>
         {WEEKDAY_LABELS.map((label, day) => {
           const selected = selectedDays.includes(day);
+          const isLastDay = day === WEEKDAY_LABELS.length - 1;
           return (
             <Pressable
               key={label}
               onPress={() => toggleDay(day)}
               style={({ pressed }) => [
                 styles.dayButton,
+                {
+                  width: dayButtonWidth,
+                  marginLeft: isLastDay ? dayButtonWidth + dayGap : 0,
+                  marginRight: isLastDay ? dayButtonWidth + dayGap : 0,
+                },
                 {
                   backgroundColor: selected
                     ? colors.accent
@@ -114,12 +127,10 @@ const styles = StyleSheet.create({
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.md,
     justifyContent: 'center',
     marginTop: 128,
   },
   dayButton: {
-    width: 92,
     height: 52,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,

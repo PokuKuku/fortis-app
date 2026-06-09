@@ -1,3 +1,7 @@
+// Temporarily bypass feature-level paywalls while preserving their placements.
+// The post-sign-up onboarding paywall remains enabled.
+export const FEATURE_PAYWALLS_ENABLED = false;
+
 export const PAYWALL_PLACEMENTS = {
   postSignUp: 'fortis_first',
   aiVoiceCoach: 'fortis_ai_voice_coach',

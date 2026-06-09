@@ -165,6 +165,35 @@ describe('PaywallGateScreen', () => {
     });
   });
 
+  it('does not register a second paywall when a stale retry fires during presentation', async () => {
+    jest.useFakeTimers();
+    mockSuperwallState.isConfigured = false;
+    mockSuperwallState.configurationError = null;
+
+    const screen = render(<PaywallGateScreen />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    mockSuperwallState.isConfigured = true;
+    screen.rerender(<PaywallGateScreen />);
+
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockRegisterPlacement).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(2_100);
+      await Promise.resolve();
+    });
+
+    expect(mockRegisterPlacement).toHaveBeenCalledTimes(1);
+  });
+
   it('reconciles stale active status before deciding access', async () => {
     mockSuperwallState.isConfigured = true;
     mockSuperwallState.configurationError = null;
@@ -228,7 +257,7 @@ describe('PaywallGateScreen', () => {
     expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
   });
 
-  it('keeps pending onboarding completion until the post-onboarding paywall closes', async () => {
+  it('keeps pending onboarding completion when the post-onboarding paywall is declined', async () => {
     mockSuperwallState.isConfigured = true;
     mockSuperwallState.configurationError = null;
     mockAuthState.profile = { onboarding_completed: true };
@@ -247,11 +276,39 @@ describe('PaywallGateScreen', () => {
       await Promise.resolve();
     });
 
+    expect(mockClearPendingOnboardingAuthCompletion).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalledWith('/(tabs)');
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+  });
+
+  it('enters the app after a purchase verifies active subscription access', async () => {
+    mockSuperwallState.isConfigured = true;
+    mockSuperwallState.configurationError = null;
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+    mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
+    mockGetEntitlements
+      .mockResolvedValueOnce({ active: [], inactive: [] })
+      .mockResolvedValueOnce({
+        active: [{ id: 'fortis_pro', type: 'SERVICE_LEVEL' }],
+        inactive: [],
+      });
+
+    render(<PaywallGateScreen />);
+
+    await waitFor(() => {
+      expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
+    });
+
+    await act(async () => {
+      mockPlacementHandlers.onDismiss?.({}, { type: 'purchased' });
+      await Promise.resolve();
+    });
+
     await waitFor(() => {
       expect(mockClearPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
       expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
-    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
   });
 
   it('does not clear pending onboarding completion when Superwall skips during the sticky gate', async () => {

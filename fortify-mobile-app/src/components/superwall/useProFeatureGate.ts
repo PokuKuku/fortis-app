@@ -2,7 +2,10 @@ import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Platform } from 'react-native';
 import { usePlacement, useSuperwall, useUser } from 'expo-superwall';
 import type { PaywallResult, PaywallSkippedReason, SubscriptionStatus } from 'expo-superwall';
-import type { PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
+import {
+  FEATURE_PAYWALLS_ENABLED,
+  type PaywallPlacement,
+} from '@/src/components/superwall/paywallPlacements';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import {
   activeEntitlementsFromInfo,
@@ -60,7 +63,9 @@ export function useProFeatureGate() {
   }, [subscriptionStatus]);
 
   const isPro = useMemo(
-    () => subscriptionHasProAccess(subscriptionStatus) || hasLocalStoreKitActiveSubscription(subscriptionStatus),
+    () => !FEATURE_PAYWALLS_ENABLED ||
+      subscriptionHasProAccess(subscriptionStatus) ||
+      hasLocalStoreKitActiveSubscription(subscriptionStatus),
     [subscriptionStatus],
   );
 
@@ -150,6 +155,7 @@ export function useProFeatureGate() {
 
   const handleSkip = useCallback(
     (reason: PaywallSkippedReason) => {
+      console.warn('[Superwall] Pro placement skipped:', reason.type);
       if (isUserSubscribedSkipReason(reason)) {
         void completeIfPro(true);
         return;
@@ -161,7 +167,10 @@ export function useProFeatureGate() {
   );
 
   const handleError = useCallback(
-    (_error: string) => {
+    (error: string) => {
+      if (FEATURE_PAYWALLS_ENABLED) {
+        console.error('[Superwall] Pro placement error:', error);
+      }
       clearPending(false);
     },
     [clearPending],
@@ -181,6 +190,11 @@ export function useProFeatureGate() {
     options: RunProFeatureOptions,
     action: ProFeatureAction,
   ): Promise<boolean> => {
+    if (!FEATURE_PAYWALLS_ENABLED) {
+      const result = await action();
+      return result !== false;
+    }
+
     if (shouldBypassProGateForTour(options.placement)) {
       const result = await action();
       return result !== false;
@@ -195,6 +209,12 @@ export function useProFeatureGate() {
     }
 
     if (!isReady || hasError || pendingRef.current) {
+      console.warn('[Superwall] Pro placement blocked before registration:', {
+        placement: options.placement,
+        isReady,
+        hasError,
+        hasPendingPlacement: pendingRef.current !== null,
+      });
       return false;
     }
 
@@ -208,12 +228,10 @@ export function useProFeatureGate() {
           void completeIfPro(canUseLocalStoreKitProFallback());
         },
       }).catch((error: unknown) => {
-        if (__DEV__) {
-          console.warn('[Superwall] Pro placement failed', {
-            placement: options.placement,
-            error,
-          });
-        }
+        console.warn('[Superwall] Pro placement failed', {
+          placement: options.placement,
+          error,
+        });
         clearPending(false);
       });
     });

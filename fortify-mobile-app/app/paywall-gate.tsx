@@ -52,8 +52,9 @@ export default function PaywallGateScreen() {
   const lastAttemptRef = useRef(-1);
   const lastIdentityRetryRef = useRef(-1);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasActiveSubscriptionRef = useRef(false);
   const subscriptionStatusRef = useRef(subscriptionStatus);
+  const isPaywallPresentedRef = useRef(false);
+  const isVerifyingAccessRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const [paywallContext, setPaywallContext] = useState<OnboardingConversionContext | null>(null);
 
@@ -150,7 +151,11 @@ export default function PaywallGateScreen() {
   }, [queueTourStartAfterPaywallClose, router]);
 
   const scheduleRetry = useCallback(() => {
-    if (hasNavigatedRef.current) {
+    if (
+      hasNavigatedRef.current ||
+      isPaywallPresentedRef.current ||
+      isVerifyingAccessRef.current
+    ) {
       return;
     }
 
@@ -167,13 +172,8 @@ export default function PaywallGateScreen() {
   }, []);
 
   const handleTransientGateFailure = useCallback(() => {
-    if (hasPendingOnboardingAuthCompletion) {
-      scheduleRetry();
-      return;
-    }
-
-    finishGate();
-  }, [finishGate, hasPendingOnboardingAuthCompletion, scheduleRetry]);
+    scheduleRetry();
+  }, [scheduleRetry]);
 
   const syncAccessOnce = useCallback(async () => {
     try {
@@ -188,12 +188,28 @@ export default function PaywallGateScreen() {
       setSubscriptionStatus,
     });
 
-    if (reconciliation.wasVerified) {
-      hasActiveSubscriptionRef.current = reconciliation.hasActiveSubscription;
-    }
-
     return reconciliation;
   }, [getEntitlements, refresh, setSubscriptionStatus]);
+
+  const finishGateIfSubscribed = useCallback(async () => {
+    if (isVerifyingAccessRef.current) {
+      return;
+    }
+
+    isVerifyingAccessRef.current = true;
+    try {
+      const access = await syncAccessOnce();
+
+      if (access.wasVerified && access.hasActiveSubscription) {
+        finishGate();
+        return;
+      }
+    } finally {
+      isVerifyingAccessRef.current = false;
+    }
+
+    scheduleRetry();
+  }, [finishGate, scheduleRetry, syncAccessOnce]);
 
   const retryIdentitySync = useCallback(async () => {
     if (!isAuthResolved || !isSuperwallReady || hasSuperwallError) {
@@ -228,19 +244,20 @@ export default function PaywallGateScreen() {
 
   const handleDismiss = useCallback(
     (_paywallInfo: { name?: string } | unknown, result: PaywallResult) => {
+      isPaywallPresentedRef.current = false;
       if (result.type === 'purchased' || result.type === 'restored') {
-        hasActiveSubscriptionRef.current = true;
-        finishGate();
+        void finishGateIfSubscribed();
         return;
       }
 
-      finishGate();
+      scheduleRetry();
     },
-    [finishGate],
+    [finishGateIfSubscribed, scheduleRetry],
   );
 
   const handleSkip = useCallback(
     (_reason: PaywallSkippedReason) => {
+      isPaywallPresentedRef.current = false;
       handleTransientGateFailure();
     },
     [handleTransientGateFailure],
@@ -248,6 +265,7 @@ export default function PaywallGateScreen() {
 
   const handleError = useCallback(
     (_error: string) => {
+      isPaywallPresentedRef.current = false;
       handleTransientGateFailure();
     },
     [handleTransientGateFailure],
@@ -269,6 +287,10 @@ export default function PaywallGateScreen() {
 
   useEffect(() => {
     if (hasNavigatedRef.current) {
+      return;
+    }
+
+    if (isPaywallPresentedRef.current || isVerifyingAccessRef.current) {
       return;
     }
 
@@ -330,18 +352,23 @@ export default function PaywallGateScreen() {
             // Best effort. Placement params still carry the context for paywall rules.
           }
         }
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+        }
+        isPaywallPresentedRef.current = true;
         await registerPlacement({
           placement: POST_SIGN_UP_PLACEMENT,
           params: paywallContext ?? undefined,
         });
       } catch {
+        isPaywallPresentedRef.current = false;
         handleTransientGateFailure();
       }
     })();
   }, [
     attempt,
     finishGate,
-    hasPendingOnboardingAuthCompletion,
     hasSuperwallError,
     handleTransientGateFailure,
     isIdentityReady,
