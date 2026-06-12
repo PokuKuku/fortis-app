@@ -12,6 +12,7 @@ import { syncRetentionNotifications } from '@/src/services/workoutRetentionNotif
 import type { WorkoutSession } from '@/src/types/workout';
 import {
   buildWorkoutScheduleHistoryForChange,
+  clampWorkoutScheduleHistoryToActivationDate,
   getScheduledWorkoutDayStreak,
   normalizeWorkoutScheduleDays,
   normalizeWorkoutScheduleHistory,
@@ -20,7 +21,7 @@ import {
 } from '@/src/utils/workoutSchedule';
 
 export function useWorkoutSchedule() {
-  const { profile, updateProfile } = useAuth();
+  const { profile, updateProfile, user } = useAuth();
   const [localDays, setLocalDays] = useState<number[] | null>(null);
   const [scheduleHistory, setScheduleHistory] = useState<WorkoutScheduleHistoryEntry[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -65,9 +66,18 @@ export function useWorkoutSchedule() {
     () => normalizeWorkoutScheduleHistory(profile?.workout_schedule_history),
     [profile?.workout_schedule_history]
   );
-  const activeScheduleHistory = cloudScheduleHistory.length > 0
+  const sourceScheduleHistory = cloudScheduleHistory.length > 0
     ? cloudScheduleHistory
     : scheduleHistory;
+  const accountCreatedAt = profile?.created_at ?? user?.created_at;
+  const activeScheduleHistory = useMemo(
+    () => clampWorkoutScheduleHistoryToActivationDate(
+      sourceScheduleHistory,
+      accountCreatedAt ? new Date(accountCreatedAt) : null,
+      scheduleDays
+    ),
+    [accountCreatedAt, scheduleDays, sourceScheduleHistory]
+  );
 
   const saveScheduleDays = useCallback(async (
     days: number[],

@@ -151,7 +151,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'open_voice_log',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.voiceLog,
-    body: 'Tap the mic on this exercise to log 3 sets with your voice.',
+    body: 'Tap the mic on exercise cards to log sets with your voice.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,

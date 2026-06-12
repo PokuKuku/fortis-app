@@ -160,6 +160,7 @@ jest.mock('react-native-heroicons/solid', () => ({
 describe('OnboardingCompleteScreen', () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-19T12:00:00'));
     jest.clearAllMocks();
     mockAuthState.isAuthenticated = false;
     mockAuthState.profile = null;
@@ -236,6 +237,9 @@ describe('OnboardingCompleteScreen', () => {
       expect(mockUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({
         full_name: 'Kwaku',
         onboarding_completed: true,
+        workout_schedule_history: [
+          { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+        ],
       }));
     });
 

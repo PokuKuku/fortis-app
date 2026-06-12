@@ -33,6 +33,7 @@ import {
   markPendingOnboardingAuthCompletion,
   usePendingOnboardingAuthCompletion,
 } from '@/src/utils/onboardingAuthCompletion';
+import { buildInitialWorkoutScheduleHistory } from '@/src/utils/workoutSchedule';
 
 const ONBOARDING_STATE_LOAD_TIMEOUT_MS = 4_000;
 const PROFILE_FINALIZATION_TIMEOUT_MS = 8_000;
@@ -220,12 +221,7 @@ export default function AuthWelcomeScreen() {
         }
         if (Array.isArray(state?.workout_schedule_days) && !profileSnapshot?.workout_schedule_days?.length) {
           updates.workout_schedule_days = state.workout_schedule_days;
-          updates.workout_schedule_history = [
-            {
-              effectiveDateKey: '1970-01-01',
-              scheduleDays: state.workout_schedule_days,
-            },
-          ];
+          updates.workout_schedule_history = buildInitialWorkoutScheduleHistory(state.workout_schedule_days);
         }
 
         const { error } = await withTimeout(

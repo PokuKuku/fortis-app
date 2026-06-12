@@ -142,6 +142,8 @@ jest.mock('react-native-heroicons/outline', () => ({
 
 describe('AuthWelcomeScreen', () => {
   beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-19T12:00:00'));
     jest.clearAllMocks();
     mockSearchParams = { onboarding: 'complete' };
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: true });
@@ -160,6 +162,7 @@ describe('AuthWelcomeScreen', () => {
       fitness_goal: 'build_muscle',
       biggest_challenge: 'consistency',
       workout_consistency: 'starting',
+      workout_schedule_days: [1, 3, 5],
     });
     mockAuthState.profile = {
       ...mockAuthState.profile,
@@ -175,11 +178,19 @@ describe('AuthWelcomeScreen', () => {
     mockClearOnboardingState.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('finalizes onboarding-complete auth flow exactly once and routes to the post-onboarding paywall gate', async () => {
     render(<AuthWelcomeScreen />);
 
     await waitFor(() => {
-      expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+      expect(mockUpdateProfile).toHaveBeenCalledWith(expect.objectContaining({
+        workout_schedule_history: [
+          { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+        ],
+      }));
     });
 
     await waitFor(() => {

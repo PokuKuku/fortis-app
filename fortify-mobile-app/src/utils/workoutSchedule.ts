@@ -82,6 +82,49 @@ export function normalizeWorkoutScheduleHistory(value: unknown): WorkoutSchedule
     }, []);
 }
 
+export function buildInitialWorkoutScheduleHistory(
+  scheduleDays: number[],
+  activationDate = new Date()
+): WorkoutScheduleHistoryEntry[] {
+  return [
+    {
+      effectiveDateKey: getDateKey(activationDate),
+      scheduleDays: normalizeWorkoutScheduleDays(scheduleDays),
+    },
+  ];
+}
+
+export function clampWorkoutScheduleHistoryToActivationDate(
+  value: unknown,
+  activationDate?: Date | null,
+  fallbackScheduleDays?: number[]
+): WorkoutScheduleHistoryEntry[] {
+  const history = normalizeWorkoutScheduleHistory(value);
+  if (!activationDate || Number.isNaN(activationDate.getTime())) {
+    return history;
+  }
+  if (history.length === 0) {
+    return fallbackScheduleDays
+      ? buildInitialWorkoutScheduleHistory(fallbackScheduleDays, activationDate)
+      : history;
+  }
+
+  const activationDateKey = getDateKey(activationDate);
+  const activeAtActivation = history
+    .filter((entry) => entry.effectiveDateKey <= activationDateKey)
+    .at(-1);
+
+  if (!activeAtActivation) return history;
+
+  return normalizeWorkoutScheduleHistory([
+    {
+      effectiveDateKey: activationDateKey,
+      scheduleDays: activeAtActivation.scheduleDays,
+    },
+    ...history.filter((entry) => entry.effectiveDateKey > activationDateKey),
+  ]);
+}
+
 export function deriveScheduleDaysFromWorkoutsPerWeek(workoutsPerWeek?: number | null): number[] {
   const count = Math.max(0, Math.min(7, Math.round(Number(workoutsPerWeek ?? 0))));
 

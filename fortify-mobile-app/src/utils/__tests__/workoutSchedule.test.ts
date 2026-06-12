@@ -1,8 +1,10 @@
 import type { WorkoutSession } from '@/src/types/workout';
 import {
+  buildInitialWorkoutScheduleHistory,
   buildWorkoutScheduleHistoryForChange,
   buildSundayWeek,
   buildWeekProgressDays,
+  clampWorkoutScheduleHistoryToActivationDate,
   deriveScheduleDaysFromWorkoutsPerWeek,
   getCompletedWeekdaysForProgram,
   getScheduleDaysForDate,
@@ -78,6 +80,38 @@ describe('workoutSchedule', () => {
     expect(resolveWorkoutScheduleDays([], undefined, undefined, 3)).toEqual([]);
     expect(resolveWorkoutScheduleDays(undefined, [], undefined, 3)).toEqual([]);
     expect(resolveWorkoutScheduleDays(undefined, undefined, undefined, 3)).toEqual([1, 3, 5]);
+  });
+
+  it('starts initial schedule history on the activation date', () => {
+    expect(buildInitialWorkoutScheduleHistory(
+      [5, 1, 3],
+      new Date('2026-05-19T12:00:00')
+    )).toEqual([
+      { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+    ]);
+  });
+
+  it('clamps legacy schedule history to account creation', () => {
+    expect(clampWorkoutScheduleHistoryToActivationDate(
+      [
+        { effectiveDateKey: '1970-01-01', scheduleDays: [1, 3, 5] },
+        { effectiveDateKey: '2026-05-21', scheduleDays: [2, 4] },
+      ],
+      new Date('2026-05-19T12:00:00')
+    )).toEqual([
+      { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+      { effectiveDateKey: '2026-05-21', scheduleDays: [2, 4] },
+    ]);
+  });
+
+  it('starts missing schedule history at account creation', () => {
+    expect(clampWorkoutScheduleHistoryToActivationDate(
+      [],
+      new Date('2026-05-19T12:00:00'),
+      [1, 3, 5]
+    )).toEqual([
+      { effectiveDateKey: '2026-05-19', scheduleDays: [1, 3, 5] },
+    ]);
   });
 
   it('maps completed sessions to local calendar dates', () => {

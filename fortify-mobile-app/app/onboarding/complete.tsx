@@ -43,6 +43,7 @@ import {
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
 import { clearInAppTourState } from '@/src/services/inAppTourService';
+import { buildInitialWorkoutScheduleHistory } from '@/src/utils/workoutSchedule';
 
 const LOADING_DURATION_MS = 13000;
 const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
@@ -898,12 +899,7 @@ export default function OnboardingCompleteScreen() {
       }
       if (Array.isArray(state?.workout_schedule_days) && !profile?.workout_schedule_days?.length) {
         updates.workout_schedule_days = state.workout_schedule_days;
-        updates.workout_schedule_history = [
-          {
-            effectiveDateKey: '1970-01-01',
-            scheduleDays: state.workout_schedule_days,
-          },
-        ];
+        updates.workout_schedule_history = buildInitialWorkoutScheduleHistory(state.workout_schedule_days);
       }
 
       let didTimeout = false;
