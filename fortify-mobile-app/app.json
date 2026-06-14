@@ -2,7 +2,7 @@
   "expo": {
     "name": "Fortify",
     "slug": "fortis",
-    "version": "1.2.1",
+    "version": "1.2.2",
     "orientation": "portrait",
     "icon": "./assets/fortify_new_icon.png",
     "notification": {
