@@ -7,9 +7,13 @@ import {
   type AICoachPersonality,
   type AICoachVoice,
   type RealtimeVoiceInteractionMode,
+  type VoiceCoachExperienceMode,
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
-import { sanitizeCustomScenarioInstructions } from '@/src/utils/realtimeCoachPrompt';
+import {
+  sanitizeConversationPersonaInstructions,
+  sanitizeCustomScenarioInstructions,
+} from '@/src/utils/realtimeCoachPrompt';
 
 type RealtimeCoachPreferencesListener = (preferences: RealtimeCoachPreferences) => void;
 
@@ -23,6 +27,8 @@ const isPersonality = (value: unknown): value is AICoachPersonality =>
 
 const isInteractionMode = (value: unknown): value is RealtimeVoiceInteractionMode =>
   value === 'push_to_talk' || value === 'realtime';
+const isExperienceMode = (value: unknown): value is VoiceCoachExperienceMode =>
+  value === 'coach' || value === 'conversation';
 
 export const normalizeRealtimeCoachPreferences = (
   value: unknown
@@ -48,6 +54,12 @@ export const normalizeRealtimeCoachPreferences = (
     interactionMode: isInteractionMode(candidate.interactionMode)
       ? candidate.interactionMode
       : DEFAULT_REALTIME_COACH_PREFERENCES.interactionMode,
+    experienceMode: isExperienceMode(candidate.experienceMode)
+      ? candidate.experienceMode
+      : DEFAULT_REALTIME_COACH_PREFERENCES.experienceMode,
+    conversationPersonaInstructions: sanitizeConversationPersonaInstructions(
+      candidate.conversationPersonaInstructions
+    ),
   };
 };
 

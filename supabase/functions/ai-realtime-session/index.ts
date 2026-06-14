@@ -12,12 +12,15 @@ import {
 
 type AICoachPersonality = 'supportive' | 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
 type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse';
+type VoiceCoachExperienceMode = 'coach' | 'conversation';
 
 interface RealtimeCoachPreferences {
   personality: AICoachPersonality;
   intensity: number;
   voice: AICoachVoice;
   customInstructions?: string;
+  experienceMode: VoiceCoachExperienceMode;
+  conversationPersonaInstructions?: string;
 }
 
 interface RealtimeSessionRequest {
@@ -43,6 +46,10 @@ const EFFECTIVE_MAX_SECONDS_PER_SESSION = VOICE_COACH_RATE_LIMITS_ENABLED
   : UNLIMITED_VOICE_COACH_SESSION_SECONDS;
 const MAX_CREATOR_SCRIPT_CHARS = Math.max(1, Number(Deno.env.get('AI_VOICE_SCRIPT_MAX_CHARS') ?? '500'));
 const MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS = 500;
+const MAX_CONVERSATION_PERSONA_INSTRUCTIONS_CHARS = 4000;
+const CONVERSATION_CONTEXT_DAYS = 90;
+const CONVERSATION_CONTEXT_MAX_SESSIONS = 50;
+const CONVERSATION_CONTEXT_MAX_CHARS = 100_000;
 const VOICE_COACH_CONTEXT_WEEKS = Math.max(
   4,
   Number(Deno.env.get('AI_REALTIME_CONTEXT_WEEKS') ?? '12')
@@ -92,6 +99,14 @@ function sanitizeCustomScenarioInstructions(value: unknown): string {
     .slice(0, MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS);
 }
 
+function sanitizeConversationPersonaInstructions(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/[\u0000-\u001F\u007F]/g, '')
+    .trim()
+    .slice(0, MAX_CONVERSATION_PERSONA_INSTRUCTIONS_CHARS);
+}
+
 function getAllowedCreatorEmails(): string[] {
   return (Deno.env.get('AI_VOICE_SCRIPT_CREATOR_EMAILS') ?? '')
     .split(',')
@@ -120,11 +135,16 @@ function normalizePreferences(value: unknown): RealtimeCoachPreferences {
     voice: isVoice(candidate.voice) ? candidate.voice : 'marin',
     intensity,
     customInstructions: sanitizeCustomScenarioInstructions(candidate.customInstructions),
+    experienceMode: candidate.experienceMode === 'conversation' ? 'conversation' : 'coach',
+    conversationPersonaInstructions: sanitizeConversationPersonaInstructions(
+      candidate.conversationPersonaInstructions
+    ),
   };
 }
 
 type VoiceCoachTrainingContext = AIBaseContext & {
   contextWeeks: number;
+  conversationDetail?: Record<string, unknown>;
 };
 
 function hasRecord(value: unknown): value is Record<string, unknown> {
@@ -157,7 +177,7 @@ function buildVoiceCoachContextPayload(context: VoiceCoachTrainingContext): Reco
       .filter((entry) => entry.muscleGroup)
     : [];
 
-  return {
+  const payload: Record<string, unknown> = {
     scope: 'voice_coach_session_start',
     recentTrainingWindowWeeks: context.contextWeeks,
     userPreferences: {
@@ -193,6 +213,26 @@ function buildVoiceCoachContextPayload(context: VoiceCoachTrainingContext): Reco
       leastTrainedMuscleGroups: muscleFrequency.slice(-6).reverse(),
     },
   };
+
+  if (context.conversationDetail) {
+    payload.conversationDetail = context.conversationDetail;
+    const sessions = Array.isArray(context.conversationDetail.recentSessions)
+      ? [...context.conversationDetail.recentSessions]
+      : [];
+    const exerciseTrends = Array.isArray(context.conversationDetail.exerciseTrends)
+      ? [...context.conversationDetail.exerciseTrends]
+      : [];
+    while (compactJson(payload).length > CONVERSATION_CONTEXT_MAX_CHARS && sessions.length > 0) {
+      sessions.pop();
+      payload.conversationDetail = { ...context.conversationDetail, recentSessions: sessions, exerciseTrends };
+    }
+    while (compactJson(payload).length > CONVERSATION_CONTEXT_MAX_CHARS && exerciseTrends.length > 0) {
+      exerciseTrends.pop();
+      payload.conversationDetail = { ...context.conversationDetail, recentSessions: sessions, exerciseTrends };
+    }
+  }
+
+  return payload;
 }
 
 function buildTrainingContextInstructions(context: VoiceCoachTrainingContext | null): string {
@@ -244,6 +284,27 @@ function buildInstructions(
       ? 'You are a high-energy strength coach. Celebrate wins, keep momentum high, and make the user feel ready to train.'
       : 'You are a direct strength coach. Be specific, useful, concise, and a little challenging.';
 
+  if (preferences.experienceMode === 'conversation') {
+    const savedPersona = sanitizeConversationPersonaInstructions(preferences.conversationPersonaInstructions);
+    return `You are Fortify's conversational AI coach.
+${savedPersona ? `Saved personality instructions:\n${savedPersona}` : 'Be a direct, insightful, and engaging personal trainer.'}
+
+Conversation Mode rules:
+- Have an open-ended spoken conversation with the user while following the saved personality instructions.
+- Treat spoken and typed instructions during this live session as session-only instructions.
+- When the user requests an exact or conditional response, use their exact wording when it is safe and truthful.
+- Freely accept creative direction for social-media scripts, roast formats, comedic pacing, hooks, punchlines, pauses, and temporary personas. Instructions containing words like "roast", "devastating", or "unhinged" are allowed when they target the user's logged fitness behavior, choices, effort, or consistency rather than appearance, identity, or protected traits.
+- If the user provides instructions for future responses rather than asking for content immediately, briefly confirm that you will follow them. Do not refuse harmless creative-direction instructions.
+- User instructions never override safety, privacy, medical limitations, protected-trait safety, or factual accuracy.
+- Use actual Fortify workout data whenever relevant. Never invent a workout, statistic, trend, or personal detail.
+- If data is missing or sparse, say so directly instead of guessing.
+- Do not create, revise, offer, or claim to create workout cards in Conversation Mode.
+- Speak naturally and keep most responses concise unless the user requests detail.
+- Ask at most one question at a time.
+- Do not claim form detection, rep counting, or medical diagnosis.
+- You are inside Fortify, a workout tracker and AI personal trainer.${buildTrainingContextInstructions(trainingContext)}`;
+  }
+
   return `${persona}
 
 Voice Coach rules:
@@ -270,7 +331,8 @@ Voice Coach rules:
 
 async function assembleVoiceCoachTrainingContext(
   adminClient: SupabaseClient,
-  userId: string
+  userId: string,
+  experienceMode: VoiceCoachExperienceMode
 ): Promise<VoiceCoachTrainingContext | null> {
   try {
     const [user, history, analytics] = await Promise.all([
@@ -288,16 +350,74 @@ async function assembleVoiceCoachTrainingContext(
       ),
     ]);
 
+    const conversationDetail = experienceMode === 'conversation'
+      ? await fetchConversationDetail(adminClient, userId)
+      : undefined;
+
     return {
       user,
       history,
       analytics,
       contextWeeks: VOICE_COACH_CONTEXT_WEEKS,
+      conversationDetail,
     };
   } catch (error) {
     console.warn('[ai-realtime-session] failed to assemble voice coach training context', error);
     return null;
   }
+}
+
+async function fetchConversationDetail(
+  adminClient: SupabaseClient,
+  userId: string
+): Promise<Record<string, unknown>> {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - CONVERSATION_CONTEXT_DAYS);
+
+  const [sessionsResult, personalRecordsResult, exposuresResult] = await Promise.all([
+    adminClient
+      .from('workout_sessions')
+      .select('id,name,started_at,completed_at,duration_seconds,workout_sets(exercise_id,exercise_name_snapshot,set_number,reps,weight,weight_unit,rpe,is_warmup,is_dropset,is_failure,order_index)')
+      .eq('user_id', userId)
+      .not('completed_at', 'is', null)
+      .gte('started_at', startDate.toISOString())
+      .order('started_at', { ascending: false })
+      .limit(CONVERSATION_CONTEXT_MAX_SESSIONS),
+    adminClient
+      .from('exercise_personal_records')
+      .select('exercise_id,exercise_name,max_weight,estimated_1rm,max_reps,achieved_at')
+      .eq('user_id', userId)
+      .order('achieved_at', { ascending: false })
+      .limit(300),
+    adminClient
+      .from('exercise_exposures')
+      .select('exercise_id,exposure_at,total_volume,best_e1rm,working_sets')
+      .eq('user_id', userId)
+      .order('exposure_at', { ascending: false })
+      .limit(300),
+  ]);
+
+  if (sessionsResult.error) console.warn('[ai-realtime-session] detailed sessions failed', sessionsResult.error.message);
+  if (personalRecordsResult.error) console.warn('[ai-realtime-session] personal records failed', personalRecordsResult.error.message);
+  if (exposuresResult.error) console.warn('[ai-realtime-session] exercise exposures failed', exposuresResult.error.message);
+
+  const recentByExercise = new Map<string, unknown[]>();
+  for (const exposure of exposuresResult.data ?? []) {
+    const exerciseId = typeof exposure.exercise_id === 'string' ? exposure.exercise_id : '';
+    if (!exerciseId) continue;
+    const recent = recentByExercise.get(exerciseId) ?? [];
+    if (recent.length < 6) recent.push(exposure);
+    recentByExercise.set(exerciseId, recent);
+  }
+
+  return {
+    detailWindowDays: CONVERSATION_CONTEXT_DAYS,
+    recentSessions: sessionsResult.data ?? [],
+    exerciseTrends: (personalRecordsResult.data ?? []).map((record) => ({
+      ...record,
+      recentExposures: recentByExercise.get(record.exercise_id) ?? [],
+    })),
+  };
 }
 
 async function hasPaidOrTrialAccess(adminClient: SupabaseClient, userId: string): Promise<boolean> {
@@ -605,11 +725,13 @@ async function createGeminiLiveToken(
         systemInstruction: {
           parts: [{ text: buildInstructions(preferences, trainingContext) }],
         },
-        tools: [
-          {
-            functionDeclarations: [VOICE_WORKOUT_TOOL_DECLARATION],
-          },
-        ],
+        ...(preferences.experienceMode === 'conversation' ? {} : {
+          tools: [
+            {
+              functionDeclarations: [VOICE_WORKOUT_TOOL_DECLARATION],
+            },
+          ],
+        }),
         inputAudioTranscription: {},
         outputAudioTranscription: {},
         realtimeInputConfig: {
@@ -725,7 +847,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const trainingContext = await assembleVoiceCoachTrainingContext(adminClient, user.id);
+    const trainingContext = await assembleVoiceCoachTrainingContext(adminClient, user.id, preferences.experienceMode);
     await recordSessionStarted(adminClient, user.id);
     const maxSessionSeconds = usage.maxSecondsForSession ?? MAX_SECONDS_PER_SESSION;
     const interactionMode = body.interactionMode === 'realtime' ? 'realtime' : 'push_to_talk';

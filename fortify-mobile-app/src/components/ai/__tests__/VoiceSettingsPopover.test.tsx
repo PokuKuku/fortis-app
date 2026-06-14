@@ -28,6 +28,7 @@ jest.mock('react-native-heroicons/outline', () => {
   const { Text } = require('react-native');
   return {
     Cog6ToothIcon: () => <Text>gear</Text>,
+    ChatBubbleLeftRightIcon: () => <Text>conversation</Text>,
     PhotoIcon: () => <Text>photo</Text>,
     UserCircleIcon: () => <Text>coach</Text>,
   };
@@ -81,5 +82,24 @@ describe('VoiceSettingsPopover', () => {
     fireEvent.press(view.getByTestId('voice-settings-gear'));
     fireEvent(view.getByTestId('realtime-mode-switch'), 'valueChange', true);
     expect(onInteractionModeChange).toHaveBeenCalledWith('realtime');
+  });
+
+  it('toggles conversation mode', () => {
+    const onExperienceModeChange = jest.fn();
+    const view = render(
+      <VoiceSettingsPopover
+        interactionMode="push_to_talk"
+        experienceMode="coach"
+        onInteractionModeChange={jest.fn()}
+        onExperienceModeChange={onExperienceModeChange}
+        onOpenCoachingStyle={jest.fn()}
+        onAddMedia={jest.fn()}
+      />
+    );
+
+    fireEvent.press(view.getByTestId('voice-settings-gear'));
+    fireEvent(view.getByTestId('conversation-mode-switch'), 'valueChange', true);
+    jest.advanceTimersByTime(220);
+    expect(onExperienceModeChange).toHaveBeenCalledWith('conversation');
   });
 });

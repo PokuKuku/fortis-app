@@ -180,12 +180,14 @@ const createWavBase64FromPcm16 = (pcmBase64: string, sampleRate: number): string
   return Buffer.concat([header, pcm]).toString('base64');
 };
 
-const buildGeminiSetupMessage = (
+export const buildGeminiSetupMessage = (
   model: string,
   preferences: RealtimeCoachPreferences,
   interactionMode: 'push_to_talk' | 'realtime'
-) => ({
-  setup: {
+) => {
+  const isConversationMode = preferences.experienceMode === 'conversation';
+  return {
+    setup: {
     model: normalizeGeminiModelName(model),
     generationConfig: {
       responseModalities: ['AUDIO'],
@@ -205,11 +207,13 @@ const buildGeminiSetupMessage = (
         }),
       }],
     },
-    tools: [
-      {
-        functionDeclarations: [VOICE_WORKOUT_TOOL_DECLARATION],
-      },
-    ],
+    ...(isConversationMode ? {} : {
+      tools: [
+        {
+          functionDeclarations: [VOICE_WORKOUT_TOOL_DECLARATION],
+        },
+      ],
+    }),
     inputAudioTranscription: {},
     outputAudioTranscription: {},
     realtimeInputConfig: {
@@ -218,8 +222,9 @@ const buildGeminiSetupMessage = (
       },
       activityHandling: interactionMode === 'realtime' ? 'START_OF_ACTIVITY_INTERRUPTS' : 'NO_INTERRUPTION',
     },
-  },
-});
+    },
+  };
+};
 
 const getTwoWayAudioModule = (): TwoWayAudioModule | null => {
   let audioPackage: {
@@ -795,6 +800,7 @@ export function useRealtimeCoach({
     prompt: string,
     options: { force?: boolean } = {}
   ): Promise<boolean> => {
+    if (preferences.experienceMode === 'conversation') return false;
     const trimmed = prompt.trim();
     const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
     if (
@@ -859,13 +865,17 @@ export function useRealtimeCoach({
         setIsGeneratingVoiceWorkout(false);
       }
     }
-  }, [currentWorkoutTemplateDraft]);
+  }, [currentWorkoutTemplateDraft, preferences.experienceMode]);
 
   const handleWorkoutToolCall = useCallback(async (
     id: string,
     name: string,
     args: Record<string, unknown>
   ) => {
+    if (preferences.experienceMode === 'conversation') {
+      sendGeminiToolResponse(id, name, { ok: false, error: 'Workout creation is disabled in Conversation Mode.' });
+      return;
+    }
     if (name !== VOICE_WORKOUT_TOOL_NAME) {
       sendGeminiToolResponse(id, name, {
         ok: false,
@@ -900,14 +910,15 @@ export function useRealtimeCoach({
       recentCoachPhrases: recentCoachPhrasesRef.current,
     });
     void handleWorkoutPrompt(prompt, { force: true });
-  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt, sendGeminiToolResponse]);
+  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt, preferences.experienceMode, sendGeminiToolResponse]);
 
   const maybeGenerateWorkoutFromTranscript = useCallback((text: string) => {
+    if (preferences.experienceMode === 'conversation') return;
     if (workoutHandledThisTurnRef.current) return;
     const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
     if (!shouldGenerateWorkoutFromVoice(text, Boolean(draft))) return;
     void handleWorkoutPrompt(text);
-  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt]);
+  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt, preferences.experienceMode]);
 
   const playGeminiAudio = useCallback((base64: string) => {
     const pcm24k = base64ToUint8Array(base64);
@@ -1538,6 +1549,24 @@ export function useRealtimeCoach({
     return true;
   }, []);
 
+  const sendTextPrompt = useCallback((text: string): boolean => {
+    const trimmed = text.trim();
+    const socket = socketRef.current;
+    if (!trimmed || !isSocketOpen(socket) || !setupCompleteRef.current) return false;
+    clearPlaybackQueue();
+    socket.send(JSON.stringify({
+      clientContent: {
+        turns: [{
+          role: 'user',
+          parts: [{ text: trimmed }],
+        }],
+        turnComplete: true,
+      },
+    }));
+    setPhase('listening');
+    return true;
+  }, [clearPlaybackQueue]);
+
   const markVoiceWorkoutSaved = useCallback((messageId: string, templateId: string) => {
     setVoiceWorkoutMessages((current) => current.map((message) => (
       message.id === messageId
@@ -1603,6 +1632,7 @@ export function useRealtimeCoach({
     beginUserTurn,
     endUserTurn,
     sendVisualContext,
+    sendTextPrompt,
     speakCreatorScript,
     setError,
     markVoiceWorkoutSaved,

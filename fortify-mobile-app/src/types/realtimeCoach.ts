@@ -2,6 +2,7 @@ import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 export type AIVoiceMode = 'chat' | 'voice';
 export type RealtimeVoiceInteractionMode = 'push_to_talk' | 'realtime';
+export type VoiceCoachExperienceMode = 'coach' | 'conversation';
 export type AICoachPersonality = 'supportive' | 'direct' | 'drill_sergeant' | 'hype' | 'roast' | 'custom';
 export type AICoachVoice = 'marin' | 'cedar' | 'coral' | 'verse';
 
@@ -11,6 +12,8 @@ export interface RealtimeCoachPreferences {
   voice: AICoachVoice;
   customInstructions?: string;
   interactionMode?: RealtimeVoiceInteractionMode;
+  experienceMode?: VoiceCoachExperienceMode;
+  conversationPersonaInstructions?: string;
 }
 
 export interface RealtimeCoachUsage {
@@ -104,4 +107,6 @@ export const DEFAULT_REALTIME_COACH_PREFERENCES: RealtimeCoachPreferences = {
   voice: 'marin',
   customInstructions: '',
   interactionMode: 'push_to_talk',
+  experienceMode: 'coach',
+  conversationPersonaInstructions: '',
 };

@@ -51,6 +51,10 @@ describe('realtimeCoach utils', () => {
       intensity: 1,
       customInstructions: '',
       interactionMode: 'push_to_talk',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
     });
 
     expect(coerceRealtimeCoachPreferences({
@@ -64,6 +68,8 @@ describe('realtimeCoach utils', () => {
       intensity: 0,
       customInstructions: 'be wild',
       interactionMode: 'push_to_talk',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
     });
   });
 
@@ -77,6 +83,8 @@ describe('realtimeCoach utils', () => {
       intensity: 0.5,
       voice: 'verse',
       interactionMode: 'push_to_talk',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
     }, 'male').voice).toBe('cedar');
 
     expect(applyOnboardingGenderCoachVoice({
@@ -84,6 +92,8 @@ describe('realtimeCoach utils', () => {
       intensity: 0.5,
       voice: 'cedar',
       interactionMode: 'push_to_talk',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
     }, 'other').voice).toBe('marin');
   });
 
@@ -98,6 +108,8 @@ describe('realtimeCoach utils', () => {
       voice: 'marin',
       customInstructions: '',
       interactionMode: 'push_to_talk',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
     });
 
     expect(normalizeRealtimeCoachPreferences({
@@ -110,6 +122,8 @@ describe('realtimeCoach utils', () => {
       voice: 'marin',
       customInstructions: '',
       interactionMode: 'push_to_talk',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
     });
 
     expect(normalizeRealtimeCoachPreferences({
@@ -123,6 +137,8 @@ describe('realtimeCoach utils', () => {
       voice: 'marin',
       customInstructions: '',
       interactionMode: 'push_to_talk',
+      experienceMode: 'coach',
+      conversationPersonaInstructions: '',
     });
 
     expect(normalizeRealtimeCoachPreferences({
@@ -131,6 +147,13 @@ describe('realtimeCoach utils', () => {
       voice: 'marin',
       customInstructions: ` ${'x'.repeat(520)} `,
     }).customInstructions).toHaveLength(500);
+    expect(normalizeRealtimeCoachPreferences({
+      personality: 'direct',
+      intensity: 0.55,
+      voice: 'marin',
+      experienceMode: 'conversation',
+      conversationPersonaInstructions: ` ${'x'.repeat(4100)} `,
+    }).conversationPersonaInstructions).toHaveLength(4000);
   });
 
   it('builds custom scenario prompt constraints with safety boundaries', () => {
@@ -152,6 +175,9 @@ describe('realtimeCoach utils', () => {
     }, { workoutToolName: 'create_or_update_workout' });
 
     expect(standardPrompt).toContain('call the create_or_update_workout tool immediately');
+    expect(standardPrompt).toContain('Do not proactively offer to create');
+    expect(standardPrompt).toContain('do not offer it again');
+    expect(standardPrompt).not.toContain('ask if they want Fortify to build one');
     expect(standardPrompt).toContain('Do not say that routine workout or fitness information is not health or medical advice');
     expect(standardPrompt).not.toContain('Custom Coach rules');
 
@@ -184,6 +210,20 @@ describe('realtimeCoach utils', () => {
     }, { workoutToolName: 'create_or_update_workout' });
 
     expect(drillPrompt).toContain('only critique behavior, effort, and logged training choices');
+
+    const conversationPrompt = buildVoiceCoachInstructions({
+      personality: 'direct',
+      intensity: 0.55,
+      voice: 'marin',
+      experienceMode: 'conversation',
+      conversationPersonaInstructions: 'Be sharp and use exact numbers.',
+    }, { workoutToolName: 'create_or_update_workout' });
+    expect(conversationPrompt).toContain('Be sharp and use exact numbers.');
+    expect(conversationPrompt).toContain('exact wording when it is safe and truthful');
+    expect(conversationPrompt).toContain('Freely accept creative direction for social-media scripts');
+    expect(conversationPrompt).toContain('Do not refuse harmless creative-direction instructions');
+    expect(conversationPrompt).toContain('Do not create, revise, offer, or claim to create workout cards');
+    expect(conversationPrompt).not.toContain('call the create_or_update_workout tool');
   });
 
   it('sanitizes custom scenario instructions', () => {

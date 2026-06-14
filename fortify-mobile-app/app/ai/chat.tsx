@@ -334,6 +334,7 @@ export default function AIChatScreen() {
     markVoiceWorkoutSaved,
     dismissVoiceWorkoutMessage,
     sendVisualContext,
+    sendTextPrompt,
   } = useRealtimeCoach({
     preferences: realtimePreferences,
     currentWorkoutTemplateDraft,
@@ -372,6 +373,10 @@ export default function AIChatScreen() {
     }
     await updateRealtimePreferences(nextPreferences);
   }, [isVoiceActive, stopVoiceCoach, updateRealtimePreferences]);
+
+  const handleExperienceModeChange = useCallback((experienceMode: 'coach' | 'conversation') => {
+    void handleRealtimePreferencesChange({ ...realtimePreferences, experienceMode });
+  }, [handleRealtimePreferencesChange, realtimePreferences]);
 
   // Calculate remaining requests (most restrictive limit) for inline warning
   const remaining = rateLimitStatus
@@ -725,7 +730,9 @@ export default function AIChatScreen() {
               {mode === 'voice' && (
                 <VoiceSettingsPopover
                   interactionMode={interactionMode}
+                  experienceMode={realtimePreferences.experienceMode ?? 'coach'}
                   onInteractionModeChange={handleInteractionModeChange}
+                  onExperienceModeChange={handleExperienceModeChange}
                   onOpenCoachingStyle={() => setScenarioSheetVisible(true)}
                   onAddMedia={() => { void pickMedia('voice'); }}
                 />
@@ -813,6 +820,8 @@ export default function AIChatScreen() {
             interactionMode={interactionMode}
             pendingMedia={pendingVoiceMedia}
             onRemovePendingMedia={(id) => setPendingVoiceMedia((current) => current.filter((item) => item.id !== id))}
+            experienceMode={realtimePreferences.experienceMode ?? 'coach'}
+            onSendTextPrompt={sendTextPrompt}
           />
         ) : (
           <KeyboardAvoidingView

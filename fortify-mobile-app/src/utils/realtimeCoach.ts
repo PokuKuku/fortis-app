@@ -7,7 +7,10 @@ import {
   type RealtimeCoachPhase,
   type RealtimeCoachPreferences,
 } from '@/src/types/realtimeCoach';
-import { sanitizeCustomScenarioInstructions } from '@/src/utils/realtimeCoachPrompt';
+import {
+  sanitizeConversationPersonaInstructions,
+  sanitizeCustomScenarioInstructions,
+} from '@/src/utils/realtimeCoachPrompt';
 
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
@@ -92,6 +95,10 @@ export const coerceRealtimeCoachPreferences = (
     intensity,
     customInstructions: sanitizeCustomScenarioInstructions(value.customInstructions),
     interactionMode: value.interactionMode === 'realtime' ? 'realtime' : 'push_to_talk',
+    experienceMode: value.experienceMode === 'conversation' ? 'conversation' : 'coach',
+    conversationPersonaInstructions: sanitizeConversationPersonaInstructions(
+      value.conversationPersonaInstructions
+    ),
   };
 };
 

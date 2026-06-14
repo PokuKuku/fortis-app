@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -11,7 +15,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { XMarkIcon } from 'react-native-heroicons/outline';
+import { ChatBubbleBottomCenterTextIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, IconSizes, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
@@ -56,6 +60,8 @@ interface RealtimeVoiceCoachScreenProps {
   interactionMode?: 'push_to_talk' | 'realtime';
   pendingMedia?: AIPendingMedia[];
   onRemovePendingMedia?: (id: string) => void;
+  experienceMode?: 'coach' | 'conversation';
+  onSendTextPrompt?: (text: string) => boolean;
 }
 
 const CREATOR_SCRIPT_MAX_CHARS = 500;
@@ -124,9 +130,13 @@ export function RealtimeVoiceCoachScreen({
   interactionMode = 'push_to_talk',
   pendingMedia = [],
   onRemovePendingMedia,
+  experienceMode = 'coach',
+  onSendTextPrompt,
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
   const [creatorScript, setCreatorScript] = useState('');
+  const [isPromptSheetVisible, setPromptSheetVisible] = useState(false);
+  const [textPrompt, setTextPrompt] = useState('');
   const { width, height } = useWindowDimensions();
   const voiceCardAnimationsRef = useRef<Record<string, Animated.Value>>({});
   const voiceCardDismissAnimationsRef = useRef<Record<string, Animated.Value>>({});
@@ -167,7 +177,8 @@ export function RealtimeVoiceCoachScreen({
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
-  const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
+  const hasVoiceCards = experienceMode === 'coach'
+    && (voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout);
   const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -256,6 +267,13 @@ export function RealtimeVoiceCoachScreen({
     if (!onSpeakCreatorScript || isSpeakingCreatorScript) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     void onSpeakCreatorScript(creatorScript);
+  };
+
+  const submitTextPrompt = () => {
+    const trimmed = textPrompt.trim();
+    if (!trimmed || !onSendTextPrompt?.(trimmed)) return;
+    setTextPrompt('');
+    setPromptSheetVisible(false);
   };
 
   const handleDismissVoiceCard = useCallback((messageId: string) => {
@@ -507,6 +525,25 @@ export function RealtimeVoiceCoachScreen({
           ) : null}
         </View>
 
+        {experienceMode === 'conversation' ? (
+          <TouchableOpacity
+            testID="conversation-text-prompt-button"
+            accessibilityRole="button"
+            accessibilityLabel="Type a prompt"
+            style={[
+              styles.promptButton,
+              {
+                bottom: talkButtonBottom + (interactionMode === 'push_to_talk' ? talkButtonSize / 2 - 24 : 0),
+                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+              },
+            ]}
+            onPress={() => setPromptSheetVisible(true)}
+          >
+            <ChatBubbleBottomCenterTextIcon size={IconSizes.md} color={colors.textPrimary} />
+          </TouchableOpacity>
+        ) : null}
+
         {interactionMode === 'push_to_talk' && <AnimatedTouchableOpacity
           style={[
             styles.talkButtonRing,
@@ -553,6 +590,53 @@ export function RealtimeVoiceCoachScreen({
           />
         </AnimatedTouchableOpacity>}
       </View>
+      <Modal
+        visible={isPromptSheetVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setPromptSheetVisible(false)}
+      >
+        <Pressable style={styles.promptBackdrop} onPress={() => setPromptSheetVisible(false)}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.promptKeyboard}>
+            <Pressable
+              style={[
+                styles.promptSheet,
+                {
+                  backgroundColor: isDark ? '#222222' : '#FFFFFF',
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                },
+              ]}
+            >
+              <Text style={[styles.promptTitle, { color: colors.textPrimary }]}>Ask Conversation Coach</Text>
+              <TextInput
+                testID="conversation-text-prompt-input"
+                value={textPrompt}
+                onChangeText={setTextPrompt}
+                placeholder="Type a prompt or session-only instruction"
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                autoFocus
+                style={[
+                  styles.promptInput,
+                  {
+                    color: colors.textPrimary,
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                  },
+                ]}
+              />
+              <Pressable
+                testID="conversation-text-prompt-submit"
+                disabled={!textPrompt.trim()}
+                onPress={submitTextPrompt}
+                style={[styles.promptSubmit, { backgroundColor: colors.accent, opacity: textPrompt.trim() ? 1 : 0.45 }]}
+              >
+                <Text style={[styles.promptSubmitText, { color: colors.accentForegroundOnFill }]}>Send</Text>
+              </Pressable>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -661,6 +745,43 @@ const styles = StyleSheet.create({
   },
   talkButtonCore: {
   },
+  promptButton: {
+    position: 'absolute',
+    right: 0,
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promptBackdrop: { flex: 1, justifyContent: 'flex-end' },
+  promptKeyboard: { width: '100%' },
+  promptSheet: {
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    borderWidth: 1,
+    padding: Spacing.lg,
+    paddingBottom: Spacing['2xl'],
+    gap: Spacing.md,
+  },
+  promptTitle: { ...Typography.h4, textAlign: 'center' },
+  promptInput: {
+    minHeight: 120,
+    maxHeight: 260,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    padding: Spacing.md,
+    textAlignVertical: 'top',
+    ...Typography.bodySmall,
+  },
+  promptSubmit: {
+    minHeight: 48,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promptSubmitText: { ...Typography.bodySmall, fontWeight: '700' },
   voiceCardScroll: {
     width: '100%',
     flex: 1,

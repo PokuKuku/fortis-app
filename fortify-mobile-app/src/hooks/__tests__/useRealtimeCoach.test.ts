@@ -170,9 +170,13 @@ const audioMessage = (byteLength = 4800): string => JSON.stringify({
 const startConnectedSession = async (options?: {
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
   interactionMode?: 'push_to_talk' | 'realtime';
+  preferences?: typeof preferences & {
+    experienceMode?: 'coach' | 'conversation';
+    conversationPersonaInstructions?: string;
+  };
 }) => {
   const hook = renderHook(() => useRealtimeCoach({
-    preferences,
+    preferences: options?.preferences ?? preferences,
     currentWorkoutTemplateDraft: options?.currentWorkoutTemplateDraft,
     interactionMode: options?.interactionMode,
   }));
@@ -449,6 +453,28 @@ describe('useRealtimeCoach', () => {
 
     expect(mockCreateRealtimeCoachSession).toHaveBeenCalledWith(cedarPreferences, 'push_to_talk');
     expect(setupMessage.setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName).toBe('Puck');
+
+    hook.unmount();
+  });
+
+  it('omits workout tools and sends completed typed turns in conversation mode', async () => {
+    const conversationPreferences = {
+      ...preferences,
+      experienceMode: 'conversation' as const,
+      conversationPersonaInstructions: 'Be sharp and use exact numbers.',
+    };
+    const { hook, socket } = await startConnectedSession({ preferences: conversationPreferences });
+    const setupMessage = JSON.parse(socket.sentMessages[0]);
+
+    expect(setupMessage.setup.tools).toBeUndefined();
+    expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('Be sharp and use exact numbers.');
+
+    act(() => {
+      expect(hook.result.current.sendTextPrompt('Roast my consistency')).toBe(true);
+    });
+    const typedTurn = JSON.parse(socket.sentMessages[socket.sentMessages.length - 1]);
+    expect(typedTurn.clientContent.turnComplete).toBe(true);
+    expect(typedTurn.clientContent.turns[0].parts[0].text).toBe('Roast my consistency');
 
     hook.unmount();
   });

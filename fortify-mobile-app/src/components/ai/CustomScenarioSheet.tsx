@@ -140,12 +140,9 @@ export function CustomScenarioSheet({
       statusBarTranslucent
     >
       <Animated.View
-        entering={FadeIn.duration(200)}
-        exiting={FadeOut.duration(150)}
-        style={[
-          styles.backdrop,
-          { backgroundColor: isDark ? 'rgba(0,0,0,0.64)' : 'rgba(0,0,0,0.36)' },
-        ]}
+        entering={FadeIn.duration(240).easing(Easing.out(Easing.quad))}
+        exiting={FadeOut.duration(200).easing(Easing.inOut(Easing.quad))}
+        style={styles.backdrop}
       >
         <Pressable
           testID="custom-scenario-backdrop"
@@ -158,8 +155,8 @@ export function CustomScenarioSheet({
           pointerEvents="box-none"
         >
           <Animated.View
-            entering={SlideInDown.duration(320).easing(Easing.out(Easing.cubic))}
-            exiting={SlideOutDown.duration(240).easing(Easing.in(Easing.cubic))}
+            entering={SlideInDown.springify().damping(24).stiffness(210).mass(0.9)}
+            exiting={SlideOutDown.duration(280).easing(Easing.inOut(Easing.cubic))}
             style={[styles.sheet, sheetStyle]}
           >
             <View style={styles.handle} />

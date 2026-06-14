@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import {
+  ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
   PhotoIcon,
   UserCircleIcon,
@@ -16,18 +17,22 @@ import {
 import { BorderRadius, IconSizes, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import type { RealtimeVoiceInteractionMode } from '@/src/types/realtimeCoach';
+import type { RealtimeVoiceInteractionMode, VoiceCoachExperienceMode } from '@/src/types/realtimeCoach';
 
 interface VoiceSettingsPopoverProps {
   interactionMode: RealtimeVoiceInteractionMode;
+  experienceMode?: VoiceCoachExperienceMode;
   onInteractionModeChange: (mode: RealtimeVoiceInteractionMode) => void;
+  onExperienceModeChange?: (mode: VoiceCoachExperienceMode) => void;
   onOpenCoachingStyle: () => void;
   onAddMedia: () => void;
 }
 
 export function VoiceSettingsPopover({
   interactionMode,
+  experienceMode = 'coach',
   onInteractionModeChange,
+  onExperienceModeChange = () => undefined,
   onOpenCoachingStyle,
   onAddMedia,
 }: VoiceSettingsPopoverProps) {
@@ -107,6 +112,26 @@ export function VoiceSettingsPopover({
             <Pressable style={styles.row} onPress={() => runAfterClose(onOpenCoachingStyle)}>
               <UserCircleIcon color={colors.textSecondary} size={IconSizes.md} />
               <Text style={[styles.label, { color: colors.textPrimary }]}>Coaching Style</Text>
+            </Pressable>
+            <Pressable
+              style={styles.row}
+              onPress={() => runAfterClose(() => (
+                onExperienceModeChange(experienceMode === 'conversation' ? 'coach' : 'conversation')
+              ))}
+            >
+              <ChatBubbleLeftRightIcon color={colors.textSecondary} size={IconSizes.md} />
+              <View style={styles.labelBlock}>
+                <Text style={[styles.label, { color: colors.textPrimary }]}>Conversation Mode</Text>
+                <Text style={[styles.caption, { color: colors.textTertiary }]}>Custom personality and prompts</Text>
+              </View>
+              <Switch
+                testID="conversation-mode-switch"
+                value={experienceMode === 'conversation'}
+                onValueChange={(enabled) => runAfterClose(() => (
+                  onExperienceModeChange(enabled ? 'conversation' : 'coach')
+                ))}
+                trackColor={{ false: colors.border, true: colors.accent }}
+              />
             </Pressable>
             <Pressable
               style={styles.row}

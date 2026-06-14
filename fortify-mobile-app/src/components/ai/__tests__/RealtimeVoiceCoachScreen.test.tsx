@@ -96,6 +96,7 @@ jest.mock('react-native-heroicons/outline', () => {
 
   return {
     XMarkIcon: () => <Text>x</Text>,
+    ChatBubbleBottomCenterTextIcon: () => <Text>type</Text>,
   };
 });
 
@@ -409,5 +410,29 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(getByText('Coming up...')).toBeTruthy();
     expect(getByTestId('voice-card-scroll')).toBeTruthy();
     expect(getByTestId('voice-workout-loading-card')).toBeTruthy();
+  });
+
+  it('hides workout cards and sends typed prompts in conversation mode', () => {
+    const onSendTextPrompt = jest.fn(() => true);
+    const { getByTestId, queryByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        experienceMode="conversation"
+        onSendTextPrompt={onSendTextPrompt}
+        isGeneratingVoiceWorkout
+        voiceWorkoutMessages={[{
+          id: 'hidden-card',
+          text: 'hidden',
+          workoutTemplate: { name: 'Hidden Workout', focus: 'Full Body', exercises: [] },
+        }]}
+      />
+    );
+
+    expect(queryByText('Hidden Workout Card')).toBeNull();
+    expect(queryByText('Building Workout')).toBeNull();
+    fireEvent.press(getByTestId('conversation-text-prompt-button'));
+    fireEvent.changeText(getByTestId('conversation-text-prompt-input'), 'Roast my consistency');
+    fireEvent.press(getByTestId('conversation-text-prompt-submit'));
+    expect(onSendTextPrompt).toHaveBeenCalledWith('Roast my consistency');
   });
 });
