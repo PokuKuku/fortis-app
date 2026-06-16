@@ -16,6 +16,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
+import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetRow } from './SetRow';
 import { ExerciseKebabPopover } from './ExerciseKebabPopover';
@@ -337,13 +338,18 @@ export function ExerciseCard({
   );
 
   return (
-    <Animated.View
-      style={[styles.container, themedStyles.container]}
-      layout={LinearTransition.duration(250).easing(Easing.inOut(Easing.cubic))}
-      entering={FadeIn.duration(300).easing(Easing.out(Easing.cubic))
-        .delay(50)}
-      exiting={SlideOutLeft.duration(220).easing(Easing.inOut(Easing.cubic))}
+    <AccentShadowCard
+      radius={BorderRadius['2xl']}
+      pressable={false}
+      style={styles.cardShadowFrame}
     >
+      <Animated.View
+        style={[styles.container, themedStyles.container]}
+        layout={LinearTransition.duration(250).easing(Easing.inOut(Easing.cubic))}
+        entering={FadeIn.duration(300).easing(Easing.out(Easing.cubic))
+          .delay(50)}
+        exiting={SlideOutLeft.duration(220).easing(Easing.inOut(Easing.cubic))}
+      >
       <View style={styles.content}>
         {/* Exercise Header */}
         <View style={styles.header}>
@@ -583,18 +589,21 @@ export function ExerciseCard({
         onClose={() => setShowTargetSheet(false)}
         onSave={handleSaveTarget}
       />
-    </Animated.View>
+      </Animated.View>
+    </AccentShadowCard>
   );
 }
 
 const styles = StyleSheet.create({
+  cardShadowFrame: {
+    marginBottom: Spacing.xl,
+  },
   container: {
     backgroundColor: Colors.surfaceOverlay,
     borderRadius: BorderRadius['2xl'],
     borderWidth: 1.5,
     borderColor: Colors.borderLight,
     overflow: 'visible', // Allow popover to overflow
-    marginBottom: Spacing.xl,
   },
   content: {
     padding: CONTENT_PADDING,

@@ -13,6 +13,7 @@ import { Sizes, Spacing } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
 import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
+import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import {
   getCachedExerciseImageSource,
   prefetchExerciseImagesFromExercises,
@@ -262,40 +263,42 @@ export default function ExercisesScreen() {
     const imageSource = getCachedExerciseImageSource(item.images[0]);
 
     return (
-      <TouchableOpacity
-        style={[styles.exerciseCard, exerciseCardTheme]}
-        onPress={() => handleExercisePress(item.id)}
-        activeOpacity={0.7}
-      >
-        <View style={styles.exerciseCardContent}>
-          <View style={styles.exerciseMain}>
-            <View style={[styles.exercisePreview, exercisePreviewTheme]}>
-              {imageSource ? (
-                <Image
-                  source={imageSource}
-                  style={styles.exercisePreviewImage}
-                  resizeMode="cover"
-                  fadeDuration={100}
-                />
-              ) : (
-                <Text style={[styles.exercisePreviewPlaceholder, exercisePreviewPlaceholderTheme]}>
-                  {item.name.charAt(0).toUpperCase()}
-                </Text>
-              )}
+      <AccentShadowCard radius={CARD_RADIUS}>
+        <TouchableOpacity
+          style={[styles.exerciseCard, exerciseCardTheme]}
+          onPress={() => handleExercisePress(item.id)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.exerciseCardContent}>
+            <View style={styles.exerciseMain}>
+              <View style={[styles.exercisePreview, exercisePreviewTheme]}>
+                {imageSource ? (
+                  <Image
+                    source={imageSource}
+                    style={styles.exercisePreviewImage}
+                    resizeMode="cover"
+                    fadeDuration={100}
+                  />
+                ) : (
+                  <Text style={[styles.exercisePreviewPlaceholder, exercisePreviewPlaceholderTheme]}>
+                    {item.name.charAt(0).toUpperCase()}
+                  </Text>
+                )}
+              </View>
+              <Text style={[styles.exerciseName, { color: colors.textSecondary }]} numberOfLines={1}>
+                {item.name}
+              </Text>
             </View>
-            <Text style={[styles.exerciseName, { color: colors.textSecondary }]} numberOfLines={1}>
-              {item.name}
-            </Text>
+            {item.primaryMuscles && item.primaryMuscles.length > 0 && (
+              <Text style={[styles.exerciseMetaText, { color: colors.textTertiary }]} numberOfLines={1}>
+                {item.primaryMuscles
+                  .map((muscle) => getMuscleDisplayName(muscle as MuscleKey))
+                  .join(', ')}
+              </Text>
+            )}
           </View>
-          {item.primaryMuscles && item.primaryMuscles.length > 0 && (
-            <Text style={[styles.exerciseMetaText, { color: colors.textTertiary }]} numberOfLines={1}>
-              {item.primaryMuscles
-                .map((muscle) => getMuscleDisplayName(muscle as MuscleKey))
-                .join(', ')}
-            </Text>
-          )}
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </AccentShadowCard>
     );
   };
 
@@ -730,11 +733,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
     padding: CARD_PADDING,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
     marginBottom: 0,
   },
   exerciseCardContent: {

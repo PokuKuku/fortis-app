@@ -45,7 +45,7 @@ import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useExercises } from '@/src/hooks/useExercises';
 import { createExerciseVoiceFileName, interpretExerciseVoiceAdd } from '@/src/services/exerciseVoiceService';
-import { getMicrophonePermissionStatus, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
+import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
 import type { Exercise } from '@/src/types/exercise';
 import type { ExerciseVoiceEntry } from '@/src/types/exerciseVoice';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
@@ -147,7 +147,7 @@ const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
 
 const VOICE_ACTIVE_AUDIO_MODE = {
   allowsRecordingIOS: true,
-  interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+  interruptionModeIOS: InterruptionModeIOS.DoNotMix,
   playsInSilentModeIOS: true,
   staysActiveInBackground: false,
   interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
@@ -592,7 +592,7 @@ export function ExerciseVoiceAddSheet({
 
     try {
       await discardRecording();
-      const permission = await getMicrophonePermissionStatus();
+      const permission = await ensureMicrophonePermission();
       if (!permission.granted) {
         setPhase('review');
         setErrorMessage(

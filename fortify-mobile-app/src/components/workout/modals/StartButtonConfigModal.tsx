@@ -7,6 +7,7 @@ import {
   XMarkIcon,
 } from 'react-native-heroicons/outline';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
+import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import { TOUR_QUICK_START_TEMPLATE_ID } from '@/src/constants/inAppTour';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
@@ -85,28 +86,33 @@ export function StartButtonConfigModal({
     disabled?: boolean;
     onPress: () => void;
   }) => (
-    <Pressable
-      onPress={props.onPress}
-      disabled={props.disabled}
-      style={({ pressed }) => [
-        styles.option,
-        themedStyles.option,
-        props.selected && themedStyles.optionSelected,
-        props.disabled && styles.optionDisabled,
-        pressed && !props.disabled && styles.optionPressed,
-      ]}
+    <AccentShadowCard
+      radius={BorderRadius.xl}
+      pressable={!props.disabled}
+      style={styles.optionShadowFrame}
     >
-      <View style={styles.optionContent}>
-        {props.icon && <View style={styles.optionIcon}>{props.icon}</View>}
-        <View style={styles.optionText}>
-          <Text style={[styles.optionLabel, themedStyles.optionLabel]}>{props.label}</Text>
-          {props.subtitle ? (
-            <Text style={[styles.optionSubtitle, themedStyles.optionSubtitle]}>{props.subtitle}</Text>
-          ) : null}
+      <Pressable
+        onPress={props.onPress}
+        disabled={props.disabled}
+        style={[
+          styles.option,
+          themedStyles.option,
+          props.selected && themedStyles.optionSelected,
+          props.disabled && styles.optionDisabled,
+        ]}
+      >
+        <View style={styles.optionContent}>
+          {props.icon && <View style={styles.optionIcon}>{props.icon}</View>}
+          <View style={styles.optionText}>
+            <Text style={[styles.optionLabel, themedStyles.optionLabel]}>{props.label}</Text>
+            {props.subtitle ? (
+              <Text style={[styles.optionSubtitle, themedStyles.optionSubtitle]}>{props.subtitle}</Text>
+            ) : null}
+          </View>
         </View>
-      </View>
-      {props.selected && <CheckIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />}
-    </Pressable>
+        {props.selected && <CheckIcon size={18} color={themedStyles.iconColor} strokeWidth={2} />}
+      </Pressable>
+    </AccentShadowCard>
   );
 
   const presetLabel = currentLabel || (currentPreset ? 'Selected' : 'Not set');
@@ -268,18 +274,17 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    marginBottom: Spacing.sm,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  optionShadowFrame: {
+    marginBottom: Spacing.md,
+  },
   optionSelected: {
     // borderColor and backgroundColor now applied via themedStyles.optionSelected
-  },
-  optionPressed: {
-    opacity: 0.8,
   },
   optionDisabled: {
     opacity: 0.45,

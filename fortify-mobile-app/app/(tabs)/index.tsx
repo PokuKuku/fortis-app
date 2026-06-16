@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, forwardRef, type ComponentProps } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import {
   CloudIcon,
 } from 'react-native-heroicons/outline';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import Reanimated, { FadeInDown, useAnimatedStyle } from 'react-native-reanimated';
+import Reanimated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
@@ -60,6 +60,8 @@ import {
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
+const AnimatedTouchableOpacity = Reanimated.createAnimatedComponent(TouchableOpacity);
+
 // Types for drag-and-drop
 type ProgramItem = {
   id: string;
@@ -88,6 +90,13 @@ type HomeCardOrderState = {
 
 const PROGRAM_CARD_HEIGHT = responsiveValue(64, 70, 78);
 const WORKOUT_CARD_HEIGHT = responsiveValue(68, 76, 84);
+const CARD_ACCENT_GLOW_HEIGHT = scale(8);
+const CARD_ACCENT_GLOW_VISIBLE_HEIGHT = scale(5);
+const CARD_ACCENT_GLOW_LIFT = scale(2);
+const WORKOUT_CARD_ACCENT_GLOW_LIFT = CARD_ACCENT_GLOW_LIFT + scale(1);
+const CARD_ACCENT_GLOW_CLIP_TOP = CARD_ACCENT_GLOW_HEIGHT - CARD_ACCENT_GLOW_VISIBLE_HEIGHT;
+const PROGRAM_CARD_GRID_HEIGHT = PROGRAM_CARD_HEIGHT + CARD_ACCENT_GLOW_VISIBLE_HEIGHT;
+const WORKOUT_CARD_GRID_HEIGHT = WORKOUT_CARD_HEIGHT + CARD_ACCENT_GLOW_VISIBLE_HEIGHT;
 const PROGRAM_CARD_PADDING_HORIZONTAL = responsiveValue(10, 12, 14);
 const WORKOUT_CARD_PADDING_HORIZONTAL = responsiveValue(8, 10, 12);
 const CARD_PADDING_TOP = responsiveValue(8, 10, 12);
@@ -110,6 +119,8 @@ const SMALL_ICON_SIZE = scale(16);
 const MODAL_ICON_SIZE = scale(24);
 const GRID_GAP = scale(12);
 const CARD_RADIUS = scale(16);
+const CARD_PRESS_DEPTH = scale(2);
+const WORKOUT_CARD_ACCENT_GLOW_INSET = Math.max(0, CARD_RADIUS - scale(4));
 const CARD_HEADER_MARGIN = scale(4);
 const CARD_TITLE_GAP = scale(6);
 const CARD_Kebab_PADDING = scale(4);
@@ -354,6 +365,55 @@ function AnimatedCard({
     </Animated.View>
   );
 }
+
+type PressDownTouchableProps = ComponentProps<typeof TouchableOpacity>;
+
+const PressDownTouchable = forwardRef<any, PressDownTouchableProps>(function PressDownTouchable(
+  { children, onPressIn, onPressOut, style, activeOpacity = 1, ...props },
+  ref
+) {
+  const pressDepth = useSharedValue(0);
+
+  const pressStyle = useAnimatedStyle(() => {
+    const isPressed = pressDepth.value > 0;
+
+    return {
+      transform: [
+        { translateY: pressDepth.value },
+        { scale: isPressed ? 0.985 : 1 },
+      ],
+    };
+  });
+
+  const handlePressIn = useCallback((event: any) => {
+    pressDepth.value = withTiming(CARD_PRESS_DEPTH, {
+      duration: 70,
+      easing: Easing.out(Easing.quad),
+    });
+    onPressIn?.(event);
+  }, [onPressIn, pressDepth]);
+
+  const handlePressOut = useCallback((event: any) => {
+    pressDepth.value = withTiming(0, {
+      duration: 90,
+      easing: Easing.out(Easing.quad),
+    });
+    onPressOut?.(event);
+  }, [onPressOut, pressDepth]);
+
+  return (
+    <AnimatedTouchableOpacity
+      ref={ref}
+      activeOpacity={activeOpacity}
+      {...props}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[style, pressStyle]}
+    >
+      {children}
+    </AnimatedTouchableOpacity>
+  );
+});
 
 // Toast Notification Component
 function ToastNotification({
@@ -623,7 +683,6 @@ function ProgramDropCard({
 }) {
   const { colors, isDark } = useTheme();
   const readableSubtext = getReadableSubtextColors(isDark);
-  const AnimatedTouchable = Reanimated.createAnimatedComponent(TouchableOpacity);
   const { ref, onLayout, isHovered } = useDropZone({
     id: `program-${item.id}`,
     type: 'program',
@@ -638,6 +697,7 @@ function ProgramDropCard({
   };
   const accentOverlay = colors.accentOverlay;
   const accentBorder = colors.accent;
+  const accentShadow = colors.accentShadow;
   const hoverStyle = useAnimatedStyle(() => {
     return {
       opacity: enableDropZone && isHovered.value ? 1 : 0,
@@ -647,53 +707,74 @@ function ProgramDropCard({
     const isDropTarget = enableDropZone && isHovered.value;
     return {
       borderColor: isDropTarget ? accentBorder : baseBorderColor,
-      shadowColor: isDropTarget ? accentBorder : '#000',
-      shadowOpacity: isDropTarget ? 0.45 : 0.3,
+      shadowColor: isDropTarget ? accentBorder : accentShadow,
+      shadowOpacity: isDropTarget ? 0.5 : 0.34,
     };
-  }, [accentBorder, baseBorderColor, enableDropZone]);
+  }, [accentBorder, accentShadow, baseBorderColor, enableDropZone]);
 
   return (
-    <AnimatedTouchable
+    <View
       ref={ref}
       onLayout={onLayout}
-      activeOpacity={0.8}
-      onPress={onPress}
-      style={[
-        styles.programCard,
-        cardThemeStyle,
-        isActive && [styles.cardActive, { borderColor: colors.accentBorder }],
-        hoverBorderStyle,
-      ]}
+      style={styles.cardPressFrame}
     >
-      <Reanimated.View
-        pointerEvents="none"
-        style={[
-          styles.programHoverOverlay,
-          { backgroundColor: accentOverlay, borderColor: accentBorder },
-          hoverStyle,
-        ]}
-      />
-      <View style={styles.cardHeader}>
-        <View style={styles.cardTitleRow}>
-          <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
-            {item.name}
-          </Text>
-          {item.isAiCreated && (
-          <SparklesIcon color={colors.accent} size={AI_BADGE_SIZE} strokeWidth={2} style={styles.aiBadge} />
-          )}
+      <PressDownTouchable
+        onPress={onPress}
+        style={styles.cardPressFrame}
+      >
+        <View pointerEvents="none" style={styles.cardAccentGlowViewport}>
+          <View
+            style={[
+              styles.cardAccentGlow,
+              { backgroundColor: colors.accent, opacity: isDark ? 0.44 : 0.26 },
+            ]}
+          />
         </View>
-        <TouchableOpacity
-          style={styles.cardKebabButton}
-          onPress={onKebabPress}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        <Reanimated.View
+          style={[
+            styles.programCard,
+            hoverBorderStyle,
+          ]}
         >
-          <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
-        </TouchableOpacity>
-      </View>
-      <Text style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
-        {item.workouts} workouts · {item.lastPerformed}
-      </Text>
-    </AnimatedTouchable>
+          <View
+            pointerEvents="none"
+            style={[
+              styles.cardSurface,
+              cardThemeStyle,
+              isActive && { borderColor: colors.accentBorder },
+            ]}
+          />
+          <Reanimated.View
+            pointerEvents="none"
+            style={[
+              styles.programHoverOverlay,
+              { backgroundColor: accentOverlay, borderColor: accentBorder },
+              hoverStyle,
+            ]}
+          />
+          <View style={styles.cardHeader}>
+            <View style={styles.cardTitleRow}>
+              <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+                {item.name}
+              </Text>
+              {item.isAiCreated && (
+              <SparklesIcon color={colors.accent} size={AI_BADGE_SIZE} strokeWidth={2} style={styles.aiBadge} />
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.cardKebabButton}
+              onPress={onKebabPress}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
+            </TouchableOpacity>
+          </View>
+          <Text style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
+            {item.workouts} workouts · {item.lastPerformed}
+          </Text>
+        </Reanimated.View>
+      </PressDownTouchable>
+    </View>
   );
 }
 
@@ -1437,16 +1518,36 @@ export default function ProgramsScreen() {
             animationState={animState}
             onAnimationComplete={() => handleAnimationComplete('workout', item.id)}
           >
-            <TouchableOpacity
-              activeOpacity={0.8}
+            <PressDownTouchable
               onPress={() => handleWorkoutCardPress(item.id)}
-              style={[
-                styles.workoutCard,
-                workoutCardThemeStyle,
-                highlightStyle,
-                isActive && [styles.cardActive, { borderColor: colors.accentBorder }],
-              ]}
+              style={styles.cardPressFrame}
             >
+              <View
+                pointerEvents="none"
+                style={[styles.cardAccentGlowViewport, styles.workoutCardAccentGlowViewport]}
+              >
+                <View
+                  style={[
+                    styles.cardAccentGlow,
+                    styles.workoutCardAccentGlow,
+                    { backgroundColor: colors.accent, opacity: isDark ? 0.44 : 0.26 },
+                  ]}
+                />
+              </View>
+              <View
+                style={[
+                  styles.workoutCard,
+                ]}
+              >
+              <View
+                pointerEvents="none"
+                style={[
+                  styles.cardSurface,
+                  workoutCardThemeStyle,
+                  highlightStyle,
+                  isActive && { borderColor: colors.accentBorder },
+                ]}
+              />
               <View style={styles.cardHeader}>
                 <View style={styles.cardTitleColumn}>
                   <View style={styles.cardTitleRow}>
@@ -1486,7 +1587,8 @@ export default function ProgramsScreen() {
               <Text style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
                 {item.exercises} exercises · {item.lastPerformed}
               </Text>
-            </TouchableOpacity>
+              </View>
+            </PressDownTouchable>
           </AnimatedCard>
         </Reanimated.View>
       );
@@ -1648,7 +1750,7 @@ export default function ProgramsScreen() {
                     renderItem={renderProgramGridItem}
                     onReorder={handleProgramReorder}
                     numColumns={1}
-                    itemHeight={PROGRAM_CARD_HEIGHT}
+                    itemHeight={PROGRAM_CARD_GRID_HEIGHT}
                     gap={GRID_GAP}
                   />
                 )
@@ -1711,7 +1813,7 @@ export default function ProgramsScreen() {
                     onCrossContainerDrop={handleWorkoutDropOnProgram}
                     onReorder={handleWorkoutReorder}
                     numColumns={2}
-                    itemHeight={WORKOUT_CARD_HEIGHT}
+                    itemHeight={WORKOUT_CARD_GRID_HEIGHT}
                     gap={GRID_GAP}
                   />
                 )
@@ -1941,10 +2043,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: CARD_HEADER_MARGIN,
+    zIndex: 3,
   },
   cardKebabButton: {
     padding: CARD_Kebab_PADDING,
     marginLeft: CARD_Kebab_MARGIN_LEFT,
+    zIndex: 4,
   },
   cardTitleColumn: {
     flex: 1,
@@ -1965,6 +2069,7 @@ const styles = StyleSheet.create({
     paddingVertical: TEMPLATE_SYNC_PILL_PADDING_Y,
     flexDirection: 'row',
     alignItems: 'center',
+    zIndex: 3,
   },
   templateSyncSpinner: {
     marginRight: TEMPLATE_SYNC_PILL_GAP,
@@ -2020,42 +2125,82 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.12)',
     // borderColor now applied via inline styles (colors.accentBorder)
   },
-  programCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  cardSurface: {
+    ...StyleSheet.absoluteFillObject,
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    zIndex: 1,
+  },
+  cardPressFrame: {
+    position: 'relative',
+    width: '100%',
+    overflow: 'visible',
+  },
+  cardAccentGlowViewport: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: -(CARD_ACCENT_GLOW_VISIBLE_HEIGHT - CARD_ACCENT_GLOW_LIFT),
+    height: CARD_ACCENT_GLOW_VISIBLE_HEIGHT,
+    borderBottomLeftRadius: CARD_RADIUS,
+    borderBottomRightRadius: CARD_RADIUS,
+    overflow: 'hidden',
+    zIndex: 0,
+  },
+  workoutCardAccentGlowViewport: {
+    left: 0,
+    right: 0,
+    bottom: -(CARD_ACCENT_GLOW_VISIBLE_HEIGHT - WORKOUT_CARD_ACCENT_GLOW_LIFT),
+  },
+  cardAccentGlow: {
+    position: 'absolute',
+    left: CARD_RADIUS,
+    right: CARD_RADIUS,
+    top: -CARD_ACCENT_GLOW_CLIP_TOP,
+    height: CARD_ACCENT_GLOW_HEIGHT,
+    borderRadius: 999,
+  },
+  workoutCardAccentGlow: {
+    left: WORKOUT_CARD_ACCENT_GLOW_INSET,
+    right: WORKOUT_CARD_ACCENT_GLOW_INSET,
+  },
+  programCard: {
+    backgroundColor: 'transparent',
+    borderRadius: CARD_RADIUS,
+    borderWidth: 1,
+    borderColor: 'transparent',
     paddingHorizontal: PROGRAM_CARD_PADDING_HORIZONTAL,
     paddingTop: CARD_PADDING_TOP,
     paddingBottom: CARD_PADDING_BOTTOM,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
-    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+    overflow: 'visible',
     height: PROGRAM_CARD_HEIGHT,
   },
   workoutCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'transparent',
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: 'transparent',
     paddingHorizontal: WORKOUT_CARD_PADDING_HORIZONTAL,
     paddingTop: CARD_PADDING_TOP,
     paddingBottom: CARD_PADDING_BOTTOM,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
-    overflow: 'hidden',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+    overflow: 'visible',
     height: WORKOUT_CARD_HEIGHT,
   },
   programHoverOverlay: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: CARD_RADIUS,
     borderWidth: 2,
+    zIndex: 2,
   },
   cardTitle: {
     flex: 1,
@@ -2072,6 +2217,7 @@ const styles = StyleSheet.create({
     fontSize: CARD_META_SIZE,
     fontWeight: '500',
     color: '#9CA3AF',
+    zIndex: 3,
   },
   kebabOverlay: {
     position: 'absolute',

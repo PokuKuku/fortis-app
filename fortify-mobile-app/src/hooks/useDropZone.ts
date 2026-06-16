@@ -1,4 +1,5 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
+import type { RefCallback } from 'react';
 import { View, LayoutChangeEvent } from 'react-native';
 import { useDerivedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
@@ -22,9 +23,9 @@ interface UseDropZoneOptions {
 
 interface UseDropZoneReturn {
   /**
-   * Ref to attach to the View component
+   * Callback ref to attach to the View component
    */
-  ref: React.RefObject<View | null>;
+  ref: RefCallback<View>;
   /**
    * Handler for onLayout to measure bounds
    */
@@ -68,16 +69,21 @@ export function useDropZone({
   enabled = true,
 }: UseDropZoneOptions): UseDropZoneReturn {
   const context = useDragDropContextOptional();
-  const ref = useRef<View>(null);
+  const [node, setNode] = useState<View | null>(null);
   const boundsRef = useRef<DropZone['bounds'] | null>(null);
+  const setRef = useCallback((nextNode: View | null) => {
+    setNode(nextNode);
+  }, []);
+  const dragState = context?.dragState;
+  const hoveredDropZoneId = context?.hoveredDropZoneId;
 
   // Derived value for hover state
   const isHovered = useDerivedValue(() => {
-    if (!context) return false;
-    const isDragging = context.dragState.value.isDragging
-      && context.dragState.value.draggedItemType === 'workout';
-    return isDragging && context.hoveredDropZoneId.value === id;
-  }, [context, id]);
+    if (!dragState || !hoveredDropZoneId) return false;
+    const isDragging = dragState.value.isDragging
+      && dragState.value.draggedItemType === 'workout';
+    return isDragging && hoveredDropZoneId.value === id;
+  });
 
   // Register drop zone on mount, unregister on unmount
   useEffect(() => {
@@ -101,7 +107,7 @@ export function useDropZone({
 
     // Create fresh callback that references current ref
     const measureCallback = () => {
-      ref.current?.measure((x, y, width, height, pageX, pageY) => {
+      node?.measure((x, y, width, height, pageX, pageY) => {
         // Guard against undefined/invalid measurements
         if (typeof pageX !== 'number' || typeof pageY !== 'number' ||
             typeof width !== 'number' || typeof height !== 'number' ||
@@ -124,7 +130,7 @@ export function useDropZone({
     return () => {
       context.unregisterMeasureCallback(id);
     };
-  }, [context, id, enabled]);
+  }, [context, id, enabled, node]);
 
   // Measure after mount as fallback (in case onLayout timing is bad)
   useEffect(() => {
@@ -132,7 +138,7 @@ export function useDropZone({
 
     // Small delay to ensure view is rendered
     const timer = setTimeout(() => {
-      ref.current?.measure((x, y, width, height, pageX, pageY) => {
+      node?.measure((x, y, width, height, pageX, pageY) => {
         if (typeof pageX !== 'number' || typeof pageY !== 'number' ||
             typeof width !== 'number' || typeof height !== 'number' ||
             width === 0 || height === 0) {
@@ -150,7 +156,7 @@ export function useDropZone({
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [context, id, enabled]);
+  }, [context, id, enabled, node]);
 
   // Handle layout changes to measure bounds
   const onLayout = useCallback(
@@ -162,7 +168,7 @@ export function useDropZone({
       const maxRetries = 5;
 
       const doMeasure = () => {
-        ref.current?.measure((x, y, width, height, pageX, pageY) => {
+        node?.measure((x, y, width, height, pageX, pageY) => {
           // Guard against undefined/invalid measurements
           if (typeof pageX !== 'number' || typeof pageY !== 'number' ||
               typeof width !== 'number' || typeof height !== 'number' ||
@@ -188,11 +194,11 @@ export function useDropZone({
       // Measure immediately - no InteractionManager delay
       requestAnimationFrame(doMeasure);
     },
-    [context, id, enabled]
+    [context, id, enabled, node]
   );
 
   return {
-    ref,
+    ref: setRef,
     onLayout,
     isHovered,
     contextAvailable: !!context,

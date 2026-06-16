@@ -12,6 +12,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { format } from 'date-fns';
+import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 
 interface PRRowProps {
   rank: number;
@@ -142,17 +143,19 @@ export function PersonalRecordsCard() {
 
   return (
     <>
-      <TouchableOpacity
-        style={[styles.summaryCard, cardStyle]}
-        onPress={handleOpenModal}
-        activeOpacity={0.7}
-      >
-        <View style={styles.summaryText}>
-          <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>Personal Records</Text>
-          <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>{summaryText}</Text>
-        </View>
-        <ChevronRightIcon color={colors.textSecondary} size={20} strokeWidth={2} />
-      </TouchableOpacity>
+      <AccentShadowCard radius={BorderRadius.xl}>
+        <TouchableOpacity
+          style={[styles.summaryCard, cardStyle]}
+          onPress={handleOpenModal}
+          activeOpacity={0.7}
+        >
+          <View style={styles.summaryText}>
+            <Text style={[styles.summaryTitle, { color: colors.textPrimary }]}>Personal Records</Text>
+            <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>{summaryText}</Text>
+          </View>
+          <ChevronRightIcon color={colors.textSecondary} size={20} strokeWidth={2} />
+        </TouchableOpacity>
+      </AccentShadowCard>
 
       <Modal
         visible={isModalVisible}

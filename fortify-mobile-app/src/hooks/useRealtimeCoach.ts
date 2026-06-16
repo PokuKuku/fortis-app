@@ -104,7 +104,7 @@ const workoutsHaveSameExercises = (
 
 const VOICE_COACH_ACTIVE_AUDIO_MODE = {
   allowsRecordingIOS: true,
-  interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+  interruptionModeIOS: InterruptionModeIOS.DoNotMix,
   playsInSilentModeIOS: true,
   staysActiveInBackground: false,
   interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,

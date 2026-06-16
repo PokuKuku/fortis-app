@@ -32,6 +32,7 @@ import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonom
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -1032,30 +1033,32 @@ export default function InsightsScreen() {
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Insights</Text>
           </View>
 
-          <TouchableOpacity
-            style={[styles.cardBase, styles.libraryCard, cardTheme]}
-            onPress={handleOpenLibrary}
-            activeOpacity={0.8}
-          >
-            <View style={styles.libraryRow}>
-              <View
-                style={[
-                  styles.libraryIcon,
-                  { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)' },
-                ]}
-              >
-                <MagnifyingGlassIcon color={readableText.secondary} size={18} strokeWidth={2} />
+          <AccentShadowCard radius={CARD_RADIUS}>
+            <TouchableOpacity
+              style={[styles.cardBase, styles.libraryCard, cardTheme]}
+              onPress={handleOpenLibrary}
+              activeOpacity={0.8}
+            >
+              <View style={styles.libraryRow}>
+                <View
+                  style={[
+                    styles.libraryIcon,
+                    { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.04)' },
+                  ]}
+                >
+                  <MagnifyingGlassIcon color={readableText.secondary} size={18} strokeWidth={2} />
+                </View>
+                <View style={styles.libraryText}>
+                  <Text style={[styles.libraryTitle, { color: colors.textPrimary }]}>
+                    Exercise Library
+                  </Text>
+                  <Text style={[styles.librarySubtitle, { color: readableText.secondary }]}>
+                    Search and browse exercises
+                  </Text>
+                </View>
               </View>
-              <View style={styles.libraryText}>
-                <Text style={[styles.libraryTitle, { color: colors.textPrimary }]}>
-                  Exercise Library
-                </Text>
-                <Text style={[styles.librarySubtitle, { color: readableText.secondary }]}>
-                  Search and browse exercises
-                </Text>
-              </View>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </AccentShadowCard>
 
           {isLoading && !hasInsights ? (
             <View style={styles.loadingState}>
@@ -1211,11 +1214,6 @@ const styles = StyleSheet.create({
     borderRadius: CARD_RADIUS,
     borderWidth: 1,
     padding: CARD_PADDING,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 3,
   },
   libraryCard: {
     borderRadius: CARD_RADIUS,

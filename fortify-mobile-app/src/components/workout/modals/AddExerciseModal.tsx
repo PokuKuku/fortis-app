@@ -11,7 +11,7 @@ import {
   Image,
   InteractionManager,
 } from 'react-native';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import { XMarkIcon, MagnifyingGlassIcon, PlusIcon, CheckIcon, MicrophoneIcon, ArrowPathIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -102,6 +102,26 @@ const VOICE_RECORDING_OPTIONS: Audio.RecordingOptions = {
     bitRate: 96000,
   },
 };
+
+const VOICE_IDLE_AUDIO_MODE = {
+  allowsRecordingIOS: false,
+  interruptionModeIOS: InterruptionModeIOS.MixWithOthers,
+  playsInSilentModeIOS: true,
+  staysActiveInBackground: false,
+  interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+} as const;
+
+const VOICE_ACTIVE_AUDIO_MODE = {
+  allowsRecordingIOS: true,
+  interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+  playsInSilentModeIOS: true,
+  staysActiveInBackground: false,
+  interruptionModeAndroid: InterruptionModeAndroid.DuckOthers,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+} as const;
 
 export function AddExerciseModal({
   visible,
@@ -307,10 +327,7 @@ export function AddExerciseModal({
       recording.setOnRecordingStatusUpdate(null);
     }
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-      });
+      await Audio.setAudioModeAsync(VOICE_IDLE_AUDIO_MODE);
     } catch {
       // Ignore cleanup failures.
     }
@@ -388,10 +405,7 @@ export function AddExerciseModal({
       setVoicePhase('listening');
       setVoiceMeterLevel(0.08);
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-      });
+      await Audio.setAudioModeAsync(VOICE_ACTIVE_AUDIO_MODE);
 
       const { recording } = await Audio.Recording.createAsync(
         VOICE_RECORDING_OPTIONS,
@@ -466,10 +480,7 @@ export function AddExerciseModal({
       setVoiceCandidates([]);
     } finally {
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-        });
+        await Audio.setAudioModeAsync(VOICE_IDLE_AUDIO_MODE);
       } catch {
         // Ignore cleanup failures.
       }

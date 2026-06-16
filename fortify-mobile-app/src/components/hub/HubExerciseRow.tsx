@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import { getMuscleCategory, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import {
   getCachedExerciseImageSource,
@@ -69,65 +70,67 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
     <Animated.View
       entering={FadeIn.duration(200)}
     >
-      <TouchableOpacity
-        onPress={handlePress}
-        activeOpacity={0.7}
-        style={[styles.container, themedStyles.container]}
-        disabled={!onPress}
-      >
-        {/* Exercise Image */}
-        <View style={styles.imageContainer}>
-          {imageSource ? (
-            <Image
-              source={imageSource}
-              style={styles.image}
-              resizeMode="cover"
-              fadeDuration={100}
-            />
-          ) : (
-            <View style={[styles.placeholderImage, themedStyles.placeholderImage]}>
-              <Text style={[styles.placeholderText, themedStyles.placeholderText]}>
-                {exerciseName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
-          )}
-          {/* Subtle gradient overlay */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.3)']}
-            style={styles.imageOverlay}
-          />
-        </View>
-
-        {/* Content */}
-        <View style={styles.content}>
-          {/* Exercise Name */}
-          <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
-            {exerciseName}
-          </Text>
-
-          {/* Muscle Tag */}
-          <View style={styles.muscleTagContainer}>
-            <View
-              style={[
-                styles.muscleTag,
-                { backgroundColor: `${muscleColor}20` },
-              ]}
-            >
-              <View
-                style={[styles.muscleDot, { backgroundColor: muscleColor }]}
+      <AccentShadowCard radius={BorderRadius.xl}>
+        <TouchableOpacity
+          onPress={handlePress}
+          activeOpacity={0.7}
+          style={[styles.container, themedStyles.container]}
+          disabled={!onPress}
+        >
+          {/* Exercise Image */}
+          <View style={styles.imageContainer}>
+            {imageSource ? (
+              <Image
+                source={imageSource}
+                style={styles.image}
+                resizeMode="cover"
+                fadeDuration={100}
               />
-              <Text
-                style={[styles.muscleText, { color: muscleColor }]}
+            ) : (
+              <View style={[styles.placeholderImage, themedStyles.placeholderImage]}>
+                <Text style={[styles.placeholderText, themedStyles.placeholderText]}>
+                  {exerciseName.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            {/* Subtle gradient overlay */}
+            <LinearGradient
+              colors={['transparent', 'rgba(0,0,0,0.3)']}
+              style={styles.imageOverlay}
+            />
+          </View>
+
+          {/* Content */}
+          <View style={styles.content}>
+            {/* Exercise Name */}
+            <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
+              {exerciseName}
+            </Text>
+
+            {/* Muscle Tag */}
+            <View style={styles.muscleTagContainer}>
+              <View
+                style={[
+                  styles.muscleTag,
+                  { backgroundColor: `${muscleColor}20` },
+                ]}
               >
-                {muscleLabel}
-              </Text>
+                <View
+                  style={[styles.muscleDot, { backgroundColor: muscleColor }]}
+                />
+                <Text
+                  style={[styles.muscleText, { color: muscleColor }]}
+                >
+                  {muscleLabel}
+                </Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        {/* Right Action (e.g., kebab menu) */}
-        {rightAction}
-      </TouchableOpacity>
+          {/* Right Action (e.g., kebab menu) */}
+          {rightAction}
+        </TouchableOpacity>
+      </AccentShadowCard>
     </Animated.View>
   );
 }, (prev, next) => {

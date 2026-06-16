@@ -16,6 +16,7 @@ import { Spacing, FontSizes, BorderRadius, ButtonHeights, Sizes } from '@/consta
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
 import Animated, { SlideInDown, SlideOutDown, Easing, FadeIn, FadeOut } from 'react-native-reanimated';
@@ -249,68 +250,74 @@ export function CreateWorkoutModal({
 
   // Render exercise card
   const renderExerciseCard = useCallback(({ item }: { item: TemplateExercise }) => (
-    <Animated.View
-      entering={FadeIn.duration(200)}
-      exiting={FadeOut.duration(150)}
-      style={[styles.exerciseCard, themedStyles.exerciseCard]}
+    <AccentShadowCard
+      radius={BorderRadius.xl}
+      pressable={false}
+      style={styles.exerciseCardShadowFrame}
     >
-      {/* Exercise Header */}
-      <View style={styles.exerciseHeader}>
-        <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
-          {item.exerciseName}
-        </Text>
-        <Pressable
-          onPress={() => handleRemoveExercise(item.localId)}
-          style={({ pressed }) => [
-            styles.removeButton,
-            pressed && styles.removeButtonPressed,
-          ]}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <TrashIcon size={18} color={Colors.error} strokeWidth={2} />
-        </Pressable>
-      </View>
-
-      {/* Sets Configuration */}
-      <View style={[styles.setsRow, themedStyles.setsRowBorder]}>
-        <Text style={[styles.setsLabel, themedStyles.setsLabel]}>Sets</Text>
-        <View style={styles.setsControls}>
+      <Animated.View
+        entering={FadeIn.duration(200)}
+        exiting={FadeOut.duration(150)}
+        style={[styles.exerciseCard, themedStyles.exerciseCard]}
+      >
+        {/* Exercise Header */}
+        <View style={styles.exerciseHeader}>
+          <Text style={[styles.exerciseName, themedStyles.exerciseName]} numberOfLines={1}>
+            {item.exerciseName}
+          </Text>
           <Pressable
-            onPress={() => handleUpdateSets(item.localId, -1)}
+            onPress={() => handleRemoveExercise(item.localId)}
             style={({ pressed }) => [
-              styles.setsButton,
-              themedStyles.setsButton,
-              pressed && styles.setsButtonPressed,
+              styles.removeButton,
+              pressed && styles.removeButtonPressed,
             ]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Text style={[styles.setsButtonText, themedStyles.setsButtonText]}>-</Text>
-          </Pressable>
-          <Text style={[styles.setsValue, themedStyles.setsValue]}>{item.sets}</Text>
-          <Pressable
-            onPress={() => handleUpdateSets(item.localId, 1)}
-            style={({ pressed }) => [
-              styles.setsButton,
-              themedStyles.setsButton,
-              pressed && styles.setsButtonPressed,
-            ]}
-          >
-            <Text style={[styles.setsButtonText, themedStyles.setsButtonText]}>+</Text>
+            <TrashIcon size={18} color={Colors.error} strokeWidth={2} />
           </Pressable>
         </View>
-      </View>
 
-      {/* Reps Display */}
-      <View style={[styles.repsRow, themedStyles.setsRowBorder]}>
-        <Text style={[styles.repsLabel, themedStyles.setsLabel]}>Reps</Text>
-        <Text style={[styles.repsValue, themedStyles.repsValue]}>{item.reps}</Text>
-      </View>
+        {/* Sets Configuration */}
+        <View style={[styles.setsRow, themedStyles.setsRowBorder]}>
+          <Text style={[styles.setsLabel, themedStyles.setsLabel]}>Sets</Text>
+          <View style={styles.setsControls}>
+            <Pressable
+              onPress={() => handleUpdateSets(item.localId, -1)}
+              style={({ pressed }) => [
+                styles.setsButton,
+                themedStyles.setsButton,
+                pressed && styles.setsButtonPressed,
+              ]}
+            >
+              <Text style={[styles.setsButtonText, themedStyles.setsButtonText]}>-</Text>
+            </Pressable>
+            <Text style={[styles.setsValue, themedStyles.setsValue]}>{item.sets}</Text>
+            <Pressable
+              onPress={() => handleUpdateSets(item.localId, 1)}
+              style={({ pressed }) => [
+                styles.setsButton,
+                themedStyles.setsButton,
+                pressed && styles.setsButtonPressed,
+              ]}
+            >
+              <Text style={[styles.setsButtonText, themedStyles.setsButtonText]}>+</Text>
+            </Pressable>
+          </View>
+        </View>
 
-      {/* Rest Timer Display */}
-      <View style={styles.restRow}>
-        <Text style={[styles.restLabel, themedStyles.setsLabel]}>Rest</Text>
-        <Text style={[styles.restValue, themedStyles.restValue]}>{Math.floor(item.restSeconds / 60)}:{(item.restSeconds % 60).toString().padStart(2, '0')}</Text>
-      </View>
-    </Animated.View>
+        {/* Reps Display */}
+        <View style={[styles.repsRow, themedStyles.setsRowBorder]}>
+          <Text style={[styles.repsLabel, themedStyles.setsLabel]}>Reps</Text>
+          <Text style={[styles.repsValue, themedStyles.repsValue]}>{item.reps}</Text>
+        </View>
+
+        {/* Rest Timer Display */}
+        <View style={styles.restRow}>
+          <Text style={[styles.restLabel, themedStyles.setsLabel]}>Rest</Text>
+          <Text style={[styles.restValue, themedStyles.restValue]}>{Math.floor(item.restSeconds / 60)}:{(item.restSeconds % 60).toString().padStart(2, '0')}</Text>
+        </View>
+      </Animated.View>
+    </AccentShadowCard>
   ), [handleRemoveExercise, handleUpdateSets, themedStyles]);
 
   // Render empty state
@@ -593,6 +600,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
+  },
+  exerciseCardShadowFrame: {
     marginBottom: Spacing.md,
   },
   exerciseHeader: {

@@ -55,6 +55,7 @@ jest.mock('expo-av', () => ({
   },
   InterruptionModeIOS: {
     MixWithOthers: 'MixWithOthers',
+    DoNotMix: 'DoNotMix',
   },
 }));
 

@@ -83,9 +83,9 @@ export default function ProfileScreen() {
                 <ProfileHeader />
               </View>
 
-              {/* Weekly Muscle Heatmap */}
+              {/* Personal Records */}
               <View style={styles.section}>
-                <WeeklyMuscleHeatmapCard />
+                <PersonalRecordsCard />
               </View>
 
               {/* Stats Overview */}
@@ -93,9 +93,9 @@ export default function ProfileScreen() {
                 <StatsOverviewCard />
               </View>
 
-              {/* Personal Records */}
+              {/* Weekly Muscle Heatmap */}
               <View style={styles.section}>
-                <PersonalRecordsCard />
+                <WeeklyMuscleHeatmapCard />
               </View>
             </>
           ) : (

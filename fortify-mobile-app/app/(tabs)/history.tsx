@@ -32,6 +32,7 @@ import { Spacing, BorderRadius } from '../../constants/Sizes';
 import { scale, moderateScale } from '../../src/utils/responsive';
 import { Typography } from '../../constants/Typography';
 import { WorkoutHistoryDetailModal } from '../../src/components/workout/modals/WorkoutHistoryDetailModal';
+import { AccentShadowCard } from '../../src/components/ui/AccentShadowCard';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -265,13 +266,14 @@ function WorkoutHistoryCard({
   };
 
   return (
-    <Pressable onPress={onPress}>
-      <Animated.View
-        entering={FadeIn.duration(300)}
-        exiting={FadeOut.duration(200)}
-        layout={Layout.duration(200)}
-        style={[styles.card, cardTheme]}
-      >
+    <AccentShadowCard radius={CARD_RADIUS}>
+      <Pressable onPress={onPress}>
+        <Animated.View
+          entering={FadeIn.duration(300)}
+          exiting={FadeOut.duration(200)}
+          layout={Layout.duration(200)}
+          style={[styles.card, cardTheme]}
+        >
       <View style={styles.cardHeader}>
         <View style={styles.cardTitleRow}>
           <Text style={[styles.workoutName, { color: colors.textPrimary }]} numberOfLines={1}>
@@ -310,8 +312,9 @@ function WorkoutHistoryCard({
       <Text style={[styles.exerciseCount, { color: colors.textSecondary }]}>
         {summary.totalExercises} exercise{summary.totalExercises !== 1 ? 's' : ''} • Started at {formattedTime}
       </Text>
-      </Animated.View>
-    </Pressable>
+        </Animated.View>
+      </Pressable>
+    </AccentShadowCard>
   );
 }
 
@@ -344,8 +347,9 @@ function PendingSyncCard({
   };
 
   return (
-    <Pressable onPress={onPress}>
-      <View style={[styles.card, cardTheme]}>
+    <AccentShadowCard radius={CARD_RADIUS}>
+      <Pressable onPress={onPress}>
+        <View style={[styles.card, cardTheme]}>
         <View style={styles.cardHeader}>
           <View style={styles.cardTitleRow}>
             <Text style={[styles.workoutName, { color: colors.textPrimary }]} numberOfLines={1}>
@@ -393,8 +397,9 @@ function PendingSyncCard({
         <Text style={[styles.exerciseCount, { color: colors.textSecondary }]}>
           {summary.totalExercises} exercise{summary.totalExercises !== 1 ? 's' : ''} • Started at {formattedTime}
         </Text>
-      </View>
-    </Pressable>
+        </View>
+      </Pressable>
+    </AccentShadowCard>
   );
 }
 
