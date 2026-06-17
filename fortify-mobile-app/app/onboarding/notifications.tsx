@@ -107,6 +107,7 @@ export default function OnboardingNotificationsScreen() {
 
         <GlassCard
           padding={Spacing.xl}
+          shellShadow={false}
           style={StyleSheet.flatten([
             styles.promptCard,
             { backgroundColor: colors.surfaceElevated, borderColor: colors.glassBorder },

@@ -20,6 +20,14 @@ import { Spacing, BorderRadius } from '@/constants/Sizes';
 interface AccentColorPickerProps {
   visible: boolean;
   onClose: () => void;
+  title?: string;
+  description?: string;
+  onSelectColor?: (colorName: AccentColorName) => void;
+  closeOnSelect?: boolean;
+  showCloseButton?: boolean;
+  closeOnBackdropPress?: boolean;
+  confirmButtonLabel?: string;
+  onConfirm?: () => void;
 }
 
 const COLOR_ORDER: AccentColorName[] = [
@@ -37,24 +45,40 @@ const COLOR_ORDER: AccentColorName[] = [
   'cyan',
 ];
 
-export function AccentColorPicker({ visible, onClose }: AccentColorPickerProps) {
+export function AccentColorPicker({
+  visible,
+  onClose,
+  title = 'Accent Color',
+  description = 'Choose your preferred accent color for buttons and highlights.',
+  onSelectColor,
+  closeOnSelect = true,
+  showCloseButton = true,
+  closeOnBackdropPress = true,
+  confirmButtonLabel,
+  onConfirm,
+}: AccentColorPickerProps) {
   const { colors, isDark, accentColor, setAccentColor } = useTheme();
 
   const handleSelectColor = async (colorName: AccentColorName) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await setAccentColor(colorName);
-    onClose();
+    onSelectColor?.(colorName);
+    if (closeOnSelect) {
+      onClose();
+    }
   };
 
   return (
     <BaseModal
       visible={visible}
       onClose={onClose}
-      title="Accent Color"
+      title={title}
       width={300}
+      showCloseButton={showCloseButton}
+      closeOnBackdropPress={closeOnBackdropPress}
     >
       <Text style={[styles.description, { color: colors.textSecondary }]}>
-        Choose your preferred accent color for buttons and highlights.
+        {description}
       </Text>
 
       <View style={styles.grid}>
@@ -102,6 +126,25 @@ export function AccentColorPicker({ visible, onClose }: AccentColorPickerProps) 
           );
         })}
       </View>
+
+      {confirmButtonLabel && (
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onConfirm?.();
+          }}
+          style={({ pressed }) => [
+            styles.confirmButton,
+            {
+              backgroundColor: colors.accent,
+              shadowColor: colors.accent,
+            },
+            pressed && styles.confirmButtonPressed,
+          ]}
+        >
+          <Text style={styles.confirmButtonText}>{confirmButtonLabel}</Text>
+        </Pressable>
+      )}
     </BaseModal>
   );
 }
@@ -150,6 +193,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   labelSelected: {
+    fontWeight: '700',
+  },
+  confirmButton: {
+    marginTop: Spacing.lg,
+    minHeight: 48,
+    borderRadius: BorderRadius.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  confirmButtonPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.9,
+  },
+  confirmButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
     fontWeight: '700',
   },
 });

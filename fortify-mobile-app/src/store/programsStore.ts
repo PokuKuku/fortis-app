@@ -62,6 +62,24 @@ const persistDeletedDefaultProgramIds = async (ids: Set<string>): Promise<void> 
 const isSeededDefaultProgram = (program: Program | undefined): program is Program =>
   Boolean(program?.isDefault && program?.id && DEFAULT_PROGRAM_IDS.has(program.id));
 
+const refreshSeededDefaultProgramMetadata = (program: Program, defaultsById: Map<string, Program>): Program => {
+  if (!isSeededDefaultProgram(program)) return program;
+
+  const seededDefault = defaultsById.get(program.id);
+  const seededWorkout = seededDefault?.workouts[0];
+  if (!seededDefault) return program;
+
+  return {
+    ...program,
+    name: seededDefault.name,
+    workouts: program.workouts.map((workout, index) => (
+      index === 0 && seededWorkout
+        ? { ...workout, name: seededWorkout.name }
+        : workout
+    )),
+  };
+};
+
 interface ProgramsState {
   // Data
   programs: Program[];
@@ -2029,10 +2047,17 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const defaults = [...getDefaultPrograms(), ...getDefaultTemplates()].filter(
         (program) => !deletedDefaultIds.has(program.id)
       );
+      const defaultsById = new Map(defaults.map((program) => [program.id, program]));
       let localPrograms = stored ? (JSON.parse(stored) as Program[]) : defaults;
       let didChangeStoredPrograms = false;
 
       if (stored) {
+        const refreshedPrograms = localPrograms.map((program) =>
+          refreshSeededDefaultProgramMetadata(program, defaultsById)
+        );
+        didChangeStoredPrograms = JSON.stringify(refreshedPrograms) !== JSON.stringify(localPrograms);
+        localPrograms = refreshedPrograms;
+
         const beforePrune = localPrograms.length;
         localPrograms = localPrograms.filter(
           (program) => !(

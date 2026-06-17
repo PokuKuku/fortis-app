@@ -65,6 +65,13 @@ export type OnboardingState = {
   workout_consistency?: 'none' | 'daily' | 'few_times_week' | 'once_or_less' | 'starting';
   session_duration_minutes?: number;
   goal_pace?: 'steady' | 'balanced' | 'aggressive';
+  coach_personality?:
+    | 'supportive'
+    | 'direct'
+    | 'drill_sergeant'
+    | 'hype'
+    | 'roast'
+    | 'pick_later';
   program_name?: string;
   fitness_priorities?: Array<
     'strength'

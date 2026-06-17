@@ -19,6 +19,7 @@ import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPla
 import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
 import { useTourNarration } from '@/src/hooks/useTourNarration';
 import { AI_CHAT_OVERVIEW_COPY, getAIChatTourNarrationVoice } from '@/src/utils/aiChatTour';
+import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 
 const AI_CHAT_TOUR_NARRATION_DEFAULT = require('@/assets/audio/ai-chat-overview.m4a');
 const AI_CHAT_TOUR_NARRATION_CEDAR = require('@/assets/audio/ai-chat-overview-cedar.m4a');
@@ -42,7 +43,8 @@ type TourStepId =
   | 'rest_timer_settings'
   | 'go_insights'
   | 'insights_overview'
-  | 'support_overview';
+  | 'support_overview'
+  | 'primary_style';
 
 type TourRoute = '/(tabs)' | '/(tabs)/insights' | '/workout/active' | '/ai/chat' | '/workout/create';
 
@@ -227,12 +229,23 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'support_overview',
     route: '/(tabs)',
-    body: 'Need help? Open Profile, tap Settings, then use Send Feedback or Report a Bug in the Support section.\n\nWelcome to smarter training!',
+    body: 'Need help? Open Profile, tap Settings, then use Send Feedback or Report a Bug in the Support section.',
     mode: 'blocking',
-    primaryActionLabel: 'Sounds good!',
+    primaryActionLabel: 'Next',
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
+  },
+  {
+    id: 'primary_style',
+    route: '/(tabs)',
+    body: 'Choose your primary style.',
+    mode: 'blocking',
+    primaryActionLabel: null,
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
+    renderOverlay: false,
   },
 ];
 
@@ -246,6 +259,7 @@ const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'rest_timer_settings',
   'insights_overview',
   'support_overview',
+  'primary_style',
 ]);
 
 const USER_DRIVEN_NAV_STEP_IDS: ReadonlySet<TourStepId> = new Set([
@@ -278,6 +292,7 @@ const REMOVED_TOUR_STEP_REPLACEMENTS: Partial<Record<string, TourStepId>> = {
   log_with_voice: 'voice_log_result',
   confirm_voice_log: 'voice_log_result',
 };
+const COLD_START_TOUR_RESUME_STEP_ID: TourStepId = 'support_overview';
 
 export function shouldBypassProGateForTourState(params: {
   activeStepId: TourStepId | null;
@@ -553,7 +568,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
 
     await setTourStateAndPersist(next);
-    void markTourSeenOnServer({ status: 'started' });
+    await markTourSeenOnServer({ status: 'started' });
     router.navigate(TOUR_STEPS[0].route);
     return true;
   }, [isAuthenticated, isTourActive, markTourSeenOnServer, router, setTourStateAndPersist, tourLoaded]);
@@ -676,9 +691,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       if (loaded?.status === 'in_progress') {
         const resumed = resumeInProgressTourAtStep(
           loaded,
-          TOUR_STEPS[TOUR_STEPS.length - 1].id,
+          COLD_START_TOUR_RESUME_STEP_ID,
         );
         await setTourStateAndPersist(resumed);
+        await markTourSeenOnServer({ status: 'started' });
         setTourLoaded(true);
         return;
       }
@@ -705,7 +721,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     profile?.in_app_tour_completed_at &&
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
   );
-  const hasSeenLocal = tourState?.status === 'completed' || tourState?.status === 'skipped';
+  const hasServerStartedCurrentTour = Boolean(
+    profile?.has_seen_in_app_tour &&
+    (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
+  );
+  const shouldUseLocalTourCompletion = !profileResolved || hasSeenServer || hasServerStartedCurrentTour;
+  const hasSeenLocal = shouldUseLocalTourCompletion && (
+    tourState?.status === 'completed' || tourState?.status === 'skipped'
+  );
   const isEligibleForStart =
     tourLoaded &&
     profileResolved &&
@@ -915,6 +938,13 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       disabled: isTourNarrationPlaying,
     };
   }, [isTourNarrationPlaying, overlayStep?.id, replayTourNarration, showOverlay]);
+  const showPrimaryStylePicker = Boolean(
+    isTourActive &&
+    logicalStep?.id === 'primary_style' &&
+    isAuthenticated &&
+    isMainAppRoute &&
+    isLogicalStepOnRoute
+  );
 
   return (
     <InAppTourContext.Provider value={contextValue}>
@@ -942,6 +972,21 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         holePadding={overlayStep?.holePadding}
         holePaddingBottom={overlayStep?.holePaddingBottom}
         onTooltipHideComplete={handleTooltipHideComplete}
+      />
+      <AccentColorPicker
+        visible={showPrimaryStylePicker}
+        title="Primary Style"
+        description="Pick a color theme. You can change this later in Settings."
+        closeOnSelect={false}
+        showCloseButton={false}
+        closeOnBackdropPress={false}
+        confirmButtonLabel="Confirm"
+        onClose={() => {
+          void finishTour('completed');
+        }}
+        onConfirm={() => {
+          void finishTour('completed');
+        }}
       />
     </InAppTourContext.Provider>
   );

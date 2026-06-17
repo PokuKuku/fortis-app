@@ -17,6 +17,7 @@ const YEAR_MIN = 1930;
 const DEFAULT_YEAR = 1998;
 const DEFAULT_MONTH_INDEX = 7;
 const DEFAULT_DAY = 8;
+const MINIMUM_AGE = 13;
 
 const MONTH_LABELS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -106,10 +107,10 @@ export default function OnboardingBirthdateScreen() {
       age -= 1;
     }
 
-    if (age < 9) {
+    if (age < MINIMUM_AGE) {
       Alert.alert(
         'Age requirement',
-        'You must be at least 9 years old to use Fortify.',
+        `You must be at least ${MINIMUM_AGE} years old to use Fortify.`,
         [{ text: 'OK', onPress: () => router.replace('/onboarding/welcome') }]
       );
       return;

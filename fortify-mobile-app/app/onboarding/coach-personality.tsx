@@ -8,6 +8,7 @@ import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getRealtimeCoachPreferences, setRealtimeCoachPreferences } from '@/src/services/realtimeCoachPreferencesService';
+import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
@@ -38,17 +39,30 @@ export default function OnboardingCoachPersonalityScreen() {
   const [preferences, setPreferences] = useState<RealtimeCoachPreferences>(
     DEFAULT_REALTIME_COACH_PREFERENCES
   );
+  const [selectedPersonality, setSelectedPersonality] = useState<AICoachPersonality | null>(null);
+  const [pickedLater, setPickedLater] = useState(false);
 
   useEffect(() => {
     let isActive = true;
 
-    const loadPreferences = async () => {
-      const loaded = await getRealtimeCoachPreferences();
+    const loadState = async () => {
+      const [loadedPreferences, onboardingState] = await Promise.all([
+        getRealtimeCoachPreferences(),
+        getOnboardingState(),
+      ]);
       if (!isActive) return;
-      setPreferences(loaded);
+
+      setPreferences(loadedPreferences);
+      if (onboardingState?.coach_personality === 'pick_later') {
+        setPickedLater(true);
+        setSelectedPersonality(null);
+      } else if (onboardingState?.coach_personality) {
+        setPickedLater(false);
+        setSelectedPersonality(onboardingState.coach_personality);
+      }
     };
 
-    void loadPreferences();
+    void loadState();
 
     return () => {
       isActive = false;
@@ -58,36 +72,38 @@ export default function OnboardingCoachPersonalityScreen() {
   const personalityOptions: AICoachPersonality[] = preferences.personality === 'hype'
     ? [...CANON_COACH_PERSONALITIES, 'hype']
     : CANON_COACH_PERSONALITIES;
-  const selectedPersonality = personalityOptions.includes(preferences.personality)
-    ? preferences.personality
-    : DEFAULT_REALTIME_COACH_PREFERENCES.personality;
+  const hasSelection = pickedLater || selectedPersonality !== null;
 
   const handleSelect = (personality: AICoachPersonality) => {
     const nextPreferences = {
       ...preferences,
       personality,
     };
+    setPickedLater(false);
+    setSelectedPersonality(personality);
     setPreferences(nextPreferences);
     void setRealtimeCoachPreferences(nextPreferences);
+    void updateOnboardingState({ coach_personality: personality });
   };
 
-  const handlePickLater = async () => {
+  const handlePickLater = () => {
     const nextPreferences = {
       ...preferences,
       personality: PICK_LATER_PERSONALITY,
     };
+    setPickedLater(true);
+    setSelectedPersonality(null);
     setPreferences(nextPreferences);
-    await setRealtimeCoachPreferences(nextPreferences);
-    trackOnboardingStepCompleted('coach_personality', {
-      coach_personality: 'pick_later',
-      saved_coach_personality: PICK_LATER_PERSONALITY,
-    });
-    router.push('/onboarding/metrics-intro');
+    void setRealtimeCoachPreferences(nextPreferences);
+    void updateOnboardingState({ coach_personality: 'pick_later' });
   };
 
   const handleContinue = () => {
+    if (!hasSelection) return;
+
     trackOnboardingStepCompleted('coach_personality', {
-      coach_personality: selectedPersonality,
+      coach_personality: pickedLater ? 'pick_later' : selectedPersonality,
+      ...(pickedLater ? { saved_coach_personality: PICK_LATER_PERSONALITY } : {}),
     });
     router.push('/onboarding/metrics-intro');
   };
@@ -101,7 +117,12 @@ export default function OnboardingCoachPersonalityScreen() {
       onBack={() => router.back()}
       contentGap={Spacing.xl}
       floatingFooter={
-        <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
+        <GlassButton
+          style={styles.button}
+          onPress={handleContinue}
+          disabled={!hasSelection}
+          hapticFeedback="impactMedium"
+        >
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
@@ -112,15 +133,15 @@ export default function OnboardingCoachPersonalityScreen() {
             key={personality}
             title={COACH_PERSONALITY_LABELS[personality]}
             description={PERSONALITY_DESCRIPTIONS[personality]}
-            selected={selectedPersonality === personality}
+            selected={!pickedLater && selectedPersonality === personality}
             onSelect={() => handleSelect(personality)}
           />
         ))}
         <OnboardingOptionCard
           title="I'll pick later"
           description="Create a custom AI tone later."
-          selected={false}
-          onSelect={() => void handlePickLater()}
+          selected={pickedLater}
+          onSelect={handlePickLater}
         />
       </View>
     </OnboardingScreen>

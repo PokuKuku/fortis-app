@@ -17,6 +17,20 @@ import {
 
 const TESTIMONIALS = [
   {
+    initials: 'J1',
+    name: 'Jaycee1077',
+    color: '#9B7AD6',
+    title: 'Favorite workout app',
+    body: 'This app made tracking so much easier for me. The insights are genuinely helpful and the AI trainer is an amazing addition. 100% recommend for anyone who lifts.',
+  },
+  {
+    initials: 'M8',
+    name: 'Markus836',
+    color: '#4F9DD9',
+    title: 'Voice coach is very unique!',
+    body: 'I love the voice coach in this app. There is so much customizability to it and it’s made my fitness routine more enjoyable!',
+  },
+  {
     initials: 'K1',
     name: 'Kaitlin1313',
     color: '#F29AB7',
@@ -25,7 +39,7 @@ const TESTIMONIALS = [
   },
   {
     initials: 'KB',
-    name: 'Kwaku',
+    name: 'KB',
     color: '#71C95A',
     image: require('../../assets/onboarding/kwaku_review4.png'),
     title: 'Took my progress to the next level!',
@@ -39,6 +53,12 @@ const TESTIMONIALS = [
     body: 'Simple to use and yet the most comprehensive workout tracker with AI integration out there. I highly recommend this app for your gym workout tracking!',
   },
 ];
+
+const JAYCEE_REVIEW = TESTIMONIALS[0];
+const MARKUS_REVIEW = TESTIMONIALS[1];
+const KAITLIN_REVIEW = TESTIMONIALS[2];
+const KWAKU_REVIEW = TESTIMONIALS[3];
+const CLMT5_REVIEW = TESTIMONIALS[4];
 
 export default function OnboardingSocialProofScreen() {
   useOnboardingFunnelScreen('Social Proof page');
@@ -66,12 +86,12 @@ export default function OnboardingSocialProofScreen() {
     const primaryGoal = state?.fitness_goals?.[0] ?? state?.fitness_goal;
     const primaryChallenge = state?.biggest_challenges?.[0] ?? state?.biggest_challenge;
     if (primaryChallenge === 'plateaus' || state?.progress_blocker === 'unclear_progress') {
-      return [TESTIMONIALS[2], TESTIMONIALS[1], TESTIMONIALS[0]];
+      return [CLMT5_REVIEW, JAYCEE_REVIEW, KWAKU_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW];
     }
     if (primaryGoal === 'build_muscle' || primaryGoal === 'lose_fat' || primaryGoal === 'improve_strength') {
-      return [TESTIMONIALS[1], TESTIMONIALS[2], TESTIMONIALS[0]];
+      return [KWAKU_REVIEW, CLMT5_REVIEW, JAYCEE_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW];
     }
-    return TESTIMONIALS;
+    return [JAYCEE_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW, KWAKU_REVIEW, CLMT5_REVIEW];
   }, [state]);
 
   const caption = useMemo(() => {
@@ -122,32 +142,37 @@ export default function OnboardingSocialProofScreen() {
           {testimonials.map((item) => (
             <View
               key={item.name}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.glassBorder,
-                },
-              ]}
+              style={styles.cardShell}
             >
-              {item.image ? (
-                <Image source={item.image} style={styles.avatarImage} resizeMode="cover" />
-              ) : (
-                <View style={[styles.avatar, { backgroundColor: item.color }]}>
-                  <Text style={styles.avatarText}>{item.initials}</Text>
-                </View>
-              )}
-
-              <View style={styles.cardCopy}>
-                <View style={styles.cardHeader}>
-                  <View style={styles.nameRow}>
-                    <Text style={[styles.nameText, { color: colors.textPrimary }]}>{item.name}</Text>
-                    <CheckBadgeIcon size={16} color="#0095f6" />
+              <View style={[styles.cardBottomShadow, { backgroundColor: colors.accentShadow }]} pointerEvents="none" />
+              <View
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    borderColor: colors.glassBorder,
+                  },
+                ]}
+              >
+                {item.image ? (
+                  <Image source={item.image} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <View style={[styles.avatar, { backgroundColor: item.color }]}>
+                    <Text style={styles.avatarText}>{item.initials}</Text>
                   </View>
-                  <RatingStars size={14} gap={2} />
+                )}
+
+                <View style={styles.cardCopy}>
+                  <View style={styles.cardHeader}>
+                    <View style={styles.nameRow}>
+                      <Text style={[styles.nameText, { color: colors.textPrimary }]}>{item.name}</Text>
+                      <CheckBadgeIcon size={16} color="#0095f6" />
+                    </View>
+                    <RatingStars size={14} gap={2} />
+                  </View>
+                  <Text style={[styles.titleText, { color: colors.textPrimary }]}>{item.title}</Text>
+                  <Text style={[styles.bodyText, { color: colors.textSecondary }]}>{item.body}</Text>
                 </View>
-                <Text style={[styles.titleText, { color: colors.textPrimary }]}>{item.title}</Text>
-                <Text style={[styles.bodyText, { color: colors.textSecondary }]}>{item.body}</Text>
               </View>
             </View>
           ))}
@@ -181,6 +206,19 @@ const styles = StyleSheet.create({
   },
   cards: {
     gap: Spacing.md,
+  },
+  cardShell: {
+    position: 'relative',
+    borderRadius: BorderRadius.xl,
+  },
+  cardBottomShadow: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: -5,
+    height: 10,
+    borderRadius: 999,
+    opacity: 0.22,
   },
   card: {
     flexDirection: 'row',

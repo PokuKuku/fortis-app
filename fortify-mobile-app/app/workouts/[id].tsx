@@ -19,8 +19,16 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { getDefaultTemplates } from '@/src/data/defaultPrograms';
 
-const DEFAULT_TEMPLATE_NAME_BY_ID = new Map(
-  getDefaultTemplates().map((program) => [program.id, program.name])
+const LEGACY_DEFAULT_TEMPLATE_NAMES_BY_ID = new Map<string, string[]>([
+  ['default-template-upper', ['Upper']],
+  ['default-template-lower', ['Lower']],
+]);
+
+const DEFAULT_TEMPLATE_NAMES_BY_ID = new Map<string, string[]>(
+  getDefaultTemplates().map((program) => [
+    program.id,
+    [program.name, ...(LEGACY_DEFAULT_TEMPLATE_NAMES_BY_ID.get(program.id) ?? [])],
+  ])
 );
 
 export default function WorkoutDetailScreen() {
@@ -61,11 +69,11 @@ export default function WorkoutDetailScreen() {
 
   const replacementTemplateId = useMemo(() => {
     if (!id || Array.isArray(id)) return null;
-    const defaultTemplateName = DEFAULT_TEMPLATE_NAME_BY_ID.get(id);
-    if (!defaultTemplateName) return null;
+    const defaultTemplateNames = DEFAULT_TEMPLATE_NAMES_BY_ID.get(id);
+    if (!defaultTemplateNames) return null;
 
     const matches = storePrograms.filter((program) => (
-      program.isTemplate && !program.isDefault && program.name === defaultTemplateName
+      program.isTemplate && !program.isDefault && defaultTemplateNames.includes(program.name)
     ));
 
     return matches.length === 1 ? matches[0].id : null;
@@ -284,6 +292,7 @@ export default function WorkoutDetailScreen() {
           <GlassButton
             style={styles.startButton}
             onPress={handleStartWorkout}
+            shadow={false}
           >
             <View style={styles.startButtonContent}>
               <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.lg} strokeWidth={2.5} />

@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { GlassButton } from '@/components/GlassButton';
+import { GlassCard } from '@/components/GlassCard';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
-import { scale } from '@/src/utils/responsive';
+import { moderateScale, scale } from '@/src/utils/responsive';
 import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
@@ -22,14 +23,18 @@ export default function OnboardingWorkoutScheduleScreen() {
   useOnboardingFunnelScreen('Q10. Workout Schedule');
 
   const router = useRouter();
-  const { width: windowWidth } = useWindowDimensions();
-  const { colors, isDark } = useTheme();
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const { colors } = useTheme();
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const isNarrowScreen = windowWidth < 380;
+  const isShortScreen = windowHeight < 700;
   const maxScreenWidth = windowWidth < 380 ? 360 : windowWidth < 420 ? 420 : 480;
-  const horizontalPadding = windowWidth < 380 ? scale(20) : scale(24);
+  const horizontalPadding = isNarrowScreen ? scale(20) : scale(24);
   const contentWidth = Math.min(windowWidth, maxScreenWidth) - (horizontalPadding * 2);
-  const dayGap = scale(Spacing.md);
+  const dayGap = isNarrowScreen ? scale(Spacing.sm) : scale(Spacing.md);
   const dayButtonWidth = Math.floor((contentWidth - (dayGap * 2)) / 3);
+  const dayButtonHeight = isNarrowScreen ? scale(50) : scale(56);
+  const gridTopMargin = isShortScreen ? scale(72) : windowHeight < 780 ? scale(96) : scale(128);
 
   useEffect(() => {
     let isActive = true;
@@ -86,36 +91,47 @@ export default function OnboardingWorkoutScheduleScreen() {
         </GlassButton>
       }
     >
-      <View style={[styles.daysGrid, { gap: dayGap }]}>
+      <View style={[styles.daysGrid, { gap: dayGap, marginTop: gridTopMargin }]}>
         {WEEKDAY_LABELS.map((label, day) => {
           const selected = selectedDays.includes(day);
           const isLastDay = day === WEEKDAY_LABELS.length - 1;
           return (
-            <Pressable
+            <View
               key={label}
-              onPress={() => toggleDay(day)}
-              style={({ pressed }) => [
-                styles.dayButton,
-                {
-                  width: dayButtonWidth,
-                  marginLeft: isLastDay ? dayButtonWidth + dayGap : 0,
-                  marginRight: isLastDay ? dayButtonWidth + dayGap : 0,
-                },
-                {
-                  backgroundColor: selected
-                    ? colors.accent
-                    : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                  borderColor: selected
-                    ? colors.accent
-                    : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)',
-                },
-                pressed && styles.pressed,
-              ]}
+              style={{
+                width: dayButtonWidth,
+                marginLeft: isLastDay ? dayButtonWidth + dayGap : 0,
+                marginRight: isLastDay ? dayButtonWidth + dayGap : 0,
+              }}
             >
-              <Text style={[styles.dayText, { color: selected ? colors.accentForegroundOnFill : colors.textPrimary }]}>
-                {label}
-              </Text>
-            </Pressable>
+              <GlassCard
+                onPress={() => toggleDay(day)}
+                width="100%"
+                padding={0}
+                shellShadow={false}
+                style={[
+                  styles.dayCard,
+                  {
+                    borderColor: selected ? colors.accent : colors.glassBorder,
+                    backgroundColor: selected ? colors.accent : colors.surfaceElevated,
+                  },
+                ]}
+              >
+                <View style={[styles.dayContent, { height: dayButtonHeight }]}>
+                  <Text
+                    style={[
+                      styles.dayText,
+                      { color: selected ? colors.accentForegroundOnFill : colors.textPrimary },
+                    ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.86}
+                  >
+                    {label}
+                  </Text>
+                </View>
+              </GlassCard>
+            </View>
           );
         })}
       </View>
@@ -128,19 +144,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    marginTop: 128,
   },
-  dayButton: {
-    height: 52,
+  dayCard: {
     borderRadius: BorderRadius.xl,
-    borderWidth: 1,
+  },
+  dayContent: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   dayText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: 14,
-    letterSpacing: 1.2,
+    fontSize: moderateScale(14),
+    letterSpacing: moderateScale(1.2),
   },
   button: {
     height: 54,
@@ -151,8 +166,5 @@ const styles = StyleSheet.create({
     fontSize: 17,
     letterSpacing: 2,
     textTransform: 'uppercase',
-  },
-  pressed: {
-    opacity: 0.72,
   },
 });

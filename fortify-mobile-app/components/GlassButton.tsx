@@ -6,9 +6,9 @@
  *
  * Supports both dark and light themes with appropriate glass effects.
  */
-import { View, StyleSheet, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, StyleSheet, TouchableOpacity, View, type StyleProp, type ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ReactNode } from 'react';
+import { ReactNode, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
 
@@ -30,6 +30,7 @@ interface GlassButtonProps {
   disabled?: boolean;
   hapticFeedback?: GlassButtonHapticFeedback;
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
+  shadow?: boolean;
 }
 
 export function GlassButton({
@@ -43,8 +44,16 @@ export function GlassButton({
   disabled = false,
   hapticFeedback = 'none',
   pointerEvents,
+  shadow = true,
 }: GlassButtonProps) {
   const { colors } = useTheme();
+  const pressProgress = useRef(new Animated.Value(0)).current;
+  const flattenedStyle = StyleSheet.flatten(style);
+  const resolvedBorderRadius = typeof flattenedStyle?.borderRadius === 'number'
+    ? flattenedStyle.borderRadius
+    : circular && size
+      ? size / 2
+      : styles.surface.borderRadius;
 
   // Use provided gradient colors or theme default
   const buttonGradient = gradientColors || (colors.buttonGradient as unknown as string[]);
@@ -54,8 +63,36 @@ export function GlassButton({
     ? { width: size, height: size, borderRadius: size / 2 }
     : {};
 
-  // Dynamic shadow color based on accent
-  const accentShadow = { shadowColor: colors.accentShadow };
+  const bottomShadowStyle = { backgroundColor: colors.accentShadow };
+  const animatedPressStyle = {
+    transform: [
+      {
+        translateY: pressProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, 2],
+        }),
+      },
+      {
+        scale: pressProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [1, 0.985],
+        }),
+      },
+    ],
+  };
+
+  const animatePress = (toValue: 0 | 1) => {
+    if (disabled) {
+      pressProgress.setValue(0);
+      return;
+    }
+
+    Animated.timing(pressProgress, {
+      toValue,
+      duration: toValue === 1 ? 80 : 120,
+      useNativeDriver: true,
+    }).start();
+  };
 
   const fireHaptic = () => {
     if (disabled || hapticFeedback === 'none') return;
@@ -91,39 +128,53 @@ export function GlassButton({
   };
 
   return (
-    <View
+    <Animated.View
       pointerEvents={pointerEvents}
-      style={[styles.container, accentShadow, buttonStyle, style, disabled && styles.disabled]}
+      style={[
+        styles.container,
+        buttonStyle,
+        style,
+        shadow ? [styles.shadow, { shadowColor: colors.accentShadow }] : styles.noShadow,
+        animatedPressStyle,
+        disabled && styles.disabled,
+      ]}
     >
-      {/* Gradient background - render first */}
-      <LinearGradient
-        colors={buttonGradient as any}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-        pointerEvents="none"
-      />
+      {shadow ? (
+        <View style={[styles.bottomShadow, bottomShadowStyle]} pointerEvents="none" />
+      ) : null}
+      <View style={[styles.surface, { borderRadius: resolvedBorderRadius }]}>
+        {/* Gradient background - render first */}
+        <LinearGradient
+          colors={buttonGradient as any}
+          start={{ x: 0.5, y: 0 }}
+          end={{ x: 0.5, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
+        />
 
-      {/* Glass fog overlay on top - theme-aware */}
-      <LinearGradient
-        colors={fogOverlay as any}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-        pointerEvents="none"
-      />
+        {/* Glass fog overlay on top - theme-aware */}
+        <LinearGradient
+          colors={fogOverlay as any}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={StyleSheet.absoluteFillObject}
+          pointerEvents="none"
+        />
 
-      {/* Content */}
-      <TouchableOpacity
-        style={styles.touchable}
-        onPress={handlePress}
-        onLongPress={handleLongPress}
-        activeOpacity={0.8}
-        disabled={disabled}
-      >
-        {children}
-      </TouchableOpacity>
-    </View>
+        {/* Content */}
+        <TouchableOpacity
+          style={styles.touchable}
+          onPress={handlePress}
+          onLongPress={handleLongPress}
+          onPressIn={() => animatePress(1)}
+          onPressOut={() => animatePress(0)}
+          activeOpacity={0.8}
+          disabled={disabled}
+        >
+          {children}
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -131,12 +182,34 @@ const styles = StyleSheet.create({
   container: {
     position: 'relative',
     borderRadius: 16,
+  },
+  shadow: {
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.34,
+    shadowRadius: 18,
+    elevation: 12,
+  },
+  noShadow: {
+    shadowColor: 'transparent',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    elevation: 0,
+  },
+  bottomShadow: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: -6,
+    height: 12,
+    borderRadius: 999,
+    opacity: 0.32,
+  },
+  surface: {
+    flex: 1,
+    alignSelf: 'stretch',
+    borderRadius: 16,
     overflow: 'hidden',
-    // shadowColor is now dynamic via accentShadow
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
   },
   touchable: {
     flex: 1,

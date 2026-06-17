@@ -97,6 +97,7 @@ export function WorkoutDetailModal({
       <GlassButton
         style={styles.startButton}
         onPress={handleStart}
+        shadow={false}
       >
         <View style={styles.startButtonContent}>
           <PlayIcon color={colors.accentForegroundOnFill} size={20} strokeWidth={2.5} />

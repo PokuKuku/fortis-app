@@ -78,7 +78,7 @@ function SourceOptionCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const iconWrapSize = scale(34);
   const iconSize = scale(22);
   const cardPadding = scale(Spacing.md);
@@ -104,7 +104,12 @@ function SourceOptionCard({
   };
 
   return (
-    <GlassCard onPress={handlePress} padding={cardPadding} style={StyleSheet.flatten([styles.optionCard, cardStyle])}>
+    <GlassCard
+      onPress={handlePress}
+      padding={cardPadding}
+      style={StyleSheet.flatten([styles.optionCard, cardStyle])}
+      shellShadow={false}
+    >
       <View style={styles.optionRow}>
         <View style={[styles.iconWrap, iconWrapStyle, { width: iconWrapSize, height: iconWrapSize }]}>
           {IconComponent ? (

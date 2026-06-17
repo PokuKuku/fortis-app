@@ -39,7 +39,7 @@ type TemplateSeed = {
 const TEMPLATE_SEEDS: TemplateSeed[] = [
   {
     id: 'default-template-upper',
-    name: 'Upper',
+    name: 'Upper (sample)',
     exercises: [
       {
         exerciseId: EXERCISE_IDS.barbellBenchPress,
@@ -87,7 +87,7 @@ const TEMPLATE_SEEDS: TemplateSeed[] = [
   },
   {
     id: 'default-template-lower',
-    name: 'Lower',
+    name: 'Lower (sample)',
     exercises: [
       {
         exerciseId: EXERCISE_IDS.hackCalfRaise,

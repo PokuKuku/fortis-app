@@ -579,6 +579,7 @@ export default function ProgramDetailScreen() {
             style={styles.startButton}
             onPress={handleStartProgram}
             disabled={!isProgressLoaded}
+            shadow={false}
           >
             <View style={styles.startButtonContent}>
               <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.lg} strokeWidth={2.5} />

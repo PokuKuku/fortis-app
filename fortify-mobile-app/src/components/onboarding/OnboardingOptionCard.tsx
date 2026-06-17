@@ -58,6 +58,7 @@ export function OnboardingOptionCard({
       onPress={handlePress}
       padding={isGridLayout ? scale(Spacing.md) : cardPadding}
       style={StyleSheet.flatten([styles.card, isGridLayout && styles.gridCard, cardStyle])}
+      shellShadow={false}
     >
       <View style={[styles.row, isGridLayout && styles.gridRow]}>
         {leadingAccessory ? (

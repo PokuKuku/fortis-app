@@ -41,6 +41,7 @@ export default function StartScreen() {
             }}
             gradientColors={colors.contrastGradient as unknown as string[]}
             onPress={handleOpenAIChat}
+            shadow={false}
           >
             <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Open AI Chat</Text>
           </GlassButton>

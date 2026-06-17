@@ -45,7 +45,9 @@ export default function OnboardingGoalPaceScreen() {
     const loadState = async () => {
       const state = await getOnboardingState();
       if (!isActive) return;
-      setSelected(state?.goal_pace ?? 'balanced');
+      if (state?.goal_pace) {
+        setSelected(state.goal_pace);
+      }
     };
     void loadState();
     return () => {
@@ -59,10 +61,11 @@ export default function OnboardingGoalPaceScreen() {
   };
 
   const handleContinue = async () => {
-    const value = selected ?? 'balanced';
-    await updateOnboardingState({ goal_pace: value });
+    if (!selected) return;
+
+    await updateOnboardingState({ goal_pace: selected });
     trackOnboardingStepCompleted('goal_pace', {
-      goal_pace: value,
+      goal_pace: selected,
     });
     router.push('/onboarding/six-month-preview');
   };
@@ -75,7 +78,12 @@ export default function OnboardingGoalPaceScreen() {
       subtitle={undefined}
       onBack={() => router.back()}
       floatingFooter={
-        <GlassButton style={styles.button} onPress={() => void handleContinue()} hapticFeedback="impactMedium">
+        <GlassButton
+          style={styles.button}
+          onPress={() => void handleContinue()}
+          disabled={!selected}
+          hapticFeedback="impactMedium"
+        >
           <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Next</Text>
         </GlassButton>
       }
@@ -86,7 +94,7 @@ export default function OnboardingGoalPaceScreen() {
             key={option.value}
             title={option.title}
             description={option.description}
-            selected={(selected ?? 'balanced') === option.value}
+            selected={selected === option.value}
             onSelect={() => handleSelect(option.value)}
           />
         ))}

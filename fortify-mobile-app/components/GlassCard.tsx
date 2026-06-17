@@ -6,7 +6,15 @@
  *
  * Supports both dark and light themes with appropriate glass effects.
  */
-import { View, StyleSheet, TouchableOpacity, type StyleProp, type ViewStyle } from 'react-native';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  type ColorValue,
+  type DimensionValue,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -24,16 +32,24 @@ const SHELL_SHADOW_RADIUS = scale(20);
 interface GlassCardProps {
   children: ReactNode;
   onPress?: () => void;
-  width?: string | number;
+  width?: DimensionValue;
   style?: StyleProp<ViewStyle>;
   padding?: number;
+  shellShadow?: boolean;
 }
 
-export function GlassCard({ children, onPress, width = '100%', style, padding = 16 }: GlassCardProps) {
+export function GlassCard({
+  children,
+  onPress,
+  width = '100%',
+  style,
+  padding = 16,
+  shellShadow = true,
+}: GlassCardProps) {
   const { colors, isDark } = useTheme();
   const pressDepth = useSharedValue(0);
 
-  const fogOverlay = colors.glassFog as unknown as string[];
+  const fogOverlay = colors.glassFog as unknown as readonly [ColorValue, ColorValue, ...ColorValue[]];
   const pressStyle = useAnimatedStyle(() => ({
     transform: [
       { translateY: pressDepth.value },
@@ -60,16 +76,16 @@ export function GlassCard({ children, onPress, width = '100%', style, padding = 
     borderColor: colors.glassBorder,
     backgroundColor: isDark ? colors.glassBackground : 'rgba(255,255,255,0.85)',
   };
-  const glowStyle = {
+  const shellShadowStyle = shellShadow ? {
     shadowColor: colors.accentShadow,
-  };
+  } : styles.noShellShadow;
   const bottomGlowStyle = {
     backgroundColor: colors.accent,
     opacity: isDark ? 0.44 : 0.24,
   };
 
   return (
-    <Animated.View style={[styles.glowShell, glowStyle, { width }, pressStyle]}>
+    <Animated.View style={[styles.glowShell, shellShadowStyle, { width }, pressStyle]}>
       <View style={[styles.bottomGlow, bottomGlowStyle]} pointerEvents="none" />
       <View style={[styles.card, cardStyle, { padding }, style]}>
         {/* Enhanced Fog Overlay with gradient - theme-aware */}
@@ -112,6 +128,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.46,
     shadowRadius: SHELL_SHADOW_RADIUS,
     elevation: 12,
+  },
+  noShellShadow: {
+    shadowColor: 'transparent',
+    shadowOpacity: 0,
+    shadowRadius: 0,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 0,
   },
   bottomGlow: {
     position: 'absolute',

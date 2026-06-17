@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -34,33 +34,77 @@ export function OnboardingWheelPicker({
   const lastHapticIndex = useRef<number | null>(selectedIndex);
   const lastHapticAt = useRef(0);
   const isInteracting = useRef(false);
+  const selectedIndexRef = useRef(selectedIndex);
+  const suppressNextSyncRef = useRef(false);
+  const didMountRef = useRef(false);
+  const isMomentumScrollingRef = useRef(false);
+  const settleDragTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerHeight = height ?? ITEM_HEIGHT * VISIBLE_ITEMS;
   const paddingVertical = (containerHeight - ITEM_HEIGHT) / 2;
 
-  useEffect(() => {
-    listRef.current?.scrollToOffset({
-      offset: selectedIndex * ITEM_HEIGHT,
-      animated: false,
-    });
-    scrollY.setValue(selectedIndex * ITEM_HEIGHT);
-    lastHapticIndex.current = selectedIndex;
-  }, [selectedIndex, scrollY]);
+  const clampIndex = useCallback((index: number) => (
+    Math.min(Math.max(index, 0), Math.max(0, items.length - 1))
+  ), [items.length]);
 
-  const handleMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const nextIndex = Math.round(event.nativeEvent.contentOffset.y / ITEM_HEIGHT);
-    if (nextIndex !== selectedIndex) {
+  useEffect(() => {
+    selectedIndexRef.current = selectedIndex;
+  }, [selectedIndex]);
+
+  const clearPendingSettle = useCallback(() => {
+    if (!settleDragTimerRef.current) return;
+    clearTimeout(settleDragTimerRef.current);
+    settleDragTimerRef.current = null;
+  }, []);
+
+  useEffect(() => () => {
+    clearPendingSettle();
+  }, [clearPendingSettle]);
+
+  useEffect(() => {
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      scrollY.setValue(clampIndex(selectedIndex) * ITEM_HEIGHT);
+      lastHapticIndex.current = clampIndex(selectedIndex);
+      return;
+    }
+
+    if (suppressNextSyncRef.current) {
+      suppressNextSyncRef.current = false;
+      return;
+    }
+
+    listRef.current?.scrollToOffset({
+      offset: clampIndex(selectedIndex) * ITEM_HEIGHT,
+      animated: true,
+    });
+    scrollY.setValue(clampIndex(selectedIndex) * ITEM_HEIGHT);
+    lastHapticIndex.current = clampIndex(selectedIndex);
+  }, [clampIndex, selectedIndex, scrollY]);
+
+  const finalizeOffset = useCallback((offsetY: number) => {
+    clearPendingSettle();
+    const nextIndex = clampIndex(Math.round(offsetY / ITEM_HEIGHT));
+    const nextOffset = nextIndex * ITEM_HEIGHT;
+
+    listRef.current?.scrollToOffset({
+      offset: nextOffset,
+      animated: true,
+    });
+
+    if (nextIndex !== selectedIndexRef.current) {
+      suppressNextSyncRef.current = true;
       onChange(nextIndex);
     }
     isInteracting.current = false;
-  };
+  }, [clampIndex, clearPendingSettle, onChange]);
 
   const maybeHaptic = (nextIndex: number) => {
     if (lastHapticIndex.current === nextIndex) return;
     const now = Date.now();
-    if (now - lastHapticAt.current < 30) return;
+    if (now - lastHapticAt.current < 70) return;
     lastHapticAt.current = now;
     lastHapticIndex.current = nextIndex;
-    Haptics.selectionAsync();
+    void Haptics.selectionAsync();
   };
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -69,6 +113,28 @@ export function OnboardingWheelPicker({
     const clampedIndex = Math.min(Math.max(rawIndex, 0), items.length - 1);
     maybeHaptic(clampedIndex);
   };
+
+  const handleScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+    clearPendingSettle();
+
+    settleDragTimerRef.current = setTimeout(() => {
+      settleDragTimerRef.current = null;
+      if (isMomentumScrollingRef.current) return;
+      finalizeOffset(offsetY);
+    }, 120);
+  }, [clearPendingSettle, finalizeOffset]);
+
+  const handleMomentumScrollBegin = useCallback(() => {
+    clearPendingSettle();
+    isMomentumScrollingRef.current = true;
+    isInteracting.current = true;
+  }, [clearPendingSettle]);
+
+  const handleMomentumScrollEnd = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    isMomentumScrollingRef.current = false;
+    finalizeOffset(event.nativeEvent.contentOffset.y);
+  }, [finalizeOffset]);
 
   const renderItem = ({ item, index }: { item: string; index: number }) => {
     const inputRange = [
@@ -112,25 +178,25 @@ export function OnboardingWheelPicker({
         data={items}
         keyExtractor={(item, index) => `${item}-${index}`}
         renderItem={renderItem}
+        initialScrollIndex={clampIndex(selectedIndex)}
         getItemLayout={getItemLayout}
         showsVerticalScrollIndicator={false}
         bounces={false}
         nestedScrollEnabled
         snapToInterval={ITEM_HEIGHT}
-        decelerationRate="fast"
-        onMomentumScrollEnd={handleMomentumEnd}
-        onMomentumScrollBegin={() => {
-          isInteracting.current = true;
-        }}
+        snapToAlignment="start"
+        decelerationRate="normal"
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        onMomentumScrollBegin={handleMomentumScrollBegin}
         onScrollBeginDrag={() => {
+          clearPendingSettle();
+          isMomentumScrollingRef.current = false;
           isInteracting.current = true;
         }}
-        onScrollEndDrag={() => {
-          isInteracting.current = false;
-        }}
+        onScrollEndDrag={handleScrollEndDrag}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: false, listener: handleScroll }
+          { useNativeDriver: true, listener: handleScroll }
         )}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingVertical }}

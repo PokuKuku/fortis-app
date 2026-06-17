@@ -8,6 +8,10 @@ const isPostHogConfigured = Boolean(apiKey && apiKey !== 'phc_your_project_token
 const isSessionReplayNativeModuleLinked =
   (Platform.OS === 'ios' || Platform.OS === 'android') &&
   Boolean(NativeModules.PosthogReactNativeSessionReplay);
+const isSessionReplayEnabled =
+  isPostHogConfigured &&
+  isSessionReplayNativeModuleLinked &&
+  !__DEV__;
 
 if (!isPostHogConfigured) {
   console.warn('[PostHog] Project token not configured. Analytics disabled. Set POSTHOG_PROJECT_TOKEN in .env.');
@@ -19,11 +23,15 @@ if (isPostHogConfigured && !isSessionReplayNativeModuleLinked && Platform.OS !==
   );
 }
 
+if (isPostHogConfigured && isSessionReplayNativeModuleLinked && __DEV__) {
+  console.warn('[PostHog] Session replay disabled in development builds to avoid dev reload watchdog hangs.');
+}
+
 export const posthog = new PostHog(apiKey || 'placeholder_key', {
   ...(host ? { host } : {}),
   disabled: !isPostHogConfigured,
   captureAppLifecycleEvents: true,
-  enableSessionReplay: isPostHogConfigured && isSessionReplayNativeModuleLinked,
+  enableSessionReplay: isSessionReplayEnabled,
   sessionReplayConfig: {
     maskAllTextInputs: true,
     maskAllImages: true,

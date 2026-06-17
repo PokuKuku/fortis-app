@@ -205,6 +205,7 @@ export function AIWorkoutPreviewModal({
           style={StyleSheet.flatten([styles.startButton, themedStyles.startButton])}
           onPress={onStart}
           disabled={isStarting || isAdding || isStartDisabled}
+          shadow={false}
         >
           <View style={styles.addButtonContent}>
             <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.md} strokeWidth={2.2} />

@@ -720,6 +720,7 @@ export default function TabLayout() {
                 <GlassButton
                   circular
                   size={CENTER_BUTTON_SIZE}
+                  shadow={false}
                   style={[
                     styles.centerButton,
                     { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
@@ -836,6 +837,7 @@ export default function TabLayout() {
         <GlassButton
           circular
           size={FAB_BUTTON_SIZE}
+          shadow={false}
           style={[
             styles.plusButton,
             { borderColor: isDark ? 'rgba(36, 36, 36, 0.9)' : 'rgba(255, 255, 255, 0.95)' },
