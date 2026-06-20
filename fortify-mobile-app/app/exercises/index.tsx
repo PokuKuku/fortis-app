@@ -56,7 +56,6 @@ const POPOVER_MAX_HEIGHT = scale(350);
 const POPOVER_RADIUS = scale(12);
 const POPOVER_LEFT = scale(24);
 const POPOVER_RIGHT = scale(72);
-const POPOVER_HALF_WIDTH = POPOVER_WIDTH / 2;
 const POPOVER_HEADER_PADDING = scale(12);
 const POPOVER_TITLE_SIZE = moderateScale(14);
 const CLEAR_BUTTON_PADDING = scale(10);
@@ -81,9 +80,8 @@ export default function ExercisesScreen() {
   const { colors, isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
-  const [activePopover, setActivePopover] = useState<'muscle' | 'category' | 'equipment' | null>(null);
+  const [activePopover, setActivePopover] = useState<'muscle' | 'equipment' | null>(null);
   const [customModalVisible, setCustomModalVisible] = useState(false);
   const isNavigating = useRef(false);
   const filteredExercisesRef = useRef<Exercise[]>([]);
@@ -135,7 +133,7 @@ export default function ExercisesScreen() {
     }
   }, [activePopover]);
 
-  // Get unique muscles and categories
+  // Get unique muscles and equipment
   const uniqueMuscles = useMemo(() => {
     const muscles = new Set<string>();
     allExercises.forEach(ex => {
@@ -146,14 +144,6 @@ export default function ExercisesScreen() {
     return ACTIVE_MUSCLE_KEYS
       .filter((key) => muscles.has(key))
       .sort((a, b) => getMuscleDisplayName(a).localeCompare(getMuscleDisplayName(b)));
-  }, [allExercises]);
-
-  const uniqueCategories = useMemo(() => {
-    const categories = new Set<string>();
-    allExercises.forEach(ex => {
-      if (ex.category) categories.add(ex.category);
-    });
-    return Array.from(categories).sort();
   }, [allExercises]);
 
   const uniqueEquipment = useMemo(() => {
@@ -210,15 +200,12 @@ export default function ExercisesScreen() {
       const matchesMuscle = selectedMuscles.length === 0 ||
         exercise.primaryMuscles?.some(muscle => selectedMuscles.includes(muscle));
 
-      const matchesCategory = selectedCategories.length === 0 ||
-        selectedCategories.includes(exercise.category);
-
       const matchesEquipment = selectedEquipment.length === 0 ||
         selectedEquipment.includes(exercise.equipment);
 
-      return matchesMuscle && matchesCategory && matchesEquipment;
+      return matchesMuscle && matchesEquipment;
     });
-  }, [searchQuery, searchIndex, selectedMuscles, selectedCategories, selectedEquipment]);
+  }, [searchQuery, searchIndex, selectedMuscles, selectedEquipment]);
 
   useEffect(() => {
     filteredExercisesRef.current = filteredExercises;
@@ -233,14 +220,6 @@ export default function ExercisesScreen() {
       prev.includes(muscle)
         ? prev.filter(m => m !== muscle)
         : [...prev, muscle]
-    );
-  };
-
-  const toggleCategory = (category: string) => {
-    setSelectedCategories(prev =>
-      prev.includes(category)
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
     );
   };
 
@@ -370,17 +349,6 @@ export default function ExercisesScreen() {
 
           <TouchableOpacity
             style={[styles.filterButton, filterButtonTheme]}
-            onPress={() => setActivePopover(activePopover === 'category' ? null : 'category')}
-          >
-            <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
-              {selectedCategories.length > 0
-                ? `${selectedCategories.length} Categor${selectedCategories.length > 1 ? 'ies' : 'y'}`
-                : 'Any Category'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.filterButton, filterButtonTheme]}
             onPress={() => setActivePopover(activePopover === 'equipment' ? null : 'equipment')}
           >
             <Text style={[styles.filterButtonText, { color: colors.textPrimary }]} numberOfLines={1}>
@@ -466,70 +434,6 @@ export default function ExercisesScreen() {
                     {getMuscleDisplayName(muscle as MuscleKey)}
                   </Text>
                   {selectedMuscles.includes(muscle) && (
-                    <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
-                      <Text style={[styles.checkmarkText, { color: colors.accentForegroundOnFill }]}>✓</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </Animated.View>
-        </Animated.View>
-      )}
-
-      {/* Category Filter Popover */}
-      {activePopover === 'category' && (
-        <Animated.View
-          style={[styles.popoverOverlay, { opacity: filterPopoverOpacity }]}
-          pointerEvents="auto"
-        >
-          <TouchableOpacity
-            style={[styles.popoverBackdrop, { backgroundColor: isDark ? 'rgba(0,0,0,0.1)' : 'rgba(0,0,0,0.2)' }]}
-            activeOpacity={1}
-            onPress={() => setActivePopover(null)}
-          />
-          <Animated.View style={[styles.popoverContent, styles.popoverCenter, popoverTheme, {
-            transform: [{ scale: filterPopoverScale }]
-          }]}>
-            <StainlessSteelPattern />
-
-            {/* Popover Header */}
-            <View style={[styles.popoverHeader, { borderBottomColor: popoverHeaderBorder }]}>
-              <Text style={[styles.popoverTitle, { color: colors.textSecondary }]}>Filter by Category</Text>
-            </View>
-
-            {/* Clear All Button */}
-            {selectedCategories.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSelectedCategories([])}
-                style={styles.clearButton}
-              >
-                <Text style={[styles.clearButtonText, { color: colors.accent }]}>Clear All</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Category List */}
-            <ScrollView style={styles.popoverScroll} showsVerticalScrollIndicator={false}>
-              {uniqueCategories.map((category) => (
-                <TouchableOpacity
-                  key={category}
-                  style={[
-                    styles.muscleOption,
-                    { borderBottomColor: muscleOptionBorder },
-                    selectedCategories.includes(category) && [styles.muscleOptionSelected, { backgroundColor: optionSelectedBg }]
-                  ]}
-                  onPress={() => toggleCategory(category)}
-                >
-                  <Text
-                    style={[
-                      styles.muscleOptionText,
-                      { color: colors.textSecondary },
-                      selectedCategories.includes(category) && { color: colors.accent, fontWeight: '600' }
-                    ]}
-                  >
-                    {category}
-                  </Text>
-                  {selectedCategories.includes(category) && (
                     <View style={[styles.checkmark, { backgroundColor: colors.accent }]}>
                       <Text style={[styles.checkmarkText, { color: colors.accentForegroundOnFill }]}>✓</Text>
                     </View>
@@ -817,10 +721,6 @@ const styles = StyleSheet.create({
   },
   popoverLeft: {
     left: POPOVER_LEFT,
-  },
-  popoverCenter: {
-    left: '50%',
-    marginLeft: -POPOVER_HALF_WIDTH,
   },
   popoverRight: {
     right: POPOVER_RIGHT,

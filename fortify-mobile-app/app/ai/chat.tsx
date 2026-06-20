@@ -24,7 +24,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
 import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
@@ -57,6 +57,7 @@ import { shouldAutoStartVoiceCoach, shouldPromptForFeatureAccess } from '@/src/u
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
+import { setLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -121,7 +122,7 @@ const COACHING_QUESTION_REGEX =
 const ADVICE_REQUEST_REGEX =
   /\b(advice|feedback|suggestions?|recommendations?|tips?)\b/i;
 const WORKOUT_GENERATION_REGEX =
-  /\b(?:(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workout|routine|session|template)\b/i;
+  /\b(?:(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workouts?|routines?|sessions?|templates?)\b/i;
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
 const WORKOUT_RESIZE_REGEXES = [
@@ -129,6 +130,8 @@ const WORKOUT_RESIZE_REGEXES = [
   /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b[\s\S]{0,30}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
   /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
 ];
+const CURRENT_WORKOUT_REFERENCE_REGEX =
+  /\b(?:it|this|that|current|existing)\s+(?:workout|routine|session|template)\b/i;
 
 // Animated sparkles for loading indicator
 function AnimatedLoadingSparkles() {
@@ -216,6 +219,11 @@ const shouldAttachWorkoutDraft = (message: string): boolean => {
     return false;
   }
 
+  // A request for a new workout must not be interpreted as an edit of the last card.
+  if (WORKOUT_GENERATION_REGEX.test(normalized) && !CURRENT_WORKOUT_REFERENCE_REGEX.test(normalized)) {
+    return false;
+  }
+
   return WORKOUT_EDIT_REGEX.test(normalized)
     || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized));
 };
@@ -253,6 +261,7 @@ const shouldInheritAnalystIntent = (
 
 export default function AIChatScreen() {
   const router = useRouter();
+  const { mode: requestedMode } = useLocalSearchParams<{ mode?: string }>();
   const posthog = usePostHog();
   const { colors, isDark } = useTheme();
   const { profile, user } = useAuth();
@@ -262,7 +271,9 @@ export default function AIChatScreen() {
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const hasRequestedInitialVoiceStartRef = useRef(false);
   const [inputText, setInputText] = useState('');
-  const [mode, setMode] = useState<AIVoiceMode>('voice');
+  const [mode, setMode] = useState<AIVoiceMode>(
+    requestedMode === 'chat' ? 'chat' : 'voice'
+  );
   const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
   const [pendingChatMedia, setPendingChatMedia] = useState<AIPendingMedia[]>([]);
   const [pendingVoiceMedia, setPendingVoiceMedia] = useState<AIPendingMedia[]>([]);
@@ -712,11 +723,13 @@ export default function AIChatScreen() {
         () => {
           stopVoiceCoach();
           setMode(nextMode);
+          void setLastAICoachMode(nextMode);
         },
       );
       return;
     }
     setMode(nextMode);
+    void setLastAICoachMode(nextMode);
   }, [mode, runProFeature, stopVoiceCoach]);
 
   return (

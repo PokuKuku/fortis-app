@@ -41,7 +41,7 @@ const WORKOUT_EDIT_CATALOG_LIMIT = Math.max(
   40,
   Number(Deno.env.get('AI_WORKOUT_EDIT_CATALOG_LIMIT') ?? '120')
 );
-const MAX_WORKOUT_TEMPLATE_EXERCISES = 10;
+const MAX_WORKOUT_TEMPLATE_EXERCISES = 13;
 const DEFAULT_MAIN_AI_MODEL = 'gemini-3.1-flash-lite';
 const DEFAULT_OPENAI_FALLBACK_MODEL = 'gpt-4o-mini';
 const CONTEXT_TOO_LARGE_MESSAGE =
@@ -586,10 +586,17 @@ interface AIContext extends AIBaseContext {
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
 }
 
+const WORKOUT_NOUN_PATTERN = '(?:workouts?|routines?|sessions?|templates?)';
+const EXERCISE_COUNT_PATTERN = '(?:\\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)';
+const WORKOUT_FOCUS_PATTERN = '(?:full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core|abs?)';
+const WORKOUT_CREATION_VERB_PATTERN = '(?:make|create|build|generate|design|craft|write|plan|recommend|suggest|put together|give me|need|want|show me|can i have|i would like)';
 const WORKOUT_REQUEST_REGEXES = [
-  /\b(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}\b(workout|routine|session|template)\b/i,
-  /\b(give me|need|want|show me)\b[\s\S]{0,40}\b(workout|routine|session|template)\b/i,
-  /\b(full body|upper body|lower body|push|pull|legs|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40}\b(workout|routine|session)\b/i,
+  new RegExp(`\\b${WORKOUT_CREATION_VERB_PATTERN}\\b[\\s\\S]{0,100}\\b${WORKOUT_NOUN_PATTERN}\\b`, 'i'),
+  new RegExp(`\\b${WORKOUT_CREATION_VERB_PATTERN}\\b[\\s\\S]{0,100}\\b${WORKOUT_FOCUS_PATTERN}\\b[\\s\\S]{0,40}\\bday\\b`, 'i'),
+  new RegExp(`\\b${WORKOUT_FOCUS_PATTERN}\\b[\\s\\S]{0,40}\\b${WORKOUT_NOUN_PATTERN}\\b`, 'i'),
+  new RegExp(`\\b${WORKOUT_NOUN_PATTERN}\\b[\\s\\S]{0,40}\\b${WORKOUT_FOCUS_PATTERN}\\b`, 'i'),
+  new RegExp(`\\b${WORKOUT_NOUN_PATTERN}\\b[\\s\\S]{0,40}\\b${EXERCISE_COUNT_PATTERN}\\s+(?:exercise|movement|lift)s?\\b`, 'i'),
+  new RegExp(`\\b${WORKOUT_NOUN_PATTERN}\\b\\s*(?:please|now)\\b`, 'i'),
 ];
 const WORKOUT_ADVICE_REGEX =
   /\b(advice|feedback|suggestions?|recommendations?|tips?)\b/i;
@@ -633,6 +640,14 @@ function shouldGenerateWorkoutTemplate(message: string): boolean {
   return WORKOUT_REQUEST_REGEXES.some((regex) => regex.test(normalized));
 }
 
+function isExplicitNewWorkoutRequest(message: string): boolean {
+  if (!shouldGenerateWorkoutTemplate(message)) {
+    return false;
+  }
+
+  return !/\b(?:it|this|that|current|existing)\s+(?:workout|routine|session|template)\b/i.test(message);
+}
+
 function shouldHandleWorkoutTemplateRequest(request: AIRequest): boolean {
   if (shouldGenerateWorkoutTemplate(request.message)) {
     return true;
@@ -650,7 +665,7 @@ function isVoiceWorkoutOnlyRequest(request: AIRequest): boolean {
 }
 
 function getWorkoutTemplateEditRequest(request: AIRequest): ParsedWorkoutEditRequest | null {
-  if (!request.context?.currentWorkoutTemplateDraft) {
+  if (!request.context?.currentWorkoutTemplateDraft || isExplicitNewWorkoutRequest(request.message)) {
     return null;
   }
   const parsed = parseWorkoutEditRequest(request.message);
@@ -1218,6 +1233,7 @@ async function assembleContext(
 ): Promise<AIContext> {
   const hasInsightId = !!request.context?.insightId;
   const periodWeeks = request.context?.periodWeeks || config.defaultContextWeeks;
+  const isExplicitNewWorkout = isExplicitNewWorkoutRequest(request.message);
   const parsedTemplateEdit = getWorkoutTemplateEditRequest(request);
   const isTemplateEdit = !!parsedTemplateEdit;
 
@@ -1228,7 +1244,9 @@ async function assembleContext(
 
   const context: AIContext = {
     user: userContext,
-    currentWorkoutTemplateDraft: request.context?.currentWorkoutTemplateDraft,
+    currentWorkoutTemplateDraft: isExplicitNewWorkout
+      ? undefined
+      : request.context?.currentWorkoutTemplateDraft,
   };
 
   if (request.context?.insightId) {
@@ -1393,7 +1411,10 @@ async function fetchWorkoutExerciseCatalog(
       .limit(options.limit);
 
     if (options.muscles && options.muscles.length > 0) {
-      query = query.overlaps('primary_muscles', options.muscles);
+      const muscleFilter = options.muscles.join(',');
+      query = query.or(
+        `primary_muscles.ov.{${muscleFilter}},secondary_muscles.ov.{${muscleFilter}}`
+      );
     }
 
     if (options.equipment && options.equipment.length === 1) {
@@ -1510,7 +1531,10 @@ async function fetchWorkoutEditExerciseCatalog(
     }
 
     if (options.muscles && options.muscles.length > 0) {
-      query = query.overlaps('primary_muscles', options.muscles);
+      const muscleFilter = options.muscles.join(',');
+      query = query.or(
+        `primary_muscles.ov.{${muscleFilter}},secondary_muscles.ov.{${muscleFilter}}`
+      );
     }
 
     if (options.equipment && options.equipment.length === 1) {
@@ -1703,6 +1727,17 @@ async function callAIProvider(
   requestId: string
 ): Promise<unknown> {
   const voiceWorkoutOnly = isVoiceWorkoutOnlyRequest(request);
+  if (shouldHandleWorkoutTemplateRequest(request) && !context.exerciseCatalog?.length) {
+    return {
+      type: 'error',
+      requestId,
+      error: {
+        code: 'WORKOUT_TEMPLATE_UNAVAILABLE',
+        message: 'I could not load your exercise library to build that workout. Please try again.',
+        retryable: true,
+      },
+    };
+  }
   const currentDraft = sanitizeWorkoutTemplate(
     context.currentWorkoutTemplateDraft,
     context.exerciseCatalog ?? []
@@ -2328,7 +2363,7 @@ function buildAnswerPrompt(
 - For normal questions, analysis, consistency, streak, form, habit, or advice prompts, omit "answer.workoutTemplate".
 - Use only exercise IDs from the EXERCISE CATALOG provided in the context.
 - Build exactly one single-session workout template, not a multi-day program.
-- Make the workout coherent: compounds before isolations, 4-10 exercises, or the explicit exercise count when the user asks for one, plus sensible set/rep schemes and realistic rest times.
+- Make the workout coherent: compounds before isolations, 4-13 exercises, or the explicit exercise count when the user asks for one, plus sensible set/rep schemes and realistic rest times.
 - Prefer exercises that match the requested body part, equipment, and experience level.
 - Use the user's training environment for equipment assumptions when no equipment is specified: gym means full gym, home means bodyweight/dumbbells/bands/kettlebells, hybrid means gym-quality choices unless the user asks for home. If training environment is unknown, assume full gym.
 - For normal single-session workout requests, infer reasonable defaults and generate the workout. Do not ask follow-up questions for routine missing details like equipment, duration, exercise count, sets, or reps.
@@ -2343,8 +2378,7 @@ function buildAnswerPrompt(
 - If CURRENT WORKOUT DRAFT is provided and the user's message is feedback or a requested change, revise that same draft instead of starting over.
 - When revising an existing draft, preserve untouched exercises and only change what the user asked for.
 - If the user is clearly asking for a brand-new workout, you may replace the current draft entirely.`
-    : `
-- If the user asks for a workout, you may provide a text outline only.`;
+    : '';
 
   if (intent === 'GENERAL_CHAT' && options.voiceWorkoutOnly && context.exerciseCatalog?.length) {
     return `You are Fortis AI, generating one high-quality strength workout template for the Fortify voice coach.
@@ -3105,6 +3139,7 @@ function sanitizeWorkoutTemplateResponse(
   }
 
   const record = response as {
+    requestId?: unknown;
     type?: unknown;
     answer?: {
       text?: unknown;
@@ -3124,6 +3159,26 @@ function sanitizeWorkoutTemplateResponse(
   };
 
   const shouldIncludeTemplate = shouldHandleWorkoutTemplateRequest(request);
+
+  const templateUnavailableResponse = (requestId: string) => ({
+    type: 'error' as const,
+    requestId,
+    error: {
+      code: 'WORKOUT_TEMPLATE_UNAVAILABLE',
+      message: 'I could not build that workout from your exercise library. Please try again.',
+      retryable: true,
+    },
+  });
+
+  const hasTextWorkoutOutline = () => {
+    const text = typeof record.answer?.text === 'string'
+      ? record.answer.text
+      : typeof record.clarification?.question === 'string'
+        ? record.clarification.question
+        : '';
+    return /\bexercises?\s*:/i.test(text)
+      || (/\b(?:sets?|reps?|rest)\b/i.test(text) && /(?:^|\n)\s*\d+[.)]\s+\S/m.test(text));
+  };
 
   const stripWorkoutTemplate = () => {
     if (record.type === 'answer' && record.answer) {
@@ -3145,8 +3200,20 @@ function sanitizeWorkoutTemplateResponse(
     return response;
   };
 
-  if (!shouldIncludeTemplate || !context.exerciseCatalog?.length) {
+  if (!shouldIncludeTemplate) {
+    // Never show a generated, numbered workout as plain chat text; it must be a card.
+    if (hasTextWorkoutOutline()) {
+      return templateUnavailableResponse(
+        typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
+      );
+    }
     return stripWorkoutTemplate();
+  }
+
+  if (!context.exerciseCatalog?.length) {
+    return templateUnavailableResponse(
+      typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
+    );
   }
 
   const fallbackTemplate = shouldIncludeTemplate
@@ -3186,7 +3253,9 @@ function sanitizeWorkoutTemplateResponse(
         },
       };
     }
-    return response;
+    return templateUnavailableResponse(
+      typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
+    );
   }
 
   const sanitizedTemplate = sanitizeWorkoutTemplate(
@@ -3219,11 +3288,9 @@ function sanitizeWorkoutTemplateResponse(
   }
 
   if (!sanitizedTemplate) {
-    const { workoutTemplate: _ignored, ...restAnswer } = record.answer;
-    return {
-      ...record,
-      answer: restAnswer,
-    };
+    return templateUnavailableResponse(
+      typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
+    );
   }
 
   const finalTemplate = currentDraft
@@ -3420,6 +3487,11 @@ function isGenericExerciseAdditionPhrase(value: string | undefined): boolean {
     || /^(?:exercise|movement|lift|one)$/.test(normalized);
 }
 
+function isMuscleTargetExerciseAdditionPhrase(value: string | undefined): boolean {
+  if (!value || extractWorkoutTargetMuscles(value).length === 0) return false;
+  return /\b(?:exercise|movement|lift|one)s?\b/i.test(value);
+}
+
 function parseWorkoutResizeRequest(message: string): ParsedWorkoutEditRequest | null {
   const targetCount = extractRequestedExerciseCount(message);
   if (!targetCount) {
@@ -3437,10 +3509,66 @@ function parseWorkoutResizeRequest(message: string): ParsedWorkoutEditRequest | 
     : null;
 }
 
+function parseRelativeExerciseCountEdit(message: string): ParsedWorkoutEditRequest | null {
+  const normalized = message
+    .toLowerCase()
+    .replace(/[-–—]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\s+(?:please|thanks|thank you)\.?$/, '');
+  const countWords = ['one', 'two', ...Object.keys(REQUESTED_EXERCISE_COUNT_WORDS)].join('|');
+  const countPattern = `(\\d{1,2}|${countWords})`;
+  const parseCount = (value: string): number => (
+    /^\d+$/.test(value)
+      ? Number(value)
+      : REQUESTED_EXERCISE_COUNT_WORDS[value] ?? (value === 'one' ? 1 : 2)
+  );
+
+  // "Add two more" means two additional exercises, not an exercise named "two more".
+  const addMatch = normalized.match(new RegExp(
+    `\\b(?:add|include|insert|put in|put|bring in)\\s+${countPattern}`
+      + `(?:\\s+(?:more|additional|extra))(?:\\s+(?:exercise|movement|lift)s?)?$`,
+    'i'
+  ));
+  if (addMatch) {
+    return { action: 'add', targetCount: parseCount(addMatch[1].toLowerCase()) };
+  }
+
+  const targetedAddMatch = normalized.match(new RegExp(
+    `\\b(?:add|include|insert|put in|put|bring in)\\s+${countPattern}`
+      + `(?:\\s+(?:more|additional|extra))?\\s+(.+?)\\s+(?:exercise|movement|lift)s?$`,
+    'i'
+  ));
+  if (targetedAddMatch) {
+    return {
+      action: 'add',
+      targetCount: parseCount(targetedAddMatch[1].toLowerCase()),
+      targetPhrase: cleanRequestedExercisePhrase(targetedAddMatch[2]),
+    };
+  }
+
+  // Count-only removals remove exercises from the end of the current preview.
+  const removeMatch = normalized.match(new RegExp(
+    `\\b(?:remove|take out|exclude|drop|delete)\\s+${countPattern}`
+      + `(?:\\s+(?:more|additional|extra))?(?:\\s+(?:exercise|movement|lift)s?)?$`,
+    'i'
+  ));
+  if (removeMatch) {
+    return { action: 'remove', targetCount: parseCount(removeMatch[1].toLowerCase()) };
+  }
+
+  return null;
+}
+
 function parseSingleWorkoutEditRequest(message: string): ParsedWorkoutEditRequest {
   const resizeRequest = parseWorkoutResizeRequest(message);
   if (resizeRequest) {
     return resizeRequest;
+  }
+
+  const relativeCountEdit = parseRelativeExerciseCountEdit(message);
+  if (relativeCountEdit) {
+    return relativeCountEdit;
   }
 
   const replacementPatterns: Array<{ regex: RegExp; sourceIndex: number; targetIndex: number }> = [
@@ -3803,11 +3931,14 @@ function resolveWorkoutEditOperation(
         .filter((entry) => existingIds.has(entry.id))
         .map(getCanonicalGroup)
     );
-    const focusText = [draft.focus, draft.name, request.targetPhrase, request.sourcePhrase]
+    const requestedTargetText = [request.targetPhrase, request.sourcePhrase]
       .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
       .join(' ');
-    const targetMuscles = extractWorkoutTargetMuscles(focusText);
-    const equipmentPreferences = extractWorkoutEquipment(focusText).map(normalizeEquipmentValue);
+    const requestedTargetMuscles = extractWorkoutTargetMuscles(requestedTargetText);
+    const targetMuscles = requestedTargetMuscles.length > 0
+      ? requestedTargetMuscles
+      : extractWorkoutTargetMuscles([draft.focus, draft.name].filter(Boolean).join(' '));
+    const equipmentPreferences = extractWorkoutEquipment(requestedTargetText).map(normalizeEquipmentValue);
     const additions: AIWorkoutTemplateExercise[] = [];
     const rankedAdditions = catalog
       .filter((entry) => !existingIds.has(entry.id))
@@ -3852,14 +3983,36 @@ function resolveWorkoutEditOperation(
   }
 
   if (request.action === 'add') {
+    if (request.targetCount !== undefined) {
+      const result = resolveWorkoutEditOperation(
+        {
+          action: 'resize',
+          targetCount: exercises.length + request.targetCount,
+          targetPhrase: request.targetPhrase,
+        },
+        draft,
+        catalog,
+        options
+      );
+      return result.changed
+        ? { ...result, summary: `added ${request.targetCount} exercise${request.targetCount === 1 ? '' : 's'}` }
+        : result;
+    }
+
     const existingIds = new Set(exercises.map((exercise) => exercise.exerciseId));
-    if (isGenericExerciseAdditionPhrase(request.targetPhrase)) {
+    if (
+      isGenericExerciseAdditionPhrase(request.targetPhrase)
+      || isMuscleTargetExerciseAdditionPhrase(request.targetPhrase)
+    ) {
       const existingCanonicalGroups = new Set(
         catalog
           .filter((entry) => existingIds.has(entry.id))
           .map(getCanonicalGroup)
       );
-      const targetMuscles = extractWorkoutTargetMuscles([draft.focus, draft.name].filter(Boolean).join(' '));
+      const requestedMuscles = extractWorkoutTargetMuscles(request.targetPhrase ?? '');
+      const targetMuscles = requestedMuscles.length > 0
+        ? requestedMuscles
+        : extractWorkoutTargetMuscles([draft.focus, draft.name].filter(Boolean).join(' '));
       const addition = catalog
         .filter((entry) => !existingIds.has(entry.id) && !existingCanonicalGroups.has(getCanonicalGroup(entry)))
         .map((entry) => ({
@@ -3971,6 +4124,18 @@ function resolveWorkoutEditOperation(
       changed: true,
       summary: `added ${toWorkoutTitleCase(addition.name)}`,
     };
+  }
+
+  if (request.action === 'remove' && request.targetCount !== undefined) {
+    const result = resolveWorkoutEditOperation(
+      { action: 'resize', targetCount: exercises.length - request.targetCount },
+      draft,
+      catalog,
+      options
+    );
+    return result.changed
+      ? { ...result, summary: `removed ${request.targetCount} exercise${request.targetCount === 1 ? '' : 's'}` }
+      : result;
   }
 
   const rankedDraftMatches = findDraftExerciseMatches(request.sourcePhrase, draft);

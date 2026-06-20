@@ -46,6 +46,7 @@ import { startWorkoutFromStartPreset } from '@/src/services/startWorkoutFromPres
 import { triggerImmediateNavigationHaptic } from '@/src/components/haptics/navigationHaptics';
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
+import { getLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
 
 type PrimaryTabRoute = 'history' | 'insights' | 'index' | 'profile';
 
@@ -405,9 +406,10 @@ export default function TabLayout() {
     triggerImmediateNavigationHaptic();
   };
 
-  const handleAiPress = () => {
+  const handleAiPress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('/ai/chat');
+    const mode = await getLastAICoachMode();
+    router.push({ pathname: '/ai/chat', params: { mode } });
   };
 
   const openStartConfig = async () => {
