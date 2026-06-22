@@ -38,7 +38,7 @@ import { isCustomExercise } from '../services/exerciseService';
 import { generateSecureUUID as generateId } from '../utils/uuid';
 import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
 import { createWorkoutVoiceLogPlan } from '../utils/workoutVoiceLog';
-import { DEFAULT_TARGET_REPS, formatRepRange } from '../utils/workoutProgression';
+import { DEFAULT_TARGET_REPS, formatRepRange, parseRepRange } from '../utils/workoutProgression';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
@@ -139,6 +139,9 @@ type ExerciseAddPayload = {
   id: string;
   name: string;
   initialSetCount?: number | null;
+  reps?: string;
+  startingWeight?: number | null;
+  weightUnit?: WeightUnit;
 };
 
 type WorkoutPlanExerciseInput = {
@@ -685,7 +688,9 @@ export const useWorkoutStore = create<WorkoutState>()(
               sets: templateEx.setDetails.map((detail, idx) => ({
                 weight: detail.weight,
                 weightUnit: exerciseWeightUnit,
-                reps: detail.reps,
+                // A template's rep prescription is the first-workout reference
+                // when it has no previously logged performance.
+                reps: detail.reps ?? parseRepRange(templateEx.reps || DEFAULT_TARGET_REPS)?.min ?? null,
                 setType: sets[idx]?.setType || 'normal',
               })),
             } : undefined,
@@ -797,7 +802,9 @@ export const useWorkoutStore = create<WorkoutState>()(
               sets: programEx.setDetails.map((detail, idx) => ({
                 weight: detail.weight,
                 weightUnit: exerciseWeightUnit,
-                reps: detail.reps,
+                // A program workout uses the prescribed lower rep bound as its
+                // initial reference until the user logs an actual performance.
+                reps: detail.reps ?? parseRepRange(programEx.reps || DEFAULT_TARGET_REPS)?.min ?? null,
                 setType: sets[idx]?.setType || 'normal',
               })),
             } : undefined,
@@ -1107,7 +1114,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       const startIndex = activeSession.exercises.length;
       const newExercises: WorkoutExercise[] = exercises.map((ex, i) => {
         const initialSetCount = clampInitialSetCount(ex.initialSetCount);
-        const exerciseWeightUnit = weightUnits[ex.id] || 'lbs';
+        const exerciseWeightUnit = ex.weightUnit || weightUnits[ex.id] || 'lbs';
         const localId = generateId();
         const sets: WorkoutSet[] = Array.from({ length: initialSetCount }, (_, setIndex) => {
           const inheritedSetType = getSetTypeFromHistory(
@@ -1121,7 +1128,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             localId: generateId(),
             setNumber: setIndex + 1,
             setType: inheritedSetType,
-            weight: null,
+            weight: ex.startingWeight ?? null,
             weightUnit: exerciseWeightUnit,
             reps: null,
             rpe: null,
@@ -1137,7 +1144,7 @@ export const useWorkoutStore = create<WorkoutState>()(
           exerciseId: ex.id,
           exerciseName: ex.name,
           sets,
-          targetReps: DEFAULT_TARGET_REPS,
+          targetReps: ex.reps || DEFAULT_TARGET_REPS,
           notes: '',
           orderIndex: startIndex + i,
         };
@@ -2622,7 +2629,7 @@ export const useWorkoutStore = create<WorkoutState>()(
       const startIndex = editorSession.exercises.length;
       const newExercises: WorkoutExercise[] = exercises.map((ex, i) => {
         const initialSetCount = clampInitialSetCount(ex.initialSetCount);
-        const exerciseWeightUnit = weightUnits[ex.id] || 'lbs';
+        const exerciseWeightUnit = ex.weightUnit || weightUnits[ex.id] || 'lbs';
 
         return {
           localId: generateId(),
@@ -2632,7 +2639,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             localId: generateId(),
             setNumber: setIndex + 1,
             setType: 'normal',
-            weight: null,
+            weight: ex.startingWeight ?? null,
             weightUnit: exerciseWeightUnit,
             reps: null,
             rpe: null,
@@ -2641,7 +2648,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             isCompleted: false,
             orderIndex: setIndex,
           })),
-          targetReps: DEFAULT_TARGET_REPS,
+          targetReps: ex.reps || DEFAULT_TARGET_REPS,
           notes: '',
           orderIndex: startIndex + i,
         };

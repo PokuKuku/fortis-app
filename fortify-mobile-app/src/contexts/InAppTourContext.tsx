@@ -976,10 +976,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       <AccentColorPicker
         visible={showPrimaryStylePicker}
         title="Primary Style"
-        description="Pick a color theme. You can change this later in Settings."
+        description="You can change this later in Settings."
         closeOnSelect={false}
         showCloseButton={false}
         closeOnBackdropPress={false}
+        showThemeToggle
         confirmButtonLabel="Confirm"
         onClose={() => {
           void finishTour('completed');

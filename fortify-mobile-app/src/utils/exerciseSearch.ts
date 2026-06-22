@@ -28,17 +28,20 @@ export type ExerciseSearchOptions = {
 const CANONICAL_QUERY_BOOSTS: Array<{
   query: string;
   preferredNames: string[];
-  preferredScore: number;
+  exactPreferredScore: number;
+  variantPreferredScore: number;
 }> = [
   {
     query: 'deadlift',
     preferredNames: ['barbell deadlift'],
-    preferredScore: 142,
+    exactPreferredScore: 150,
+    variantPreferredScore: 142,
   },
   {
     query: 'squat',
     preferredNames: ['barbell full squat'],
-    preferredScore: 142,
+    exactPreferredScore: 150,
+    variantPreferredScore: 142,
   },
 ];
 
@@ -159,6 +162,20 @@ function hasAllTokens(tokens: string[], tokenSet: Set<string>): boolean {
   return tokens.every((token) => tokenSet.has(token));
 }
 
+/**
+ * Fuzzy matching is useful for typos, but a multi-word exercise query should
+ * still share an exercise term with the candidate. Without this guard, string
+ * similarity can surface unrelated movements (for example, squats for a rear
+ * delt fly) in the closest-match picker.
+ */
+function hasFuzzyExerciseTermOverlap(queryTokens: string[], entry: ExerciseSearchEntry): boolean {
+  if (queryTokens.length < 2) return true;
+
+  return queryTokens.some(
+    (token) => entry.nameTokenSet.has(token) || entry.aliasTokenSet.has(token)
+  );
+}
+
 function getCanonicalIntentScore(queryTokens: string[], entry: ExerciseSearchEntry): number {
   if (queryTokens.length !== 1) return 0;
 
@@ -166,8 +183,12 @@ function getCanonicalIntentScore(queryTokens: string[], entry: ExerciseSearchEnt
   const matchingBoost = CANONICAL_QUERY_BOOSTS.find((candidate) => candidate.query === queryToken);
   if (!matchingBoost) return 0;
 
-  if (matchingBoost.preferredNames.some((preferredName) => entry.stemmedNameText.startsWith(preferredName))) {
-    return matchingBoost.preferredScore;
+  if (matchingBoost.preferredNames.some((preferredName) => entry.stemmedNameText === preferredName)) {
+    return matchingBoost.exactPreferredScore;
+  }
+
+  if (matchingBoost.preferredNames.some((preferredName) => entry.stemmedNameText.startsWith(`${preferredName} `))) {
+    return matchingBoost.variantPreferredScore;
   }
 
   return 0;
@@ -311,7 +332,12 @@ export function searchExercisesWithScores(
 
     score = Math.max(score, getCanonicalIntentScore(queryTokens, entry));
 
-    if (enableFuzzy && normalizedQuery.length >= 3 && score < 90) {
+    if (
+      enableFuzzy
+      && normalizedQuery.length >= 3
+      && score < 90
+      && hasFuzzyExerciseTermOverlap(queryTokens, entry)
+    ) {
       let bestSimilarity = diceCoefficient(normalizedQuery, entry.nameText);
       entry.aliasTexts.forEach((alias) => {
         const similarity = diceCoefficient(normalizedQuery, alias);

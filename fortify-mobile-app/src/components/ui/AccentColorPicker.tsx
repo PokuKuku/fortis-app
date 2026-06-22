@@ -4,10 +4,11 @@
  * Modal component for selecting the app's accent color.
  * Displays a grid of color swatches with the current selection highlighted.
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { CheckIcon } from 'react-native-heroicons/outline';
+import { CheckIcon, MoonIcon, SunIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BaseModal } from './BaseModal';
 import {
   useTheme,
@@ -28,6 +29,7 @@ interface AccentColorPickerProps {
   closeOnBackdropPress?: boolean;
   confirmButtonLabel?: string;
   onConfirm?: () => void;
+  showThemeToggle?: boolean;
 }
 
 const COLOR_ORDER: AccentColorName[] = [
@@ -56,8 +58,14 @@ export function AccentColorPicker({
   closeOnBackdropPress = true,
   confirmButtonLabel,
   onConfirm,
+  showThemeToggle = false,
 }: AccentColorPickerProps) {
-  const { colors, isDark, accentColor, setAccentColor } = useTheme();
+  const { colors, isDark, accentColor, setAccentColor, setMode } = useTheme();
+  const [displayIsDark, setDisplayIsDark] = useState(isDark);
+
+  useEffect(() => {
+    setDisplayIsDark(isDark);
+  }, [isDark]);
 
   const handleSelectColor = async (colorName: AccentColorName) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -76,10 +84,57 @@ export function AccentColorPicker({
       width={300}
       showCloseButton={showCloseButton}
       closeOnBackdropPress={closeOnBackdropPress}
+      titleStyle={showThemeToggle ? styles.tourTitle : undefined}
     >
       <Text style={[styles.description, { color: colors.textSecondary }]}>
         {description}
       </Text>
+
+      {showThemeToggle && (
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityLabel="Toggle light and dark appearance"
+          accessibilityState={{ checked: displayIsDark }}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            const nextIsDark = !displayIsDark;
+            // Apply the palette in the same interaction as the toggle. Theme
+            // persistence remains asynchronous inside the theme context.
+            setDisplayIsDark(nextIsDark);
+            if (nextIsDark && accentColor === 'midnight') {
+              // Frost preserves contrast when Midnight is carried from light
+              // mode into dark mode. This only occurs through this toggle;
+              // users can still deliberately select Midnight while in dark mode.
+              void setAccentColor('slate');
+            } else if (!nextIsDark && accentColor === 'slate') {
+              // Mirror the automatic dark-mode adjustment when returning to
+              // light mode, without restricting manual Frost selection.
+              void setAccentColor('midnight');
+            }
+            void setMode(nextIsDark ? 'dark' : 'light');
+          }}
+          style={({ pressed }) => [
+            styles.themeToggle,
+            {
+              backgroundColor: displayIsDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+              borderColor: displayIsDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.1)',
+            },
+            pressed && styles.themeTogglePressed,
+          ]}
+        >
+          <View style={styles.themeOption}>
+            <SunIcon size={16} color={!displayIsDark ? colors.accent : colors.textTertiary} strokeWidth={2} />
+            <Text style={[styles.themeOptionText, { color: !displayIsDark ? colors.textPrimary : colors.textSecondary }]}>Light</Text>
+          </View>
+          <View style={[styles.themeTrack, { backgroundColor: colors.accent }]}>
+            <View style={[styles.themeThumb, displayIsDark ? styles.themeThumbDark : styles.themeThumbLight]} />
+          </View>
+          <View style={styles.themeOption}>
+            <MoonIcon size={16} color={displayIsDark ? colors.accent : colors.textTertiary} strokeWidth={2} />
+            <Text style={[styles.themeOptionText, { color: displayIsDark ? colors.textPrimary : colors.textSecondary }]}>Dark</Text>
+          </View>
+        </Pressable>
+      )}
 
       <View style={styles.grid}>
         {COLOR_ORDER.map((colorName) => {
@@ -135,14 +190,17 @@ export function AccentColorPicker({
           }}
           style={({ pressed }) => [
             styles.confirmButton,
-            {
-              backgroundColor: colors.accent,
-              shadowColor: colors.accent,
-            },
+            { borderBottomColor: colors.accentShadow },
             pressed && styles.confirmButtonPressed,
           ]}
         >
-          <Text style={styles.confirmButtonText}>{confirmButtonLabel}</Text>
+          <LinearGradient
+            colors={colors.accentGradient as any}
+            start={{ x: 0.5, y: 0 }}
+            end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <Text style={[styles.confirmButtonText, { color: colors.accentForegroundOnFill }]}>{confirmButtonLabel}</Text>
         </Pressable>
       )}
     </BaseModal>
@@ -156,11 +214,58 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
     lineHeight: 20,
   },
+  tourTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: Spacing.md,
+  },
+  themeToggle: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  themeTogglePressed: {
+    opacity: 0.8,
+  },
+  themeOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  themeOptionText: {
+    fontSize: 13,
+    fontFamily: 'BankGothicBT-Medium',
+    fontWeight: '600',
+  },
+  themeTrack: {
+    width: 38,
+    height: 22,
+    borderRadius: 11,
+    padding: 3,
+  },
+  themeThumb: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  themeThumbLight: {
+    alignSelf: 'flex-start',
+  },
+  themeThumbDark: {
+    alignSelf: 'flex-end',
   },
   swatchContainer: {
     alignItems: 'center',
@@ -189,6 +294,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '500',
     textAlign: 'center',
   },
@@ -199,20 +305,21 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     minHeight: 48,
     borderRadius: BorderRadius.xl,
+    borderBottomWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    elevation: 4,
+    overflow: 'hidden',
   },
   confirmButtonPressed: {
     transform: [{ scale: 0.98 }],
     opacity: 0.9,
   },
   confirmButtonText: {
-    color: '#FFFFFF',
     fontSize: 16,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    zIndex: 1,
   },
 });

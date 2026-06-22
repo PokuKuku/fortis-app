@@ -127,6 +127,43 @@ describe('workout last performed updates', () => {
     ]);
   });
 
+  it('uses the lower target rep bound with a starting weight before any workout is logged', async () => {
+    const program = buildProgram({
+      id: 'program-with-starting-weight',
+      workouts: [
+        {
+          id: 'program-with-starting-weight-workout-1',
+          name: 'Upper',
+          dayNumber: 1,
+          exercises: [
+            {
+              id: 'program-with-starting-weight-ex-1',
+              exerciseId: 'cable-incline-fly',
+              exerciseName: 'Cable Incline Fly',
+              sets: 1,
+              reps: '12-15',
+              notes: '',
+              orderIndex: 0,
+              setDetails: [{ weight: 22, reps: null }],
+            },
+          ],
+        },
+      ],
+    });
+
+    useProgramsStore.setState({ programs: [program] });
+
+    const result = await useWorkoutStore.getState().startWorkoutFromProgram(
+      program.id,
+      program.workouts[0].id
+    );
+
+    expect(result).toBe(true);
+    expect(useWorkoutStore.getState().activeSession?.exercises[0].baselinePerformance?.sets).toEqual([
+      { weight: 22, weightUnit: 'lbs', reps: 12, setType: 'normal' },
+    ]);
+  });
+
   it('updates last performed when finishing a template workout', async () => {
     const template = buildProgram({
       id: 'template-2',

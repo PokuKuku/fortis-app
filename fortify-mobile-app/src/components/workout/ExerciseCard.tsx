@@ -118,6 +118,8 @@ export function ExerciseCard({
   const removeExercise = useWorkoutStore(s => useEditor ? s.removeEditorExercise : s.removeExercise);
   const updateExerciseNotes = useWorkoutStore(s => useEditor ? s.updateEditorExerciseNotes : s.updateExerciseNotes);
   const updateExerciseTarget = useWorkoutStore(s => useEditor ? s.updateEditorExerciseTarget : s.updateExerciseTarget);
+  const updateEditorSet = useWorkoutStore(s => s.updateEditorSet);
+  const toggleWeightUnit = useWorkoutStore(s => s.toggleWeightUnit);
   const addSet = useWorkoutStore(s => useEditor ? s.addEditorSet : s.addSet);
   const stickyNotes = useWorkoutStore(s => s.stickyNotes);
   const editorStickyNotesDraft = useWorkoutStore(s => s.editorStickyNotesDraft);
@@ -308,8 +310,15 @@ export function ExerciseCard({
     setShowTargetSheet(true);
   };
 
-  const handleSaveTarget = (target: { sets: number; minReps: number; maxReps: number }) => {
+  const handleSaveTarget = (target: { sets: number; minReps: number; maxReps: number; startingWeight?: number | null }) => {
     updateExerciseTarget(exerciseLocalId, target);
+    if (useEditor && target.startingWeight !== undefined) {
+      const updatedExercise = useWorkoutStore.getState().editorSession?.exercises
+        .find((item) => item.localId === exerciseLocalId);
+      updatedExercise?.sets.forEach((set) => {
+        updateEditorSet(exerciseLocalId, set.localId, { weight: target.startingWeight });
+      });
+    }
   };
 
   const handleNotesBlur = () => {
@@ -366,7 +375,7 @@ export function ExerciseCard({
                 hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
                 style={({ pressed }) => pressed && styles.targetSummaryPressed}
               >
-                <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={1}>
+                <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={2}>
                   {targetSummary}
                 </Text>
               </Pressable>
@@ -588,6 +597,11 @@ export function ExerciseCard({
         exercise={exercise}
         onClose={() => setShowTargetSheet(false)}
         onSave={handleSaveTarget}
+        editorMode={useEditor}
+        weightUnit={weightUnit}
+        onToggleWeightUnit={() => {
+          if (exercise) void toggleWeightUnit(exercise.exerciseId);
+        }}
       />
       </Animated.View>
     </AccentShadowCard>

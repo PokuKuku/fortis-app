@@ -26,6 +26,9 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
 import { ExerciseVoiceAddSheet } from '@/src/components/workout/ExerciseVoiceAddSheet';
+import { PasteWorkoutSheet } from '@/src/components/workout/PasteWorkoutSheet';
+import { PasteWorkoutMatchResolver } from '@/src/components/workout/PasteWorkoutMatchResolver';
+import type { UnresolvedPastedExercise } from '@/src/components/workout/PasteWorkoutSheet';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
 import { NumberPadModal } from '@/src/components/workout/NumberPadModal';
 import { DateSelector } from '@/src/components/ui/DateSelector';
@@ -161,6 +164,8 @@ export default function CreateWorkoutScreen() {
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [showVoiceAddSheet, setShowVoiceAddSheet] = useState(false);
+  const [showPasteWorkoutSheet, setShowPasteWorkoutSheet] = useState(false);
+  const [unresolvedPastedExercises, setUnresolvedPastedExercises] = useState<UnresolvedPastedExercise[]>([]);
   const [addExerciseSuspended, setAddExerciseSuspended] = useState(false);
   const [replaceExerciseLocalId, setReplaceExerciseLocalId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -843,6 +848,20 @@ export default function CreateWorkoutScreen() {
                   </Pressable>
                 )}
               </View>
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowPasteWorkoutSheet(true);
+                }}
+                style={({ pressed }) => [
+                  styles.addExercisesButton,
+                  styles.pasteWorkoutButton,
+                  themedStyles.addExercisesButton,
+                  pressed && styles.addExercisesButtonPressed,
+                ]}
+              >
+                <Text style={[styles.secondaryActionText, themedStyles.addExercisesText]}>Paste Workout</Text>
+              </Pressable>
 
               <GlassButton
                 style={styles.primaryActionButton}
@@ -891,7 +910,7 @@ export default function CreateWorkoutScreen() {
       />
 
       {showVoiceAddSheet ? (
-        <ExerciseVoiceAddSheet
+      <ExerciseVoiceAddSheet
           visible
           existingExerciseIds={editorSession?.exercises.map(ex => ex.exerciseId) || []}
           onAddExercises={handleVoiceAddExercises}
@@ -907,6 +926,25 @@ export default function CreateWorkoutScreen() {
         onClose={closeNumberPad}
         inputType={activeNumberPad?.inputType || 'weight'}
         useEditor={true}
+      />
+      <PasteWorkoutSheet
+        visible={showPasteWorkoutSheet}
+        onClose={() => setShowPasteWorkoutSheet(false)}
+        onAdd={(entries, workoutName) => {
+          addEditorExercises(entries);
+          if (workoutName && !editorSession?.name.trim()) {
+            setEditorWorkoutName(workoutName);
+          }
+        }}
+        onResolve={setUnresolvedPastedExercises}
+      />
+      <PasteWorkoutMatchResolver
+        entries={unresolvedPastedExercises}
+        onDismiss={() => setUnresolvedPastedExercises([])}
+        onComplete={(entries) => {
+          addEditorExercises(entries);
+          setUnresolvedPastedExercises([]);
+        }}
       />
 
       <TimerSettingsModal
@@ -1150,6 +1188,9 @@ const styles = StyleSheet.create({
     width: undefined,
     minHeight: ButtonHeights.xl,
     paddingHorizontal: Spacing.md,
+  },
+  pasteWorkoutButton: {
+    minHeight: ButtonHeights.xl,
   },
   voiceAddButton: {
     gap: Spacing.xs,

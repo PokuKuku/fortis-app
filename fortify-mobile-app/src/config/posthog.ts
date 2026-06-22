@@ -33,9 +33,9 @@ export const posthog = new PostHog(apiKey || 'placeholder_key', {
   captureAppLifecycleEvents: true,
   enableSessionReplay: isSessionReplayEnabled,
   sessionReplayConfig: {
-    maskAllTextInputs: true,
-    maskAllImages: true,
-    maskAllSandboxedViews: true,
+    maskAllTextInputs: false,
+    maskAllImages: false,
+    maskAllSandboxedViews: false,
     throttleDelayMs: 500,
   },
   flushAt: 20,
