@@ -84,7 +84,7 @@ export const HubExerciseRow = React.memo(function HubExerciseRow({
                 source={imageSource}
                 style={styles.image}
                 resizeMode="cover"
-                fadeDuration={100}
+                fadeDuration={0}
               />
             ) : (
               <View style={[styles.placeholderImage, themedStyles.placeholderImage]}>

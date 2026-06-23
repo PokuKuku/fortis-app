@@ -32,6 +32,7 @@ import {
 import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
 import { createExerciseVoiceFileName, interpretExerciseVoiceAdd } from '@/src/services/exerciseVoiceService';
 import type { ExerciseVoiceEntry } from '@/src/types/exerciseVoice';
+import { posthog } from '@/src/config/posthog';
 
 interface AddExerciseModalProps {
   visible: boolean;
@@ -599,6 +600,7 @@ export function AddExerciseModal({
         onAddExercisesCallback(exercisesToAdd);
       } else {
         addExercises(exercisesToAdd);
+        exercisesToAdd.forEach(() => posthog.capture('exercise_added', { method: 'search' }));
       }
     }
 

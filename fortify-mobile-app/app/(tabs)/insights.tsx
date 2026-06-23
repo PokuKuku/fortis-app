@@ -33,6 +33,7 @@ import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
+import { posthog } from '@/src/config/posthog';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -918,8 +919,9 @@ export default function InsightsScreen() {
       async () => {
         const allowed = await requestAIDataSharingConsent();
         if (!allowed) return false;
+        posthog.capture('ask_fortify_used');
         void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
-        router.push('/ai/chat');
+        router.push({ pathname: '/ai/chat', params: { mode: 'chat' } });
       },
     );
   };

@@ -19,6 +19,7 @@ import {
 import {
   buildWeeklyRecap,
   getDueWeeklyRecapWeekStart,
+  isWeeklyRecapEligible,
   WEEKLY_RECAP_KIND,
   type WeeklyRecap,
 } from '@/src/utils/workoutRetention';
@@ -53,11 +54,13 @@ export function WorkoutRetentionCoordinator() {
       scheduleDays,
       reminderEnabled: preferences.reminderEnabled,
       reminderTime: preferences.reminderTime,
+      accountCreatedAt: profile?.created_at,
     });
   }, [
     preferences.isLoaded,
     preferences.reminderEnabled,
     preferences.reminderTime,
+    profile?.created_at,
     scheduleKey,
     scheduleDays,
   ]);
@@ -76,13 +79,14 @@ export function WorkoutRetentionCoordinator() {
     if (!retentionDataReady) return;
     const dueWeekStart = forceWeekStart ?? getDueWeeklyRecapWeekStart();
     if (!dueWeekStart) return;
+    if (!isWeeklyRecapEligible({ weekStart: dueWeekStart, accountCreatedAt: profile?.created_at })) return;
     const recap = buildRecapForWeek(dueWeekStart);
     const lastShown = await getLastShownWeeklyRecapKey();
     const lastAcknowledged = await getLastAcknowledgedWeeklyRecapKey();
     if (!forceWeekStart && (lastShown === recap.weekKey || lastAcknowledged === recap.weekKey)) return;
     await setLastShownWeeklyRecapKey(recap.weekKey);
     setWeeklyRecap(recap);
-  }, [buildRecapForWeek, retentionDataReady]);
+  }, [buildRecapForWeek, profile?.created_at, retentionDataReady]);
 
   const handleNotificationResponse = useCallback((response: Notifications.NotificationResponse | null | undefined) => {
     const intent = getRetentionNotificationIntent(response);

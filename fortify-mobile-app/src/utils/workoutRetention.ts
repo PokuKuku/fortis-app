@@ -188,6 +188,26 @@ export function getDueWeeklyRecapWeekStart(now = new Date()): Date | null {
   return now.getTime() >= dueAt.getTime() ? addDays(getSundayWeekStart(now), -7) : null;
 }
 
+export function isWeeklyRecapEligible({
+  weekStart,
+  accountCreatedAt,
+}: {
+  weekStart: Date;
+  accountCreatedAt?: Date | string | null;
+}): boolean {
+  if (!accountCreatedAt) return true;
+
+  const createdAt = accountCreatedAt instanceof Date
+    ? accountCreatedAt
+    : new Date(accountCreatedAt);
+  if (Number.isNaN(createdAt.getTime())) return true;
+
+  // A recap is only meaningful if the account existed when that recap week began.
+  // This prevents a Sunday sign-up from immediately receiving a recap for the
+  // week that ended before they joined, while allowing the following Sunday.
+  return startOfDay(createdAt).getTime() <= startOfDay(weekStart).getTime();
+}
+
 export function buildWeeklyRecap({
   weekStart,
   scheduleDays,

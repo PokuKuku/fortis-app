@@ -388,6 +388,7 @@ export default function ActiveWorkoutScreen() {
 
   const handleOpenVoiceAdd = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    posthog.capture('voice_add_used');
     await runProFeature(
       {
         placement: PAYWALL_PLACEMENTS.voiceExerciseAdd,
@@ -487,6 +488,7 @@ export default function ActiveWorkoutScreen() {
   const handleVoiceAddExercises = (exercisesToAdd: Array<{ id: string; name: string; initialSetCount?: number | null }>) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addExercises(exercisesToAdd);
+    exercisesToAdd.forEach(() => posthog.capture('exercise_added', { method: 'voice' }));
     setShowVoiceAddSheet(false);
   };
 

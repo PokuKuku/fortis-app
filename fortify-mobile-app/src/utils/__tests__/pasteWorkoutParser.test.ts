@@ -80,4 +80,25 @@ Great for upper chest and front delts.
     const result = parsePastedWorkout(`Bench Press: ${prescription}`);
     expect(result.entries[0]).toEqual(expect.objectContaining({ sets: 3, reps: '8-12' }));
   });
+
+  it('turns a plain exercise list into default workout entries', () => {
+    const result = parsePastedWorkout('Barbell Bench Press\nCable Pulldown\nDumbbell Seated Shoulder Press');
+
+    expect(result.workoutName).toBeNull();
+    expect(result.entries).toEqual([
+      expect.objectContaining({ sourceName: 'Barbell Bench Press', sets: 3, reps: '8-12' }),
+      expect.objectContaining({ sourceName: 'Cable Pulldown', sets: 3, reps: '8-12' }),
+      expect.objectContaining({ sourceName: 'Dumbbell Seated Shoulder Press', sets: 3, reps: '8-12' }),
+    ]);
+  });
+
+  it('keeps a blank-line-separated title for a plain exercise list', () => {
+    const result = parsePastedWorkout('Upper Body\n\nBarbell Bench Press\nCable Pulldown');
+
+    expect(result.workoutName).toBe('Upper Body');
+    expect(result.entries.map((entry) => entry.sourceName)).toEqual([
+      'Barbell Bench Press',
+      'Cable Pulldown',
+    ]);
+  });
 });

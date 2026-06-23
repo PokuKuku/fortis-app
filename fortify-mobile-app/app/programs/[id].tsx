@@ -26,6 +26,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { WorkoutStackPreview } from '@/src/components/program/WorkoutStackPreview';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { prefetchExerciseImageUrls } from '@/src/utils/exerciseImageCache';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import {
   getCompletedWeekdaysForProgram,
@@ -98,6 +99,9 @@ function WorkoutSection({
   const { colors, isDark } = useTheme();
   const handleToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isExpanded) {
+      prefetchExerciseImageUrls(workout.exercises.map((exercise) => exercise.images[0]), 6, 4);
+    }
     onToggle();
   };
 

@@ -4,6 +4,7 @@
  * Central state management for AI assistant features.
  */
 import { create } from 'zustand';
+import { posthog } from '@/src/config/posthog';
 import { subscribeWithSelector } from 'zustand/middleware';
 import { setScopedItem, removeScopedItem } from '@/src/utils/scopedStorage';
 import {
@@ -291,6 +292,12 @@ export const useAIStore = create<AIState>()(
           workoutTemplate,
           savedWorkoutTemplateId: null,
         };
+
+        if (workoutTemplate) {
+          posthog.capture('ai_workout_generated', {
+            exercise_count: workoutTemplate.exercises.length,
+          });
+        }
 
         const finalConversation: AIConversation = {
           ...updatedConversation,

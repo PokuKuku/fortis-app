@@ -208,6 +208,14 @@ export function useProFeatureGate() {
       return result !== false;
     }
 
+    // The SDK's subscription state can lag behind a completed purchase or a
+    // restored session. Verify it before registering a placement so Pro users
+    // never load a paywall while their local state is catching up.
+    if (await verifyProAccess()) {
+      const result = await action();
+      return result !== false;
+    }
+
     if (!isReady || hasError || pendingRef.current) {
       console.warn('[Superwall] Pro placement blocked before registration:', {
         placement: options.placement,
@@ -235,7 +243,7 @@ export function useProFeatureGate() {
         clearPending(false);
       });
     });
-  }, [clearPending, completeIfPro, hasError, isReady, registerPlacement, shouldBypassProGateForTour]);
+  }, [clearPending, completeIfPro, hasError, isReady, registerPlacement, shouldBypassProGateForTour, verifyProAccess]);
 
   return {
     isPro,

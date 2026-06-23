@@ -39,6 +39,7 @@ import { generateSecureUUID as generateId } from '../utils/uuid';
 import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
 import { createWorkoutVoiceLogPlan } from '../utils/workoutVoiceLog';
 import { DEFAULT_TARGET_REPS, formatRepRange, parseRepRange } from '../utils/workoutProgression';
+import { posthog } from '@/src/config/posthog';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
@@ -1518,6 +1519,7 @@ export const useWorkoutStore = create<WorkoutState>()(
 
       // Auto-start rest timer if set was marked complete
       if (completedSet?.isCompleted) {
+        posthog.capture('set_logged', { method: 'manual' });
         get().startRestTimer(completedSetType);
       }
     },

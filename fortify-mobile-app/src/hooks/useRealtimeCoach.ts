@@ -29,6 +29,7 @@ import {
 } from '@/src/utils/geminiLive';
 import { shouldEditWorkoutFromVoice, shouldGenerateWorkoutFromVoice } from '@/src/utils/realtimeCoach';
 import { buildVoiceCoachInstructions } from '@/src/utils/realtimeCoachPrompt';
+import { posthog } from '@/src/config/posthog';
 
 interface UseRealtimeCoachOptions {
   preferences: RealtimeCoachPreferences;
@@ -965,6 +966,7 @@ export function useRealtimeCoach({
     if (rms >= REALTIME_SPEECH_START_RMS) {
       clearRealtimeSpeechEndTimeout();
       if (!realtimeSpeechActiveRef.current) {
+        posthog.capture('voice_chat_used');
         realtimeSpeechActiveRef.current = true;
         latestUserTranscriptRef.current = '';
         transcriptBuffersRef.current.user = '';
@@ -1096,6 +1098,7 @@ export function useRealtimeCoach({
         activityStart: {},
       },
     }));
+    posthog.capture('voice_chat_used');
 
     const isRecording = audio.toggleRecording(true);
     setDebugStatus((current) => ({

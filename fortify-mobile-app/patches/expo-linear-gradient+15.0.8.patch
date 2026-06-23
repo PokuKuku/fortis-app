@@ -1,0 +1,38 @@
+diff --git a/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift b/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift
+index fec7037..4c41166 100644
+--- a/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift
++++ b/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift
+@@ -52,14 +52,23 @@ final class LinearGradientLayer: CALayer {
+   override func display() {
+     super.display()
+ 
+-    if colors.isEmpty || bounds.size.width.isZero || bounds.size.height.isZero {
++    let size = bounds.size
++    guard !colors.isEmpty,
++      size.width.isFinite,
++      size.height.isFinite,
++      size.width > 0,
++      size.height > 0
++    else {
+       return
+     }
+     let hasAlpha = colors.reduce(false) { result, color in
+       return result || color.cgColor.alpha < 1.0
+     }
+ 
+-    UIGraphicsBeginImageContextWithOptions(bounds.size, !hasAlpha, 0.0)
++    UIGraphicsBeginImageContextWithOptions(size, !hasAlpha, 0.0)
++    defer {
++      UIGraphicsEndImageContext()
++    }
+ 
+     guard let contextRef = UIGraphicsGetCurrentContext() else {
+       return
+@@ -74,7 +83,6 @@ final class LinearGradientLayer: CALayer {
+     self.contents = image.cgImage
+     self.contentsScale = image.scale
+ 
+-    UIGraphicsEndImageContext()
+   }
+ 
+   override func draw(in ctx: CGContext) {

@@ -28,6 +28,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { Program } from '@/src/types/workout';
 import { generateSecureUUID as generateLocalId } from '@/src/utils/uuid';
 import { scale } from '@/src/utils/responsive';
+import { posthog } from '@/src/config/posthog';
 
 const HEADER_COLLAPSE_THRESHOLD = scale(48);
 
@@ -95,6 +96,9 @@ export function CreateWorkoutModal({
 
   const createWorkoutTemplate = useProgramsStore(s => s.createWorkoutTemplate);
   const updateWorkoutTemplate = useProgramsStore(s => s.updateWorkoutTemplate);
+  const savedWorkoutTemplateCount = useProgramsStore((state) =>
+    state.programs.filter((program) => program.isTemplate).length
+  );
   const bodyType = useWorkoutStore((s) => s.bodyType);
 
   const isEditing = !!templateToEdit;
@@ -234,6 +238,11 @@ export function CreateWorkoutModal({
       const templateId = await createWorkoutTemplate(templateName.trim(), exercisesToSave);
 
       if (templateId) {
+        posthog.capture('workout_created', {
+          method: 'manual',
+          exercise_count: exercisesToSave.length,
+          is_first_workout: savedWorkoutTemplateCount === 0,
+        });
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         onSave?.(templateId);
         onClose();

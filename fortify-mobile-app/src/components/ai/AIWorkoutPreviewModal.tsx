@@ -32,6 +32,8 @@ interface AIWorkoutPreviewModalProps {
   isAdded?: boolean;
   isStartDisabled?: boolean;
   startDisabledLabel?: string;
+  disableExerciseDetails?: boolean;
+  onOpenExerciseDetails?: (exerciseId: string) => void;
 }
 
 export function AIWorkoutPreviewModal({
@@ -45,6 +47,8 @@ export function AIWorkoutPreviewModal({
   isAdded = false,
   isStartDisabled = false,
   startDisabledLabel = 'Workout Active',
+  disableExerciseDetails = false,
+  onOpenExerciseDetails,
 }: AIWorkoutPreviewModalProps) {
   const { colors, isDark } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -193,6 +197,9 @@ export function AIWorkoutPreviewModal({
                   exerciseName={meta?.name ?? exercise.exerciseName}
                   primaryMuscles={meta?.primaryMuscles ?? []}
                   images={meta?.images ?? []}
+                  onPress={disableExerciseDetails || !onOpenExerciseDetails
+                    ? undefined
+                    : () => onOpenExerciseDetails(exercise.exerciseId)}
                 />
                 <Text style={[styles.setPrescription, themedStyles.subtitle]}>
                   {exercise.sets} sets • {exercise.reps} reps • {exercise.restSeconds ?? 90}s rest
@@ -229,6 +236,7 @@ export function AIWorkoutPreviewModal({
           }
           onPress={onAdd}
           disabled={isAdding || isAdded || isStarting}
+          shadow={false}
         >
           <View style={styles.addButtonContent}>
             {isAdded ? (

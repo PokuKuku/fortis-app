@@ -63,7 +63,7 @@ export function ChatMessage({
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
-  const allowTldr = message.intent !== 'GENERAL_CHAT';
+  const allowTldr = message.intent === 'FORTIS_ANALYST';
   const { exercisesById } = useExerciseLookup();
   const { mainContent, tldr } = !isUser
     ? splitTldrFromContent(message.content, allowTldr)

@@ -48,6 +48,7 @@ import { TimerSettingsModal } from '@/src/components/workout/modals/TimerSetting
 import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/services/microphonePermissionService';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { posthog } from '@/src/config/posthog';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 const HEADER_COLLAPSE_THRESHOLD = scale(48);
@@ -175,11 +176,13 @@ export default function CreateWorkoutScreen() {
   const [showTimerSettingsModal, setShowTimerSettingsModal] = useState(false);
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [showHeaderDetails, setShowHeaderDetails] = useState(true);
+  const [creationMethod, setCreationMethod] = useState<'manual' | 'voice' | 'paste_template'>('manual');
   const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
 
   const handleOpenVoiceAdd = useCallback(async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    posthog.capture('voice_add_used');
     await runProFeature(
       {
         placement: PAYWALL_PLACEMENTS.voiceExerciseAdd,
@@ -371,6 +374,7 @@ export default function CreateWorkoutScreen() {
   const handleAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string; initialSetCount?: number | null }>) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addEditorExercises(exercisesToAdd);
+    exercisesToAdd.forEach(() => posthog.capture('exercise_added', { method: 'search' }));
     setReplaceExerciseLocalId(null);
     setShowAddExerciseModal(false);
     setAddExerciseSuspended(false);
@@ -379,6 +383,8 @@ export default function CreateWorkoutScreen() {
   const handleVoiceAddExercises = useCallback((exercisesToAdd: Array<{ id: string; name: string; initialSetCount?: number | null }>) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     addEditorExercises(exercisesToAdd);
+    setCreationMethod('voice');
+    exercisesToAdd.forEach(() => posthog.capture('exercise_added', { method: 'voice' }));
     setShowVoiceAddSheet(false);
 
     if (shouldAdvanceVoiceTutorial) {
@@ -449,6 +455,13 @@ export default function CreateWorkoutScreen() {
           ? await saveEditorAsTemplate(templateId)
           : await saveEditorAsTemplate();
         if (updatedTemplateId) {
+          if (!isEditingTemplate && !isEditingProgramWorkout) {
+            posthog.capture('workout_created', {
+              method: creationMethod,
+              exercise_count: editorSession?.exercises.length ?? 0,
+              is_first_workout: savedWorkoutTemplateCount === 0,
+            });
+          }
           await commitEditorStickyNotesDraft();
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           DeviceEventEmitter.emit('workout-updated');
@@ -960,6 +973,9 @@ export default function CreateWorkoutScreen() {
         }}
         onAdd={(entries, workoutName) => {
           addEditorExercises(entries);
+          setCreationMethod('paste_template');
+          posthog.capture('notes_to_template_used');
+          entries.forEach(() => posthog.capture('exercise_added', { method: 'paste' }));
           if (workoutName && !editorSession?.name.trim()) {
             setEditorWorkoutName(workoutName);
           }

@@ -1,6 +1,9 @@
 import type { Entitlement, EntitlementsInfo, SubscriptionStatus } from 'expo-superwall';
 
-export const PRO_ENTITLEMENT_ID = 'fortis_pro';
+// `pro` is the active entitlement configured in Superwall. Keep the former
+// identifier during the transition so existing entitlement assignments remain valid.
+export const PRO_ENTITLEMENT_ID = 'pro';
+const LEGACY_PRO_ENTITLEMENT_ID = 'fortis_pro';
 export const FREE_PROGRAM_LIMIT = 1;
 export const FREE_WORKOUT_TEMPLATE_LIMIT = 4;
 
@@ -13,7 +16,10 @@ const isEntitlement = (value: unknown): value is Entitlement => (
 
 export function entitlementsIncludePro(entitlements: unknown): boolean {
   return Array.isArray(entitlements) &&
-    entitlements.filter(isEntitlement).some((entitlement) => entitlement.id === PRO_ENTITLEMENT_ID);
+    entitlements.filter(isEntitlement).some((entitlement) => (
+      entitlement.id === PRO_ENTITLEMENT_ID ||
+      entitlement.id === LEGACY_PRO_ENTITLEMENT_ID
+    ));
 }
 
 export function subscriptionHasProAccess(status: SubscriptionStatus | null | undefined): boolean {

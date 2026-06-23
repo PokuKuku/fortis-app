@@ -45,6 +45,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import type { WorkoutVoiceInterpretation } from '@/src/types/workoutVoice';
 import { moderateScale, scale } from '@/src/utils/responsive';
 import { createWorkoutVoiceLogPlan } from '@/src/utils/workoutVoiceLog';
+import { posthog } from '@/src/config/posthog';
 
 type VoiceSheetPhase = 'idle' | 'listening' | 'processing' | 'review';
 
@@ -490,6 +491,10 @@ export function WorkoutVoiceLogSheet({
       return;
     }
 
+    posthog.capture('voice_log_used');
+    result.appliedSetLocalIds.forEach(() => {
+      posthog.capture('set_logged', { method: 'voice' });
+    });
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     onClose();
   };

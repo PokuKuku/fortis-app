@@ -29,6 +29,7 @@ export type UnresolvedPastedExercise = Omit<ImportedExercise, 'id' | 'name'> & {
 };
 
 export const TOUR_PASTE_WORKOUT_EXAMPLE = `Upper Body Demo
+
 Barbell Bench Press: 3 sets x 8-12 reps
 Cable Pulldown: 3 sets x 10-12 reps
 Dumbbell Seated Shoulder Press: 3 sets x 10-12 reps`;
@@ -260,7 +261,7 @@ export function PasteWorkoutSheet({
               scrollEnabled
               numberOfLines={4}
               editable={!isTourExample}
-              placeholder="Turn your workout notes into a template"
+              placeholder="Paste an exercise list or workout notes"
               placeholderTextColor={colors.textTertiary}
               style={[styles.input, {
                 color: colors.textPrimary,
@@ -350,10 +351,10 @@ export function PasteWorkoutSheet({
           >
             <StainlessSteelPattern />
             <View style={styles.helpHeader}>
-              <Text style={[styles.helpTitle, { color: colors.textPrimary }]}>Paste Format</Text>
+              <Text style={[styles.helpTitle, { color: colors.textPrimary }]}>Paste a Workout</Text>
             </View>
             <View style={styles.helpContent}>
-              <Text style={[styles.helpText, { color: colors.textSecondary }]}>Paste one exercise per line. Separate its name and prescription with a colon, dash, or space.</Text>
+              <Text style={[styles.helpText, { color: colors.textSecondary }]}>Paste one exercise per line. Choose either format:</Text>
               <View style={[
                 styles.formatExample,
                 {
@@ -361,13 +362,14 @@ export function PasteWorkoutSheet({
                   borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
                 },
               ]}>
-                <Text style={[styles.formatExampleText, { color: colors.textPrimary }]}>Barbell Bench Press: 3 sets x 8-12 reps</Text>
-                <Text style={[styles.formatExampleText, { color: colors.textPrimary }]}>Barbell Bench Press - 3 x 8–12</Text>
-                <Text style={[styles.formatExampleText, { color: colors.textPrimary }]}>Barbell Bench Press{`\n`}3 sets of 8 to 12 reps</Text>
-                <Text style={[styles.formatExampleText, { color: colors.textPrimary }]}>Goblet Squat: 4 x 10 25 kg</Text>
+                <Text style={[styles.formatExampleLabel, { color: colors.accent }]}>Quick list</Text>
+                <Text style={[styles.formatExampleText, { color: colors.textPrimary }]}>Barbell Bench Press{`\n`}Cable Pulldown</Text>
+                <Text style={[styles.formatExampleHint, { color: colors.textSecondary }]}>Each exercise will be created with 3 sets of 8–12 reps.</Text>
+                <Text style={[styles.formatExampleLabel, { color: colors.accent }]}>Custom targets</Text>
+                <Text style={[styles.formatExampleText, { color: colors.textPrimary }]}>Barbell Bench Press: 3 × 8–12 reps{`\n`}Goblet Squat: 4 × 10 @ 25 kg</Text>
               </View>
-              <Text style={[styles.helpText, { color: colors.textSecondary }]}>Use x, ×, or “sets of.” Ranges can use - , – , or “to.” Add an optional weight after the reps, such as @ 135 lbs or 25 kg.</Text>
-              <Text style={[styles.helpText, { color: colors.textSecondary }]}>A workout title is optional. If a name isn’t recognized, we’ll show close matches.</Text>
+              <Text style={[styles.helpText, { color: colors.textSecondary }]}>Use x, ×, or “sets of.” Ranges can use - , – , or “to.” Add an optional weight after the reps.</Text>
+              <Text style={[styles.helpText, { color: colors.textSecondary }]}>To add a workout name, put it on the first line, then leave a blank line before the exercises.</Text>
             </View>
           </Reanimated.View>
         </Reanimated.View>
@@ -409,5 +411,7 @@ const styles = StyleSheet.create({
   helpContent: { gap: Spacing.md },
   helpText: { fontSize: 14, lineHeight: 20 },
   formatExample: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, gap: Spacing.xs },
+  formatExampleLabel: { fontSize: 12, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textTransform: 'uppercase' },
   formatExampleText: { fontSize: 14, fontFamily: 'BankGothicBT-Medium' },
+  formatExampleHint: { fontSize: 13, lineHeight: 18 },
 });

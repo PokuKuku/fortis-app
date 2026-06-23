@@ -25,6 +25,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useIsFocused } from '@react-navigation/native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeOut, runOnJS } from 'react-native-reanimated';
 import { XMarkIcon, SparklesIcon, ExclamationTriangleIcon } from 'react-native-heroicons/outline';
@@ -73,56 +74,8 @@ const LOADING_MESSAGES = [
   "Tip: Use AI chat to spot volume trends and muscle balance.",
 ];
 
-const ANALYST_KEYWORD_REGEXES = [
-  /\bworkout(s)?\b/i,
-  /\btraining\b/i,
-  /\bsession(s)?\b/i,
-  /\bexercise(s)?\b/i,
-  /\blift(s|ing)?\b/i,
-  /\bsets?\b/i,
-  /\breps?\b/i,
-  /\bvolume\b/i,
-  /\bintensity\b/i,
-  /\bfrequency\b/i,
-  /\bprogram\b/i,
-  /\bsplit\b/i,
-  /\bplan\b/i,
-  /\btrend(s)?\b/i,
-  /\bsummary\b/i,
-  /\bconsisten(cy|t)\b/i,
-  /\bstreak(s)?\b/i,
-  /\bhabit(s)?\b/i,
-  /\bmomentum\b/i,
-  /\badherence\b/i,
-  /\banaly[sz]e\b/i,
-  /\banalysis\b/i,
-  /\binsight(s)?\b/i,
-  /\bpr(s)?\b/i,
-  /\bpersonal record(s)?\b/i,
-  /\bprogress\b/i,
-  /\bstall\b/i,
-  /\bplateau\b/i,
-  /\bfatigue\b/i,
-  /\brecovery\b/i,
-  /\bdeload\b/i,
-  /\brpe\b/i,
-  /\brir\b/i,
-  /\b1rm\b/i,
-  /\bmax(es)?\b/i,
-  /\bbench\b/i,
-  /\bsquat(s)?\b/i,
-  /\bdeadlift(s)?\b/i,
-  /\bpress(es)?\b/i,
-  /\brow(s)?\b/i,
-  /\bpull\b/i,
-  /\bpush\b/i,
-];
-
-const ANALYST_TIME_WINDOW_REGEX = /\b(last|past|previous|this|next)\s+(\d+\s+)?(day|week|month|year|session|workout)s?\b/i;
 const COACHING_QUESTION_REGEX =
   /\b(how do i|how to|what('?s| is) the proper way to|show me how to|teach me how to|tips for|form for)\b/i;
-const ADVICE_REQUEST_REGEX =
-  /\b(advice|feedback|suggestions?|recommendations?|tips?)\b/i;
 const WORKOUT_GENERATION_REGEX =
   /\b(?:(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workouts?|routines?|sessions?|templates?)\b/i;
 const WORKOUT_EDIT_REGEX =
@@ -182,34 +135,8 @@ function AnimatedLoadingSparkles() {
   );
 }
 
-// Intent inference helper - defaults to GENERAL_CHAT unless analyst cues are present
-const inferIntentFromMessage = (message: string): AIIntent => {
-  const normalized = message.trim().toLowerCase();
-  if (!normalized) {
-    return 'GENERAL_CHAT';
-  }
-
-  if (COACHING_QUESTION_REGEX.test(normalized) || ADVICE_REQUEST_REGEX.test(normalized)) {
-    return 'GENERAL_CHAT';
-  }
-
-  if (
-    WORKOUT_GENERATION_REGEX.test(normalized)
-    || WORKOUT_EDIT_REGEX.test(normalized)
-    || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized))
-  ) {
-    return 'GENERAL_CHAT';
-  }
-
-  const hasAnalystKeyword = ANALYST_KEYWORD_REGEXES.some((regex) => regex.test(normalized));
-  const hasTimeWindow = ANALYST_TIME_WINDOW_REGEX.test(normalized);
-
-  if (hasAnalystKeyword || hasTimeWindow) {
-    return 'FORTIS_ANALYST';
-  }
-
-  return 'GENERAL_CHAT';
-};
+// Detailed analyst formatting is reserved for the explicit Ask Fortify action on insights.
+const inferIntentFromMessage = (_message: string): AIIntent => 'GENERAL_CHAT';
 
 const shouldAttachWorkoutDraft = (message: string): boolean => {
   const normalized = message.trim().toLowerCase();
@@ -240,26 +167,10 @@ const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
   return null;
 };
 
-const shouldInheritAnalystIntent = (
-  message: string,
+const shouldContinueVisualCoaching = (
   inferredIntent: AIIntent,
   lastIntent: AIIntent | null
-): boolean => {
-  if (inferredIntent !== 'GENERAL_CHAT' || lastIntent !== 'FORTIS_ANALYST') {
-    return false;
-  }
-
-  const normalized = message.trim().toLowerCase();
-  if (!normalized) {
-    return false;
-  }
-
-  return !(
-    WORKOUT_GENERATION_REGEX.test(normalized)
-    || WORKOUT_EDIT_REGEX.test(normalized)
-    || COACHING_QUESTION_REGEX.test(normalized)
-  );
-};
+): boolean => inferredIntent === 'GENERAL_CHAT' && lastIntent === 'VISUAL_COACHING';
 
 export default function AIChatScreen() {
   const router = useRouter();
@@ -274,6 +185,8 @@ export default function AIChatScreen() {
   const hasRequestedInitialVoiceStartRef = useRef(false);
   const appliedRequestedModeRef = useRef<string | null>(null);
   const hasSelectedTourVoiceModeRef = useRef(false);
+  const pendingWorkoutPreviewRestoreRef = useRef<{ mode: AIVoiceMode; messageId: string } | null>(null);
+  const isScreenFocused = useIsFocused();
   const [inputText, setInputText] = useState('');
   const [tourBackWorkoutMessages, setTourBackWorkoutMessages] = useState<AIConversationMessage[] | null>(null);
   const [mode, setMode] = useState<AIVoiceMode>(
@@ -417,6 +330,36 @@ export default function AIChatScreen() {
   });
   const activeWorkoutActions = mode === 'voice' ? voiceWorkoutActions : chatWorkoutActions;
 
+  useEffect(() => {
+    if (!isScreenFocused) {
+      return;
+    }
+
+    const pendingPreview = pendingWorkoutPreviewRestoreRef.current;
+    if (!pendingPreview) {
+      return;
+    }
+
+    const workoutActions = pendingPreview.mode === 'voice'
+      ? voiceWorkoutActions
+      : chatWorkoutActions;
+    workoutActions.setPreviewMessageId(pendingPreview.messageId);
+    pendingWorkoutPreviewRestoreRef.current = null;
+  }, [chatWorkoutActions.setPreviewMessageId, isScreenFocused, voiceWorkoutActions.setPreviewMessageId]);
+
+  const handleOpenAIWorkoutExerciseDetails = useCallback((exerciseId: string) => {
+    const previewMessage = activeWorkoutActions.previewMessage;
+    if (!previewMessage) {
+      return;
+    }
+
+    pendingWorkoutPreviewRestoreRef.current = { mode, messageId: previewMessage.id };
+    activeWorkoutActions.setPreviewMessageId(null);
+    requestAnimationFrame(() => {
+      router.push(`/exercise/${exerciseId}?source=ai-workout-preview`);
+    });
+  }, [activeWorkoutActions, mode, router]);
+
   const handleRealtimePreferencesChange = useCallback(async (nextPreferences: RealtimeCoachPreferences) => {
     if (isVoiceActive) {
       stopVoiceCoach();
@@ -550,7 +493,7 @@ export default function AIChatScreen() {
   }, [advanceStep, isTourBackWorkoutStep]);
 
   const submitMessage = useCallback(async (rawMessage: string) => {
-    const message = rawMessage.trim() || (pendingChatMedia.length > 0 ? 'Analyze this media.' : '');
+    const message = rawMessage.trim() || (pendingChatMedia.length > 0 ? 'I’d like coaching feedback on this.' : '');
     if (!message || isSendingMessage) return;
 
     await runProFeature(
@@ -570,9 +513,11 @@ export default function AIChatScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         const inferredIntent = inferIntentFromMessage(message);
         const lastIntent = getLastIntent(messages);
-        const intent = shouldInheritAnalystIntent(message, inferredIntent, lastIntent)
-          ? 'FORTIS_ANALYST'
-          : inferredIntent;
+        const intent: AIIntent = pendingChatMedia.length > 0
+          ? 'VISUAL_COACHING'
+          : shouldContinueVisualCoaching(inferredIntent, lastIntent)
+            ? 'VISUAL_COACHING'
+            : inferredIntent;
         const requestContext = currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)
           ? { currentWorkoutTemplateDraft }
           : undefined;
@@ -1104,6 +1049,8 @@ export default function AIChatScreen() {
             ? 'Start'
             : undefined
         }
+        disableExerciseDetails={isTourActive}
+        onOpenExerciseDetails={handleOpenAIWorkoutExerciseDetails}
       />
       <CustomScenarioSheet
         visible={isScenarioSheetVisible}

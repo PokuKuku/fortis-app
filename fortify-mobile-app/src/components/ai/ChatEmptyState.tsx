@@ -59,7 +59,7 @@ interface QuickAction {
 
 const QUICK_ACTIONS: QuickAction[] = [
   {
-    intent: 'FORTIS_ANALYST',
+    intent: 'GENERAL_CHAT',
     icon: ChartBarIcon,
     label: 'Training Insights',
     description: 'Trends & volume',
@@ -73,14 +73,14 @@ const QUICK_ACTIONS: QuickAction[] = [
     prompt: 'Make me a back workout',
   },
   {
-    intent: 'FORTIS_ANALYST',
+    intent: 'GENERAL_CHAT',
     icon: CalendarDaysIcon,
     label: 'Weekly Focus',
     description: 'What to improve',
     prompt: 'Based on my recent training, what should I focus on next week?',
   },
   {
-    intent: 'FORTIS_ANALYST',
+    intent: 'GENERAL_CHAT',
     icon: FireIcon,
     label: 'Muscle Balance',
     description: 'Strength gaps',

@@ -7,7 +7,7 @@ import {
 } from '@/src/components/superwall/proFeatureAccess';
 
 describe('proFeatureAccess', () => {
-  it('requires the Fortis Pro entitlement for Pro access', () => {
+  it('requires the configured Pro entitlement for Pro access', () => {
     expect(subscriptionHasProAccess({ status: 'INACTIVE' })).toBe(false);
     expect(subscriptionHasProAccess({
       status: 'ACTIVE',
@@ -15,14 +15,14 @@ describe('proFeatureAccess', () => {
     })).toBe(false);
     expect(subscriptionHasProAccess({
       status: 'ACTIVE',
-      entitlements: [{ id: 'fortis_pro', type: 'SERVICE_LEVEL' }],
+      entitlements: [{ id: 'pro', type: 'SERVICE_LEVEL' }],
     })).toBe(true);
   });
 
   it('detects Pro access from entitlement fetch results', () => {
     expect(entitlementsInfoHasProAccess({ active: [], inactive: [] })).toBe(false);
     expect(entitlementsInfoHasProAccess({
-      active: [{ id: 'fortis_pro', type: 'SERVICE_LEVEL' }],
+      active: [{ id: 'pro', type: 'SERVICE_LEVEL' }],
       inactive: [],
     })).toBe(true);
   });

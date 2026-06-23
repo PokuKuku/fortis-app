@@ -48,6 +48,8 @@ type TourOverlayProps = {
   placement?: TourOverlayPlacement;
   holePadding?: number;
   holePaddingBottom?: number;
+  reserveArrowSpace?: boolean;
+  allowAnchorInteraction?: boolean;
   onTooltipHideComplete?: (() => void) | null;
 };
 
@@ -89,6 +91,8 @@ export function TourOverlay({
   placement = 'auto',
   holePadding = HOLE_PADDING,
   holePaddingBottom = holePadding,
+  reserveArrowSpace = false,
+  allowAnchorInteraction = mode === 'spotlight',
   onTooltipHideComplete = null,
 }: TourOverlayProps) {
   const { colors, isDark } = useTheme();
@@ -166,7 +170,7 @@ export function TourOverlay({
 
       const centerX = paddedRect.x + paddedRect.width / 2;
       const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - tooltipWidth);
-      const arrowOffset = showArrow ? ARROW_HEIGHT + ARROW_GAP : 0;
+      const arrowOffset = showArrow || reserveArrowSpace ? ARROW_HEIGHT + ARROW_GAP : 0;
       const topCandidate = placement === 'below'
         ? paddedRect.y + paddedRect.height + TOOLTIP_GAP + arrowOffset
         : paddedRect.y - TOOLTIP_GAP - arrowOffset;
@@ -180,7 +184,7 @@ export function TourOverlay({
     const centerX = paddedRect.x + paddedRect.width / 2;
     const left = clamp(centerX - tooltipWidth / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - tooltipWidth);
 
-    const arrowOffset = showArrow ? ARROW_HEIGHT + ARROW_GAP : 0;
+    const arrowOffset = showArrow || reserveArrowSpace ? ARROW_HEIGHT + ARROW_GAP : 0;
     const aboveTop = paddedRect.y - TOOLTIP_GAP - arrowOffset - tooltipHeight;
     const belowTop = paddedRect.y + paddedRect.height + TOOLTIP_GAP + arrowOffset;
     const canFitAbove = aboveTop >= safeTop;
@@ -206,6 +210,7 @@ export function TourOverlay({
     tooltipTopOffset,
     tooltipWidth,
     showArrow,
+    reserveArrowSpace,
     screenHeight,
     screenWidth,
   ]);
@@ -383,7 +388,7 @@ export function TourOverlay({
   }));
 
   const blockOutside = mode !== 'non_blocking';
-  const allowHolePassthrough = mode === 'spotlight';
+  const allowHolePassthrough = allowAnchorInteraction;
 
   const renderBlockingOverlay = () => {
     if (!blockOutside) return null;

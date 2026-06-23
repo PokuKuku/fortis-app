@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'expo-router';
+import { usePostHog } from 'posthog-react-native';
 import * as Haptics from 'expo-haptics';
 import type { AIConversationMessage } from '@/src/types/ai';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -26,6 +27,7 @@ export function useAIWorkoutTemplateActions({
   useProvidedExerciseIds,
 }: UseAIWorkoutTemplateActionsOptions) {
   const router = useRouter();
+  const posthog = usePostHog();
   const programs = useProgramsStore((state) => state.programs);
   const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
   const startWorkoutFromPlan = useWorkoutStore((state) => state.startWorkoutFromPlan);
@@ -112,8 +114,17 @@ export function useAIWorkoutTemplateActions({
 
     await markWorkoutTemplateSaved?.(message.id, createdTemplateId);
     onWorkoutTemplateSaved?.(message.id, createdTemplateId);
+    posthog.capture('ai_workout_saved', {
+      exercise_count: validExercises.length,
+    });
+    posthog.capture('workout_created', {
+      method: 'ai',
+      exercise_count: validExercises.length,
+      is_first_workout: savedWorkoutTemplateCount === 0,
+    });
+    validExercises.forEach(() => posthog.capture('exercise_added', { method: 'ai' }));
     return createdTemplateId;
-  }, [conversationId, createWorkoutTemplate, markWorkoutTemplateSaved, onWorkoutTemplateSaved, useProvidedExerciseIds]);
+  }, [conversationId, createWorkoutTemplate, markWorkoutTemplateSaved, onWorkoutTemplateSaved, posthog, savedWorkoutTemplateCount, useProvidedExerciseIds]);
 
   const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
     if (

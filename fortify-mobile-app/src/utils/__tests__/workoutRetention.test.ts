@@ -2,6 +2,7 @@ import type { WorkoutSession } from '@/src/types/workout';
 import {
   buildWeeklyRecap,
   getDueWeeklyRecapWeekStart,
+  isWeeklyRecapEligible,
   getScheduledReminderDates,
   getScheduledWorkoutReminderBody,
   normalizeReminderTime,
@@ -106,6 +107,19 @@ describe('workoutRetention', () => {
   it('returns weekly recap due only on Sunday evening', () => {
     expect(getDueWeeklyRecapWeekStart(new Date('2026-05-17T17:59:00'))).toBeNull();
     expect(getDueWeeklyRecapWeekStart(new Date('2026-05-17T18:00:00'))?.toISOString().slice(0, 10)).toBe('2026-05-10');
+  });
+
+  it('skips the first weekly recap for a user who signs up on Sunday', () => {
+    const signupSunday = new Date('2026-05-17T12:00:00');
+
+    expect(isWeeklyRecapEligible({
+      weekStart: new Date('2026-05-10T00:00:00'),
+      accountCreatedAt: signupSunday,
+    })).toBe(false);
+    expect(isWeeklyRecapEligible({
+      weekStart: signupSunday,
+      accountCreatedAt: signupSunday,
+    })).toBe(true);
   });
 
   it('builds a client-side weekly recap', () => {

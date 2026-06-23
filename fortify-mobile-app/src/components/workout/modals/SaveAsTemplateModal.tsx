@@ -14,6 +14,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { FadeIn, FadeOut, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { posthog } from '@/src/config/posthog';
 
 interface SaveAsTemplateModalProps {
   visible: boolean;
@@ -94,6 +95,11 @@ export function SaveAsTemplateModal({
       );
 
       if (result) {
+        posthog.capture('workout_created', {
+          method: 'manual',
+          exercise_count: exercisesForTemplate.length,
+          is_first_workout: savedWorkoutTemplateCount === 0,
+        });
         const createdTemplate = useProgramsStore
           .getState()
           .programs

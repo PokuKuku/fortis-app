@@ -23,6 +23,7 @@ import { scale, moderateScale } from '@/src/utils/responsive';
 import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/insightChartMapping';
 import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonomy';
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
+import { posthog } from '@/src/config/posthog';
 
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
@@ -303,8 +304,9 @@ export default function InsightDetailScreen() {
         : 'Explain this weekly insight and suggest what I should do next week.';
     const allowed = await requestAIDataSharingConsent();
     if (!allowed) return;
+    posthog.capture('ask_fortify_used');
     void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
-    router.push('/ai/chat');
+    router.push({ pathname: '/ai/chat', params: { mode: 'chat' } });
   };
 
   const handleShare = () => {

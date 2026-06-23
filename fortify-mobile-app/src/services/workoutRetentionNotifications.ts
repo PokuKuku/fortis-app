@@ -5,6 +5,7 @@ import {
   getScheduledWorkoutReminderBody,
   getScheduledReminderDates,
   getWeeklyRecapNotificationDates,
+  isWeeklyRecapEligible,
   SCHEDULED_WORKOUT_REMINDER_KIND,
   WEEKLY_RECAP_KIND,
   type ReminderTime,
@@ -112,10 +113,12 @@ async function performRetentionNotificationSync({
   scheduleDays,
   reminderEnabled,
   reminderTime,
+  accountCreatedAt,
 }: {
   scheduleDays: number[];
   reminderEnabled: boolean;
   reminderTime: ReminderTime;
+  accountCreatedAt?: Date | string | null;
 }): Promise<void> {
   await cancelRetentionNotifications();
 
@@ -141,7 +144,12 @@ async function performRetentionNotificationSync({
     time: reminderTime,
     from: now,
   });
-  const weeklyRecapDates = getWeeklyRecapNotificationDates({ from: now });
+  const weeklyRecapDates = getWeeklyRecapNotificationDates({ from: now }).filter((date) => (
+    isWeeklyRecapEligible({
+      weekStart: addDays(date, -7),
+      accountCreatedAt,
+    })
+  ));
 
   const ids: string[] = [];
   for (const date of scheduledReminderDates) {
@@ -160,10 +168,12 @@ export function syncRetentionNotifications({
   scheduleDays,
   reminderEnabled,
   reminderTime,
+  accountCreatedAt,
 }: {
   scheduleDays: number[];
   reminderEnabled: boolean;
   reminderTime: ReminderTime;
+  accountCreatedAt?: Date | string | null;
 }): Promise<void> {
   retentionNotificationSyncQueue = retentionNotificationSyncQueue
     .catch(() => undefined)
@@ -171,6 +181,7 @@ export function syncRetentionNotifications({
       scheduleDays,
       reminderEnabled,
       reminderTime,
+      accountCreatedAt,
     }));
 
   return retentionNotificationSyncQueue;

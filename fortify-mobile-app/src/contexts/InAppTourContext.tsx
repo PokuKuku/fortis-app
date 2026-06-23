@@ -24,6 +24,7 @@ import {
   getAIChatTourNarrationVoice,
 } from '@/src/utils/aiChatTour';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
+import { posthog } from '@/src/config/posthog';
 
 const AI_CHAT_TOUR_NARRATION_DEFAULT = require('@/assets/audio/ai-chat-overview.m4a');
 const AI_CHAT_TOUR_NARRATION_CEDAR = require('@/assets/audio/ai-chat-overview-cedar.m4a');
@@ -81,6 +82,8 @@ type TourStep = {
   renderOverlay?: boolean;
   holePadding?: number;
   holePaddingBottom?: number;
+  reserveArrowSpace?: boolean;
+  allowAnchorInteraction?: boolean;
 };
 
 const TOUR_STEPS: TourStep[] = [
@@ -101,7 +104,7 @@ const TOUR_STEPS: TourStep[] = [
     body: 'Workouts are exercise templates. Programs group workouts. Drag a workout card into a program to add it.',
     mode: 'spotlight',
     primaryActionLabel: 'Next',
-    showArrow: true,
+    showArrow: false,
     placement: 'below',
   },
   {
@@ -117,10 +120,10 @@ const TOUR_STEPS: TourStep[] = [
     id: 'open_add_with_voice',
     route: '/workout/create',
     anchorId: TOUR_ANCHOR_IDS.addWithVoice,
-    body: 'Tap Add with Voice to add an exercise by speaking.',
+    body: 'Add with Voice allows you to add exercises by speaking.',
     mode: 'spotlight',
-    primaryActionLabel: null,
-    showArrow: true,
+    primaryActionLabel: 'Next',
+    showArrow: false,
     holePadding: 0,
   },
   {
@@ -135,12 +138,13 @@ const TOUR_STEPS: TourStep[] = [
     placement: 'below',
     holePadding: 0,
     holePaddingBottom: -22,
+    tooltipOffsetY: 18,
   },
   {
     id: 'paste_workout_tip',
     route: '/workout/create',
     anchorId: TOUR_ANCHOR_IDS.pasteWorkout,
-    body: 'Have your workout template in Notes?\n\nTap Paste Workout to turn it directly into a workout template.',
+    body: 'Have your workout template in Notes or text?\n\nTap Paste Workout to turn it into a workout template faster.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -175,72 +179,6 @@ const TOUR_STEPS: TourStep[] = [
     primaryActionLabel: null,
     showArrow: false,
     holePadding: 0,
-  },
-  {
-    id: 'quick_start',
-    route: '/(tabs)',
-    anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'Tap the dumbbell, select “Upper,” and confirm to set your default workout. You can reset it later by press & hold.',
-    mode: 'spotlight',
-    primaryActionLabel: null,
-    showArrow: true,
-  },
-  {
-    id: 'launch_workout',
-    route: '/(tabs)',
-    anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'Now tap the dumbbell to start your workout.',
-    mode: 'spotlight',
-    primaryActionLabel: null,
-    showArrow: true,
-  },
-  {
-    id: 'open_voice_log',
-    route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.voiceLog,
-    body: 'Tap the mic on exercise cards to log sets with your voice.',
-    mode: 'spotlight',
-    primaryActionLabel: null,
-    showArrow: true,
-  },
-  {
-    id: 'voice_log_result',
-    route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
-    body: 'Voice Log can fill multiple sets at once and capture the set type too.',
-    mode: 'spotlight',
-    primaryActionLabel: 'Next',
-    showArrow: true,
-    placement: 'below',
-    holePadding: 0,
-    holePaddingBottom: -22,
-  },
-  {
-    id: 'set_target',
-    route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.setTarget,
-    body: 'Tap Set Target to update this exercise’s sets and rep range.\n\nUse the same control in the Edit Workout modal to update your workout template.',
-    mode: 'spotlight',
-    primaryActionLabel: 'Next',
-    showArrow: true,
-  },
-  {
-    id: 'rest_timer',
-    route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.restTimer,
-    body: 'Rest Timer keeps you on pace between sets. Tap to start/pause and adjust anytime.',
-    mode: 'spotlight',
-    primaryActionLabel: 'Next',
-    showArrow: true,
-  },
-  {
-    id: 'rest_timer_settings',
-    route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.restTimerSettings,
-    body: 'Use the clock to set your rest timer duration.',
-    mode: 'spotlight',
-    primaryActionLabel: 'Next',
-    showArrow: false,
   },
   {
     id: 'ai_chat_open',
@@ -288,6 +226,77 @@ const TOUR_STEPS: TourStep[] = [
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
+  },
+  {
+    id: 'quick_start',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.quickStartFab,
+    body: 'Tap the dumbbell, select “Upper,” and confirm to set your default workout. You can reset it later by press & hold.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'launch_workout',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.quickStartFab,
+    body: 'Now tap the dumbbell to start your workout.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'open_voice_log',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.voiceLog,
+    body: 'You can tap the mic on exercise cards to log sets with your voice.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    tooltipOffsetY: 18,
+  },
+  {
+    id: 'voice_log_result',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
+    body: 'Voice Log can fill multiple sets at once and capture the set type too.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    placement: 'below',
+    holePadding: 0,
+    holePaddingBottom: -22,
+    reserveArrowSpace: true,
+    allowAnchorInteraction: false,
+  },
+  {
+    id: 'set_target',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.setTarget,
+    body: 'Tap Set Target to update this exercise’s sets and rep range.\n\nUse the same control in the Edit Workout modal to update your workout template.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    reserveArrowSpace: true,
+  },
+  {
+    id: 'rest_timer',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.restTimer,
+    body: 'Rest Timer keeps you on pace between sets. Tap to start/pause and adjust anytime.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    reserveArrowSpace: true,
+  },
+  {
+    id: 'rest_timer_settings',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.restTimerSettings,
+    body: 'Use the clock to set your rest timer duration.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
   },
   {
     id: 'go_insights',
@@ -447,6 +456,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const [isExitingTooltip, setIsExitingTooltip] = useState(false);
   const [pendingPaywallStartRequestedAt, setPendingPaywallStartRequestedAt] = useState<number | null>(null);
+  const lastTrackedStepIdRef = useRef<TourStepId | null>(null);
 
   const getStepById = useCallback((stepId: string | null | undefined): TourStep | null => {
     if (!stepId) return null;
@@ -667,6 +677,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     };
 
     await setTourStateAndPersist(next);
+    posthog.capture('tour_started');
     await markTourSeenOnServer({ status: 'started' });
     router.navigate(TOUR_STEPS[0].route);
     return true;
@@ -682,8 +693,31 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
     await setTourStateAndPersist(next);
+    if (status === 'completed') {
+      posthog.capture('tour_completed');
+    } else if (logicalStep) {
+      posthog.capture('tour_abandoned', {
+        step_index: currentStepIndex + 1,
+        step_name: logicalStep.id,
+      });
+    }
     void markTourSeenOnServer({ status, completedAt: now });
-  }, [markTourSeenOnServer, setTourStateAndPersist, tourLoaded]);
+  }, [currentStepIndex, logicalStep, markTourSeenOnServer, setTourStateAndPersist, tourLoaded]);
+
+  useEffect(() => {
+    if (!isTourActive || !logicalStep || lastTrackedStepIdRef.current === logicalStep.id) return;
+    lastTrackedStepIdRef.current = logicalStep.id;
+    posthog.capture('tour_step_viewed', {
+      step_index: currentStepIndex + 1,
+      step_name: logicalStep.id,
+    });
+  }, [currentStepIndex, isTourActive, logicalStep]);
+
+  useEffect(() => {
+    if (!isTourActive) {
+      lastTrackedStepIdRef.current = null;
+    }
+  }, [isTourActive]);
 
   useEffect(() => {
     const prevCount = lastCompletedCountRef.current;
@@ -1085,6 +1119,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         placement={overlayStep?.placement}
         holePadding={overlayStep?.holePadding}
         holePaddingBottom={overlayStep?.holePaddingBottom}
+        reserveArrowSpace={overlayStep?.reserveArrowSpace}
+        allowAnchorInteraction={overlayStep?.allowAnchorInteraction}
         onTooltipHideComplete={handleTooltipHideComplete}
       />
       <AccentColorPicker

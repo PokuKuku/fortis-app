@@ -31,7 +31,8 @@ export function getCachedExerciseImageSource(
 
 export function prefetchExerciseImageUrls(
   imagePaths: Array<string | null | undefined>,
-  maxCount = 24
+  maxCount = 24,
+  maxGifCount = MAX_GIF_PREFETCH_PER_CALL,
 ): void {
   const candidates: string[] = [];
   let gifCount = 0;
@@ -42,7 +43,7 @@ export function prefetchExerciseImageUrls(
     if (prefetchedExerciseImageUrls.has(url)) continue;
     if (inflightExerciseImageUrls.has(url)) continue;
     if (isGifUrl(url)) {
-      if (gifCount >= MAX_GIF_PREFETCH_PER_CALL) continue;
+      if (gifCount >= maxGifCount) continue;
       gifCount += 1;
     }
     candidates.push(url);

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { InteractionManager, Platform } from 'react-native';
@@ -12,7 +12,7 @@ import { AuthProvider } from '@/src/contexts/AuthContext';
 import { InAppTourProvider } from '@/src/contexts/InAppTourContext';
 import { ThemeProvider, useTheme } from '@/src/contexts/ThemeContext';
 import { ThemeAuthSync } from '@/src/components/theme/ThemeAuthSync';
-import { SuperwallProvider } from 'expo-superwall';
+import { SuperwallProvider, useSuperwall } from 'expo-superwall';
 import type { PartialSuperwallOptions } from 'expo-superwall';
 import { SuperwallAuthSync } from '@/src/components/superwall/SuperwallAuthSync';
 import { SuperwallDebugEvents } from '@/src/components/superwall/SuperwallDebugEvents';
@@ -24,6 +24,7 @@ import { PostHogProvider } from 'posthog-react-native';
 import { posthog } from '@/src/config/posthog';
 import { WorkoutRetentionCoordinator } from '@/src/components/retention/WorkoutRetentionCoordinator';
 import { OnboardingProgramCoordinator } from '@/src/components/onboarding/OnboardingProgramCoordinator';
+import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 
 const PAGE_TRANSITION = {
   animation: 'fade' as const,
@@ -38,6 +39,26 @@ const ONBOARDING_TRANSITION = {
 };
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+function PostSignUpPaywallPreloader() {
+  const { isConfigured, isLoading, preloadPaywalls } = useSuperwall((state) => ({
+    isConfigured: state.isConfigured,
+    isLoading: state.isLoading,
+    preloadPaywalls: state.preloadPaywalls,
+  }));
+  const hasPreloadedRef = useRef(false);
+
+  useEffect(() => {
+    if (hasPreloadedRef.current || !isConfigured || isLoading) return;
+
+    hasPreloadedRef.current = true;
+    void preloadPaywalls([PAYWALL_PLACEMENTS.postSignUp]).catch(() => {
+      // Preloading is an optimization; the paywall gate still handles presentation failures.
+    });
+  }, [isConfigured, isLoading, preloadPaywalls]);
+
+  return null;
+}
 
 /**
  * Themed content wrapper - uses theme context for StatusBar and Stack styling
@@ -555,6 +576,7 @@ export default function RootLayout() {
           console.error('[Superwall] Configuration error:', error);
         }}
       >
+        <PostSignUpPaywallPreloader />
         {appContent}
       </SuperwallProvider>
     </GestureHandlerRootView>

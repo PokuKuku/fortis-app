@@ -97,6 +97,7 @@ export function ChatInput({
   const inputRef = useRef<TextInput>(null);
   const transcriptRef = useRef('');
   const isTearingDownVoiceRef = useRef(false);
+  const hasActiveDictationRequestRef = useRef(false);
 
   const themedStyles = {
     wrapper: {
@@ -210,8 +211,18 @@ export function ChatInput({
       const payload = event as SpeechRecognitionErrorEvent | undefined;
       const shouldOpenSettings =
         payload?.error === 'not-allowed' || payload?.error === 'service-not-allowed';
+      const isAborted =
+        payload?.error === 'aborted' ||
+        payload?.message?.toLowerCase().includes('aborted') === true;
+      const shouldSuppressAlert =
+        suppressVoicePermissionPrompt ||
+        isTearingDownVoiceRef.current ||
+        isAborted ||
+        !hasActiveDictationRequestRef.current;
+
+      hasActiveDictationRequestRef.current = false;
       resetVoiceState();
-      if (suppressVoicePermissionPrompt || isTearingDownVoiceRef.current) {
+      if (shouldSuppressAlert) {
         return;
       }
       showVoicePermissionAlert(
@@ -222,6 +233,7 @@ export function ChatInput({
 
     const endSubscription = ExpoSpeechRecognitionModule.addListener('end', () => {
       const transcript = transcriptRef.current.trim();
+      hasActiveDictationRequestRef.current = false;
       resetVoiceState();
 
       if (!transcript) {
@@ -243,6 +255,7 @@ export function ChatInput({
   useEffect(() => {
     return () => {
       isTearingDownVoiceRef.current = true;
+      hasActiveDictationRequestRef.current = false;
       ExpoSpeechRecognitionModule?.abort();
     };
   }, []);
@@ -289,6 +302,7 @@ export function ChatInput({
       transcriptRef.current = '';
       setLiveTranscript('');
       setVoicePhase('listening');
+      hasActiveDictationRequestRef.current = true;
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       ExpoSpeechRecognitionModule.start({
@@ -298,6 +312,7 @@ export function ChatInput({
         maxAlternatives: 1,
       });
     } catch (error) {
+      hasActiveDictationRequestRef.current = false;
       resetVoiceState();
       Alert.alert(
         'Voice dictation unavailable',
