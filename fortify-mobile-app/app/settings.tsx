@@ -204,7 +204,7 @@ export default function SettingsScreen() {
       return;
     }
 
-    const allowed = await requestAIDataSharingConsent();
+    const allowed = await requestAIDataSharingConsent({ forcePrompt: true });
     setAIDataSharingAllowed(allowed);
   };
 

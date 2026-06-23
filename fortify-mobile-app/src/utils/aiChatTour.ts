@@ -8,11 +8,6 @@ export const getAIChatTourNarrationVoice = (
   gender?: 'male' | 'female' | 'other' | null
 ): 'cedar' | 'default' => gender === 'male' ? 'cedar' : 'default';
 
-export const shouldAutoStartVoiceCoach = (
-  isTourActive: boolean,
-  _activeStepId: string | null
-): boolean => !isTourActive;
-
 export const shouldPromptForFeatureAccess = (
   isTourActive: boolean
 ): boolean => !isTourActive;

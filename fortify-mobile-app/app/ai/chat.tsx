@@ -54,7 +54,7 @@ import { isCreatorVoiceScriptsEnabled } from '@/src/utils/realtimeCoach';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
-import { shouldAutoStartVoiceCoach, shouldPromptForFeatureAccess } from '@/src/utils/aiChatTour';
+import { shouldPromptForFeatureAccess } from '@/src/utils/aiChatTour';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
@@ -182,7 +182,6 @@ export default function AIChatScreen() {
   const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const isNavigating = useRef(false);
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
-  const hasRequestedInitialVoiceStartRef = useRef(false);
   const appliedRequestedModeRef = useRef<string | null>(null);
   const hasSelectedTourVoiceModeRef = useRef(false);
   const pendingWorkoutPreviewRestoreRef = useRef<{ mode: AIVoiceMode; messageId: string } | null>(null);
@@ -549,7 +548,6 @@ export default function AIChatScreen() {
     const shouldRestartVoice = target === 'voice' && interactionMode === 'realtime' && isVoiceActive;
     if (target === 'voice') setIsPickingVoiceMedia(true);
     if (shouldRestartVoice) {
-      hasRequestedInitialVoiceStartRef.current = false;
       stopVoiceCoach();
     }
     try {
@@ -574,7 +572,6 @@ export default function AIChatScreen() {
     if (nextMode === interactionMode) return;
     const shouldRestart = isVoiceActive;
     if (shouldRestart) {
-      hasRequestedInitialVoiceStartRef.current = false;
       stopVoiceCoach();
     }
     void updateRealtimePreferences((current) => ({
@@ -645,7 +642,6 @@ export default function AIChatScreen() {
       return;
     }
 
-    hasRequestedInitialVoiceStartRef.current = false;
     if (isVoiceActive) {
       stopVoiceCoach();
     }
@@ -653,45 +649,6 @@ export default function AIChatScreen() {
     areRealtimePreferencesLoaded,
     isVoiceActive,
     realtimePreferencesSignature,
-    stopVoiceCoach,
-  ]);
-
-  useEffect(() => {
-    if (mode !== 'voice') {
-      hasRequestedInitialVoiceStartRef.current = false;
-      return;
-    }
-
-    if (!areRealtimePreferencesLoaded) {
-      return;
-    }
-
-    if (isPickingVoiceMedia) {
-      return;
-    }
-
-    if (!shouldAutoStartVoiceCoach(isTourActive, activeStepId)) {
-      hasRequestedInitialVoiceStartRef.current = false;
-      if (isVoiceActive) {
-        stopVoiceCoach();
-      }
-      return;
-    }
-
-    if (isVoiceActive || hasRequestedInitialVoiceStartRef.current) {
-      return;
-    }
-
-    hasRequestedInitialVoiceStartRef.current = true;
-    void handleStartVoiceCoach();
-  }, [
-    activeStepId,
-    areRealtimePreferencesLoaded,
-    handleStartVoiceCoach,
-    isPickingVoiceMedia,
-    isTourActive,
-    isVoiceActive,
-    mode,
     stopVoiceCoach,
   ]);
 

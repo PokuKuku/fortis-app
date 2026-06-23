@@ -65,10 +65,18 @@ export const setAIDataSharingConsent = async (granted: boolean): Promise<void> =
   await AsyncStorage.setItem(AI_DATA_SHARING_CONSENT_KEY, JSON.stringify(record));
 };
 
-export const requestAIDataSharingConsent = async (): Promise<boolean> => {
-  const existingConsent = await hasAIDataSharingConsent();
-  if (existingConsent) {
+export const requestAIDataSharingConsent = async (
+  options: { forcePrompt?: boolean } = {},
+): Promise<boolean> => {
+  const existingDecision = await getAIDataSharingConsentDecision();
+  if (existingDecision === 'granted') {
     return true;
+  }
+
+  // A first-use choice is persistent. Do not interrupt the user again after
+  // they decline; Settings is the explicit place to revisit that decision.
+  if (existingDecision === 'declined' && !options.forcePrompt) {
+    return false;
   }
 
   return await new Promise<boolean>((resolve) => {
