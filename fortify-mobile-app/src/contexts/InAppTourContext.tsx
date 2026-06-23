@@ -18,11 +18,18 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
 import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
 import { useTourNarration } from '@/src/hooks/useTourNarration';
-import { AI_CHAT_OVERVIEW_COPY, getAIChatTourNarrationVoice } from '@/src/utils/aiChatTour';
+import {
+  AI_CHAT_OVERVIEW_COPY,
+  AI_TEXT_CHAT_TOUR_COPY,
+  getAIChatTourNarrationVoice,
+} from '@/src/utils/aiChatTour';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 
 const AI_CHAT_TOUR_NARRATION_DEFAULT = require('@/assets/audio/ai-chat-overview.m4a');
 const AI_CHAT_TOUR_NARRATION_CEDAR = require('@/assets/audio/ai-chat-overview-cedar.m4a');
+
+// Keep development behavior aligned with production tour completion state.
+const FORCE_TOUR_ON_DEV_REFRESH = false;
 
 type TourStepId =
   | 'welcome'
@@ -32,14 +39,21 @@ type TourStepId =
   | 'add_with_voice'
   | 'confirm_add_with_voice'
   | 'voice_add_multiple'
+  | 'paste_workout_tip'
+  | 'paste_workout_demo'
+  | 'paste_workout_result'
   | 'close_workout_builder'
   | 'ai_chat_open'
+  | 'ai_text_chat_overview'
+  | 'ai_text_chat_result'
+  | 'ai_voice_chat_open'
   | 'ai_chat_overview'
   | 'quick_start'
   | 'launch_workout'
   | 'rest_timer'
   | 'open_voice_log'
   | 'voice_log_result'
+  | 'set_target'
   | 'rest_timer_settings'
   | 'go_insights'
   | 'insights_overview'
@@ -52,6 +66,7 @@ type TourStep = {
   id: TourStepId;
   route: TourRoute;
   anchorId?: TourAnchorId;
+  secondaryAnchorId?: TourAnchorId;
   body: string;
   mode: TourOverlayMode;
   primaryActionLabel?: string | null;
@@ -72,7 +87,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
     route: '/(tabs)',
-    body: 'Welcome to Fortify! Congrats on committing to your fitness journey! Now let’s show you around.',
+    body: 'Welcome to Fortify! Congrats on committing to your fitness journey! Now let’s quickly show you around.',
     mode: 'blocking',
     primaryActionLabel: 'Next',
     showArrow: false,
@@ -120,6 +135,36 @@ const TOUR_STEPS: TourStep[] = [
     placement: 'below',
     holePadding: 0,
     holePaddingBottom: -22,
+  },
+  {
+    id: 'paste_workout_tip',
+    route: '/workout/create',
+    anchorId: TOUR_ANCHOR_IDS.pasteWorkout,
+    body: 'Have your workout template in Notes?\n\nTap Paste Workout to turn it directly into a workout template.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'paste_workout_demo',
+    route: '/workout/create',
+    body: 'Creating an example workout template.',
+    mode: 'blocking',
+    primaryActionLabel: null,
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
+    renderOverlay: false,
+  },
+  {
+    id: 'paste_workout_result',
+    route: '/workout/create',
+    body: 'Your notes will now appear as a workout template! The cleaner the layout of your notes, the faster the result!',
+    mode: 'blocking',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    centerTooltip: true,
+    showHighlight: false,
   },
   {
     id: 'close_workout_builder',
@@ -171,6 +216,15 @@ const TOUR_STEPS: TourStep[] = [
     holePaddingBottom: -22,
   },
   {
+    id: 'set_target',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.setTarget,
+    body: 'Tap Set Target to update this exercise’s sets and rep range.\n\nUse the same control in the Edit Workout modal to update your workout template.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: true,
+  },
+  {
     id: 'rest_timer',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.restTimer,
@@ -193,6 +247,34 @@ const TOUR_STEPS: TourStep[] = [
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.aiChatButton,
     body: 'Tap to open the Fortify AI chat.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'ai_text_chat_overview',
+    route: '/ai/chat',
+    anchorId: TOUR_ANCHOR_IDS.aiChatBackWorkout,
+    body: 'Tap Back Workout to see Fortify create a workout for you in Chat.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+  },
+  {
+    id: 'ai_text_chat_result',
+    route: '/ai/chat',
+    anchorId: TOUR_ANCHOR_IDS.aiChatWorkoutTemplate,
+    secondaryAnchorId: TOUR_ANCHOR_IDS.aiChatBackWorkoutPrompt,
+    body: AI_TEXT_CHAT_TOUR_COPY,
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: true,
+  },
+  {
+    id: 'ai_voice_chat_open',
+    route: '/ai/chat',
+    anchorId: TOUR_ANCHOR_IDS.aiChatVoiceMode,
+    body: 'Next, tap Voice to chat with Fortify out loud.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -252,6 +334,9 @@ const TOUR_STEPS: TourStep[] = [
 const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'welcome',
   'workouts_intro',
+  'ai_text_chat_overview',
+  'ai_text_chat_result',
+  'ai_voice_chat_open',
   'ai_chat_overview',
   'quick_start',
   'rest_timer',
@@ -260,12 +345,15 @@ const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'insights_overview',
   'support_overview',
   'primary_style',
+  'paste_workout_demo',
+  'paste_workout_result',
 ]);
 
 const USER_DRIVEN_NAV_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'add_workout_routine',
   'open_add_with_voice',
   'voice_add_multiple',
+  'paste_workout_tip',
   'close_workout_builder',
   'open_voice_log',
 ]);
@@ -282,7 +370,12 @@ const TOUR_PRO_GATE_BYPASS_STEPS: Partial<Record<PaywallPlacement, ReadonlySet<T
   ]),
   [PAYWALL_PLACEMENTS.aiChat]: new Set([
     'ai_chat_open',
+    'ai_text_chat_overview',
+    'ai_text_chat_result',
     'ai_chat_overview',
+  ]),
+  [PAYWALL_PLACEMENTS.workoutLimit]: new Set([
+    'ai_text_chat_result',
   ]),
 };
 
@@ -373,6 +466,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const overlayStep = renderStep ?? pendingStep ?? logicalStep;
 
   const currentAnchorRect = overlayStep?.anchorId ? anchorRects[overlayStep.anchorId] ?? null : null;
+  const secondaryAnchorRect = overlayStep?.secondaryAnchorId
+    ? anchorRects[overlayStep.secondaryAnchorId] ?? null
+    : null;
   const normalizedPathname = useMemo(
     () => (pathname ? pathname.replace('/(tabs)', '') : ''),
     [pathname]
@@ -436,9 +532,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const isStepReady = useCallback((candidateStep: TourStep | null): boolean => {
     if (!candidateStep) return false;
     if (!isOnStepRoute(candidateStep.route)) return false;
+    if (candidateStep.anchorId && !anchorRects[candidateStep.anchorId]) return false;
     if (candidateStep.id === 'go_insights' && isWorkoutActive) return false;
     return true;
-  }, [isOnStepRoute, isWorkoutActive]);
+  }, [anchorRects, isOnStepRoute, isWorkoutActive]);
 
   useEffect(() => {
     if (!isTourActive || !logicalStep) {
@@ -514,6 +611,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   }, [getStepById, isExitingTooltip, isStepReady, isTourActive, pendingStepId, renderStepId]);
 
   const persistTour = useCallback(async (next: PersistedInAppTourState | null) => {
+    if (FORCE_TOUR_ON_DEV_REFRESH) return;
     if (!next) {
       await clearInAppTourState();
       return;
@@ -534,6 +632,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     completedAt?: string | null;
     status: 'started' | 'completed' | 'skipped';
   }) => {
+    if (FORCE_TOUR_ON_DEV_REFRESH) return;
     if (!isAuthenticated) return;
 
     const payload: Partial<Profile> = {
@@ -604,7 +703,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     }
 
     const now = new Date().toISOString();
-    const nextStep = TOUR_STEPS[currentStepIndex + 1];
+    const nextStep = logicalStep?.id === 'open_add_with_voice'
+      ? TOUR_STEPS.find((step) => step.id === 'paste_workout_tip')!
+      : TOUR_STEPS[currentStepIndex + 1];
     const next: PersistedInAppTourState = {
       version: IN_APP_TOUR_VERSION,
       status: 'in_progress',
@@ -678,6 +779,11 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     setTourState(null);
 
     const run = async () => {
+      if (FORCE_TOUR_ON_DEV_REFRESH) {
+        setTourLoaded(true);
+        return;
+      }
+
       const loaded = await loadInAppTourState();
       if (!isMounted) return;
 
@@ -716,12 +822,12 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     segments[0] !== 'onboarding' &&
     segments[0] !== 'auth' &&
     segments[0] !== 'paywall-gate';
-  const hasSeenServer = Boolean(
+  const hasSeenServer = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(
     profile?.has_seen_in_app_tour &&
     profile?.in_app_tour_completed_at &&
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
   );
-  const hasServerStartedCurrentTour = Boolean(
+  const hasServerStartedCurrentTour = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(
     profile?.has_seen_in_app_tour &&
     (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
   );
@@ -915,29 +1021,36 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     overlayStep.renderOverlay !== false &&
     isAuthenticated &&
     isMainAppRoute &&
-    isOverlayStepOnRoute
+    isOverlayStepOnRoute &&
+    (!overlayStep.anchorId || currentAnchorRect)
   );
   const aiChatTourNarration = getAIChatTourNarrationVoice(profile?.gender) === 'cedar'
     ? AI_CHAT_TOUR_NARRATION_CEDAR
     : AI_CHAT_TOUR_NARRATION_DEFAULT;
   const {
     isPlaying: isTourNarrationPlaying,
+    hasPlayed: hasPlayedTourNarration,
     replay: replayTourNarration,
   } = useTourNarration({
     enabled: showOverlay && overlayStep?.id === 'ai_chat_overview',
     source: aiChatTourNarration,
+    autoPlay: false,
   });
 
   const auxiliaryAction = useMemo(() => {
     if (!showOverlay || overlayStep?.id !== 'ai_chat_overview') return null;
     return {
-      label: isTourNarrationPlaying ? 'Playing introduction' : 'Replay introduction',
+      label: isTourNarrationPlaying
+        ? 'Playing introduction'
+        : hasPlayedTourNarration
+          ? 'Replay introduction'
+          : 'Play demo',
       onPress: () => {
         void replayTourNarration();
       },
       disabled: isTourNarrationPlaying,
     };
-  }, [isTourNarrationPlaying, overlayStep?.id, replayTourNarration, showOverlay]);
+  }, [hasPlayedTourNarration, isTourNarrationPlaying, overlayStep?.id, replayTourNarration, showOverlay]);
   const showPrimaryStylePicker = Boolean(
     isTourActive &&
     logicalStep?.id === 'primary_style' &&
@@ -953,6 +1066,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         visible={showOverlay}
         mode={overlayStep?.mode ?? 'blocking'}
         anchorRect={currentAnchorRect}
+        secondaryAnchorRect={secondaryAnchorRect}
         body={overlayStep?.body ?? ''}
         stepLabel={stepLabel}
         primaryAction={primaryAction}
@@ -976,7 +1090,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       <AccentColorPicker
         visible={showPrimaryStylePicker}
         title="Primary Style"
-        description="You can change this later in Settings."
+        description="Make yourself at home."
         closeOnSelect={false}
         showCloseButton={false}
         closeOnBackdropPress={false}

@@ -756,6 +756,7 @@ export default function ActiveWorkoutScreen() {
         onVoiceLog={handleVoiceLog}
         completedSetTint="success"
         shouldAnchorVoiceButton={index === 0}
+        shouldAnchorSetTarget={index === 0}
       />
     );
 

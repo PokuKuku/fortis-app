@@ -31,6 +31,7 @@ interface GlassButtonProps {
   hapticFeedback?: GlassButtonHapticFeedback;
   pointerEvents?: 'auto' | 'none' | 'box-none' | 'box-only';
   shadow?: boolean;
+  glow?: boolean;
 }
 
 export function GlassButton({
@@ -45,6 +46,7 @@ export function GlassButton({
   hapticFeedback = 'none',
   pointerEvents,
   shadow = true,
+  glow = true,
 }: GlassButtonProps) {
   const { colors } = useTheme();
   const pressProgress = useRef(new Animated.Value(0)).current;
@@ -134,7 +136,7 @@ export function GlassButton({
         styles.container,
         buttonStyle,
         style,
-        shadow ? [styles.shadow, { shadowColor: colors.accentShadow }] : styles.noShadow,
+        shadow && glow ? [styles.shadow, { shadowColor: colors.accentShadow }] : styles.noShadow,
         animatedPressStyle,
         disabled && styles.disabled,
       ]}

@@ -28,6 +28,7 @@ import { ChatWorkoutTemplateCard } from '@/src/components/ai/ChatWorkoutTemplate
 import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
@@ -41,6 +42,9 @@ interface ChatMessageProps {
   isSavingWorkoutTemplate?: boolean;
   isStartingWorkoutTemplate?: boolean;
   isStartWorkoutTemplateDisabled?: boolean;
+  startWorkoutTemplateDisabledLabel?: string;
+  tourMessageAnchorId?: string;
+  tourWorkoutTemplateAnchorId?: string;
 }
 
 export function ChatMessage({
@@ -53,6 +57,9 @@ export function ChatMessage({
   isSavingWorkoutTemplate = false,
   isStartingWorkoutTemplate = false,
   isStartWorkoutTemplateDisabled = false,
+  startWorkoutTemplateDisabledLabel,
+  tourMessageAnchorId,
+  tourWorkoutTemplateAnchorId,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
   const isUser = message.role === 'user';
@@ -235,7 +242,11 @@ export function ChatMessage({
       )}
       <View style={[styles.content, isUser ? styles.userContent : styles.aiContent]}>
         {isUser ? (
-          <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
+          tourMessageAnchorId ? (
+            <TourAnchor id={tourMessageAnchorId}>
+              <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
+            </TourAnchor>
+          ) : <Text style={[styles.userText, themedStyles.userText]}>{message.content}</Text>
         ) : (
           <Markdown style={markdownStyles}>{mainContent}</Markdown>
         )}
@@ -250,18 +261,25 @@ export function ChatMessage({
         {!isUser
           && message.workoutTemplate
           && Array.isArray(message.workoutTemplate.exercises)
-          && message.workoutTemplate.exercises.length > 0 && (
-          <ChatWorkoutTemplateCard
-            template={message.workoutTemplate}
-            onView={() => onViewWorkoutTemplate?.(message)}
-            onAdd={() => onAddWorkoutTemplate?.(message)}
-            onStart={() => onStartWorkoutTemplate?.(message)}
-            isAdding={isSavingWorkoutTemplate}
-            isAdded={Boolean(message.savedWorkoutTemplateId)}
-            isStarting={isStartingWorkoutTemplate}
-            isStartDisabled={isStartWorkoutTemplateDisabled}
-          />
-        )}
+          && message.workoutTemplate.exercises.length > 0 && (() => {
+            const templateCard = (
+              <ChatWorkoutTemplateCard
+                template={message.workoutTemplate}
+                onView={() => onViewWorkoutTemplate?.(message)}
+                onAdd={() => onAddWorkoutTemplate?.(message)}
+                onStart={() => onStartWorkoutTemplate?.(message)}
+                isAdding={isSavingWorkoutTemplate}
+                isAdded={Boolean(message.savedWorkoutTemplateId)}
+                isStarting={isStartingWorkoutTemplate}
+                isStartDisabled={isStartWorkoutTemplateDisabled}
+                startDisabledLabel={startWorkoutTemplateDisabledLabel}
+              />
+            );
+
+            return tourWorkoutTemplateAnchorId
+              ? <TourAnchor id={tourWorkoutTemplateAnchorId}>{templateCard}</TourAnchor>
+              : templateCard;
+          })()}
 
         {!isUser && mainContent.length > 0 && (
           <Text style={[styles.timestamp, themedStyles.timestamp]}>

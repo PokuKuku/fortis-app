@@ -26,7 +26,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { AddExerciseModal } from '@/src/components/workout/modals/AddExerciseModal';
 import { ExerciseVoiceAddSheet } from '@/src/components/workout/ExerciseVoiceAddSheet';
-import { PasteWorkoutSheet } from '@/src/components/workout/PasteWorkoutSheet';
+import { PasteWorkoutSheet, TOUR_PASTE_WORKOUT_EXAMPLE } from '@/src/components/workout/PasteWorkoutSheet';
 import { PasteWorkoutMatchResolver } from '@/src/components/workout/PasteWorkoutMatchResolver';
 import type { UnresolvedPastedExercise } from '@/src/components/workout/PasteWorkoutSheet';
 import { ExerciseCard } from '@/src/components/workout/ExerciseCard';
@@ -83,6 +83,8 @@ export default function CreateWorkoutScreen() {
     (activeStepId === 'add_with_voice' || activeStepId === 'confirm_add_with_voice');
   const shouldAnchorWorkoutBuilderClose = isTourActive && activeStepId === 'close_workout_builder';
   const shouldAnchorVoiceAddMultiple = isTourActive && activeStepId === 'voice_add_multiple';
+  const shouldAnchorPasteWorkout = isTourActive && activeStepId === 'paste_workout_tip';
+  const shouldRunPasteWorkoutDemo = isTourActive && activeStepId === 'paste_workout_demo';
 
   const normalizeText = useCallback((value: string) => (
     value
@@ -227,6 +229,11 @@ export default function CreateWorkoutScreen() {
     setShowVoiceAddSheet(false);
     void advanceStep();
   }, [advanceStep, shouldAnchorAddWithVoice, showVoiceAddSheet]);
+
+  useEffect(() => {
+    if (!shouldAnchorPasteWorkout || !showPasteWorkoutSheet) return;
+    void advanceStep();
+  }, [advanceStep, shouldAnchorPasteWorkout, showPasteWorkoutSheet]);
 
   // Get exercise IDs and fetch muscle data for heatmap
   const exerciseIds = useMemo(
@@ -848,20 +855,39 @@ export default function CreateWorkoutScreen() {
                   </Pressable>
                 )}
               </View>
-              <Pressable
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setShowPasteWorkoutSheet(true);
-                }}
-                style={({ pressed }) => [
-                  styles.addExercisesButton,
-                  styles.pasteWorkoutButton,
-                  themedStyles.addExercisesButton,
-                  pressed && styles.addExercisesButtonPressed,
-                ]}
-              >
-                <Text style={[styles.secondaryActionText, themedStyles.addExercisesText]}>Paste Workout</Text>
-              </Pressable>
+              {shouldAnchorPasteWorkout ? (
+                <TourAnchor id={TOUR_ANCHOR_IDS.pasteWorkout}>
+                  <Pressable
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowPasteWorkoutSheet(true);
+                    }}
+                    style={({ pressed }) => [
+                      styles.addExercisesButton,
+                      styles.pasteWorkoutButton,
+                      themedStyles.addExercisesButton,
+                      pressed && styles.addExercisesButtonPressed,
+                    ]}
+                  >
+                    <Text style={[styles.secondaryActionText, themedStyles.addExercisesText]}>Paste Workout</Text>
+                  </Pressable>
+                </TourAnchor>
+              ) : (
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowPasteWorkoutSheet(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.addExercisesButton,
+                    styles.pasteWorkoutButton,
+                    themedStyles.addExercisesButton,
+                    pressed && styles.addExercisesButtonPressed,
+                  ]}
+                >
+                  <Text style={[styles.secondaryActionText, themedStyles.addExercisesText]}>Paste Workout</Text>
+                </Pressable>
+              )}
 
               <GlassButton
                 style={styles.primaryActionButton}
@@ -929,7 +955,9 @@ export default function CreateWorkoutScreen() {
       />
       <PasteWorkoutSheet
         visible={showPasteWorkoutSheet}
-        onClose={() => setShowPasteWorkoutSheet(false)}
+        onClose={() => {
+          if (!shouldRunPasteWorkoutDemo) setShowPasteWorkoutSheet(false);
+        }}
         onAdd={(entries, workoutName) => {
           addEditorExercises(entries);
           if (workoutName && !editorSession?.name.trim()) {
@@ -937,6 +965,11 @@ export default function CreateWorkoutScreen() {
           }
         }}
         onResolve={setUnresolvedPastedExercises}
+        tourExampleText={shouldRunPasteWorkoutDemo ? TOUR_PASTE_WORKOUT_EXAMPLE : undefined}
+        onTourExampleImported={() => {
+          setShowPasteWorkoutSheet(false);
+          void advanceStep();
+        }}
       />
       <PasteWorkoutMatchResolver
         entries={unresolvedPastedExercises}

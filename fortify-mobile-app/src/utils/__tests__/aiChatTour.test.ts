@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
   AI_CHAT_OVERVIEW_COPY,
+  AI_TEXT_CHAT_TOUR_COPY,
   getAIChatTourNarrationVoice,
   shouldAutoStartVoiceCoach,
   shouldPromptForFeatureAccess,
@@ -43,15 +44,20 @@ describe('shouldAutoStartVoiceCoach', () => {
     expect(AI_CHAT_OVERVIEW_COPY).toContain('Profile');
   });
 
+  it('explains that Chat can create workout programs', () => {
+    expect(AI_TEXT_CHAT_TOUR_COPY).toContain('workout program');
+    expect(AI_TEXT_CHAT_TOUR_COPY).toContain('save it to your library');
+  });
+
   it('keeps in-app tour body copy free of hyphens and dash characters', () => {
     const tourContext = fs.readFileSync(
       path.join(__dirname, '../../contexts/InAppTourContext.tsx'),
       'utf8'
     );
-    const bodyCopies = Array.from(tourContext.matchAll(/body:\s*('(?:[^'\\]|\\.)*'|AI_CHAT_OVERVIEW_COPY)/g))
+    const bodyCopies = Array.from(tourContext.matchAll(/body:\s*('(?:[^'\\]|\\.)*'|AI_(?:TEXT_)?CHAT_OVERVIEW_COPY)/g))
       .map((match) => match[1]);
 
-    expect(bodyCopies).toHaveLength(17);
+    expect(bodyCopies).toHaveLength(24);
     expect(bodyCopies.join('\n')).not.toMatch(/[-—–]/);
   });
 });

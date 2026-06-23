@@ -72,4 +72,17 @@ describe('useTourNarration', () => {
 
     expect(mockCreateAsync).toHaveBeenCalledTimes(2);
   });
+
+  it('does not autoplay when autoplay is disabled', async () => {
+    const hook = renderHook(() => useTourNarration({ enabled: true, source, autoPlay: false }));
+
+    expect(mockCreateAsync).not.toHaveBeenCalled();
+
+    await act(async () => {
+      expect(await hook.result.current.replay()).toBe(true);
+    });
+
+    expect(mockCreateAsync).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.hasPlayed).toBe(true);
+  });
 });

@@ -64,6 +64,7 @@ interface ExerciseCardProps {
   canMoveDown?: boolean;
   completedSetTint?: 'accent' | 'success';
   shouldAnchorVoiceButton?: boolean;
+  shouldAnchorSetTarget?: boolean;
 }
 
 export function ExerciseCard({
@@ -80,6 +81,7 @@ export function ExerciseCard({
   canMoveDown = false,
   completedSetTint = 'accent',
   shouldAnchorVoiceButton = false,
+  shouldAnchorSetTarget = false,
 }: ExerciseCardProps) {
   const { colors, isDark } = useTheme();
   const { isTourActive, activeStepId } = useInAppTour();
@@ -333,6 +335,7 @@ export function ExerciseCard({
   };
 
   const shouldAnchorVoiceLog = isTourActive && activeStepId === 'open_voice_log' && shouldAnchorVoiceButton;
+  const isSetTargetTourStep = isTourActive && activeStepId === 'set_target' && shouldAnchorSetTarget;
   const renderVoiceButton = () => (
     <Pressable
       onPress={handleVoiceLog}
@@ -367,18 +370,35 @@ export function ExerciseCard({
               {exercise.exerciseName}
             </Text>
             {targetSummary && (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Edit target for ${exercise.exerciseName}`}
-                accessibilityHint="Opens set and rep target controls"
-                onPress={handleOpenTargetSheet}
-                hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                style={({ pressed }) => pressed && styles.targetSummaryPressed}
-              >
-                <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={2}>
-                  {targetSummary}
-                </Text>
-              </Pressable>
+              isSetTargetTourStep ? (
+                <TourAnchor id={TOUR_ANCHOR_IDS.setTarget}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Edit target for ${exercise.exerciseName}`}
+                    accessibilityHint="Opens set and rep target controls"
+                    onPress={handleOpenTargetSheet}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                    style={({ pressed }) => pressed && styles.targetSummaryPressed}
+                  >
+                    <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={2}>
+                      {targetSummary}
+                    </Text>
+                  </Pressable>
+                </TourAnchor>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Edit target for ${exercise.exerciseName}`}
+                  accessibilityHint="Opens set and rep target controls"
+                  onPress={handleOpenTargetSheet}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  style={({ pressed }) => pressed && styles.targetSummaryPressed}
+                >
+                  <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={2}>
+                    {targetSummary}
+                  </Text>
+                </Pressable>
+              )
             )}
           </View>
           <View style={styles.headerActions}>

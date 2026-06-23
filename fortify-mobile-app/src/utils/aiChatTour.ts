@@ -1,5 +1,8 @@
+export const AI_TEXT_CHAT_TOUR_COPY =
+  'Fortify created a personalized back workout program for you.\n\nChat returns a workout card like this so you can review it, save it to your library, or start it when ready.';
+
 export const AI_CHAT_OVERVIEW_COPY =
-  'Make Voice Coach your own in Settings. Open Profile, tap Settings, then choose Voice Coach to customize its voice, coaching style, intensity, or create a Custom Coach.';
+  'Voice Coach can make workouts just like Chat and answer questions about your fitness journey.\n\nYou can customize Voice Coach in Settings. Open Profile, tap Settings, then choose Voice Coach.';
 
 export const getAIChatTourNarrationVoice = (
   gender?: 'male' | 'female' | 'other' | null

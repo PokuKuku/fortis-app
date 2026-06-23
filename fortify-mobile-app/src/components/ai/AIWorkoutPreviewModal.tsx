@@ -5,6 +5,7 @@ import { BaseModal } from '@/src/components/ui/BaseModal';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, FontSizes, IconSizes, Spacing } from '@/constants/Sizes';
+import { Colors } from '@/constants/Colors';
 import { HubExerciseRow } from '@/src/components/hub';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useWorkoutStore } from '@/src/store/workoutStore';
@@ -30,6 +31,7 @@ interface AIWorkoutPreviewModalProps {
   isAdding?: boolean;
   isAdded?: boolean;
   isStartDisabled?: boolean;
+  startDisabledLabel?: string;
 }
 
 export function AIWorkoutPreviewModal({
@@ -42,6 +44,7 @@ export function AIWorkoutPreviewModal({
   isAdding = false,
   isAdded = false,
   isStartDisabled = false,
+  startDisabledLabel = 'Workout Active',
 }: AIWorkoutPreviewModalProps) {
   const { colors, isDark } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -210,7 +213,7 @@ export function AIWorkoutPreviewModal({
           <View style={styles.addButtonContent}>
             <PlayIcon color={colors.accentForegroundOnFill} size={IconSizes.md} strokeWidth={2.2} />
             <Text style={[styles.startButtonText, themedStyles.startButtonText]} numberOfLines={1}>
-              {isStarting ? 'Starting Workout...' : isStartDisabled ? 'Workout Active' : 'Start Workout'}
+              {isStarting ? 'Starting Workout...' : isStartDisabled ? startDisabledLabel : 'Start Workout'}
             </Text>
           </View>
         </GlassButton>
@@ -218,7 +221,9 @@ export function AIWorkoutPreviewModal({
         <GlassButton
           style={StyleSheet.flatten([styles.addButton, themedStyles.addButton])}
           gradientColors={
-            isDark
+            isAdded
+              ? [Colors.success, Colors.success]
+              : isDark
               ? ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.04)']
               : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.035)']
           }
@@ -227,11 +232,14 @@ export function AIWorkoutPreviewModal({
         >
           <View style={styles.addButtonContent}>
             {isAdded ? (
-              <CheckIcon color={colors.textPrimary} size={IconSizes.md} strokeWidth={2.2} />
+              <CheckIcon color={Colors.white} size={IconSizes.md} strokeWidth={2.2} />
             ) : (
               <PlusIcon color={colors.textPrimary} size={IconSizes.md} strokeWidth={2.2} />
             )}
-            <Text style={[styles.addButtonText, themedStyles.addButtonText]} numberOfLines={1}>
+            <Text
+              style={[styles.addButtonText, isAdded ? { color: Colors.white } : themedStyles.addButtonText]}
+              numberOfLines={1}
+            >
               {isAdded ? 'Added to Workouts' : isAdding ? 'Adding to Workouts...' : 'Add to Workouts'}
             </Text>
           </View>

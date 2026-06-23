@@ -14,6 +14,7 @@ interface UseAIWorkoutTemplateActionsOptions {
   markWorkoutTemplateSaved?: (messageId: string, templateId: string) => Promise<void>;
   onWorkoutTemplateSaved?: (messageId: string, templateId: string) => void;
   saveWorkoutPlacement?: PaywallPlacement;
+  useProvidedExerciseIds?: (message: AIConversationMessage) => boolean;
 }
 
 export function useAIWorkoutTemplateActions({
@@ -22,6 +23,7 @@ export function useAIWorkoutTemplateActions({
   markWorkoutTemplateSaved,
   onWorkoutTemplateSaved,
   saveWorkoutPlacement = PAYWALL_PLACEMENTS.workoutLimit,
+  useProvidedExerciseIds,
 }: UseAIWorkoutTemplateActionsOptions) {
   const router = useRouter();
   const programs = useProgramsStore((state) => state.programs);
@@ -62,27 +64,32 @@ export function useAIWorkoutTemplateActions({
       return message.savedWorkoutTemplateId;
     }
 
-    const resolvedExercises = await Promise.all(
-      message.workoutTemplate.exercises.map(async (exercise) => {
-        const libraryExercise = await getExerciseById(exercise.exerciseId)
-          || await getExerciseById(exercise.exerciseName);
-
-        if (!libraryExercise) {
-          return null;
-        }
-
-        return {
-          exerciseId: libraryExercise.id,
-          exerciseName: libraryExercise.name,
+    const validExercises = useProvidedExerciseIds?.(message)
+      ? message.workoutTemplate.exercises.map((exercise) => ({
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
           sets: exercise.sets,
           reps: exercise.reps,
           restSeconds: exercise.restSeconds,
-        };
-      })
-    );
-    const validExercises = resolvedExercises.filter(
-      (exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise)
-    );
+        }))
+      : (await Promise.all(
+          message.workoutTemplate.exercises.map(async (exercise) => {
+            const libraryExercise = await getExerciseById(exercise.exerciseId)
+              || await getExerciseById(exercise.exerciseName);
+
+            if (!libraryExercise) {
+              return null;
+            }
+
+            return {
+              exerciseId: libraryExercise.id,
+              exerciseName: libraryExercise.name,
+              sets: exercise.sets,
+              reps: exercise.reps,
+              restSeconds: exercise.restSeconds,
+            };
+          })
+        )).filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise));
 
     if (validExercises.length !== message.workoutTemplate.exercises.length) {
       throw new Error('This AI workout includes exercises that are not in your app library.');
@@ -106,7 +113,7 @@ export function useAIWorkoutTemplateActions({
     await markWorkoutTemplateSaved?.(message.id, createdTemplateId);
     onWorkoutTemplateSaved?.(message.id, createdTemplateId);
     return createdTemplateId;
-  }, [conversationId, createWorkoutTemplate, markWorkoutTemplateSaved, onWorkoutTemplateSaved]);
+  }, [conversationId, createWorkoutTemplate, markWorkoutTemplateSaved, onWorkoutTemplateSaved, useProvidedExerciseIds]);
 
   const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
     if (

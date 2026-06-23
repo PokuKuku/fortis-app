@@ -96,6 +96,7 @@ export function ChatInput({
   const [liveTranscript, setLiveTranscript] = useState('');
   const inputRef = useRef<TextInput>(null);
   const transcriptRef = useRef('');
+  const isTearingDownVoiceRef = useRef(false);
 
   const themedStyles = {
     wrapper: {
@@ -210,6 +211,9 @@ export function ChatInput({
       const shouldOpenSettings =
         payload?.error === 'not-allowed' || payload?.error === 'service-not-allowed';
       resetVoiceState();
+      if (suppressVoicePermissionPrompt || isTearingDownVoiceRef.current) {
+        return;
+      }
       showVoicePermissionAlert(
         payload?.message || 'Unable to use voice dictation right now.',
         shouldOpenSettings
@@ -234,10 +238,11 @@ export function ChatInput({
       errorSubscription.remove();
       endSubscription.remove();
     };
-  }, [onChangeText, resetVoiceState, showVoicePermissionAlert]);
+  }, [onChangeText, resetVoiceState, showVoicePermissionAlert, suppressVoicePermissionPrompt]);
 
   useEffect(() => {
     return () => {
+      isTearingDownVoiceRef.current = true;
       ExpoSpeechRecognitionModule?.abort();
     };
   }, []);

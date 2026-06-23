@@ -27,6 +27,8 @@ import { Typography } from '@/constants/Typography';
 import { AIIntent } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getContentWidth, moderateScale, scale } from '@/src/utils/responsive';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 
 // Calculate grid dimensions for consistent layout across screen sizes
 const GRID_HORIZONTAL_PADDING = scale(Spacing['2xl']);
@@ -88,10 +90,16 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 interface ChatEmptyStateProps {
   onQuickAction: (intent: AIIntent, prompt: string) => void;
+  isTourBackWorkoutStep?: boolean;
+  onTourBackWorkoutPress?: () => void;
 }
 
 
-export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
+export function ChatEmptyState({
+  onQuickAction,
+  isTourBackWorkoutStep = false,
+  onTourBackWorkoutPress,
+}: ChatEmptyStateProps) {
   const { colors, isDark } = useTheme();
   const { fontScale, height } = useWindowDimensions();
   const titleLineHeight = Math.round(TITLE_LINE_HEIGHT * fontScale);
@@ -141,27 +149,57 @@ export function ChatEmptyState({ onQuickAction }: ChatEmptyStateProps) {
                 .easing(Easing.out(Easing.cubic))}
               style={styles.gridItem}
             >
-              <TouchableOpacity
-                style={[styles.card, themedStyles.card]}
-                onPress={() => handleQuickAction(action)}
-                activeOpacity={0.85}
-                accessibilityLabel={`${action.label}: ${action.description}`}
-                accessibilityHint={`Sends: ${action.prompt}`}
-                accessibilityRole="button"
-              >
-                <View style={styles.cardHeader}>
-                  <View style={[styles.cardIcon, themedStyles.cardIcon]}>
-                    <action.icon color={colors.textSecondary} size={CARD_ICON_GLYPH_SIZE} />
+              {action.label === 'Back Workout' ? (
+                <TourAnchor
+                  id={TOUR_ANCHOR_IDS.aiChatBackWorkout}
+                  disabled={!isTourBackWorkoutStep}
+                  deferMeasurementUntilInteractions
+                >
+                  <TouchableOpacity
+                    style={[styles.card, themedStyles.card]}
+                    onPress={isTourBackWorkoutStep ? onTourBackWorkoutPress : () => handleQuickAction(action)}
+                    activeOpacity={0.85}
+                    accessibilityLabel={`${action.label}: ${action.description}`}
+                    accessibilityHint={`Sends: ${action.prompt}`}
+                    accessibilityRole="button"
+                  >
+                    <View style={styles.cardHeader}>
+                      <View style={[styles.cardIcon, themedStyles.cardIcon]}>
+                        <action.icon color={colors.textSecondary} size={CARD_ICON_GLYPH_SIZE} />
+                      </View>
+                      <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
+                    </View>
+                    <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
+                      {action.label}
+                    </Text>
+                    <Text style={[styles.cardDescription, themedStyles.cardDescription, { lineHeight: captionLineHeight }]}>
+                      {action.description}
+                    </Text>
+                  </TouchableOpacity>
+                </TourAnchor>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.card, themedStyles.card]}
+                  onPress={() => handleQuickAction(action)}
+                  activeOpacity={0.85}
+                  accessibilityLabel={`${action.label}: ${action.description}`}
+                  accessibilityHint={`Sends: ${action.prompt}`}
+                  accessibilityRole="button"
+                >
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.cardIcon, themedStyles.cardIcon]}>
+                      <action.icon color={colors.textSecondary} size={CARD_ICON_GLYPH_SIZE} />
+                    </View>
+                    <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
                   </View>
-                  <ChevronRightIcon color={colors.textTertiary} size={CARD_CHEVRON_SIZE} />
-                </View>
-                <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
-                  {action.label}
-                </Text>
-                <Text style={[styles.cardDescription, themedStyles.cardDescription, { lineHeight: captionLineHeight }]}>
-                  {action.description}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={[styles.cardLabel, themedStyles.cardLabel, { lineHeight: labelLineHeight }]}>
+                    {action.label}
+                  </Text>
+                  <Text style={[styles.cardDescription, themedStyles.cardDescription, { lineHeight: captionLineHeight }]}>
+                    {action.description}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </Animated.View>
           ))}
         </View>

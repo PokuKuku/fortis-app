@@ -6,6 +6,7 @@ type NarrationSound = Audio.Sound;
 type UseTourNarrationOptions = {
   enabled: boolean;
   source: AVPlaybackSource;
+  autoPlay?: boolean;
 };
 
 const stopAndUnload = async (sound: NarrationSound | null): Promise<void> => {
@@ -24,10 +25,11 @@ const stopAndUnload = async (sound: NarrationSound | null): Promise<void> => {
   }
 };
 
-export function useTourNarration({ enabled, source }: UseTourNarrationOptions) {
+export function useTourNarration({ enabled, source, autoPlay = true }: UseTourNarrationOptions) {
   const soundRef = useRef<NarrationSound | null>(null);
   const playbackRequestRef = useRef(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
 
   const stop = useCallback(async () => {
     playbackRequestRef.current += 1;
@@ -65,6 +67,7 @@ export function useTourNarration({ enabled, source }: UseTourNarrationOptions) {
       }
 
       soundRef.current = sound;
+      setHasPlayed(true);
       return true;
     } catch {
       if (playbackRequestRef.current === requestId) {
@@ -77,17 +80,21 @@ export function useTourNarration({ enabled, source }: UseTourNarrationOptions) {
   useEffect(() => {
     if (!enabled) {
       void stop();
+      setHasPlayed(false);
       return;
     }
 
-    void play();
+    if (autoPlay) {
+      void play();
+    }
     return () => {
       void stop();
     };
-  }, [enabled, play, stop]);
+  }, [autoPlay, enabled, play, stop]);
 
   return {
     isPlaying,
+    hasPlayed,
     replay: play,
     stop,
   };

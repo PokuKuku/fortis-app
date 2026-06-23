@@ -58,6 +58,8 @@ import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
 import { setLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -266,11 +268,14 @@ export default function AIChatScreen() {
   const { colors, isDark } = useTheme();
   const { profile, user } = useAuth();
   const { runProFeature } = useProFeatureGate();
-  const { isTourActive, activeStepId } = useInAppTour();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const isNavigating = useRef(false);
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const hasRequestedInitialVoiceStartRef = useRef(false);
+  const appliedRequestedModeRef = useRef<string | null>(null);
+  const hasSelectedTourVoiceModeRef = useRef(false);
   const [inputText, setInputText] = useState('');
+  const [tourBackWorkoutMessages, setTourBackWorkoutMessages] = useState<AIConversationMessage[] | null>(null);
   const [mode, setMode] = useState<AIVoiceMode>(
     requestedMode === 'chat' ? 'chat' : 'voice'
   );
@@ -308,6 +313,15 @@ export default function AIChatScreen() {
   const markWorkoutTemplateSaved = useAIStore((state) => state.markWorkoutTemplateSaved);
 
   const messages = conversation?.messages || [];
+  const isTourBackWorkoutStep = isTourActive && activeStepId === 'ai_text_chat_overview';
+  const isTourWorkoutResultStep = isTourActive && activeStepId === 'ai_text_chat_result';
+  const isTourVoiceTransitionStep = isTourActive && activeStepId === 'ai_voice_chat_open';
+  const shouldShowTourWorkoutDemo = isTourWorkoutResultStep || isTourVoiceTransitionStep;
+  const displayedMessages = shouldShowTourWorkoutDemo && tourBackWorkoutMessages
+    ? tourBackWorkoutMessages
+    : isTourBackWorkoutStep
+      ? []
+      : messages;
   const currentWorkoutTemplateDraft = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       if (messages[i]?.workoutTemplate) {
@@ -352,6 +366,19 @@ export default function AIChatScreen() {
     interactionMode,
     onVisualContextConsumed: () => setPendingVoiceMedia([]),
   });
+
+  // The tour changes modes while this screen remains mounted. Honor that explicit
+  // route request without changing the user's saved preferred mode.
+  useEffect(() => {
+    if (requestedMode !== 'chat' && requestedMode !== 'voice') return;
+    if (appliedRequestedModeRef.current === requestedMode) return;
+    appliedRequestedModeRef.current = requestedMode;
+    if (requestedMode === mode) return;
+
+    stopVoiceCoach();
+    setMode(requestedMode);
+  }, [mode, requestedMode, stopVoiceCoach]);
+
   const isCreatorScriptEnabled = isCreatorVoiceScriptsEnabled(profile?.email ?? user?.email ?? null);
   const voiceConversationMessages = useMemo<AIConversationMessage[]>(() => (
     voiceWorkoutMessages.map((message) => ({
@@ -364,11 +391,23 @@ export default function AIChatScreen() {
       savedWorkoutTemplateId: message.savedWorkoutTemplateId ?? null,
     }))
   ), [voiceWorkoutMessages]);
+  const markDisplayedWorkoutTemplateSaved = useCallback(async (messageId: string, templateId: string) => {
+    if (messageId === 'tour-back-workout-response') {
+      setTourBackWorkoutMessages((current) => current?.map((message) => (
+        message.id === messageId ? { ...message, savedWorkoutTemplateId: templateId } : message
+      )) ?? null);
+      return;
+    }
+
+    await markWorkoutTemplateSaved(messageId, templateId);
+  }, [markWorkoutTemplateSaved]);
+
   const chatWorkoutActions = useAIWorkoutTemplateActions({
-    messages,
+    messages: displayedMessages,
     conversationId: conversation?.id ?? null,
-    markWorkoutTemplateSaved,
+    markWorkoutTemplateSaved: markDisplayedWorkoutTemplateSaved,
     saveWorkoutPlacement: PAYWALL_PLACEMENTS.workoutLimit,
+    useProvidedExerciseIds: (message) => message.id === 'tour-back-workout-response',
   });
   const voiceWorkoutActions = useAIWorkoutTemplateActions({
     messages: voiceConversationMessages,
@@ -415,10 +454,10 @@ export default function AIChatScreen() {
   }, []);
 
   useEffect(() => {
-    if (messages.length > 0 && shouldAutoScrollRef.current) {
+    if (displayedMessages.length > 0 && shouldAutoScrollRef.current) {
       scrollToBottom(true);
     }
-  }, [messages.length, scrollToBottom]);
+  }, [displayedMessages.length, scrollToBottom]);
 
   // Cycle through loading messages every 5 seconds while AI is responding
   useEffect(() => {
@@ -474,6 +513,41 @@ export default function AIChatScreen() {
       scrollViewRef.current?.scrollToEnd({ animated: false });
     }, 50);
   };
+
+  const handleTourBackWorkoutPress = useCallback(() => {
+    if (!isTourBackWorkoutStep) return;
+
+    const createdAt = new Date().toISOString();
+    setTourBackWorkoutMessages([
+      {
+        id: 'tour-back-workout-request',
+        role: 'user',
+        content: 'Make me a back workout',
+        intent: 'GENERAL_CHAT',
+        createdAt,
+      },
+      {
+        id: 'tour-back-workout-response',
+        role: 'assistant',
+        content: 'Here is a balanced back workout built for strength and muscle growth.',
+        intent: 'GENERAL_CHAT',
+        createdAt,
+        workoutTemplate: {
+          name: 'Back Workout',
+          description: 'A complete back session with horizontal and vertical pulling.',
+          focus: 'Back',
+          estimatedDurationMinutes: 50,
+          exercises: [
+            { exerciseId: '72f240eb-44d7-437d-b610-d53e23aad520', exerciseName: 'Barbell Bent Over Row', sets: 4, reps: '8 to 10', restSeconds: 120 },
+            { exerciseId: 'd4e6ab99-5b62-4ff0-9595-0263c247198f', exerciseName: 'Cable Pulldown', sets: 3, reps: '10 to 12', restSeconds: 90 },
+            { exerciseId: '92d98b61-2fcc-4696-9c60-a038b5bf716e', exerciseName: 'Cable Seated Row', sets: 3, reps: '10 to 12', restSeconds: 90 },
+            { exerciseId: '46ce10d3-2a2d-477a-89bd-92f6a260f419', exerciseName: 'Cable Lateral Pulldown With V Bar', sets: 3, reps: '12 to 15', restSeconds: 60 },
+          ],
+        },
+      },
+    ]);
+    void advanceStep();
+  }, [advanceStep, isTourBackWorkoutStep]);
 
   const submitMessage = useCallback(async (rawMessage: string) => {
     const message = rawMessage.trim() || (pendingChatMedia.length > 0 ? 'Analyze this media.' : '');
@@ -708,9 +782,28 @@ export default function AIChatScreen() {
     }
   }, [mode, stopVoiceCoach]);
 
+  useEffect(() => {
+    if (activeStepId !== 'ai_voice_chat_open') {
+      hasSelectedTourVoiceModeRef.current = false;
+      return;
+    }
+
+    if (isTourActive && !hasSelectedTourVoiceModeRef.current && mode !== 'chat') {
+      stopVoiceCoach();
+      setMode('chat');
+      return;
+    }
+
+    if (!isTourActive || !hasSelectedTourVoiceModeRef.current || mode !== 'voice') return;
+    void advanceStep();
+  }, [activeStepId, advanceStep, isTourActive, mode, stopVoiceCoach]);
+
   const handleModeChange = useCallback((nextMode: AIVoiceMode) => {
     if (nextMode === mode) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (nextMode === 'voice' && isTourActive && activeStepId === 'ai_voice_chat_open') {
+      hasSelectedTourVoiceModeRef.current = true;
+    }
     if (nextMode === 'chat') {
       void runProFeature(
         {
@@ -730,7 +823,7 @@ export default function AIChatScreen() {
     }
     setMode(nextMode);
     void setLastAICoachMode(nextMode);
-  }, [mode, runProFeature, stopVoiceCoach]);
+  }, [activeStepId, isTourActive, mode, runProFeature, stopVoiceCoach]);
 
   return (
     <View style={[styles.container, themedStyles.container]}>
@@ -756,9 +849,11 @@ export default function AIChatScreen() {
             }]}>
               {(['voice', 'chat'] as const).map((item) => {
                 const selected = mode === item;
-                return (
+                const isTourVoiceModeTarget = item === 'voice'
+                  && isTourActive
+                  && activeStepId === 'ai_voice_chat_open';
+                const modeOption = (
                   <TouchableOpacity
-                    key={item}
                     style={[
                       styles.modeOption,
                       selected && { backgroundColor: colors.accent },
@@ -773,6 +868,15 @@ export default function AIChatScreen() {
                       {item === 'chat' ? 'Chat' : 'Voice'}
                     </Text>
                   </TouchableOpacity>
+                );
+                return (
+                  isTourVoiceModeTarget
+                    ? (
+                      <TourAnchor key={item} id={TOUR_ANCHOR_IDS.aiChatVoiceMode}>
+                        {modeOption}
+                      </TourAnchor>
+                    )
+                    : <React.Fragment key={item}>{modeOption}</React.Fragment>
                 );
               })}
             </View>
@@ -856,11 +960,15 @@ export default function AIChatScreen() {
               onScroll={handleScroll}
               scrollEventThrottle={16}
             >
-              {messages.length === 0 && !isSendingMessage ? (
-                <ChatEmptyState onQuickAction={handleQuickAction} />
+              {displayedMessages.length === 0 && !isSendingMessage ? (
+                <ChatEmptyState
+                  onQuickAction={handleQuickAction}
+                  isTourBackWorkoutStep={isTourBackWorkoutStep}
+                  onTourBackWorkoutPress={handleTourBackWorkoutPress}
+                />
               ) : (
                 <>
-                  {messages.map((message) => (
+                  {displayedMessages.map((message) => (
                     <ChatMessage
                       key={message.id}
                       message={message}
@@ -873,7 +981,25 @@ export default function AIChatScreen() {
                       onViewWorkoutTemplate={chatWorkoutActions.handleViewWorkoutTemplate}
                       onAddWorkoutTemplate={chatWorkoutActions.handleAddWorkoutTemplate}
                       onStartWorkoutTemplate={chatWorkoutActions.handleStartWorkoutTemplate}
-                      isStartWorkoutTemplateDisabled={chatWorkoutActions.isWorkoutActive}
+                      isStartWorkoutTemplateDisabled={
+                        chatWorkoutActions.isWorkoutActive
+                        || (isTourWorkoutResultStep && message.id === 'tour-back-workout-response')
+                      }
+                      startWorkoutTemplateDisabledLabel={
+                        isTourWorkoutResultStep && message.id === 'tour-back-workout-response'
+                          ? 'Start'
+                          : undefined
+                      }
+                      tourMessageAnchorId={
+                        isTourWorkoutResultStep && message.id === 'tour-back-workout-request'
+                          ? TOUR_ANCHOR_IDS.aiChatBackWorkoutPrompt
+                          : undefined
+                      }
+                      tourWorkoutTemplateAnchorId={
+                        isTourWorkoutResultStep && message.id === 'tour-back-workout-response'
+                          ? TOUR_ANCHOR_IDS.aiChatWorkoutTemplate
+                          : undefined
+                      }
                     />
                   ))}
 
@@ -969,7 +1095,15 @@ export default function AIChatScreen() {
         isStarting={activeWorkoutActions.previewMessage?.id === activeWorkoutActions.startingWorkoutMessageId}
         isAdding={activeWorkoutActions.previewMessage?.id === activeWorkoutActions.savingWorkoutMessageId}
         isAdded={Boolean(activeWorkoutActions.previewMessage?.savedWorkoutTemplateId)}
-        isStartDisabled={activeWorkoutActions.isWorkoutActive}
+        isStartDisabled={
+          activeWorkoutActions.isWorkoutActive
+          || activeWorkoutActions.previewMessage?.id === 'tour-back-workout-response'
+        }
+        startDisabledLabel={
+          activeWorkoutActions.previewMessage?.id === 'tour-back-workout-response'
+            ? 'Start'
+            : undefined
+        }
       />
       <CustomScenarioSheet
         visible={isScenarioSheetVisible}

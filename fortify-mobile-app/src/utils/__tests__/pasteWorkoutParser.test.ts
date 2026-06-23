@@ -41,6 +41,20 @@ describe('parsePastedWorkout', () => {
     expect(result.workoutName).toBe('Upper body day 1 workout');
   });
 
+  it('parses the in-app tour workout-note example', () => {
+    const result = parsePastedWorkout(`Upper Body Demo
+Barbell Bench Press: 3 sets x 8-12 reps
+Cable Pulldown: 3 sets x 10-12 reps
+Dumbbell Seated Shoulder Press: 3 sets x 10-12 reps`);
+
+    expect(result.workoutName).toBe('Upper Body Demo');
+    expect(result.entries).toEqual([
+      expect.objectContaining({ sourceName: 'Barbell Bench Press', sets: 3, reps: '8-12' }),
+      expect.objectContaining({ sourceName: 'Cable Pulldown', sets: 3, reps: '10-12' }),
+      expect.objectContaining({ sourceName: 'Dumbbell Seated Shoulder Press', sets: 3, reps: '10-12' }),
+    ]);
+  });
+
   it('does not treat a numbered exercise as a workout title', () => {
     const result = parsePastedWorkout('1. Pull-ups\n3 sets of 6-12 reps');
     expect(result.workoutName).toBeNull();

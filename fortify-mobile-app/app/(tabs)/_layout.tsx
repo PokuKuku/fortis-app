@@ -408,7 +408,9 @@ export default function TabLayout() {
 
   const handleAiPress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const mode = await getLastAICoachMode();
+    const mode = isTourActive && activeStepId === 'ai_chat_open'
+      ? 'chat'
+      : await getLastAICoachMode();
     router.push({ pathname: '/ai/chat', params: { mode } });
   };
 

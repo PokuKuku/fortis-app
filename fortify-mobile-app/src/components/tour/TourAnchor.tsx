@@ -5,10 +5,18 @@ import { useInAppTour } from '@/src/contexts/InAppTourContext';
 type TourAnchorProps = PropsWithChildren<{
   id: string;
   disabled?: boolean;
+  deferMeasurementUntilInteractions?: boolean;
   onLayout?: (event: LayoutChangeEvent) => void;
 } & Omit<ViewProps, 'onLayout'>>;
 
-export function TourAnchor({ id, disabled = false, onLayout, children, ...viewProps }: TourAnchorProps) {
+export function TourAnchor({
+  id,
+  disabled = false,
+  deferMeasurementUntilInteractions = false,
+  onLayout,
+  children,
+  ...viewProps
+}: TourAnchorProps) {
   const ref = useRef<View>(null);
   const interactionTaskRef = useRef<ReturnType<typeof InteractionManager.runAfterInteractions> | null>(null);
   const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,7 +60,9 @@ export function TourAnchor({ id, disabled = false, onLayout, children, ...viewPr
   useEffect(() => {
     if (disabled || activeAnchorId !== id) return;
 
-    requestAnimationFrame(measure);
+    if (!deferMeasurementUntilInteractions) {
+      requestAnimationFrame(measure);
+    }
 
     interactionTaskRef.current?.cancel();
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
@@ -60,19 +70,31 @@ export function TourAnchor({ id, disabled = false, onLayout, children, ...viewPr
 
     interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
       requestAnimationFrame(measure);
+      if (deferMeasurementUntilInteractions) {
+        settleTimerRef.current = setTimeout(() => {
+          requestAnimationFrame(measure);
+        }, 120);
+        lateSettleTimerRef.current = setTimeout(() => {
+          requestAnimationFrame(measure);
+        }, 320);
+      }
     });
-    settleTimerRef.current = setTimeout(() => {
-      requestAnimationFrame(measure);
-    }, 120);
-    lateSettleTimerRef.current = setTimeout(() => {
-      requestAnimationFrame(measure);
-    }, 320);
-  }, [activeAnchorId, disabled, id, measure]);
+    if (!deferMeasurementUntilInteractions) {
+      settleTimerRef.current = setTimeout(() => {
+        requestAnimationFrame(measure);
+      }, 120);
+      lateSettleTimerRef.current = setTimeout(() => {
+        requestAnimationFrame(measure);
+      }, 320);
+    }
+  }, [activeAnchorId, deferMeasurementUntilInteractions, disabled, id, measure]);
 
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     onLayout?.(event);
-    // Measure immediately, then re-measure after interactions/fonts/layout settle on device.
-    requestAnimationFrame(measure);
+    // Modal-route anchors should wait for the transition to finish before reporting a position.
+    if (!deferMeasurementUntilInteractions) {
+      requestAnimationFrame(measure);
+    }
 
     interactionTaskRef.current?.cancel();
     if (settleTimerRef.current) clearTimeout(settleTimerRef.current);
@@ -80,14 +102,24 @@ export function TourAnchor({ id, disabled = false, onLayout, children, ...viewPr
 
     interactionTaskRef.current = InteractionManager.runAfterInteractions(() => {
       requestAnimationFrame(measure);
+      if (deferMeasurementUntilInteractions) {
+        settleTimerRef.current = setTimeout(() => {
+          requestAnimationFrame(measure);
+        }, 180);
+        lateSettleTimerRef.current = setTimeout(() => {
+          requestAnimationFrame(measure);
+        }, 420);
+      }
     });
-    settleTimerRef.current = setTimeout(() => {
-      requestAnimationFrame(measure);
-    }, 180);
-    lateSettleTimerRef.current = setTimeout(() => {
-      requestAnimationFrame(measure);
-    }, 420);
-  }, [measure, onLayout]);
+    if (!deferMeasurementUntilInteractions) {
+      settleTimerRef.current = setTimeout(() => {
+        requestAnimationFrame(measure);
+      }, 180);
+      lateSettleTimerRef.current = setTimeout(() => {
+        requestAnimationFrame(measure);
+      }, 420);
+    }
+  }, [deferMeasurementUntilInteractions, measure, onLayout]);
 
   return (
     <View

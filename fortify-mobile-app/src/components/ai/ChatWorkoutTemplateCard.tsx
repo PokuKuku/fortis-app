@@ -15,6 +15,7 @@ interface ChatWorkoutTemplateCardProps {
   isAdded?: boolean;
   isStarting?: boolean;
   isStartDisabled?: boolean;
+  startDisabledLabel?: string;
   displayScale?: number;
 }
 
@@ -27,6 +28,7 @@ export function ChatWorkoutTemplateCard({
   isAdded = false,
   isStarting = false,
   isStartDisabled = false,
+  startDisabledLabel = 'Workout Active',
   displayScale = 1,
 }: ChatWorkoutTemplateCardProps) {
   const { colors, isDark } = useTheme();
@@ -129,7 +131,7 @@ export function ChatWorkoutTemplateCard({
         >
           <PlayIcon size={iconSize} color={colors.textPrimary} strokeWidth={2.2} />
           <Text style={[styles.startButtonText, { fontSize: FontSizes.sm * cardScale }, themedStyles.startButtonText]}>
-            {isStarting ? 'Starting...' : isStartDisabled ? 'Workout Active' : 'Start'}
+            {isStarting ? 'Starting...' : isStartDisabled ? startDisabledLabel : 'Start'}
           </Text>
         </TouchableOpacity>
       </View>

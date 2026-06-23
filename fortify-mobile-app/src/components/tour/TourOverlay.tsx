@@ -32,6 +32,7 @@ type TourOverlayProps = {
   visible: boolean;
   mode: TourOverlayMode;
   anchorRect: AnchorRect | null;
+  secondaryAnchorRect?: AnchorRect | null;
   body: string;
   stepLabel?: string | null;
   primaryAction?: Action | null;
@@ -74,6 +75,7 @@ export function TourOverlay({
   visible,
   mode,
   anchorRect,
+  secondaryAnchorRect = null,
   body,
   primaryAction,
   auxiliaryAction,
@@ -125,6 +127,15 @@ export function TourOverlay({
     const height = Math.min(screenHeight, anchorRect.height + holePadding + holePaddingBottom);
     return { x, y, width, height };
   }, [anchorRect, holePadding, holePaddingBottom, screenHeight, screenWidth]);
+
+  const paddedSecondaryRect = useMemo(() => {
+    if (!secondaryAnchorRect) return null;
+    const x = Math.max(0, secondaryAnchorRect.x - holePadding);
+    const y = Math.max(0, secondaryAnchorRect.y - holePadding);
+    const width = Math.min(screenWidth, secondaryAnchorRect.width + holePadding * 2);
+    const height = Math.min(screenHeight, secondaryAnchorRect.height + holePadding + holePaddingBottom);
+    return { x, y, width, height };
+  }, [holePadding, holePaddingBottom, screenHeight, screenWidth, secondaryAnchorRect]);
 
   const tooltipPos = useMemo(() => {
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
@@ -386,39 +397,51 @@ export function TourOverlay({
       );
     }
 
-    const topHeight = paddedRect.y;
-    const bottomTop = paddedRect.y + paddedRect.height;
-    const bottomHeight = Math.max(0, screenHeight - bottomTop);
-    const leftWidth = paddedRect.x;
-    const rightLeft = paddedRect.x + paddedRect.width;
-    const rightWidth = Math.max(0, screenWidth - rightLeft);
+    const holes = [paddedRect, paddedSecondaryRect]
+      .filter((rect): rect is AnchorRect => Boolean(rect))
+      .sort((a, b) => a.y - b.y);
+
+    const renderSideBlocks = (rect: AnchorRect) => {
+      const rightLeft = rect.x + rect.width;
+      return (
+        <>
+          <View style={[styles.overlayBlock, themedStyles.overlay, { top: rect.y, left: 0, width: rect.x, height: rect.height }]} />
+          <View style={[styles.overlayBlock, themedStyles.overlay, { top: rect.y, left: rightLeft, width: Math.max(0, screenWidth - rightLeft), height: rect.height }]} />
+        </>
+      );
+    };
+
+    const firstHole = holes[0];
+    const secondHole = holes[1];
+    const firstBottom = firstHole.y + firstHole.height;
+    const secondBottom = secondHole ? secondHole.y + secondHole.height : firstBottom;
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <View style={[styles.overlayBlock, themedStyles.overlay, { top: 0, left: 0, right: 0, height: topHeight }]} />
-        <View style={[styles.overlayBlock, themedStyles.overlay, { top: bottomTop, left: 0, right: 0, height: bottomHeight }]} />
-        <View style={[styles.overlayBlock, themedStyles.overlay, { top: paddedRect.y, left: 0, width: leftWidth, height: paddedRect.height }]} />
-        <View style={[styles.overlayBlock, themedStyles.overlay, { top: paddedRect.y, left: rightLeft, width: rightWidth, height: paddedRect.height }]} />
+        <View style={[styles.overlayBlock, themedStyles.overlay, { top: 0, left: 0, right: 0, height: firstHole.y }]} />
+        {renderSideBlocks(firstHole)}
+        {secondHole ? (
+          <>
+            <View style={[styles.overlayBlock, themedStyles.overlay, { top: firstBottom, left: 0, right: 0, height: Math.max(0, secondHole.y - firstBottom) }]} />
+            {renderSideBlocks(secondHole)}
+          </>
+        ) : null}
+        <View style={[styles.overlayBlock, themedStyles.overlay, { top: secondBottom, left: 0, right: 0, height: Math.max(0, screenHeight - secondBottom) }]} />
 
         {/* In blocking mode we still render the "hole", but we swallow touches over it. */}
-        {!allowHolePassthrough && (
+        {!allowHolePassthrough && holes.map((rect, index) => (
           <View
+            key={`tour-hole-${index}`}
             pointerEvents="auto"
-            style={{
-              position: 'absolute',
-              left: paddedRect.x,
-              top: paddedRect.y,
-              width: paddedRect.width,
-              height: paddedRect.height,
-            }}
+            style={{ position: 'absolute', left: rect.x, top: rect.y, width: rect.width, height: rect.height }}
           />
-        )}
+        ))}
       </View>
     );
   };
 
-  const renderHighlight = () => {
-    if (!paddedRect) return null;
+  const renderHighlight = (rect: AnchorRect | null) => {
+    if (!rect) return null;
     return (
       <Animated.View
         pointerEvents="none"
@@ -426,10 +449,10 @@ export function TourOverlay({
           styles.highlight,
           themedStyles.highlightBorder,
           {
-            left: paddedRect.x,
-            top: paddedRect.y,
-            width: paddedRect.width,
-            height: paddedRect.height,
+            left: rect.x,
+            top: rect.y,
+            width: rect.width,
+            height: rect.height,
           },
           highlightAnimatedStyle,
         ]}
@@ -473,7 +496,8 @@ export function TourOverlay({
   const overlayContent = (
     <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
       {renderBlockingOverlay()}
-      {showHighlight ? renderHighlight() : null}
+      {showHighlight ? renderHighlight(paddedRect) : null}
+      {showHighlight ? renderHighlight(paddedSecondaryRect) : null}
       {renderArrow()}
 
       {!hideTooltip ? (
@@ -521,6 +545,7 @@ export function TourOverlay({
                 onPress={primaryAction.onPress}
                 disabled={primaryAction.disabled}
                 hapticFeedback="selection"
+                glow={false}
               >
                 <Text style={[styles.primaryText, themedStyles.primaryText]}>{primaryAction.label}</Text>
               </GlassButton>
