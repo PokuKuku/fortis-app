@@ -9,6 +9,14 @@ type UseTourNarrationOptions = {
   autoPlay?: boolean;
 };
 
+const TOUR_NARRATION_AUDIO_MODE = {
+  allowsRecordingIOS: false,
+  playsInSilentModeIOS: true,
+  staysActiveInBackground: false,
+  shouldDuckAndroid: true,
+  playThroughEarpieceAndroid: false,
+};
+
 const stopAndUnload = async (sound: NarrationSound | null): Promise<void> => {
   if (!sound) return;
 
@@ -48,6 +56,10 @@ export function useTourNarration({ enabled, source, autoPlay = true }: UseTourNa
     await stopAndUnload(previousSound);
 
     try {
+      // The tour narration must use the speaker even when the device is muted
+      // or Voice Coach previously configured a recording audio session.
+      await Audio.setAudioModeAsync(TOUR_NARRATION_AUDIO_MODE);
+
       const { sound } = await Audio.Sound.createAsync(
         source,
         { shouldPlay: true },

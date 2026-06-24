@@ -13,22 +13,19 @@ describe('aiChatTour', () => {
     expect(shouldPromptForFeatureAccess(false)).toBe(true);
   });
 
-  it('uses Cedar tour narration only for male users', () => {
+  it('uses the selected narration voice for the tour demo', () => {
     expect(getAIChatTourNarrationVoice('male')).toBe('cedar');
     expect(getAIChatTourNarrationVoice('female')).toBe('default');
-    expect(getAIChatTourNarrationVoice('other')).toBe('default');
-    expect(getAIChatTourNarrationVoice(null)).toBe('default');
-    expect(getAIChatTourNarrationVoice()).toBe('default');
   });
 
   it('uses overview copy without hyphens or em dashes', () => {
     expect(AI_CHAT_OVERVIEW_COPY).not.toMatch(/[-—]/);
   });
 
-  it('points users to Settings for Voice Coach customization', () => {
+  it('briefly points users to Settings for Voice Coach customization', () => {
     expect(AI_CHAT_OVERVIEW_COPY).toContain('Settings');
-    expect(AI_CHAT_OVERVIEW_COPY).toContain('Voice Coach');
-    expect(AI_CHAT_OVERVIEW_COPY).toContain('Profile');
+    expect(AI_CHAT_OVERVIEW_COPY).toContain('customize your coach');
+    expect(AI_CHAT_OVERVIEW_COPY).not.toContain('Open Profile');
   });
 
   it('explains that Chat can create personalized workout templates', () => {

@@ -2,11 +2,13 @@ import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useTourNarration } from '@/src/hooks/useTourNarration';
 
 const mockCreateAsync = jest.fn();
+const mockSetAudioModeAsync = jest.fn(() => Promise.resolve());
 const mockStopAsync = jest.fn(() => Promise.resolve());
 const mockUnloadAsync = jest.fn(() => Promise.resolve());
 
 jest.mock('expo-av', () => ({
   Audio: {
+    setAudioModeAsync: (...args: unknown[]) => mockSetAudioModeAsync(...args),
     Sound: {
       createAsync: (...args: unknown[]) => mockCreateAsync(...args),
     },
@@ -84,5 +86,18 @@ describe('useTourNarration', () => {
 
     expect(mockCreateAsync).toHaveBeenCalledTimes(1);
     expect(hook.result.current.hasPlayed).toBe(true);
+  });
+
+  it('configures speaker playback before playing the demo', async () => {
+    const hook = renderHook(() => useTourNarration({ enabled: true, source, autoPlay: false }));
+
+    await act(async () => {
+      await hook.result.current.replay();
+    });
+
+    expect(mockSetAudioModeAsync).toHaveBeenCalledWith(expect.objectContaining({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+    }));
   });
 });

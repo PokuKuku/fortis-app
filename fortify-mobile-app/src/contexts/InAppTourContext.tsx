@@ -1075,9 +1075,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     if (!showOverlay || overlayStep?.id !== 'ai_chat_overview') return null;
     return {
       label: isTourNarrationPlaying
-        ? 'Playing introduction'
+        ? 'Playing demo'
         : hasPlayedTourNarration
-          ? 'Replay introduction'
+          ? 'Replay demo'
           : 'Play demo',
       onPress: () => {
         void replayTourNarration();
