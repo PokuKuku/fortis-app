@@ -477,6 +477,7 @@ export default function RootLayout() {
   const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
   const loadActiveSession = useWorkoutStore((s) => s.loadActiveSession);
   const loadRestTimerSettings = useWorkoutStore((s) => s.loadRestTimerSettings);
+  const loadStreakPauseState = useWorkoutStore((s) => s.loadStreakPauseState);
   const segments = useSegments();
   const isOnboarding = segments[0] === 'onboarding';
   const isAuth = segments[0] === 'auth';
@@ -505,6 +506,7 @@ export default function RootLayout() {
           loadBodyType(),
           loadActiveSession(),
           loadRestTimerSettings(),
+          loadStreakPauseState(),
         ]);
       }, 250);
     });
@@ -523,6 +525,7 @@ export default function RootLayout() {
     loadBodyType,
     loadActiveSession,
     loadRestTimerSettings,
+    loadStreakPauseState,
     shouldForceTheme,
   ]);
 

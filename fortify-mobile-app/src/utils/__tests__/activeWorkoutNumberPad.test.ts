@@ -46,6 +46,23 @@ describe('resolveActiveNumberPadSetUpdates', () => {
     });
   });
 
+  it('uses the displayed suggested reps when pressing next on an empty first set', () => {
+    const exercise = buildExercise([
+      buildSet('set-1'),
+    ]);
+
+    expect(resolveActiveNumberPadSetUpdates({
+      exercise,
+      inputSuggestion: { weight: 105, reps: 8 },
+      inputType: 'reps',
+      setLocalId: 'set-1',
+      value: null,
+    })).toEqual({
+      reps: 8,
+      weight: 105,
+    });
+  });
+
   it('still defaults first-set weight to zero when no suggestion exists', () => {
     const exercise = buildExercise([
       buildSet('set-1'),

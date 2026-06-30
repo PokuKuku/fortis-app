@@ -134,4 +134,72 @@ describe('SetRow', () => {
     expect(updatedSet?.reps).toBe(6);
     expect(updatedSet?.isCompleted).toBe(true);
   });
+
+  it('autofills and completes the first set from baseline performance', () => {
+    const activeSession: WorkoutSession = {
+      localId: 'session-3',
+      name: 'Upper 1',
+      notes: '',
+      startedAt: new Date('2025-01-01T00:00:00.000Z'),
+      completedAt: null,
+      exercises: [
+        {
+          localId: 'exercise-3',
+          exerciseId: 'ex-3',
+          exerciseName: 'Incline Press',
+          sets: [
+            {
+              localId: 'set-3',
+              setNumber: 1,
+              setType: 'normal',
+              weight: null,
+              weightUnit: 'lbs',
+              reps: null,
+              rpe: null,
+              restSeconds: null,
+              notes: '',
+              isCompleted: false,
+              orderIndex: 0,
+            },
+          ],
+          baselinePerformance: {
+            sets: [
+              {
+                weight: 95,
+                weightUnit: 'lbs',
+                reps: 10,
+                setType: 'normal',
+              },
+            ],
+          },
+          notes: '',
+          orderIndex: 0,
+        },
+      ],
+      isSynced: false,
+    };
+
+    useWorkoutStore.setState({
+      activeSession,
+      isWorkoutActive: true,
+      weightUnits: { 'ex-3': 'lbs' },
+    });
+
+    const { getByLabelText } = renderWithTheme(
+      <SetRow
+        exerciseLocalId="exercise-3"
+        setLocalId="set-3"
+        setIndex={0}
+        baselinePerformance={activeSession.exercises[0].baselinePerformance}
+      />
+    );
+
+    fireEvent.press(getByLabelText('Set 1 completed'));
+
+    const updatedSet = useWorkoutStore.getState().activeSession?.exercises[0].sets[0];
+    expect(updatedSet?.weight).toBe(95);
+    expect(updatedSet?.reps).toBe(10);
+    expect(updatedSet?.isCompleted).toBe(true);
+    expect(useWorkoutStore.getState().validationErrorsBySet).toEqual({});
+  });
 });

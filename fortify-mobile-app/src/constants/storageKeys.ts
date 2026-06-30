@@ -21,6 +21,7 @@ export const PENDING_SYNC_QUEUE_KEY = 'pending_sync_queue_v1';
 export const PENDING_PROGRAM_SYNC_QUEUE_KEY = 'pending_program_sync_queue_v1';
 export const PENDING_STICKY_NOTES_SYNC_KEY = 'pending_sticky_notes_sync_v1';
 export const REST_TIMER_SETTINGS_KEY = 'rest_timer_settings_v1';
+export const STREAK_PAUSE_STATE_KEY = 'streak_pause_state_v1';
 export const WORKOUT_REMINDER_NOTIFICATION_IDS_KEY = 'workout_reminder_notification_ids_v1';
 export const SCHEDULED_WORKOUT_REMINDER_ENABLED_KEY = 'scheduled_workout_reminder_enabled_v1';
 export const SCHEDULED_WORKOUT_REMINDER_TIME_KEY = 'scheduled_workout_reminder_time_v1';
@@ -76,6 +77,7 @@ export const USER_SCOPED_STORAGE_KEYS = [
   PENDING_PROGRAM_SYNC_QUEUE_KEY,
   PENDING_STICKY_NOTES_SYNC_KEY,
   REST_TIMER_SETTINGS_KEY,
+  STREAK_PAUSE_STATE_KEY,
   WORKOUT_REMINDER_NOTIFICATION_IDS_KEY,
   SCHEDULED_WORKOUT_REMINDER_ENABLED_KEY,
   SCHEDULED_WORKOUT_REMINDER_TIME_KEY,

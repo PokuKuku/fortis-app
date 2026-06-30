@@ -38,6 +38,7 @@ import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { useProgramsStore } from '../../src/store/programsStore';
 import { useProgramProgressStore } from '../../src/store/programProgressStore';
+import { useStartPresetStore } from '../../src/store/startPresetStore';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../../src/constants/programs';
 import { BaseModal, useModalStyles } from '../../src/components/ui/BaseModal';
 import { useDropZone } from '../../src/hooks/useDropZone';
@@ -317,7 +318,7 @@ function AnimatedCard({
   width,
 }: {
   children: React.ReactNode;
-  animationState?: 'entering' | 'exiting' | null;
+  animationState?: 'entering' | null;
   onAnimationComplete?: () => void;
   width?: string | number;
 }) {
@@ -335,21 +336,6 @@ function AnimatedCard({
         }),
         Animated.timing(opacity, {
           toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        if (onAnimationComplete) onAnimationComplete();
-      });
-    } else if (animationState === 'exiting') {
-      Animated.parallel([
-        Animated.timing(scale, {
-          toValue: 0.8,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacity, {
-          toValue: 0,
           duration: 200,
           useNativeDriver: true,
         }),
@@ -505,13 +491,15 @@ function DeleteConfirmationModal({
   visible,
   itemName,
   dependentPrograms,
+  isQuickStartProgram,
   onConfirm,
   onCancel,
 }: {
   visible: boolean;
   itemName: string;
   dependentPrograms?: { name: string }[];
-  onConfirm: () => void;
+  isQuickStartProgram?: boolean;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }) {
   const { colors, isDark } = useTheme();
@@ -592,6 +580,11 @@ function DeleteConfirmationModal({
           <StainlessSteelPattern />
           <View style={styles.modalContent}>
             <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Delete {itemName}?</Text>
+            {isQuickStartProgram ? (
+              <Text style={[styles.modalQuickStartWarning, { color: colors.error }]}>
+                This program is currently set for Quick Start. Deleting it will clear your Quick Start setting.
+              </Text>
+            ) : null}
             {dependencyMessage && (
               <>
                 <Text style={[styles.modalMessage, { color: colors.textSecondary }]}>
@@ -611,7 +604,7 @@ function DeleteConfirmationModal({
               <TouchableOpacity style={[styles.modalCancelButton, cancelButtonThemeStyle]} onPress={onCancel}>
                 <Text style={[styles.modalCancelText, { color: colors.textPrimary }]}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalDeleteButton} onPress={onConfirm}>
+              <TouchableOpacity style={styles.modalDeleteButton} onPress={() => { void onConfirm(); }}>
                 <Text style={styles.modalDeleteText}>Delete</Text>
               </TouchableOpacity>
             </View>
@@ -855,6 +848,7 @@ export default function ProgramsScreen() {
   const progressByProgram = useProgramProgressStore(s => s.progressByProgram);
   const restartProgram = useProgramProgressStore(s => s.restartProgram);
   const trimCompletedDays = useProgramProgressStore(s => s.trimCompletedDays);
+  const startPreset = useStartPresetStore(s => s.preset);
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
@@ -1115,10 +1109,10 @@ export default function ProgramsScreen() {
     id: string | null;
     name: string;
     dependentPrograms?: { id: string; name: string; workoutIds: string[] }[];
+    isQuickStartProgram?: boolean;
   }>({ visible: false, type: null, id: null, name: '' });
-  const pendingWorkoutDeletes = useRef<Record<string, { id: string; name: string; workoutIds: string[] }[]>>({});
   const [animatingCards, setAnimatingCards] = useState<{
-    [key: string]: 'entering' | 'exiting';
+    [key: string]: 'entering';
   }>({});
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -1379,6 +1373,7 @@ export default function ProgramsScreen() {
           type: 'program',
           id: openKebab.id,
           name: program.name,
+          isQuickStartProgram: startPreset?.type === 'program' && startPreset.programId === openKebab.id,
         });
       }
     } else if (openKebab.type === 'workout' && openKebab.id !== null) {
@@ -1396,48 +1391,33 @@ export default function ProgramsScreen() {
     }
   };
 
-  const confirmDelete = () => {
-    if (deleteConfirmation.type === 'program' && deleteConfirmation.id !== null) {
-      const cardKey = `program-${deleteConfirmation.id}`;
-      setAnimatingCards(prev => ({ ...prev, [cardKey]: 'exiting' }));
-    } else if (deleteConfirmation.type === 'workout' && deleteConfirmation.id !== null) {
-      const cardKey = `workout-${deleteConfirmation.id}`;
-      if (deleteConfirmation.dependentPrograms) {
-        pendingWorkoutDeletes.current[deleteConfirmation.id] = deleteConfirmation.dependentPrograms;
-      }
-      setAnimatingCards(prev => ({ ...prev, [cardKey]: 'exiting' }));
-    }
+  const confirmDelete = async () => {
+    const { type, id, dependentPrograms } = deleteConfirmation;
     setDeleteConfirmation({ visible: false, type: null, id: null, name: '' });
+
+    if (!type || id === null) return;
+
+    if (type === 'workout' && dependentPrograms) {
+      for (const program of dependentPrograms) {
+        for (const workoutId of program.workoutIds) {
+          await removeWorkoutFromProgram(program.id, workoutId);
+        }
+      }
+    }
+
+    const deleted = await deleteProgramFromStore(id);
+    if (!deleted) {
+      setToastMessage(`Could not delete ${type === 'program' ? 'program' : 'workout'}.`);
+      setShowToast(true);
+    }
   };
 
-  const handleAnimationComplete = async (type: 'program' | 'workout', id: string) => {
+  const handleAnimationComplete = (type: 'program' | 'workout', id: string) => {
     const cardKey = `${type}-${id}`;
     const animState = animatingCards[cardKey];
 
     if (animState === 'entering') {
       // Remove from animating cards after entering animation completes
-      setAnimatingCards(prev => {
-        const next = { ...prev };
-        delete next[cardKey];
-        return next;
-      });
-    } else if (animState === 'exiting') {
-      // Delete from database after exiting animation completes
-      // Both programs and workouts (templates) use the same store
-      if (type === 'workout') {
-        const dependentPrograms = pendingWorkoutDeletes.current[id] || [];
-        if (dependentPrograms.length > 0) {
-          for (const program of dependentPrograms) {
-            for (const workoutId of program.workoutIds) {
-              // Remove linked workouts before deleting the template
-              await removeWorkoutFromProgram(program.id, workoutId);
-            }
-          }
-        }
-        delete pendingWorkoutDeletes.current[id];
-      }
-      await deleteProgramFromStore(id);
-      // Remove from animating cards
       setAnimatingCards(prev => {
         const next = { ...prev };
         delete next[cardKey];
@@ -1910,6 +1890,7 @@ export default function ProgramsScreen() {
         visible={deleteConfirmation.visible}
         itemName={deleteConfirmation.name}
         dependentPrograms={deleteConfirmation.dependentPrograms}
+        isQuickStartProgram={deleteConfirmation.isQuickStartProgram}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
       />
@@ -2290,20 +2271,32 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: MODAL_TITLE_SIZE,
+    fontFamily: 'BankGothicBT-Medium',
     fontWeight: '700',
     color: '#DFE2E6',
+    textAlign: 'center',
+    textTransform: 'uppercase',
     marginBottom: MODAL_BUTTON_GAP,
   },
   modalMessage: {
     fontSize: MODAL_MESSAGE_SIZE,
     fontWeight: '500',
     color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: MODAL_PADDING,
+    lineHeight: MODAL_MESSAGE_LINE_HEIGHT,
+  },
+  modalQuickStartWarning: {
+    fontSize: MODAL_MESSAGE_SIZE,
+    fontWeight: '800',
+    textAlign: 'center',
     marginBottom: MODAL_PADDING,
     lineHeight: MODAL_MESSAGE_LINE_HEIGHT,
   },
   modalSubtleText: {
     fontSize: 12,
     fontWeight: '500',
+    textAlign: 'center',
     marginTop: -Spacing.xs,
     marginBottom: MODAL_PADDING,
   },

@@ -560,6 +560,18 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return true;
     }
 
+    const previousPrograms = get().programs;
+    const previousStartPreset = useStartPresetStore.getState().preset;
+    const shouldClearStartPreset = previousStartPreset?.type === 'program' && previousStartPreset.programId === id;
+
+    if (shouldClearStartPreset) {
+      await useStartPresetStore.getState().setPreset(null);
+    }
+
+    set((state) => ({
+      programs: state.programs.filter((p) => p.id !== id),
+    }));
+
     // Handle Supabase programs
     try {
       const { error } = await supabase
@@ -568,19 +580,22 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         .eq('id', id);
 
       if (error) {
-        set({ error: error.message, isDeleting: false });
+        if (shouldClearStartPreset) {
+          void useStartPresetStore.getState().setPreset(previousStartPreset);
+        }
+        set({ programs: previousPrograms, error: error.message, isDeleting: false });
         return false;
       }
 
-      // Remove from local state
-      set((state) => ({
-        programs: state.programs.filter((p) => p.id !== id),
-        isDeleting: false,
-      }));
+      set({ isDeleting: false });
 
       return true;
     } catch (err) {
+      if (shouldClearStartPreset) {
+        void useStartPresetStore.getState().setPreset(previousStartPreset);
+      }
       set({
+        programs: previousPrograms,
         error: err instanceof Error ? err.message : 'Failed to delete program',
         isDeleting: false,
       });

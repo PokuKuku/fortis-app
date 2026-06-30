@@ -151,6 +151,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         workoutStore.loadStickyNotes(),
         workoutStore.loadWeightUnits(),
         workoutStore.loadBodyType(),
+        workoutStore.loadStreakPauseState(),
         programProgressStore.loadProgress(),
         aiStore.loadConversation(),
       ]);

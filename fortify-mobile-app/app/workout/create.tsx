@@ -523,7 +523,8 @@ export default function CreateWorkoutScreen() {
     if (!activeNumberPad) return;
 
     const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
-    updateEditorSet(exerciseLocalId, setLocalId, { [inputType]: value });
+    const resolvedValue = value ?? activeNumberPad.inputSuggestion?.[inputType] ?? null;
+    updateEditorSet(exerciseLocalId, setLocalId, { [inputType]: resolvedValue });
     closeNumberPad();
   }, [activeNumberPad, updateEditorSet, closeNumberPad]);
 
@@ -532,9 +533,10 @@ export default function CreateWorkoutScreen() {
     if (!activeNumberPad || !editorSession) return;
 
     const { exerciseLocalId, setLocalId, inputType } = activeNumberPad;
+    const resolvedValue = value ?? activeNumberPad.inputSuggestion?.[inputType] ?? null;
 
     // Save current value
-    updateEditorSet(exerciseLocalId, setLocalId, { [inputType]: value });
+    updateEditorSet(exerciseLocalId, setLocalId, { [inputType]: resolvedValue });
 
     // Find current exercise and set
     const exercise = editorSession.exercises.find(e => e.localId === exerciseLocalId);
@@ -542,7 +544,7 @@ export default function CreateWorkoutScreen() {
 
     if (inputType === 'weight') {
       // Go to reps (same set)
-      openEditorNumberPad(exerciseLocalId, setLocalId, 'reps');
+      openEditorNumberPad(exerciseLocalId, setLocalId, 'reps', activeNumberPad.inputSuggestion);
     } else {
       // inputType === 'reps' - go to weight of next set
       const nextSet = exercise?.sets[setIndex + 1];

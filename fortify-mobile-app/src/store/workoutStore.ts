@@ -23,6 +23,7 @@ import {
   ACTIVE_WORKOUT_KEY,
   COMPLETED_WORKOUTS_KEY,
   REST_TIMER_SETTINGS_KEY,
+  STREAK_PAUSE_STATE_KEY,
   EXERCISE_STICKY_NOTES_KEY,
   EXERCISE_WEIGHT_UNITS_KEY,
   BODY_TYPE_KEY,
@@ -215,6 +216,9 @@ interface WorkoutState {
   isLoading: boolean;
   showRestTimerComplete: boolean;
   showFirstWorkoutStreakModal: boolean;
+  isStreakPaused: boolean;
+  streakPausedAt: string | null;
+  pausedStreakCount: number | null;
   workoutOverlayCount: number;
 
   // Number pad state
@@ -266,6 +270,8 @@ interface WorkoutState {
   cancelWorkout: () => void;
   openFirstWorkoutStreakModal: () => void;
   dismissFirstWorkoutStreakModal: () => void;
+  pauseStreak: (streakCount?: number) => Promise<void>;
+  resumeStreak: () => Promise<void>;
   updateWorkoutName: (name: string) => void;
   updateWorkoutNotes: (notes: string) => void;
   setActiveSessionProgramContext: (programId: string, programWorkoutId?: string) => void;
@@ -322,6 +328,7 @@ interface WorkoutState {
   persistSession: () => Promise<void>;
   clearPersistedSession: () => Promise<void>;
   loadRestTimerSettings: () => Promise<void>;
+  loadStreakPauseState: () => Promise<void>;
   loadCompletedSessions: () => Promise<void>;
   replaceCompletedSessions: (sessions: WorkoutSession[]) => Promise<void>;
   markSessionsSyncing: (localIds: string[]) => void;
@@ -462,6 +469,9 @@ export const useWorkoutStore = create<WorkoutState>()(
     isLoading: false,
     showRestTimerComplete: false,
     showFirstWorkoutStreakModal: false,
+    isStreakPaused: false,
+    streakPausedAt: null,
+    pausedStreakCount: null,
     workoutOverlayCount: 0,
     activeNumberPad: null,
     validationErrorsBySet: {},
@@ -971,6 +981,36 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     dismissFirstWorkoutStreakModal: () => {
       set({ showFirstWorkoutStreakModal: false });
+    },
+
+    pauseStreak: async (streakCount) => {
+      const pausedAt = new Date().toISOString();
+      const pausedStreakCount = typeof streakCount === 'number'
+        ? Math.max(0, streakCount)
+        : get().pausedStreakCount;
+      set({ isStreakPaused: true, streakPausedAt: pausedAt, pausedStreakCount });
+
+      try {
+        await setScopedItem(
+          STREAK_PAUSE_STATE_KEY,
+          JSON.stringify({ isPaused: true, pausedAt, pausedStreakCount })
+        );
+      } catch (error) {
+        console.warn('Failed to save streak pause state:', error);
+      }
+    },
+
+    resumeStreak: async () => {
+      set({ isStreakPaused: false, streakPausedAt: null, pausedStreakCount: null });
+
+      try {
+        await setScopedItem(
+          STREAK_PAUSE_STATE_KEY,
+          JSON.stringify({ isPaused: false, pausedAt: null, pausedStreakCount: null })
+        );
+      } catch (error) {
+        console.warn('Failed to save streak pause state:', error);
+      }
     },
 
     cancelWorkout: () => {
@@ -1778,6 +1818,35 @@ export const useWorkoutStore = create<WorkoutState>()(
       } catch (error) {
         console.warn('Failed to load rest timer settings:', error);
         set({ restTimerSettings: DEFAULT_REST_TIMER_SETTINGS });
+      }
+    },
+
+    loadStreakPauseState: async () => {
+      try {
+        const stored = await getScopedItem(STREAK_PAUSE_STATE_KEY);
+        if (!stored) {
+          set({ isStreakPaused: false, streakPausedAt: null, pausedStreakCount: null });
+          return;
+        }
+
+        const parsed = JSON.parse(stored) as {
+          isPaused?: unknown;
+          pausedAt?: unknown;
+          pausedStreakCount?: unknown;
+        };
+        const isPaused = parsed.isPaused === true;
+        set({
+          isStreakPaused: isPaused,
+          streakPausedAt: isPaused && typeof parsed.pausedAt === 'string'
+            ? parsed.pausedAt
+            : null,
+          pausedStreakCount: isPaused && typeof parsed.pausedStreakCount === 'number'
+            ? Math.max(0, parsed.pausedStreakCount)
+            : null,
+        });
+      } catch (error) {
+        console.warn('Failed to load streak pause state:', error);
+        set({ isStreakPaused: false, streakPausedAt: null, pausedStreakCount: null });
       }
     },
 
@@ -3133,6 +3202,9 @@ export const useWorkoutStore = create<WorkoutState>()(
         restTimerNextStartSeconds: null,
         isLoading: false,
         showRestTimerComplete: false,
+        isStreakPaused: false,
+        streakPausedAt: null,
+        pausedStreakCount: null,
         activeNumberPad: null,
         validationErrorsBySet: {},
         validationErrorsTrigger: 0,

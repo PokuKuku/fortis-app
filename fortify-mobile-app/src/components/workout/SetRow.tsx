@@ -343,6 +343,8 @@ export function SetRow({
             setIndex: absoluteIndex,
             setType: s.setType,
             suggestedPerformance,
+            fallbackPerformance: lastPerformance,
+            secondaryFallbackPerformance: baselinePerformance,
           })
         : undefined;
       let pendingWeight: number | null = null;
@@ -571,6 +573,8 @@ export function SetRow({
     setIndex,
     setType: set.setType,
     suggestedPerformance,
+    fallbackPerformance: lastPerformance,
+    secondaryFallbackPerformance: baselinePerformance,
   });
 
   const recordedWeightUnit = effectivePerformance?.weightUnit

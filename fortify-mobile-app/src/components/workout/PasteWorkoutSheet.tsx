@@ -1,5 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, InteractionManager, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  Animated,
+  InteractionManager,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { InformationCircleIcon } from 'react-native-heroicons/outline';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
@@ -224,101 +235,107 @@ export function PasteWorkoutSheet({
     >
       <View style={styles.root}>
         <Pressable style={styles.backdrop} onPress={isTourExample ? undefined : onClose} />
-        <Animated.View style={[styles.sheet, {
-          backgroundColor: colors.background,
-          borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
-        }, isTourExample && { transform: [{ translateY: sheetTranslateY }] }]}>
-          <StainlessSteelPattern />
-          <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Paste Workout</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Paste workout format help"
-              accessibilityHint="Shows supported workout note formats"
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setShowFormatHelp(true);
-              }}
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.helpButton,
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.keyboardAvoider}
+          pointerEvents="box-none"
+        >
+          <Animated.View style={[styles.sheet, {
+            backgroundColor: colors.background,
+            borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+          }, isTourExample && { transform: [{ translateY: sheetTranslateY }] }]}>
+            <StainlessSteelPattern />
+            <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: colors.textPrimary }]}>Paste Workout</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Paste workout format help"
+                accessibilityHint="Shows supported workout note formats"
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  setShowFormatHelp(true);
+                }}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.helpButton,
+                  {
+                    backgroundColor: colors.accentOverlay,
+                    borderColor: colors.accentBorder,
+                  },
+                  pressed && styles.helpButtonPressed,
+                ]}
+              >
+                <InformationCircleIcon color={colors.accent} size={20} strokeWidth={2} />
+              </Pressable>
+            </View>
+            <View ref={tourInputRef} onLayout={measureTourTargets} pointerEvents={isTourExample ? 'none' : 'auto'}>
+              <TextInput
+                value={text}
+                onChangeText={(value) => { setText(value); setError(null); }}
+                multiline
+                scrollEnabled
+                numberOfLines={4}
+                editable={!isTourExample}
+                placeholder="Paste an exercise list or workout notes"
+                placeholderTextColor={colors.textTertiary}
+                style={[styles.input, {
+                  color: colors.textPrimary,
+                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                }]}
+              />
+            </View>
+            {error === 'no_entries_found' ? (
+              <View style={[
+                styles.formatErrorCard,
                 {
                   backgroundColor: colors.accentOverlay,
                   borderColor: colors.accentBorder,
                 },
-                pressed && styles.helpButtonPressed,
-              ]}
-            >
-              <InformationCircleIcon color={colors.accent} size={20} strokeWidth={2} />
-            </Pressable>
-          </View>
-          <View ref={tourInputRef} onLayout={measureTourTargets} pointerEvents={isTourExample ? 'none' : 'auto'}>
-            <TextInput
-              value={text}
-              onChangeText={(value) => { setText(value); setError(null); }}
-              multiline
-              scrollEnabled
-              numberOfLines={4}
-              editable={!isTourExample}
-              placeholder="Paste an exercise list or workout notes"
-              placeholderTextColor={colors.textTertiary}
-              style={[styles.input, {
-                color: colors.textPrimary,
-                borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
-                backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-              }]}
-            />
-          </View>
-          {error === 'no_entries_found' ? (
-            <View style={[
-              styles.formatErrorCard,
-              {
-                backgroundColor: colors.accentOverlay,
-                borderColor: colors.accentBorder,
-              },
-            ]}>
-              <Text style={[styles.formatErrorTitle, { color: colors.textPrimary }]}>We couldn’t find any exercise entries.</Text>
-              <Text style={[styles.formatErrorText, { color: colors.textSecondary }]}>Use one exercise per line, for example:</Text>
-              <Text style={[styles.formatErrorExample, { color: colors.textPrimary }]}>Barbell Bench Press: 3 sets x 8-12 reps</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="View supported paste workout formats"
-                onPress={() => setShowFormatHelp(true)}
-                hitSlop={6}
-                style={({ pressed }) => [styles.formatErrorAction, pressed && styles.helpButtonPressed]}
-              >
-                <Text style={[styles.formatErrorActionText, { color: colors.accent }]}>View formats</Text>
-              </Pressable>
-            </View>
-          ) : null}
-          {isTourExample ? (
-            <View ref={makeTemplateButtonRef} onLayout={measureTourTargets}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Make template from example workout notes"
-                testID="paste-workout-tour-make-template"
-                onPress={() => importWorkout(true)}
-                style={({ pressed }) => [
-                  styles.demoAction,
-                  { backgroundColor: colors.accent },
-                  pressed && styles.demoActionPressed,
-                ]}
-              >
-                <Text style={[styles.demoActionText, { color: colors.accentForegroundOnFill }]}>Make Template</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <View style={styles.row}>
-              <Pressable style={[styles.secondary, { borderColor: colors.accentBorder }]} onPress={() => void paste()}>
-                <Text style={[styles.secondaryText, { color: colors.accent }]}>Paste Clipboard</Text>
-              </Pressable>
-              <GlassButton style={styles.importButton} onPress={() => importWorkout()}>
-                <Text style={[styles.importText, { color: colors.accentForegroundOnFill }]}>Import Workout</Text>
-              </GlassButton>
-            </View>
-          )}
-        </Animated.View>
+              ]}>
+                <Text style={[styles.formatErrorTitle, { color: colors.textPrimary }]}>We couldn’t find any exercise entries.</Text>
+                <Text style={[styles.formatErrorText, { color: colors.textSecondary }]}>Use one exercise per line, for example:</Text>
+                <Text style={[styles.formatErrorExample, { color: colors.textPrimary }]}>Barbell Bench Press: 3 sets x 8-12 reps</Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="View supported paste workout formats"
+                  onPress={() => setShowFormatHelp(true)}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.formatErrorAction, pressed && styles.helpButtonPressed]}
+                >
+                  <Text style={[styles.formatErrorActionText, { color: colors.accent }]}>View formats</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            {isTourExample ? (
+              <View ref={makeTemplateButtonRef} onLayout={measureTourTargets}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Make template from example workout notes"
+                  testID="paste-workout-tour-make-template"
+                  onPress={() => importWorkout(true)}
+                  style={({ pressed }) => [
+                    styles.demoAction,
+                    { backgroundColor: colors.accent },
+                    pressed && styles.demoActionPressed,
+                  ]}
+                >
+                  <Text style={[styles.demoActionText, { color: colors.accentForegroundOnFill }]}>Make Template</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.row}>
+                <Pressable style={[styles.secondary, { borderColor: colors.accentBorder }]} onPress={() => void paste()}>
+                  <Text style={[styles.secondaryText, { color: colors.accent }]}>Paste Clipboard</Text>
+                </Pressable>
+                <GlassButton style={styles.importButton} onPress={() => importWorkout()}>
+                  <Text style={[styles.importText, { color: colors.accentForegroundOnFill }]}>Import Workout</Text>
+                </GlassButton>
+              </View>
+            )}
+          </Animated.View>
+        </KeyboardAvoidingView>
         {isTourExample ? (
           <TourOverlay
             visible
@@ -381,8 +398,9 @@ export function PasteWorkoutSheet({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, justifyContent: 'flex-end' },
+  root: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
+  keyboardAvoider: { flex: 1, justifyContent: 'flex-end' },
   sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, gap: Spacing.lg, overflow: 'hidden' },
   handle: { width: 42, height: 4, borderRadius: 999, alignSelf: 'center', marginTop: Spacing.sm },
   header: { alignItems: 'center', justifyContent: 'center', minHeight: 36 },

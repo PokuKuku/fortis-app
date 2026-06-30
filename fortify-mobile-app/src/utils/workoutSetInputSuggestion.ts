@@ -16,13 +16,19 @@ export function getWorkoutSetInputSuggestion(params: {
   setIndex: number;
   setType: SetType;
   suggestedPerformance?: SetPerformanceSource;
+  fallbackPerformance?: SetPerformanceSource;
+  secondaryFallbackPerformance?: SetPerformanceSource;
 }): SetValueSuggestion | undefined {
   const typeIndex = params.exercise.sets
     .slice(0, params.setIndex)
     .filter((set) => set.setType === params.setType)
     .length;
   const suggestedSet = params.suggestedPerformance?.sets
-    ?.filter((set) => set.setType === params.setType)[typeIndex];
+    ?.filter((set) => set.setType === params.setType)[typeIndex]
+    ?? params.fallbackPerformance?.sets
+      ?.filter((set) => set.setType === params.setType)[typeIndex]
+    ?? params.secondaryFallbackPerformance?.sets
+      ?.filter((set) => set.setType === params.setType)[typeIndex];
 
   return mergeSetValueSuggestion(params.previousSet, suggestedSet, params.setType);
 }

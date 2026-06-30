@@ -21,6 +21,9 @@ export function resolveActiveNumberPadSetUpdates(params: {
   if (finalValue === null && previousSet) {
     finalValue = previousSet[params.inputType];
   }
+  if (finalValue === null) {
+    finalValue = params.inputSuggestion?.[params.inputType] ?? null;
+  }
 
   if (finalValue === null && params.inputType === 'weight') {
     finalValue = 0;
