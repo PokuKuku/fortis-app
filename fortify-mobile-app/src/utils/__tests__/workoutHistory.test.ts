@@ -14,7 +14,7 @@ function session(localId: string, startedAt: string, isSynced: boolean): Workout
 }
 
 describe('mergeWorkoutSessions', () => {
-  it('drops stale synced local sessions that are no longer present remotely', () => {
+  it('keeps local sessions that are not present remotely', () => {
     const merged = mergeWorkoutSessions(
       [session('remote-monday', '2026-05-18T18:00:00Z', true)],
       [
@@ -25,6 +25,7 @@ describe('mergeWorkoutSessions', () => {
 
     expect(merged.map((item) => item.localId)).toEqual([
       'local-unsynced',
+      'stale-tuesday',
       'remote-monday',
     ]);
   });

@@ -17,6 +17,7 @@ export interface Exercise {
   isHidden?: boolean;
   isCustom?: boolean;
   normalizedName?: string;
+  exerciseDbId?: string;
 }
 
 export type ExerciseSource = 'local' | 'api' | 'custom';

@@ -187,7 +187,19 @@ export function BaseModal({
                   </Pressable>
                 )}
                 {icon && <View style={styles.iconContainer}>{icon}</View>}
-                <Text style={[styles.title, { color: colors.textPrimary }, titleStyle]}>{title}</Text>
+                <Text
+                  numberOfLines={2}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                  style={[
+                    styles.title,
+                    showCloseButton && styles.titleWithCloseButton,
+                    { color: colors.textPrimary },
+                    titleStyle,
+                  ]}
+                >
+                  {title}
+                </Text>
               </View>
 
               {/* Content */}
@@ -238,6 +250,9 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  titleWithCloseButton: {
+    paddingHorizontal: 36,
   },
   closeButton: {
     position: 'absolute',

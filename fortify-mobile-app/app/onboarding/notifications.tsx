@@ -1,20 +1,18 @@
 import { useRef } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 import { BellAlertIcon } from 'react-native-heroicons/solid';
 import { GlassButton } from '@/components/GlassButton';
 import { GlassCard } from '@/components/GlassCard';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
-import { HAS_REQUESTED_NOTIFICATIONS_KEY } from '@/src/constants/storageKeys';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { requestNotificationPermissionIfNeeded } from '@/src/services/notificationPermissionService';
 import {
   trackOnboardingStepCompleted,
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
-import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 
 export default function OnboardingNotificationsScreen() {
   useOnboardingFunnelScreen('Ask for notifications page');
@@ -27,22 +25,6 @@ export default function OnboardingNotificationsScreen() {
     if (hasTrackedRef.current) return;
     hasTrackedRef.current = true;
     trackOnboardingStepCompleted('notifications_prompt');
-  };
-
-  const requestNotificationPermissionIfNeeded = async () => {
-    const alreadyRequested = await getScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY);
-    if (alreadyRequested === 'true') return;
-
-    if (typeof Notifications.getPermissionsAsync === 'function') {
-      const { status, granted, canAskAgain } = await Notifications.getPermissionsAsync();
-      if (!granted && status !== 'granted' && canAskAgain) {
-        if (typeof Notifications.requestPermissionsAsync === 'function') {
-          await Notifications.requestPermissionsAsync();
-        }
-      }
-    }
-
-    await setScopedItem(HAS_REQUESTED_NOTIFICATIONS_KEY, 'true');
   };
 
   const finish = async () => {

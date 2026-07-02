@@ -20,6 +20,7 @@ export interface AIRequestContext {
   periodWeeks?: number;
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
   voiceWorkoutOnly?: boolean;
+  exerciseCatalog?: AIExerciseCatalogEntry[];
   onboardingProgramSpec?: {
     id: string;
     trainingEnvironment: 'gym' | 'home' | 'hybrid';
@@ -35,6 +36,21 @@ export interface AIRequestContext {
     userName?: string | null;
     programName?: string | null;
   };
+}
+
+export interface AIExerciseCatalogEntry {
+  id: string;
+  slug?: string;
+  name: string;
+  primaryMuscles: string[];
+  secondaryMuscles: string[];
+  equipment: string;
+  category: string;
+  images: string[];
+  canonicalId?: string | null;
+  canonicalKey?: string | null;
+  isCurated?: boolean;
+  aliases?: string[];
 }
 
 export interface AIChatMessage {
@@ -110,6 +126,7 @@ export type AIErrorCode =
   | 'INVALID_REQUEST'
   | 'UNAUTHORIZED'
   | 'CONTEXT_TOO_LARGE'
+  | 'WORKOUT_TEMPLATE_UNAVAILABLE'
   | 'LLM_ERROR'
   | 'INTERNAL_ERROR'
   | 'ACTIVE_WORKOUT_BLOCKED';

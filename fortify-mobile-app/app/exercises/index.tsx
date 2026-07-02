@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Animated, Image } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon, ChevronLeftIcon, PlusIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
@@ -21,10 +21,12 @@ import {
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
-const HEADER_PADDING_BOTTOM = scale(Spacing.sm);
+const HEADER_PADDING_BOTTOM = 0;
 const HEADER_BUTTON_SIZE = scale(40);
+const HEADER_TITLE_MARGIN_TOP = -scale(Spacing.xs);
 const TITLE_FONT_SIZE = moderateScale(24);
 const SEARCH_PADDING_BOTTOM = scale(Spacing.md);
+const SEARCH_PADDING_TOP = scale(Spacing.md);
 const SEARCH_RADIUS = scale(12);
 const SEARCH_PADDING_X = scale(12);
 const SEARCH_ICON_MARGIN = scale(8);
@@ -38,8 +40,6 @@ const FILTER_RADIUS = scale(6);
 const FILTER_PADDING_Y = scale(7);
 const FILTER_PADDING_X = scale(12);
 const FILTER_TEXT_SIZE = moderateScale(11);
-const COUNT_PADDING_BOTTOM = scale(Spacing.md);
-const COUNT_TEXT_SIZE = moderateScale(14);
 const LIST_PADDING_BOTTOM = scale(120);
 const LIST_GAP = scale(12);
 const CARD_RADIUS = scale(16);
@@ -77,6 +77,7 @@ const CUSTOM_BUTTON_GAP = scale(Spacing.xs);
 
 export default function ExercisesScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { colors, isDark } = useTheme();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMuscles, setSelectedMuscles] = useState<string[]>([]);
@@ -294,18 +295,19 @@ export default function ExercisesScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
 
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={[styles.safeArea, { paddingTop: insets.top }]}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackPress}
-            activeOpacity={0.7}
-          >
-            <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
-          </TouchableOpacity>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={handleBackPress}
+              activeOpacity={0.7}
+            >
+              <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Exercises</Text>
-          <View style={styles.headerSpacer} />
         </View>
 
         {/* Search Bar */}
@@ -359,13 +361,6 @@ export default function ExercisesScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Exercise Count */}
-        <View style={styles.countContainer}>
-          <Text style={[styles.countText, { color: colors.textTertiary }]}>
-            {filteredExercises.length} {filteredExercises.length === 1 ? 'exercise' : 'exercises'}
-          </Text>
-        </View>
-
         {/* Exercise List */}
         <FlatList
           data={filteredExercises}
@@ -379,7 +374,7 @@ export default function ExercisesScreen() {
           onViewableItemsChanged={handleViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
         />
-      </SafeAreaView>
+      </View>
 
       {/* Muscle Filter Popover */}
       {activePopover === 'muscle' && (
@@ -529,9 +524,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingTop: HEADER_PADDING_TOP,
     paddingBottom: HEADER_PADDING_BOTTOM,
+  },
+  headerTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   backButton: {
     width: HEADER_BUTTON_SIZE,
@@ -539,17 +536,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerSpacer: {
-    width: HEADER_BUTTON_SIZE,
-    height: HEADER_BUTTON_SIZE,
-  },
   title: {
+    marginTop: HEADER_TITLE_MARGIN_TOP,
     fontSize: TITLE_FONT_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
   searchContainer: {
     paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: SEARCH_PADDING_TOP,
     paddingBottom: SEARCH_PADDING_BOTTOM,
     gap: scale(Spacing.sm),
   },
@@ -616,15 +612,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: FILTER_TEXT_SIZE,
     fontWeight: '600',
-  },
-  countContainer: {
-    paddingHorizontal: HORIZONTAL_PADDING,
-    paddingBottom: COUNT_PADDING_BOTTOM,
-  },
-  countText: {
-    fontSize: COUNT_TEXT_SIZE,
-    fontWeight: '500',
-    color: '#9CA3AF',
   },
   listContent: {
     paddingHorizontal: HORIZONTAL_PADDING,

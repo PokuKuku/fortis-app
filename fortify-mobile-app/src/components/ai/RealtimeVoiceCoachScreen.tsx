@@ -62,6 +62,7 @@ interface RealtimeVoiceCoachScreenProps {
   onRemovePendingMedia?: (id: string) => void;
   experienceMode?: 'coach' | 'conversation';
   onSendTextPrompt?: (text: string) => boolean;
+  onPrepareTextPrompt?: () => void;
 }
 
 const CREATOR_SCRIPT_MAX_CHARS = 500;
@@ -132,6 +133,7 @@ export function RealtimeVoiceCoachScreen({
   onRemovePendingMedia,
   experienceMode = 'coach',
   onSendTextPrompt,
+  onPrepareTextPrompt,
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
   const [creatorScript, setCreatorScript] = useState('');
@@ -274,6 +276,11 @@ export function RealtimeVoiceCoachScreen({
     if (!trimmed || !onSendTextPrompt?.(trimmed)) return;
     setTextPrompt('');
     setPromptSheetVisible(false);
+  };
+
+  const openTextPrompt = () => {
+    onPrepareTextPrompt?.();
+    setPromptSheetVisible(true);
   };
 
   const handleDismissVoiceCard = useCallback((messageId: string) => {
@@ -538,7 +545,7 @@ export function RealtimeVoiceCoachScreen({
                 borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
               },
             ]}
-            onPress={() => setPromptSheetVisible(true)}
+            onPress={openTextPrompt}
           >
             <ChatBubbleBottomCenterTextIcon size={IconSizes.md} color={colors.textPrimary} />
           </TouchableOpacity>

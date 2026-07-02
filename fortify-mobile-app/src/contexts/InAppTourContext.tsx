@@ -249,7 +249,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'open_voice_log',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.voiceLog,
-    body: 'You can tap the mic on exercise cards to log sets with your voice.',
+    body: 'You can tap the top-right mic on exercise cards to log sets with your voice.',
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: false,
@@ -1126,7 +1126,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       <AccentColorPicker
         visible={showPrimaryStylePicker}
         title="Primary Style"
-        description="Make yourself at home."
+        description="You can change this anytime in settings."
         closeOnSelect={false}
         showCloseButton={false}
         closeOnBackdropPress={false}

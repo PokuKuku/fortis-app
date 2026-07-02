@@ -38,6 +38,7 @@ interface ChatInputProps {
   onChangeText: (text: string) => void;
   onSend: () => void;
   onAddMedia?: () => void;
+  onRequestAIConsent?: () => Promise<boolean>;
   hasAttachments?: boolean;
   disabled?: boolean;
   suppressVoicePermissionPrompt?: boolean;
@@ -85,6 +86,7 @@ export function ChatInput({
   onChangeText,
   onSend,
   onAddMedia,
+  onRequestAIConsent,
   hasAttachments = false,
   disabled = false,
   suppressVoicePermissionPrompt = false,
@@ -288,6 +290,11 @@ export function ChatInput({
     }
 
     try {
+      if (onRequestAIConsent) {
+        const allowed = await onRequestAIConsent();
+        if (!allowed) return;
+      }
+
       const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!permission.granted) {
         showVoicePermissionAlert(
@@ -319,7 +326,7 @@ export function ChatInput({
         error instanceof Error ? error.message : 'Unable to start voice dictation right now.'
       );
     }
-  }, [canUseVoice, resetVoiceState, showVoicePermissionAlert, suppressVoicePermissionPrompt, voicePhase]);
+  }, [canUseVoice, onRequestAIConsent, resetVoiceState, showVoicePermissionAlert, suppressVoicePermissionPrompt, voicePhase]);
 
   return (
     <View style={[styles.wrapper, themedStyles.wrapper]}>

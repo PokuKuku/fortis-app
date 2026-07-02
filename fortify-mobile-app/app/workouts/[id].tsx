@@ -56,7 +56,6 @@ export default function WorkoutDetailScreen() {
     },
     notFoundText: { color: colors.textPrimary },
     notFoundSubtext: { color: colors.textSecondary },
-    secondaryActionText: { color: colors.accent },
     description: { color: colors.textSecondary },
     metaText: { color: colors.textTertiary },
     sectionTitle: { color: colors.textPrimary },
@@ -239,11 +238,6 @@ export default function WorkoutDetailScreen() {
                 <Text style={[styles.notFoundPrimaryButtonText, { color: colors.accentForegroundOnFill }]}>Back to workouts</Text>
               </GlassButton>
             )}
-            <Pressable onPress={handleBack} style={styles.notFoundSecondaryAction}>
-              <Text style={[styles.notFoundSecondaryActionText, themedStyles.secondaryActionText]}>
-                Go back
-              </Text>
-            </Pressable>
           </View>
         </View>
       </SafeAreaView>
@@ -436,15 +430,6 @@ const styles = StyleSheet.create({
   notFoundPrimaryButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
-  },
-  notFoundSecondaryAction: {
-    marginTop: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  notFoundSecondaryActionText: {
-    fontSize: FontSizes.base,
-    fontWeight: '600',
   },
   descriptionContainer: {
     marginBottom: Spacing.sm,

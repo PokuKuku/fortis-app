@@ -9,6 +9,12 @@ import {
   WEEKDAY_LABELS,
 } from '@/src/utils/workoutSchedule';
 
+const DAY_GRID_ROWS: Array<Array<number | null>> = [
+  [0, 1, 2],
+  [3, 4, 5],
+  [null, 6, null],
+];
+
 type WorkoutScheduleEditorModalProps = {
   visible: boolean;
   initialDays: number[];
@@ -29,8 +35,6 @@ export function WorkoutScheduleEditorModal({
   const { width: windowWidth } = useWindowDimensions();
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
   const modalWidth = Math.min(360, Math.max(300, windowWidth - Spacing.lg * 2));
-  const contentWidth = modalWidth - Spacing['2xl'] * 2;
-  const dayButtonWidth = Math.floor((contentWidth - Spacing.sm * 2) / 3);
 
   useEffect(() => {
     if (!visible) return;
@@ -57,43 +61,53 @@ export function WorkoutScheduleEditorModal({
       onClose={onClose}
       title="Workout Schedule"
       width={modalWidth}
+      showCloseButton={false}
     >
       <Text style={[styles.description, { color: colors.textSecondary }]}>
         Choose the days you plan to train each week, or leave blank for no fixed schedule.
       </Text>
 
       <View style={styles.daysGrid}>
-        {WEEKDAY_LABELS.map((label, day) => {
-          const selected = selectedDays.includes(day);
-          return (
-            <Pressable
-              key={label}
-              onPress={() => toggleDay(day)}
-              style={({ pressed }) => [
-                styles.dayButton,
-                { width: dayButtonWidth },
-                {
-                  backgroundColor: selected
-                    ? colors.accent
-                    : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                  borderColor: selected
-                    ? colors.accent
-                    : isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
-                },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.dayText,
-                  { color: selected ? colors.accentForegroundOnFill : colors.textPrimary },
-                ]}
-              >
-                {label}
-              </Text>
-            </Pressable>
-          );
-        })}
+        {DAY_GRID_ROWS.map((row, rowIndex) => (
+          <View key={`day-row-${rowIndex}`} style={styles.dayRow}>
+            {row.map((day, columnIndex) => {
+              if (day === null) {
+                return <View key={`empty-${rowIndex}-${columnIndex}`} style={styles.dayCell} />;
+              }
+
+              const label = WEEKDAY_LABELS[day];
+              const selected = selectedDays.includes(day);
+              return (
+                <Pressable
+                  key={label}
+                  onPress={() => toggleDay(day)}
+                  style={({ pressed }) => [
+                    styles.dayCell,
+                    styles.dayButton,
+                    {
+                      backgroundColor: selected
+                        ? colors.accent
+                        : isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                      borderColor: selected
+                        ? colors.accent
+                        : isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                    },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.dayText,
+                      { color: selected ? colors.accentForegroundOnFill : colors.textPrimary },
+                    ]}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
       </View>
 
       <View style={modalStyles.actions}>
@@ -132,11 +146,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: Spacing.sm,
-    justifyContent: 'center',
     marginBottom: Spacing['2xl'],
+  },
+  dayRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  dayCell: {
+    flex: 1,
   },
   dayButton: {
     height: 42,

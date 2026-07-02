@@ -31,6 +31,12 @@ import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import { useWorkoutRetentionPreferences } from '@/src/hooks/useWorkoutRetentionPreferences';
+import {
+  getNotificationPermissionStatus,
+  openNotificationSettings,
+  requestNotificationPermission,
+  requestNotificationPermissionIfNeeded,
+} from '@/src/services/notificationPermissionService';
 import { buildWeeklyRecap, formatReminderTime, getDueWeeklyRecapWeekStart, normalizeReminderTime, type WeeklyRecap } from '@/src/utils/workoutRetention';
 import { getSundayWeekStart } from '@/src/utils/workoutSchedule';
 
@@ -586,6 +592,60 @@ export default function SettingsPreferencesScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
 
+  const ensureNotificationsAllowed = async () => {
+    try {
+      const permission = await getNotificationPermissionStatus();
+      if (!permission) return false;
+      if (permission.granted || permission.status === 'granted') return true;
+
+      const canAskInApp = permission.status === 'undetermined' || permission.canAskAgain === true;
+      if (canAskInApp) {
+        const nextPermission = permission.status === 'undetermined'
+          ? await requestNotificationPermissionIfNeeded()
+          : await requestNotificationPermission();
+        if (nextPermission?.granted || nextPermission?.status === 'granted') return true;
+      }
+
+      await new Promise<void>((resolve) => {
+        Alert.alert(
+          'Turn on notifications',
+          'Fortify needs notification access to send workout reminders.',
+          [
+            {
+              text: 'Not Now',
+              style: 'cancel',
+              onPress: () => resolve(),
+            },
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                void openNotificationSettings().finally(resolve);
+              },
+            },
+          ],
+          { onDismiss: resolve }
+        );
+      });
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleOpenWorkoutSchedule = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const notificationsAllowed = await ensureNotificationsAllowed();
+    if (!notificationsAllowed) return;
+    setScheduleOpen(true);
+  };
+
+  const handleOpenReminderTime = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const notificationsAllowed = await ensureNotificationsAllowed();
+    if (!notificationsAllowed) return;
+    setReminderTimeOpen(true);
+  };
+
   const handleSaveReminderTime = async () => {
     const hour24 = reminderPeriod === 'PM'
       ? (reminderHour % 12) + 12
@@ -674,7 +734,7 @@ export default function SettingsPreferencesScreen() {
               <View style={[styles.divider, dividerStyle]} />
               <PreferenceRow
                 label="Workout Schedule"
-                onPress={() => setScheduleOpen(true)}
+                onPress={handleOpenWorkoutSchedule}
                 showChevron
                 colors={colors}
               />
@@ -682,7 +742,7 @@ export default function SettingsPreferencesScreen() {
               <PreferenceRow
                 label="Reminder Time"
                 value={reminderTimeLabel}
-                onPress={() => setReminderTimeOpen(true)}
+                onPress={handleOpenReminderTime}
                 showChevron
                 colors={colors}
               />

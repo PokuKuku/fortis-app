@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Buffer } from 'buffer';
-import { AppState } from 'react-native';
+import { Alert, AppState, Linking } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Crypto from 'expo-crypto';
@@ -40,8 +40,8 @@ interface UseRealtimeCoachOptions {
 
 type TwoWayAudioModule = {
   initialize: () => Promise<unknown>;
-  getMicrophonePermissionsAsync?: () => Promise<{ status?: string; granted?: boolean }>;
-  requestMicrophonePermissionsAsync?: () => Promise<{ status?: string; granted?: boolean }>;
+  getMicrophonePermissionsAsync?: () => Promise<{ status?: string; granted?: boolean; canAskAgain?: boolean }>;
+  requestMicrophonePermissionsAsync?: () => Promise<{ status?: string; granted?: boolean; canAskAgain?: boolean }>;
   bypassVoiceProcessing?: (value: boolean) => unknown;
   playPCMData: (audioData: Uint8Array) => unknown;
   toggleRecording: (value: boolean) => boolean;
@@ -71,8 +71,13 @@ const GENERIC_VOICE_COACH_ERROR = 'Voice Coach could not start. Try again in a m
 const VOICE_COACH_CONNECTION_ERROR = 'Voice Coach had trouble connecting. Check your connection and try again.';
 const MICROPHONE_STREAM_ERROR =
   'Microphone stream is not emitting audio. On iOS Simulator, check host microphone input or test on a physical iPhone.';
+const MICROPHONE_PERMISSION_MESSAGE = 'Turn on microphone access to use Voice Coach.';
 const EMPTY_CREATOR_SCRIPT_ERROR = 'Type a roast script first.';
 const MAX_RECENT_COACH_PHRASES = 6;
+
+const isMicrophonePermissionGranted = (permission?: { status?: string; granted?: boolean } | null) => (
+  permission?.granted === true || permission?.status === 'granted'
+);
 
 const getEditedWorkoutName = (sourceName: string, existingNames: string[]): string => {
   const rootName = sourceName.trim().replace(/\s+\(\d+\)$/, '') || 'Workout';
@@ -370,6 +375,7 @@ export function useRealtimeCoach({
   const setupCompleteRef = useRef(false);
   const isUserTurnActiveRef = useRef(false);
   const pendingUserTurnRef = useRef(false);
+  const pendingTextPromptRef = useRef<string | null>(null);
   const visualContextPendingRef = useRef(false);
   const realtimeSpeechActiveRef = useRef(false);
   const realtimeSpeechEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -381,6 +387,7 @@ export function useRealtimeCoach({
   const recentCoachPhrasesRef = useRef<string[]>([]);
   const userTurnMicrophoneChunksSentRef = useRef(0);
   const userTurnMicrophoneChunksReceivedRef = useRef(0);
+  const isMicrophonePermissionAlertVisibleRef = useRef(false);
   const transcriptBuffersRef = useRef<Record<RealtimeTranscriptSpeaker, string>>({
     user: '',
     coach: '',
@@ -406,6 +413,34 @@ export function useRealtimeCoach({
   const [isUserTurnActive, setIsUserTurnActive] = useState(false);
   const [isSpeakingCreatorScript, setIsSpeakingCreatorScript] = useState(false);
   const [creatorScriptError, setCreatorScriptError] = useState<string | null>(null);
+
+  const showMicrophonePermissionAlert = useCallback(() => {
+    if (isMicrophonePermissionAlertVisibleRef.current) return;
+
+    isMicrophonePermissionAlertVisibleRef.current = true;
+    Alert.alert(
+      'Microphone Access Needed',
+      MICROPHONE_PERMISSION_MESSAGE,
+      [
+        {
+          text: 'Not Now',
+          style: 'cancel',
+          onPress: () => {
+            isMicrophonePermissionAlertVisibleRef.current = false;
+          },
+        },
+        {
+          text: 'Open Settings',
+          onPress: () => {
+            isMicrophonePermissionAlertVisibleRef.current = false;
+            if (typeof Linking.openSettings === 'function') {
+              void Linking.openSettings().catch(() => undefined);
+            }
+          },
+        },
+      ]
+    );
+  }, []);
 
   const clearTranscriptHideTimeout = useCallback(() => {
     if (transcriptHideTimeoutRef.current) {
@@ -695,6 +730,7 @@ export function useRealtimeCoach({
   ]);
 
   const stop = useCallback(() => {
+    pendingTextPromptRef.current = null;
     cleanup();
     void setVoiceCoachAudioMode(false).catch(() => {
       // Audio mode reset is best-effort when stopping.
@@ -1213,6 +1249,24 @@ export function useRealtimeCoach({
     ) ?? null;
   }, [cleanupNativeAudioDiagnosticSubscriptions]);
 
+  const sendTextPromptOverSocket = useCallback((text: string): boolean => {
+    const trimmed = text.trim();
+    const socket = socketRef.current;
+    if (!trimmed || !isSocketOpen(socket) || !setupCompleteRef.current) return false;
+    clearPlaybackQueue();
+    socket.send(JSON.stringify({
+      clientContent: {
+        turns: [{
+          role: 'user',
+          parts: [{ text: trimmed }],
+        }],
+        turnComplete: true,
+      },
+    }));
+    setPhase('listening');
+    return true;
+  }, [clearPlaybackQueue]);
+
   const handleGeminiMessage = useCallback((raw: string) => {
     const actions = parseGeminiLiveMessage(raw);
 
@@ -1256,6 +1310,13 @@ export function useRealtimeCoach({
           }
         } else {
           setPhase('listening');
+        }
+        if (pendingTextPromptRef.current) {
+          const pendingTextPrompt = pendingTextPromptRef.current;
+          pendingTextPromptRef.current = null;
+          if (!sendTextPromptOverSocket(pendingTextPrompt)) {
+            pendingTextPromptRef.current = pendingTextPrompt;
+          }
         }
         continue;
       }
@@ -1333,6 +1394,7 @@ export function useRealtimeCoach({
     playGeminiAudio,
     installMicrophoneStreaming,
     rememberCoachPhrase,
+    sendTextPromptOverSocket,
     showTranscriptChunk,
     startUserTurn,
   ]);
@@ -1370,10 +1432,21 @@ export function useRealtimeCoach({
       await setVoiceCoachAudioMode(true);
 
       const permission = await audio.getMicrophonePermissionsAsync?.();
-      if (permission && permission.status !== 'granted' && permission.granted !== true) {
-        const requestedPermission = await audio.requestMicrophonePermissionsAsync?.();
-        if (requestedPermission && requestedPermission.status !== 'granted' && requestedPermission.granted !== true) {
-          throw new Error(`Microphone permission denied: ${JSON.stringify(requestedPermission)}`);
+      if (!isMicrophonePermissionGranted(permission)) {
+        const canRequestPermission = permission?.status === 'undetermined' || permission?.canAskAgain !== false;
+        const requestedPermission = canRequestPermission
+          ? await audio.requestMicrophonePermissionsAsync?.()
+          : permission;
+
+        if (!isMicrophonePermissionGranted(requestedPermission)) {
+          showMicrophonePermissionAlert();
+          cleanup();
+          void setVoiceCoachAudioMode(false).catch(() => {
+            // Audio mode reset is best-effort after permission denial.
+          });
+          setError(null);
+          setPhase('stopped');
+          return;
         }
       }
 
@@ -1388,6 +1461,7 @@ export function useRealtimeCoach({
 
       const sessionResponse = await createRealtimeCoachSession(preferences, interactionMode);
       if (sessionResponse.type === 'error') {
+        pendingTextPromptRef.current = null;
         cleanup();
         void setVoiceCoachAudioMode(false).catch(() => {
           // Audio mode reset is best-effort after session creation failure.
@@ -1480,6 +1554,7 @@ export function useRealtimeCoach({
         stop();
       }, sessionResponse.session.usage.maxSecondsPerSession * 1000);
     } catch (startError) {
+      pendingTextPromptRef.current = null;
       cleanup();
       void setVoiceCoachAudioMode(false).catch(() => {
         // Audio mode reset is best-effort after startup failure.
@@ -1502,6 +1577,7 @@ export function useRealtimeCoach({
     phase,
     preferences,
     reportElapsedUsage,
+    showMicrophonePermissionAlert,
     startNativeAudioDiagnostics,
     startVolumeMonitoring,
     stop,
@@ -1554,21 +1630,15 @@ export function useRealtimeCoach({
 
   const sendTextPrompt = useCallback((text: string): boolean => {
     const trimmed = text.trim();
-    const socket = socketRef.current;
-    if (!trimmed || !isSocketOpen(socket) || !setupCompleteRef.current) return false;
-    clearPlaybackQueue();
-    socket.send(JSON.stringify({
-      clientContent: {
-        turns: [{
-          role: 'user',
-          parts: [{ text: trimmed }],
-        }],
-        turnComplete: true,
-      },
-    }));
-    setPhase('listening');
+    if (!trimmed) return false;
+    if (sendTextPromptOverSocket(trimmed)) return true;
+
+    pendingTextPromptRef.current = trimmed;
+    if (phase === 'idle' || phase === 'stopped' || phase === 'error') {
+      void start();
+    }
     return true;
-  }, [clearPlaybackQueue]);
+  }, [phase, sendTextPromptOverSocket, start]);
 
   const markVoiceWorkoutSaved = useCallback((messageId: string, templateId: string) => {
     setVoiceWorkoutMessages((current) => current.map((message) => (

@@ -10,6 +10,8 @@ import {
   ScrollView,
   Image,
   InteractionManager,
+  Animated as RNAnimated,
+  useWindowDimensions,
 } from 'react-native';
 import { Audio, InterruptionModeAndroid, InterruptionModeIOS } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -21,7 +23,6 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
 import * as Haptics from 'expo-haptics';
-import Animated, { SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 import { Exercise } from '@/src/types/exercise';
 import { useExercises } from '@/src/hooks/useExercises';
 import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
@@ -139,6 +140,7 @@ export function AddExerciseModal({
   onOpenExerciseDetails,
 }: AddExerciseModalProps) {
   const { colors, isDark } = useTheme();
+  const { height: windowHeight } = useWindowDimensions();
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -217,11 +219,25 @@ export function AddExerciseModal({
   const restoreTargetOffset = useRef(0);
   const restoreTargetIndex = useRef(0);
   const firstVisibleIndex = useRef(0);
+  const wasVisible = useRef(false);
+  const sheetTranslateProgress = useRef(new RNAnimated.Value(1)).current;
   const isModalVisible = visible && !suspended;
+
+  const resetListPositionState = useCallback(() => {
+    lastScrollOffset.current = 0;
+    firstVisibleIndex.current = 0;
+    restoreTargetOffset.current = 0;
+    restoreTargetIndex.current = 0;
+    pendingScrollRestore.current = false;
+    restoreAttempts.current = 0;
+    isRestoringScroll.current = false;
+    contentReady.current = false;
+  }, []);
 
   // Reset state when modal closes
   useEffect(() => {
     if (!visible) {
+      resetListPositionState();
       setSearchQuery('');
       setSelectedExercises([]);
       setVoicePhase('hidden');
@@ -232,7 +248,39 @@ export function AddExerciseModal({
       setVoiceCandidates([]);
       isProcessing.current = false;
     }
-  }, [visible]);
+  }, [visible, resetListPositionState]);
+
+  useEffect(() => {
+    if (visible && !wasVisible.current) {
+      resetListPositionState();
+    }
+    wasVisible.current = visible;
+  }, [visible, resetListPositionState]);
+
+  useEffect(() => {
+    if (!isModalVisible) {
+      sheetTranslateProgress.setValue(1);
+      return;
+    }
+
+    sheetTranslateProgress.setValue(1);
+    RNAnimated.timing(sheetTranslateProgress, {
+      toValue: 0,
+      duration: 420,
+      useNativeDriver: true,
+    }).start();
+  }, [isModalVisible, sheetTranslateProgress]);
+
+  const sheetAnimatedStyle = {
+    transform: [
+      {
+        translateY: sheetTranslateProgress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, windowHeight],
+        }),
+      },
+    ],
+  };
 
   // Get IDs of exercises already in the workout (use external prop if provided)
   const existingExerciseIds = useMemo(
@@ -807,10 +855,8 @@ export function AddExerciseModal({
       statusBarTranslucent
     >
       <View style={styles.backdrop}>
-        <Animated.View
-          entering={SlideInDown.duration(420).easing(Easing.out(Easing.cubic))}
-          exiting={SlideOutDown.duration(320).easing(Easing.in(Easing.cubic))}
-          style={[styles.container, themedStyles.container]}
+        <RNAnimated.View
+          style={[styles.container, themedStyles.container, sheetAnimatedStyle]}
         >
           <StainlessSteelPattern />
 
@@ -1069,7 +1115,7 @@ export function AddExerciseModal({
               </GlassButton>
             </View>
           )}
-        </Animated.View>
+        </RNAnimated.View>
       </View>
     </Modal>
   );

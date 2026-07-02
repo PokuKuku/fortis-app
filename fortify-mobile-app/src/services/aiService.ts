@@ -14,9 +14,240 @@ import {
   AIResponse,
   AIRateLimitStatus,
   AIImage,
+  AIExerciseCatalogEntry,
+  AIWorkoutTemplate,
 } from '../types/ai';
 import type { OnboardingProgramSpec } from '@/src/utils/onboardingProgram';
 import { hasAIDataSharingConsent } from '@/src/services/aiConsentService';
+import { getAllExercises } from '@/src/services/exerciseService';
+import type { ExerciseWithSource } from '@/src/types/exercise';
+
+const MAX_WORKOUT_CONTEXT_EXERCISES = 160;
+
+const WORKOUT_NOUN_PATTERN = String.raw`(?:work\s*out|workout|routine|session|template|training(?:\s+(?:day|session|workout))?|lift|day)`;
+const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|shoulders?|arms?|biceps|triceps|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
+const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|design|plan|craft|write|recommend|suggest|put together|give me|need|want|show me|can i have|i would like)`;
+
+const WORKOUT_REQUEST_REGEXES = [
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,100}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,80}\b${WORKOUT_FOCUS_PATTERN}\b[\s\S]{0,40}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
+  new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,60}\b${WORKOUT_FOCUS_PATTERN}\b\s+(?:day|lift|session|routine|training)\b`, 'i'),
+  new RegExp(String.raw`\b${WORKOUT_FOCUS_PATTERN}\b[\s\S]{0,40}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
+];
+
+const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
+  { regex: /\bupper body\b/i, muscles: ['chest', 'lats', 'middle back', 'traps', 'shoulders', 'biceps', 'triceps'] },
+  { regex: /\blower body\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] },
+  { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'triceps'] },
+  { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'traps', 'biceps', 'forearms'] },
+  { regex: /\blegs?\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves'] },
+  { regex: /\bchest\b/i, muscles: ['chest'] },
+  { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'lower back', 'traps'] },
+  { regex: /\bshoulder(s)?\b/i, muscles: ['shoulders'] },
+  { regex: /\bbicep(s)?\b/i, muscles: ['biceps'] },
+  { regex: /\btricep(s)?\b/i, muscles: ['triceps'] },
+  { regex: /\barm(s)?\b/i, muscles: ['biceps', 'triceps', 'forearms'] },
+  { regex: /\bglute(s)?\b/i, muscles: ['glutes'] },
+  { regex: /\bhamstring(s)?\b/i, muscles: ['hamstrings'] },
+  { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps'] },
+  { regex: /\bcal(f|ves)\b/i, muscles: ['calves'] },
+  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'obliques'] },
+  { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'shoulders', 'quadriceps', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
+];
+
+const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
+  { regex: /\bdumbbell(s)?\b/i, equipment: 'dumbbell' },
+  { regex: /\bbarbell(s)?\b/i, equipment: 'barbell' },
+  { regex: /\bcable(s)?\b/i, equipment: 'cable' },
+  { regex: /\bsmith\b|\bsmith machine\b/i, equipment: 'smith machine' },
+  { regex: /\bmachine(s)?\b/i, equipment: 'machine' },
+  { regex: /\bkettlebell(s)?\b/i, equipment: 'kettlebell' },
+  { regex: /\bband(s)?\b|\bresistance band(s)?\b/i, equipment: 'band' },
+  { regex: /\bbodyweight\b|\bbody weight\b|\bno equipment\b|\bwithout equipment\b|\bno gear\b|\bno weights?\b/i, equipment: 'bodyweight' },
+];
+
+const normalizeCatalogValue = (value: string | null | undefined): string => (
+  (value || '')
+    .toLowerCase()
+    .replace(/\bkettlebells\b/g, 'kettlebell')
+    .replace(/\bbands\b/g, 'band')
+    .replace(/\bresistance band\b/g, 'band')
+    .replace(/\bbody only\b/g, 'bodyweight')
+    .replace(/\bbody weight\b/g, 'bodyweight')
+    .trim()
+);
+
+const shouldSendWorkoutExerciseCatalog = (
+  intent: AIIntent,
+  message: string,
+  context?: AIRequestContext
+): boolean => {
+  if (context?.exerciseCatalog?.length) {
+    return false;
+  }
+  if (context?.onboardingProgramSpec) {
+    return true;
+  }
+  if (intent !== 'GENERAL_CHAT' && intent !== 'VISUAL_COACHING' && intent !== 'FORTIS_ANALYST') {
+    return false;
+  }
+  if (context?.voiceWorkoutOnly || context?.currentWorkoutTemplateDraft) {
+    return true;
+  }
+  return WORKOUT_REQUEST_REGEXES.some((regex) => regex.test(message));
+};
+
+const extractWorkoutTargetMuscles = (message: string): string[] => {
+  const muscles = new Set<string>();
+  WORKOUT_TARGET_MUSCLE_MAP.forEach((entry) => {
+    if (entry.regex.test(message)) {
+      entry.muscles.forEach((muscle) => muscles.add(muscle));
+    }
+  });
+  return Array.from(muscles);
+};
+
+const extractWorkoutEquipment = (message: string): string[] => {
+  const equipment = new Set<string>();
+  WORKOUT_EQUIPMENT_MAP.forEach((entry) => {
+    if (entry.regex.test(message)) {
+      equipment.add(entry.equipment);
+    }
+  });
+  if (equipment.size === 0 && /\b(at home|home workout|home training)\b/i.test(message)) {
+    equipment.add('bodyweight');
+    equipment.add('dumbbell');
+    equipment.add('band');
+    equipment.add('kettlebell');
+  }
+  return Array.from(equipment);
+};
+
+const exerciseMatchesTargetMuscles = (exercise: ExerciseWithSource, targetMuscles: string[]): boolean => {
+  if (targetMuscles.length === 0) return true;
+  const muscles = [...exercise.primaryMuscles, ...exercise.secondaryMuscles]
+    .map((muscle) => muscle.toLowerCase());
+  return targetMuscles.some((muscle) => muscles.includes(muscle.toLowerCase()));
+};
+
+const exerciseMatchesEquipment = (exercise: ExerciseWithSource, equipment: string[]): boolean => {
+  if (equipment.length === 0) return true;
+  const normalizedEquipment = normalizeCatalogValue(exercise.equipment);
+  return equipment.some((item) => normalizedEquipment.includes(normalizeCatalogValue(item)));
+};
+
+const scoreWorkoutCatalogExercise = (
+  exercise: ExerciseWithSource,
+  targetMuscles: string[],
+  equipment: string[]
+): number => {
+  let score = 0;
+  if (exercise.images.some((image) => image.startsWith('exercise-gif://'))) score += 12;
+  if (exercise.isCurated) score += 4;
+  if (exercise.source === 'custom') score -= 6;
+  if (exerciseMatchesTargetMuscles(exercise, targetMuscles)) score += targetMuscles.length > 0 ? 10 : 0;
+  if (exerciseMatchesEquipment(exercise, equipment)) score += equipment.length > 0 ? 8 : 0;
+  if (/\b(bench|press|row|pulldown|pull up|pull-up|squat|deadlift|lunge|hip thrust|push up|plank|crunch)\b/i.test(exercise.name)) {
+    score += 3;
+  }
+  if (/\b(stretch|mobility|warm[- ]?up|cardio)\b/i.test(`${exercise.name} ${exercise.category}`)) {
+    score -= 10;
+  }
+  return score;
+};
+
+const buildWorkoutExerciseCatalogForAI = async (
+  message: string,
+  currentDraft?: AIWorkoutTemplate
+): Promise<AIExerciseCatalogEntry[]> => {
+  const exercises = await getAllExercises();
+  const targetMuscles = extractWorkoutTargetMuscles(message);
+  const equipment = extractWorkoutEquipment(message);
+  const currentDraftExerciseIds = new Set(
+    currentDraft?.exercises
+      ?.map((exercise) => exercise.exerciseId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      ?? []
+  );
+  const filtered = exercises
+    .filter((exercise) => !exercise.isHidden)
+    .filter((exercise) => exercise.images.some((image) => image.startsWith('exercise-gif://')))
+    .filter((exercise) => exerciseMatchesTargetMuscles(exercise, targetMuscles))
+    .filter((exercise) => exerciseMatchesEquipment(exercise, equipment));
+  const source = filtered.length >= 12
+    ? filtered
+    : exercises.filter((exercise) => !exercise.isHidden);
+
+  const selectedById = new Map<string, AIExerciseCatalogEntry>();
+  const toCatalogEntry = (exercise: ExerciseWithSource): AIExerciseCatalogEntry => ({
+    id: exercise.id,
+    slug: exercise.slug,
+    name: exercise.name,
+    primaryMuscles: exercise.primaryMuscles,
+    secondaryMuscles: exercise.secondaryMuscles,
+    equipment: exercise.equipment,
+    category: exercise.category,
+    images: exercise.images.slice(0, 1),
+    canonicalId: exercise.canonicalId ?? null,
+    canonicalKey: exercise.canonicalKey ?? null,
+    isCurated: exercise.isCurated,
+    aliases: exercise.aliases,
+  });
+
+  exercises
+    .filter((exercise) => currentDraftExerciseIds.has(exercise.id))
+    .forEach((exercise) => {
+      selectedById.set(exercise.id, toCatalogEntry(exercise));
+    });
+
+  source
+    .map((exercise) => ({
+      exercise,
+      score: scoreWorkoutCatalogExercise(exercise, targetMuscles, equipment),
+    }))
+    .sort((a, b) => b.score - a.score || a.exercise.name.localeCompare(b.exercise.name))
+    .slice(0, MAX_WORKOUT_CONTEXT_EXERCISES)
+    .forEach(({ exercise }) => {
+      selectedById.set(exercise.id, toCatalogEntry(exercise));
+    });
+
+  return Array.from(selectedById.values()).slice(0, MAX_WORKOUT_CONTEXT_EXERCISES);
+};
+
+async function enrichWorkoutRequestContext(
+  intent: AIIntent,
+  message: string,
+  context?: AIRequestContext
+): Promise<AIRequestContext | undefined> {
+  if (!shouldSendWorkoutExerciseCatalog(intent, message, context)) {
+    return context;
+  }
+
+  try {
+    const catalogPrompt = context?.onboardingProgramSpec
+      ? [
+          context.onboardingProgramSpec.trainingEnvironment,
+          ...(context.onboardingProgramSpec.muscleFocuses ?? []),
+          context.onboardingProgramSpec.fitnessGoal,
+          'full body push pull legs upper lower workout',
+        ].filter(Boolean).join(' ')
+      : message;
+    const exerciseCatalog = await buildWorkoutExerciseCatalogForAI(
+      catalogPrompt,
+      context?.currentWorkoutTemplateDraft
+    );
+    if (exerciseCatalog.length === 0) {
+      return context;
+    }
+    return {
+      ...context,
+      exerciseCatalog,
+    };
+  } catch (error) {
+    console.warn('Failed to build bundled workout exercise catalog for AI request:', error);
+    return context;
+  }
+}
 
 async function getAuthenticatedUserId(): Promise<string | null> {
   if (!isSupabaseConfigured()) {
@@ -75,10 +306,12 @@ export async function sendAIMessage(
     };
   }
 
+  const enrichedContext = await enrichWorkoutRequestContext(intent, message, context);
+
   const request: AIRequest = {
     intent,
     message,
-    context,
+    context: enrichedContext,
     history,
     images,
   };

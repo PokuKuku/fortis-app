@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { DeviceEventEmitter } from 'react-native';
 import { ExerciseWithSource } from '@/src/types/exercise';
 import * as ExerciseService from '@/src/services/exerciseService';
@@ -7,14 +7,20 @@ import * as ExerciseService from '@/src/services/exerciseService';
  * Hook to load all exercises (base + custom) with automatic refresh on custom exercise changes
  */
 export function useExercises() {
-  const [exercises, setExercises] = useState<ExerciseWithSource[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [exercises, setExercises] = useState<ExerciseWithSource[]>(() =>
+    ExerciseService.getInitialExercisesSync()
+  );
+  const exercisesRef = useRef(exercises);
+  const [loading, setLoading] = useState(exercises.length === 0);
   const [error, setError] = useState<Error | null>(null);
 
-  const loadExercises = useCallback(async () => {
+  const loadExercises = useCallback(async (options?: { showLoading?: boolean }) => {
     try {
-      setLoading(true);
+      if (options?.showLoading || exercisesRef.current.length === 0) {
+        setLoading(true);
+      }
       const data = await ExerciseService.getAllExercises();
+      exercisesRef.current = data;
       setExercises(data);
       setError(null);
     } catch (err) {
@@ -26,20 +32,20 @@ export function useExercises() {
   }, []);
 
   useEffect(() => {
-    loadExercises();
+    loadExercises({ showLoading: false });
 
     // Listen for custom exercise changes
     const subscription = DeviceEventEmitter.addListener(
       'customExerciseUpsert',
       () => {
         ExerciseService.invalidateCustomCache();
-        loadExercises();
+        loadExercises({ showLoading: false });
       }
     );
     const librarySubscription = DeviceEventEmitter.addListener(
       'exerciseLibraryUpdated',
       () => {
-        loadExercises();
+        loadExercises({ showLoading: false });
       }
     );
 
@@ -49,7 +55,9 @@ export function useExercises() {
     };
   }, [loadExercises]);
 
-  return { exercises, loading, error, refresh: loadExercises };
+  const refresh = useCallback(() => loadExercises({ showLoading: true }), [loadExercises]);
+
+  return { exercises, loading, error, refresh };
 }
 
 /**

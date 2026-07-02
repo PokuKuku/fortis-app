@@ -510,10 +510,12 @@ export default function HistoryScreen() {
   const [displayedMonth, setDisplayedMonth] = useState<Date>(new Date());
   const [showDateSelector, setShowDateSelector] = useState(false);
   const [selectedSession, setSelectedSession] = useState<WorkoutSession | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const previousSyncCount = useRef(0);
   const appState = useRef(AppState.currentState);
   const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: isAuthenticated,
+    refreshKey: historyRefreshKey,
   });
 
   // Supabase is the source of truth for history
@@ -615,6 +617,7 @@ export default function HistoryScreen() {
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
+    setHistoryRefreshKey((key) => key + 1);
     await loadData();
     setIsRefreshing(false);
   }, [loadData]);

@@ -1,10 +1,18 @@
 import { Image, type ImageSourcePropType } from 'react-native';
 import type { Exercise } from '@/src/types/exercise';
 import { getExerciseImageUrl } from '@/src/services/exerciseService';
+import { getExerciseGifAsset } from '@/src/utils/exerciseGifAssets';
 
 const prefetchedExerciseImageUrls = new Set<string>();
 const inflightExerciseImageUrls = new Set<string>();
 const MAX_GIF_PREFETCH_PER_CALL = 2;
+const EXERCISE_GIF_SCHEME = 'exercise-gif://';
+
+function getLocalExerciseGifId(imagePath: string | null | undefined): string | null {
+  if (!imagePath?.startsWith(EXERCISE_GIF_SCHEME)) return null;
+  const exerciseDbId = imagePath.slice(EXERCISE_GIF_SCHEME.length).trim();
+  return exerciseDbId.length > 0 ? exerciseDbId : null;
+}
 
 function isGifUrl(url: string): boolean {
   return /\.gif($|\?)/i.test(url);
@@ -12,6 +20,7 @@ function isGifUrl(url: string): boolean {
 
 function normalizeImageUrl(imagePath: string | null | undefined): string | null {
   if (!imagePath) return null;
+  if (getLocalExerciseGifId(imagePath)) return null;
   const url = getExerciseImageUrl(imagePath).trim();
   return url.length > 0 ? url : null;
 }
@@ -24,6 +33,11 @@ export function isExerciseGifImagePath(imagePath: string | null | undefined): bo
 export function getCachedExerciseImageSource(
   imagePath: string | null | undefined
 ): ImageSourcePropType | null {
+  const localGifId = getLocalExerciseGifId(imagePath);
+  if (localGifId) {
+    return getExerciseGifAsset(localGifId);
+  }
+
   const uri = normalizeImageUrl(imagePath);
   if (!uri) return null;
   return { uri, cache: 'force-cache' };
@@ -82,4 +96,17 @@ export function prefetchExerciseImagesFromExercises(
   }
 
   prefetchExerciseImageUrls(imagePaths, count);
+}
+
+export function prefetchVisibleWorkoutExerciseImages(
+  exercises: Array<Pick<Exercise, 'images'>>,
+  maxCount = 24
+): void {
+  if (exercises.length === 0 || maxCount <= 0) return;
+
+  const imagePaths = exercises
+    .slice(0, maxCount)
+    .map((exercise) => exercise.images?.[0]);
+
+  prefetchExerciseImageUrls(imagePaths, maxCount, maxCount);
 }

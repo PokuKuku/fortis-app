@@ -277,14 +277,22 @@ export default function OnboardingWelcomeScreen() {
             <Text style={[styles.buttonText, { color: colors.accentForegroundOnFill }]}>Get started</Text>
           </GlassButton>
 
-          <View style={styles.signInRow}>
-            <Text style={[styles.signInText, { color: colors.textSecondary }]}>
-              Already have an account?
+          <Pressable onPress={handleSignIn} hitSlop={8} style={styles.signInPressable}>
+            <Text
+              allowFontScaling={false}
+              maxFontSizeMultiplier={1}
+              style={[styles.signInText, { color: colors.textSecondary }]}
+            >
+              Already have an account?{' '}
+              <Text
+                allowFontScaling={false}
+                maxFontSizeMultiplier={1}
+                style={[styles.signInLink, { color: colors.textPrimary }]}
+              >
+                Sign in
+              </Text>
             </Text>
-            <Pressable onPress={handleSignIn} hitSlop={8}>
-              <Text style={[styles.signInLink, { color: colors.textPrimary }]}>Sign in</Text>
-            </Pressable>
-          </View>
+          </Pressable>
         </View>
       }
     >
@@ -452,15 +460,15 @@ const styles = StyleSheet.create({
     marginTop: -Spacing.sm,
     marginBottom: -Spacing.sm,
   },
-  signInRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+  signInPressable: {
+    alignSelf: 'center',
+    maxWidth: '100%',
+    paddingHorizontal: Spacing.lg,
     marginTop: Spacing.md,
-    gap: 6,
   },
   signInText: {
     fontSize: 15,
+    textAlign: 'center',
   },
   signInLink: {
     fontSize: 15,

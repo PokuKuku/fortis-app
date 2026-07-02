@@ -44,6 +44,36 @@ import { posthog } from '@/src/config/posthog';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
 let isStartingWorkout = false;
+const STREAK_PAUSES_PER_MONTH = 3;
+
+function getStreakPauseMonthKey(date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function normalizeStreakPauseAllowance({
+  monthKey,
+  usedCount,
+  now = new Date(),
+}: {
+  monthKey?: unknown;
+  usedCount?: unknown;
+  now?: Date;
+}) {
+  const currentMonthKey = getStreakPauseMonthKey(now);
+  if (monthKey !== currentMonthKey) {
+    return {
+      streakPauseMonthKey: currentMonthKey,
+      streakPausesUsedThisMonth: 0,
+    };
+  }
+
+  return {
+    streakPauseMonthKey: currentMonthKey,
+    streakPausesUsedThisMonth: typeof usedCount === 'number'
+      ? Math.max(0, Math.min(STREAK_PAUSES_PER_MONTH, usedCount))
+      : 0,
+  };
+}
 
 /**
  * Helper to get the set type from the most recent matching workout history.
@@ -219,6 +249,8 @@ interface WorkoutState {
   isStreakPaused: boolean;
   streakPausedAt: string | null;
   pausedStreakCount: number | null;
+  streakPauseMonthKey: string;
+  streakPausesUsedThisMonth: number;
   workoutOverlayCount: number;
 
   // Number pad state
@@ -270,7 +302,7 @@ interface WorkoutState {
   cancelWorkout: () => void;
   openFirstWorkoutStreakModal: () => void;
   dismissFirstWorkoutStreakModal: () => void;
-  pauseStreak: (streakCount?: number) => Promise<void>;
+  pauseStreak: (streakCount?: number) => Promise<boolean>;
   resumeStreak: () => Promise<void>;
   updateWorkoutName: (name: string) => void;
   updateWorkoutNotes: (notes: string) => void;
@@ -472,6 +504,8 @@ export const useWorkoutStore = create<WorkoutState>()(
     isStreakPaused: false,
     streakPausedAt: null,
     pausedStreakCount: null,
+    streakPauseMonthKey: getStreakPauseMonthKey(),
+    streakPausesUsedThisMonth: 0,
     workoutOverlayCount: 0,
     activeNumberPad: null,
     validationErrorsBySet: {},
@@ -985,28 +1019,77 @@ export const useWorkoutStore = create<WorkoutState>()(
 
     pauseStreak: async (streakCount) => {
       const pausedAt = new Date().toISOString();
+      const {
+        isStreakPaused,
+        streakPauseMonthKey,
+        streakPausesUsedThisMonth,
+      } = get();
+      const allowance = normalizeStreakPauseAllowance({
+        monthKey: streakPauseMonthKey,
+        usedCount: streakPausesUsedThisMonth,
+      });
+      const nextPausesUsedThisMonth = isStreakPaused
+        ? allowance.streakPausesUsedThisMonth
+        : allowance.streakPausesUsedThisMonth + 1;
+
+      if (!isStreakPaused && allowance.streakPausesUsedThisMonth >= STREAK_PAUSES_PER_MONTH) {
+        set(allowance);
+        return false;
+      }
+
       const pausedStreakCount = typeof streakCount === 'number'
         ? Math.max(0, streakCount)
         : get().pausedStreakCount;
-      set({ isStreakPaused: true, streakPausedAt: pausedAt, pausedStreakCount });
+      const nextState = {
+        isStreakPaused: true,
+        streakPausedAt: pausedAt,
+        pausedStreakCount,
+        streakPauseMonthKey: allowance.streakPauseMonthKey,
+        streakPausesUsedThisMonth: nextPausesUsedThisMonth,
+      };
+      set(nextState);
 
       try {
         await setScopedItem(
           STREAK_PAUSE_STATE_KEY,
-          JSON.stringify({ isPaused: true, pausedAt, pausedStreakCount })
+          JSON.stringify({
+            isPaused: true,
+            pausedAt,
+            pausedStreakCount,
+            streakPauseMonthKey: nextState.streakPauseMonthKey,
+            streakPausesUsedThisMonth: nextState.streakPausesUsedThisMonth,
+          })
         );
       } catch (error) {
         console.warn('Failed to save streak pause state:', error);
       }
+
+      return true;
     },
 
     resumeStreak: async () => {
-      set({ isStreakPaused: false, streakPausedAt: null, pausedStreakCount: null });
+      const allowance = normalizeStreakPauseAllowance({
+        monthKey: get().streakPauseMonthKey,
+        usedCount: get().streakPausesUsedThisMonth,
+      });
+      const nextState = {
+        isStreakPaused: false,
+        streakPausedAt: null,
+        pausedStreakCount: null,
+        ...allowance,
+      };
+      set(nextState);
 
       try {
         await setScopedItem(
           STREAK_PAUSE_STATE_KEY,
-          JSON.stringify({ isPaused: false, pausedAt: null, pausedStreakCount: null })
+          JSON.stringify({
+            isPaused: false,
+            pausedAt: null,
+            pausedStreakCount: null,
+            streakPauseMonthKey: nextState.streakPauseMonthKey,
+            streakPausesUsedThisMonth: nextState.streakPausesUsedThisMonth,
+          })
         );
       } catch (error) {
         console.warn('Failed to save streak pause state:', error);
@@ -1825,7 +1908,12 @@ export const useWorkoutStore = create<WorkoutState>()(
       try {
         const stored = await getScopedItem(STREAK_PAUSE_STATE_KEY);
         if (!stored) {
-          set({ isStreakPaused: false, streakPausedAt: null, pausedStreakCount: null });
+          set({
+            isStreakPaused: false,
+            streakPausedAt: null,
+            pausedStreakCount: null,
+            ...normalizeStreakPauseAllowance({}),
+          });
           return;
         }
 
@@ -1833,8 +1921,14 @@ export const useWorkoutStore = create<WorkoutState>()(
           isPaused?: unknown;
           pausedAt?: unknown;
           pausedStreakCount?: unknown;
+          streakPauseMonthKey?: unknown;
+          streakPausesUsedThisMonth?: unknown;
         };
         const isPaused = parsed.isPaused === true;
+        const allowance = normalizeStreakPauseAllowance({
+          monthKey: parsed.streakPauseMonthKey,
+          usedCount: parsed.streakPausesUsedThisMonth,
+        });
         set({
           isStreakPaused: isPaused,
           streakPausedAt: isPaused && typeof parsed.pausedAt === 'string'
@@ -1843,10 +1937,16 @@ export const useWorkoutStore = create<WorkoutState>()(
           pausedStreakCount: isPaused && typeof parsed.pausedStreakCount === 'number'
             ? Math.max(0, parsed.pausedStreakCount)
             : null,
+          ...allowance,
         });
       } catch (error) {
         console.warn('Failed to load streak pause state:', error);
-        set({ isStreakPaused: false, streakPausedAt: null, pausedStreakCount: null });
+        set({
+          isStreakPaused: false,
+          streakPausedAt: null,
+          pausedStreakCount: null,
+          ...normalizeStreakPauseAllowance({}),
+        });
       }
     },
 
@@ -3205,6 +3305,8 @@ export const useWorkoutStore = create<WorkoutState>()(
         isStreakPaused: false,
         streakPausedAt: null,
         pausedStreakCount: null,
+        streakPauseMonthKey: getStreakPauseMonthKey(),
+        streakPausesUsedThisMonth: 0,
         activeNumberPad: null,
         validationErrorsBySet: {},
         validationErrorsTrigger: 0,
@@ -3277,6 +3379,10 @@ export const getWorkoutSummary = (
     totalVolume = getSessionVolume(session, volumeContext);
   }
 
+  const totalExercises = session.exercises.filter((exercise) =>
+    exercise.sets.some((set) => set.isCompleted)
+  ).length;
+
   const durationSeconds = session.completedAt
     ? Math.floor(
         (session.completedAt.getTime() - session.startedAt.getTime()) / 1000
@@ -3284,7 +3390,7 @@ export const getWorkoutSummary = (
     : Math.floor((Date.now() - session.startedAt.getTime()) / 1000);
 
   return {
-    totalExercises: session.exercises.length,
+    totalExercises,
     totalSets,
     totalReps,
     totalVolume,

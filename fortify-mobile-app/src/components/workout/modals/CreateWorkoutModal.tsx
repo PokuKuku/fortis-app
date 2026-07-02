@@ -334,7 +334,7 @@ export function CreateWorkoutModal({
     <View style={styles.emptyState}>
       <Text style={[styles.emptyStateText, themedStyles.emptyStateText]}>No exercises added yet</Text>
       <Text style={[styles.emptyStateSubtext, themedStyles.emptyStateText]}>
-        Tap "Add Exercises" to get started
+        Add exercises using one of{'\n'}the three options below
       </Text>
     </View>
   );

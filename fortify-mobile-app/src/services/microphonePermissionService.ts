@@ -13,7 +13,7 @@ export async function ensureMicrophonePermission(): Promise<MicrophonePermission
     return currentPermission;
   }
 
-  if (currentPermission.status === 'undetermined') {
+  if (currentPermission.status === 'undetermined' || currentPermission.canAskAgain) {
     return Audio.requestPermissionsAsync();
   }
 

@@ -35,6 +35,7 @@ const HORIZONTAL_PADDING = scale(24);
 const CAROUSEL_WIDTH = SCREEN_WIDTH - HORIZONTAL_PADDING * 2;
 const DAY_SIZE = scale(38);
 const DAY_GAP = scale(8);
+const STREAK_PAUSES_PER_MONTH = 3;
 
 type WeeklyProgressCarouselProps = {
   scheduleDays: number[];
@@ -89,6 +90,7 @@ export function WeeklyProgressCarousel({
   const isStreakPaused = useWorkoutStore(s => s.isStreakPaused);
   const streakPausedAt = useWorkoutStore(s => s.streakPausedAt);
   const pausedStreakCount = useWorkoutStore(s => s.pausedStreakCount);
+  const streakPausesUsedThisMonth = useWorkoutStore(s => s.streakPausesUsedThisMonth);
   const pauseStreak = useWorkoutStore(s => s.pauseStreak);
   const resumeStreak = useWorkoutStore(s => s.resumeStreak);
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
@@ -135,6 +137,8 @@ export function WeeklyProgressCarousel({
   const streakPausedLabel = streakPausedAt
     ? format(new Date(streakPausedAt), 'MMM d')
     : 'today';
+  const streakPausesRemaining = Math.max(0, STREAK_PAUSES_PER_MONTH - streakPausesUsedThisMonth);
+  const canPauseStreak = isStreakPaused || streakPausesRemaining > 0;
 
   const handleMomentumEnd = (offsetX: number) => {
     const pageIndex = Math.round(offsetX / CAROUSEL_WIDTH);
@@ -180,6 +184,7 @@ export function WeeklyProgressCarousel({
   };
 
   const handleStreakPauseToggle = () => {
+    if (!canPauseStreak) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
     if (isStreakPaused) {
       void resumeStreak();
@@ -426,31 +431,21 @@ export function WeeklyProgressCarousel({
         visible={isStreakModalVisible}
         onClose={() => setIsStreakModalVisible(false)}
         title="Workout Streak"
+        titleStyle={styles.streakModalTitle}
+        showCloseButton={false}
         width={streakModalWidth}
       >
         <View style={styles.streakModalHero}>
-          <View
-            style={[
-              styles.streakModalIcon,
-              {
-                backgroundColor: isStreakPaused
-                  ? isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)'
-                  : 'rgba(255,77,77,0.12)',
-                borderColor: isStreakPaused
-                  ? isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'
-                  : 'rgba(255,77,77,0.3)',
-              },
-            ]}
-          >
+          <View style={styles.streakModalInline}>
+            <Text style={[styles.streakModalNumber, { color: colors.textPrimary }]}>
+              {displayedStreak}
+            </Text>
             <FireIcon
               color={isStreakPaused ? colors.textTertiary : '#FF4D4D'}
-              size={34}
+              size={38}
               strokeWidth={2.4}
             />
           </View>
-          <Text style={[styles.streakModalNumber, { color: colors.textPrimary }]}>
-            {displayedStreak}
-          </Text>
           <Text style={[styles.streakModalLabel, { color: colors.textSecondary }]}>
             {isStreakPaused ? `Paused since ${streakPausedLabel}` : 'Active workout streak'}
           </Text>
@@ -483,6 +478,21 @@ export function WeeklyProgressCarousel({
 
         <View
           style={[
+            styles.streakPauseAllowanceCard,
+            { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)' },
+          ]}
+        >
+          <Text style={[styles.streakInfoLabel, { color: colors.textTertiary }]}>Pauses</Text>
+          <Text style={[styles.streakInfoValue, { color: colors.textPrimary }]}>
+            {streakPausesRemaining} left this month
+          </Text>
+          <Text style={[styles.streakPauseResetText, { color: colors.textTertiary }]}>
+            Pauses reset next month.
+          </Text>
+        </View>
+
+        <View
+          style={[
             styles.streakRules,
             {
               backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.035)',
@@ -498,22 +508,24 @@ export function WeeklyProgressCarousel({
           </Text>
         </View>
 
-        <View style={[modalStyles.actions, styles.detailActions]}>
+        <View style={[modalStyles.actions, styles.streakActions]}>
           <Pressable
             onPress={() => setIsStreakModalVisible(false)}
             style={({ pressed }) => [
               modalStyles.cancelButton,
-              styles.detailActionButton,
+              styles.streakActionButton,
               pressed && modalStyles.buttonPressed,
             ]}
           >
             <Text style={[modalStyles.cancelButtonText, styles.detailActionText]}>Close</Text>
           </Pressable>
           <Pressable
+            disabled={!canPauseStreak}
             onPress={handleStreakPauseToggle}
             style={({ pressed }) => [
               isStreakPaused ? modalStyles.successButton : modalStyles.warningButton,
-              styles.detailActionButton,
+              styles.streakActionButton,
+              !canPauseStreak && styles.streakActionButtonDisabled,
               pressed && modalStyles.buttonPressed,
             ]}
           >
@@ -521,6 +533,7 @@ export function WeeklyProgressCarousel({
               style={[
                 isStreakPaused ? modalStyles.successButtonText : modalStyles.warningButtonText,
                 styles.detailActionText,
+                !canPauseStreak && { color: colors.textTertiary },
               ]}
             >
               {isStreakPaused ? 'Resume' : 'Pause'}
@@ -687,24 +700,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.xl,
   },
-  streakModalIcon: {
-    width: scale(64),
-    height: scale(64),
-    borderRadius: scale(32),
-    borderWidth: 1,
+  streakModalTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  streakModalInline: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.md,
+    gap: scale(10),
   },
   streakModalNumber: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: moderateScale(34),
+    fontSize: moderateScale(42),
     letterSpacing: 1,
+    lineHeight: moderateScale(48),
   },
   streakModalLabel: {
     fontSize: moderateScale(13),
     fontWeight: '700',
-    marginTop: scale(4),
+    marginTop: scale(8),
     textAlign: 'center',
   },
   streakInfoGrid: {
@@ -718,17 +734,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     minHeight: scale(74),
+    alignItems: 'center',
     justifyContent: 'center',
   },
   streakInfoLabel: {
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(11),
     fontWeight: '800',
     textTransform: 'uppercase',
+    letterSpacing: 0.8,
     marginBottom: scale(6),
+    textAlign: 'center',
   },
   streakInfoValue: {
     fontSize: moderateScale(14),
     fontWeight: '800',
+    textAlign: 'center',
+  },
+  streakPauseAllowanceCard: {
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    minHeight: scale(74),
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  streakPauseResetText: {
+    fontSize: moderateScale(12),
+    fontWeight: '600',
+    lineHeight: moderateScale(17),
+    marginTop: scale(6),
+    textAlign: 'center',
   },
   streakRules: {
     borderWidth: 1,
@@ -737,13 +774,28 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   streakRuleTitle: {
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: moderateScale(13),
     fontWeight: '800',
+    letterSpacing: 0.8,
     marginBottom: scale(6),
   },
   streakRuleText: {
     fontSize: moderateScale(13),
     fontWeight: '500',
     lineHeight: moderateScale(19),
+  },
+  streakActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
+  streakActionButton: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: scale(52),
+    justifyContent: 'center',
+  },
+  streakActionButtonDisabled: {
+    opacity: 0.45,
   },
 });

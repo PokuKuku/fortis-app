@@ -19,9 +19,9 @@ let allExercisesCache: ExerciseWithSource[] | null = null;
 let allExercisesPromise: Promise<ExerciseWithSource[]> | null = null;
 let exerciseLookupCache: Map<string, ExerciseWithSource> | null = null;
 let snapshotExerciseCache: Exercise[] | null = null;
+let legacyCompatibilityExerciseCache: Exercise[] | null = null;
 
 const EXERCISE_LIBRARY_UPDATED_EVENT = 'exerciseLibraryUpdated';
-const WIDE_GRIP_LAT_PULLDOWN_ID = 'c56d8350-56c1-4bc4-99e1-4de71e680c21';
 const CUSTOM_EXERCISE_PREFIX = 'custom-';
 const SUPABASE_EXERCISE_PAGE_SIZE = 1000;
 const SUPABASE_EXERCISE_MAX_PAGES = 20;
@@ -81,6 +81,7 @@ type SnapshotExerciseRow = {
   is_hidden?: boolean | null;
   is_custom?: boolean | null;
   normalized_name?: string | null;
+  exercise_db_id?: string | null;
 };
 
 function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise {
@@ -102,11 +103,12 @@ function transformSupabaseExerciseToExercise(row: SupabaseExerciseRow): Exercise
     isHidden: row.is_hidden ?? false,
     isCustom: row.is_custom ?? false,
     normalizedName: row.normalized_name ?? undefined,
+    exerciseDbId: undefined,
   };
 }
 
 function transformSnapshotExerciseToExercise(row: SnapshotExerciseRow): Exercise {
-  return transformSupabaseExerciseToExercise({
+  const exercise = transformSupabaseExerciseToExercise({
     id: row.id,
     slug: row.slug ?? null,
     name: row.name,
@@ -125,6 +127,32 @@ function transformSnapshotExerciseToExercise(row: SnapshotExerciseRow): Exercise
     is_custom: row.is_custom ?? false,
     normalized_name: row.normalized_name ?? null,
   });
+
+  return {
+    ...exercise,
+    exerciseDbId: row.exercise_db_id ?? undefined,
+  };
+}
+
+function addExerciseLookupEntries(
+  lookup: Map<string, ExerciseWithSource>,
+  exercise: ExerciseWithSource
+): void {
+  const keys = [
+    exercise.id,
+    exercise.slug,
+    exercise.remoteId,
+    exercise.exerciseDbId,
+    exercise.normalizedName,
+    exercise.name,
+    ...(exercise.aliases ?? []),
+  ];
+
+  keys.forEach((key) => {
+    if (!key) return;
+    lookup.set(key, exercise);
+    lookup.set(normalizeExerciseKey(key), exercise);
+  });
 }
 
 function loadSnapshotExercises(): Exercise[] {
@@ -139,6 +167,54 @@ function loadSnapshotExercises(): Exercise[] {
   }
 
   return snapshotExerciseCache;
+}
+
+function getBaseExercisesSync(options?: { includeVariants?: boolean }): Exercise[] {
+  const includeVariants = options?.includeVariants ?? false;
+
+  if (!includeVariants && baseExerciseCache && baseExerciseCache.length > 0) {
+    return baseExerciseCache;
+  }
+  if (includeVariants && baseExerciseFullCache && baseExerciseFullCache.length > 0) {
+    return baseExerciseFullCache;
+  }
+
+  const snapshotExercises = loadSnapshotExercises();
+  if (includeVariants) {
+    baseExerciseFullCache = snapshotExercises;
+  } else {
+    baseExerciseCache = snapshotExercises;
+  }
+
+  return snapshotExercises;
+}
+
+export function getInitialExercisesSync(): ExerciseWithSource[] {
+  const customExercises = customExerciseCache ?? [];
+  const customWithSource = customExercises.map((exercise) => ({
+    ...exercise,
+    source: 'custom' as ExerciseSource,
+  }));
+  const baseWithSource = getBaseExercisesSync().map((exercise) => ({
+    ...exercise,
+    source: 'api' as ExerciseSource,
+  }));
+
+  return [...customWithSource, ...baseWithSource];
+}
+
+function loadLegacyCompatibilityExercises(): Exercise[] {
+  if (legacyCompatibilityExerciseCache) return legacyCompatibilityExerciseCache;
+
+  try {
+    const raw = require('@/src/data/exerciseLegacyCompatibility.json') as SnapshotExerciseRow[];
+    legacyCompatibilityExerciseCache = raw.map(transformSnapshotExerciseToExercise);
+  } catch (error) {
+    console.warn('Failed to load legacy exercise compatibility snapshot:', error);
+    legacyCompatibilityExerciseCache = [];
+  }
+
+  return legacyCompatibilityExerciseCache;
 }
 
 function mergeExercises(primary: Exercise[], fallback: Exercise[]): Exercise[] {
@@ -333,14 +409,7 @@ function upsertExerciseCaches(exercise: ExerciseWithSource): void {
   if (!exerciseLookupCache) {
     exerciseLookupCache = new Map();
   }
-  exerciseLookupCache.set(exercise.id, exercise);
-  if (exercise.slug) {
-    exerciseLookupCache.set(exercise.slug, exercise);
-  }
-  if (exercise.remoteId) {
-    exerciseLookupCache.set(exercise.remoteId, exercise);
-  }
-  exerciseLookupCache.set(normalizeExerciseKey(exercise.name), exercise);
+  addExerciseLookupEntries(exerciseLookupCache, exercise);
 }
 
 async function fetchExerciseByIdFromSupabase(id: string): Promise<Exercise | null> {
@@ -523,14 +592,7 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
     const exercises = await getAllExercises();
     const lookup = new Map<string, ExerciseWithSource>();
     exercises.forEach((exercise) => {
-      lookup.set(exercise.id, exercise);
-      if (exercise.slug) {
-        lookup.set(exercise.slug, exercise);
-      }
-      if (exercise.remoteId) {
-        lookup.set(exercise.remoteId, exercise);
-      }
-      lookup.set(normalizeExerciseKey(exercise.name), exercise);
+      addExerciseLookupEntries(lookup, exercise);
     });
     exerciseLookupCache = lookup;
   }
@@ -542,16 +604,6 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
     null;
 
   if (cachedExercise) {
-    if (cachedExercise.id === WIDE_GRIP_LAT_PULLDOWN_ID && cachedExercise.images.length > 0) {
-      const strippedExercise: ExerciseWithSource = { ...cachedExercise, images: [] };
-      upsertExerciseCaches(strippedExercise);
-      if (baseExerciseCache) {
-        await saveCachedExercises(baseExerciseCache);
-      }
-      DeviceEventEmitter.emit(EXERCISE_LIBRARY_UPDATED_EVENT);
-      return strippedExercise;
-    }
-
     if (cachedExercise.source !== 'custom' && cachedExercise.images.length === 0) {
       const refreshedExercise = await fetchExerciseByIdFromSupabase(cachedExercise.id);
       if (refreshedExercise && refreshedExercise.images.length > 0) {
@@ -566,6 +618,26 @@ export async function getExerciseById(id: string): Promise<ExerciseWithSource | 
     }
 
     return cachedExercise;
+  }
+
+  const legacyExercise = loadLegacyCompatibilityExercises()
+    .map((exercise) => ({ ...exercise, source: 'api' as ExerciseSource }))
+    .find((exercise) => {
+      const keys = [
+        exercise.id,
+        exercise.slug,
+        exercise.exerciseDbId,
+        exercise.normalizedName,
+        exercise.name,
+        ...(exercise.aliases ?? []),
+      ].filter((key): key is string => Boolean(key));
+
+      return keys.some((key) => key === id || normalizeExerciseKey(key) === normalizedId);
+    });
+
+  if (legacyExercise) {
+    upsertExerciseCaches(legacyExercise);
+    return legacyExercise;
   }
 
   const fetchedExercise = await fetchExerciseByIdFromSupabase(id);
@@ -601,88 +673,7 @@ export async function getExerciseVariants(canonicalId: string): Promise<Exercise
 // --- Base Exercise Loading (Supabase-backed with caching) ---
 
 async function getBaseExercises(options?: { includeVariants?: boolean }): Promise<Exercise[]> {
-  const includeVariants = options?.includeVariants ?? false;
-
-  // 1. Check in-memory cache
-  if (!includeVariants && baseExerciseCache && baseExerciseCache.length > 0) {
-    return baseExerciseCache;
-  }
-  if (includeVariants && baseExerciseFullCache && baseExerciseFullCache.length > 0) {
-    return baseExerciseFullCache;
-  }
-
-  // 2. Check persistent cache + server version to avoid stale data
-  if (!includeVariants && await isCacheValid()) {
-    const [cached, cachedVersion, remoteVersion] = await Promise.all([
-      loadCachedExercises(),
-      loadCachedLibraryVersion(),
-      fetchLibraryVersion(),
-    ]);
-    if (cached && cached.length > 0) {
-      if (!remoteVersion || !cachedVersion || cachedVersion === remoteVersion) {
-        const hasNonCuratedOrVariant = cached.some(
-          (exercise) => exercise.isCurated === false || !!exercise.canonicalId
-        );
-        if (hasNonCuratedOrVariant) {
-          const snapshotExercises = cached.length < MIN_EXPECTED_EXERCISE_COUNT
-            ? loadSnapshotExercises()
-            : [];
-          const merged = snapshotExercises.length > 0
-            ? mergeExercises(cached, snapshotExercises)
-            : cached;
-          baseExerciseCache = merged;
-          if (merged !== cached) {
-            await saveCachedExercises(merged);
-          }
-          return merged;
-        }
-      }
-    }
-  }
-
-  // 3. Fetch from Supabase
-  try {
-    const [version, transformed] = await Promise.all([
-      fetchLibraryVersion(),
-      fetchAllBaseExercisesFromSupabase(),
-    ]);
-
-    const snapshotExercises = transformed.length < MIN_EXPECTED_EXERCISE_COUNT
-      ? loadSnapshotExercises()
-      : [];
-    const merged = snapshotExercises.length > 0
-      ? mergeExercises(transformed, snapshotExercises)
-      : transformed;
-
-    if (includeVariants) {
-      baseExerciseFullCache = merged;
-    } else {
-      baseExerciseCache = merged;
-      await saveCachedExercises(merged);
-      await saveCachedLibraryVersion(version);
-    }
-
-    return merged;
-  } catch (error) {
-    // 4. Try to use stale cache if API fails
-    const staleCache = await loadCachedExercises();
-    if (staleCache && staleCache.length > 0) {
-      console.warn('Using stale cache due to API error:', error);
-      baseExerciseCache = staleCache;
-      return staleCache;
-    }
-
-    const snapshotExercises = loadSnapshotExercises();
-    if (snapshotExercises.length > 0) {
-      console.warn('Using bundled exercise snapshot due to API error:', error);
-      baseExerciseCache = snapshotExercises;
-      return snapshotExercises;
-    }
-
-    // 5. No cache available - throw error
-    const message = error instanceof Error ? error.message : 'Unknown error';
-    throw new Error(`Unable to load exercises: ${message}`);
-  }
+  return getBaseExercisesSync(options);
 }
 
 /**

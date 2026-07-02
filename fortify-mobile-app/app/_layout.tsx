@@ -20,6 +20,7 @@ import { SuperwallPurchaseRecovery } from '@/src/components/superwall/SuperwallP
 import { SubscriptionAccessGuard } from '@/src/components/superwall/SubscriptionAccessGuard';
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
 import { PostHogRouteTracker } from '@/src/components/analytics/PostHogRouteTracker';
+import { AppUpdatePromptCoordinator } from '@/src/components/app/AppUpdatePromptCoordinator';
 import { PostHogProvider } from 'posthog-react-native';
 import { posthog } from '@/src/config/posthog';
 import { WorkoutRetentionCoordinator } from '@/src/components/retention/WorkoutRetentionCoordinator';
@@ -93,6 +94,7 @@ function ThemedAppContent({
       <SubscriptionAccessGuard />
       <PostHogAuthSync />
       <PostHogRouteTracker />
+      <AppUpdatePromptCoordinator />
       {!disableThemeSync && <ThemeAuthSync />}
       <InAppTourProvider>
         <DragDropProvider>

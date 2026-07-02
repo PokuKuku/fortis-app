@@ -207,10 +207,10 @@ export default function CreateWorkoutScreen() {
 
         Alert.alert(
           'Microphone access required',
-          permission.status === 'undetermined'
+          permission.canAskAgain
             ? 'Microphone access is required to add exercises by voice.'
             : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
-          permission.status === 'undetermined'
+          permission.canAskAgain
             ? [{ text: 'OK' }]
             : [
                 { text: 'Cancel', style: 'cancel' },
@@ -617,7 +617,7 @@ export default function CreateWorkoutScreen() {
     <View style={styles.emptyState}>
       <Text style={[styles.emptyStateText, themedStyles.emptyStateText]}>No exercises added yet</Text>
       <Text style={[styles.emptyStateSubtext, themedStyles.emptyStateSubtext]}>
-        Tap "Add Exercises" to get started
+        Add exercises using one of{'\n'}the three options below
       </Text>
     </View>
   );

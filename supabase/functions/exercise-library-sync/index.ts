@@ -125,6 +125,9 @@ const ensureUniqueSlugs = (names: string[]): string[] => {
 
 const isRapidApi = (provider: string | null): boolean => provider === 'rapidapi';
 
+const isRemoteExerciseLibrarySyncEnabled = (): boolean =>
+  Deno.env.get('EXERCISE_LIBRARY_SYNC_ENABLED') === 'true';
+
 async function fetchExerciseDb(): Promise<ExerciseDbResponse[]> {
   const provider = Deno.env.get('EXERCISE_DB_PROVIDER') || 'opensource';
   const apiBaseUrl =
@@ -268,6 +271,17 @@ Deno.serve(async (req) => {
   const secretError = requireSecret(req);
   if (secretError) {
     return errorResponse(secretError, 'unauthorized', 401, false, undefined, origin);
+  }
+
+  if (!isRemoteExerciseLibrarySyncEnabled()) {
+    return errorResponse(
+      'Remote ExerciseDB sync is disabled. The mobile-bundled 360 GIF dataset is the canonical exercise library; regenerate and ship the bundled snapshot instead.',
+      'sync_disabled',
+      409,
+      false,
+      undefined,
+      origin
+    );
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');

@@ -21,6 +21,7 @@ describe('realtimeCoach utils', () => {
     expect(shouldGenerateWorkoutFromVoice('Make me a back workout')).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make me back workout')).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make me a back work out')).toBe(true);
+    expect(shouldGenerateWorkoutFromVoice('Give me one training but without equipment because I am at home')).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Build me a five exercise leg day')).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Plan shoulders with four exercises')).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('I want an upper body routine')).toBe(false);

@@ -86,6 +86,9 @@ describe('WeeklyProgressCarousel streak paywall', () => {
 
     expect(useWorkoutStore.getState().isStreakPaused).toBe(true);
     expect(useWorkoutStore.getState().pausedStreakCount).toBe(1);
+    expect(useWorkoutStore.getState().streakPausesUsedThisMonth).toBe(1);
+    expect(getByText('2 left this month')).toBeTruthy();
+    expect(getByText('Pauses reset next month.')).toBeTruthy();
     expect(getByText('Paused')).toBeTruthy();
   });
 });

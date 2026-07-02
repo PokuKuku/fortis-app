@@ -15,7 +15,7 @@ import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { getSessionVolume, type VolumeContext } from '@/src/utils/workoutVolume';
 import { getExerciseById, isCustomExercise } from '@/src/services/exerciseService';
-import { prefetchExerciseImageUrls } from '@/src/utils/exerciseImageCache';
+import { prefetchVisibleWorkoutExerciseImages } from '@/src/utils/exerciseImageCache';
 import {
   ProgramWorkout as StoreProgramWorkout,
   ProgramExercise as StoreProgramExercise,
@@ -211,10 +211,9 @@ export function useProgram(id: string | undefined) {
             completedSessions,
             volumeContext
           );
-          prefetchExerciseImageUrls(
-            converted.workouts.flatMap((workout) => workout.exercises.map((exercise) => exercise.images[0])),
-            6,
-            4,
+          prefetchVisibleWorkoutExerciseImages(
+            converted.workouts.flatMap((workout) => workout.exercises),
+            48
           );
           if (isMounted) {
             setProgram(converted);
@@ -523,7 +522,7 @@ export function useWorkout(id: string | undefined) {
             foundWorkout,
             program.lastPerformedAt
           );
-          prefetchExerciseImageUrls(converted.exercises.map((exercise) => exercise.images[0]), 6, 4);
+          prefetchVisibleWorkoutExerciseImages(converted.exercises, 24);
           if (isMounted) {
               setWorkout(converted);
               setError(null);
@@ -538,7 +537,7 @@ export function useWorkout(id: string | undefined) {
             template.workouts[0],
             template.lastPerformedAt
           );
-          prefetchExerciseImageUrls(converted.exercises.map((exercise) => exercise.images[0]), 6, 4);
+          prefetchVisibleWorkoutExerciseImages(converted.exercises, 24);
           converted.name = template.name;
           converted.id = template.id;
           if (isMounted) {

@@ -412,10 +412,10 @@ export default function ActiveWorkoutScreen() {
 
         Alert.alert(
           'Microphone access required',
-          permission.status === 'undetermined'
+          permission.canAskAgain
             ? 'Microphone access is required to add exercises by voice.'
             : 'Microphone access is off. Enable it in Settings to add exercises by voice.',
-          permission.status === 'undetermined'
+          permission.canAskAgain
             ? [{ text: 'OK' }]
             : [
                 { text: 'Cancel', style: 'cancel' },
@@ -730,10 +730,10 @@ export default function ActiveWorkoutScreen() {
 
         Alert.alert(
           'Microphone access required',
-          permission.status === 'undetermined'
+          permission.canAskAgain
             ? 'Microphone access is required to use voice logging.'
             : 'Microphone access is off. Enable it in Settings to use voice logging.',
-          permission.status === 'undetermined'
+          permission.canAskAgain
             ? [{ text: 'OK' }]
             : [
                 { text: 'Cancel', style: 'cancel' },

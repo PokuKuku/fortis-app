@@ -90,6 +90,7 @@ interface AIRequest {
     periodWeeks?: number;
     currentWorkoutTemplateDraft?: AIWorkoutTemplate;
     voiceWorkoutOnly?: boolean;
+    exerciseCatalog?: WorkoutGenerationExerciseCatalogEntry[];
     onboardingProgramSpec?: AIOnboardingProgramSpec;
   };
   history?: Array<{
@@ -591,7 +592,7 @@ interface AIContext extends AIBaseContext {
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
 }
 
-const WORKOUT_NOUN_PATTERN = '(?:workouts?|routines?|sessions?|templates?)';
+const WORKOUT_NOUN_PATTERN = '(?:workouts?|routines?|sessions?|templates?|training(?:\\s+(?:day|session|workout))?)';
 const EXERCISE_COUNT_PATTERN = '(?:\\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)';
 const WORKOUT_FOCUS_PATTERN = '(?:full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core|abs?)';
 const WORKOUT_CREATION_VERB_PATTERN = '(?:make|create|build|generate|design|craft|write|plan|recommend|suggest|put together|give me|need|want|show me|can i have|i would like)';
@@ -634,7 +635,7 @@ const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
   { regex: /\bmachine(s)?\b/i, equipment: 'machine' },
   { regex: /\bkettlebell(s)?\b/i, equipment: 'kettlebell' },
   { regex: /\bband(s)?\b|\bresistance band(s)?\b/i, equipment: 'band' },
-  { regex: /\bbodyweight\b|\bbody weight\b|\bno equipment\b/i, equipment: 'body weight' },
+  { regex: /\bbodyweight\b|\bbody weight\b|\bno equipment\b|\bwithout equipment\b|\bno gear\b|\bno weights?\b/i, equipment: 'body weight' },
 ];
 
 function shouldGenerateWorkoutTemplate(message: string): boolean {
@@ -712,9 +713,29 @@ function getDefaultEquipmentForTrainingEnvironment(environment: TrainingEnvironm
 
 function getWorkoutEquipmentPreferences(message: string, environment: TrainingEnvironment): string[] {
   const explicitEquipment = extractWorkoutEquipment(message);
-  return explicitEquipment.length > 0
-    ? explicitEquipment
-    : getDefaultEquipmentForTrainingEnvironment(environment);
+  if (explicitEquipment.length > 0) {
+    return explicitEquipment;
+  }
+  if (/\b(at home|home workout|home training)\b/i.test(message)) {
+    return getDefaultEquipmentForTrainingEnvironment('home');
+  }
+  return getDefaultEquipmentForTrainingEnvironment(environment);
+}
+
+function expandExerciseEquipmentQueryValues(equipment: string[]): string[] {
+  const values = new Set<string>();
+  equipment.forEach((item) => {
+    values.add(item);
+    const normalized = normalizeEquipmentValue(item);
+    if (normalized === 'bodyweight') {
+      ['body weight', 'bodyweight', 'body only', 'Body Weight', 'Bodyweight', 'Body Only'].forEach((value) => values.add(value));
+    } else if (normalized === 'band') {
+      ['band', 'bands', 'resistance band', 'Resistance Band'].forEach((value) => values.add(value));
+    } else if (normalized === 'kettlebell') {
+      ['kettlebell', 'kettlebells', 'Kettlebell'].forEach((value) => values.add(value));
+    }
+  });
+  return Array.from(values);
 }
 
 function equipmentAllowedForTrainingEnvironment(
@@ -1201,11 +1222,14 @@ async function buildOnboardingProgramResponse(
     };
   }
 
-  const catalog = await fetchWorkoutExerciseCatalog(
-    supabase,
-    `${spec.trainingEnvironment} ${spec.muscleFocuses.join(' ')} full body push pull legs upper lower workout`,
-    { broadSearch: true }
-  );
+  const providedCatalog = sanitizeProvidedWorkoutExerciseCatalog(request.context?.exerciseCatalog);
+  const catalog = providedCatalog.length > 0
+    ? providedCatalog
+    : await fetchWorkoutExerciseCatalog(
+        supabase,
+        `${spec.trainingEnvironment} ${spec.muscleFocuses.join(' ')} full body push pull legs upper lower workout`,
+        { broadSearch: true }
+      );
   const programTemplate = buildOnboardingProgramTemplate(spec, catalog);
   if (!programTemplate) {
     return {
@@ -1297,10 +1321,14 @@ async function assembleContext(
   await Promise.all(fetchPromises);
 
   if (shouldHandleWorkoutTemplateRequest(request)) {
+    const providedExerciseCatalog = sanitizeProvidedWorkoutExerciseCatalog(
+      request.context?.exerciseCatalog
+    );
     context.exerciseCatalog = await withContextCache(
       buildCacheKey(
         'workout-catalog',
         userId,
+        providedExerciseCatalog.length > 0 ? 'provided' : 'server',
         isTemplateEdit ? 'edit-targeted' : 'targeted',
         extractWorkoutTargetMuscles(request.message).join(','),
         extractWorkoutEquipment(request.message).join(','),
@@ -1311,7 +1339,9 @@ async function assembleContext(
           .join(',') ?? 'no-draft',
         request.message
       ),
-      () => isTemplateEdit && request.context?.currentWorkoutTemplateDraft && parsedTemplateEdit
+      () => providedExerciseCatalog.length > 0
+        ? Promise.resolve(providedExerciseCatalog)
+        : isTemplateEdit && request.context?.currentWorkoutTemplateDraft && parsedTemplateEdit
         ? fetchWorkoutEditExerciseCatalog(
             supabase,
             request.message,
@@ -1377,6 +1407,57 @@ function mapWorkoutExerciseCatalogRow(
   };
 }
 
+function sanitizeProvidedWorkoutExerciseCatalog(
+  value: unknown
+): WorkoutGenerationExerciseCatalogEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const catalog = new Map<string, WorkoutGenerationExerciseCatalogEntry>();
+  value.slice(0, 240).forEach((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return;
+    }
+
+    const row = item as Record<string, unknown>;
+    const id = typeof row.id === 'string' ? row.id.trim() : '';
+    const name = typeof row.name === 'string' ? row.name.trim() : '';
+    if (!id || !name || catalog.has(id)) {
+      return;
+    }
+
+    catalog.set(id, {
+      id,
+      slug: typeof row.slug === 'string' ? row.slug : undefined,
+      name,
+      primaryMuscles: Array.isArray(row.primaryMuscles)
+        ? row.primaryMuscles.filter((muscle): muscle is string => typeof muscle === 'string')
+        : [],
+      secondaryMuscles: Array.isArray(row.secondaryMuscles)
+        ? row.secondaryMuscles.filter((muscle): muscle is string => typeof muscle === 'string')
+        : [],
+      equipment: typeof row.equipment === 'string' && row.equipment.trim()
+        ? row.equipment.trim()
+        : 'body weight',
+      category: typeof row.category === 'string' && row.category.trim()
+        ? row.category.trim()
+        : 'strength',
+      images: Array.isArray(row.images)
+        ? row.images.filter((image): image is string => typeof image === 'string')
+        : [],
+      canonicalId: typeof row.canonicalId === 'string' ? row.canonicalId : null,
+      canonicalKey: typeof row.canonicalKey === 'string' ? row.canonicalKey : null,
+      isCurated: typeof row.isCurated === 'boolean' ? row.isCurated : true,
+      aliases: Array.isArray(row.aliases)
+        ? row.aliases.filter((alias): alias is string => typeof alias === 'string')
+        : [],
+    });
+  });
+
+  return Array.from(catalog.values());
+}
+
 async function fetchWorkoutExerciseCatalog(
   supabase: SupabaseClient,
   message: string,
@@ -1422,10 +1503,13 @@ async function fetchWorkoutExerciseCatalog(
       );
     }
 
-    if (options.equipment && options.equipment.length === 1) {
-      query = query.eq('equipment', options.equipment[0]);
-    } else if (options.equipment && options.equipment.length > 1) {
-      query = query.in('equipment', options.equipment);
+    const equipmentQueryValues = options.equipment
+      ? expandExerciseEquipmentQueryValues(options.equipment)
+      : [];
+    if (equipmentQueryValues.length === 1) {
+      query = query.eq('equipment', equipmentQueryValues[0]);
+    } else if (equipmentQueryValues.length > 1) {
+      query = query.in('equipment', equipmentQueryValues);
     }
 
     const { data, error } = await query;
@@ -1542,10 +1626,13 @@ async function fetchWorkoutEditExerciseCatalog(
       );
     }
 
-    if (options.equipment && options.equipment.length === 1) {
-      query = query.eq('equipment', options.equipment[0]);
-    } else if (options.equipment && options.equipment.length > 1) {
-      query = query.in('equipment', options.equipment);
+    const equipmentQueryValues = options.equipment
+      ? expandExerciseEquipmentQueryValues(options.equipment)
+      : [];
+    if (equipmentQueryValues.length === 1) {
+      query = query.eq('equipment', equipmentQueryValues[0]);
+    } else if (equipmentQueryValues.length > 1) {
+      query = query.in('equipment', equipmentQueryValues);
     }
 
     const { data, error } = await query;
@@ -1745,7 +1832,8 @@ async function callAIProvider(
   }
   const currentDraft = sanitizeWorkoutTemplate(
     context.currentWorkoutTemplateDraft,
-    context.exerciseCatalog ?? []
+    context.exerciseCatalog ?? [],
+    { preserveUnknownExercises: true }
   );
   const parsedEditRequest = currentDraft ? parseWorkoutEditRequest(request.message) : null;
   if (
@@ -2953,7 +3041,8 @@ function sanitizeReps(value: unknown): string {
 
 function sanitizeWorkoutTemplate(
   rawTemplate: unknown,
-  catalog: WorkoutGenerationExerciseCatalogEntry[]
+  catalog: WorkoutGenerationExerciseCatalogEntry[],
+  options: { preserveUnknownExercises?: boolean } = {}
 ): AIWorkoutTemplate | null {
   if (!rawTemplate || typeof rawTemplate !== 'object') {
     return null;
@@ -3003,7 +3092,30 @@ function sanitizeWorkoutTemplate(
     const catalogEntry = catalogById.get(requestedId)
       ?? catalogByName.get(normalizeCatalogLookupValue(requestedName));
 
-    if (!catalogEntry || seenExerciseIds.has(catalogEntry.id)) {
+    if (!catalogEntry) {
+      const fallbackExerciseId = sanitizeShortText(requestedId, 120);
+      const fallbackExerciseName = sanitizeShortText(requestedName, 120);
+      if (
+        !options.preserveUnknownExercises
+        || !fallbackExerciseId
+        || !fallbackExerciseName
+        || seenExerciseIds.has(fallbackExerciseId)
+      ) {
+        return;
+      }
+
+      seenExerciseIds.add(fallbackExerciseId);
+      sanitizedExercises.push({
+        exerciseId: fallbackExerciseId,
+        exerciseName: toWorkoutTitleCase(fallbackExerciseName),
+        sets: clampInteger(exercise.sets, 2, 6, 3),
+        reps: sanitizeReps(exercise.reps),
+        restSeconds: clampInteger(exercise.restSeconds, 30, 240, 90),
+      });
+      return;
+    }
+
+    if (seenExerciseIds.has(catalogEntry.id)) {
       return;
     }
 
@@ -3258,7 +3370,8 @@ function sanitizeWorkoutTemplateResponse(
     : null;
   const currentDraft = sanitizeWorkoutTemplate(
     context.currentWorkoutTemplateDraft,
-    context.exerciseCatalog
+    context.exerciseCatalog,
+    { preserveUnknownExercises: true }
   );
   const parsedEditRequest = currentDraft ? parseWorkoutEditRequest(request.message) : null;
   const deterministicEdit = currentDraft && parsedEditRequest && parsedEditRequest.action !== 'unknown'
@@ -5061,7 +5174,8 @@ function buildFallbackWorkoutTemplate(
 
   const sanitizedDraft = sanitizeWorkoutTemplate(
     context.currentWorkoutTemplateDraft,
-    catalog
+    catalog,
+    { preserveUnknownExercises: true }
   );
 
   if (sanitizedDraft) {

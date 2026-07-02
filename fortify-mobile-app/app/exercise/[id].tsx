@@ -307,13 +307,14 @@ export default function ExerciseDetailsScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={[styles.backButton, themedStyles.backButton]}>
-          <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, themedStyles.headerTitle]} numberOfLines={1}>
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity onPress={handleBack} style={[styles.backButton, themedStyles.backButton]}>
+            <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.headerTitle, themedStyles.headerTitle]} numberOfLines={2}>
           {exercise.name}
         </Text>
-        <View style={styles.headerSpacer} />
       </View>
 
       {/* Tabs */}
@@ -626,11 +627,14 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    gap: Spacing.sm,
+    gap: Spacing.xs,
+  },
+  headerTopRow: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
     width: 40,
@@ -641,14 +645,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: {
-    flex: 1,
     fontSize: FontSizes.lg,
+    lineHeight: Math.round(FontSizes.lg * 1.25),
     fontWeight: '700',
     color: Colors.textPrimary,
     textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
+    paddingHorizontal: Spacing.xl,
   },
   tabBar: {
     flexDirection: 'row',
@@ -696,7 +698,7 @@ const styles = StyleSheet.create({
 
   // About tab styles
   exerciseImageContainer: {
-    height: 280,
+    aspectRatio: 1,
     marginBottom: Spacing.md,
     marginHorizontal: Spacing['2xl'],
     borderRadius: BorderRadius['2xl'],

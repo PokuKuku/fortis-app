@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Image } from 'react-native';
 import {
   ChevronDownIcon,
   ChevronUpIcon,
-  EllipsisVerticalIcon,
+  EllipsisHorizontalIcon,
   DocumentTextIcon,
   MicrophoneIcon,
   XMarkIcon,
@@ -18,6 +18,8 @@ import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import { useLastExercisePerformance } from '@/src/hooks/useLastExercisePerformance';
+import { getExerciseById } from '@/src/services/exerciseService';
+import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
 import { SetRow } from './SetRow';
 import { ExerciseKebabPopover } from './ExerciseKebabPopover';
 import { ExerciseTargetSheet } from './ExerciseTargetSheet';
@@ -111,6 +113,10 @@ export function ExerciseCard({
     reorderButtonPressed: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.08)',
     },
+    exerciseThumbnail: {
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+      borderColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
+    },
   };
 
   // Determine if checkboxes should be shown (defaults to !useEditor for backwards compatibility)
@@ -136,6 +142,7 @@ export function ExerciseCard({
   const [showTargetSheet, setShowTargetSheet] = useState(false);
   const [stickyNoteValue, setStickyNoteValue] = useState('');
   const [showNotesInput, setShowNotesInput] = useState(false);
+  const [exerciseImagePath, setExerciseImagePath] = useState<string | null>(null);
   const [kebabPosition, setKebabPosition] = useState({ top: 0, left: 0 });
   const kebabRef = useRef<View>(null);
   const stickyNoteInputRef = useRef<TextInput>(null);
@@ -160,6 +167,38 @@ export function ExerciseCard({
   const targetSummary = exercise && targetRange
     ? `${exercise.sets.length} ${exercise.sets.length === 1 ? 'set' : 'sets'} x ${targetRange.min} - ${targetRange.max} reps`
     : null;
+  const exerciseImageSource = useMemo(
+    () => getCachedExerciseImageSource(exerciseImagePath),
+    [exerciseImagePath]
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+    const lookupKey = exercise?.exerciseId || exercise?.exerciseName;
+
+    if (!lookupKey) {
+      setExerciseImagePath(null);
+      return;
+    }
+
+    void getExerciseById(lookupKey)
+      .then(async (exerciseData) => {
+        const resolvedExercise = exerciseData || (exercise?.exerciseName
+          ? await getExerciseById(exercise.exerciseName)
+          : null);
+
+        if (!isCancelled) {
+          setExerciseImagePath(resolvedExercise?.images?.[0] ?? null);
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) setExerciseImagePath(null);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [exercise?.exerciseId, exercise?.exerciseName]);
 
   useEffect(() => {
     stickyNoteValueRef.current = stickyNoteValue;
@@ -365,13 +404,38 @@ export function ExerciseCard({
       <View style={styles.content}>
         {/* Exercise Header */}
         <View style={styles.header}>
-          <View style={styles.exerciseTitleGroup}>
-            <Text style={[styles.exerciseName, themedStyles.exerciseName]}>
-              {exercise.exerciseName}
-            </Text>
-            {targetSummary && (
-              isSetTargetTourStep ? (
-                <TourAnchor id={TOUR_ANCHOR_IDS.setTarget}>
+          <View style={styles.exerciseIdentity}>
+            {exerciseImageSource ? (
+              <View style={[styles.exerciseThumbnail, themedStyles.exerciseThumbnail]}>
+                <Image
+                  source={exerciseImageSource}
+                  style={styles.exerciseThumbnailImage}
+                  resizeMode="cover"
+                  fadeDuration={100}
+                />
+              </View>
+            ) : null}
+            <View style={styles.exerciseTitleGroup}>
+              <Text style={[styles.exerciseName, themedStyles.exerciseName]}>
+                {exercise.exerciseName}
+              </Text>
+              {targetSummary && (
+                isSetTargetTourStep ? (
+                  <TourAnchor id={TOUR_ANCHOR_IDS.setTarget}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit target for ${exercise.exerciseName}`}
+                      accessibilityHint="Opens set and rep target controls"
+                      onPress={handleOpenTargetSheet}
+                      hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                      style={({ pressed }) => pressed && styles.targetSummaryPressed}
+                    >
+                      <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={2}>
+                        {targetSummary}
+                      </Text>
+                    </Pressable>
+                  </TourAnchor>
+                ) : (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`Edit target for ${exercise.exerciseName}`}
@@ -384,24 +448,33 @@ export function ExerciseCard({
                       {targetSummary}
                     </Text>
                   </Pressable>
-                </TourAnchor>
-              ) : (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Edit target for ${exercise.exerciseName}`}
-                  accessibilityHint="Opens set and rep target controls"
-                  onPress={handleOpenTargetSheet}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
-                  style={({ pressed }) => pressed && styles.targetSummaryPressed}
-                >
-                  <Text style={[styles.targetSummary, themedStyles.targetSummary]} numberOfLines={2}>
-                    {targetSummary}
-                  </Text>
-                </Pressable>
-              )
-            )}
+                )
+              )}
+            </View>
           </View>
           <View style={styles.headerActions}>
+            {!useEditor && onVoiceLog && (
+              shouldAnchorVoiceLog
+                ? (
+                  <TourAnchor id={TOUR_ANCHOR_IDS.voiceLog}>
+                    {renderVoiceButton()}
+                  </TourAnchor>
+                )
+                : renderVoiceButton()
+            )}
+
+            <View ref={kebabRef} collapsable={false}>
+              <Pressable
+                onPress={handleKebabPress}
+                style={({ pressed }) => [
+                  styles.kebabButton,
+                  pressed && styles.pressed
+                ]}
+              >
+                <EllipsisHorizontalIcon size={20} color={colors.textSecondary} strokeWidth={2} />
+              </Pressable>
+            </View>
+
             {useEditor && onMoveUp && onMoveDown && (
               <View style={styles.reorderActions}>
                 <Pressable
@@ -436,28 +509,6 @@ export function ExerciseCard({
                 </Pressable>
               </View>
             )}
-
-            {!useEditor && onVoiceLog && (
-              shouldAnchorVoiceLog
-                ? (
-                  <TourAnchor id={TOUR_ANCHOR_IDS.voiceLog}>
-                    {renderVoiceButton()}
-                  </TourAnchor>
-                )
-                : renderVoiceButton()
-            )}
-
-            <View ref={kebabRef} collapsable={false}>
-              <Pressable
-                onPress={handleKebabPress}
-                style={({ pressed }) => [
-                  styles.kebabButton,
-                  pressed && styles.pressed
-                ]}
-              >
-                <EllipsisVerticalIcon size={20} color={colors.textSecondary} strokeWidth={2} />
-              </Pressable>
-            </View>
           </View>
         </View>
 
@@ -649,6 +700,25 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: Spacing.sm,
   },
+  exerciseIdentity: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    minWidth: 0,
+  },
+  exerciseThumbnail: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 1,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  exerciseThumbnailImage: {
+    width: '100%',
+    height: '100%',
+  },
   exerciseName: {
     flexShrink: 1,
     minWidth: 0,
@@ -676,18 +746,22 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   kebabButton: {
-    padding: Spacing.sm,
+    width: responsiveValue(34, 36, 38),
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerActions: {
-    flexDirection: 'row',
+    width: responsiveValue(34, 36, 38),
     alignItems: 'center',
+    gap: 4,
     flexShrink: 0,
   },
   reorderActions: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     gap: Spacing.xs,
-    marginRight: Spacing.xs,
+    marginTop: Spacing.xs,
   },
   reorderButton: {
     width: 28,

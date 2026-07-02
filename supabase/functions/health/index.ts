@@ -44,6 +44,8 @@ Deno.serve(async (req) => {
     return jsonResponse({
       status: 'ok',
       exerciseLibrary: {
+        canonicalSource: 'mobile-bundled-360',
+        supabaseRole: 'fallback-and-custom-sync',
         count: count ?? 0,
         version: meta?.version ?? null,
         updatedAt: meta?.updated_at ?? null,

@@ -435,4 +435,20 @@ describe('RealtimeVoiceCoachScreen', () => {
     fireEvent.press(getByTestId('conversation-text-prompt-submit'));
     expect(onSendTextPrompt).toHaveBeenCalledWith('Roast my consistency');
   });
+
+  it('prepares the realtime session when opening the conversation text prompt', () => {
+    const onPrepareTextPrompt = jest.fn();
+    const { getByTestId } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        experienceMode="conversation"
+        onPrepareTextPrompt={onPrepareTextPrompt}
+      />
+    );
+
+    fireEvent.press(getByTestId('conversation-text-prompt-button'));
+
+    expect(onPrepareTextPrompt).toHaveBeenCalledTimes(1);
+    expect(getByTestId('conversation-text-prompt-input')).toBeTruthy();
+  });
 });

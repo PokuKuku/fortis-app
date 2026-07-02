@@ -20,4 +20,21 @@ describe('aiConsentService', () => {
 
     alertSpy.mockRestore();
   });
+
+  it('re-prompts after a decline when forcePrompt is enabled', async () => {
+    const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+      buttons?.find((button) => button.text === 'Allow')?.onPress?.();
+    });
+    await setAIDataSharingConsent(false);
+
+    await expect(requestAIDataSharingConsent({ forcePrompt: true })).resolves.toBe(true);
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Allow AI coaching?',
+      expect.any(String),
+      expect.any(Array)
+    );
+
+    alertSpy.mockRestore();
+  });
 });

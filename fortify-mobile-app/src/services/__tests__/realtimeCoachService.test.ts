@@ -185,10 +185,10 @@ describe('realtimeCoachService', () => {
 
     expect(response.type).toBe('answer');
     expect(mockInvoke).toHaveBeenCalledWith('ai', {
-      body: {
+      body: expect.objectContaining({
         intent: 'GENERAL_CHAT',
         message: 'make me a chest workout',
-        context: {
+        context: expect.objectContaining({
           currentWorkoutTemplateDraft: {
             name: 'Existing Workout',
             exercises: [
@@ -201,9 +201,16 @@ describe('realtimeCoachService', () => {
             ],
           },
           voiceWorkoutOnly: true,
-        },
+          exerciseCatalog: expect.arrayContaining([
+            expect.objectContaining({
+              id: expect.any(String),
+              name: expect.any(String),
+              images: expect.any(Array),
+            }),
+          ]),
+        }),
         history: undefined,
-      },
+      }),
     });
   });
 

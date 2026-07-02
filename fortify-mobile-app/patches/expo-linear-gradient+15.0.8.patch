@@ -1,8 +1,8 @@
 diff --git a/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift b/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift
-index fec7037..4c41166 100644
+index fec7037..265fdd0 100644
 --- a/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift
 +++ b/node_modules/expo-linear-gradient/ios/LinearGradientLayer.swift
-@@ -52,14 +52,23 @@ final class LinearGradientLayer: CALayer {
+@@ -52,14 +52,31 @@ final class LinearGradientLayer: CALayer {
    override func display() {
      super.display()
  
@@ -16,6 +16,14 @@ index fec7037..4c41166 100644
 +    else {
        return
      }
++
++    if colors.count == 1 {
++      self.backgroundColor = colors[0].cgColor
++      self.contents = nil
++      return
++    }
++
++    self.backgroundColor = nil
      let hasAlpha = colors.reduce(false) { result, color in
        return result || color.cgColor.alpha < 1.0
      }
@@ -28,7 +36,7 @@ index fec7037..4c41166 100644
  
      guard let contextRef = UIGraphicsGetCurrentContext() else {
        return
-@@ -74,7 +83,6 @@ final class LinearGradientLayer: CALayer {
+@@ -74,7 +91,6 @@ final class LinearGradientLayer: CALayer {
      self.contents = image.cgImage
      self.contentsScale = image.scale
  
@@ -36,3 +44,25 @@ index fec7037..4c41166 100644
    }
  
    override func draw(in ctx: CGContext) {
+@@ -84,11 +100,19 @@ final class LinearGradientLayer: CALayer {
+ 
+     let colorSpace = CGColorSpaceCreateDeviceRGB()
+     let locations = colors.enumerated().map { (offset: Int, _: UIColor) -> CGFloat in
++      let fallbackLocation = CGFloat(offset) / CGFloat(colors.count - 1)
++      let location: CGFloat
+       if self.locations.count > offset {
+-        return self.locations[offset]
++        location = self.locations[offset]
+       } else {
+-        return CGFloat(offset) / CGFloat(colors.count - 1)
++        location = fallbackLocation
++      }
++
++      guard location.isFinite else {
++        return fallbackLocation
+       }
++
++      return min(max(location, 0), 1)
+     }
+     let cgColors = colors.map { $0.cgColor } as CFArray
+ 

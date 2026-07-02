@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react-native';
+import { Alert, Linking } from 'react-native';
 import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
 import type { AIWorkoutTemplate } from '@/src/types/ai';
 
@@ -196,9 +197,14 @@ const startConnectedSession = async (options?: {
 };
 
 describe('useRealtimeCoach', () => {
+  let alertSpy: jest.SpyInstance;
+  let openSettingsSpy: jest.SpyInstance;
+
   beforeEach(() => {
     jest.useFakeTimers();
     jest.clearAllMocks();
+    alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    openSettingsSpy = jest.spyOn(Linking, 'openSettings').mockResolvedValue(undefined);
     global.WebSocket = MockWebSocket as unknown as typeof WebSocket;
     MockWebSocket.instances = [];
     Object.keys(audioListeners).forEach((key) => {
@@ -216,6 +222,10 @@ describe('useRealtimeCoach', () => {
     });
     mockShouldGenerateWorkoutFromVoice.mockReturnValue(false);
     mockShouldEditWorkoutFromVoice.mockReturnValue(false);
+    mockGetMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true });
+    mockRequestMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true });
+    mockInitialize.mockResolvedValue(true);
+    mockToggleRecording.mockReturnValue(true);
     mockGenerateRealtimeCoachScriptAudio.mockResolvedValue({
       type: 'script_audio',
       audio: {
@@ -267,6 +277,8 @@ describe('useRealtimeCoach', () => {
   });
 
   afterEach(() => {
+    alertSpy.mockRestore();
+    openSettingsSpy.mockRestore();
     jest.runOnlyPendingTimers();
     jest.useRealTimers();
   });
@@ -278,6 +290,35 @@ describe('useRealtimeCoach', () => {
     expect(hook.result.current.debugStatus.recordingStarted).toBe(false);
     expect(hook.result.current.isUserTurnActive).toBe(false);
     expect(hook.result.current.debugStatus.microphoneChunksSent).toBe(0);
+
+    hook.unmount();
+  });
+
+  it('shows a native microphone settings prompt instead of raw permission JSON when access is denied', async () => {
+    mockGetMicrophonePermissionsAsync.mockResolvedValue({
+      status: 'denied',
+      granted: false,
+      canAskAgain: false,
+    });
+
+    const hook = renderHook(() => useRealtimeCoach({ preferences }));
+
+    await act(async () => {
+      await hook.result.current.start();
+    });
+
+    expect(alertSpy).toHaveBeenCalledWith(
+      'Microphone Access Needed',
+      'Turn on microphone access to use Voice Coach.',
+      expect.arrayContaining([
+        expect.objectContaining({ text: 'Not Now', style: 'cancel' }),
+        expect.objectContaining({ text: 'Open Settings' }),
+      ])
+    );
+    expect(mockRequestMicrophonePermissionsAsync).not.toHaveBeenCalled();
+    expect(mockCreateRealtimeCoachSession).not.toHaveBeenCalled();
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.phase).toBe('stopped');
 
     hook.unmount();
   });
@@ -473,6 +514,34 @@ describe('useRealtimeCoach', () => {
     act(() => {
       expect(hook.result.current.sendTextPrompt('Roast my consistency')).toBe(true);
     });
+    const typedTurn = JSON.parse(socket.sentMessages[socket.sentMessages.length - 1]);
+    expect(typedTurn.clientContent.turnComplete).toBe(true);
+    expect(typedTurn.clientContent.turns[0].parts[0].text).toBe('Roast my consistency');
+
+    hook.unmount();
+  });
+
+  it('starts a session and sends a queued typed prompt from idle conversation mode', async () => {
+    const conversationPreferences = {
+      ...preferences,
+      experienceMode: 'conversation' as const,
+    };
+    const hook = renderHook(() => useRealtimeCoach({ preferences: conversationPreferences }));
+
+    await act(async () => {
+      expect(hook.result.current.sendTextPrompt('Roast my consistency')).toBe(true);
+      await Promise.resolve();
+    });
+
+    const socket = MockWebSocket.instances[0];
+    expect(mockCreateRealtimeCoachSession).toHaveBeenCalledWith(conversationPreferences, 'push_to_talk');
+    expect(socket.sentMessages).toHaveLength(0);
+
+    act(() => {
+      socket.open();
+      socket.message(JSON.stringify({ setupComplete: {} }));
+    });
+
     const typedTurn = JSON.parse(socket.sentMessages[socket.sentMessages.length - 1]);
     expect(typedTurn.clientContent.turnComplete).toBe(true);
     expect(typedTurn.clientContent.turns[0].parts[0].text).toBe('Roast my consistency');

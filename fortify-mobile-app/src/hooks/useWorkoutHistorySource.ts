@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
 import {
   getInFlightWorkoutHistoryRequest,
@@ -18,6 +18,7 @@ type WorkoutHistorySourceOptions = {
   localSessions?: WorkoutSession[];
   staleTimeMs?: number;
   syncToStore?: boolean;
+  refreshKey?: number;
 };
 
 const DEFAULT_LIMIT = 10000;
@@ -32,12 +33,14 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     localSessions,
     staleTimeMs = DEFAULT_STALE_MS,
     syncToStore = limit === DEFAULT_LIMIT,
+    refreshKey = 0,
   } = options;
   const fallbackLocal = useWorkoutStore((state) => state.completedSessions);
   const replaceCompletedSessions = useWorkoutStore((state) => state.replaceCompletedSessions);
   const local = localSessions ?? fallbackLocal;
   const cachedForUser = getWorkoutHistoryCacheEntry(userId)?.sessions ?? null;
   const cachedAt = getWorkoutHistoryCacheEntry(userId)?.cachedAt ?? 0;
+  const lastHandledRefreshKey = useRef(0);
 
   const [remoteSessions, setRemoteSessions] = useState<WorkoutSession[]>(
     cachedForUser ?? []
@@ -65,7 +68,8 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     }
 
     const now = Date.now();
-    const isStale = !cachedForUser || now - cachedAt > staleTimeMs;
+    const shouldForceRefresh = refreshKey > lastHandledRefreshKey.current;
+    const isStale = shouldForceRefresh || !cachedForUser || now - cachedAt > staleTimeMs;
     if (!isStale) {
       setRemoteSessions(cachedForUser ?? []);
       setIsLoading(false);
@@ -75,6 +79,9 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     }
 
     if (!getInFlightWorkoutHistoryRequest(userId)) {
+      if (shouldForceRefresh) {
+        lastHandledRefreshKey.current = refreshKey;
+      }
       const expectedUserId = userId;
       setInFlightWorkoutHistoryRequest(
         userId,
@@ -129,7 +136,7 @@ export function useWorkoutHistorySource(options: WorkoutHistorySourceOptions = {
     return () => {
       isMounted = false;
     };
-  }, [enabled, limit, staleTimeMs, syncToStore, userId, cachedAt, cachedForUser]);
+  }, [enabled, limit, refreshKey, staleTimeMs, syncToStore, userId, cachedAt, cachedForUser]);
 
   const sessions = useMemo(
     () => mergeWorkoutSessions(remoteSessions, local),

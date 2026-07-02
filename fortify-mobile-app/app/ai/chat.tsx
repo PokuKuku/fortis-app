@@ -77,10 +77,12 @@ const LOADING_MESSAGES = [
 const COACHING_QUESTION_REGEX =
   /\b(how do i|how to|what('?s| is) the proper way to|show me how to|teach me how to|tips for|form for)\b/i;
 const WORKOUT_GENERATION_REGEX =
-  /\b(?:(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workouts?|routines?|sessions?|templates?)\b/i;
+  /\b(?:(make|create|build|generate|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workouts?|routines?|sessions?|templates?|training(?:\s+(?:day|session|workout))?)\b/i;
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
 const WORKOUT_RESIZE_REGEXES = [
+  /\b(?:add|include|insert|put in|put|bring in)\s+(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+(?:more|additional|extra))?(?:\s+(?:exercise|movement|lift)s?)?\b/i,
+  /\b(?:remove|take out|exclude|drop|delete)\s+(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+(?:more|additional|extra))?(?:\s+(?:exercise|movement|lift)s?)?\b/i,
   /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
   /\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:have|be|to)\b[\s\S]{0,30}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
   /\b(?:only|just)\s+(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
@@ -506,7 +508,7 @@ export default function AIChatScreen() {
       },
       async () => {
         if (!shouldPromptForFeatureAccess(isTourActive)) return;
-        const allowed = await requestAIDataSharingConsent();
+        const allowed = await requestAIDataSharingConsent({ forcePrompt: true });
         if (!allowed) return;
 
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -544,13 +546,22 @@ export default function AIChatScreen() {
     );
   }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
 
+  const requestAIFeatureConsent = useCallback(async (): Promise<boolean> => {
+    if (!shouldPromptForFeatureAccess(isTourActive)) return false;
+    return await requestAIDataSharingConsent({ forcePrompt: true });
+  }, [isTourActive]);
+
   const pickMedia = useCallback(async (target: 'chat' | 'voice') => {
     const shouldRestartVoice = target === 'voice' && interactionMode === 'realtime' && isVoiceActive;
     if (target === 'voice') setIsPickingVoiceMedia(true);
-    if (shouldRestartVoice) {
-      stopVoiceCoach();
-    }
     try {
+      const allowed = await requestAIFeatureConsent();
+      if (!allowed) return;
+
+      if (shouldRestartVoice) {
+        stopVoiceCoach();
+      }
+
       const selected = await pickAIMediaFromLibrary();
       if (selected.length > 0) {
         if (target === 'chat') setPendingChatMedia(selected);
@@ -561,7 +572,7 @@ export default function AIChatScreen() {
     } finally {
       if (target === 'voice') setIsPickingVoiceMedia(false);
     }
-  }, [interactionMode, isVoiceActive, stopVoiceCoach]);
+  }, [interactionMode, isVoiceActive, requestAIFeatureConsent, stopVoiceCoach]);
 
   useEffect(() => {
     if (!isVoiceActive || !debugStatus.setupComplete || pendingVoiceMedia.length === 0) return;
@@ -606,14 +617,13 @@ export default function AIChatScreen() {
         },
       },
       async () => {
-        if (!shouldPromptForFeatureAccess(isTourActive)) return;
-        const allowed = await requestAIDataSharingConsent();
+        const allowed = await requestAIFeatureConsent();
         if (!allowed) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         await retryLastMessage();
       },
     );
-  }, [isTourActive, retryLastMessage, runProFeature]);
+  }, [requestAIFeatureConsent, retryLastMessage, runProFeature]);
 
   const handleStartVoiceCoach = useCallback(async () => (
     runProFeature(
@@ -625,13 +635,12 @@ export default function AIChatScreen() {
         },
       },
       async () => {
-        if (!shouldPromptForFeatureAccess(isTourActive)) return false;
-        const allowed = await requestAIDataSharingConsent();
+        const allowed = await requestAIFeatureConsent();
         if (!allowed) return false;
         await startVoiceCoach();
       },
     )
-  ), [isTourActive, runProFeature, startVoiceCoach]);
+  ), [requestAIFeatureConsent, runProFeature, startVoiceCoach]);
 
   useEffect(() => {
     if (!areRealtimePreferencesLoaded) return;
@@ -662,13 +671,12 @@ export default function AIChatScreen() {
         },
       },
       async () => {
-        if (!shouldPromptForFeatureAccess(isTourActive)) return false;
-        const allowed = await requestAIDataSharingConsent();
+        const allowed = await requestAIFeatureConsent();
         if (!allowed) return false;
         await beginUserTurn();
       },
     )
-  ), [beginUserTurn, isTourActive, runProFeature]);
+  ), [beginUserTurn, requestAIFeatureConsent, runProFeature]);
 
   useEffect(() => {
     stopVoiceCoachRef.current = stopVoiceCoach;
@@ -841,6 +849,9 @@ export default function AIChatScreen() {
             onRemovePendingMedia={(id) => setPendingVoiceMedia((current) => current.filter((item) => item.id !== id))}
             experienceMode={realtimePreferences.experienceMode ?? 'coach'}
             onSendTextPrompt={sendTextPrompt}
+            onPrepareTextPrompt={() => {
+              void handleStartVoiceCoach();
+            }}
           />
         ) : (
           <KeyboardAvoidingView
@@ -976,6 +987,7 @@ export default function AIChatScreen() {
               suppressVoicePermissionPrompt={isTourActive}
               hasAttachments={pendingChatMedia.length > 0}
               onAddMedia={() => { void pickMedia('chat'); }}
+              onRequestAIConsent={requestAIFeatureConsent}
             />
           </KeyboardAvoidingView>
         )}

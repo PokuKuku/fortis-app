@@ -28,6 +28,7 @@ import {
   TrashIcon,
   DocumentTextIcon,
   MicrophoneIcon,
+  BellIcon,
   SparklesIcon,
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
@@ -50,6 +51,12 @@ import {
   getMicrophonePermissionStatus,
   openMicrophoneSettings,
 } from '@/src/services/microphonePermissionService';
+import {
+  getNotificationPermissionStatus,
+  openNotificationSettings,
+  requestNotificationPermission,
+  requestNotificationPermissionIfNeeded,
+} from '@/src/services/notificationPermissionService';
 import { RealtimeCoachSettingsModal } from '@/src/components/ai/RealtimeCoachSettingsModal';
 import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
 
@@ -123,6 +130,7 @@ export default function SettingsScreen() {
   const [showVoiceCoachSettings, setShowVoiceCoachSettings] = useState(false);
   const [aiDataSharingAllowed, setAIDataSharingAllowed] = useState<boolean>(false);
   const [microphoneAllowed, setMicrophoneAllowed] = useState<boolean>(false);
+  const [notificationsAllowed, setNotificationsAllowed] = useState<boolean>(false);
 
   const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
   const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
@@ -159,6 +167,12 @@ export default function SettingsScreen() {
         setMicrophoneAllowed(permission.granted);
       }
     };
+    const refreshNotificationPermission = async () => {
+      const permission = await getNotificationPermissionStatus();
+      if (isMounted) {
+        setNotificationsAllowed(permission?.granted === true || permission?.status === 'granted');
+      }
+    };
 
     void (async () => {
       const allowed = await hasAIDataSharingConsent();
@@ -166,11 +180,13 @@ export default function SettingsScreen() {
         setAIDataSharingAllowed(allowed);
       }
       await refreshMicrophonePermission();
+      await refreshNotificationPermission();
     })();
 
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
         void refreshMicrophonePermission();
+        void refreshNotificationPermission();
       }
     });
 
@@ -246,6 +262,61 @@ export default function SettingsScreen() {
           text: 'Open Settings',
           onPress: () => {
             void openMicrophoneSettings();
+          },
+        },
+      ]
+    );
+  };
+
+  const handleNotificationAccessPress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const currentPermission = await getNotificationPermissionStatus();
+    if (!currentPermission) {
+      Alert.alert('Notifications', 'Notification permissions are not available on this device.');
+      return;
+    }
+
+    const isAllowed = currentPermission.granted || currentPermission.status === 'granted';
+    if (isAllowed) {
+      setNotificationsAllowed(true);
+      Alert.alert(
+        'Notifications',
+        'Notification access is controlled by your device settings. Open Settings to allow or disable it for Fortify.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Open Settings',
+            onPress: () => {
+              void openNotificationSettings();
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    const canAskInApp = currentPermission.status === 'undetermined' || currentPermission.canAskAgain === true;
+    if (canAskInApp) {
+      const nextPermission = currentPermission.status === 'undetermined'
+        ? await requestNotificationPermissionIfNeeded()
+        : await requestNotificationPermission();
+      const nextAllowed = nextPermission?.granted === true || nextPermission?.status === 'granted';
+      setNotificationsAllowed(nextAllowed);
+      if (nextAllowed) return;
+    } else {
+      setNotificationsAllowed(false);
+    }
+
+    Alert.alert(
+      'Notifications',
+      'Notification access is controlled by your device settings. Open Settings to allow it for Fortify.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open Settings',
+          onPress: () => {
+            void openNotificationSettings();
           },
         },
       ]
@@ -595,6 +666,17 @@ export default function SettingsScreen() {
                 label="Microphone"
                 value={microphoneAllowed ? 'Allowed' : 'Not allowed'}
                 onPress={handleMicrophoneAccessPress}
+                colors={colors}
+                isDark={isDark}
+              />
+
+              <View style={[styles.settingsDivider, dividerStyle]} />
+
+              <SettingsRow
+                icon={<BellIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                label="Notifications"
+                value={notificationsAllowed ? 'Allowed' : 'Not allowed'}
+                onPress={handleNotificationAccessPress}
                 colors={colors}
                 isDark={isDark}
               />

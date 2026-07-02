@@ -72,6 +72,12 @@ type WorkoutSetRow = {
   } | null;
 };
 
+type WorkoutSetMetadataSnapshotRow = {
+  exercise_id: string | null;
+  exercise_name_snapshot: string | null;
+  primary_muscles_snapshot: string[] | null;
+};
+
 type WorkoutSessionWithSetsRow = {
   id: string;
   started_at: string;
@@ -112,9 +118,47 @@ const fetchScopedExerciseMetadata = async (
     .in('id', exerciseIds)
     .or(`is_custom.eq.false,created_by.eq.${userId}`);
 
+  const metadataById = new Map<string, ExerciseMetadataRow>();
+  ((data as ExerciseMetadataRow[] | null) ?? []).forEach((row) => {
+    if (row?.id) {
+      metadataById.set(row.id, row);
+    }
+  });
+
+  const missingExerciseIds = exerciseIds.filter((id) => !metadataById.has(id));
+  let snapshotError: { message: string } | null = null;
+
+  if (missingExerciseIds.length > 0) {
+    const { data: snapshotRows, error: fallbackError } = await adminClient
+      .from('workout_sets')
+      .select('exercise_id, exercise_name_snapshot, primary_muscles_snapshot, workout_sessions!inner(user_id)')
+      .in('exercise_id', missingExerciseIds)
+      .eq('workout_sessions.user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(Math.max(100, missingExerciseIds.length * 3));
+
+    snapshotError = fallbackError ? { message: fallbackError.message } : null;
+
+    ((snapshotRows as WorkoutSetMetadataSnapshotRow[] | null) ?? []).forEach((row) => {
+      if (!row?.exercise_id || metadataById.has(row.exercise_id)) {
+        return;
+      }
+      metadataById.set(row.exercise_id, {
+        id: row.exercise_id,
+        name: row.exercise_name_snapshot ?? 'Exercise',
+        equipment: null,
+        category: 'strength',
+        primary_muscles: row.primary_muscles_snapshot ?? [],
+        secondary_muscles: [],
+      });
+    });
+  }
+
   return {
-    data: (data as ExerciseMetadataRow[] | null) ?? [],
-    error: error ? { message: error.message } : null,
+    data: Array.from(metadataById.values()),
+    error: error
+      ? { message: error.message }
+      : snapshotError,
   };
 };
 

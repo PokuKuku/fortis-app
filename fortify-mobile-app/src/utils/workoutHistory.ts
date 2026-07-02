@@ -9,7 +9,7 @@ export const mergeWorkoutSessions = (
     merged.set(session.localId, session);
   });
   local.forEach((session) => {
-    if (!session.isSynced && !merged.has(session.localId)) {
+    if (!merged.has(session.localId)) {
       merged.set(session.localId, session);
     }
   });
