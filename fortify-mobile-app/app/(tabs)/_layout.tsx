@@ -623,7 +623,7 @@ export default function TabLayout() {
           animation: 'shift',
           animationEnabled: true,
           sceneStyle: { backgroundColor: colors.background },
-          lazy: true,
+          lazy: false,
           unmountOnBlur: false,
           freezeOnBlur: true,
           tabBarStyle: {

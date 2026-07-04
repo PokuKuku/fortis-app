@@ -24,6 +24,7 @@ import Animated, {
   withSpring,
   Easing,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { MicrophoneIcon, PaperAirplaneIcon, PlusIcon } from 'react-native-heroicons/outline';
@@ -93,6 +94,7 @@ export function ChatInput({
   placeholder = 'Ask about your training...',
 }: ChatInputProps) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [isFocused, setIsFocused] = useState(false);
   const [voicePhase, setVoicePhase] = useState<VoicePhase>('idle');
   const [liveTranscript, setLiveTranscript] = useState('');
@@ -329,7 +331,13 @@ export function ChatInput({
   }, [canUseVoice, onRequestAIConsent, resetVoiceState, showVoicePermissionAlert, suppressVoicePermissionPrompt, voicePhase]);
 
   return (
-    <View style={[styles.wrapper, themedStyles.wrapper]}>
+    <View
+      style={[
+        styles.wrapper,
+        themedStyles.wrapper,
+        { paddingBottom: Math.max(Spacing['2xl'], insets.bottom + Spacing.sm) },
+      ]}
+    >
       <Animated.View style={[styles.container, themedStyles.container, containerStyle]}>
         {isVoiceBusy ? (
           <View style={[styles.voiceTrack, themedStyles.voiceTrack]}>

@@ -19,8 +19,9 @@ import { formatDistanceToNow } from 'date-fns';
 import ReAnimated, { FadeIn } from 'react-native-reanimated';
 import Markdown from 'react-native-markdown-display';
 import * as Haptics from 'expo-haptics';
+import { EyeIcon, CheckIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
-import { Spacing, BorderRadius } from '@/constants/Sizes';
+import { Spacing, BorderRadius, IconSizes } from '@/constants/Sizes';
 import { Typography, FontFamily } from '@/constants/Typography';
 import { AIClarificationOption, AIConversationMessage } from '@/src/types/ai';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -29,6 +30,9 @@ import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import type { ExerciseVolumeMeta } from '@/src/utils/workoutVolume';
 
 interface ChatMessageProps {
   message: AIConversationMessage;
@@ -36,6 +40,7 @@ interface ChatMessageProps {
   delay?: number;
   /** Callback when user taps a clarification option */
   onClarificationSelect?: (option: string | AIClarificationOption) => void;
+  onClarificationView?: (option: AIClarificationOption) => void;
   onViewWorkoutTemplate?: (message: AIConversationMessage) => void;
   onAddWorkoutTemplate?: (message: AIConversationMessage) => void;
   onUpdateWorkoutTemplate?: (message: AIConversationMessage) => void;
@@ -53,6 +58,7 @@ export function ChatMessage({
   message,
   delay = 0,
   onClarificationSelect,
+  onClarificationView,
   onViewWorkoutTemplate,
   onAddWorkoutTemplate,
   onUpdateWorkoutTemplate,
@@ -66,6 +72,7 @@ export function ChatMessage({
   tourWorkoutTemplateAnchorId,
 }: ChatMessageProps) {
   const { colors, isDark } = useTheme();
+  const bodyType = useWorkoutStore((state) => state.bodyType);
   const isUser = message.role === 'user';
   const allowTldr = message.intent === 'FORTIS_ANALYST';
   const { exercisesById } = useExerciseLookup();
@@ -94,6 +101,16 @@ export function ChatMessage({
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
     },
     clarificationOptionImageFallbackText: { color: colors.textPrimary },
+    clarificationActionButton: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+      borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
+    },
+    clarificationConfirmButton: {
+      backgroundColor: colors.accent,
+      borderColor: colors.accent,
+    },
+    clarificationActionText: { color: colors.textPrimary },
+    clarificationConfirmText: { color: colors.accentForegroundOnFill },
     clarificationCallout: {
       backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
       borderColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
@@ -312,6 +329,8 @@ export function ChatMessage({
                 const optionLabel = typeof option === 'string' ? option : option.label;
                 const optionExerciseId = typeof option === 'string' ? undefined : option.exerciseId;
                 const optionWorkoutTemplateId = typeof option === 'string' ? undefined : option.workoutTemplateId;
+                const optionWorkoutTemplate = typeof option === 'string' ? undefined : option.workoutTemplate;
+                const isWorkoutOption = Boolean(optionWorkoutTemplateId || optionWorkoutTemplate);
                 const optionExercise = optionExerciseId ? exercisesById.get(optionExerciseId) : undefined;
                 const optionExerciseImagePath =
                   optionExercise && 'images' in optionExercise && Array.isArray(optionExercise.images)
@@ -319,22 +338,26 @@ export function ChatMessage({
                     : undefined;
                 const imageSource = getCachedExerciseImageSource(optionExerciseImagePath);
                 const fallbackCharacter = optionExercise?.name?.charAt(0) ?? optionLabel.charAt(0);
-
-                return (
-                  <TouchableOpacity
-                    key={`${optionLabel}-${optionExerciseId ?? optionWorkoutTemplateId ?? optionIndex}`}
-                    style={[styles.clarificationOption, themedStyles.clarificationOption]}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      onClarificationSelect?.(option);
-                    }}
-                    activeOpacity={0.7}
-                    accessibilityLabel={`Select option: ${optionLabel}`}
-                    accessibilityRole="button"
-                  >
+                const workoutHeatmapExercises = optionWorkoutTemplate?.exercises
+                  .map((exercise) => exercisesById.get(exercise.exerciseId) ?? exercisesById.get(exercise.exerciseName))
+                  .filter((exercise): exercise is ExerciseVolumeMeta => Boolean(exercise));
+                const optionContent = (
+                  <>
                     <View style={styles.clarificationOptionContent}>
-                      <View style={styles.clarificationOptionImageWrap}>
-                        {imageSource ? (
+                      <View style={[
+                        styles.clarificationOptionImageWrap,
+                        isWorkoutOption && styles.clarificationWorkoutHeatmapWrap,
+                      ]}>
+                        {isWorkoutOption && workoutHeatmapExercises && workoutHeatmapExercises.length > 0 ? (
+                          <View style={styles.clarificationWorkoutHeatmap} pointerEvents="none">
+                            <MuscleHeatmap
+                              exercises={workoutHeatmapExercises}
+                              gender={bodyType}
+                              scale={0.11}
+                              compact
+                            />
+                          </View>
+                        ) : imageSource ? (
                           <Image
                             source={imageSource}
                             style={styles.clarificationOptionImage}
@@ -375,6 +398,71 @@ export function ChatMessage({
                         ) : null}
                       </View>
                     </View>
+                    {isWorkoutOption && typeof option !== 'string' ? (
+                      <View style={styles.clarificationOptionActions}>
+                        <TouchableOpacity
+                          style={[styles.clarificationActionButton, themedStyles.clarificationActionButton]}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            onClarificationView?.(option);
+                          }}
+                          activeOpacity={0.75}
+                          accessibilityLabel={`View option: ${optionLabel}`}
+                          accessibilityRole="button"
+                        >
+                          <EyeIcon color={colors.textPrimary} size={IconSizes.sm} strokeWidth={2.2} />
+                          <Text style={[styles.clarificationActionText, themedStyles.clarificationActionText]}>
+                            View
+                          </Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[
+                            styles.clarificationActionButton,
+                            styles.clarificationConfirmButton,
+                            themedStyles.clarificationConfirmButton,
+                          ]}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            onClarificationSelect?.(option);
+                          }}
+                          activeOpacity={0.75}
+                          accessibilityLabel={`Confirm option: ${optionLabel}`}
+                          accessibilityRole="button"
+                        >
+                          <CheckIcon color={colors.accentForegroundOnFill} size={IconSizes.sm} strokeWidth={2.4} />
+                          <Text style={[styles.clarificationActionText, themedStyles.clarificationConfirmText]}>
+                            Confirm
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+                  </>
+                );
+
+                if (isWorkoutOption) {
+                  return (
+                    <View
+                      key={`${optionLabel}-${optionWorkoutTemplateId ?? optionIndex}`}
+                      style={[styles.clarificationOption, themedStyles.clarificationOption]}
+                    >
+                      {optionContent}
+                    </View>
+                  );
+                }
+
+                return (
+                  <TouchableOpacity
+                    key={`${optionLabel}-${optionExerciseId ?? optionWorkoutTemplateId ?? optionIndex}`}
+                    style={[styles.clarificationOption, themedStyles.clarificationOption]}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      onClarificationSelect?.(option);
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityLabel={`Select option: ${optionLabel}`}
+                    accessibilityRole="button"
+                  >
+                    {optionContent}
                   </TouchableOpacity>
                 );
               })()
@@ -697,6 +785,20 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexShrink: 0,
   },
+  clarificationWorkoutHeatmapWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  clarificationWorkoutHeatmap: {
+    width: 58,
+    height: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   clarificationOptionImage: {
     width: '100%',
     height: '100%',
@@ -723,6 +825,29 @@ const styles = StyleSheet.create({
   clarificationOptionMeta: {
     ...Typography.caption,
     fontSize: 11,
+  },
+  clarificationOptionActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+    marginLeft: 64 + Spacing.sm,
+  },
+  clarificationActionButton: {
+    minHeight: 36,
+    flex: 1,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: Spacing.sm,
+  },
+  clarificationConfirmButton: {},
+  clarificationActionText: {
+    ...Typography.labelSmall,
+    fontFamily: FontFamily.semibold,
+    fontWeight: '600',
   },
   tldrContainer: {
     marginTop: Spacing.md,

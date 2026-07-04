@@ -11,6 +11,7 @@ import {
   AIIntent,
   AIError,
   AIResponse,
+  AIClarification,
   AIConversation,
   AIConversationMessage,
   AIChatMessage,
@@ -203,6 +204,12 @@ interface AIState {
     images?: AIImage[],
     attachments?: AIAttachmentDisplay[]
   ) => Promise<AIResponse>;
+  addLocalClarification: (
+    intent: AIIntent,
+    message: string,
+    clarification: AIClarification,
+    attachments?: AIAttachmentDisplay[]
+  ) => Promise<AIResponse>;
   retryLastMessage: () => Promise<AIResponse | null>;
   checkRateLimits: () => Promise<void>;
   loadConversation: () => Promise<void>;
@@ -348,6 +355,54 @@ export const useAIStore = create<AIState>()(
           },
         } as AIResponse;
       }
+    },
+
+    addLocalClarification: async (intent, message, clarification, attachments) => {
+      const { conversation, persistConversation } = get();
+      const now = new Date().toISOString();
+      const userMessage: AIConversationMessage = {
+        id: generateId(),
+        role: 'user',
+        content: message,
+        intent,
+        createdAt: now,
+        attachments,
+      };
+      const assistantMessage: AIConversationMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: makeFriendlyClarification(clarification.question),
+        intent,
+        createdAt: now,
+        clarification,
+        savedWorkoutTemplateId: null,
+        editableWorkoutTemplateId: null,
+        editableWorkoutTemplateName: null,
+      };
+      const updatedConversation: AIConversation = conversation
+        ? {
+            ...conversation,
+            messages: [...conversation.messages, userMessage, assistantMessage],
+          }
+        : {
+            id: generateId(),
+            messages: [userMessage, assistantMessage],
+            createdAt: now,
+          };
+
+      set({
+        conversation: updatedConversation,
+        isSendingMessage: false,
+        error: null,
+        lastFailedMessage: null,
+      });
+      await persistConversation();
+
+      return {
+        type: 'clarification',
+        requestId: assistantMessage.id,
+        clarification,
+      };
     },
 
     retryLastMessage: async () => {

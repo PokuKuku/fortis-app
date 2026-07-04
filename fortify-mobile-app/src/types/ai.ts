@@ -137,6 +137,9 @@ export interface AIClarificationOption {
   label: string;
   exerciseId?: string;
   workoutTemplateId?: string;
+  workoutId?: string;
+  workoutTemplate?: AIWorkoutTemplate;
+  originalPrompt?: string;
   prompt?: string;
 }
 

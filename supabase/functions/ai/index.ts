@@ -627,7 +627,7 @@ const WORKOUT_REQUEST_REGEXES = [
 const WORKOUT_ADVICE_REGEX =
   /\b(advice|feedback|suggestions?|recommendations?|tips?)\b/i;
 const WORKOUT_FEEDBACK_ONLY_REGEX =
-  /\b(?:advice|feedback|suggestions?|recommendations?|tips?|review|critique|analy[sz]e|thoughts?|opinion|rate|what do you think|is (?:it|this|that)\s+(?:good|bad|solid|balanced)|can (?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:it|this|that)\s+be\s+improved|could (?:it|this|that)\s+be\s+better)\b/i;
+  /\b(?:advice|feedback|suggestions?|recommendations?|tips?|review|critique|analy[sz]e|thoughts?|opinion|rate|what do you think|how(?:'s|\s+is|\s+are)[\s\S]{0,80}\b(?:workout|routine|session|template)\b|is (?:it|this|that)\s+(?:good|bad|solid|balanced)|can (?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:it|this|that)\s+be\s+improved|could (?:it|this|that)\s+be\s+better)\b/i;
 const EXPLICIT_WORKOUT_TEMPLATE_CHANGE_REGEX =
   /\b(?:edit|update|revise|adjust|tweak|change|modify|increase|decrease|reduce|harder|easier|shorter|longer|prioritize|emphasize|focus|replace|swap|switch|add|include|insert|remove|take out|exclude|drop|delete|without|skip)\b/i;
 const WORKOUT_LIBRARY_REFERENCE_REGEX =
@@ -652,6 +652,53 @@ const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
   { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'abs', 'obliques'] },
   { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'shoulders', 'side_delts', 'quadriceps', 'quads', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
 ];
+
+const WORKOUT_MUSCLE_DISPLAY_LABELS: Record<string, string> = {
+  abs: 'abs',
+  abdominals: 'abs',
+  abductors: 'abductors',
+  adductors: 'adductors',
+  biceps: 'biceps',
+  calves: 'calves',
+  chest: 'chest',
+  forearms: 'forearms',
+  front_delts: 'front delts',
+  'front delts': 'front delts',
+  glutes: 'glutes',
+  hamstrings: 'hamstrings',
+  lats: 'lats',
+  lower_back: 'lower back',
+  'lower back': 'lower back',
+  middle_back: 'middle back',
+  'middle back': 'middle back',
+  obliques: 'obliques',
+  quads: 'quads',
+  quadriceps: 'quads',
+  rear_delts: 'rear delts',
+  'rear delts': 'rear delts',
+  shoulders: 'shoulders',
+  side_delts: 'side delts',
+  'side delts': 'side delts',
+  traps: 'traps',
+  triceps: 'triceps',
+  upper_back: 'upper back',
+  'upper back': 'upper back',
+};
+
+const WORKOUT_FOCUS_NAME_PATTERN: Record<string, RegExp> = {
+  Back: /\b(back|pull)\b/i,
+  Chest: /\b(chest|push)\b/i,
+  Push: /\b(push|chest)\b/i,
+  Pull: /\b(pull|back)\b/i,
+  'Lower Body': /\b(lower body|legs?|glutes?)\b/i,
+  Legs: /\blegs?\b/i,
+  'Upper Body': /\bupper body\b/i,
+  'Full Body': /\bfull body\b/i,
+  Shoulders: /\bshoulders?\b/i,
+  Arms: /\barms?\b/i,
+  Core: /\b(core|abs?)\b/i,
+  Glutes: /\bglutes?\b/i,
+};
 
 const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
   { regex: /\bdumbbell(s)?\b/i, equipment: 'dumbbell' },
@@ -694,6 +741,13 @@ function getAmbiguousWorkoutTemplateMatches(request: AIRequest, context: AIConte
     return [];
   }
 
+  const hasExplicitTemplateId = context.workoutLibrary.some((template) => (
+    message.includes(template.id) || (template.workoutId ? message.includes(template.workoutId) : false)
+  ));
+  if (hasExplicitTemplateId) {
+    return [];
+  }
+
   const normalizedMessage = ` ${normalizeWorkoutReferenceText(message)} `;
   const matches = context.workoutLibrary
     .map((template, index) => {
@@ -731,17 +785,30 @@ function buildWorkoutTemplateDisambiguationResponse(
   if (matches.length === 0) {
     return null;
   }
+  const baseLabels = matches.map((template) => {
+    const exerciseCount = template.template.exercises.length;
+    const exerciseLabel = exerciseCount === 1 ? '1 exercise' : `${exerciseCount} exercises`;
+    return `${template.name} • ${exerciseLabel}`;
+  });
 
   return {
     type: 'clarification' as const,
     requestId,
     clarification: {
       question: 'I found multiple saved workouts that could match. Which one do you mean?',
-      options: matches.map((template) => ({
-        label: template.name,
-        workoutTemplateId: template.id,
-        prompt: `Use workout template ${template.id} ("${template.name}") for this request: ${request.message}`,
-      })),
+      options: matches.map((template, index) => {
+        const baseLabel = baseLabels[index];
+        const duplicateLabelCount = baseLabels.filter((label) => label === baseLabel).length;
+        const label = duplicateLabelCount > 1 ? `${baseLabel} #${index + 1}` : baseLabel;
+        return {
+          label,
+          workoutTemplateId: template.id,
+          workoutId: template.workoutId,
+          workoutTemplate: template.template,
+          originalPrompt: request.message,
+          prompt: `Use "${label}" for my previous question: ${request.message}`,
+        };
+      }),
     },
   };
 }
@@ -3277,84 +3344,21 @@ function sanitizeWorkoutTemplate(
   }
 
   return {
-    name: sanitizeShortText(template.name, 80) ?? 'AI Workout',
-    description: sanitizeShortText(template.description, 180),
-    focus: sanitizeShortText(template.focus, 80),
+    name: normalizeWorkoutDisplayText(
+      typeof template.name === 'string' ? template.name : undefined,
+      80
+    ) ?? 'AI Workout',
+    description: normalizeWorkoutDisplayText(
+      typeof template.description === 'string' ? template.description : undefined,
+      180
+    ),
+    focus: normalizeWorkoutDisplayText(
+      typeof template.focus === 'string' ? template.focus : undefined,
+      80
+    ),
     estimatedDurationMinutes: clampInteger(template.estimatedDurationMinutes, 15, 120, 45),
     exercises: sanitizedExercises.slice(0, MAX_WORKOUT_TEMPLATE_EXERCISES),
   };
-}
-
-function scoreWorkoutTemplateAlignment(
-  template: AIWorkoutTemplate | null | undefined,
-  message: string,
-  catalog: WorkoutGenerationExerciseCatalogEntry[]
-): number {
-  if (!template) {
-    return Number.NEGATIVE_INFINITY;
-  }
-
-  const targetMuscles = extractWorkoutTargetMuscles(message).map((muscle) => muscle.toLowerCase());
-  const equipmentPreferences = extractWorkoutEquipment(message).map(normalizeEquipmentValue);
-  const catalogById = new Map(catalog.map((entry) => [entry.id, entry]));
-  let score = 0;
-  const selectedEntries: WorkoutGenerationExerciseCatalogEntry[] = [];
-  const seenFamilies = new Map<string, number>();
-  const seenCanonicalGroups = new Set<string>();
-  const requestedExerciseCount = extractRequestedExerciseCount(message);
-
-  if (requestedExerciseCount) {
-    const difference = Math.abs((template.exercises?.length ?? 0) - requestedExerciseCount);
-    score += difference === 0 ? 30 : -(difference * 10);
-  }
-
-  template.exercises.forEach((exercise, index) => {
-    const entry = catalogById.get(exercise.exerciseId);
-    if (!entry) {
-      score -= 6;
-      return;
-    }
-
-    selectedEntries.push(entry);
-    score += scoreCatalogExercise(entry, targetMuscles, equipmentPreferences);
-
-    const muscles = entry.primaryMuscles.map((muscle) => muscle.toLowerCase());
-    const hasTargetOverlap =
-      targetMuscles.length === 0 || targetMuscles.some((muscle) => muscles.includes(muscle));
-
-    if (targetMuscles.length > 0) {
-      score += hasTargetOverlap ? 6 : -5;
-    }
-
-    if (index < 2 && !isCompoundExerciseName(entry.name)) {
-      score -= 2;
-    }
-
-    const family = getExerciseFamily(entry);
-    const familyCount = seenFamilies.get(family) ?? 0;
-    if (familyCount > 0 && family !== 'row') {
-      score -= 8;
-    } else if (family === 'row' && familyCount > 1) {
-      score -= 5;
-    }
-    seenFamilies.set(family, familyCount + 1);
-
-    const canonicalGroup = getCanonicalGroup(entry);
-    if (seenCanonicalGroups.has(canonicalGroup)) {
-      score -= 12;
-    }
-    seenCanonicalGroups.add(canonicalGroup);
-  });
-
-  const plan = buildWorkoutGenerationPlan(message);
-  for (const slot of plan.slots) {
-    const isCovered = selectedEntries.some((entry) =>
-      muscleMatches(entry, slot.targetMuscles) > 0 || keywordMatches(entry, slot.keywords) > 0
-    );
-    score += isCovered ? 4 : (slot.optional ? 0 : -6);
-  }
-
-  return score;
 }
 
 function buildWorkoutTemplateAnswerText(template: AIWorkoutTemplate): string {
@@ -3538,6 +3542,7 @@ function sanitizeWorkoutTemplateResponse(
       typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
     );
   }
+  const normalizedTemplate = normalizeWorkoutTemplateForRequest(sanitizedTemplate, request);
 
   return {
     ...record,
@@ -3545,8 +3550,8 @@ function sanitizeWorkoutTemplateResponse(
       ...record.answer,
       text: currentDraft
         ? record.answer.text
-        : buildWorkoutTemplateAnswerText(sanitizedTemplate),
-      workoutTemplate: sanitizedTemplate,
+        : buildWorkoutTemplateAnswerText(normalizedTemplate),
+      workoutTemplate: normalizedTemplate,
     },
   };
 }
@@ -3690,6 +3695,9 @@ type WorkoutClarificationOption = {
   label: string;
   exerciseId?: string;
   workoutTemplateId?: string;
+  workoutId?: string;
+  workoutTemplate?: AIWorkoutTemplate;
+  originalPrompt?: string;
   prompt?: string;
 };
 
@@ -4579,6 +4587,67 @@ function inferWorkoutFocusLabel(message: string): string {
   if (/\bcore\b|\babs?\b/.test(normalized)) return 'Core';
   if (/\bglute(s)?\b/.test(normalized)) return 'Glutes';
   return 'Strength';
+}
+
+function getWorkoutDisplayLabel(value: string, titleCase = false): string {
+  const normalized = value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  const label = WORKOUT_MUSCLE_DISPLAY_LABELS[normalized] ?? normalized;
+  return titleCase ? toWorkoutTitleCase(label) : label;
+}
+
+function normalizeWorkoutDisplayText(value: string | undefined, maxLength: number): string | undefined {
+  const sanitized = sanitizeShortText(value, maxLength);
+  if (!sanitized) {
+    return undefined;
+  }
+
+  return sanitized
+    .replace(/\b[A-Za-z]+(?:[_-][A-Za-z]+)+\b/g, (token) => getWorkoutDisplayLabel(token))
+    .replace(/\s+([,.;:!?])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function workoutNameMatchesFocus(name: string | undefined, focus: string): boolean {
+  if (!name || focus === 'Strength') {
+    return true;
+  }
+  const pattern = WORKOUT_FOCUS_NAME_PATTERN[focus];
+  return pattern ? pattern.test(name) : name.toLowerCase().includes(focus.toLowerCase());
+}
+
+function stripGeneratedWorkoutDuplicateSuffix(name: string): string {
+  return name.replace(/\s+\(\d+\)\s*$/, '').trim();
+}
+
+function normalizeWorkoutTemplateForRequest(
+  template: AIWorkoutTemplate,
+  request: AIRequest
+): AIWorkoutTemplate {
+  const requestedFocus = inferWorkoutFocusLabel(request.message);
+  const explicitNewWorkout = isExplicitNewWorkoutRequest(request.message);
+  const normalizedName = normalizeWorkoutDisplayText(template.name, 80) ?? template.name;
+  const focus = explicitNewWorkout && requestedFocus !== 'Strength'
+    ? requestedFocus
+    : normalizeWorkoutDisplayText(template.focus, 80);
+  const name = explicitNewWorkout
+    && requestedFocus !== 'Strength'
+    && !workoutNameMatchesFocus(template.name, requestedFocus)
+      ? `${requestedFocus} Workout`
+      : explicitNewWorkout
+        ? stripGeneratedWorkoutDuplicateSuffix(normalizedName)
+        : normalizedName;
+
+  return {
+    ...template,
+    name,
+    description: normalizeWorkoutDisplayText(template.description, 180),
+    focus,
+  };
 }
 
 function normalizeEquipmentValue(value: string | null | undefined): string {
