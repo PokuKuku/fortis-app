@@ -37,7 +37,14 @@ import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useAIStore } from '@/src/store/aiStore';
-import { AIIntent, AIConversationMessage, AIPendingMedia } from '@/src/types/ai';
+import {
+  AIEditableWorkoutTemplate,
+  AIIntent,
+  AIConversationMessage,
+  AIRequestContext,
+  AIWorkoutTemplate,
+  AIPendingMedia,
+} from '@/src/types/ai';
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
@@ -61,6 +68,8 @@ import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiM
 import { setLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
 import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { useProgramsStore } from '@/src/store/programsStore';
+import type { Program } from '@/src/types/workout';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -89,6 +98,16 @@ const WORKOUT_RESIZE_REGEXES = [
 ];
 const CURRENT_WORKOUT_REFERENCE_REGEX =
   /\b(?:it|this|that|current|existing)\s+(?:workout|routine|session|template)\b/i;
+const PRONOUN_REFERENCE_REGEX =
+  /\b(?:it|this|that)\b/i;
+const WORKOUT_LIBRARY_REFERENCE_REGEX =
+  /\b(?:my|saved|library|template|templates|workout|workouts|routine|routines|session|sessions|program|programs)\b/i;
+const WORKOUT_COMMENTARY_REGEX =
+  /\b(?:review|look at|check|critique|analyze|comment|thoughts|think|opinion|feedback|rate|improve|better|good|bad|balanced)\b/i;
+const SAVED_WORKOUT_REVISION_REGEX =
+  /\b(?:edit|update|revise|adjust|tweak|change|modify|increase|decrease|reduce|harder|easier|shorter|longer|prioritize|emphasize|focus|replace|swap|switch|add|include|insert|remove|take out|exclude|drop|delete|without|skip)\b/i;
+const MAX_AI_WORKOUT_LIBRARY_TEMPLATES = 20;
+const MAX_AI_WORKOUT_LIBRARY_EXERCISES = 13;
 
 // Animated sparkles for loading indicator
 function AnimatedLoadingSparkles() {
@@ -155,8 +174,163 @@ const shouldAttachWorkoutDraft = (message: string): boolean => {
     return false;
   }
 
+  if (PRONOUN_REFERENCE_REGEX.test(normalized) && WORKOUT_COMMENTARY_REGEX.test(normalized)) {
+    return true;
+  }
+
   return WORKOUT_EDIT_REGEX.test(normalized)
     || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized));
+};
+
+const normalizeWorkoutReferenceText = (value: string): string => (
+  value
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+);
+
+const programToEditableWorkoutTemplate = (program: Program): AIEditableWorkoutTemplate | null => {
+  if (!program.isTemplate) {
+    return null;
+  }
+
+  const workout = program.workouts[0];
+  if (!workout || workout.exercises.length === 0) {
+    return null;
+  }
+
+  const exercises = workout.exercises
+    .slice(0, MAX_AI_WORKOUT_LIBRARY_EXERCISES)
+    .map((exercise) => ({
+      exerciseId: exercise.exerciseId,
+      exerciseName: exercise.exerciseName,
+      sets: exercise.sets,
+      reps: exercise.reps,
+      restSeconds: exercise.restSeconds,
+      notes: exercise.notes,
+    }));
+
+  const template: AIWorkoutTemplate = {
+    name: program.name || workout.name,
+    description: program.description,
+    focus: program.goal,
+    exercises,
+  };
+
+  return {
+    id: program.id,
+    workoutId: workout.id,
+    name: program.name,
+    description: program.description,
+    template,
+  };
+};
+
+const findReferencedWorkoutTemplate = (
+  message: string,
+  library: AIEditableWorkoutTemplate[]
+): AIEditableWorkoutTemplate | null => {
+  const idMatch = library.find((template) => (
+    message.includes(template.id) || (template.workoutId ? message.includes(template.workoutId) : false)
+  ));
+  if (idMatch) {
+    return idMatch;
+  }
+
+  const normalizedMessage = normalizeWorkoutReferenceText(message);
+  if (!normalizedMessage || library.length === 0) {
+    return null;
+  }
+
+  const matches = library
+    .map((template) => {
+      const normalizedName = normalizeWorkoutReferenceText(template.name);
+      const normalizedWorkoutName = normalizeWorkoutReferenceText(template.template.name);
+      const names = Array.from(new Set([normalizedName, normalizedWorkoutName].filter(Boolean)));
+      const searchableMessage = ` ${normalizedMessage} `;
+      const bestMatchLength = names.reduce((best, name) => (
+        name.length >= 3 && searchableMessage.includes(` ${name} `)
+          ? Math.max(best, name.length)
+          : best
+      ), 0);
+      return { template, bestMatchLength };
+    })
+    .filter((entry) => entry.bestMatchLength > 0)
+    .sort((a, b) => b.bestMatchLength - a.bestMatchLength);
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return matches[1]?.bestMatchLength === matches[0].bestMatchLength
+    ? null
+    : matches[0].template;
+};
+
+const compactWorkoutLibraryForAI = (
+  library: AIEditableWorkoutTemplate[]
+): AIEditableWorkoutTemplate[] => (
+  library.slice(0, MAX_AI_WORKOUT_LIBRARY_TEMPLATES).map((template) => ({
+    id: template.id,
+    workoutId: template.workoutId,
+    name: template.name,
+    description: template.description,
+    template: {
+      name: template.template.name,
+      description: template.template.description,
+      focus: template.template.focus,
+      estimatedDurationMinutes: template.template.estimatedDurationMinutes,
+      exercises: template.template.exercises.slice(0, 6).map((exercise) => ({
+        exerciseId: exercise.exerciseId,
+        exerciseName: exercise.exerciseName,
+        sets: exercise.sets,
+        reps: exercise.reps,
+      })),
+    },
+  }))
+);
+
+const shouldAttachWorkoutLibrary = (message: string, target: AIEditableWorkoutTemplate | null): boolean => {
+  if (target) {
+    return true;
+  }
+
+  return WORKOUT_LIBRARY_REFERENCE_REGEX.test(message)
+    && (WORKOUT_COMMENTARY_REGEX.test(message) || WORKOUT_EDIT_REGEX.test(message));
+};
+
+const buildWorkoutRequestContext = (
+  message: string,
+  currentWorkoutTemplateDraft: AIWorkoutTemplate | undefined,
+  workoutLibrary: AIEditableWorkoutTemplate[]
+): AIRequestContext | undefined => {
+  const referencedWorkout = findReferencedWorkoutTemplate(message, workoutLibrary);
+  const isBrandNewWorkoutRequest =
+    WORKOUT_GENERATION_REGEX.test(message)
+    && !CURRENT_WORKOUT_REFERENCE_REGEX.test(message)
+    && !SAVED_WORKOUT_REVISION_REGEX.test(message);
+  const shouldIncludeLibrary = shouldAttachWorkoutLibrary(message, referencedWorkout);
+
+  if (referencedWorkout && !isBrandNewWorkoutRequest) {
+    return {
+      currentWorkoutTemplateDraft: referencedWorkout.template,
+      editableWorkoutTemplate: referencedWorkout,
+      workoutLibrary: compactWorkoutLibraryForAI(workoutLibrary),
+    };
+  }
+
+  const requestContext: AIRequestContext = {};
+
+  if (currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)) {
+    requestContext.currentWorkoutTemplateDraft = currentWorkoutTemplateDraft;
+  }
+
+  if (shouldIncludeLibrary) {
+    requestContext.workoutLibrary = compactWorkoutLibraryForAI(workoutLibrary);
+  }
+
+  return Object.keys(requestContext).length > 0 ? requestContext : undefined;
 };
 
 const getLastIntent = (messages: AIConversationMessage[]): AIIntent | null => {
@@ -225,6 +399,7 @@ export default function AIChatScreen() {
   const checkRateLimits = useAIStore((state) => state.checkRateLimits);
   const rateLimitStatus = useAIStore((state) => state.rateLimitStatus);
   const markWorkoutTemplateSaved = useAIStore((state) => state.markWorkoutTemplateSaved);
+  const programs = useProgramsStore((state) => state.programs);
 
   const messages = conversation?.messages || [];
   const isTourBackWorkoutStep = isTourActive && activeStepId === 'ai_text_chat_overview';
@@ -244,6 +419,16 @@ export default function AIChatScreen() {
     }
     return undefined;
   }, [messages]);
+  const workoutLibraryTemplates = useMemo(
+    () => programs.filter((program) => program.isTemplate),
+    [programs]
+  );
+  const editableWorkoutLibrary = useMemo(
+    () => workoutLibraryTemplates
+      .map(programToEditableWorkoutTemplate)
+      .filter((template): template is AIEditableWorkoutTemplate => Boolean(template)),
+    [workoutLibraryTemplates]
+  );
   const {
     preferences: realtimePreferences,
     isLoaded: areRealtimePreferencesLoaded,
@@ -519,9 +704,11 @@ export default function AIChatScreen() {
           : shouldContinueVisualCoaching(inferredIntent, lastIntent)
             ? 'VISUAL_COACHING'
             : inferredIntent;
-        const requestContext = currentWorkoutTemplateDraft && shouldAttachWorkoutDraft(message)
-          ? { currentWorkoutTemplateDraft }
-          : undefined;
+        const requestContext = buildWorkoutRequestContext(
+          message,
+          currentWorkoutTemplateDraft,
+          editableWorkoutLibrary,
+        );
 
         posthog.capture('ai_message_sent', {
           intent,
@@ -544,7 +731,7 @@ export default function AIChatScreen() {
         }
       },
     );
-  }, [chatWorkoutActions, currentWorkoutTemplateDraft, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
+  }, [chatWorkoutActions, currentWorkoutTemplateDraft, editableWorkoutLibrary, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
 
   const requestAIFeatureConsent = useCallback(async (): Promise<boolean> => {
     if (!shouldPromptForFeatureAccess(isTourActive)) return false;
@@ -886,13 +1073,15 @@ export default function AIChatScreen() {
                       key={message.id}
                       message={message}
                       isSavingWorkoutTemplate={chatWorkoutActions.savingWorkoutMessageId === message.id}
+                      isUpdatingWorkoutTemplate={chatWorkoutActions.updatingWorkoutMessageId === message.id}
                       isStartingWorkoutTemplate={chatWorkoutActions.startingWorkoutMessageId === message.id}
                       onClarificationSelect={(option) => {
-                        const prompt = typeof option === 'string' ? option : option.label;
+                        const prompt = typeof option === 'string' ? option : option.prompt ?? option.label;
                         void submitMessage(prompt);
                       }}
                       onViewWorkoutTemplate={chatWorkoutActions.handleViewWorkoutTemplate}
                       onAddWorkoutTemplate={chatWorkoutActions.handleAddWorkoutTemplate}
+                      onUpdateWorkoutTemplate={chatWorkoutActions.handleUpdateWorkoutTemplate}
                       onStartWorkoutTemplate={chatWorkoutActions.handleStartWorkoutTemplate}
                       isStartWorkoutTemplateDisabled={
                         chatWorkoutActions.isWorkoutActive
@@ -1006,9 +1195,16 @@ export default function AIChatScreen() {
             void activeWorkoutActions.handleAddWorkoutTemplate(activeWorkoutActions.previewMessage);
           }
         }}
+        onUpdate={() => {
+          if (activeWorkoutActions.previewMessage) {
+            void activeWorkoutActions.handleUpdateWorkoutTemplate(activeWorkoutActions.previewMessage);
+          }
+        }}
         isStarting={activeWorkoutActions.previewMessage?.id === activeWorkoutActions.startingWorkoutMessageId}
         isAdding={activeWorkoutActions.previewMessage?.id === activeWorkoutActions.savingWorkoutMessageId}
+        isUpdating={activeWorkoutActions.previewMessage?.id === activeWorkoutActions.updatingWorkoutMessageId}
         isAdded={Boolean(activeWorkoutActions.previewMessage?.savedWorkoutTemplateId)}
+        isUpdateMode={Boolean(activeWorkoutActions.previewMessage?.editableWorkoutTemplateId)}
         isStartDisabled={
           activeWorkoutActions.isWorkoutActive
           || activeWorkoutActions.previewMessage?.id === 'tour-back-workout-response'

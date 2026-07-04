@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -88,6 +88,8 @@ export function ProfileHeader() {
   const [isSavingName, setIsSavingName] = useState(false);
   const [localAvatarUri, setLocalAvatarUri] = useState<string | null>(null);
   const nameInputRef = useRef<TextInput>(null);
+  const heatmapScrollRef = useRef<ScrollView>(null);
+  const didScrollToCurrentMonthRef = useRef(false);
 
   const intensityColors = useMemo(() => ({
     level1: withAlpha(colors.accent, 0.2),
@@ -114,6 +116,15 @@ export function ProfileHeader() {
     if (weeks.length === 0) return 0;
     return (weeks.length * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP)) - HEATMAP_CELL_GAP;
   }, [weeks.length]);
+  const currentMonthWeekIndex = useMemo(() => {
+    const now = new Date();
+    return weeks.findIndex((week) =>
+      week.days.some((day) =>
+        day.date.getFullYear() === now.getFullYear()
+        && day.date.getMonth() === now.getMonth()
+      )
+    );
+  }, [weeks]);
   const memberSince = useMemo(() => {
     const createdAt = profile?.created_at || user?.created_at;
     if (!createdAt) return null;
@@ -234,6 +245,15 @@ export function ProfileHeader() {
       ? { uri: profile.avatar_url }
       : null;
 
+  useEffect(() => {
+    if (didScrollToCurrentMonthRef.current || currentMonthWeekIndex < 0) return;
+    didScrollToCurrentMonthRef.current = true;
+    const x = currentMonthWeekIndex * (HEATMAP_CELL_SIZE + HEATMAP_CELL_GAP);
+    requestAnimationFrame(() => {
+      heatmapScrollRef.current?.scrollTo({ x, animated: false });
+    });
+  }, [currentMonthWeekIndex]);
+
   const handleShareActivity = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({ pathname: '/profile/share', params: { type: 'activity' } });
@@ -346,14 +366,44 @@ export function ProfileHeader() {
         </View>
 
         <View style={styles.heatmapContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.heatmapScroll}
-          >
-            <View>
-              <View style={styles.monthLabelsRow}>
-                <View style={{ width: HEATMAP_DAY_LABEL_WIDTH }} />
+          <View style={styles.heatmapGrid}>
+            <View style={styles.fixedLabelsColumn}>
+              <View style={styles.monthLabelSpacer} />
+              <View style={styles.dayLabelsColumn}>
+                <Text
+                  style={[styles.dayLabel, { color: colors.textTertiary }]}
+                  allowFontScaling={false}
+                  maxFontSizeMultiplier={1}
+                  numberOfLines={1}
+                >
+                  Mon
+                </Text>
+                <Text
+                  style={[styles.dayLabel, { color: colors.textTertiary }]}
+                  allowFontScaling={false}
+                  maxFontSizeMultiplier={1}
+                  numberOfLines={1}
+                >
+                  Wed
+                </Text>
+                <Text
+                  style={[styles.dayLabel, { color: colors.textTertiary }]}
+                  allowFontScaling={false}
+                  maxFontSizeMultiplier={1}
+                  numberOfLines={1}
+                >
+                  Fri
+                </Text>
+              </View>
+            </View>
+
+            <ScrollView
+              ref={heatmapScrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.heatmapScroll}
+            >
+              <View>
                 <View style={[styles.monthLabelsTrack, { width: gridWidth }]}>
                   {monthLabels.map((label) => (
                     <Text
@@ -370,54 +420,26 @@ export function ProfileHeader() {
                     </Text>
                   ))}
                 </View>
-              </View>
 
-              <View style={styles.heatmapRow}>
-                <View style={styles.dayLabelsColumn}>
-                  <Text
-                    style={[styles.dayLabel, { color: colors.textTertiary }]}
-                    allowFontScaling={false}
-                    maxFontSizeMultiplier={1}
-                    numberOfLines={1}
-                  >
-                    Mon
-                  </Text>
-                  <Text
-                    style={[styles.dayLabel, { color: colors.textTertiary }]}
-                    allowFontScaling={false}
-                    maxFontSizeMultiplier={1}
-                    numberOfLines={1}
-                  >
-                    Wed
-                  </Text>
-                  <Text
-                    style={[styles.dayLabel, { color: colors.textTertiary }]}
-                    allowFontScaling={false}
-                    maxFontSizeMultiplier={1}
-                    numberOfLines={1}
-                  >
-                    Fri
-                  </Text>
-                </View>
                 <View style={[styles.weeksRow, { width: gridWidth }]}>
                   {weeks.map((week, weekIndex) => (
                     <View key={`week-${weekIndex}`} style={styles.weekColumn}>
-                  {week.days.map((day, dayIndex) => {
-                    const baseColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-                    const intensity = getRelativeIntensity(day.volume, day.hasActivity, intensityThresholds);
-                    const backgroundColor = day.hasActivity
-                      ? (intensity === 0
-                        ? intensityColors.level1
-                        : intensity === 1
-                          ? intensityColors.level1
-                          : intensity === 2
-                            ? intensityColors.level2
-                            : intensity === 3
-                              ? intensityColors.level3
-                              : intensityColors.level4)
-                      : baseColor;
-                    return (
-                      <View
+                      {week.days.map((day, dayIndex) => {
+                        const baseColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+                        const intensity = getRelativeIntensity(day.volume, day.hasActivity, intensityThresholds);
+                        const backgroundColor = day.hasActivity
+                          ? (intensity === 0
+                            ? intensityColors.level1
+                            : intensity === 1
+                              ? intensityColors.level1
+                              : intensity === 2
+                                ? intensityColors.level2
+                                : intensity === 3
+                                  ? intensityColors.level3
+                                  : intensityColors.level4)
+                          : baseColor;
+                        return (
+                          <View
                             key={`day-${weekIndex}-${dayIndex}`}
                             style={[
                               styles.heatmapCell,
@@ -430,8 +452,8 @@ export function ProfileHeader() {
                   ))}
                 </View>
               </View>
-            </View>
-          </ScrollView>
+            </ScrollView>
+          </View>
 
           <View style={styles.legendRow}>
             <Text style={[styles.legendLabel, { color: colors.textTertiary }]}>Less</Text>
@@ -587,13 +609,21 @@ const styles = StyleSheet.create({
   heatmapScroll: {
     paddingRight: Spacing.sm,
   },
-  monthLabelsRow: {
+  heatmapGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+  },
+  fixedLabelsColumn: {
+    width: HEATMAP_DAY_LABEL_WIDTH,
+    flexShrink: 0,
+  },
+  monthLabelSpacer: {
+    height: 16,
     marginBottom: Spacing.xs,
   },
   monthLabelsTrack: {
     height: 16,
+    marginBottom: Spacing.xs,
     position: 'relative',
   },
   monthLabel: {
@@ -601,13 +631,10 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
   },
-  heatmapRow: {
-    flexDirection: 'row',
-  },
   dayLabelsColumn: {
-    width: HEATMAP_DAY_LABEL_WIDTH,
     justifyContent: 'space-between',
     paddingVertical: 2,
+    height: (HEATMAP_CELL_SIZE * 7) + (HEATMAP_CELL_GAP * 6),
   },
   dayLabel: {
     fontSize: 10,

@@ -2,16 +2,21 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   Animated,
   InteractionManager,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { InformationCircleIcon } from 'react-native-heroicons/outline';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import * as Haptics from 'expo-haptics';
 import { useExercises } from '@/src/hooks/useExercises';
@@ -112,6 +117,8 @@ export function PasteWorkoutSheet({
   onTourExampleImported?: () => void;
 }) {
   const { colors, isDark } = useTheme();
+  const { fontScale, height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const { exercises } = useExercises();
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -123,6 +130,23 @@ export function PasteWorkoutSheet({
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const index = useMemo(() => buildExerciseSearchIndex(exercises), [exercises]);
   const isTourExample = Boolean(tourExampleText);
+  const isLargeText = fontScale >= 1.2;
+  const maxSheetHeight = Math.round(windowHeight * 0.9);
+  const sheetBottomPadding = Math.max(insets.bottom + Spacing.lg, Spacing['2xl']);
+  const dismissPanResponder = useMemo(
+    () => PanResponder.create({
+      onStartShouldSetPanResponder: () => !isTourExample,
+      onMoveShouldSetPanResponder: (_event, gestureState) =>
+        !isTourExample && gestureState.dy > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderRelease: (_event, gestureState) => {
+        if (gestureState.dy > 44 || gestureState.vy > 0.45) {
+          Keyboard.dismiss();
+          onClose();
+        }
+      },
+    }),
+    [isTourExample, onClose]
+  );
 
   const paste = async () => {
     setText(await Clipboard.getStringAsync());
@@ -243,11 +267,20 @@ export function PasteWorkoutSheet({
           <Animated.View style={[styles.sheet, {
             backgroundColor: colors.background,
             borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+            maxHeight: maxSheetHeight,
           }, isTourExample && { transform: [{ translateY: sheetTranslateY }] }]}>
             <StainlessSteelPattern />
-            <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
+            <View style={styles.handleHitArea} {...dismissPanResponder.panHandlers}>
+              <View style={[styles.handle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
+            </View>
             <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.textPrimary }]}>Paste Workout</Text>
+              <Text
+                style={[styles.title, { color: colors.textPrimary }]}
+                maxFontSizeMultiplier={1.15}
+                numberOfLines={2}
+              >
+                Paste Workout
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Paste workout format help"
@@ -269,71 +302,91 @@ export function PasteWorkoutSheet({
                 <InformationCircleIcon color={colors.accent} size={20} strokeWidth={2} />
               </Pressable>
             </View>
-            <View ref={tourInputRef} onLayout={measureTourTargets} pointerEvents={isTourExample ? 'none' : 'auto'}>
-              <TextInput
-                value={text}
-                onChangeText={(value) => { setText(value); setError(null); }}
-                multiline
-                scrollEnabled
-                numberOfLines={4}
-                editable={!isTourExample}
-                placeholder="Paste an exercise list or workout notes"
-                placeholderTextColor={colors.textTertiary}
-                style={[styles.input, {
-                  color: colors.textPrimary,
-                  borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
-                }]}
-              />
-            </View>
-            {error === 'no_entries_found' ? (
-              <View style={[
-                styles.formatErrorCard,
-                {
-                  backgroundColor: colors.accentOverlay,
-                  borderColor: colors.accentBorder,
-                },
-              ]}>
-                <Text style={[styles.formatErrorTitle, { color: colors.textPrimary }]}>We couldn’t find any exercise entries.</Text>
-                <Text style={[styles.formatErrorText, { color: colors.textSecondary }]}>Use one exercise per line, for example:</Text>
-                <Text style={[styles.formatErrorExample, { color: colors.textPrimary }]}>Barbell Bench Press: 3 sets x 8-12 reps</Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="View supported paste workout formats"
-                  onPress={() => setShowFormatHelp(true)}
-                  hitSlop={6}
-                  style={({ pressed }) => [styles.formatErrorAction, pressed && styles.helpButtonPressed]}
-                >
-                  <Text style={[styles.formatErrorActionText, { color: colors.accent }]}>View formats</Text>
-                </Pressable>
+            <ScrollView
+              style={styles.sheetScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={[styles.sheetContent, { paddingBottom: sheetBottomPadding }]}
+            >
+              <View ref={tourInputRef} onLayout={measureTourTargets} pointerEvents={isTourExample ? 'none' : 'auto'}>
+                <TextInput
+                  value={text}
+                  onChangeText={(value) => { setText(value); setError(null); }}
+                  multiline
+                  scrollEnabled
+                  numberOfLines={4}
+                  editable={!isTourExample}
+                  placeholder="Paste an exercise list or workout notes"
+                  placeholderTextColor={colors.textTertiary}
+                  maxFontSizeMultiplier={1.35}
+                  style={[styles.input, isLargeText && styles.inputLargeText, {
+                    color: colors.textPrimary,
+                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                  }]}
+                />
               </View>
-            ) : null}
-            {isTourExample ? (
-              <View ref={makeTemplateButtonRef} onLayout={measureTourTargets}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Make template from example workout notes"
-                  testID="paste-workout-tour-make-template"
-                  onPress={() => importWorkout(true)}
-                  style={({ pressed }) => [
-                    styles.demoAction,
-                    { backgroundColor: colors.accent },
-                    pressed && styles.demoActionPressed,
-                  ]}
-                >
-                  <Text style={[styles.demoActionText, { color: colors.accentForegroundOnFill }]}>Make Template</Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View style={styles.row}>
-                <Pressable style={[styles.secondary, { borderColor: colors.accentBorder }]} onPress={() => void paste()}>
-                  <Text style={[styles.secondaryText, { color: colors.accent }]}>Paste Clipboard</Text>
-                </Pressable>
-                <GlassButton style={styles.importButton} onPress={() => importWorkout()}>
-                  <Text style={[styles.importText, { color: colors.accentForegroundOnFill }]}>Import Workout</Text>
-                </GlassButton>
-              </View>
-            )}
+              {error === 'no_entries_found' ? (
+                <View style={[
+                  styles.formatErrorCard,
+                  {
+                    backgroundColor: colors.accentOverlay,
+                    borderColor: colors.accentBorder,
+                  },
+                ]}>
+                  <Text style={[styles.formatErrorTitle, { color: colors.textPrimary }]}>We couldn’t find any exercise entries.</Text>
+                  <Text style={[styles.formatErrorText, { color: colors.textSecondary }]}>Use one exercise per line, for example:</Text>
+                  <Text style={[styles.formatErrorExample, { color: colors.textPrimary }]} maxFontSizeMultiplier={1.2}>Barbell Bench Press: 3 sets x 8-12 reps</Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="View supported paste workout formats"
+                    onPress={() => setShowFormatHelp(true)}
+                    hitSlop={6}
+                    style={({ pressed }) => [styles.formatErrorAction, pressed && styles.helpButtonPressed]}
+                  >
+                    <Text style={[styles.formatErrorActionText, { color: colors.accent }]}>View formats</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {isTourExample ? (
+                <View ref={makeTemplateButtonRef} onLayout={measureTourTargets}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Make template from example workout notes"
+                    testID="paste-workout-tour-make-template"
+                    onPress={() => importWorkout(true)}
+                    style={({ pressed }) => [
+                      styles.demoAction,
+                      { backgroundColor: colors.accent },
+                      pressed && styles.demoActionPressed,
+                    ]}
+                  >
+                    <Text style={[styles.demoActionText, { color: colors.accentForegroundOnFill }]} maxFontSizeMultiplier={1.2}>Make Template</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <View style={[styles.row, isLargeText && styles.rowStacked]}>
+                  <Pressable style={[styles.secondary, isLargeText && styles.stackedAction, { borderColor: colors.accentBorder }]} onPress={() => void paste()}>
+                    <Text
+                      style={[styles.secondaryText, { color: colors.accent }]}
+                      maxFontSizeMultiplier={1.2}
+                      numberOfLines={2}
+                    >
+                      Paste Clipboard
+                    </Text>
+                  </Pressable>
+                  <GlassButton style={[styles.importButton, isLargeText && styles.stackedAction]} onPress={() => importWorkout()}>
+                    <Text
+                      style={[styles.importText, { color: colors.accentForegroundOnFill }]}
+                      maxFontSizeMultiplier={1.2}
+                      numberOfLines={2}
+                    >
+                      Import Workout
+                    </Text>
+                  </GlassButton>
+                </View>
+              )}
+            </ScrollView>
           </Animated.View>
         </KeyboardAvoidingView>
         {isTourExample ? (
@@ -401,13 +454,17 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   keyboardAvoider: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, gap: Spacing.lg, overflow: 'hidden' },
-  handle: { width: 42, height: 4, borderRadius: 999, alignSelf: 'center', marginTop: Spacing.sm },
-  header: { alignItems: 'center', justifyContent: 'center', minHeight: 36 },
-  title: { fontSize: 24, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textTransform: 'uppercase', textAlign: 'center' },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, paddingHorizontal: Spacing.xl, overflow: 'hidden' },
+  handleHitArea: { minHeight: 36, alignItems: 'center', justifyContent: 'center' },
+  handle: { width: 42, height: 4, borderRadius: 999 },
+  header: { alignItems: 'center', justifyContent: 'center', minHeight: 36, marginTop: Spacing.xs, marginBottom: Spacing.md },
+  title: { fontSize: 24, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textTransform: 'uppercase', textAlign: 'center', paddingHorizontal: 40 },
   helpButton: { position: 'absolute', right: 0, width: 32, height: 32, borderRadius: 16, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   helpButtonPressed: { opacity: 0.7 },
-  input: { height: 132, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, textAlignVertical: 'top', fontSize: 16 },
+  sheetScroll: { flexShrink: 1 },
+  sheetContent: { gap: Spacing.lg, paddingBottom: Spacing.xl },
+  input: { minHeight: 132, maxHeight: 220, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, textAlignVertical: 'top', fontSize: 16, lineHeight: 22 },
+  inputLargeText: { minHeight: 168 },
   formatErrorCard: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, gap: Spacing.xs },
   formatErrorTitle: { fontSize: 14, fontWeight: '700' },
   formatErrorText: { fontSize: 13 },
@@ -418,10 +475,12 @@ const styles = StyleSheet.create({
   demoActionPressed: { opacity: 0.82 },
   demoActionText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textTransform: 'uppercase' },
   row: { flexDirection: 'row', gap: Spacing.md },
+  rowStacked: { flexDirection: 'column' },
+  stackedAction: { flex: 0, width: '100%' },
   secondary: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
-  secondaryText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '700' },
-  importButton: { flex: 1, height: 52, borderRadius: BorderRadius.md },
-  importText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '800' },
+  secondaryText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '700', textAlign: 'center' },
+  importButton: { flex: 1, minHeight: 52, borderRadius: BorderRadius.md },
+  importText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textAlign: 'center' },
   helpOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, backgroundColor: 'rgba(15, 23, 42, 0.55)' },
   helpCard: { width: '100%', maxWidth: 360, borderRadius: BorderRadius.xl, borderWidth: 1, padding: Spacing.lg, gap: Spacing.md, overflow: 'hidden' },
   helpHeader: { alignItems: 'center' },

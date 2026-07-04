@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Easing,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Pressable,
   ScrollView,
@@ -15,6 +17,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChatBubbleBottomCenterTextIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, IconSizes, Spacing } from '@/constants/Sizes';
@@ -136,10 +139,26 @@ export function RealtimeVoiceCoachScreen({
   onPrepareTextPrompt,
 }: RealtimeVoiceCoachScreenProps) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [creatorScript, setCreatorScript] = useState('');
   const [isPromptSheetVisible, setPromptSheetVisible] = useState(false);
   const [textPrompt, setTextPrompt] = useState('');
   const { width, height } = useWindowDimensions();
+  const promptSheetBottomPadding = Math.max(insets.bottom + Spacing.lg, Spacing['2xl']);
+  const promptDismissPanResponder = useMemo(
+    () => PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_event, gestureState) =>
+        gestureState.dy > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderRelease: (_event, gestureState) => {
+        if (gestureState.dy > 44 || gestureState.vy > 0.45) {
+          Keyboard.dismiss();
+          setPromptSheetVisible(false);
+        }
+      },
+    }),
+    []
+  );
   const voiceCardAnimationsRef = useRef<Record<string, Animated.Value>>({});
   const voiceCardDismissAnimationsRef = useRef<Record<string, Animated.Value>>({});
   const animatedVoiceCardIdsRef = useRef<Set<string>>(new Set());
@@ -179,8 +198,7 @@ export function RealtimeVoiceCoachScreen({
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
-  const hasVoiceCards = experienceMode === 'coach'
-    && (voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout);
+  const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
   const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -608,12 +626,16 @@ export function RealtimeVoiceCoachScreen({
             <Pressable
               style={[
                 styles.promptSheet,
+                { paddingBottom: promptSheetBottomPadding },
                 {
                   backgroundColor: isDark ? '#222222' : '#FFFFFF',
                   borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
                 },
               ]}
             >
+              <View style={styles.promptHandleHitArea} {...promptDismissPanResponder.panHandlers}>
+                <View style={[styles.promptHandle, { backgroundColor: isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)' }]} />
+              </View>
               <Text style={[styles.promptTitle, { color: colors.textPrimary }]}>Ask Conversation Coach</Text>
               <TextInput
                 testID="conversation-text-prompt-input"
@@ -768,11 +790,22 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
     borderWidth: 1,
-    padding: Spacing.lg,
-    paddingBottom: Spacing['2xl'],
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.lg,
     gap: Spacing.md,
   },
-  promptTitle: { ...Typography.h4, textAlign: 'center' },
+  promptHandleHitArea: {
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  promptHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: BorderRadius.full,
+  },
+  promptTitle: { ...Typography.h4, textAlign: 'center', marginTop: -Spacing.xs },
   promptInput: {
     minHeight: 120,
     maxHeight: 260,

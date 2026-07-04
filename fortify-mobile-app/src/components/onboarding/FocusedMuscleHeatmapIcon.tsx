@@ -48,7 +48,7 @@ const CROP_VIEW_BOXES: Record<FocusedHeatmapCrop, string> = {
   arms: '145 330 445 334',
   legs: '115 815 310 465',
   glutes: '945 595 310 233',
-  core: '205 400 285 214',
+  core: '225 400 285 214',
 };
 
 const hexToRgb = (hex: string) => {

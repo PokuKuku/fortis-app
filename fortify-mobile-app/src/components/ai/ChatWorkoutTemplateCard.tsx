@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { PlusIcon, EyeIcon, CheckIcon, PlayIcon } from 'react-native-heroicons/outline';
+import { PlusIcon, EyeIcon, CheckIcon, PlayIcon, ArrowPathIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { Colors } from '@/constants/Colors';
@@ -11,8 +11,11 @@ interface ChatWorkoutTemplateCardProps {
   onView: () => void;
   onAdd: () => void;
   onStart: () => void;
+  onUpdate?: () => void;
   isAdding?: boolean;
   isAdded?: boolean;
+  isUpdating?: boolean;
+  isUpdateMode?: boolean;
   isStarting?: boolean;
   isStartDisabled?: boolean;
   startDisabledLabel?: string;
@@ -24,15 +27,18 @@ export function ChatWorkoutTemplateCard({
   onView,
   onAdd,
   onStart,
+  onUpdate,
   isAdding = false,
   isAdded = false,
+  isUpdating = false,
+  isUpdateMode = false,
   isStarting = false,
   isStartDisabled = false,
   startDisabledLabel = 'Workout Active',
   displayScale = 1,
 }: ChatWorkoutTemplateCardProps) {
   const { colors, isDark } = useTheme();
-  const isBusy = isAdding || isStarting;
+  const isBusy = isAdding || isStarting || isUpdating;
   const isStartBusy = isBusy || isStartDisabled;
   const exercises = Array.isArray(template.exercises) ? template.exercises : [];
   const primaryButtonForeground = isAdded ? Colors.white : colors.accentForegroundOnFill;
@@ -146,17 +152,23 @@ export function ChatWorkoutTemplateCard({
           themedStyles.primaryButton,
           (isBusy || isAdded) && styles.buttonDisabled,
         ]}
-        onPress={onAdd}
+        onPress={isUpdateMode ? onUpdate : onAdd}
         activeOpacity={0.8}
         disabled={isBusy || isAdded}
       >
         {isAdded ? (
           <CheckIcon size={iconSize} color={primaryButtonForeground} strokeWidth={2.2} />
+        ) : isUpdateMode ? (
+          <ArrowPathIcon size={iconSize} color={primaryButtonForeground} strokeWidth={2.2} />
         ) : (
           <PlusIcon size={iconSize} color={primaryButtonForeground} strokeWidth={2.2} />
         )}
         <Text style={[styles.primaryButtonText, { fontSize: FontSizes.sm * cardScale }, themedStyles.primaryButtonText]}>
-          {isAdded ? 'Added' : isAdding ? 'Adding...' : 'Add to Workouts'}
+          {isAdded
+            ? isUpdateMode ? 'Updated' : 'Added'
+            : isUpdateMode
+              ? isUpdating ? 'Updating...' : 'Update Workout'
+              : isAdding ? 'Adding...' : 'Add to Workouts'}
         </Text>
       </TouchableOpacity>
     </View>

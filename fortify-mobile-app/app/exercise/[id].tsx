@@ -312,7 +312,7 @@ export default function ExerciseDetailsScreen() {
             <ChevronLeftIcon color={colors.textPrimary} size={24} strokeWidth={2} />
           </TouchableOpacity>
         </View>
-        <Text style={[styles.headerTitle, themedStyles.headerTitle]} numberOfLines={2}>
+        <Text style={[styles.headerTitle, themedStyles.headerTitle]} numberOfLines={3} ellipsizeMode="tail">
           {exercise.name}
         </Text>
       </View>
@@ -651,6 +651,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
+    alignSelf: 'stretch',
   },
   tabBar: {
     flexDirection: 'row',

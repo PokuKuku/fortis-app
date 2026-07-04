@@ -38,8 +38,10 @@ interface ChatMessageProps {
   onClarificationSelect?: (option: string | AIClarificationOption) => void;
   onViewWorkoutTemplate?: (message: AIConversationMessage) => void;
   onAddWorkoutTemplate?: (message: AIConversationMessage) => void;
+  onUpdateWorkoutTemplate?: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate?: (message: AIConversationMessage) => void;
   isSavingWorkoutTemplate?: boolean;
+  isUpdatingWorkoutTemplate?: boolean;
   isStartingWorkoutTemplate?: boolean;
   isStartWorkoutTemplateDisabled?: boolean;
   startWorkoutTemplateDisabledLabel?: string;
@@ -53,8 +55,10 @@ export function ChatMessage({
   onClarificationSelect,
   onViewWorkoutTemplate,
   onAddWorkoutTemplate,
+  onUpdateWorkoutTemplate,
   onStartWorkoutTemplate,
   isSavingWorkoutTemplate = false,
+  isUpdatingWorkoutTemplate = false,
   isStartingWorkoutTemplate = false,
   isStartWorkoutTemplateDisabled = false,
   startWorkoutTemplateDisabledLabel,
@@ -267,9 +271,12 @@ export function ChatMessage({
                 template={message.workoutTemplate}
                 onView={() => onViewWorkoutTemplate?.(message)}
                 onAdd={() => onAddWorkoutTemplate?.(message)}
+                onUpdate={() => onUpdateWorkoutTemplate?.(message)}
                 onStart={() => onStartWorkoutTemplate?.(message)}
                 isAdding={isSavingWorkoutTemplate}
                 isAdded={Boolean(message.savedWorkoutTemplateId)}
+                isUpdating={isUpdatingWorkoutTemplate}
+                isUpdateMode={Boolean(message.editableWorkoutTemplateId)}
                 isStarting={isStartingWorkoutTemplate}
                 isStartDisabled={isStartWorkoutTemplateDisabled}
                 startDisabledLabel={startWorkoutTemplateDisabledLabel}
@@ -300,10 +307,11 @@ export function ChatMessage({
                 {clarificationQuestion ?? 'I need you to confirm which option you want before I update the workout.'}
               </Text>
             </View>
-            {clarificationOptions.map((option) => (
+            {clarificationOptions.map((option, optionIndex) => (
               (() => {
                 const optionLabel = typeof option === 'string' ? option : option.label;
                 const optionExerciseId = typeof option === 'string' ? undefined : option.exerciseId;
+                const optionWorkoutTemplateId = typeof option === 'string' ? undefined : option.workoutTemplateId;
                 const optionExercise = optionExerciseId ? exercisesById.get(optionExerciseId) : undefined;
                 const optionExerciseImagePath =
                   optionExercise && 'images' in optionExercise && Array.isArray(optionExercise.images)
@@ -314,7 +322,7 @@ export function ChatMessage({
 
                 return (
                   <TouchableOpacity
-                    key={optionLabel}
+                    key={`${optionLabel}-${optionExerciseId ?? optionWorkoutTemplateId ?? optionIndex}`}
                     style={[styles.clarificationOption, themedStyles.clarificationOption]}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

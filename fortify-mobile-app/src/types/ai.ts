@@ -19,6 +19,8 @@ export interface AIRequestContext {
   insightId?: string;
   periodWeeks?: number;
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+  editableWorkoutTemplate?: AIEditableWorkoutTemplate;
+  workoutLibrary?: AIEditableWorkoutTemplate[];
   voiceWorkoutOnly?: boolean;
   exerciseCatalog?: AIExerciseCatalogEntry[];
   onboardingProgramSpec?: {
@@ -134,6 +136,8 @@ export type AIErrorCode =
 export interface AIClarificationOption {
   label: string;
   exerciseId?: string;
+  workoutTemplateId?: string;
+  prompt?: string;
 }
 
 export interface AIClarification {
@@ -157,6 +161,14 @@ export interface AIWorkoutTemplate {
   focus?: string;
   estimatedDurationMinutes?: number;
   exercises: AIWorkoutTemplateExercise[];
+}
+
+export interface AIEditableWorkoutTemplate {
+  id: string;
+  workoutId?: string;
+  name: string;
+  description?: string;
+  template: AIWorkoutTemplate;
 }
 
 export interface AIProgramTemplateExercise extends AIWorkoutTemplateExercise {}
@@ -188,6 +200,8 @@ export interface AIConversationMessage {
   clarification?: AIClarification;
   workoutTemplate?: AIWorkoutTemplate;
   savedWorkoutTemplateId?: string | null;
+  editableWorkoutTemplateId?: string | null;
+  editableWorkoutTemplateName?: string | null;
   attachments?: AIAttachmentDisplay[];
 }
 

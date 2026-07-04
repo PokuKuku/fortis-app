@@ -30,12 +30,14 @@ export function useAIWorkoutTemplateActions({
   const posthog = usePostHog();
   const programs = useProgramsStore((state) => state.programs);
   const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
+  const updateWorkoutTemplate = useProgramsStore((state) => state.updateWorkoutTemplate);
   const startWorkoutFromPlan = useWorkoutStore((state) => state.startWorkoutFromPlan);
   const isWorkoutActive = useWorkoutStore((state) => state.isWorkoutActive);
   const { canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
 
   const [previewMessageId, setPreviewMessageId] = useState<string | null>(null);
   const [savingWorkoutMessageId, setSavingWorkoutMessageId] = useState<string | null>(null);
+  const [updatingWorkoutMessageId, setUpdatingWorkoutMessageId] = useState<string | null>(null);
   const [startingWorkoutMessageId, setStartingWorkoutMessageId] = useState<string | null>(null);
   const [templateSaveError, setTemplateSaveError] = useState<string | null>(null);
 
@@ -57,13 +59,9 @@ export function useAIWorkoutTemplateActions({
     setPreviewMessageId(message.id);
   }, []);
 
-  const ensureWorkoutTemplateSaved = useCallback(async (message: AIConversationMessage) => {
+  const resolveWorkoutTemplateExercises = useCallback(async (message: AIConversationMessage) => {
     if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
       throw new Error('Missing workout template.');
-    }
-
-    if (message.savedWorkoutTemplateId) {
-      return message.savedWorkoutTemplateId;
     }
 
     const validExercises = useProvidedExerciseIds?.(message)
@@ -73,6 +71,7 @@ export function useAIWorkoutTemplateActions({
           sets: exercise.sets,
           reps: exercise.reps,
           restSeconds: exercise.restSeconds,
+          notes: exercise.notes,
         }))
       : (await Promise.all(
           message.workoutTemplate.exercises.map(async (exercise) => {
@@ -89,6 +88,7 @@ export function useAIWorkoutTemplateActions({
               sets: exercise.sets,
               reps: exercise.reps,
               restSeconds: exercise.restSeconds,
+              notes: exercise.notes,
             };
           })
         )).filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise));
@@ -96,6 +96,20 @@ export function useAIWorkoutTemplateActions({
     if (validExercises.length !== message.workoutTemplate.exercises.length) {
       throw new Error('This AI workout includes exercises that are not in your app library.');
     }
+
+    return validExercises;
+  }, [useProvidedExerciseIds]);
+
+  const ensureWorkoutTemplateSaved = useCallback(async (message: AIConversationMessage) => {
+    if (!message.workoutTemplate || !Array.isArray(message.workoutTemplate.exercises)) {
+      throw new Error('Missing workout template.');
+    }
+
+    if (message.savedWorkoutTemplateId) {
+      return message.savedWorkoutTemplateId;
+    }
+
+    const validExercises = await resolveWorkoutTemplateExercises(message);
 
     const createdTemplateId = await createWorkoutTemplate(
       message.workoutTemplate.name,
@@ -124,7 +138,7 @@ export function useAIWorkoutTemplateActions({
     });
     validExercises.forEach(() => posthog.capture('exercise_added', { method: 'ai' }));
     return createdTemplateId;
-  }, [conversationId, createWorkoutTemplate, markWorkoutTemplateSaved, onWorkoutTemplateSaved, posthog, savedWorkoutTemplateCount, useProvidedExerciseIds]);
+  }, [conversationId, createWorkoutTemplate, markWorkoutTemplateSaved, onWorkoutTemplateSaved, posthog, resolveWorkoutTemplateExercises, savedWorkoutTemplateCount]);
 
   const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
     if (
@@ -132,6 +146,7 @@ export function useAIWorkoutTemplateActions({
       || !Array.isArray(message.workoutTemplate.exercises)
       || message.savedWorkoutTemplateId
       || savingWorkoutMessageId
+      || updatingWorkoutMessageId
       || startingWorkoutMessageId
     ) {
       return;
@@ -183,6 +198,63 @@ export function useAIWorkoutTemplateActions({
     saveWorkoutPlacement,
     savingWorkoutMessageId,
     startingWorkoutMessageId,
+    updatingWorkoutMessageId,
+  ]);
+
+  const handleUpdateWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
+    if (
+      !message.workoutTemplate
+      || !Array.isArray(message.workoutTemplate.exercises)
+      || !message.editableWorkoutTemplateId
+      || savingWorkoutMessageId
+      || updatingWorkoutMessageId
+      || startingWorkoutMessageId
+    ) {
+      return;
+    }
+
+    setTemplateSaveError(null);
+    setUpdatingWorkoutMessageId(message.id);
+
+    try {
+      const validExercises = await resolveWorkoutTemplateExercises(message);
+      const updatedTemplateId = await updateWorkoutTemplate(
+        message.editableWorkoutTemplateId,
+        message.workoutTemplate.name,
+        validExercises,
+      );
+
+      if (!updatedTemplateId) {
+        throw new Error('Failed to update this workout.');
+      }
+
+      await markWorkoutTemplateSaved?.(message.id, updatedTemplateId);
+      onWorkoutTemplateSaved?.(message.id, updatedTemplateId);
+      setPreviewMessageId(null);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      posthog.capture('ai_workout_updated', {
+        exercise_count: validExercises.length,
+      });
+    } catch (updateError) {
+      console.warn('Failed to update AI workout template:', updateError);
+      setTemplateSaveError(
+        updateError instanceof Error
+          ? updateError.message
+          : 'Failed to update this workout.'
+      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setUpdatingWorkoutMessageId(null);
+    }
+  }, [
+    markWorkoutTemplateSaved,
+    onWorkoutTemplateSaved,
+    posthog,
+    resolveWorkoutTemplateExercises,
+    savingWorkoutMessageId,
+    startingWorkoutMessageId,
+    updateWorkoutTemplate,
+    updatingWorkoutMessageId,
   ]);
 
   const handleStartWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
@@ -191,6 +263,7 @@ export function useAIWorkoutTemplateActions({
       || !Array.isArray(message.workoutTemplate.exercises)
       || startingWorkoutMessageId
       || savingWorkoutMessageId
+      || updatingWorkoutMessageId
     ) {
       return;
     }
@@ -234,18 +307,20 @@ export function useAIWorkoutTemplateActions({
     } finally {
       setStartingWorkoutMessageId(null);
     }
-  }, [isWorkoutActive, router, savingWorkoutMessageId, startWorkoutFromPlan, startingWorkoutMessageId]);
+  }, [isWorkoutActive, router, savingWorkoutMessageId, startWorkoutFromPlan, startingWorkoutMessageId, updatingWorkoutMessageId]);
 
   return {
     previewMessage,
     setPreviewMessageId,
     savingWorkoutMessageId,
+    updatingWorkoutMessageId,
     startingWorkoutMessageId,
     templateSaveError,
     setTemplateSaveError,
     isWorkoutActive,
     handleViewWorkoutTemplate,
     handleAddWorkoutTemplate,
+    handleUpdateWorkoutTemplate,
     handleStartWorkoutTemplate,
   };
 }

@@ -42,7 +42,6 @@ import {
   trackOnboardingFinished,
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
-import { clearInAppTourState } from '@/src/services/inAppTourService';
 import { buildInitialWorkoutScheduleHistory } from '@/src/utils/workoutSchedule';
 
 const LOADING_DURATION_MS = 13000;
@@ -849,9 +848,6 @@ export default function OnboardingCompleteScreen() {
       const updates: Parameters<typeof updateProfile>[0] = {
         onboarding_completed: true,
         avatar_url: null,
-        has_seen_in_app_tour: false,
-        in_app_tour_completed_at: null,
-        in_app_tour_version: 0,
       };
 
       if (typeof state?.full_name === 'string') {
@@ -937,7 +933,6 @@ export default function OnboardingCompleteScreen() {
       }
 
       try {
-        await clearInAppTourState();
         await clearOnboardingState();
       } catch (clearError) {
         console.warn('[Onboarding] Failed to clear local onboarding state:', clearError);

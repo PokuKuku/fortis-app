@@ -89,6 +89,8 @@ interface AIRequest {
     insightId?: string;
     periodWeeks?: number;
     currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+    editableWorkoutTemplate?: AIEditableWorkoutTemplate;
+    workoutLibrary?: AIEditableWorkoutTemplate[];
     voiceWorkoutOnly?: boolean;
     exerciseCatalog?: WorkoutGenerationExerciseCatalogEntry[];
     onboardingProgramSpec?: AIOnboardingProgramSpec;
@@ -116,6 +118,14 @@ interface AIWorkoutTemplate {
   focus?: string;
   estimatedDurationMinutes?: number;
   exercises: AIWorkoutTemplateExercise[];
+}
+
+interface AIEditableWorkoutTemplate {
+  id: string;
+  workoutId?: string;
+  name: string;
+  description?: string;
+  template: AIWorkoutTemplate;
 }
 
 interface AIOnboardingProgramSpec {
@@ -454,6 +464,14 @@ function validateRequest(body: unknown): string | null {
         return 'currentWorkoutTemplateDraft must be an object';
       }
     }
+    if (ctx.editableWorkoutTemplate !== undefined) {
+      if (!ctx.editableWorkoutTemplate || typeof ctx.editableWorkoutTemplate !== 'object' || Array.isArray(ctx.editableWorkoutTemplate)) {
+        return 'editableWorkoutTemplate must be an object';
+      }
+    }
+    if (ctx.workoutLibrary !== undefined && !Array.isArray(ctx.workoutLibrary)) {
+      return 'workoutLibrary must be an array';
+    }
     if (ctx.onboardingProgramSpec !== undefined) {
       if (!ctx.onboardingProgramSpec || typeof ctx.onboardingProgramSpec !== 'object' || Array.isArray(ctx.onboardingProgramSpec)) {
         return 'onboardingProgramSpec must be an object';
@@ -590,6 +608,8 @@ interface AIContext extends AIBaseContext {
   exerciseCatalog?: WorkoutGenerationExerciseCatalogEntry[];
   workoutPlan?: WorkoutGenerationPlan;
   currentWorkoutTemplateDraft?: AIWorkoutTemplate;
+  editableWorkoutTemplate?: AIEditableWorkoutTemplate;
+  workoutLibrary?: AIEditableWorkoutTemplate[];
 }
 
 const WORKOUT_NOUN_PATTERN = '(?:workouts?|routines?|sessions?|templates?|training(?:\\s+(?:day|session|workout))?)';
@@ -606,25 +626,31 @@ const WORKOUT_REQUEST_REGEXES = [
 ];
 const WORKOUT_ADVICE_REGEX =
   /\b(advice|feedback|suggestions?|recommendations?|tips?)\b/i;
+const WORKOUT_FEEDBACK_ONLY_REGEX =
+  /\b(?:advice|feedback|suggestions?|recommendations?|tips?|review|critique|analy[sz]e|thoughts?|opinion|rate|what do you think|is (?:it|this|that)\s+(?:good|bad|solid|balanced)|can (?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:i|we)\s+improve\s+(?:it|this|that)|how (?:can|could|should)\s+(?:it|this|that)\s+be\s+improved|could (?:it|this|that)\s+be\s+better)\b/i;
+const EXPLICIT_WORKOUT_TEMPLATE_CHANGE_REGEX =
+  /\b(?:edit|update|revise|adjust|tweak|change|modify|increase|decrease|reduce|harder|easier|shorter|longer|prioritize|emphasize|focus|replace|swap|switch|add|include|insert|remove|take out|exclude|drop|delete|without|skip)\b/i;
+const WORKOUT_LIBRARY_REFERENCE_REGEX =
+  /\b(?:my|saved|library|template|templates|workout|workouts|routine|routines|session|sessions|program|programs)\b/i;
 
 const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
-  { regex: /\bupper body\b/i, muscles: ['chest', 'lats', 'middle back', 'traps', 'shoulders', 'biceps', 'triceps'] },
-  { regex: /\blower body\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] },
-  { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'triceps'] },
-  { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'traps', 'biceps', 'forearms'] },
-  { regex: /\blegs?\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves'] },
+  { regex: /\bupper body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'traps', 'shoulders', 'side_delts', 'biceps', 'triceps'] },
+  { regex: /\blower body\b/i, muscles: ['quadriceps', 'quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] },
+  { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'side_delts', 'front_delts', 'triceps'] },
+  { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'upper_back', 'traps', 'biceps', 'forearms'] },
+  { regex: /\blegs?\b/i, muscles: ['quadriceps', 'quads', 'hamstrings', 'glutes', 'calves'] },
   { regex: /\bchest\b/i, muscles: ['chest'] },
-  { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'lower back', 'traps'] },
-  { regex: /\bshoulder(s)?\b/i, muscles: ['shoulders'] },
+  { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'upper_back', 'lower back', 'lower_back', 'traps'] },
+  { regex: /\bshoulder(s)?\b/i, muscles: ['shoulders', 'side_delts', 'front_delts', 'rear_delts'] },
   { regex: /\bbicep(s)?\b/i, muscles: ['biceps'] },
   { regex: /\btricep(s)?\b/i, muscles: ['triceps'] },
   { regex: /\barm(s)?\b/i, muscles: ['biceps', 'triceps', 'forearms'] },
   { regex: /\bglute(s)?\b/i, muscles: ['glutes'] },
   { regex: /\bhamstring(s)?\b/i, muscles: ['hamstrings'] },
-  { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps'] },
+  { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps', 'quads'] },
   { regex: /\bcal(f|ves)\b/i, muscles: ['calves'] },
-  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'obliques'] },
-  { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'shoulders', 'quadriceps', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
+  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'abs', 'obliques'] },
+  { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'shoulders', 'side_delts', 'quadriceps', 'quads', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
 ];
 
 const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
@@ -646,6 +672,80 @@ function shouldGenerateWorkoutTemplate(message: string): boolean {
   return WORKOUT_REQUEST_REGEXES.some((regex) => regex.test(normalized));
 }
 
+function normalizeWorkoutReferenceText(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function getAmbiguousWorkoutTemplateMatches(request: AIRequest, context: AIContext): AIEditableWorkoutTemplate[] {
+  if (context.currentWorkoutTemplateDraft || !context.workoutLibrary?.length) {
+    return [];
+  }
+
+  const message = request.message.trim();
+  if (
+    !message
+    || !WORKOUT_LIBRARY_REFERENCE_REGEX.test(message)
+    || !(WORKOUT_FEEDBACK_ONLY_REGEX.test(message) || EXPLICIT_WORKOUT_TEMPLATE_CHANGE_REGEX.test(message))
+  ) {
+    return [];
+  }
+
+  const normalizedMessage = ` ${normalizeWorkoutReferenceText(message)} `;
+  const matches = context.workoutLibrary
+    .map((template, index) => {
+      const names = Array.from(new Set([
+        normalizeWorkoutReferenceText(template.name),
+        normalizeWorkoutReferenceText(template.template.name),
+      ].filter((name) => name.length >= 3)));
+      const bestMatchLength = names.reduce((best, name) => (
+        normalizedMessage.includes(` ${name} `)
+          ? Math.max(best, name.length)
+          : best
+      ), 0);
+      return { template, index, bestMatchLength };
+    })
+    .filter((entry) => entry.bestMatchLength > 0)
+    .sort((a, b) => b.bestMatchLength - a.bestMatchLength || a.index - b.index);
+
+  if (matches.length < 2) {
+    return [];
+  }
+
+  const topScore = matches[0].bestMatchLength;
+  const tiedMatches = matches.filter((entry) => entry.bestMatchLength === topScore);
+  return tiedMatches.length > 1
+    ? tiedMatches.slice(0, 4).map((entry) => entry.template)
+    : [];
+}
+
+function buildWorkoutTemplateDisambiguationResponse(
+  request: AIRequest,
+  context: AIContext,
+  requestId: string
+): unknown | null {
+  const matches = getAmbiguousWorkoutTemplateMatches(request, context);
+  if (matches.length === 0) {
+    return null;
+  }
+
+  return {
+    type: 'clarification' as const,
+    requestId,
+    clarification: {
+      question: 'I found multiple saved workouts that could match. Which one do you mean?',
+      options: matches.map((template) => ({
+        label: template.name,
+        workoutTemplateId: template.id,
+        prompt: `Use workout template ${template.id} ("${template.name}") for this request: ${request.message}`,
+      })),
+    },
+  };
+}
+
 function isExplicitNewWorkoutRequest(message: string): boolean {
   if (!shouldGenerateWorkoutTemplate(message)) {
     return false;
@@ -654,8 +754,33 @@ function isExplicitNewWorkoutRequest(message: string): boolean {
   return !/\b(?:it|this|that|current|existing)\s+(?:workout|routine|session|template)\b/i.test(message);
 }
 
+function isEditableSavedWorkoutRevisionRequest(request: AIRequest): boolean {
+  if (!request.context?.editableWorkoutTemplate || !request.context.currentWorkoutTemplateDraft) {
+    return false;
+  }
+
+  const normalized = request.message.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  return /\b(?:edit|update|revise|adjust|tweak|change|modify|make|increase|decrease|reduce|harder|easier|shorter|longer|prioritize|emphasize|focus)\b/i.test(normalized);
+}
+
 function shouldHandleWorkoutTemplateRequest(request: AIRequest): boolean {
+  if (
+    request.context?.currentWorkoutTemplateDraft
+    && WORKOUT_FEEDBACK_ONLY_REGEX.test(request.message)
+    && !EXPLICIT_WORKOUT_TEMPLATE_CHANGE_REGEX.test(request.message)
+  ) {
+    return false;
+  }
+
   if (shouldGenerateWorkoutTemplate(request.message)) {
+    return true;
+  }
+
+  if (isEditableSavedWorkoutRevisionRequest(request)) {
     return true;
   }
 
@@ -1276,6 +1401,8 @@ async function assembleContext(
     currentWorkoutTemplateDraft: isExplicitNewWorkout
       ? undefined
       : request.context?.currentWorkoutTemplateDraft,
+    editableWorkoutTemplate: request.context?.editableWorkoutTemplate,
+    workoutLibrary: request.context?.workoutLibrary,
   };
 
   if (request.context?.insightId) {
@@ -1818,6 +1945,11 @@ async function callAIProvider(
   context: AIContext,
   requestId: string
 ): Promise<unknown> {
+  const workoutTemplateDisambiguation = buildWorkoutTemplateDisambiguationResponse(request, context, requestId);
+  if (workoutTemplateDisambiguation) {
+    return workoutTemplateDisambiguation;
+  }
+
   const voiceWorkoutOnly = isVoiceWorkoutOnlyRequest(request);
   if (shouldHandleWorkoutTemplateRequest(request) && !context.exerciseCatalog?.length) {
     return {
@@ -2470,6 +2602,9 @@ function buildAnswerPrompt(
 - For workout template responses, "answer.text" should be one short sentence and should not include a TLDR line.
 - If CURRENT WORKOUT DRAFT is provided and the user's message is feedback or a requested change, revise that same draft instead of starting over.
 - When revising an existing draft, preserve untouched exercises and only change what the user asked for.
+- If EDITABLE SAVED WORKOUT is provided, treat CURRENT WORKOUT DRAFT as that saved workout. For edit/update requests, return the full revised "answer.workoutTemplate" so the app can update the existing saved workout.
+- If the user asks for comments, feedback, critique, or analysis of a saved workout without requesting changes, answer in text and omit "answer.workoutTemplate".
+- Use SAVED WORKOUT LIBRARY only to identify or discuss the user's existing workouts. Do not claim access to saved workouts unless they appear in that section.
 - If the user is clearly asking for a brand-new workout, you may replace the current draft entirely.`
     : '';
 
@@ -2733,6 +2868,14 @@ function buildUserMessage(request: AIRequest, context: AIContext): string {
 
   if (context.currentWorkoutTemplateDraft) {
     message += `\n\n--- CURRENT WORKOUT DRAFT ---\n${compactJson(context.currentWorkoutTemplateDraft)}`;
+  }
+
+  if (context.editableWorkoutTemplate) {
+    message += `\n\n--- EDITABLE SAVED WORKOUT ---\n${compactJson(context.editableWorkoutTemplate)}`;
+  }
+
+  if (context.workoutLibrary && context.workoutLibrary.length > 0) {
+    message += `\n\n--- SAVED WORKOUT LIBRARY ---\n${compactJson(context.workoutLibrary)}`;
   }
 
   return message;
@@ -3214,26 +3357,6 @@ function scoreWorkoutTemplateAlignment(
   return score;
 }
 
-function choosePreferredWorkoutTemplate(
-  message: string,
-  catalog: WorkoutGenerationExerciseCatalogEntry[],
-  primaryTemplate: AIWorkoutTemplate | null | undefined,
-  fallbackTemplate: AIWorkoutTemplate | null | undefined
-): AIWorkoutTemplate | null {
-  if (!primaryTemplate) {
-    return fallbackTemplate ?? null;
-  }
-
-  if (!fallbackTemplate) {
-    return primaryTemplate;
-  }
-
-  const primaryScore = scoreWorkoutTemplateAlignment(primaryTemplate, message, catalog);
-  const fallbackScore = scoreWorkoutTemplateAlignment(fallbackTemplate, message, catalog);
-
-  return fallbackScore >= primaryScore ? fallbackTemplate : primaryTemplate;
-}
-
 function buildWorkoutTemplateAnswerText(template: AIWorkoutTemplate): string {
   const focus = template.focus?.trim() || template.name || 'strength';
   const duration = template.estimatedDurationMinutes
@@ -3365,9 +3488,6 @@ function sanitizeWorkoutTemplateResponse(
     );
   }
 
-  const fallbackTemplate = shouldIncludeTemplate
-    ? buildFallbackWorkoutTemplate(request.message, context)
-    : null;
   const currentDraft = sanitizeWorkoutTemplate(
     context.currentWorkoutTemplateDraft,
     context.exerciseCatalog,
@@ -3392,17 +3512,6 @@ function sanitizeWorkoutTemplateResponse(
   }
 
   if (record.type !== 'answer' || !record.answer) {
-    if (fallbackTemplate) {
-      return {
-        type: 'answer',
-        requestId: (record as { requestId?: string }).requestId ?? crypto.randomUUID(),
-        answer: {
-          text: deterministicEdit?.text ?? buildWorkoutTemplateAnswerText(fallbackTemplate),
-          citations: [],
-          workoutTemplate: deterministicEdit?.template ?? fallbackTemplate,
-        },
-      };
-    }
     return templateUnavailableResponse(
       typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
     );
@@ -3424,33 +3533,11 @@ function sanitizeWorkoutTemplateResponse(
     };
   }
 
-  if (!sanitizedTemplate && fallbackTemplate) {
-    if (fallbackTemplate) {
-      return {
-        ...record,
-        answer: {
-          ...record.answer,
-          text: buildWorkoutTemplateAnswerText(fallbackTemplate),
-          workoutTemplate: fallbackTemplate,
-        },
-      };
-    }
-  }
-
   if (!sanitizedTemplate) {
     return templateUnavailableResponse(
       typeof record.requestId === 'string' ? record.requestId : crypto.randomUUID()
     );
   }
-
-  const finalTemplate = currentDraft
-    ? sanitizedTemplate
-    : choosePreferredWorkoutTemplate(
-        request.message,
-        context.exerciseCatalog,
-        sanitizedTemplate,
-        fallbackTemplate
-      );
 
   return {
     ...record,
@@ -3458,8 +3545,8 @@ function sanitizeWorkoutTemplateResponse(
       ...record.answer,
       text: currentDraft
         ? record.answer.text
-        : buildWorkoutTemplateAnswerText(finalTemplate ?? sanitizedTemplate),
-      workoutTemplate: finalTemplate ?? sanitizedTemplate,
+        : buildWorkoutTemplateAnswerText(sanitizedTemplate),
+      workoutTemplate: sanitizedTemplate,
     },
   };
 }
@@ -3602,6 +3689,8 @@ type CatalogExerciseMatch = {
 type WorkoutClarificationOption = {
   label: string;
   exerciseId?: string;
+  workoutTemplateId?: string;
+  prompt?: string;
 };
 
 type WorkoutEditResolution = {
@@ -5161,120 +5250,6 @@ function scoreSlotCandidate(
   }
 
   return score;
-}
-
-function buildFallbackWorkoutTemplate(
-  message: string,
-  context: AIContext
-): AIWorkoutTemplate | null {
-  const catalog = context.exerciseCatalog ?? [];
-  if (catalog.length === 0) {
-    return null;
-  }
-
-  const sanitizedDraft = sanitizeWorkoutTemplate(
-    context.currentWorkoutTemplateDraft,
-    catalog,
-    { preserveUnknownExercises: true }
-  );
-
-  if (sanitizedDraft) {
-    return resolveWorkoutTemplateEdit(
-      message,
-      sanitizedDraft,
-      catalog
-    ).template;
-  }
-
-  const targetMuscles = extractWorkoutTargetMuscles(message);
-  const trainingEnvironment = context.user.trainingEnvironment;
-  const equipmentPreferences = getWorkoutEquipmentPreferences(message, trainingEnvironment)
-    .map(normalizeEquipmentValue);
-  const explicitEquipment = normalizeRequestedEquipment(message);
-  const focus = inferWorkoutFocusLabel(message);
-  const plan = context.workoutPlan ?? buildWorkoutGenerationPlan(message);
-  const targetExerciseCount = Math.min(
-    MAX_WORKOUT_TEMPLATE_EXERCISES,
-    Math.max(3, plan.slots.length)
-  );
-  const minimumExerciseCount = Math.min(4, targetExerciseCount);
-  const selected: WorkoutGenerationExerciseCatalogEntry[] = [];
-
-  for (const slot of plan.slots) {
-    const rankedForSlot = [...catalog]
-      .map((entry) => ({
-        entry,
-        score: scoreSlotCandidate(entry, slot, message, selected, trainingEnvironment),
-      }))
-      .filter((item) => Number.isFinite(item.score) && item.score > 0)
-      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
-
-    const best = rankedForSlot[0]?.entry;
-    if (best) {
-      selected.push(best);
-    } else if (!slot.optional) {
-      console.warn('[AI] Could not fill workout slot', {
-        focus,
-        slot: slot.id,
-        targetMuscles: slot.targetMuscles,
-      });
-    }
-  }
-
-  if (selected.length < targetExerciseCount) {
-    const ranked = [...catalog]
-      .map((entry) => ({
-        entry,
-        score: scoreCatalogExercise(entry, targetMuscles, equipmentPreferences),
-      }))
-      .filter(({ entry }) => !selected.some((item) => getCanonicalGroup(item) === getCanonicalGroup(entry)))
-      .sort((a, b) => b.score - a.score || a.entry.name.localeCompare(b.entry.name));
-
-    const seenFallbackGroups = new Set(selected.map(getCanonicalGroup));
-    for (const { entry } of ranked) {
-      if (selected.length >= targetExerciseCount) break;
-      if (seenFallbackGroups.has(getCanonicalGroup(entry))) continue;
-      if (explicitEquipment.length > 0 && !equipmentMatches(entry, explicitEquipment)) continue;
-      if (!equipmentAllowedForTrainingEnvironment(entry, trainingEnvironment, explicitEquipment.length > 0)) continue;
-      if (!isVariantAllowedByRequest(message) && isAssistedOrRegressionVariant(entry)) continue;
-      if (isLowValueWorkoutVariant(entry)) continue;
-      selected.push(entry);
-      seenFallbackGroups.add(getCanonicalGroup(entry));
-    }
-  }
-
-  if (selected.length < minimumExerciseCount) {
-    return null;
-  }
-
-  const exercises = selected.map((entry, index) => {
-    const slot = plan.slots[index];
-    const compound = entry.mechanic === 'compound' || isCompoundExerciseName(entry.name);
-    const sets = slot?.sets ?? (compound ? (index < 2 ? 4 : 3) : 3);
-    const reps = slot?.reps ?? (compound ? (focus === 'Strength' ? '5-8' : '6-10') : '10-15');
-    const restSeconds = slot?.restSeconds ?? (compound ? 90 : 60);
-
-    return {
-      exerciseId: entry.id,
-      exerciseName: toWorkoutTitleCase(entry.name),
-      sets,
-      reps,
-      restSeconds,
-    };
-  });
-
-  const name = `${toWorkoutTitleCase(focus)} Workout`;
-  const primaryMuscleSummary = targetMuscles.length > 0
-    ? targetMuscles.slice(0, 3).map((muscle) => toWorkoutTitleCase(muscle)).join(', ')
-    : 'balanced strength work';
-
-  return {
-    name,
-    description: `A ${focus.toLowerCase()} session built from your in-app exercise library, focused on ${primaryMuscleSummary}.`,
-    focus,
-    estimatedDurationMinutes: exercises.length >= 6 ? 60 : 45,
-    exercises,
-  };
 }
 
 function formatAnswerText(text: string, intent: AIIntent): string {

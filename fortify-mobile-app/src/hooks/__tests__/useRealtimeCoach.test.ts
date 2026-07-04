@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react-native';
+import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { Alert, Linking } from 'react-native';
 import { useRealtimeCoach } from '@/src/hooks/useRealtimeCoach';
 import type { AIWorkoutTemplate } from '@/src/types/ai';
@@ -499,7 +499,7 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
-  it('omits workout tools and sends completed typed turns in conversation mode', async () => {
+  it('includes workout tools and sends completed typed turns in conversation mode', async () => {
     const conversationPreferences = {
       ...preferences,
       experienceMode: 'conversation' as const,
@@ -508,8 +508,9 @@ describe('useRealtimeCoach', () => {
     const { hook, socket } = await startConnectedSession({ preferences: conversationPreferences });
     const setupMessage = JSON.parse(socket.sentMessages[0]);
 
-    expect(setupMessage.setup.tools).toBeUndefined();
+    expect(setupMessage.setup.tools[0].functionDeclarations[0].name).toBe('create_or_update_workout');
     expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('Be sharp and use exact numbers.');
+    expect(setupMessage.setup.systemInstruction.parts[0].text).toContain('call the create_or_update_workout tool immediately');
 
     act(() => {
       expect(hook.result.current.sendTextPrompt('Roast my consistency')).toBe(true);
@@ -517,6 +518,51 @@ describe('useRealtimeCoach', () => {
     const typedTurn = JSON.parse(socket.sentMessages[socket.sentMessages.length - 1]);
     expect(typedTurn.clientContent.turnComplete).toBe(true);
     expect(typedTurn.clientContent.turns[0].parts[0].text).toBe('Roast my consistency');
+
+    hook.unmount();
+  });
+
+  it('starts conversation-mode workout generation from a typed prompt if Gemini completes without a tool call', async () => {
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string) => (
+      text === 'Make me an ab workout'
+    ));
+    mockGenerateVoiceWorkoutTemplate.mockResolvedValue({
+      type: 'answer',
+      answer: {
+        text: 'I built an ab workout.',
+        workoutTemplate: {
+          name: 'Ab Workout',
+          focus: 'Abs',
+          exercises: [
+            {
+              exerciseId: 'exercise-1',
+              exerciseName: 'Cable Crunch',
+              sets: 3,
+              reps: '10-15',
+            },
+          ],
+        },
+      },
+    });
+    const conversationPreferences = {
+      ...preferences,
+      experienceMode: 'conversation' as const,
+    };
+    const { hook, socket } = await startConnectedSession({ preferences: conversationPreferences });
+
+    act(() => {
+      expect(hook.result.current.sendTextPrompt('Make me an ab workout')).toBe(true);
+      socket.message(JSON.stringify({
+        serverContent: {
+          turnComplete: true,
+        },
+      }));
+    });
+
+    await waitFor(() => {
+      expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('Make me an ab workout', undefined);
+      expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Ab Workout');
+    });
 
     hook.unmount();
   });
@@ -1033,7 +1079,54 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
-  it('allows the same workout prompt to be retried if generation returns no card', async () => {
+  it('dedupes repeated workout tool calls for the same turn', async () => {
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'call-1',
+              name: 'create_or_update_workout',
+              args: {
+                prompt: 'make me a chest workout',
+              },
+            },
+          ],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'call-2',
+              name: 'create_or_update_workout',
+              args: {
+                prompt: 'make me a chest workout',
+              },
+            },
+          ],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledTimes(1);
+    expect(socket.sentMessages.some((message) => (
+      message.includes('"toolResponse"')
+      && message.includes('"id":"call-2"')
+      && message.includes('"status":"workout_building_already_started"')
+    ))).toBe(true);
+
+    hook.unmount();
+  });
+
+  it('allows the same workout prompt to be retried after the dedupe window if generation returns no card', async () => {
     mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string) => /back workout/i.test(text ?? ''));
     mockGenerateVoiceWorkoutTemplate
       .mockResolvedValueOnce({
@@ -1077,6 +1170,7 @@ describe('useRealtimeCoach', () => {
     expect(hook.result.current.voiceWorkoutMessages).toHaveLength(0);
 
     await act(async () => {
+      jest.advanceTimersByTime(45_001);
       await hook.result.current.beginUserTurn();
       socket.message(JSON.stringify({
         serverContent: {
@@ -1090,6 +1184,43 @@ describe('useRealtimeCoach', () => {
 
     expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledTimes(2);
     expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Back Workout');
+
+    hook.unmount();
+  });
+
+  it('does not commit a workout card when voice workout generation returns no template', async () => {
+    mockGenerateVoiceWorkoutTemplate.mockResolvedValue({
+      type: 'answer',
+      requestId: 'ai-request-id',
+      answer: {
+        text: 'I can make that.',
+        citations: [],
+      },
+    });
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'call-1',
+              name: 'create_or_update_workout',
+              args: {
+                prompt: 'make me an ab workout',
+              },
+            },
+          ],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me an ab workout', undefined);
+      expect(hook.result.current.voiceWorkoutMessages).toEqual([]);
+    });
+    expect(hook.result.current.isGeneratingVoiceWorkout).toBe(false);
 
     hook.unmount();
   });

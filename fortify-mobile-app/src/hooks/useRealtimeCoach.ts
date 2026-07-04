@@ -74,6 +74,7 @@ const MICROPHONE_STREAM_ERROR =
 const MICROPHONE_PERMISSION_MESSAGE = 'Turn on microphone access to use Voice Coach.';
 const EMPTY_CREATOR_SCRIPT_ERROR = 'Type a roast script first.';
 const MAX_RECENT_COACH_PHRASES = 6;
+const WORKOUT_PROMPT_DEDUPE_MS = 45_000;
 
 const isMicrophonePermissionGranted = (permission?: { status?: string; granted?: boolean } | null) => (
   permission?.granted === true || permission?.status === 'granted'
@@ -191,7 +192,6 @@ export const buildGeminiSetupMessage = (
   preferences: RealtimeCoachPreferences,
   interactionMode: 'push_to_talk' | 'realtime'
 ) => {
-  const isConversationMode = preferences.experienceMode === 'conversation';
   return {
     setup: {
     model: normalizeGeminiModelName(model),
@@ -213,13 +213,11 @@ export const buildGeminiSetupMessage = (
         }),
       }],
     },
-    ...(isConversationMode ? {} : {
-      tools: [
-        {
-          functionDeclarations: [VOICE_WORKOUT_TOOL_DECLARATION],
-        },
-      ],
-    }),
+    tools: [
+      {
+        functionDeclarations: [VOICE_WORKOUT_TOOL_DECLARATION],
+      },
+    ],
     inputAudioTranscription: {},
     outputAudioTranscription: {},
     realtimeInputConfig: {
@@ -342,6 +340,10 @@ const appendTranscriptChunk = (current: string, nextChunk: string): string => {
   return `${existing}${separator}${next}`;
 };
 
+const normalizeWorkoutPromptKey = (prompt: string): string => (
+  prompt.trim().toLowerCase().replace(/\s+/g, ' ')
+);
+
 const setVoiceCoachAudioMode = async (isActive: boolean) => {
   await Audio.setAudioModeAsync(isActive ? VOICE_COACH_ACTIVE_AUDIO_MODE : VOICE_COACH_IDLE_AUDIO_MODE);
 };
@@ -381,6 +383,7 @@ export function useRealtimeCoach({
   const realtimeSpeechEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const realtimePrerollChunksRef = useRef<Uint8Array[]>([]);
   const inFlightWorkoutPromptRef = useRef('');
+  const recentWorkoutPromptAttemptsRef = useRef<Map<string, number>>(new Map());
   const workoutHandledThisTurnRef = useRef(false);
   const latestVoiceWorkoutTemplateDraftRef = useRef<AIWorkoutTemplate | null>(null);
   const latestUserTranscriptRef = useRef('');
@@ -837,18 +840,27 @@ export function useRealtimeCoach({
     prompt: string,
     options: { force?: boolean } = {}
   ): Promise<boolean> => {
-    if (preferences.experienceMode === 'conversation') return false;
     const trimmed = prompt.trim();
+    const promptKey = normalizeWorkoutPromptKey(trimmed);
+    const now = Date.now();
+    const recentAttemptAt = recentWorkoutPromptAttemptsRef.current.get(promptKey);
+    recentWorkoutPromptAttemptsRef.current.forEach((attemptAt, key) => {
+      if (now - attemptAt > WORKOUT_PROMPT_DEDUPE_MS) {
+        recentWorkoutPromptAttemptsRef.current.delete(key);
+      }
+    });
     const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
     if (
       !trimmed
       || trimmed === inFlightWorkoutPromptRef.current
+      || (recentAttemptAt !== undefined && now - recentAttemptAt < WORKOUT_PROMPT_DEDUPE_MS)
       || (!options.force && !shouldGenerateWorkoutFromVoice(trimmed, Boolean(draft)))
     ) {
       return false;
     }
 
     inFlightWorkoutPromptRef.current = trimmed;
+    recentWorkoutPromptAttemptsRef.current.set(promptKey, now);
     workoutHandledThisTurnRef.current = true;
     const shouldCreateEditedVoiceWorkout = shouldEditWorkoutFromVoice(trimmed, Boolean(draft));
     setIsGeneratingVoiceWorkout(true);
@@ -860,6 +872,10 @@ export function useRealtimeCoach({
 
       const template = response.type === 'answer' ? response.answer?.workoutTemplate : undefined;
       if (!template || !Array.isArray(template.exercises) || template.exercises.length === 0) {
+        console.warn('[Voice Coach] workout generation returned no workout template', {
+          responseType: response.type,
+          errorCode: response.type === 'error' ? response.error?.code : undefined,
+        });
         return false;
       }
       if (shouldCreateEditedVoiceWorkout && draft && workoutsHaveSameExercises(draft, template)) {
@@ -902,21 +918,25 @@ export function useRealtimeCoach({
         setIsGeneratingVoiceWorkout(false);
       }
     }
-  }, [currentWorkoutTemplateDraft, preferences.experienceMode]);
+  }, [currentWorkoutTemplateDraft]);
 
   const handleWorkoutToolCall = useCallback(async (
     id: string,
     name: string,
     args: Record<string, unknown>
   ) => {
-    if (preferences.experienceMode === 'conversation') {
-      sendGeminiToolResponse(id, name, { ok: false, error: 'Workout creation is disabled in Conversation Mode.' });
-      return;
-    }
     if (name !== VOICE_WORKOUT_TOOL_NAME) {
       sendGeminiToolResponse(id, name, {
         ok: false,
         error: 'Unsupported tool.',
+      });
+      return;
+    }
+
+    if (workoutHandledThisTurnRef.current) {
+      sendGeminiToolResponse(id, name, {
+        ok: true,
+        status: 'workout_building_already_started',
       });
       return;
     }
@@ -947,15 +967,14 @@ export function useRealtimeCoach({
       recentCoachPhrases: recentCoachPhrasesRef.current,
     });
     void handleWorkoutPrompt(prompt, { force: true });
-  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt, preferences.experienceMode, sendGeminiToolResponse]);
+  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt, sendGeminiToolResponse]);
 
   const maybeGenerateWorkoutFromTranscript = useCallback((text: string) => {
-    if (preferences.experienceMode === 'conversation') return;
     if (workoutHandledThisTurnRef.current) return;
     const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
     if (!shouldGenerateWorkoutFromVoice(text, Boolean(draft))) return;
     void handleWorkoutPrompt(text);
-  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt, preferences.experienceMode]);
+  }, [currentWorkoutTemplateDraft, handleWorkoutPrompt]);
 
   const playGeminiAudio = useCallback((base64: string) => {
     const pcm24k = base64ToUint8Array(base64);
@@ -1254,6 +1273,9 @@ export function useRealtimeCoach({
     const socket = socketRef.current;
     if (!trimmed || !isSocketOpen(socket) || !setupCompleteRef.current) return false;
     clearPlaybackQueue();
+    latestUserTranscriptRef.current = trimmed;
+    transcriptBuffersRef.current.user = '';
+    workoutHandledThisTurnRef.current = false;
     socket.send(JSON.stringify({
       clientContent: {
         turns: [{

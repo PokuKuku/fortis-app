@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { InteractionManager, Platform } from 'react-native';
+import { InteractionManager, Platform, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -21,7 +21,7 @@ import { SubscriptionAccessGuard } from '@/src/components/superwall/Subscription
 import { PostHogAuthSync } from '@/src/components/analytics/PostHogAuthSync';
 import { PostHogRouteTracker } from '@/src/components/analytics/PostHogRouteTracker';
 import { AppUpdatePromptCoordinator } from '@/src/components/app/AppUpdatePromptCoordinator';
-import { PostHogProvider } from 'posthog-react-native';
+import { PostHogErrorBoundary, PostHogProvider } from 'posthog-react-native';
 import { posthog } from '@/src/config/posthog';
 import { WorkoutRetentionCoordinator } from '@/src/components/retention/WorkoutRetentionCoordinator';
 import { OnboardingProgramCoordinator } from '@/src/components/onboarding/OnboardingProgramCoordinator';
@@ -61,6 +61,21 @@ function PostSignUpPaywallPreloader() {
   return null;
 }
 
+function RootErrorFallback() {
+  const { colors } = useTheme();
+
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.background }}>
+      <Text style={{ color: colors.textPrimary, fontSize: 18, fontWeight: '700', textAlign: 'center' }}>
+        Something went wrong.
+      </Text>
+      <Text style={{ marginTop: 8, color: colors.textSecondary, fontSize: 14, textAlign: 'center' }}>
+        Please close and reopen Fortify.
+      </Text>
+    </View>
+  );
+}
+
 /**
  * Themed content wrapper - uses theme context for StatusBar and Stack styling
  */
@@ -87,27 +102,28 @@ function ThemedAppContent({
         maxElementsCaptured: 20,
       }}
     >
-    <AuthProvider>
-      <SuperwallAuthSync />
-      <SuperwallDebugEvents />
-      <SuperwallPurchaseRecovery />
-      <SubscriptionAccessGuard />
-      <PostHogAuthSync />
-      <PostHogRouteTracker />
-      <AppUpdatePromptCoordinator />
-      {!disableThemeSync && <ThemeAuthSync />}
-      <InAppTourProvider>
-        <DragDropProvider>
-          {!isEarlyRoute ? <WorkoutRetentionCoordinator /> : null}
-          {!isEarlyRoute ? <OnboardingProgramCoordinator /> : null}
-          <StatusBar style={isDark ? 'light' : 'dark'} />
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: colors.background },
-              ...PAGE_TRANSITION,
-            }}
-          >
+    <PostHogErrorBoundary fallback={RootErrorFallback}>
+      <AuthProvider>
+        <SuperwallAuthSync />
+        <SuperwallDebugEvents />
+        <SuperwallPurchaseRecovery />
+        <SubscriptionAccessGuard />
+        <PostHogAuthSync />
+        <PostHogRouteTracker />
+        <AppUpdatePromptCoordinator />
+        {!disableThemeSync && <ThemeAuthSync />}
+        <InAppTourProvider>
+          <DragDropProvider>
+            {!isEarlyRoute ? <WorkoutRetentionCoordinator /> : null}
+            {!isEarlyRoute ? <OnboardingProgramCoordinator /> : null}
+            <StatusBar style={isDark ? 'light' : 'dark'} />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.background },
+                ...PAGE_TRANSITION,
+              }}
+            >
             <Stack.Screen name="index" options={{ animation: 'none' }} />
             <Stack.Screen
               name="(tabs)"
@@ -463,11 +479,12 @@ function ThemedAppContent({
               gestureDirection: 'horizontal',
             }}
           />
-          </Stack>
-          {!isEarlyRoute ? <WorkoutMiniBar /> : null}
-        </DragDropProvider>
-      </InAppTourProvider>
-    </AuthProvider>
+            </Stack>
+            {!isEarlyRoute ? <WorkoutMiniBar /> : null}
+          </DragDropProvider>
+        </InAppTourProvider>
+      </AuthProvider>
+    </PostHogErrorBoundary>
     </PostHogProvider>
   );
 }

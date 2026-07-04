@@ -36,23 +36,23 @@ const WORKOUT_REQUEST_REGEXES = [
 ];
 
 const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
-  { regex: /\bupper body\b/i, muscles: ['chest', 'lats', 'middle back', 'traps', 'shoulders', 'biceps', 'triceps'] },
-  { regex: /\blower body\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] },
-  { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'triceps'] },
-  { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'traps', 'biceps', 'forearms'] },
-  { regex: /\blegs?\b/i, muscles: ['quadriceps', 'hamstrings', 'glutes', 'calves'] },
+  { regex: /\bupper body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'traps', 'shoulders', 'side_delts', 'biceps', 'triceps'] },
+  { regex: /\blower body\b/i, muscles: ['quadriceps', 'quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] },
+  { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'side_delts', 'front_delts', 'triceps'] },
+  { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'upper_back', 'traps', 'biceps', 'forearms'] },
+  { regex: /\blegs?\b/i, muscles: ['quadriceps', 'quads', 'hamstrings', 'glutes', 'calves'] },
   { regex: /\bchest\b/i, muscles: ['chest'] },
-  { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'lower back', 'traps'] },
-  { regex: /\bshoulder(s)?\b/i, muscles: ['shoulders'] },
+  { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'upper_back', 'lower back', 'lower_back', 'traps'] },
+  { regex: /\bshoulder(s)?\b/i, muscles: ['shoulders', 'side_delts', 'front_delts', 'rear_delts'] },
   { regex: /\bbicep(s)?\b/i, muscles: ['biceps'] },
   { regex: /\btricep(s)?\b/i, muscles: ['triceps'] },
   { regex: /\barm(s)?\b/i, muscles: ['biceps', 'triceps', 'forearms'] },
   { regex: /\bglute(s)?\b/i, muscles: ['glutes'] },
   { regex: /\bhamstring(s)?\b/i, muscles: ['hamstrings'] },
-  { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps'] },
+  { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps', 'quads'] },
   { regex: /\bcal(f|ves)\b/i, muscles: ['calves'] },
-  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'obliques'] },
-  { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'shoulders', 'quadriceps', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
+  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'abs', 'obliques'] },
+  { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'shoulders', 'side_delts', 'quadriceps', 'quads', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
 ];
 
 const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
@@ -336,7 +336,7 @@ export async function sendAIMessage(
           console.warn('Failed to parse AI error response:', parseError);
         }
       }
-      console.error('AI function error:', error);
+      console.warn('AI function error:', error);
       return {
         type: 'error',
         requestId: Crypto.randomUUID(),
@@ -350,7 +350,7 @@ export async function sendAIMessage(
 
     return data as AIResponse;
   } catch (err) {
-    console.error('AI service error:', err);
+    console.warn('AI service error:', err);
     return {
       type: 'error',
       requestId: Crypto.randomUUID(),

@@ -31,6 +31,12 @@ export const posthog = new PostHog(apiKey || 'placeholder_key', {
   ...(host ? { host } : {}),
   disabled: !isPostHogConfigured,
   captureAppLifecycleEvents: true,
+  errorTracking: {
+    autocapture: {
+      uncaughtExceptions: true,
+      unhandledRejections: true,
+    },
+  },
   enableSessionReplay: isSessionReplayEnabled,
   sessionReplayConfig: {
     maskAllTextInputs: false,

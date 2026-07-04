@@ -221,7 +221,9 @@ export function AddExerciseModal({
   const firstVisibleIndex = useRef(0);
   const wasVisible = useRef(false);
   const sheetTranslateProgress = useRef(new RNAnimated.Value(1)).current;
-  const isModalVisible = visible && !suspended;
+  const targetModalVisible = visible && !suspended;
+  const [isModalRendered, setIsModalRendered] = useState(targetModalVisible);
+  const isModalVisible = isModalRendered;
 
   const resetListPositionState = useCallback(() => {
     lastScrollOffset.current = 0;
@@ -234,42 +236,66 @@ export function AddExerciseModal({
     contentReady.current = false;
   }, []);
 
-  // Reset state when modal closes
   useEffect(() => {
-    if (!visible) {
-      resetListPositionState();
-      setSearchQuery('');
-      setSelectedExercises([]);
-      setVoicePhase('hidden');
-      setVoiceMeterLevel(0.08);
-      setVoiceProcessingFrame(0);
-      setVoiceError(null);
-      setVoiceTranscript('');
-      setVoiceCandidates([]);
-      isProcessing.current = false;
-    }
-  }, [visible, resetListPositionState]);
-
-  useEffect(() => {
-    if (visible && !wasVisible.current) {
+    if (targetModalVisible && !wasVisible.current) {
       resetListPositionState();
     }
-    wasVisible.current = visible;
-  }, [visible, resetListPositionState]);
+    wasVisible.current = targetModalVisible;
+  }, [targetModalVisible, resetListPositionState]);
 
   useEffect(() => {
-    if (!isModalVisible) {
-      sheetTranslateProgress.setValue(1);
+    if (targetModalVisible) {
+      setIsModalRendered(true);
       return;
     }
 
+    if (!isModalRendered) {
+      sheetTranslateProgress.setValue(1);
+    }
+  }, [isModalRendered, sheetTranslateProgress, targetModalVisible]);
+
+  useEffect(() => {
+    if (!targetModalVisible || !isModalRendered) return;
     sheetTranslateProgress.setValue(1);
     RNAnimated.timing(sheetTranslateProgress, {
       toValue: 0,
       duration: 420,
       useNativeDriver: true,
     }).start();
-  }, [isModalVisible, sheetTranslateProgress]);
+  }, [isModalRendered, sheetTranslateProgress, targetModalVisible]);
+
+  useEffect(() => {
+    if (targetModalVisible || !isModalRendered) return;
+
+    const animation = RNAnimated.timing(sheetTranslateProgress, {
+      toValue: 1,
+      duration: 260,
+      useNativeDriver: true,
+    });
+
+    animation.start(({ finished }) => {
+      if (finished) {
+        setIsModalRendered(false);
+      }
+    });
+
+    return () => animation.stop();
+  }, [isModalRendered, sheetTranslateProgress, targetModalVisible]);
+
+  // Reset state after the exit animation completes.
+  useEffect(() => {
+    if (isModalRendered) return;
+    resetListPositionState();
+    setSearchQuery('');
+    setSelectedExercises([]);
+    setVoicePhase('hidden');
+    setVoiceMeterLevel(0.08);
+    setVoiceProcessingFrame(0);
+    setVoiceError(null);
+    setVoiceTranscript('');
+    setVoiceCandidates([]);
+    isProcessing.current = false;
+  }, [isModalRendered, resetListPositionState]);
 
   const sheetAnimatedStyle = {
     transform: [
@@ -1124,7 +1150,7 @@ export function AddExerciseModal({
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end',
   },
   container: {

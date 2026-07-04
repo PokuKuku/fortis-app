@@ -28,7 +28,6 @@ import {
   buildOnboardingProgramSpec,
   savePendingOnboardingProgramSpec,
 } from '@/src/utils/onboardingProgram';
-import { clearInAppTourState } from '@/src/services/inAppTourService';
 import {
   markPendingOnboardingAuthCompletion,
   usePendingOnboardingAuthCompletion,
@@ -169,9 +168,6 @@ export default function AuthWelcomeScreen() {
         const updates: Parameters<typeof updateProfile>[0] = {
           onboarding_completed: true,
           avatar_url: null,
-          has_seen_in_app_tour: false,
-          in_app_tour_completed_at: null,
-          in_app_tour_version: 0,
         };
 
         if (typeof state?.full_name === 'string') {
@@ -242,10 +238,9 @@ export default function AuthWelcomeScreen() {
         }
 
         await withTimeout(
-          clearInAppTourState()
-            .then(() => clearOnboardingState()),
+          clearOnboardingState(),
           ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
-          'Clearing onboarding and tour state',
+          'Clearing onboarding state',
         );
 
         if (isMountedRef.current && isFocusedRef.current) {

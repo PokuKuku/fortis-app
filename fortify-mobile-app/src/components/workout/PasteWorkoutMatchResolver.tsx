@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
 import type { ImportedExercise, UnresolvedPastedExercise } from '@/src/components/workout/PasteWorkoutSheet';
@@ -17,6 +18,7 @@ export function PasteWorkoutMatchResolver({
   onDismiss: () => void;
 }) {
   const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selections, setSelections] = useState<Record<number, ResolvedPastedExercise>>({});
 
@@ -26,6 +28,16 @@ export function PasteWorkoutMatchResolver({
   }, [entries]);
 
   const entry = entries[currentIndex];
+  const uniqueMatches = useMemo(() => {
+    if (!entry) return [];
+    const seenIds = new Set<string>();
+    return entry.matches.filter((match) => {
+      if (seenIds.has(match.id)) return false;
+      seenIds.add(match.id);
+      return true;
+    });
+  }, [entry]);
+
   if (!entry) return null;
 
   const finish = (nextSelections = selections) => {
@@ -73,16 +85,17 @@ export function PasteWorkoutMatchResolver({
         <View style={[styles.sheet, {
           backgroundColor: colors.background,
           borderColor: isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+          paddingBottom: Math.max(Spacing['3xl'], insets.bottom + Spacing.lg),
         }]}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>Choose Exercise</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Closest matches for “{entry.sourceName}”</Text>
           <ScrollView style={styles.matches}>
-            {entry.matches.length > 0 ? entry.matches.map((match) => {
+            {uniqueMatches.length > 0 ? uniqueMatches.map((match, matchIndex) => {
               const image = getCachedExerciseImageSource(match.images?.[0]);
               const isSelected = match.id === selectedExerciseId;
               return (
                 <Pressable
-                  key={match.id}
+                  key={`${currentIndex}-${match.id}-${matchIndex}`}
                   onPress={() => selectExercise(match.id, match.name)}
                   style={[styles.option, {
                     borderColor: isSelected ? colors.accent : colors.border,
@@ -114,7 +127,7 @@ export function PasteWorkoutMatchResolver({
               <Text style={{ color: currentIndex === 0 ? colors.textTertiary : colors.accent }}>Previous</Text>
             </Pressable>
             <Pressable onPress={skip} style={[styles.action, { borderColor: colors.accentBorder }]}>
-              <Text style={{ color: colors.accent }}>Next</Text>
+              <Text style={{ color: colors.accent }}>Skip</Text>
             </Pressable>
           </View>
         </View>

@@ -214,6 +214,54 @@ describe('realtimeCoachService', () => {
     });
   });
 
+  it('returns the edge function response when no workout template is available', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        type: 'error',
+        requestId: 'ai-request-id',
+        error: {
+          code: 'WORKOUT_TEMPLATE_UNAVAILABLE',
+          message: 'I could not build that workout from your exercise library. Please try again.',
+          retryable: true,
+        },
+      },
+      error: null,
+      response: null,
+    });
+
+    const response = await generateVoiceWorkoutTemplate('make me an ab workout');
+
+    expect(response.type).toBe('error');
+    if (response.type !== 'error') {
+      throw new Error('Expected voice workout generation to return an error');
+    }
+    expect(response.error?.code).toBe('WORKOUT_TEMPLATE_UNAVAILABLE');
+  });
+
+  it('does not synthesize a local fallback workout when the edge function has no template', async () => {
+    mockInvoke.mockResolvedValue({
+      data: {
+        type: 'error',
+        requestId: 'ai-request-id',
+        error: {
+          code: 'WORKOUT_TEMPLATE_UNAVAILABLE',
+          message: 'I could not build that workout from your exercise library. Please try again.',
+          retryable: true,
+        },
+      },
+      error: null,
+      response: null,
+    });
+
+    const response = await generateVoiceWorkoutTemplate('make me a chest workout');
+
+    expect(response.type).toBe('error');
+    if (response.type !== 'error') {
+      throw new Error('Expected voice workout generation to return an error');
+    }
+    expect(response.error?.code).toBe('WORKOUT_TEMPLATE_UNAVAILABLE');
+  });
+
   it('normalizes creator script allowlist errors', async () => {
     mockInvoke.mockResolvedValue({
       data: null,

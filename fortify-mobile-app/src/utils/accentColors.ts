@@ -18,6 +18,15 @@ export interface AccentColorPalette {
   rgb: [number, number, number];
 }
 
+const LIGHT_MODE_ACCENT_OVERRIDES: Partial<Record<AccentColorName, AccentColorPalette>> = {
+  slate: {
+    base: '#5f6f84',
+    light: '#94a3b8',
+    dark: '#475569',
+    rgb: [95, 111, 132],
+  },
+};
+
 /**
  * Curated accent color palettes that work well with both dark and light themes.
  * Each color is chosen to maintain good contrast and visual harmony.
@@ -165,13 +174,22 @@ export function getAccentRgba(colorName: AccentColorName, opacity: number): stri
   return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${opacity})`;
 }
 
+function getModeAwareAccentPalette(colorName: AccentColorName, isDark: boolean): AccentColorPalette {
+  return isDark ? ACCENT_COLORS[colorName] : (LIGHT_MODE_ACCENT_OVERRIDES[colorName] ?? ACCENT_COLORS[colorName]);
+}
+
+function getRgbaFromPalette(palette: AccentColorPalette, opacity: number): string {
+  const { rgb } = palette;
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, ${opacity})`;
+}
+
 /**
  * Get button gradient colors for an accent color.
  * Dark mode: light → base (bright to slightly darker)
  * Light mode: base → dark (for better contrast on light backgrounds)
  */
 export function getAccentGradient(colorName: AccentColorName, isDark: boolean): readonly [string, string] {
-  const palette = ACCENT_COLORS[colorName];
+  const palette = getModeAwareAccentPalette(colorName, isDark);
   if (isDark) {
     return [palette.light, palette.base] as const;
   }
@@ -183,7 +201,7 @@ export function getAccentGradient(colorName: AccentColorName, isDark: boolean): 
  * These values replace the hardcoded green values in the theme.
  */
 export function generateAccentThemeColors(colorName: AccentColorName, isDark: boolean) {
-  const palette = ACCENT_COLORS[colorName];
+  const palette = getModeAwareAccentPalette(colorName, isDark);
   const contrastColorName = ACCENT_CONTRAST_MAP[colorName];
 
   return {
@@ -191,7 +209,7 @@ export function generateAccentThemeColors(colorName: AccentColorName, isDark: bo
     accent: palette.base,
     accentLight: palette.light,
     accentDark: palette.dark,
-    accentForegroundOnFill: colorName === 'slate' ? '#1A1A1A' : '#ffffff',
+    accentForegroundOnFill: colorName === 'slate' && isDark ? '#1A1A1A' : '#ffffff',
 
     // Button gradient
     accentGradient: getAccentGradient(colorName, isDark),
@@ -200,16 +218,16 @@ export function generateAccentThemeColors(colorName: AccentColorName, isDark: bo
     contrastGradient: getAccentGradient(contrastColorName, isDark),
 
     // Overlay variants (for backgrounds)
-    accentOverlay: getAccentRgba(colorName, isDark ? 0.1 : 0.08),
-    accentOverlayMedium: getAccentRgba(colorName, isDark ? 0.15 : 0.12),
-    accentOverlayHeavy: getAccentRgba(colorName, isDark ? 0.2 : 0.15),
+    accentOverlay: getRgbaFromPalette(palette, isDark ? 0.1 : 0.08),
+    accentOverlayMedium: getRgbaFromPalette(palette, isDark ? 0.15 : 0.12),
+    accentOverlayHeavy: getRgbaFromPalette(palette, isDark ? 0.2 : 0.15),
 
     // Border variants
-    accentBorder: getAccentRgba(colorName, isDark ? 0.3 : 0.25),
-    accentBorderLight: getAccentRgba(colorName, isDark ? 0.2 : 0.15),
+    accentBorder: getRgbaFromPalette(palette, isDark ? 0.3 : 0.25),
+    accentBorderLight: getRgbaFromPalette(palette, isDark ? 0.2 : 0.15),
 
     // Shadow (for buttons)
-    accentShadow: getAccentRgba(colorName, 0.4),
+    accentShadow: getRgbaFromPalette(palette, 0.4),
 
     // Tab bar active
     tabActive: palette.base,

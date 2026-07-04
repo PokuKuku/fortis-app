@@ -75,6 +75,10 @@ jest.mock('@/src/contexts/ThemeContext', () => ({
   }),
 }));
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
 jest.mock('@/src/components/ai/DumbbellVoiceVisualizer', () => ({
   DumbbellVoiceVisualizer: () => null,
 }));
@@ -412,9 +416,9 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(getByTestId('voice-workout-loading-card')).toBeTruthy();
   });
 
-  it('hides workout cards and sends typed prompts in conversation mode', () => {
+  it('shows workout cards and sends typed prompts in conversation mode', () => {
     const onSendTextPrompt = jest.fn(() => true);
-    const { getByTestId, queryByText } = render(
+    const { getByTestId, getByText } = render(
       <RealtimeVoiceCoachScreen
         {...defaultProps}
         experienceMode="conversation"
@@ -428,8 +432,9 @@ describe('RealtimeVoiceCoachScreen', () => {
       />
     );
 
-    expect(queryByText('Hidden Workout Card')).toBeNull();
-    expect(queryByText('Building Workout')).toBeNull();
+    expect(getByText('Hidden Workout Card')).toBeTruthy();
+    expect(getByText('Building Workout')).toBeTruthy();
+    expect(getByTestId('voice-card-scroll')).toBeTruthy();
     fireEvent.press(getByTestId('conversation-text-prompt-button'));
     fireEvent.changeText(getByTestId('conversation-text-prompt-input'), 'Roast my consistency');
     fireEvent.press(getByTestId('conversation-text-prompt-submit'));

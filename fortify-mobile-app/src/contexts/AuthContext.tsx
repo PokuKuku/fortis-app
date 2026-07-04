@@ -16,7 +16,11 @@ import { useStartPresetStore } from '@/src/store/startPresetStore';
 import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { type AccentColorName } from '@/src/utils/accentColors';
-import { DELETED_DEFAULT_PROGRAM_IDS_KEY, PROGRAM_PROGRESS_KEY } from '@/src/constants/storageKeys';
+import {
+  DELETED_DEFAULT_PROGRAM_IDS_KEY,
+  PROGRAM_PROGRESS_KEY,
+  START_BUTTON_PRESET_KEY,
+} from '@/src/constants/storageKeys';
 import type { WorkoutScheduleHistoryEntry } from '@/src/utils/workoutSchedule';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import * as Crypto from 'expo-crypto';
@@ -653,6 +657,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await clearUserScopedStorage(currentUserId, [
           DELETED_DEFAULT_PROGRAM_IDS_KEY,
           PROGRAM_PROGRESS_KEY,
+          START_BUTTON_PRESET_KEY,
         ]);
       } catch (err) {
         console.warn('Failed to clear user-scoped storage:', err);

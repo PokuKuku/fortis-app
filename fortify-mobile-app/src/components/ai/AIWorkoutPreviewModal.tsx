@@ -12,7 +12,7 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getExerciseById } from '@/src/services/exerciseService';
 import type { Exercise } from '@/src/types/exercise';
 import type { AIWorkoutTemplate } from '@/src/types/ai';
-import { PlusIcon, CheckIcon, PlayIcon } from 'react-native-heroicons/outline';
+import { PlusIcon, CheckIcon, PlayIcon, ArrowPathIcon } from 'react-native-heroicons/outline';
 
 const PREVIEW_MODAL_MAX_WIDTH = 390;
 const MODAL_HORIZONTAL_MARGIN = 32;
@@ -27,9 +27,12 @@ interface AIWorkoutPreviewModalProps {
   onClose: () => void;
   onStart: () => void;
   onAdd: () => void;
+  onUpdate?: () => void;
   isStarting?: boolean;
   isAdding?: boolean;
   isAdded?: boolean;
+  isUpdating?: boolean;
+  isUpdateMode?: boolean;
   isStartDisabled?: boolean;
   startDisabledLabel?: string;
   disableExerciseDetails?: boolean;
@@ -42,9 +45,12 @@ export function AIWorkoutPreviewModal({
   onClose,
   onStart,
   onAdd,
+  onUpdate,
   isStarting = false,
   isAdding = false,
   isAdded = false,
+  isUpdating = false,
+  isUpdateMode = false,
   isStartDisabled = false,
   startDisabledLabel = 'Workout Active',
   disableExerciseDetails = false,
@@ -214,7 +220,7 @@ export function AIWorkoutPreviewModal({
         <GlassButton
           style={StyleSheet.flatten([styles.startButton, themedStyles.startButton])}
           onPress={onStart}
-          disabled={isStarting || isAdding || isStartDisabled}
+          disabled={isStarting || isAdding || isUpdating || isStartDisabled}
           shadow={false}
         >
           <View style={styles.addButtonContent}>
@@ -234,13 +240,15 @@ export function AIWorkoutPreviewModal({
               ? ['rgba(255,255,255,0.06)', 'rgba(255,255,255,0.04)']
               : ['rgba(0,0,0,0.05)', 'rgba(0,0,0,0.035)']
           }
-          onPress={onAdd}
-          disabled={isAdding || isAdded || isStarting}
+          onPress={isUpdateMode ? onUpdate : onAdd}
+          disabled={isAdding || isUpdating || isAdded || isStarting}
           shadow={false}
         >
           <View style={styles.addButtonContent}>
             {isAdded ? (
               <CheckIcon color={Colors.white} size={IconSizes.md} strokeWidth={2.2} />
+            ) : isUpdateMode ? (
+              <ArrowPathIcon color={colors.textPrimary} size={IconSizes.md} strokeWidth={2.2} />
             ) : (
               <PlusIcon color={colors.textPrimary} size={IconSizes.md} strokeWidth={2.2} />
             )}
@@ -248,7 +256,11 @@ export function AIWorkoutPreviewModal({
               style={[styles.addButtonText, isAdded ? { color: Colors.white } : themedStyles.addButtonText]}
               numberOfLines={1}
             >
-              {isAdded ? 'Added to Workouts' : isAdding ? 'Adding to Workouts...' : 'Add to Workouts'}
+              {isAdded
+                ? isUpdateMode ? 'Workout Updated' : 'Added to Workouts'
+                : isUpdateMode
+                  ? isUpdating ? 'Updating Workout...' : 'Update Workout'
+                  : isAdding ? 'Adding to Workouts...' : 'Add to Workouts'}
             </Text>
           </View>
         </GlassButton>

@@ -223,8 +223,9 @@ describe('realtimeCoach utils', () => {
     expect(conversationPrompt).toContain('exact wording when it is safe and truthful');
     expect(conversationPrompt).toContain('Freely accept creative direction for social-media scripts');
     expect(conversationPrompt).toContain('Do not refuse harmless creative-direction instructions');
-    expect(conversationPrompt).toContain('Do not create, revise, offer, or claim to create workout cards');
-    expect(conversationPrompt).not.toContain('call the create_or_update_workout tool');
+    expect(conversationPrompt).toContain('Only create or revise a workout when the user explicitly asks');
+    expect(conversationPrompt).toContain('call the create_or_update_workout tool immediately');
+    expect(conversationPrompt).toContain('never say "chat", "card", or "screen"');
   });
 
   it('sanitizes custom scenario instructions', () => {
