@@ -489,6 +489,7 @@ export default function AIChatScreen() {
   const [isPickingVoiceMedia, setIsPickingVoiceMedia] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const [clarificationPreviewMessage, setClarificationPreviewMessage] = useState<AIConversationMessage | null>(null);
+  const [activeEditableWorkoutTemplate, setActiveEditableWorkoutTemplate] = useState<AIEditableWorkoutTemplate | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const shouldAutoScrollRef = useRef(true);
 
@@ -755,6 +756,7 @@ export default function AIChatScreen() {
     chatWorkoutActions.setPreviewMessageId(null);
     setInputText('');
     setPendingChatMedia([]);
+    setActiveEditableWorkoutTemplate(null);
     shouldAutoScrollRef.current = true;
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: false });
@@ -850,6 +852,7 @@ export default function AIChatScreen() {
           message,
           currentWorkoutTemplateDraft,
           editableWorkoutLibrary,
+          activeEditableWorkoutTemplate,
         );
 
         posthog.capture('ai_message_sent', {
@@ -867,12 +870,25 @@ export default function AIChatScreen() {
           flattenAIMediaImages(pendingChatMedia),
           attachments
         );
+        if (requestContext?.editableWorkoutTemplate) {
+          const updatedTemplate = response.type === 'answer'
+            ? response.answer?.workoutTemplate
+            : response.type === 'clarification'
+              ? response.clarification?.workoutTemplate
+              : undefined;
+          setActiveEditableWorkoutTemplate({
+            ...requestContext.editableWorkoutTemplate,
+            template: updatedTemplate ?? requestContext.editableWorkoutTemplate.template,
+          });
+        } else if (WORKOUT_GENERATION_REGEX.test(message) && !CURRENT_WORKOUT_REFERENCE_REGEX.test(message)) {
+          setActiveEditableWorkoutTemplate(null);
+        }
         if (response.type !== 'error') {
           setPendingChatMedia([]);
         }
       },
     );
-  }, [addLocalClarification, chatWorkoutActions, currentWorkoutTemplateDraft, editableWorkoutLibrary, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
+  }, [activeEditableWorkoutTemplate, addLocalClarification, chatWorkoutActions, currentWorkoutTemplateDraft, editableWorkoutLibrary, isSendingMessage, isTourActive, messages, pendingChatMedia, posthog, runProFeature, sendMessage]);
 
   const requestAIFeatureConsent = useCallback(async (): Promise<boolean> => {
     if (!shouldPromptForFeatureAccess(isTourActive)) return true;
@@ -924,7 +940,7 @@ export default function AIChatScreen() {
         if (!allowed) return;
 
         const originalPrompt = option.originalPrompt?.trim() || option.prompt?.trim() || option.label;
-        const confirmMessage = `Use "${option.label}" for my previous question: ${originalPrompt}`;
+        const confirmMessage = originalPrompt;
         const context: AIRequestContext = {
           currentWorkoutTemplateDraft: editableTemplate.template,
           editableWorkoutTemplate: editableTemplate,
@@ -936,7 +952,16 @@ export default function AIChatScreen() {
         });
         chatWorkoutActions.setTemplateSaveError(null);
         setClarificationPreviewMessage(null);
-        await sendMessage('GENERAL_CHAT', confirmMessage, context);
+        const response = await sendMessage('GENERAL_CHAT', confirmMessage, context);
+        const updatedTemplate = response.type === 'answer'
+          ? response.answer?.workoutTemplate
+          : response.type === 'clarification'
+            ? response.clarification?.workoutTemplate
+            : undefined;
+        setActiveEditableWorkoutTemplate({
+          ...editableTemplate,
+          template: updatedTemplate ?? editableTemplate.template,
+        });
       },
     );
   }, [
