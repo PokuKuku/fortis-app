@@ -20,8 +20,10 @@ describe('exerciseService image hydration', () => {
 
   it('loads the bundled v8 exercise library with local GIF tokens when offline', async () => {
     const exercises = await getAllExercises();
+    const ids = exercises.map((exercise) => exercise.id);
 
-    expect(exercises.filter((exercise) => exercise.source === 'api')).toHaveLength(1394);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(exercises.filter((exercise) => exercise.source === 'api')).toHaveLength(1381);
     expect(Object.keys(exerciseGifAssets)).toHaveLength(1394);
     expect(exercises.every((exercise) => exercise.images[0]?.startsWith('exercise-gif://'))).toBe(true);
   });
@@ -42,6 +44,15 @@ describe('exerciseService image hydration', () => {
     expect(exercise?.id).toBe('10a23ae7-3c11-4f71-b2ef-fb8d1d06fabc');
     expect(exercise?.name).toBe('Barbell Bench Press');
     expect(exercise?.images[0]).toBe('exercise-gif://0025');
+  });
+
+  it('keeps alternate duplicate snapshot slugs resolvable after service-level dedupe', async () => {
+    const primarySlug = await getExerciseById('2798');
+    const duplicateSlug = await getExerciseById('2797');
+
+    expect(primarySlug?.id).toBe('2b0655a3-e23d-4b55-8dd8-047037083781');
+    expect(duplicateSlug?.id).toBe(primarySlug?.id);
+    expect(duplicateSlug?.name).toBe('Barbell Squat Jump Step Rear Lunge');
   });
 
   it('keeps legacy-only UUID exercises resolvable for saved history', async () => {

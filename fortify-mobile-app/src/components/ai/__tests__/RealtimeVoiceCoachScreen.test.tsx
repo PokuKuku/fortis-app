@@ -364,6 +364,60 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(cardShellStyle.transform).toHaveLength(4);
   });
 
+  it('renders voice workout clarification options and sends selected options', () => {
+    const onSelectWorkoutClarification = jest.fn(() => true);
+    const option = {
+      label: 'Add Forearm Plank',
+      exerciseId: 'forearm-plank',
+      prompt: 'Add Forearm Plank',
+    };
+    const { getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        onSelectWorkoutClarification={onSelectWorkoutClarification}
+        voiceWorkoutMessages={[
+          {
+            id: 'voice-card-1',
+            text: 'Which plank should I add?',
+            workoutTemplate: {
+              name: 'Core Workout',
+              focus: 'Core',
+              exercises: [
+                {
+                  exerciseId: 'cable-crunch',
+                  exerciseName: 'Cable Crunch',
+                  sets: 3,
+                  reps: '10-15',
+                },
+              ],
+            },
+            clarification: {
+              question: 'Which plank should I add?',
+              workoutTemplate: {
+                name: 'Core Workout',
+                focus: 'Core',
+                exercises: [
+                  {
+                    exerciseId: 'cable-crunch',
+                    exerciseName: 'Cable Crunch',
+                    sets: 3,
+                    reps: '10-15',
+                  },
+                ],
+              },
+              options: [option],
+            },
+          },
+        ]}
+      />
+    );
+
+    expect(getByText('Which plank should I add?')).toBeTruthy();
+    fireEvent.press(getByText('Add Forearm Plank'));
+
+    expect(onSelectWorkoutClarification).toHaveBeenCalledWith('voice-card-1', option);
+  });
+
   it('dismisses voice workout cards from the close button', () => {
     const onDismissWorkoutTemplate = jest.fn();
     const { getByTestId } = render(

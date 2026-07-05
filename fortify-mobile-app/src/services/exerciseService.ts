@@ -155,12 +155,48 @@ function addExerciseLookupEntries(
   });
 }
 
+function mergeExerciseAliases(primary: Exercise, duplicate: Exercise): string[] {
+  const aliases = new Set<string>(primary.aliases ?? []);
+  [
+    duplicate.id,
+    duplicate.slug,
+    duplicate.remoteId,
+    duplicate.exerciseDbId,
+    duplicate.normalizedName,
+    duplicate.name,
+    ...(duplicate.aliases ?? []),
+  ].forEach((alias) => {
+    if (alias) aliases.add(alias);
+  });
+
+  return Array.from(aliases);
+}
+
+function dedupeExercisesById<T extends Exercise>(exercises: T[]): T[] {
+  const byId = new Map<string, T>();
+
+  exercises.forEach((exercise) => {
+    const existing = byId.get(exercise.id);
+    if (!existing) {
+      byId.set(exercise.id, exercise);
+      return;
+    }
+
+    byId.set(exercise.id, {
+      ...existing,
+      aliases: mergeExerciseAliases(existing, exercise),
+    });
+  });
+
+  return Array.from(byId.values());
+}
+
 function loadSnapshotExercises(): Exercise[] {
   if (snapshotExerciseCache) return snapshotExerciseCache;
 
   try {
     const raw = require('@/src/data/exerciseLibrarySnapshot.json') as SnapshotExerciseRow[];
-    snapshotExerciseCache = raw.map(transformSnapshotExerciseToExercise);
+    snapshotExerciseCache = dedupeExercisesById(raw.map(transformSnapshotExerciseToExercise));
   } catch (error) {
     console.warn('Failed to load exercise snapshot:', error);
     snapshotExerciseCache = [];
@@ -200,7 +236,7 @@ export function getInitialExercisesSync(): ExerciseWithSource[] {
     source: 'api' as ExerciseSource,
   }));
 
-  return [...customWithSource, ...baseWithSource];
+  return dedupeExercisesById([...customWithSource, ...baseWithSource]);
 }
 
 function loadLegacyCompatibilityExercises(): Exercise[] {
@@ -571,7 +607,7 @@ export async function getAllExercises(options?: { includeVariants?: boolean }): 
       source: 'api' as ExerciseSource,
     }));
 
-    const merged = [...customWithSource, ...baseWithSource];
+    const merged = dedupeExercisesById([...customWithSource, ...baseWithSource]);
     if (!includeVariants) {
       allExercisesCache = merged;
       allExercisesPromise = null;

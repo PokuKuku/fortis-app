@@ -36,6 +36,9 @@ describe('realtimeCoach utils', () => {
     expect(shouldGenerateWorkoutFromVoice('Add dips', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Add a different exercise', true)).toBe(true);
     expect(shouldEditWorkoutFromVoice('Remove incline press', true)).toBe(true);
+    expect(shouldEditWorkoutFromVoice('Take away incline press', true)).toBe(true);
+    expect(shouldEditWorkoutFromVoice('Get rid of cable crunches', true)).toBe(true);
+    expect(shouldEditWorkoutFromVoice('Cut planks', true)).toBe(true);
     expect(shouldEditWorkoutFromVoice('Add a different exercise', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make it five exercises', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Make it five exercises')).toBe(false);
@@ -52,8 +55,6 @@ describe('realtimeCoach utils', () => {
       intensity: 1,
       customInstructions: '',
       interactionMode: 'push_to_talk',
-      experienceMode: 'coach',
-      conversationPersonaInstructions: '',
       experienceMode: 'coach',
       conversationPersonaInstructions: '',
     });

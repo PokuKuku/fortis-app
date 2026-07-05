@@ -282,6 +282,9 @@ export default function ExercisesScreen() {
     );
   };
 
+  const getExerciseListKey = (item: Exercise, index: number) =>
+    `${item.id}-${item.slug ?? item.exerciseDbId ?? item.name}-${index}`;
+
   const handleViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: Array<{ index?: number | null }> }) => {
     const firstVisible = viewableItems.find(item => typeof item.index === 'number')?.index;
     if (typeof firstVisible === 'number') {
@@ -365,7 +368,7 @@ export default function ExercisesScreen() {
         <FlatList
           data={filteredExercises}
           renderItem={renderExerciseCard}
-          keyExtractor={(item) => item.id}
+          keyExtractor={getExerciseListKey}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           initialNumToRender={20}

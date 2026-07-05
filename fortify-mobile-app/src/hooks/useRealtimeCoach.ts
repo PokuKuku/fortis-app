@@ -10,7 +10,7 @@ import {
   generateVoiceWorkoutTemplate,
   reportRealtimeCoachUsage,
 } from '@/src/services/realtimeCoachService';
-import type { AIImage, AIRequestContext, AIWorkoutTemplate } from '@/src/types/ai';
+import type { AIClarificationOption, AIImage, AIRequestContext, AIWorkoutTemplate } from '@/src/types/ai';
 import type {
   RealtimeCoachDebugStatus,
   RealtimeCoachPhase,
@@ -903,7 +903,7 @@ export function useRealtimeCoach({
 
   const handleWorkoutPrompt = useCallback(async (
     prompt: string,
-    options: { force?: boolean } = {}
+    options: { force?: boolean; draft?: AIWorkoutTemplate } = {}
   ): Promise<boolean> => {
     const trimmed = prompt.trim();
     const promptKey = normalizeWorkoutPromptKey(trimmed);
@@ -914,7 +914,7 @@ export function useRealtimeCoach({
         recentWorkoutPromptAttemptsRef.current.delete(key);
       }
     });
-    const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
+    const draft = options.draft ?? latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
     if (
       !trimmed
       || trimmed === inFlightWorkoutPromptRef.current
@@ -935,13 +935,36 @@ export function useRealtimeCoach({
         currentWorkoutTemplateDraft: draft,
       } : undefined);
 
-      const template = response.type === 'answer' ? response.answer?.workoutTemplate : undefined;
+      const template = response.type === 'answer'
+        ? response.answer?.workoutTemplate
+        : response.type === 'clarification'
+          ? response.clarification?.workoutTemplate
+          : undefined;
       if (!template || !Array.isArray(template.exercises) || template.exercises.length === 0) {
         console.warn('[Voice Coach] workout generation returned no workout template', {
           responseType: response.type,
           errorCode: response.type === 'error' ? response.error?.code : undefined,
         });
         return false;
+      }
+      if (response.type === 'clarification' && response.clarification) {
+        setVoiceWorkoutMessages((current) => {
+          const nextMessage: VoiceWorkoutMessage = {
+            id: Crypto.randomUUID(),
+            text: response.clarification?.question ?? 'Which option should I use?',
+            workoutTemplate: template,
+            clarification: response.clarification,
+            savedWorkoutTemplateId: null,
+          };
+
+          latestVoiceWorkoutTemplateDraftRef.current = template;
+
+          return [
+            ...current,
+            nextMessage,
+          ];
+        });
+        return true;
       }
       if (shouldCreateEditedVoiceWorkout && draft && workoutsHaveSameExercises(draft, template)) {
         return false;
@@ -984,6 +1007,33 @@ export function useRealtimeCoach({
       }
     }
   }, [currentWorkoutTemplateDraft]);
+
+  const selectVoiceWorkoutClarification = useCallback((
+    messageId: string,
+    option: string | AIClarificationOption
+  ): boolean => {
+    const selectedMessage = voiceWorkoutMessages.find((message) => message.id === messageId);
+    const selectedDraft = selectedMessage?.workoutTemplate;
+    const prompt = typeof option === 'string'
+      ? option
+      : option.prompt ?? option.label;
+
+    if (!prompt.trim() || !selectedDraft) {
+      return false;
+    }
+
+    setVoiceWorkoutMessages((current) => current.map((message) => (
+      message.id === messageId
+        ? { ...message, clarification: undefined }
+        : message
+    )));
+
+    void handleWorkoutPrompt(prompt, {
+      force: true,
+      draft: selectedDraft,
+    });
+    return true;
+  }, [handleWorkoutPrompt, voiceWorkoutMessages]);
 
   const handleWorkoutToolCall = useCallback(async (
     id: string,
@@ -1797,5 +1847,6 @@ export function useRealtimeCoach({
     setError,
     markVoiceWorkoutSaved,
     dismissVoiceWorkoutMessage,
+    selectVoiceWorkoutClarification,
   };
 }

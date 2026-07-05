@@ -15,6 +15,7 @@ export type MuscleKey =
   | 'lower_back'
   | 'abs'
   | 'obliques'
+  | 'hip_flexors'
   | 'glutes'
   | 'quads'
   | 'hamstrings'
@@ -44,6 +45,7 @@ export const MUSCLE_KEYS: MuscleKey[] = [
   'lower_back',
   'abs',
   'obliques',
+  'hip_flexors',
   'glutes',
   'quads',
   'hamstrings',
@@ -75,6 +77,7 @@ export const MUSCLE_DISPLAY: Record<MuscleKey, string> = {
   lower_back: 'Lower Back',
   abs: 'Abs',
   obliques: 'Obliques',
+  hip_flexors: 'Hip Flexors',
   glutes: 'Glutes',
   quads: 'Quads',
   hamstrings: 'Hamstrings',
@@ -99,6 +102,7 @@ export const MUSCLE_TO_HEATMAP_REGIONS: Record<MuscleKey, HeatmapRegion[]> = {
   lower_back: [{ slug: 'lower-back', side: 'back' }],
   abs: [{ slug: 'abs', side: 'front' }],
   obliques: [{ slug: 'obliques', side: 'front' }],
+  hip_flexors: [{ slug: 'abs', side: 'front' }],
   glutes: [{ slug: 'gluteal', side: 'back' }],
   quads: [{ slug: 'quadriceps', side: 'front' }],
   hamstrings: [{ slug: 'hamstring', side: 'back' }],
@@ -178,7 +182,10 @@ const MUSCLE_ALIASES: Record<string, MuscleKey> = {
   'abdominals': 'abs',
   'abdominal': 'abs',
   'core': 'abs',
-  'hip flexors': 'abs',
+  'hip flexors': 'hip_flexors',
+  'hip flexor': 'hip_flexors',
+  'iliopsoas': 'hip_flexors',
+  'psoas': 'hip_flexors',
   'lower abs': 'abs',
   'obliques': 'obliques',
   'oblique': 'obliques',
@@ -221,7 +228,8 @@ const KEYWORD_RULES: Array<[RegExp, MuscleKey]> = [
   [/\bglute/i, 'glutes'],
   [/\bcalf|\bsoleus|\btibialis|\bshin/i, 'calves'],
   [/\boblique/i, 'obliques'],
-  [/\babs|\babdom|\bcore|\bhip flexor/i, 'abs'],
+  [/\bhip flexor|\biliopsoas|\bpsoas/i, 'hip_flexors'],
+  [/\babs|\babdom|\bcore/i, 'abs'],
   [/\badductor|\binner thigh|\bgroin/i, 'adductors'],
   [/\babductor/i, 'abductors'],
   [/\btrapezius|\btrap\b|\brhomboid/i, 'upper_back'],
@@ -288,6 +296,7 @@ const MUSCLE_CATEGORY: Record<MuscleKey, MuscleCategory> = {
   lower_back: 'pull',
   abs: 'core',
   obliques: 'core',
+  hip_flexors: 'core',
   glutes: 'legs',
   quads: 'legs',
   hamstrings: 'legs',
@@ -308,7 +317,7 @@ export function resolveMuscleTargetKeys(input: string): MuscleKey[] {
     return ['front_delts', 'side_delts', 'rear_delts'];
   }
   if (normalized === 'core' || normalized === 'abs' || normalized === 'abdominals') {
-    return ['abs', 'obliques'];
+    return ['abs', 'obliques', 'hip_flexors'];
   }
   if (normalized === 'legs' || normalized === 'lower body') {
     return (['quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] as MuscleKey[])

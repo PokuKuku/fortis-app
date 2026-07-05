@@ -31,7 +31,7 @@ import {
   type RealtimeTranscriptOverlay,
   type VoiceWorkoutMessage,
 } from '@/src/types/realtimeCoach';
-import type { AIConversationMessage } from '@/src/types/ai';
+import type { AIClarificationOption, AIConversationMessage } from '@/src/types/ai';
 import type { AIPendingMedia } from '@/src/types/ai';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 
@@ -60,6 +60,7 @@ interface RealtimeVoiceCoachScreenProps {
   onAddWorkoutTemplate: (message: AIConversationMessage) => void;
   onStartWorkoutTemplate: (message: AIConversationMessage) => void;
   onDismissWorkoutTemplate: (messageId: string) => void;
+  onSelectWorkoutClarification?: (messageId: string, option: string | AIClarificationOption) => boolean;
   interactionMode?: 'push_to_talk' | 'realtime';
   pendingMedia?: AIPendingMedia[];
   onRemovePendingMedia?: (id: string) => void;
@@ -131,6 +132,7 @@ export function RealtimeVoiceCoachScreen({
   onAddWorkoutTemplate,
   onStartWorkoutTemplate,
   onDismissWorkoutTemplate,
+  onSelectWorkoutClarification,
   interactionMode = 'push_to_talk',
   pendingMedia = [],
   onRemovePendingMedia,
@@ -466,6 +468,7 @@ export function RealtimeVoiceCoachScreen({
                 const cardAnimation = getVoiceCardAnimation(message.id);
                 const dismissAnimation = getVoiceCardDismissAnimation(message.id);
                 const isDismissing = dismissingVoiceCardIds.has(message.id);
+                const clarificationOptions = message.clarification?.options ?? [];
                 return (
                   <Animated.View
                     key={message.id}
@@ -523,6 +526,49 @@ export function RealtimeVoiceCoachScreen({
                       isStartDisabled={isWorkoutActive}
                       displayScale={viewportScale}
                     />
+                    {message.clarification && clarificationOptions.length > 0 ? (
+                      <View
+                        style={[
+                          styles.clarificationPanel,
+                          {
+                            backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.72)',
+                            borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.clarificationQuestion, { color: colors.textPrimary }]}>
+                          {message.clarification.question}
+                        </Text>
+                        <View style={styles.clarificationOptionList}>
+                          {clarificationOptions.map((option, optionIndex) => {
+                            const label = typeof option === 'string' ? option : option.label;
+                            return (
+                              <TouchableOpacity
+                                key={`${message.id}-${label}-${optionIndex}`}
+                                style={[
+                                  styles.clarificationOptionButton,
+                                  {
+                                    backgroundColor: isDark ? 'rgba(255,255,255,0.075)' : 'rgba(0,0,0,0.035)',
+                                    borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)',
+                                  },
+                                ]}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  onSelectWorkoutClarification?.(message.id, option);
+                                }}
+                                activeOpacity={0.72}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Select option: ${label}`}
+                              >
+                                <Text style={[styles.clarificationOptionText, { color: colors.textPrimary }]}>
+                                  {label}
+                                </Text>
+                              </TouchableOpacity>
+                            );
+                          })}
+                        </View>
+                      </View>
+                    ) : null}
                     <TouchableOpacity
                       testID={`voice-card-dismiss-${message.id}`}
                       style={[
@@ -829,6 +875,35 @@ const styles = StyleSheet.create({
   voiceCardShell: {
     width: '100%',
     position: 'relative',
+  },
+  clarificationPanel: {
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    padding: Spacing.md,
+    gap: Spacing.sm,
+  },
+  clarificationQuestion: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    lineHeight: 20,
+  },
+  clarificationOptionList: {
+    gap: Spacing.xs,
+  },
+  clarificationOptionButton: {
+    minHeight: 42,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  clarificationOptionText: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   voiceCardDismissButton: {
     position: 'absolute',

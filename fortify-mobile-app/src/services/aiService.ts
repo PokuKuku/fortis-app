@@ -26,7 +26,7 @@ const MAX_WORKOUT_CONTEXT_EXERCISES = 160;
 
 const WORKOUT_NOUN_PATTERN = String.raw`(?:work\s*out|workout|routine|session|template|training(?:\s+(?:day|session|workout))?|lift|day)`;
 const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|shoulders?|arms?|biceps|triceps|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
-const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|design|plan|craft|write|recommend|suggest|put together|give me|need|want|show me|can i have|i would like)`;
+const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|regenerate|reroll|redo|design|plan|craft|write|recommend|suggest|put together|give me|need|want|show me|can i have|i would like)`;
 
 const WORKOUT_REQUEST_REGEXES = [
   new RegExp(String.raw`\b${WORKOUT_CREATE_VERB_PATTERN}\b[\s\S]{0,100}\b${WORKOUT_NOUN_PATTERN}\b`, 'i'),
@@ -41,9 +41,9 @@ const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
   { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'side_delts', 'front_delts', 'triceps'] },
   { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'upper_back', 'traps', 'biceps', 'forearms'] },
   { regex: /\blegs?\b/i, muscles: ['quadriceps', 'quads', 'hamstrings', 'glutes', 'calves'] },
-  { regex: /\bchest\b/i, muscles: ['chest'] },
+  { regex: /\b(?:chest|pecs?|pectorals?)\b/i, muscles: ['chest', 'pectorals', 'pecs', 'pectoralis'] },
   { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'upper_back', 'lower back', 'lower_back', 'traps'] },
-  { regex: /\bshoulder(s)?\b/i, muscles: ['shoulders', 'side_delts', 'front_delts', 'rear_delts'] },
+  { regex: /\b(?:shoulder(s)?|delts?|deltoids?)\b/i, muscles: ['shoulders', 'delts', 'side_delts', 'front_delts', 'rear_delts'] },
   { regex: /\bbicep(s)?\b/i, muscles: ['biceps'] },
   { regex: /\btricep(s)?\b/i, muscles: ['triceps'] },
   { regex: /\barm(s)?\b/i, muscles: ['biceps', 'triceps', 'forearms'] },
@@ -51,7 +51,7 @@ const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
   { regex: /\bhamstring(s)?\b/i, muscles: ['hamstrings'] },
   { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps', 'quads'] },
   { regex: /\bcal(f|ves)\b/i, muscles: ['calves'] },
-  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'abs', 'obliques'] },
+  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'abs', 'obliques', 'hip_flexors', 'hip flexors'] },
   { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'shoulders', 'side_delts', 'quadriceps', 'quads', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
 ];
 
@@ -94,6 +94,9 @@ const shouldSendWorkoutExerciseCatalog = (
   if (context?.voiceWorkoutOnly || context?.currentWorkoutTemplateDraft) {
     return true;
   }
+  if (context?.avoidWorkoutTemplateDraft) {
+    return true;
+  }
   return WORKOUT_REQUEST_REGEXES.some((regex) => regex.test(message));
 };
 
@@ -105,6 +108,27 @@ const extractWorkoutTargetMuscles = (message: string): string[] => {
     }
   });
   return Array.from(muscles);
+};
+
+const getWorkoutTargetPrompt = (
+  message: string,
+  currentDraft?: AIWorkoutTemplate,
+  avoidDraft?: AIWorkoutTemplate
+): string => {
+  if (extractWorkoutTargetMuscles(message).length > 0) {
+    return message;
+  }
+
+  const draft = avoidDraft ?? currentDraft;
+  const inheritedTargetText = [
+    draft?.focus,
+    draft?.name,
+    draft?.description,
+  ]
+    .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+    .join(' ');
+
+  return inheritedTargetText ? `${message} ${inheritedTargetText}` : message;
 };
 
 const extractWorkoutEquipment = (message: string): string[] => {
@@ -130,6 +154,12 @@ const exerciseMatchesTargetMuscles = (exercise: ExerciseWithSource, targetMuscle
   return targetMuscles.some((muscle) => muscles.includes(muscle.toLowerCase()));
 };
 
+const exercisePrimaryMatchesTargetMuscles = (exercise: ExerciseWithSource, targetMuscles: string[]): boolean => {
+  if (targetMuscles.length === 0) return true;
+  const primaryMuscles = exercise.primaryMuscles.map((muscle) => muscle.toLowerCase());
+  return targetMuscles.some((muscle) => primaryMuscles.includes(muscle.toLowerCase()));
+};
+
 const exerciseMatchesEquipment = (exercise: ExerciseWithSource, equipment: string[]): boolean => {
   if (equipment.length === 0) return true;
   const normalizedEquipment = normalizeCatalogValue(exercise.equipment);
@@ -145,7 +175,11 @@ const scoreWorkoutCatalogExercise = (
   if (exercise.images.some((image) => image.startsWith('exercise-gif://'))) score += 12;
   if (exercise.isCurated) score += 4;
   if (exercise.source === 'custom') score -= 6;
-  if (exerciseMatchesTargetMuscles(exercise, targetMuscles)) score += targetMuscles.length > 0 ? 10 : 0;
+  if (exercisePrimaryMatchesTargetMuscles(exercise, targetMuscles)) {
+    score += targetMuscles.length > 0 ? 18 : 0;
+  } else if (exerciseMatchesTargetMuscles(exercise, targetMuscles)) {
+    score += targetMuscles.length > 0 ? 3 : 0;
+  }
   if (exerciseMatchesEquipment(exercise, equipment)) score += equipment.length > 0 ? 8 : 0;
   if (/\b(bench|press|row|pulldown|pull up|pull-up|squat|deadlift|lunge|hip thrust|push up|plank|crunch)\b/i.test(exercise.name)) {
     score += 3;
@@ -158,7 +192,8 @@ const scoreWorkoutCatalogExercise = (
 
 const buildWorkoutExerciseCatalogForAI = async (
   message: string,
-  currentDraft?: AIWorkoutTemplate
+  currentDraft?: AIWorkoutTemplate,
+  avoidDraft?: AIWorkoutTemplate
 ): Promise<AIExerciseCatalogEntry[]> => {
   const exercises = await getAllExercises();
   const targetMuscles = extractWorkoutTargetMuscles(message);
@@ -169,14 +204,31 @@ const buildWorkoutExerciseCatalogForAI = async (
       .filter((id): id is string => typeof id === 'string' && id.length > 0)
       ?? []
   );
-  const filtered = exercises
+  const avoidedExerciseIds = new Set(
+    avoidDraft?.exercises
+      ?.map((exercise) => exercise.exerciseId)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      ?? []
+  );
+  const eligibleExercises = exercises
     .filter((exercise) => !exercise.isHidden)
+    .filter((exercise) => !avoidedExerciseIds.has(exercise.id))
     .filter((exercise) => exercise.images.some((image) => image.startsWith('exercise-gif://')))
-    .filter((exercise) => exerciseMatchesTargetMuscles(exercise, targetMuscles))
     .filter((exercise) => exerciseMatchesEquipment(exercise, equipment));
+  const primaryTargetMatches = eligibleExercises.filter((exercise) =>
+    exercisePrimaryMatchesTargetMuscles(exercise, targetMuscles)
+  );
+  const anyTargetMatches = eligibleExercises.filter((exercise) =>
+    exerciseMatchesTargetMuscles(exercise, targetMuscles)
+  );
+  const filtered = targetMuscles.length > 0 && primaryTargetMatches.length >= 4
+    ? primaryTargetMatches
+    : anyTargetMatches;
   const source = filtered.length >= 12
     ? filtered
-    : exercises.filter((exercise) => !exercise.isHidden);
+    : targetMuscles.length > 0 && filtered.length >= 4
+      ? filtered
+      : exercises.filter((exercise) => !exercise.isHidden && !avoidedExerciseIds.has(exercise.id));
 
   const selectedById = new Map<string, AIExerciseCatalogEntry>();
   const toCatalogEntry = (exercise: ExerciseWithSource): AIExerciseCatalogEntry => ({
@@ -231,10 +283,15 @@ async function enrichWorkoutRequestContext(
           context.onboardingProgramSpec.fitnessGoal,
           'full body push pull legs upper lower workout',
         ].filter(Boolean).join(' ')
-      : message;
+      : getWorkoutTargetPrompt(
+          message,
+          context?.currentWorkoutTemplateDraft,
+          context?.avoidWorkoutTemplateDraft
+        );
     const exerciseCatalog = await buildWorkoutExerciseCatalogForAI(
       catalogPrompt,
-      context?.currentWorkoutTemplateDraft
+      context?.currentWorkoutTemplateDraft,
+      context?.avoidWorkoutTemplateDraft
     );
     if (exerciseCatalog.length === 0) {
       return context;

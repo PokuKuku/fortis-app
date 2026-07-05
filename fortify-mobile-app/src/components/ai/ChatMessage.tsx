@@ -328,9 +328,8 @@ export function ChatMessage({
               (() => {
                 const optionLabel = typeof option === 'string' ? option : option.label;
                 const optionExerciseId = typeof option === 'string' ? undefined : option.exerciseId;
-                const optionWorkoutTemplateId = typeof option === 'string' ? undefined : option.workoutTemplateId;
                 const optionWorkoutTemplate = typeof option === 'string' ? undefined : option.workoutTemplate;
-                const isWorkoutOption = Boolean(optionWorkoutTemplateId || optionWorkoutTemplate);
+                const isWorkoutOption = Boolean(optionWorkoutTemplate);
                 const optionExercise = optionExerciseId ? exercisesById.get(optionExerciseId) : undefined;
                 const optionExerciseImagePath =
                   optionExercise && 'images' in optionExercise && Array.isArray(optionExercise.images)
@@ -442,7 +441,7 @@ export function ChatMessage({
                 if (isWorkoutOption) {
                   return (
                     <View
-                      key={`${optionLabel}-${optionWorkoutTemplateId ?? optionIndex}`}
+                      key={`${optionLabel}-${optionIndex}`}
                       style={[styles.clarificationOption, themedStyles.clarificationOption]}
                     >
                       {optionContent}
@@ -452,7 +451,7 @@ export function ChatMessage({
 
                 return (
                   <TouchableOpacity
-                    key={`${optionLabel}-${optionExerciseId ?? optionWorkoutTemplateId ?? optionIndex}`}
+                    key={`${optionLabel}-${optionExerciseId ?? optionIndex}`}
                     style={[styles.clarificationOption, themedStyles.clarificationOption]}
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -730,6 +729,8 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
   },
   userContent: {},
   aiContent: {},
@@ -737,6 +738,8 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: Colors.textPrimary,
     lineHeight: 24,
+    flexShrink: 1,
+    width: '100%',
   },
   timestamp: {
     ...Typography.caption,
@@ -747,6 +750,7 @@ const styles = StyleSheet.create({
   userIndicator: {
     marginLeft: Spacing.sm,
     paddingTop: 2,
+    flexShrink: 0,
   },
   userIndicatorText: {
     ...Typography.caption,

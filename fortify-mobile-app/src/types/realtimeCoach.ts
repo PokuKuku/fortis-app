@@ -1,4 +1,4 @@
-import type { AIWorkoutTemplate } from '@/src/types/ai';
+import type { AIClarification, AIWorkoutTemplate } from '@/src/types/ai';
 
 export type AIVoiceMode = 'chat' | 'voice';
 export type RealtimeVoiceInteractionMode = 'push_to_talk' | 'realtime';
@@ -78,6 +78,7 @@ export interface VoiceWorkoutMessage {
   id: string;
   text: string;
   workoutTemplate: AIWorkoutTemplate;
+  clarification?: AIClarification;
   savedWorkoutTemplateId?: string | null;
 }
 

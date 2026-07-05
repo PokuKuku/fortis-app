@@ -270,4 +270,24 @@ describe('muscleTaxonomy attribution', () => {
     expect(scores.abductors).toBe(1);
     expect(levels.abductors).toBe(5);
   });
+
+  it('keeps hip flexors distinct from abs when normalizing core exercises', () => {
+    const declineCrunch: Exercise = {
+      id: 'ex-decline-crunch',
+      name: 'Decline Crunch',
+      primaryMuscles: ['abs'],
+      secondaryMuscles: ['hip flexors'],
+      equipment: 'body weight',
+      category: 'strength',
+      instructions: [],
+      images: [],
+    };
+
+    expect(normalizeMuscleArray(['abs', 'hip flexors'])).toEqual(['abs', 'hip_flexors']);
+
+    const scores = attributeExercisesToMuscles([declineCrunch]);
+
+    expect(scores.abs).toBe(1);
+    expect(scores.hip_flexors).toBe(0.5);
+  });
 });

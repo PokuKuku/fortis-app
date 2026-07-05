@@ -456,8 +456,8 @@ export const useAIStore = create<AIState>()(
           clarification: response.type === 'clarification' ? response.clarification : undefined,
           workoutTemplate,
           savedWorkoutTemplateId: null,
-          editableWorkoutTemplateId: workoutTemplate ? context?.editableWorkoutTemplate?.id ?? null : null,
-          editableWorkoutTemplateName: workoutTemplate ? context?.editableWorkoutTemplate?.name ?? null : null,
+          editableWorkoutTemplateId: null,
+          editableWorkoutTemplateName: null,
         };
 
         if (workoutTemplate) {

@@ -30,8 +30,16 @@ const mockToggleRecording = jest.fn((_value: boolean) => true);
 const mockTearDown = jest.fn();
 const mockPlayPCMData = jest.fn();
 const mockBypassVoiceProcessing = jest.fn();
-const mockGetMicrophonePermissionsAsync = jest.fn(() => Promise.resolve({ status: 'granted', granted: true }));
-const mockRequestMicrophonePermissionsAsync = jest.fn(() => Promise.resolve({ status: 'granted', granted: true }));
+const mockGetMicrophonePermissionsAsync = jest.fn(() => Promise.resolve({
+  status: 'granted',
+  granted: true,
+  canAskAgain: true,
+}));
+const mockRequestMicrophonePermissionsAsync = jest.fn(() => Promise.resolve({
+  status: 'granted',
+  granted: true,
+  canAskAgain: true,
+}));
 const mockAddAudioListener = jest.fn();
 
 type AudioEventName =
@@ -222,8 +230,8 @@ describe('useRealtimeCoach', () => {
     });
     mockShouldGenerateWorkoutFromVoice.mockReturnValue(false);
     mockShouldEditWorkoutFromVoice.mockReturnValue(false);
-    mockGetMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true });
-    mockRequestMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true });
+    mockGetMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true, canAskAgain: true });
+    mockRequestMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true, canAskAgain: true });
     mockInitialize.mockResolvedValue(true);
     mockToggleRecording.mockReturnValue(true);
     mockGenerateRealtimeCoachScriptAudio.mockResolvedValue({
@@ -1314,6 +1322,109 @@ describe('useRealtimeCoach', () => {
     expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('add dips', {
       currentWorkoutTemplateDraft: draft,
     });
+
+    hook.unmount();
+  });
+
+  it('uses voice clarification taps to update the current generated workout draft', async () => {
+    const draft: AIWorkoutTemplate = {
+      name: 'Core Workout',
+      focus: 'Core',
+      exercises: [
+        {
+          exerciseId: 'exercise-1',
+          exerciseName: 'Cable Crunch',
+          sets: 3,
+          reps: '10-15',
+        },
+      ],
+    };
+    const clarifiedTemplate: AIWorkoutTemplate = {
+      ...draft,
+      exercises: [
+        ...draft.exercises,
+        {
+          exerciseId: 'exercise-2',
+          exerciseName: 'Forearm Plank',
+          sets: 3,
+          reps: '30-45 sec',
+        },
+      ],
+    };
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string, hasDraft?: boolean) => (
+      Boolean(hasDraft) && /plank/i.test(text ?? '')
+    ));
+    mockShouldEditWorkoutFromVoice.mockImplementation((text?: string, hasDraft?: boolean) => (
+      Boolean(hasDraft) && /plank/i.test(text ?? '')
+    ));
+    mockGenerateVoiceWorkoutTemplate
+      .mockResolvedValueOnce({
+        type: 'clarification',
+        requestId: 'request-1',
+        clarification: {
+          question: 'Which plank should I add?',
+          workoutTemplate: draft,
+          options: [
+            {
+              label: 'Add Forearm Plank',
+              exerciseId: 'exercise-2',
+              prompt: 'Add Forearm Plank',
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        type: 'answer',
+        requestId: 'request-2',
+        answer: {
+          text: 'Added Forearm Plank.',
+          workoutTemplate: clarifiedTemplate,
+        },
+      });
+    const { hook, socket } = await startConnectedSession({ currentWorkoutTemplateDraft: draft });
+
+    await act(async () => {
+      await hook.result.current.beginUserTurn();
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'add plank' },
+        },
+      }));
+      hook.result.current.endUserTurn();
+      jest.advanceTimersByTime(180);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('add plank', {
+        currentWorkoutTemplateDraft: draft,
+      });
+      expect(hook.result.current.voiceWorkoutMessages[0]?.clarification?.question).toBe('Which plank should I add?');
+    });
+
+    const clarificationMessage = hook.result.current.voiceWorkoutMessages[0];
+    expect(clarificationMessage).toBeDefined();
+    expect(clarificationMessage!.workoutTemplate).toEqual(draft);
+    const selectedOption = clarificationMessage!.clarification!.options?.[0];
+    expect(selectedOption).toBeDefined();
+
+    act(() => {
+      expect(hook.result.current.selectVoiceWorkoutClarification(
+        clarificationMessage!.id,
+        selectedOption!
+      )).toBe(true);
+    });
+
+    await waitFor(() => {
+      expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenLastCalledWith('Add Forearm Plank', {
+        currentWorkoutTemplateDraft: draft,
+      });
+      expect(hook.result.current.voiceWorkoutMessages.at(-1)?.workoutTemplate.exercises).toEqual([
+        expect.objectContaining({ exerciseName: 'Cable Crunch' }),
+        expect.objectContaining({ exerciseName: 'Forearm Plank' }),
+      ]);
+    });
+    expect(hook.result.current.voiceWorkoutMessages[0]?.clarification).toBeUndefined();
 
     hook.unmount();
   });
