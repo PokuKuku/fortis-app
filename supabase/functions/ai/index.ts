@@ -48,6 +48,97 @@ const CONTEXT_TOO_LARGE_MESSAGE =
   'That edit pulled in too much context. I trimmed it down, please try again.';
 const GENERIC_AI_ERROR_MESSAGE = 'Something went wrong on the AI side. Please try again.';
 
+type AIResponseFormat = 'workout_template';
+
+interface ModelTextOptions {
+  maxTokens?: number;
+  temperature?: number;
+  responseFormat?: AIResponseFormat;
+}
+
+function getCatalogExerciseIdSchema(catalog: WorkoutGenerationExerciseCatalogEntry[] | undefined) {
+  const exerciseIds = Array.from(
+    new Set((catalog ?? []).map((entry) => entry.id).filter((id) => UUID_REGEX.test(id)))
+  );
+
+  return exerciseIds.length > 0
+    ? { type: 'string', enum: exerciseIds }
+    : { type: 'string' };
+}
+
+function buildWorkoutTemplateResponseSchema(
+  catalog: WorkoutGenerationExerciseCatalogEntry[] | undefined,
+  options: { strictOpenAI: boolean }
+) {
+  const exerciseIdSchema = getCatalogExerciseIdSchema(catalog);
+  const objectStrictness = options.strictOpenAI ? { additionalProperties: false } : {};
+  const nullableString = options.strictOpenAI
+    ? { type: ['string', 'null'] }
+    : { type: 'string', nullable: true };
+  const nullableInteger = options.strictOpenAI
+    ? { type: ['integer', 'null'], minimum: 0, maximum: 600 }
+    : { type: 'integer', nullable: true };
+
+  return {
+    type: 'object',
+    ...objectStrictness,
+    required: ['type', 'answer'],
+    properties: {
+      type: { type: 'string', enum: ['answer'] },
+      answer: {
+        type: 'object',
+        ...objectStrictness,
+        required: ['text', 'citations', 'workoutTemplate'],
+        properties: {
+          text: { type: 'string' },
+          citations: {
+            type: 'array',
+            items: {
+              type: 'object',
+              ...objectStrictness,
+              required: ['type', 'id', 'context'],
+              properties: {
+                type: { type: 'string' },
+                id: { type: 'string' },
+                context: { type: 'string' },
+              },
+            },
+          },
+          workoutTemplate: {
+            type: 'object',
+            ...objectStrictness,
+            required: ['name', 'description', 'focus', 'estimatedDurationMinutes', 'exercises'],
+            properties: {
+              name: { type: 'string' },
+              description: nullableString,
+              focus: nullableString,
+              estimatedDurationMinutes: { type: 'integer', minimum: 15, maximum: 120 },
+              exercises: {
+                type: 'array',
+                minItems: 3,
+                maxItems: MAX_WORKOUT_TEMPLATE_EXERCISES,
+                items: {
+                  type: 'object',
+                  ...objectStrictness,
+                  required: ['exerciseId', 'exerciseName', 'sets', 'reps', 'restSeconds', 'notes'],
+                  properties: {
+                    exerciseId: exerciseIdSchema,
+                    exerciseName: { type: 'string' },
+                    sets: { type: 'integer', minimum: 1, maximum: 10 },
+                    reps: { type: 'string' },
+                    restSeconds: nullableInteger,
+                    notes: nullableString,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+}
+
 class AIProviderError extends Error {
   code: string;
   status: number;
@@ -2036,8 +2127,7 @@ async function callAIProvider(
   );
   const parsedEditRequest = currentDraft ? parseWorkoutEditRequest(request.message) : null;
   if (
-    voiceWorkoutOnly
-    && currentDraft
+    currentDraft
     && context.exerciseCatalog?.length
     && parsedEditRequest
     && parsedEditRequest.action !== 'unknown'
@@ -2046,7 +2136,7 @@ async function callAIProvider(
       request.message,
       currentDraft,
       context.exerciseCatalog,
-      { resolveAmbiguousAdds: true }
+      { resolveAmbiguousAdds: voiceWorkoutOnly || !!context.editableWorkoutTemplate }
     );
 
     if (deterministicEdit.clarification) {
@@ -2072,12 +2162,18 @@ async function callAIProvider(
     };
   }
 
-  const systemPrompt = buildAnswerPrompt(context, request.intent, { voiceWorkoutOnly });
+  const requiresWorkoutTemplate =
+    shouldHandleWorkoutTemplateRequest(request) && Boolean(context.exerciseCatalog?.length);
+  const systemPrompt = buildAnswerPrompt(context, request.intent, {
+    voiceWorkoutOnly,
+    strictWorkoutTemplate: requiresWorkoutTemplate,
+  });
   const userMessage = buildUserMessage(request, context);
 
   const responseText = await callModelText(request, systemPrompt, userMessage, {
     maxTokens: AI_MAX_TOKENS,
     temperature: 0.2,
+    responseFormat: requiresWorkoutTemplate ? 'workout_template' : undefined,
   });
 
   const parsed = sanitizeWorkoutTemplateResponse(
@@ -2108,7 +2204,7 @@ async function callModelText(
   request: AIRequest,
   systemPrompt: string,
   userMessage: string,
-  options?: { maxTokens?: number; temperature?: number }
+  options?: ModelTextOptions
 ): Promise<string> {
   const model = resolveModelForRequest(request);
   const historyMessages = getHistoryMessagesForRequest(request);
@@ -2118,6 +2214,7 @@ async function callModelText(
     return await callGeminiText(request, systemPrompt, userMessage, {
       maxTokens: options?.maxTokens,
       temperature: options?.temperature,
+      responseFormat: options?.responseFormat,
     }, model);
   }
 
@@ -2166,18 +2263,34 @@ async function callModelText(
       });
     }
 
+    const responseBody = {
+      model,
+      input,
+      max_output_tokens: options?.maxTokens ?? 4096,
+      ...(supportsTemp && options?.temperature !== undefined ? { temperature: options.temperature } : {}),
+      ...(options?.responseFormat === 'workout_template'
+        ? {
+            text: {
+              format: {
+                type: 'json_schema',
+                name: 'fortis_workout_template_response',
+                strict: true,
+                schema: buildWorkoutTemplateResponseSchema(request.context?.exerciseCatalog, {
+                  strictOpenAI: true,
+                }),
+              },
+            },
+          }
+        : {}),
+    };
+
     const response = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        model,
-        input,
-        max_output_tokens: options?.maxTokens ?? 4096,
-        ...(supportsTemp && options?.temperature !== undefined ? { temperature: options.temperature } : {}),
-      }),
+      body: JSON.stringify(responseBody),
     });
 
     if (!response.ok) {
@@ -2223,6 +2336,7 @@ async function callModelText(
   return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
     maxTokens: options?.maxTokens,
     temperature: options?.temperature,
+    responseFormat: options?.responseFormat,
   }, model);
 }
 
@@ -2230,7 +2344,7 @@ async function callGeminiText(
   request: AIRequest,
   systemPrompt: string,
   userMessage: string,
-  options: { maxTokens?: number; temperature?: number },
+  options: ModelTextOptions,
   model: string
 ): Promise<string> {
   const apiKey = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY');
@@ -2272,6 +2386,14 @@ async function callGeminiText(
           candidateCount: 1,
           ...(options.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
           ...(options.temperature !== undefined ? { temperature: options.temperature } : {}),
+          ...(options.responseFormat === 'workout_template'
+            ? {
+                responseMimeType: 'application/json',
+                responseSchema: buildWorkoutTemplateResponseSchema(request.context?.exerciseCatalog, {
+                  strictOpenAI: false,
+                }),
+              }
+            : {}),
         },
       }),
     }
@@ -2301,7 +2423,7 @@ async function fallbackFromGemini(
   request: AIRequest,
   systemPrompt: string,
   userMessage: string,
-  options: { maxTokens?: number; temperature?: number } | undefined,
+  options: ModelTextOptions | undefined,
   primaryModel: string
 ): Promise<string> {
   const configuredFallback = Deno.env.get('OPENAI_FALLBACK_MODEL') || DEFAULT_OPENAI_FALLBACK_MODEL;
@@ -2314,6 +2436,7 @@ async function fallbackFromGemini(
     return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
       maxTokens: options?.maxTokens,
       temperature: supportsTemp ? options?.temperature : undefined,
+      responseFormat: options?.responseFormat,
     }, configuredFallback);
   } catch (error) {
     if (error instanceof AIProviderError && error.code === 'CONTEXT_TOO_LARGE') {
@@ -2333,7 +2456,7 @@ async function fallbackFromOpenAIResponses(
   request: AIRequest,
   systemPrompt: string,
   userMessage: string,
-  options: { maxTokens?: number; temperature?: number } | undefined,
+  options: ModelTextOptions | undefined,
   primaryModel: string
 ): Promise<string> {
   const configuredFallback = Deno.env.get('OPENAI_FALLBACK_MODEL') || primaryModel;
@@ -2349,6 +2472,7 @@ async function fallbackFromOpenAIResponses(
       return await callOpenAIChatCompletions(request, systemPrompt, userMessage, {
         maxTokens: options?.maxTokens,
         temperature: supportsTemp ? options?.temperature : undefined,
+        responseFormat: options?.responseFormat,
       }, candidate);
     } catch (error) {
       if (error instanceof AIProviderError && error.code === 'CONTEXT_TOO_LARGE') {
@@ -2368,7 +2492,7 @@ async function callOpenAIChatCompletions(
   request: AIRequest,
   systemPrompt: string,
   userMessage: string,
-  options: { maxTokens?: number; temperature?: number },
+  options: ModelTextOptions,
   model: string
 ): Promise<string> {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
@@ -2405,18 +2529,34 @@ async function callOpenAIChatCompletions(
     messages.push({ role: 'user', content: userMessage });
   }
 
+  const responseBody = {
+    model,
+    messages,
+    ...(supportsTemp ? { temperature: options.temperature ?? 0.2 } : {}),
+    ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
+    ...(options.responseFormat === 'workout_template'
+      ? {
+          response_format: {
+            type: 'json_schema',
+            json_schema: {
+              name: 'fortis_workout_template_response',
+              strict: true,
+              schema: buildWorkoutTemplateResponseSchema(request.context?.exerciseCatalog, {
+                strictOpenAI: true,
+              }),
+            },
+          },
+        }
+      : {}),
+  };
+
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      ...(supportsTemp ? { temperature: options.temperature ?? 0.2 } : {}),
-      ...(options.maxTokens !== undefined ? { max_tokens: options.maxTokens } : {}),
-    }),
+    body: JSON.stringify(responseBody),
   });
 
   if (!response.ok) {
@@ -2647,7 +2787,7 @@ FORTIFY VOICE:
 function buildAnswerPrompt(
   context: AIContext,
   intent: AIIntent,
-  options: { strictInsight?: boolean; voiceWorkoutOnly?: boolean } = {}
+  options: { strictInsight?: boolean; voiceWorkoutOnly?: boolean; strictWorkoutTemplate?: boolean } = {}
 ): string {
   const workoutTemplateGuidance = context.exerciseCatalog?.length
     ? `
@@ -2672,7 +2812,8 @@ function buildAnswerPrompt(
 - If EDITABLE SAVED WORKOUT is provided, treat CURRENT WORKOUT DRAFT as that saved workout. For edit/update requests, return the full revised "answer.workoutTemplate" so the app can update the existing saved workout.
 - If the user asks for comments, feedback, critique, or analysis of a saved workout without requesting changes, answer in text and omit "answer.workoutTemplate".
 - Use SAVED WORKOUT LIBRARY only to identify or discuss the user's existing workouts. Do not claim access to saved workouts unless they appear in that section.
-- If the user is clearly asking for a brand-new workout, you may replace the current draft entirely.`
+- If the user is clearly asking for a brand-new workout, you may replace the current draft entirely.
+${options.strictWorkoutTemplate ? '- This request requires a valid "answer.workoutTemplate". Return a workoutTemplate object using only EXERCISE CATALOG ids. Do not answer with prose only.' : ''}`
     : '';
 
   if (intent === 'GENERAL_CHAT' && options.voiceWorkoutOnly && context.exerciseCatalog?.length) {

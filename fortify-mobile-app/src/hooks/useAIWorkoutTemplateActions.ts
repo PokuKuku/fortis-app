@@ -6,6 +6,7 @@ import type { AIConversationMessage } from '@/src/types/ai';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getExerciseById } from '@/src/services/exerciseService';
+import { normalizeAIWorkoutTemplateMetadata } from '@/src/utils/aiWorkoutTemplateMetadata';
 import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 
@@ -109,13 +110,17 @@ export function useAIWorkoutTemplateActions({
       return message.savedWorkoutTemplateId;
     }
 
-    const validExercises = await resolveWorkoutTemplateExercises(message);
+    const normalizedTemplate = normalizeAIWorkoutTemplateMetadata(message.workoutTemplate);
+    const validExercises = await resolveWorkoutTemplateExercises({
+      ...message,
+      workoutTemplate: normalizedTemplate,
+    });
 
     const createdTemplateId = await createWorkoutTemplate(
-      message.workoutTemplate.name,
+      normalizedTemplate.name,
       validExercises,
       {
-        description: message.workoutTemplate.description,
+        description: normalizedTemplate.description,
         isAiCreated: true,
         aiSourceChatId: conversationId ?? null,
         aiPayloadVersion: 'ai_workout_template_v1',
@@ -217,10 +222,14 @@ export function useAIWorkoutTemplateActions({
     setUpdatingWorkoutMessageId(message.id);
 
     try {
-      const validExercises = await resolveWorkoutTemplateExercises(message);
+      const normalizedTemplate = normalizeAIWorkoutTemplateMetadata(message.workoutTemplate);
+      const validExercises = await resolveWorkoutTemplateExercises({
+        ...message,
+        workoutTemplate: normalizedTemplate,
+      });
       const updatedTemplateId = await updateWorkoutTemplate(
         message.editableWorkoutTemplateId,
-        message.workoutTemplate.name,
+        normalizedTemplate.name,
         validExercises,
       );
 
@@ -279,9 +288,10 @@ export function useAIWorkoutTemplateActions({
     setStartingWorkoutMessageId(message.id);
 
     try {
+      const normalizedTemplate = normalizeAIWorkoutTemplateMetadata(message.workoutTemplate);
       const success = await startWorkoutFromPlan(
-        message.workoutTemplate.name,
-        message.workoutTemplate.exercises.map((exercise) => ({
+        normalizedTemplate.name,
+        normalizedTemplate.exercises.map((exercise) => ({
           exerciseId: exercise.exerciseId,
           exerciseName: exercise.exerciseName,
           sets: exercise.sets,

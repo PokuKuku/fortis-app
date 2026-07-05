@@ -105,6 +105,49 @@ describe('useAIStore workout templates', () => {
     expect(assistantMessage?.workoutTemplate).toBeUndefined();
   });
 
+  it('renames stale generated workout titles to match a new workout request', async () => {
+    (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
+      type: 'answer',
+      requestId: 'req-back',
+      answer: {
+        text: 'I built a back workout for you.',
+        citations: [],
+        workoutTemplate: {
+          name: 'Chest Strength Workout (1)',
+          description: 'A comprehensive workout focusing on back strength and upper_back.',
+          focus: 'Back',
+          estimatedDurationMinutes: 50,
+          exercises: [
+            {
+              exerciseId: 'ex-1',
+              exerciseName: 'Lat Pulldown',
+              sets: 4,
+              reps: '6-10',
+              restSeconds: 90,
+            },
+            {
+              exerciseId: 'ex-2',
+              exerciseName: 'Seated Cable Row',
+              sets: 4,
+              reps: '8-12',
+              restSeconds: 90,
+            },
+          ],
+        },
+      },
+    });
+
+    await useAIStore.getState().sendMessage(
+      'GENERAL_CHAT',
+      'make me a back workout'
+    );
+
+    const assistantMessage = useAIStore.getState().conversation?.messages[1];
+    expect(assistantMessage?.workoutTemplate?.name).toBe('Back Strength Workout');
+    expect(assistantMessage?.workoutTemplate?.focus).toBe('Back');
+    expect(assistantMessage?.workoutTemplate?.description).toContain('upper back');
+  });
+
   it('does not render raw provider JSON errors in chat messages', async () => {
     (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
       type: 'error',

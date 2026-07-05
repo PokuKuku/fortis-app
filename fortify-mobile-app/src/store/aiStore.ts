@@ -101,6 +101,161 @@ const formatRetryAfter = (seconds?: number): string | null => {
 
 const MAX_HISTORY_MESSAGES = 20;
 
+const WORKOUT_FOCUS_LABELS = [
+  'Upper Body',
+  'Lower Body',
+  'Full Body',
+  'Push',
+  'Pull',
+  'Chest',
+  'Back',
+  'Shoulders',
+  'Arms',
+  'Core',
+  'Abs',
+  'Glutes',
+  'Legs',
+  'Quads',
+  'Hamstrings',
+  'Calves',
+  'Lats',
+] as const;
+
+const WORKOUT_FOCUS_DISPLAY_LABELS: Record<string, string> = {
+  upper_back: 'upper back',
+  lower_back: 'lower back',
+  upper_body: 'upper body',
+  lower_body: 'lower body',
+  full_body: 'full body',
+  hip_flexors: 'hip flexors',
+  adductors: 'adductors',
+  abductors: 'abductors',
+  forearms: 'forearms',
+  hamstrings: 'hamstrings',
+  glutes: 'glutes',
+  calves: 'calves',
+  quads: 'quads',
+  quadriceps: 'quadriceps',
+  lats: 'lats',
+  traps: 'traps',
+  chest: 'chest',
+  back: 'back',
+  shoulders: 'shoulders',
+  arms: 'arms',
+  biceps: 'biceps',
+  triceps: 'triceps',
+  core: 'core',
+  abs: 'abs',
+};
+
+const WORKOUT_FOCUS_NAME_PATTERN = new RegExp(
+  `\\b(${WORKOUT_FOCUS_LABELS.map((label) => label.replace(/\s+/g, '[\\s_-]+')).join('|')})\\b`,
+  'i'
+);
+
+const normalizeWorkoutDisplayText = (text: string | undefined): string | undefined => {
+  if (!text) return undefined;
+
+  return text
+    .replace(/\b[a-z]+(?:_[a-z]+)+\b/gi, (match) => {
+      const normalizedKey = match.toLowerCase();
+      return WORKOUT_FOCUS_DISPLAY_LABELS[normalizedKey] ?? match.replace(/_/g, ' ');
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const stripGeneratedWorkoutDuplicateSuffix = (name: string): string => {
+  return name.replace(/\s+\(\d+\)\s*$/, '').trim();
+};
+
+const inferWorkoutFocusLabel = (message: string): string | null => {
+  const normalized = message.toLowerCase();
+  const checks: Array<[RegExp, string]> = [
+    [/\bupper\s+body\b/, 'Upper Body'],
+    [/\blower\s+body\b/, 'Lower Body'],
+    [/\bfull\s+body\b/, 'Full Body'],
+    [/\bpush\b/, 'Push'],
+    [/\bpull\b/, 'Pull'],
+    [/\bchest|pecs?\b/, 'Chest'],
+    [/\bback|lats?|latissimus|rows?\b/, 'Back'],
+    [/\bshoulders?|delts?\b/, 'Shoulders'],
+    [/\barms?|biceps?|triceps?\b/, 'Arms'],
+    [/\bcore|abs?\b/, 'Core'],
+    [/\bglutes?\b/, 'Glutes'],
+    [/\blegs?|quads?|hamstrings?|calves?\b/, 'Legs'],
+  ];
+
+  return checks.find(([pattern]) => pattern.test(normalized))?.[1] ?? null;
+};
+
+const isExplicitNewWorkoutRequest = (message: string): boolean => {
+  const normalized = message.toLowerCase();
+  const asksForWorkout =
+    /\b(workout|routine|session|plan|training\s+day|lift)\b/.test(normalized);
+  const hasCreationVerb =
+    /\b(make|create|build|generate|design|craft|write|plan|give|need|want)\b/.test(normalized);
+  const hasEditIntent =
+    /\b(edit|update|change|modify|replace|rename|add|remove|swap|turn\s+it|make\s+it)\b/.test(normalized);
+
+  return asksForWorkout && hasCreationVerb && !hasEditIntent;
+};
+
+const workoutNameMatchesFocus = (name: string, focus: string): boolean => {
+  const focusPattern = new RegExp(`\\b${focus.replace(/\s+/g, '[\\s_-]+')}\\b`, 'i');
+  return focusPattern.test(name);
+};
+
+const makeWorkoutNameForFocus = (name: string, focus: string): string => {
+  const cleanedName = stripGeneratedWorkoutDuplicateSuffix(name);
+  const modifier = /\bstrength\b/i.test(cleanedName)
+    ? 'Strength '
+    : /\bhypertrophy\b/i.test(cleanedName)
+      ? 'Hypertrophy '
+      : /\bconditioning\b/i.test(cleanedName)
+        ? 'Conditioning '
+        : '';
+
+  return `${focus} ${modifier}Workout`.replace(/\s+/g, ' ').trim();
+};
+
+const normalizeWorkoutTemplateForRequest = (
+  template: AIWorkoutTemplate,
+  message: string,
+  responseType: AIResponse['type']
+): AIWorkoutTemplate => {
+  const requestedFocus = inferWorkoutFocusLabel(message);
+  const shouldTreatAsNewWorkout = responseType === 'answer' && isExplicitNewWorkoutRequest(message);
+  const normalizedName = stripGeneratedWorkoutDuplicateSuffix(
+    normalizeWorkoutDisplayText(template.name) ?? template.name
+  );
+  const normalizedDescription = normalizeWorkoutDisplayText(template.description);
+  const normalizedFocus = normalizeWorkoutDisplayText(template.focus);
+
+  if (!shouldTreatAsNewWorkout || !requestedFocus) {
+    return {
+      ...template,
+      name: normalizedName,
+      description: normalizedDescription,
+      focus: normalizedFocus,
+    };
+  }
+
+  const containsDifferentWorkoutFocus =
+    WORKOUT_FOCUS_NAME_PATTERN.test(normalizedName)
+    && !workoutNameMatchesFocus(normalizedName, requestedFocus);
+  const name = containsDifferentWorkoutFocus
+    ? makeWorkoutNameForFocus(normalizedName, requestedFocus)
+    : normalizedName;
+
+  return {
+    ...template,
+    name,
+    description: normalizedDescription,
+    focus: requestedFocus,
+  };
+};
+
 const normalizeWorkoutTemplateExercise = (
   exercise: unknown
 ): AIWorkoutTemplateExercise | null => {
@@ -282,12 +437,15 @@ export const useAIStore = create<AIState>()(
             ? makeRateLimitMessage(response.error)
             : friendlyErrorMessage || GENERIC_AI_ERROR_MESSAGE;
 
-        const workoutTemplate =
+        const rawWorkoutTemplate =
           response.type === 'answer'
             ? normalizeWorkoutTemplate(response.answer?.workoutTemplate)
             : response.type === 'clarification'
               ? normalizeWorkoutTemplate(response.clarification?.workoutTemplate)
               : undefined;
+        const workoutTemplate = rawWorkoutTemplate
+          ? normalizeWorkoutTemplateForRequest(rawWorkoutTemplate, message, response.type)
+          : undefined;
 
         const assistantMessage: AIConversationMessage = {
           id: generateId(),

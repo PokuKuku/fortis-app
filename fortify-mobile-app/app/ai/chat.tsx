@@ -406,7 +406,8 @@ const shouldAttachWorkoutLibrary = (message: string, target: AIEditableWorkoutTe
 const buildWorkoutRequestContext = (
   message: string,
   currentWorkoutTemplateDraft: AIWorkoutTemplate | undefined,
-  workoutLibrary: AIEditableWorkoutTemplate[]
+  workoutLibrary: AIEditableWorkoutTemplate[],
+  activeEditableWorkoutTemplate?: AIEditableWorkoutTemplate | null
 ): AIRequestContext | undefined => {
   const referencedWorkout = findReferencedWorkoutTemplate(message, workoutLibrary);
   const isBrandNewWorkoutRequest =
@@ -419,6 +420,18 @@ const buildWorkoutRequestContext = (
     return {
       currentWorkoutTemplateDraft: referencedWorkout.template,
       editableWorkoutTemplate: referencedWorkout,
+      workoutLibrary: compactWorkoutLibraryForAI(workoutLibrary),
+    };
+  }
+
+  if (
+    activeEditableWorkoutTemplate
+    && !isBrandNewWorkoutRequest
+    && shouldAttachWorkoutDraft(message)
+  ) {
+    return {
+      currentWorkoutTemplateDraft: activeEditableWorkoutTemplate.template,
+      editableWorkoutTemplate: activeEditableWorkoutTemplate,
       workoutLibrary: compactWorkoutLibraryForAI(workoutLibrary),
     };
   }

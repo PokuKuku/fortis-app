@@ -1188,6 +1188,47 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
+  it('renames stale realtime workout titles to match a new body-part request', async () => {
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string) => /back workout/i.test(text ?? ''));
+    mockGenerateVoiceWorkoutTemplate.mockResolvedValue({
+      type: 'answer',
+      answer: {
+        text: 'Back built.',
+        workoutTemplate: {
+          name: 'Chest Strength Workout (1)',
+          focus: 'Chest',
+          exercises: [
+            {
+              exerciseId: 'exercise-2',
+              exerciseName: 'Lat Pulldown',
+              sets: 4,
+              reps: '8-12',
+            },
+          ],
+        },
+      },
+    });
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      await hook.result.current.beginUserTurn();
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'make me a back workout' },
+        },
+      }));
+      hook.result.current.endUserTurn();
+      jest.advanceTimersByTime(180);
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me a back workout', undefined);
+    expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Back Strength Workout');
+    expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.focus).toBe('Back');
+
+    hook.unmount();
+  });
+
   it('does not commit a workout card when voice workout generation returns no template', async () => {
     mockGenerateVoiceWorkoutTemplate.mockResolvedValue({
       type: 'answer',

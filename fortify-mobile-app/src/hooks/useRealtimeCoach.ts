@@ -93,6 +93,71 @@ const getEditedWorkoutName = (sourceName: string, existingNames: string[]): stri
   return `${rootName} (${highestRevision + 1})`;
 };
 
+const WORKOUT_FOCUS_NAME_PATTERN = /\b(upper[\s_-]+body|lower[\s_-]+body|full[\s_-]+body|push|pull|chest|back|shoulders?|arms?|core|abs|glutes?|legs?|quads?|hamstrings?|calves|lats)\b/i;
+
+const inferRequestedWorkoutFocus = (prompt: string): string | null => {
+  const normalized = prompt.toLowerCase();
+  if (/\bupper\s+body\b/.test(normalized)) return 'Upper Body';
+  if (/\blower\s+body\b/.test(normalized)) return 'Lower Body';
+  if (/\bfull\s+body\b/.test(normalized)) return 'Full Body';
+  if (/\bpush\b/.test(normalized)) return 'Push';
+  if (/\bpull\b/.test(normalized)) return 'Pull';
+  if (/\bchest|pecs?\b/.test(normalized)) return 'Chest';
+  if (/\bback|lats?|latissimus|rows?\b/.test(normalized)) return 'Back';
+  if (/\bshoulders?|delts?\b/.test(normalized)) return 'Shoulders';
+  if (/\barms?|biceps?|triceps?\b/.test(normalized)) return 'Arms';
+  if (/\bcore|abs?\b/.test(normalized)) return 'Core';
+  if (/\bglutes?\b/.test(normalized)) return 'Glutes';
+  if (/\blegs?|quads?|hamstrings?|calves?\b/.test(normalized)) return 'Legs';
+  return null;
+};
+
+const stripGeneratedWorkoutDuplicateSuffix = (name: string): string => (
+  name.replace(/\s+\(\d+\)\s*$/, '').trim()
+);
+
+const workoutNameMatchesFocus = (name: string, focus: string): boolean => {
+  const focusPattern = new RegExp(`\\b${focus.replace(/\s+/g, '[\\s_-]+')}\\b`, 'i');
+  return focusPattern.test(name);
+};
+
+const makeWorkoutNameForFocus = (name: string, focus: string): string => {
+  const modifier = /\bstrength\b/i.test(name)
+    ? 'Strength '
+    : /\bhypertrophy\b/i.test(name)
+      ? 'Hypertrophy '
+      : /\bconditioning\b/i.test(name)
+        ? 'Conditioning '
+        : '';
+
+  return `${focus} ${modifier}Workout`.replace(/\s+/g, ' ').trim();
+};
+
+const normalizeGeneratedWorkoutForPrompt = (
+  template: AIWorkoutTemplate,
+  prompt: string
+): AIWorkoutTemplate => {
+  const requestedFocus = inferRequestedWorkoutFocus(prompt);
+  const normalizedName = stripGeneratedWorkoutDuplicateSuffix(template.name);
+
+  if (
+    !requestedFocus
+    || !WORKOUT_FOCUS_NAME_PATTERN.test(normalizedName)
+    || workoutNameMatchesFocus(normalizedName, requestedFocus)
+  ) {
+    return {
+      ...template,
+      name: normalizedName,
+    };
+  }
+
+  return {
+    ...template,
+    name: makeWorkoutNameForFocus(normalizedName, requestedFocus),
+    focus: requestedFocus,
+  };
+};
+
 const workoutsHaveSameExercises = (
   left: AIWorkoutTemplate,
   right: AIWorkoutTemplate
@@ -891,7 +956,7 @@ export function useRealtimeCoach({
                 ...current.map((message) => message.workoutTemplate.name),
               ]),
             }
-          : template;
+          : normalizeGeneratedWorkoutForPrompt(template, trimmed);
         const nextMessage: VoiceWorkoutMessage = {
           id: Crypto.randomUUID(),
           text: response.answer?.text ?? "Here's the workout.",

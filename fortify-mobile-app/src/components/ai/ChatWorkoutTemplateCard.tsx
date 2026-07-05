@@ -4,6 +4,7 @@ import { PlusIcon, EyeIcon, CheckIcon, PlayIcon, ArrowPathIcon } from 'react-nat
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { Colors } from '@/constants/Colors';
+import { normalizeAIWorkoutTemplateMetadata } from '@/src/utils/aiWorkoutTemplateMetadata';
 import type { AIWorkoutTemplate } from '@/src/types/ai';
 
 interface ChatWorkoutTemplateCardProps {
@@ -38,9 +39,10 @@ export function ChatWorkoutTemplateCard({
   displayScale = 1,
 }: ChatWorkoutTemplateCardProps) {
   const { colors, isDark } = useTheme();
+  const displayTemplate = normalizeAIWorkoutTemplateMetadata(template);
   const isBusy = isAdding || isStarting || isUpdating;
   const isStartBusy = isBusy || isStartDisabled;
-  const exercises = Array.isArray(template.exercises) ? template.exercises : [];
+  const exercises = Array.isArray(displayTemplate.exercises) ? displayTemplate.exercises : [];
   const primaryButtonForeground = isAdded ? Colors.white : colors.accentForegroundOnFill;
   const cardScale = Math.max(0.86, Math.min(1, displayScale));
   const iconSize = Math.max(14, Math.round(16 * cardScale));
@@ -69,7 +71,7 @@ export function ChatWorkoutTemplateCard({
   };
 
   const metaParts = [
-    template.focus,
+    displayTemplate.focus,
     `${exercises.length} exercises`,
   ].filter(Boolean);
 
@@ -88,7 +90,7 @@ export function ChatWorkoutTemplateCard({
           style={[styles.title, { fontSize: FontSizes.base * cardScale }, themedStyles.title]}
           numberOfLines={1}
         >
-          {template.name}
+          {displayTemplate.name}
         </Text>
         {metaParts.length > 0 && (
           <Text

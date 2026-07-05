@@ -10,6 +10,7 @@ import { HubExerciseRow } from '@/src/components/hub';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { getExerciseById } from '@/src/services/exerciseService';
+import { normalizeAIWorkoutTemplateMetadata } from '@/src/utils/aiWorkoutTemplateMetadata';
 import type { Exercise } from '@/src/types/exercise';
 import type { AIWorkoutTemplate } from '@/src/types/ai';
 import { PlusIcon, CheckIcon, PlayIcon, ArrowPathIcon } from 'react-native-heroicons/outline';
@@ -61,16 +62,20 @@ export function AIWorkoutPreviewModal({
   const insets = useSafeAreaInsets();
   const bodyType = useWorkoutStore((state) => state.bodyType);
   const [exerciseMeta, setExerciseMeta] = useState<Record<string, Exercise | null>>({});
-  const templateExercises = useMemo(
-    () => (Array.isArray(template?.exercises) ? template.exercises : []),
+  const displayTemplate = useMemo(
+    () => template ? normalizeAIWorkoutTemplateMetadata(template) : null,
     [template]
+  );
+  const templateExercises = useMemo(
+    () => (Array.isArray(displayTemplate?.exercises) ? displayTemplate.exercises : []),
+    [displayTemplate]
   );
 
   useEffect(() => {
     let isMounted = true;
 
     const loadExerciseMeta = async () => {
-      if (!template || templateExercises.length === 0) {
+      if (!displayTemplate || templateExercises.length === 0) {
         setExerciseMeta({});
         return;
       }
@@ -94,7 +99,7 @@ export function AIWorkoutPreviewModal({
     return () => {
       isMounted = false;
     };
-  }, [template, templateExercises]);
+  }, [displayTemplate, templateExercises]);
 
   const heatmapExercises = useMemo(
     () => templateExercises
@@ -103,7 +108,7 @@ export function AIWorkoutPreviewModal({
     [exerciseMeta, templateExercises]
   );
 
-  if (!template) {
+  if (!displayTemplate) {
     return null;
   }
 
@@ -150,7 +155,7 @@ export function AIWorkoutPreviewModal({
     <BaseModal
       visible={visible}
       onClose={onClose}
-      title={template.name}
+      title={displayTemplate.name}
       width={modalWidth}
       animation="zoom"
     >
@@ -159,21 +164,21 @@ export function AIWorkoutPreviewModal({
         contentContainerStyle={[styles.content, isCompactHeight && styles.contentCompact]}
         showsVerticalScrollIndicator={false}
       >
-        {(template.description || template.focus || template.estimatedDurationMinutes) && (
+        {(displayTemplate.description || displayTemplate.focus || displayTemplate.estimatedDurationMinutes) && (
           <View style={styles.summaryBlock}>
-            {template.description ? (
-              <Text style={[styles.subtitle, themedStyles.subtitle]}>{template.description}</Text>
+            {displayTemplate.description ? (
+              <Text style={[styles.subtitle, themedStyles.subtitle]}>{displayTemplate.description}</Text>
             ) : null}
             <View style={styles.metaRow}>
-              {template.focus ? (
+              {displayTemplate.focus ? (
                 <View style={[styles.focusChip, themedStyles.focusChip]}>
-                  <Text style={[styles.focusChipText, themedStyles.focusChipText]}>{template.focus}</Text>
+                  <Text style={[styles.focusChipText, themedStyles.focusChipText]}>{displayTemplate.focus}</Text>
                 </View>
               ) : null}
-              {template.estimatedDurationMinutes ? (
+              {displayTemplate.estimatedDurationMinutes ? (
                 <View style={[styles.focusChip, themedStyles.focusChip]}>
                   <Text style={[styles.focusChipText, themedStyles.focusChipText]}>
-                    {template.estimatedDurationMinutes} min
+                    {displayTemplate.estimatedDurationMinutes} min
                   </Text>
                 </View>
               ) : null}
