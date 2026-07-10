@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -24,6 +24,8 @@ import { getInsightChartMapping, getInsightEvidenceOrder } from '@/src/utils/ins
 import { getMuscleDisplayName, normalizeMuscle } from '@/src/utils/muscleTaxonomy';
 import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { posthog } from '@/src/config/posthog';
+import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
+import { useAuth } from '@/src/contexts/AuthContext';
 
 const HEADER_PADDING = scale(Spacing.lg);
 const SECTION_GAP = scale(Spacing.lg);
@@ -172,6 +174,8 @@ export default function InsightDetailScreen() {
   const { id, tab } = useLocalSearchParams<{ id?: string; tab?: string }>();
   const { insights } = useTrainingInsights();
   const sendMessage = useAIStore((state) => state.sendMessage);
+  const { user } = useAuth();
+  const askFortifyInFlightRef = useRef(false);
 
   const insight = useMemo(
     () => insights.find((item) => item.id === id),
@@ -294,6 +298,8 @@ export default function InsightDetailScreen() {
 
   const handleNextSteps = async () => {
     if (!insight) return;
+    if (askFortifyInFlightRef.current) return;
+    askFortifyInFlightRef.current = true;
     const prompt =
       insight.type === 'FATIGUE_RISK_V1'
         ? 'Explain this fatigue risk and suggest what I should adjust next week.'
@@ -302,11 +308,20 @@ export default function InsightDetailScreen() {
         : insight.type === 'LIFT_STALL_RISK_V1'
         ? 'Explain this stall risk and suggest what I should adjust next week.'
         : 'Explain this weekly insight and suggest what I should do next week.';
-    const allowed = await requestAIDataSharingConsent();
-    if (!allowed) return;
-    posthog.capture('ask_fortify_used');
-    void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
-    router.push({ pathname: '/ai/chat', params: { mode: 'chat' } });
+    try {
+      const allowed = await requestAIDataSharingConsent();
+      if (!allowed) {
+        askFortifyInFlightRef.current = false;
+        return;
+      }
+      posthog.capture('ask_fortify_used');
+      await completeNewUserChecklistTask('ask_fortify_insight', user?.id ?? null);
+      void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
+      router.push({ pathname: '/ai/chat', params: { mode: 'chat' } });
+    } catch (error) {
+      askFortifyInFlightRef.current = false;
+      throw error;
+    }
   };
 
   const handleShare = () => {

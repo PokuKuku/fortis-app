@@ -38,7 +38,7 @@ interface RealtimeCoachSettingsModalProps {
   onClose: () => void;
 }
 
-const CUSTOM_COACH_SAVE_ERROR = 'Couldn’t save Custom Coach. Try again.';
+const CUSTOM_COACH_SAVE_ERROR = 'Couldn’t save Custom Coach Style. Try again.';
 
 export function RealtimeCoachSettingsModal({
   visible,
@@ -53,6 +53,7 @@ export function RealtimeCoachSettingsModal({
   const [customInstructionsDraft, setCustomInstructionsDraft] = useState('');
   const [isSavingCustomCoach, setIsSavingCustomCoach] = useState(false);
   const [customCoachSaveError, setCustomCoachSaveError] = useState<string | null>(null);
+  const [draftPersonality, setDraftPersonality] = useState<AICoachPersonality>(preferences.personality);
   const draftIntensityRef = useRef(preferences.intensity);
   const customCoachInputRef = useRef<TextInput>(null);
   const wasVisibleRef = useRef(false);
@@ -65,11 +66,17 @@ export function RealtimeCoachSettingsModal({
   const sliderKnobSize = 22;
   const usableSliderWidth = Math.max(1, sliderWidth - sliderKnobSize);
   const isCustomCoachSelected = preferences.personality === 'custom';
+  const isCustomCoachDraftSelected = draftPersonality === 'custom';
   const savedCustomInstructions = sanitizeCustomScenarioInstructions(preferences.customInstructions);
   const sanitizedCustomInstructionsDraft = sanitizeCustomScenarioInstructions(customInstructionsDraft);
-  const isCustomCoachSaveDisabled = isSavingCustomCoach
-    || !sanitizedCustomInstructionsDraft
-    || (isCustomCoachSelected && sanitizedCustomInstructionsDraft === savedCustomInstructions);
+  const shouldSaveCustomCoach = Boolean(
+    isCustomCoachDraftSelected
+    && sanitizedCustomInstructionsDraft
+    && (
+      !isCustomCoachSelected
+      || sanitizedCustomInstructionsDraft !== savedCustomInstructions
+    )
+  );
   const coachingStyleOptions = useMemo<AICoachPersonality[]>(() => {
     if (preferences.personality === 'hype') {
       return [...CANON_COACH_PERSONALITIES, 'hype'];
@@ -86,19 +93,22 @@ export function RealtimeCoachSettingsModal({
   useEffect(() => {
     if (visible && !wasVisibleRef.current) {
       setCustomInstructionsDraft(savedCustomInstructions);
+      setDraftPersonality(preferences.personality);
       setCustomCoachSaveError(null);
       setIsSavingCustomCoach(false);
     }
     wasVisibleRef.current = visible;
-  }, [savedCustomInstructions, visible]);
+  }, [preferences.personality, savedCustomInstructions, visible]);
 
   const updatePersonality = (personality: AICoachPersonality) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDraftPersonality(personality);
     void onChange({ ...preferences, personality });
   };
 
   const selectCustomCoach = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setDraftPersonality('custom');
     customCoachInputRef.current?.focus();
   };
 
@@ -107,8 +117,11 @@ export function RealtimeCoachSettingsModal({
     void onChange({ ...preferences, voice });
   };
 
-  const saveCustomCoach = async () => {
-    if (isCustomCoachSaveDisabled) return;
+  const finishSettings = async () => {
+    if (!shouldSaveCustomCoach) {
+      onClose();
+      return;
+    }
 
     setIsSavingCustomCoach(true);
     setCustomCoachSaveError(null);
@@ -188,11 +201,14 @@ export function RealtimeCoachSettingsModal({
           <Text style={[styles.controlLabel, { color: colors.textSecondary }]}>Coaching Style</Text>
           <View style={styles.optionRow}>
             {coachingStyleOptions.map((personality) => {
-              const selected = personality === preferences.personality;
+              const selected = personality === draftPersonality;
               return (
                 <Pressable
                   key={personality}
+                  testID={`realtime-coach-personality-${personality}`}
                   onPress={() => updatePersonality(personality)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected }}
                   style={[
                     styles.option,
                     {
@@ -280,19 +296,26 @@ export function RealtimeCoachSettingsModal({
             <Pressable
               testID="realtime-coach-custom-coach-select-button"
               onPress={selectCustomCoach}
-              hitSlop={10}
               accessibilityRole="button"
-              accessibilityState={{ selected: isCustomCoachSelected }}
+              accessibilityState={{ selected: isCustomCoachDraftSelected }}
+              style={({ pressed }) => [
+                styles.customCoachSelectButton,
+                {
+                  backgroundColor: isCustomCoachDraftSelected ? colors.accent : optionBg,
+                  borderColor: isCustomCoachDraftSelected ? colors.accent : colors.border,
+                  opacity: pressed ? 0.78 : 1,
+                },
+              ]}
             >
               <Text
                 style={[
-                  styles.controlLabel,
+                  styles.customCoachSelectText,
                   {
-                    color: isCustomCoachSelected ? colors.accent : colors.textSecondary,
+                    color: isCustomCoachDraftSelected ? colors.accentForegroundOnFill : colors.textPrimary,
                   },
                 ]}
               >
-                Custom Coach
+                Custom Coach Style
               </Text>
             </Pressable>
             <Text style={[styles.controlValue, { color: colors.textTertiary }]}>
@@ -331,24 +354,24 @@ export function RealtimeCoachSettingsModal({
             </Text>
           ) : null}
           <Pressable
-            testID="realtime-coach-custom-coach-save-button"
+            testID="realtime-coach-finished-button"
             accessibilityRole="button"
-            accessibilityState={{ disabled: isCustomCoachSaveDisabled }}
-            disabled={isCustomCoachSaveDisabled}
-            onPress={() => { void saveCustomCoach(); }}
+            accessibilityState={{ disabled: isSavingCustomCoach }}
+            disabled={isSavingCustomCoach}
+            onPress={() => { void finishSettings(); }}
             style={({ pressed }) => [
-              styles.saveButton,
+              styles.finishedButton,
               {
                 backgroundColor: colors.accent,
-                opacity: isCustomCoachSaveDisabled ? 0.42 : pressed ? 0.78 : 1,
+                opacity: isSavingCustomCoach ? 0.42 : pressed ? 0.78 : 1,
               },
             ]}
           >
             {isSavingCustomCoach ? (
               <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
             ) : (
-              <Text style={[styles.saveButtonText, { color: colors.accentForegroundOnFill }]}>
-                Save Custom Coach
+              <Text style={[styles.finishedButtonText, { color: colors.accentForegroundOnFill }]}>
+                Save
               </Text>
             )}
           </Pressable>
@@ -420,6 +443,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  customCoachSelectButton: {
+    minHeight: 40,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+  },
+  customCoachSelectText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+  },
   sliderTouchArea: {
     height: 34,
     borderRadius: BorderRadius.full,
@@ -454,14 +492,14 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     textAlign: 'center',
   },
-  saveButton: {
+  finishedButton: {
     minHeight: 48,
     borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: Spacing.lg,
   },
-  saveButtonText: {
+  finishedButtonText: {
     fontFamily: 'BankGothicBT-Medium',
     fontSize: 12,
     fontWeight: '500',

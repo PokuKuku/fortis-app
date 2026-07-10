@@ -7,8 +7,10 @@ const mockCreateRealtimeCoachSession = jest.fn();
 const mockGenerateVoiceWorkoutTemplate = jest.fn();
 const mockGenerateRealtimeCoachScriptAudio = jest.fn();
 const mockReportRealtimeCoachUsage = jest.fn();
+const mockRequestAIDataSharingConsent = jest.fn();
 const mockShouldGenerateWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
 const mockShouldEditWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
+const mockShouldRegenerateWorkoutFromVoice = jest.fn((_text?: string, _hasCurrentWorkoutDraft?: boolean) => false);
 const mockSetAudioModeAsync = jest.fn((_mode: unknown) => Promise.resolve());
 const mockSoundUnloadAsync = jest.fn(() => Promise.resolve());
 const mockSoundCreateAsync = jest.fn((
@@ -92,6 +94,10 @@ jest.mock('@/src/services/realtimeCoachService', () => ({
   reportRealtimeCoachUsage: (secondsUsed: unknown) => mockReportRealtimeCoachUsage(secondsUsed),
 }));
 
+jest.mock('@/src/services/aiConsentService', () => ({
+  requestAIDataSharingConsent: (options?: unknown) => mockRequestAIDataSharingConsent(options),
+}));
+
 jest.mock('expo-file-system/legacy', () => ({
   cacheDirectory: 'file:///cache/',
   EncodingType: {
@@ -106,6 +112,8 @@ jest.mock('@/src/utils/realtimeCoach', () => ({
     mockShouldEditWorkoutFromVoice(text, hasCurrentWorkoutDraft),
   shouldGenerateWorkoutFromVoice: (text: string, hasCurrentWorkoutDraft?: boolean) =>
     mockShouldGenerateWorkoutFromVoice(text, hasCurrentWorkoutDraft),
+  shouldRegenerateWorkoutFromVoice: (text: string, hasCurrentWorkoutDraft?: boolean) =>
+    mockShouldRegenerateWorkoutFromVoice(text, hasCurrentWorkoutDraft),
 }));
 
 class MockWebSocket {
@@ -230,6 +238,8 @@ describe('useRealtimeCoach', () => {
     });
     mockShouldGenerateWorkoutFromVoice.mockReturnValue(false);
     mockShouldEditWorkoutFromVoice.mockReturnValue(false);
+    mockShouldRegenerateWorkoutFromVoice.mockReturnValue(false);
+    mockRequestAIDataSharingConsent.mockResolvedValue(true);
     mockGetMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true, canAskAgain: true });
     mockRequestMicrophonePermissionsAsync.mockResolvedValue({ status: 'granted', granted: true, canAskAgain: true });
     mockInitialize.mockResolvedValue(true);
@@ -294,10 +304,29 @@ describe('useRealtimeCoach', () => {
   it('connects without recording until the user holds to talk', async () => {
     const { hook } = await startConnectedSession();
 
+    expect(mockRequestAIDataSharingConsent).toHaveBeenCalledWith({ forcePrompt: true });
     expect(hook.result.current.debugStatus.setupComplete).toBe(true);
     expect(hook.result.current.debugStatus.recordingStarted).toBe(false);
     expect(hook.result.current.isUserTurnActive).toBe(false);
     expect(hook.result.current.debugStatus.microphoneChunksSent).toBe(0);
+
+    hook.unmount();
+  });
+
+  it('stops cleanly when AI data consent is declined', async () => {
+    mockRequestAIDataSharingConsent.mockResolvedValue(false);
+
+    const hook = renderHook(() => useRealtimeCoach({ preferences }));
+
+    await act(async () => {
+      await hook.result.current.start();
+    });
+
+    expect(mockRequestAIDataSharingConsent).toHaveBeenCalledWith({ forcePrompt: true });
+    expect(mockGetMicrophonePermissionsAsync).not.toHaveBeenCalled();
+    expect(mockCreateRealtimeCoachSession).not.toHaveBeenCalled();
+    expect(hook.result.current.error).toBeNull();
+    expect(hook.result.current.phase).toBe('stopped');
 
     hook.unmount();
   });
@@ -1326,6 +1355,53 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
+  it('sends follow-up voice workout regenerations with avoid draft context', async () => {
+    const draft: AIWorkoutTemplate = {
+      name: 'Chest Workout',
+      focus: 'Chest',
+      exercises: [
+        {
+          exerciseId: 'exercise-1',
+          exerciseName: 'Bench Press',
+          sets: 4,
+          reps: '6-10',
+        },
+        {
+          exerciseId: 'exercise-2',
+          exerciseName: 'Cable Fly',
+          sets: 3,
+          reps: '10-15',
+        },
+      ],
+    };
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string, hasDraft?: boolean) => (
+      Boolean(hasDraft) && /redo it/i.test(text ?? '')
+    ));
+    mockShouldRegenerateWorkoutFromVoice.mockImplementation((text?: string, hasDraft?: boolean) => (
+      Boolean(hasDraft) && /redo it/i.test(text ?? '')
+    ));
+    mockShouldEditWorkoutFromVoice.mockReturnValue(false);
+    const { hook, socket } = await startConnectedSession({ currentWorkoutTemplateDraft: draft });
+
+    await act(async () => {
+      await hook.result.current.beginUserTurn();
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'redo it' },
+        },
+      }));
+      hook.result.current.endUserTurn();
+      jest.advanceTimersByTime(180);
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('redo it', {
+      avoidWorkoutTemplateDraft: draft,
+    });
+
+    hook.unmount();
+  });
+
   it('uses voice clarification taps to update the current generated workout draft', async () => {
     const draft: AIWorkoutTemplate = {
       name: 'Core Workout',
@@ -1753,6 +1829,60 @@ describe('useRealtimeCoach', () => {
 
     expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('remove incline press', {
       currentWorkoutTemplateDraft: draft,
+    });
+
+    hook.unmount();
+  });
+
+  it('uses the actual user transcript for vague realtime regeneration tool calls', async () => {
+    const draft: AIWorkoutTemplate = {
+      name: 'Chest Workout',
+      focus: 'Chest',
+      exercises: [
+        {
+          exerciseId: 'exercise-1',
+          exerciseName: 'Bench Press',
+          sets: 4,
+          reps: '6-10',
+        },
+        {
+          exerciseId: 'exercise-2',
+          exerciseName: 'Cable Fly',
+          sets: 3,
+          reps: '10-15',
+        },
+      ],
+    };
+    mockShouldRegenerateWorkoutFromVoice.mockImplementation((text?: string, hasDraft?: boolean) => (
+      Boolean(hasDraft) && /redo it/i.test(text ?? '')
+    ));
+    const { hook, socket } = await startConnectedSession({ currentWorkoutTemplateDraft: draft });
+
+    await act(async () => {
+      await hook.result.current.beginUserTurn();
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'redo it' },
+        },
+      }));
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [
+            {
+              id: 'call-1',
+              name: 'create_or_update_workout',
+              args: {
+                prompt: 'create another workout',
+              },
+            },
+          ],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('redo it', {
+      avoidWorkoutTemplateDraft: draft,
     });
 
     hook.unmount();

@@ -5,6 +5,7 @@ import {
   normalizeRealtimeCoachPhase,
   shouldEditWorkoutFromVoice,
   shouldGenerateWorkoutFromVoice,
+  shouldRegenerateWorkoutFromVoice,
 } from '@/src/utils/realtimeCoach';
 import {
   buildVoiceCoachInstructions,
@@ -35,6 +36,12 @@ describe('realtimeCoach utils', () => {
     expect(shouldGenerateWorkoutFromVoice("I'll build you a chest workout")).toBe(false);
     expect(shouldGenerateWorkoutFromVoice('Add dips', true)).toBe(true);
     expect(shouldGenerateWorkoutFromVoice('Add a different exercise', true)).toBe(true);
+    expect(shouldGenerateWorkoutFromVoice('Redo it', true)).toBe(true);
+    expect(shouldGenerateWorkoutFromVoice('Make me another chest workout', true)).toBe(true);
+    expect(shouldRegenerateWorkoutFromVoice('Redo it', true)).toBe(true);
+    expect(shouldRegenerateWorkoutFromVoice('Make me another chest workout', true)).toBe(true);
+    expect(shouldRegenerateWorkoutFromVoice('Add a different exercise', true)).toBe(false);
+    expect(shouldRegenerateWorkoutFromVoice('Redo it')).toBe(false);
     expect(shouldEditWorkoutFromVoice('Remove incline press', true)).toBe(true);
     expect(shouldEditWorkoutFromVoice('Take away incline press', true)).toBe(true);
     expect(shouldEditWorkoutFromVoice('Get rid of cable crunches', true)).toBe(true);

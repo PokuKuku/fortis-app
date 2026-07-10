@@ -64,10 +64,14 @@ import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { shouldPromptForFeatureAccess } from '@/src/utils/aiChatTour';
 import { AIMediaPreviewStrip } from '@/src/components/ai/AIMediaPreviewStrip';
 import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
+import { RealtimeCoachSettingsModal } from '@/src/components/ai/RealtimeCoachSettingsModal';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
 import { setLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
-import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_AI_SOURCE } from '@/src/constants/inAppTour';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
+import { useProgramsStore } from '@/src/store/programsStore';
+import { useStartPresetStore } from '@/src/store/startPresetStore';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -87,6 +91,11 @@ const WORKOUT_GENERATION_REGEX =
   /\b(?:(make|create|build|generate|regenerate|reroll|redo|design|craft|write|plan)\b[\s\S]{0,80}|\b(give me|need|want|show me)\b[\s\S]{0,40}|\b(full body|upper body|lower body|push|pull|legs?|chest|back|shoulders|arms|glutes|hamstrings|quads|core)\b[\s\S]{0,40})\b(workouts?|routines?|sessions?|templates?|training(?:\s+(?:day|session|workout))?)\b/i;
 const WORKOUT_EDIT_REGEX =
   /\b(?:replace\s+.+\s+with\s+.+|swap\s+.+\s+for\s+.+|switch\s+.+\s+to\s+.+|add\s+.+|include\s+.+|insert\s+.+|put in\s+.+|put\s+.+|bring in\s+.+|remove\s+.+|take out\s+.+|exclude\s+.+|drop\s+.+|delete\s+.+|without\s+.+|skip\s+.+)\b/i;
+// Voice transcription occasionally hears "add" as "as". Keep the active
+// workout attached for an exercise-position request so the edge function can
+// safely revise the card instead of replying with general coaching text.
+const WORKOUT_POSITION_EDIT_REGEX =
+  /\b(?:(?:add|include|insert|put in|put|bring in)\s+|as\s+).+?\s+(?:as|to be)\s+(?:the\s+)?(?:first|last)\s+(?:exercise|movement|lift)\b/i;
 const WORKOUT_RESIZE_REGEXES = [
   /\b(?:add|include|insert|put in|put|bring in)\s+(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+(?:more|additional|extra))?(?:\s+(?:exercise|movement|lift)s?)?\b/i,
   /\b(?:remove|take out|exclude|drop|delete)\s+(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)(?:\s+(?:more|additional|extra))?(?:\s+(?:exercise|movement|lift)s?)?\b/i,
@@ -173,6 +182,7 @@ const shouldAttachWorkoutDraft = (message: string): boolean => {
   }
 
   return WORKOUT_EDIT_REGEX.test(normalized)
+    || WORKOUT_POSITION_EDIT_REGEX.test(normalized)
     || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized));
 };
 
@@ -228,11 +238,16 @@ export default function AIChatScreen() {
   const { profile, user } = useAuth();
   const { runProFeature } = useProFeatureGate();
   const { isTourActive, activeStepId, advanceStep } = useInAppTour();
+  const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
+  const setStartPreset = useStartPresetStore((state) => state.setPreset);
   const isNavigating = useRef(false);
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const appliedRequestedModeRef = useRef<string | null>(null);
+  const autoStartedVoiceSessionKeyRef = useRef<string | null>(null);
   const hasSelectedTourVoiceModeRef = useRef(false);
   const pendingWorkoutPreviewRestoreRef = useRef<{ mode: AIVoiceMode; messageId: string } | null>(null);
+  const voiceCoachSettingsOpenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completedAIWorkoutChecklistMessageIdsRef = useRef<Set<string>>(new Set());
   const isScreenFocused = useIsFocused();
   const [inputText, setInputText] = useState('');
   const [tourBackWorkoutMessages, setTourBackWorkoutMessages] = useState<AIConversationMessage[] | null>(null);
@@ -240,6 +255,7 @@ export default function AIChatScreen() {
     requestedMode === 'chat' ? 'chat' : 'voice'
   );
   const [isScenarioSheetVisible, setScenarioSheetVisible] = useState(false);
+  const [isVoiceCoachSettingsVisible, setVoiceCoachSettingsVisible] = useState(false);
   const [pendingChatMedia, setPendingChatMedia] = useState<AIPendingMedia[]>([]);
   const [pendingVoiceMedia, setPendingVoiceMedia] = useState<AIPendingMedia[]>([]);
   const [isPickingVoiceMedia, setIsPickingVoiceMedia] = useState(false);
@@ -361,6 +377,36 @@ export default function AIChatScreen() {
       savedWorkoutTemplateId: message.savedWorkoutTemplateId ?? null,
     }))
   ), [voiceWorkoutMessages]);
+
+  useEffect(() => {
+    const workoutMessageIds = [
+      ...visibleMessages
+        .filter(
+          (message) =>
+            message.id !== 'tour-back-workout-response'
+            && message.workoutTemplate?.exercises?.length
+        )
+        .map((message) => `chat:${message.id}`),
+      ...voiceWorkoutMessages
+        .filter((message) => message.workoutTemplate?.exercises?.length)
+        .map((message) => `voice:${message.id}`),
+    ];
+
+    const unseenWorkoutMessageId = workoutMessageIds.find(
+      (messageId) => !completedAIWorkoutChecklistMessageIdsRef.current.has(messageId)
+    );
+    if (!unseenWorkoutMessageId) {
+      return;
+    }
+
+    workoutMessageIds.forEach((messageId) => {
+      completedAIWorkoutChecklistMessageIdsRef.current.add(messageId);
+    });
+
+    void completeNewUserChecklistTask('ask_ai_for_workout', user?.id ?? null).catch((error) => {
+      console.warn('Failed to complete AI workout checklist task:', error);
+    });
+  }, [user?.id, visibleMessages, voiceWorkoutMessages]);
   const markDisplayedWorkoutTemplateSaved = useCallback(async (messageId: string, templateId: string) => {
     if (messageId === 'tour-back-workout-response') {
       setTourBackWorkoutMessages((current) => current?.map((message) => (
@@ -427,6 +473,24 @@ export default function AIChatScreen() {
   const handleExperienceModeChange = useCallback((experienceMode: 'coach' | 'conversation') => {
     void handleRealtimePreferencesChange({ ...realtimePreferences, experienceMode });
   }, [handleRealtimePreferencesChange, realtimePreferences]);
+
+  const handleOpenVoiceCoachSettings = useCallback(() => {
+    if (voiceCoachSettingsOpenTimeoutRef.current) {
+      clearTimeout(voiceCoachSettingsOpenTimeoutRef.current);
+    }
+    voiceCoachSettingsOpenTimeoutRef.current = setTimeout(() => {
+      voiceCoachSettingsOpenTimeoutRef.current = null;
+      requestAnimationFrame(() => {
+        setVoiceCoachSettingsVisible(true);
+      });
+    }, 320);
+  }, []);
+
+  useEffect(() => () => {
+    if (voiceCoachSettingsOpenTimeoutRef.current) {
+      clearTimeout(voiceCoachSettingsOpenTimeoutRef.current);
+    }
+  }, []);
 
   // Calculate remaining requests (most restrictive limit) for inline warning
   const remaining = rateLimitStatus
@@ -515,10 +579,22 @@ export default function AIChatScreen() {
     }, 50);
   };
 
-  const handleTourBackWorkoutPress = useCallback(() => {
+  const handleTourBackWorkoutPress = useCallback(async () => {
     if (!isTourBackWorkoutStep) return;
 
     const createdAt = new Date().toISOString();
+    const workoutTemplate: AIWorkoutTemplate = {
+      name: 'Back Workout',
+      description: 'A complete back session with horizontal and vertical pulling.',
+      focus: 'Back',
+      estimatedDurationMinutes: 50,
+      exercises: [
+        { exerciseId: '72f240eb-44d7-437d-b610-d53e23aad520', exerciseName: 'Barbell Bent Over Row', sets: 4, reps: '8 to 10', restSeconds: 120 },
+        { exerciseId: 'd4e6ab99-5b62-4ff0-9595-0263c247198f', exerciseName: 'Cable Pulldown', sets: 3, reps: '10 to 12', restSeconds: 90 },
+        { exerciseId: '92d98b61-2fcc-4696-9c60-a038b5bf716e', exerciseName: 'Cable Seated Row', sets: 3, reps: '10 to 12', restSeconds: 90 },
+        { exerciseId: '46ce10d3-2a2d-477a-89bd-92f6a260f419', exerciseName: 'Cable Lateral Pulldown With V Bar', sets: 3, reps: '12 to 15', restSeconds: 60 },
+      ],
+    };
     setTourBackWorkoutMessages([
       {
         id: 'tour-back-workout-request',
@@ -533,22 +609,37 @@ export default function AIChatScreen() {
         content: 'Here is a balanced back workout built for strength and muscle growth.',
         intent: 'GENERAL_CHAT',
         createdAt,
-        workoutTemplate: {
-          name: 'Back Workout',
-          description: 'A complete back session with horizontal and vertical pulling.',
-          focus: 'Back',
-          estimatedDurationMinutes: 50,
-          exercises: [
-            { exerciseId: '72f240eb-44d7-437d-b610-d53e23aad520', exerciseName: 'Barbell Bent Over Row', sets: 4, reps: '8 to 10', restSeconds: 120 },
-            { exerciseId: 'd4e6ab99-5b62-4ff0-9595-0263c247198f', exerciseName: 'Cable Pulldown', sets: 3, reps: '10 to 12', restSeconds: 90 },
-            { exerciseId: '92d98b61-2fcc-4696-9c60-a038b5bf716e', exerciseName: 'Cable Seated Row', sets: 3, reps: '10 to 12', restSeconds: 90 },
-            { exerciseId: '46ce10d3-2a2d-477a-89bd-92f6a260f419', exerciseName: 'Cable Lateral Pulldown With V Bar', sets: 3, reps: '12 to 15', restSeconds: 60 },
-          ],
-        },
+        workoutTemplate,
       },
     ]);
+
+    try {
+      const templateId = await createWorkoutTemplate(
+        workoutTemplate.name,
+        workoutTemplate.exercises,
+        {
+          description: workoutTemplate.description,
+          isAiCreated: true,
+          aiSourceChatId: TOUR_BACK_WORKOUT_AI_SOURCE,
+          aiPayloadVersion: 'ai_workout_template_v1',
+        },
+      );
+      const template = useProgramsStore.getState().programs.find((program) => program.id === templateId);
+      if (!templateId || !template?.workouts[0]?.id) {
+        throw new Error('Failed to create the Back Workout template.');
+      }
+
+      await setStartPreset({
+        type: 'template',
+        templateId,
+        templateWorkoutId: template.workouts[0].id,
+      });
+    } catch (error) {
+      console.warn('[InAppTour] Failed to prepare Back Workout quick start:', error);
+    }
+
     void advanceStep();
-  }, [advanceStep, isTourBackWorkoutStep]);
+  }, [advanceStep, createWorkoutTemplate, isTourBackWorkoutStep, setStartPreset]);
 
   const submitMessage = useCallback(async (rawMessage: string) => {
     const message = rawMessage.trim() || (pendingChatMedia.length > 0 ? 'I’d like coaching feedback on this.' : '');
@@ -741,6 +832,34 @@ export default function AIChatScreen() {
   ), [requestAIFeatureConsent, runProFeature, startVoiceCoach]);
 
   useEffect(() => {
+    if (mode !== 'voice') {
+      autoStartedVoiceSessionKeyRef.current = null;
+      return;
+    }
+    // The tour can switch to the Voice UI to demonstrate it, but must never
+    // establish a realtime session or begin audio while the tour is active.
+    if (isTourActive) return;
+    if (!isScreenFocused) return;
+    if (!areRealtimePreferencesLoaded) return;
+    if (isVoiceActive || voicePhase === 'connecting') return;
+    if (voicePhase === 'listening' || voicePhase === 'user_speaking' || voicePhase === 'coach_speaking') return;
+
+    const sessionKey = realtimePreferencesSignature;
+    if (autoStartedVoiceSessionKeyRef.current === sessionKey) return;
+    autoStartedVoiceSessionKeyRef.current = sessionKey;
+    void handleStartVoiceCoach();
+  }, [
+    areRealtimePreferencesLoaded,
+    handleStartVoiceCoach,
+    isScreenFocused,
+    isVoiceActive,
+    isTourActive,
+    mode,
+    realtimePreferencesSignature,
+    voicePhase,
+  ]);
+
+  useEffect(() => {
     if (!areRealtimePreferencesLoaded) return;
 
     const previousSignature = activeVoicePreferencesSignatureRef.current;
@@ -850,6 +969,7 @@ export default function AIChatScreen() {
                   onInteractionModeChange={handleInteractionModeChange}
                   onExperienceModeChange={handleExperienceModeChange}
                   onOpenCoachingStyle={() => setScenarioSheetVisible(true)}
+                  onOpenMoreSettings={handleOpenVoiceCoachSettings}
                   onAddMedia={() => { void pickMedia('voice'); }}
                 />
               )}
@@ -1142,6 +1262,12 @@ export default function AIChatScreen() {
         onClose={() => setScenarioSheetVisible(false)}
       />
       </SafeAreaView>
+      <RealtimeCoachSettingsModal
+        visible={isVoiceCoachSettingsVisible}
+        preferences={realtimePreferences}
+        onChange={handleRealtimePreferencesChange}
+        onClose={() => setVoiceCoachSettingsVisible(false)}
+      />
     </View>
   );
 }

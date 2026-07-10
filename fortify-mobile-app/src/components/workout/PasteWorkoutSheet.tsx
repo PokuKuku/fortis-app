@@ -489,6 +489,6 @@ const styles = StyleSheet.create({
   helpText: { fontSize: 14, lineHeight: 20 },
   formatExample: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, gap: Spacing.xs },
   formatExampleLabel: { fontSize: 12, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textTransform: 'uppercase' },
-  formatExampleText: { fontSize: 14, fontFamily: 'BankGothicBT-Medium' },
+  formatExampleText: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
   formatExampleHint: { fontSize: 13, lineHeight: 18 },
 });

@@ -14,6 +14,18 @@ jest.mock('react-native-heroicons/outline', () => ({
   TrashIcon: 'TrashIcon',
 }));
 
+jest.mock('@/src/contexts/InAppTourContext', () => ({
+  useInAppTour: () => ({
+    isTourActive: false,
+    activeStepId: null,
+    advanceStep: jest.fn(),
+  }),
+}));
+
+jest.mock('@/src/components/tour/TourAnchor', () => ({
+  TourAnchor: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 describe('SetRow', () => {
   afterEach(() => {
     useWorkoutStore.getState().resetStore();

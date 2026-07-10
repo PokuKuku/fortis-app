@@ -33,6 +33,7 @@ export interface AIBaseContext {
   user: AIUserContext;
   history?: unknown;
   analytics?: unknown;
+  recentWorkouts?: unknown;
 }
 
 export function compactJson(value: unknown): string {
@@ -184,6 +185,133 @@ export async function fetchHistorySummary(
       avgWorkoutsPrevious4Weeks: Math.round(avgPreviousWorkouts * 10) / 10,
       workoutChangePct: workoutChangePct !== null ? Math.round(workoutChangePct * 10) / 10 : null,
     },
+  };
+}
+
+function numericOrNull(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+function compactWorkoutSet(set: Record<string, unknown>): Record<string, unknown> {
+  return {
+    setNumber: numericOrNull(set.set_number),
+    reps: numericOrNull(set.reps),
+    weight: numericOrNull(set.weight),
+    weightUnit: stringOrNull(set.weight_unit),
+    rpe: numericOrNull(set.rpe),
+    isWarmup: set.is_warmup === true,
+    isDropset: set.is_dropset === true,
+    isFailure: set.is_failure === true,
+  };
+}
+
+function summarizeWorkoutExercise(
+  exerciseId: string,
+  exerciseName: string,
+  sets: Record<string, unknown>[]
+): Record<string, unknown> {
+  const compactSets = sets
+    .sort((a, b) => (numericOrNull(a.order_index) ?? 0) - (numericOrNull(b.order_index) ?? 0))
+    .map(compactWorkoutSet);
+  const workingSets = compactSets.filter((set) => set.isWarmup !== true);
+  const totalVolume = workingSets.reduce((sum, set) => {
+    const reps = typeof set.reps === 'number' ? set.reps : 0;
+    const weight = typeof set.weight === 'number' ? set.weight : 0;
+    return sum + reps * weight;
+  }, 0);
+  const topSet = workingSets.reduce<Record<string, unknown> | null>((best, set) => {
+    const weight = typeof set.weight === 'number' ? set.weight : 0;
+    const reps = typeof set.reps === 'number' ? set.reps : 0;
+    const score = weight * Math.max(reps, 1);
+    const bestWeight = best && typeof best.weight === 'number' ? best.weight : 0;
+    const bestReps = best && typeof best.reps === 'number' ? best.reps : 0;
+    const bestScore = bestWeight * Math.max(bestReps, 1);
+    return !best || score > bestScore ? set : best;
+  }, null);
+
+  return {
+    exerciseId,
+    exerciseName,
+    totalSets: compactSets.length,
+    workingSets: workingSets.length,
+    totalVolume,
+    topSet,
+    sets: compactSets.slice(0, 8),
+  };
+}
+
+export async function fetchRecentWorkoutContext(
+  supabase: SupabaseClient,
+  userId: string,
+  options: { maxSessions?: number; days?: number } = {}
+): Promise<unknown> {
+  const maxSessions = Math.max(1, Math.min(options.maxSessions ?? 5, 20));
+  const days = Math.max(1, Math.min(options.days ?? 90, 365));
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('workout_sessions')
+    .select('id,name,started_at,completed_at,duration_seconds,workout_sets(exercise_id,exercise_name_snapshot,set_number,reps,weight,weight_unit,rpe,is_warmup,is_dropset,is_failure,order_index)')
+    .eq('user_id', userId)
+    .not('completed_at', 'is', null)
+    .gte('started_at', startDate.toISOString())
+    .order('started_at', { ascending: false })
+    .limit(maxSessions);
+
+  if (error) {
+    console.warn('Failed to fetch recent workout context:', error.message);
+    return {
+      scope: 'recent_completed_workouts',
+      windowDays: days,
+      sessions: [],
+      error: 'recent_workouts_unavailable',
+    };
+  }
+
+  return {
+    scope: 'recent_completed_workouts',
+    windowDays: days,
+    sessions: (data ?? []).map((session) => {
+      const sets = Array.isArray(session.workout_sets)
+        ? session.workout_sets.filter((set): set is Record<string, unknown> =>
+          Boolean(set && typeof set === 'object' && !Array.isArray(set))
+        )
+        : [];
+      const exercisesByKey = new Map<string, Record<string, unknown>[]>();
+      sets.forEach((set) => {
+        const exerciseId = stringOrNull(set.exercise_id) ?? 'unknown';
+        const exerciseName = stringOrNull(set.exercise_name_snapshot) ?? 'Unknown exercise';
+        const key = `${exerciseId}|${exerciseName}`;
+        exercisesByKey.set(key, [...(exercisesByKey.get(key) ?? []), set]);
+      });
+      const exercises = Array.from(exercisesByKey.entries()).map(([key, exerciseSets]) => {
+        const [exerciseId, exerciseName] = key.split('|');
+        return summarizeWorkoutExercise(exerciseId, exerciseName, exerciseSets);
+      });
+
+      return {
+        id: session.id,
+        name: session.name,
+        startedAt: session.started_at,
+        completedAt: session.completed_at,
+        durationSeconds: session.duration_seconds,
+        totalSets: sets.length,
+        totalVolume: exercises.reduce((sum, exercise) => (
+          sum + (typeof exercise.totalVolume === 'number' ? exercise.totalVolume : 0)
+        ), 0),
+        exercises,
+      };
+    }),
   };
 }
 

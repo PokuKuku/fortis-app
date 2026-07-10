@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Onboarding Program Preview Mockups</title>
+  <style>
+    :root {
+      --bg: #f7f6f3;
+      --ink: #17191f;
+      --muted: #5a606b;
+      --soft: rgba(0, 0, 0, 0.055);
+      --line: rgba(0, 0, 0, 0.11);
+      --steel: #8a909a;
+      --navy: #111827;
+      --green: #16a34a;
+      --lime: #84cc16;
+      --amber: #eab308;
+      --orange: #f97316;
+      --red: #dc2626;
+      --blue: #2563eb;
+      --purple: #7c3aed;
+      --radius: 24px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        repeating-linear-gradient(45deg, rgba(0,0,0,0.025) 0 2px, transparent 2px 22px),
+        var(--bg);
+      color: var(--ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      padding: 32px 18px 56px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+
+    header {
+      max-width: 720px;
+      margin-bottom: 28px;
+    }
+
+    h1,
+    h2,
+    .bank {
+      font-family: "Bank Gothic", "BankGothic Md BT", "Arial Narrow", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: 28px;
+      line-height: 1.15;
+    }
+
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(320px, 1fr));
+      gap: 24px;
+      align-items: start;
+    }
+
+    .concept {
+      display: grid;
+      gap: 10px;
+    }
+
+    .concept-label {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 0 4px;
+    }
+
+    .concept-label h2 {
+      margin: 0;
+      font-size: 13px;
+      color: var(--navy);
+    }
+
+    .concept-label span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .phone {
+      width: min(100%, 390px);
+      margin: 0 auto;
+      border: 10px solid #101114;
+      border-radius: 46px;
+      background: var(--bg);
+      min-height: 760px;
+      padding: 22px 18px 26px;
+      box-shadow: 0 22px 60px rgba(0, 0, 0, 0.18);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      width: 118px;
+      height: 34px;
+      transform: translateX(-50%);
+      background: #050505;
+      border-radius: 999px;
+      z-index: 3;
+    }
+
+    .phone-screen {
+      position: relative;
+      min-height: 700px;
+      padding-top: 76px;
+      display: grid;
+      align-content: start;
+      gap: 18px;
+      z-index: 1;
+    }
+
+    .progress {
+      text-align: center;
+      font-size: 34px;
+      line-height: 1;
+    }
+
+    .title {
+      margin: 0;
+      text-align: center;
+      font-size: 20px;
+      line-height: 1.22;
+      letter-spacing: 0.08em;
+    }
+
+    .subtle {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(145deg, rgba(255,255,255,0.8), rgba(255,255,255,0.42)),
+        repeating-linear-gradient(45deg, rgba(0,0,0,0.024) 0 2px, transparent 2px 18px);
+      box-shadow: 0 18px 44px rgba(13, 18, 28, 0.11);
+      overflow: hidden;
+    }
+
+    .card.pad {
+      padding: 18px;
+    }
+
+    .eyebrow {
+      margin: 0 0 8px;
+      color: var(--navy);
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    .program-name {
+      margin: 0;
+      font-size: 21px;
+      line-height: 1.15;
+      letter-spacing: 0.12em;
+    }
+
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .meta-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.58);
+      border-radius: 999px;
+      padding: 7px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .pill strong {
+      color: var(--ink);
+      font-weight: 900;
+    }
+
+    .workouts {
+      display: grid;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .workout {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 42px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.54);
+      border-radius: 14px;
+      padding: 9px 10px;
+    }
+
+    .num {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 24px;
+      border-radius: 999px;
+      background: var(--navy);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .workout-name {
+      flex: 1;
+      min-width: 0;
+      font-size: 15px;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tag {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 900;
+    }
+
+    .cta {
+      margin-top: 16px;
+      height: 48px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #111827, #334155);
+      color: white;
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      letter-spacing: 0.22em;
+    }
+
+    .heatmap {
+      width: 96px;
+      height: 132px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.52);
+      border-radius: 20px;
+      display: grid;
+      place-items: center;
+      padding: 10px;
+    }
+
+    .body-map {
+      width: 58px;
+      height: 104px;
+      position: relative;
+    }
+
+    .body-map span {
+      position: absolute;
+      border-radius: 999px;
+      background: var(--green);
+      opacity: 0.9;
+    }
+
+    .head { width: 18px; height: 18px; left: 20px; top: 0; background: var(--steel) !important; }
+    .torso { width: 28px; height: 42px; left: 15px; top: 23px; background: var(--amber) !important; }
+    .arm-l { width: 12px; height: 42px; left: 0; top: 26px; background: var(--orange) !important; }
+    .arm-r { width: 12px; height: 42px; right: 0; top: 26px; background: var(--orange) !important; }
+    .leg-l { width: 13px; height: 36px; left: 15px; bottom: 0; background: var(--green) !important; }
+    .leg-r { width: 13px; height: 36px; right: 15px; bottom: 0; background: var(--green) !important; }
+
+    .mini-chart {
+      height: 74px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.46);
+      padding: 12px;
+      display: flex;
+      align-items: end;
+      gap: 8px;
+    }
+
+    .bar {
+      flex: 1;
+      border-radius: 999px 999px 4px 4px;
+      background: linear-gradient(180deg, var(--green), var(--lime));
+      min-height: 12px;
+    }
+
+    .split-ring {
+      width: 104px;
+      height: 104px;
+      border-radius: 50%;
+      background:
+        conic-gradient(var(--green) 0 32%, var(--blue) 32% 63%, var(--purple) 63% 83%, var(--amber) 83% 100%);
+      padding: 10px;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+    }
+
+    .split-ring-inner {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--bg);
+      display: grid;
+      place-items: center;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 900;
+      color: var(--muted);
+    }
+
+    .concept-a .card {
+      transform: perspective(900px) rotateX(2deg);
+    }
+
+    .concept-b .hero-band {
+      margin: -18px -18px 16px;
+      padding: 18px;
+      background: linear-gradient(135deg, rgba(17,24,39,0.98), rgba(51,65,85,0.88));
+      color: #fff;
+    }
+
+    .concept-b .hero-band .eyebrow,
+    .concept-b .hero-band .subtle {
+      color: rgba(255,255,255,0.72);
+    }
+
+    .concept-b .hero-band .program-name {
+      color: #fff;
+    }
+
+    .concept-b .num {
+      background: #fff;
+      color: var(--navy);
+    }
+
+    .concept-c .dashboard {
+      display: grid;
+      grid-template-columns: 1fr 108px;
+      gap: 12px;
+      align-items: stretch;
+      margin-top: 14px;
+    }
+
+    .concept-c .workouts {
+      margin-top: 0;
+    }
+
+    .concept-c .workout {
+      min-height: 37px;
+      padding: 7px 9px;
+    }
+
+    .concept-c .workout-name {
+      font-size: 13px;
+    }
+
+    .concept-d .card {
+      padding: 0;
+    }
+
+    .concept-d .top {
+      padding: 18px 18px 14px;
+    }
+
+    .concept-d .split {
+      display: grid;
+      grid-template-columns: 126px 1fr;
+      gap: 12px;
+      padding: 0 18px 18px;
+    }
+
+    .legend {
+      display: grid;
+      gap: 7px;
+      align-content: center;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--muted);
+    }
+
+    .swatch {
+      width: 9px;
+      height: 9px;
+      border-radius: 99px;
+    }
+
+    .notes {
+      margin-top: 28px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+    }
+
+    .note {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(255,255,255,0.5);
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .note strong {
+      display: block;
+      color: var(--ink);
+      margin-bottom: 5px;
+    }
+
+    @media (max-width: 760px) {
+      .grid,
+      .notes {
+        grid-template-columns: 1fr;
+      }
+
+      body {
+        padding: 22px 12px 40px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>Onboarding Program Preview Mockups</h1>
+      <p>Four directions for the personalized workout program card shown after the onboarding generation step. Each keeps the card compact enough for mobile while making the program feel more real than a plain list.</p>
+    </header>
+
+    <section class="grid">
+      <article class="concept concept-a">
+        <div class="concept-label">
+          <h2>Concept A · Training Passport</h2>
+          <span>Best default</span>
+        </div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="progress bank">100%</div>
+            <h2 class="title bank">Your custom AI-powered program is here</h2>
+            <section class="card pad">
+              <p class="eyebrow bank">Fortify AI Program</p>
+              <div class="row">
+                <h3 class="program-name bank">Kwaku's Program</h3>
+                <div class="heatmap">
+                  <div class="body-map">
+                    <span class="head"></span><span class="torso"></span><span class="arm-l"></span><span class="arm-r"></span><span class="leg-l"></span><span class="leg-r"></span>
+                  </div>
+                </div>
+              </div>
+              <p class="subtle">10-week arms, shoulders, back focus built around Mon, Wed, Fri training.</p>
+              <div class="meta-pills">
+                <span class="pill"><strong>3x</strong> / week</span>
+                <span class="pill"><strong>45</strong> min</span>
+                <span class="pill"><strong>Gym</strong></span>
+                <span class="pill"><strong>Balanced</strong> pace</span>
+              </div>
+              <div class="workouts">
+                <div class="workout"><span class="num">1</span><span class="workout-name bank">Push</span><span class="tag">Chest · Delts</span></div>
+                <div class="workout"><span class="num">2</span><span class="workout-name bank">Pull</span><span class="tag">Back · Arms</span></div>
+                <div class="workout"><span class="num">3</span><span class="workout-name bank">Legs</span><span class="tag">Quads · Glutes</span></div>
+              </div>
+              <div class="cta bank">View Program</div>
+            </section>
+          </div>
+        </div>
+      </article>
+
+      <article class="concept concept-b">
+        <div class="concept-label">
+          <h2>Concept B · Premium Reveal</h2>
+          <span>Most dramatic</span>
+        </div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="progress bank">100%</div>
+            <h2 class="title bank">Your custom AI-powered program is here</h2>
+            <section class="card pad">
+              <div class="hero-band">
+                <p class="eyebrow bank">Generated from your answers</p>
+                <h3 class="program-name bank">Project Iron</h3>
+                <p class="subtle">Hypertrophy plan tuned for consistency, arms, shoulders, and back.</p>
+              </div>
+              <div class="mini-chart">
+                <span class="bar" style="height:44px"></span>
+                <span class="bar" style="height:32px"></span>
+                <span class="bar" style="height:56px"></span>
+                <span class="bar" style="height:40px"></span>
+                <span class="bar" style="height:64px"></span>
+              </div>
+              <div class="meta-pills">
+                <span class="pill"><strong>10</strong> weeks</span>
+                <span class="pill"><strong>5</strong> workouts</span>
+                <span class="pill"><strong>Progressive</strong></span>
+              </div>
+              <div class="workouts">
+                <div class="workout"><span class="num">1</span><span class="workout-name bank">Push A</span><span class="tag">8 exercises</span></div>
+                <div class="workout"><span class="num">2</span><span class="workout-name bank">Pull A</span><span class="tag">7 exercises</span></div>
+                <div class="workout"><span class="num">3</span><span class="workout-name bank">Legs A</span><span class="tag">6 exercises</span></div>
+              </div>
+              <div class="cta bank">Start Plan</div>
+            </section>
+          </div>
+        </div>
+      </article>
+
+      <article class="concept concept-c">
+        <div class="concept-label">
+          <h2>Concept C · Coach Dashboard</h2>
+          <span>Most informative</span>
+        </div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="progress bank">100%</div>
+            <h2 class="title bank">Your training profile is ready</h2>
+            <section class="card pad">
+              <p class="eyebrow bank">Personal program</p>
+              <h3 class="program-name bank">Kwaku's Program</h3>
+              <p class="subtle">Fortify mapped your schedule, environment, and muscle focus into a weekly split.</p>
+              <div class="dashboard">
+                <div class="workouts">
+                  <div class="workout"><span class="num">M</span><span class="workout-name bank">Upper A</span></div>
+                  <div class="workout"><span class="num">W</span><span class="workout-name bank">Lower A</span></div>
+                  <div class="workout"><span class="num">F</span><span class="workout-name bank">Upper B</span></div>
+                  <div class="workout"><span class="num">S</span><span class="workout-name bank">Lower B</span></div>
+                </div>
+                <div class="heatmap">
+                  <div class="body-map">
+                    <span class="head"></span><span class="torso"></span><span class="arm-l"></span><span class="arm-r"></span><span class="leg-l"></span><span class="leg-r"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="meta-pills">
+                <span class="pill"><strong>Back</strong> focus</span>
+                <span class="pill"><strong>Arms</strong> focus</span>
+                <span class="pill"><strong>Gym</strong> ready</span>
+              </div>
+              <div class="cta bank">Continue</div>
+            </section>
+          </div>
+        </div>
+      </article>
+
+      <article class="concept concept-d">
+        <div class="concept-label">
+          <h2>Concept D · Split Blueprint</h2>
+          <span>Most compact</span>
+        </div>
+        <div class="phone">
+          <div class="phone-screen">
+            <div class="progress bank">100%</div>
+            <h2 class="title bank">Your program is ready</h2>
+            <section class="card">
+              <div class="top">
+                <p class="eyebrow bank">AI workout blueprint</p>
+                <h3 class="program-name bank">Kwaku's Program</h3>
+                <p class="subtle">A 10-week plan balancing muscle growth, consistency, and recovery.</p>
+              </div>
+              <div class="split">
+                <div class="split-ring">
+                  <div class="split-ring-inner bank">Weekly<br>Split</div>
+                </div>
+                <div class="legend">
+                  <div class="legend-item"><span class="swatch" style="background:var(--green)"></span> Push · 32%</div>
+                  <div class="legend-item"><span class="swatch" style="background:var(--blue)"></span> Pull · 31%</div>
+                  <div class="legend-item"><span class="swatch" style="background:var(--purple)"></span> Legs · 20%</div>
+                  <div class="legend-item"><span class="swatch" style="background:var(--amber)"></span> Core · 17%</div>
+                </div>
+              </div>
+              <div style="padding:0 18px 18px">
+                <div class="meta-pills" style="margin-top:0">
+                  <span class="pill"><strong>3</strong> days/week</span>
+                  <span class="pill"><strong>45</strong> min/session</span>
+                  <span class="pill"><strong>10</strong> weeks</span>
+                </div>
+                <div class="cta bank">Review Plan</div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="notes">
+      <div class="note"><strong>Recommended</strong>Concept A is the cleanest upgrade from the current card: recognizable workout list, better metadata, and visual muscle focus.</div>
+      <div class="note"><strong>High impact</strong>Concept B feels more premium, but it may compete with the app’s restrained operational UI if overused.</div>
+      <div class="note"><strong>Most useful</strong>Concept C gives the clearest “what do I do this week?” answer by showing day labels directly.</div>
+      <div class="note"><strong>Smallest</strong>Concept D is best if the completion screen needs less vertical height and more emphasis on summary metrics.</div>
+    </section>
+  </main>
+</body>
+</html>

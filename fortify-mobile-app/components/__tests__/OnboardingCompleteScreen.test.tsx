@@ -9,6 +9,7 @@ const mockClearOnboardingState = jest.fn();
 const mockClearInAppTourState = jest.fn();
 const mockGetOnboardingState = jest.fn();
 const mockMarkPendingOnboardingAuthCompletion = jest.fn();
+const mockEnsureOnboardingProgramGenerated = jest.fn();
 const mockAuthState = {
   updateProfile: mockUpdateProfile,
   isAuthenticated: false,
@@ -108,6 +109,10 @@ jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
   markPendingOnboardingAuthCompletion: () => mockMarkPendingOnboardingAuthCompletion(),
 }));
 
+jest.mock('@/src/services/onboardingProgramGenerationService', () => ({
+  ensureOnboardingProgramGenerated: (...args: unknown[]) => mockEnsureOnboardingProgramGenerated(...args),
+}));
+
 jest.mock('@/src/components/onboarding/OnboardingScreen', () => ({
   OnboardingScreen: ({ children, floatingFooter }: { children: React.ReactNode; floatingFooter?: React.ReactNode }) => {
     const React = require('react');
@@ -168,6 +173,7 @@ describe('OnboardingCompleteScreen', () => {
     mockClearOnboardingState.mockResolvedValue(undefined);
     mockClearInAppTourState.mockResolvedValue(undefined);
     mockMarkPendingOnboardingAuthCompletion.mockResolvedValue(undefined);
+    mockEnsureOnboardingProgramGenerated.mockResolvedValue('program-1');
     mockGetOnboardingState.mockResolvedValue({
       full_name: 'Kwaku',
       gender: 'male',

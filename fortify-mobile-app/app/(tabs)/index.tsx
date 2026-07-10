@@ -10,11 +10,15 @@ import {
   ActivityIndicator,
   Pressable,
   DeviceEventEmitter,
+  ScrollView,
+  useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Circle, Path } from 'react-native-svg';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   ChevronRightIcon,
+  ChevronLeftIcon,
   EllipsisHorizontalIcon,
   DocumentDuplicateIcon,
   TrashIcon,
@@ -22,11 +26,14 @@ import {
   PlusIcon,
   ExclamationTriangleIcon,
   CloudIcon,
+  CheckIcon,
 } from 'react-native-heroicons/outline';
 import { NestableScrollContainer } from 'react-native-draggable-flatlist';
-import Reanimated, { Easing, FadeInDown, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import Reanimated, { Easing, FadeIn, FadeInDown, FadeOut, runOnJS, useAnimatedStyle, useSharedValue, withRepeat, withTiming, ZoomIn, ZoomOut } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import * as Clipboard from 'expo-clipboard';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -60,8 +67,26 @@ import {
 } from '@/src/utils/onboardingProgram';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
+import { ACCENT_COLORS, getContrastAccent } from '@/src/utils/accentColors';
+import {
+  NEW_USER_CHECKLIST_EVENT,
+  NEW_USER_CHECKLIST_EXAMPLE_WORKOUT_TEXT,
+  NEW_USER_CHECKLIST_TASKS,
+  getDefaultNewUserChecklistState,
+  getNewUserChecklistCompletedCount,
+  isNewUserChecklistResolved,
+  isNewUserChecklistTaskId,
+  loadNewUserChecklistState,
+  markNewUserChecklistTaskStatus,
+  persistNewUserChecklistState,
+  type NewUserChecklistState,
+  type NewUserChecklistTask,
+  type NewUserChecklistTaskId,
+  type NewUserChecklistTaskStatus,
+} from '@/src/utils/newUserChecklist';
 
 const AnimatedTouchableOpacity = Reanimated.createAnimatedComponent(TouchableOpacity);
+const ReanimatedText = Reanimated.createAnimatedComponent(Text);
 
 // Types for drag-and-drop
 type ProgramItem = {
@@ -177,6 +202,20 @@ const ONBOARDING_PREVIEW_BUTTON_PADDING_Y = scale(12);
 const ONBOARDING_PREVIEW_BUTTON_MARGIN_TOP = scale(18);
 const ONBOARDING_PREVIEW_BUTTON_RADIUS = scale(14);
 const ONBOARDING_PREVIEW_BUTTON_TEXT_SIZE = moderateScale(13);
+const CHECKLIST_CARD_MARGIN_TOP = 0;
+const CHECKLIST_CARD_MARGIN_BOTTOM = scale(24);
+const CHECKLIST_CARD_PADDING = scale(14);
+const CHECKLIST_CARD_RADIUS = scale(18);
+const CHALLENGE_RING_SIZE = scale(54);
+const CHALLENGE_RING_STROKE = scale(5);
+const CHECKLIST_PROGRESS_HEIGHT = scale(8);
+const CHECKLIST_MODAL_GAP = scale(12);
+const CHECKLIST_TASK_CARD_PADDING = scale(10);
+const CHECKLIST_TASK_CARD_RADIUS = scale(14);
+const CHECKLIST_TASK_TITLE_SIZE = moderateScale(15);
+const CHECKLIST_TASK_DESCRIPTION_SIZE = moderateScale(13);
+const CHECKLIST_TASK_STATUS_SIZE = moderateScale(11);
+const CHECKLIST_MODAL_SLIDE_IN_DURATION = 560;
 
 // Helper to format relative time
 function formatRelativeTime(dateString: string | null): string {
@@ -400,6 +439,604 @@ const PressDownTouchable = forwardRef<any, PressDownTouchableProps>(function Pre
     </AnimatedTouchableOpacity>
   );
 });
+
+function NewUserChecklistSummaryCard({
+  state,
+  onPress,
+}: {
+  state: NewUserChecklistState;
+  onPress: () => void;
+}) {
+  const { colors, accentColor, isDark } = useTheme();
+  const completedCount = getNewUserChecklistCompletedCount(state);
+  const progress = completedCount / NEW_USER_CHECKLIST_TASKS.length;
+  const inverseAccent = ACCENT_COLORS[getContrastAccent(accentColor)].base;
+  const clampedProgress = Math.max(0, Math.min(1, progress));
+  const ringRadius = (CHALLENGE_RING_SIZE - CHALLENGE_RING_STROKE) / 2;
+  const ringCircumference = 2 * Math.PI * ringRadius;
+  const endAngle = -Math.PI / 2 + clampedProgress * Math.PI * 2;
+  const progressDotX = CHALLENGE_RING_SIZE / 2 + ringRadius * Math.cos(endAngle);
+  const progressDotY = CHALLENGE_RING_SIZE / 2 + ringRadius * Math.sin(endAngle);
+  const percentLabel = `${Math.round(clampedProgress * 100)}%`;
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.86}
+      onPress={onPress}
+      style={[
+        styles.newUserChecklistCard,
+        {
+          backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.92)',
+          borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.07)',
+          shadowColor: colors.accent,
+        },
+      ]}
+    >
+      <View style={styles.newUserChecklistProgressRow}>
+        <View style={styles.newUserChecklistRing}>
+          <Svg width={CHALLENGE_RING_SIZE} height={CHALLENGE_RING_SIZE}>
+            <Circle
+              cx={CHALLENGE_RING_SIZE / 2}
+              cy={CHALLENGE_RING_SIZE / 2}
+              r={ringRadius}
+              stroke={isDark ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.08)'}
+              strokeWidth={CHALLENGE_RING_STROKE}
+              fill="transparent"
+            />
+            <Circle
+              cx={CHALLENGE_RING_SIZE / 2}
+              cy={CHALLENGE_RING_SIZE / 2}
+              r={ringRadius}
+              stroke={colors.accent}
+              strokeWidth={CHALLENGE_RING_STROKE}
+              fill="transparent"
+              strokeLinecap="round"
+              strokeDasharray={`${ringCircumference} ${ringCircumference}`}
+              strokeDashoffset={ringCircumference * (1 - clampedProgress)}
+              rotation="-90"
+              originX={CHALLENGE_RING_SIZE / 2}
+              originY={CHALLENGE_RING_SIZE / 2}
+            />
+            {clampedProgress > 0 ? (
+              <Circle
+                cx={progressDotX}
+                cy={progressDotY}
+                r={CHALLENGE_RING_STROKE * 0.82}
+                fill={inverseAccent}
+              />
+            ) : null}
+          </Svg>
+          <Text allowFontScaling={false} style={[styles.newUserChecklistRingText, { color: colors.textPrimary }]}>
+            {percentLabel}
+          </Text>
+        </View>
+        <View style={styles.newUserChecklistTextColumn}>
+          <Text allowFontScaling={false} style={[styles.newUserChecklistTitle, { color: colors.textPrimary }]}>
+            Fortify Challenge
+          </Text>
+          <Text allowFontScaling={false} style={[styles.newUserChecklistSubtitle, { color: colors.textSecondary }]}>
+            {completedCount} of {NEW_USER_CHECKLIST_TASKS.length} complete
+          </Text>
+        </View>
+        <ChevronRightIcon color={colors.textPrimary} size={scale(22)} strokeWidth={2.4} />
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function NewUserChecklistModal({
+  visible,
+  state,
+  onClose,
+  onSetTaskStatus,
+}: {
+  visible: boolean;
+  state: NewUserChecklistState;
+  onClose: () => void;
+  onSetTaskStatus: (taskId: NewUserChecklistTaskId, status: NewUserChecklistTaskStatus) => void;
+}) {
+  const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const [isMounted, setIsMounted] = useState(visible);
+  const [selectedTask, setSelectedTask] = useState<NewUserChecklistTask | null>(null);
+  const [didCopyExampleWorkout, setDidCopyExampleWorkout] = useState(false);
+  const isClosingRef = useRef(false);
+  const completedCount = getNewUserChecklistCompletedCount(state);
+  const pageTranslateX = useSharedValue(windowWidth);
+  const backdropOpacity = useSharedValue(0);
+  const headerTopPadding = Math.max(insets.top + scale(22), scale(82));
+  const taskCardStyle = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.08)',
+  };
+  const pageAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: pageTranslateX.value }],
+  }));
+  const backdropAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: backdropOpacity.value,
+  }));
+  const detailModalWidth = Math.min(scale(360), Math.max(1, windowWidth - HORIZONTAL_PADDING * 2));
+
+  useEffect(() => {
+    if (!visible) {
+      if (isMounted && !isClosingRef.current) {
+        setIsMounted(false);
+      }
+      setSelectedTask(null);
+      setDidCopyExampleWorkout(false);
+      return;
+    }
+    isClosingRef.current = false;
+    setIsMounted(true);
+    pageTranslateX.value = windowWidth;
+    backdropOpacity.value = 0;
+    backdropOpacity.value = withTiming(1, {
+      duration: 180,
+      easing: Easing.out(Easing.quad),
+    });
+    pageTranslateX.value = withTiming(0, {
+      duration: CHECKLIST_MODAL_SLIDE_IN_DURATION,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [backdropOpacity, pageTranslateX, visible, windowWidth]);
+
+  useEffect(() => {
+    setDidCopyExampleWorkout(false);
+  }, [selectedTask?.id]);
+
+  const finishClose = useCallback(() => {
+    setIsMounted(false);
+    onClose();
+  }, [onClose]);
+
+  const handleClose = useCallback(() => {
+    if (isClosingRef.current) {
+      return;
+    }
+    isClosingRef.current = true;
+    setSelectedTask(null);
+    setDidCopyExampleWorkout(false);
+    backdropOpacity.value = withTiming(0, {
+      duration: 180,
+      easing: Easing.out(Easing.quad),
+    });
+    pageTranslateX.value = withTiming(
+      windowWidth,
+      {
+        duration: 280,
+        easing: Easing.in(Easing.cubic),
+      },
+      (finished) => {
+        if (finished) {
+          runOnJS(finishClose)();
+        }
+      }
+    );
+  }, [backdropOpacity, finishClose, pageTranslateX, windowWidth]);
+
+  const handleCopyExampleWorkout = useCallback(async () => {
+    await Clipboard.setStringAsync(NEW_USER_CHECKLIST_EXAMPLE_WORKOUT_TEXT);
+    setDidCopyExampleWorkout(true);
+    void Haptics.selectionAsync();
+  }, []);
+
+  const handleTaskPress = useCallback((task: NewUserChecklistTask) => {
+    if (task.id === 'finish_in_app_tour' || task.id === 'pick_app_theme') {
+      return;
+    }
+    setSelectedTask(task);
+  }, []);
+
+  if (!isMounted) return null;
+
+  return (
+    <Modal
+      visible={isMounted}
+      animationType="none"
+      transparent
+      presentationStyle="overFullScreen"
+      hardwareAccelerated
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
+      <View style={styles.checklistModalRoot}>
+        <Reanimated.View
+          pointerEvents="none"
+          style={[
+            styles.checklistModalBackdrop,
+            { backgroundColor: colors.background },
+            backdropAnimatedStyle,
+          ]}
+        >
+          <StainlessSteelPattern />
+        </Reanimated.View>
+        <Reanimated.View
+          style={[styles.checklistFullPage, { backgroundColor: colors.background }, pageAnimatedStyle]}
+        >
+          <StainlessSteelPattern />
+          <SafeAreaView style={styles.checklistFullPageSafeArea} edges={['bottom']}>
+            <View style={[styles.checklistFullPageHeader, { paddingTop: headerTopPadding }]}>
+              <Pressable
+                onPress={handleClose}
+                style={({ pressed }) => [
+                  styles.checklistFullPageBackButton,
+                  {
+                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                  },
+                  pressed && styles.checklistTaskCardPressed,
+                ]}
+              >
+                <ChevronLeftIcon color={colors.textPrimary} size={scale(24)} strokeWidth={2.2} />
+              </Pressable>
+              <Text allowFontScaling={false} style={[styles.checklistFullPageTitle, { color: colors.textPrimary }]}>
+                Fortify Challenge
+              </Text>
+              <View style={styles.checklistFullPageHeaderSpacer} />
+            </View>
+            <View style={styles.checklistModalHeader}>
+              <Text allowFontScaling={false} style={[styles.checklistModalIntro, { color: colors.textSecondary }]}>
+                {completedCount}/{NEW_USER_CHECKLIST_TASKS.length} complete
+              </Text>
+              <View style={styles.checklistModalProgressTrack}>
+                <View
+                  style={[
+                    styles.checklistModalProgressFill,
+                    {
+                      width: `${(completedCount / NEW_USER_CHECKLIST_TASKS.length) * 100}%`,
+                      backgroundColor: colors.accent,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+            <ScrollView
+              style={styles.checklistModalScroll}
+              contentContainerStyle={styles.checklistModalContent}
+              showsVerticalScrollIndicator={false}
+            >
+              {NEW_USER_CHECKLIST_TASKS.map((task) => {
+                const status = state[task.id];
+                const isComplete = status === 'complete';
+                const isSkipped = status === 'skipped';
+                const hasDescription = !!task.description;
+                const canOpenDetail = task.id !== 'finish_in_app_tour' && task.id !== 'pick_app_theme';
+                return (
+                  <Pressable
+                    key={task.id}
+                    disabled={!canOpenDetail}
+                    onPress={() => handleTaskPress(task)}
+                    style={({ pressed }) => [
+                      styles.checklistTaskCard,
+                      taskCardStyle,
+                      canOpenDetail && pressed && styles.checklistTaskCardPressed,
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.checklistTaskTopRow,
+                        !hasDescription && styles.checklistTaskTopRowCentered,
+                      ]}
+                    >
+                      <View
+                        style={[
+                          styles.checklistTaskStatusIcon,
+                          !hasDescription && styles.checklistTaskStatusIconCentered,
+                          {
+                            backgroundColor: isComplete ? colors.accent : 'transparent',
+                            borderColor: isComplete
+                              ? colors.accent
+                              : isSkipped
+                              ? colors.warning
+                              : isDark
+                              ? 'rgba(255,255,255,0.22)'
+                              : 'rgba(0,0,0,0.16)',
+                          },
+                        ]}
+                      >
+                        {isComplete ? (
+                          <CheckIcon color="#fff" size={scale(14)} strokeWidth={3} />
+                        ) : null}
+                      </View>
+                      <View style={styles.checklistTaskTitleColumn}>
+                        <Text allowFontScaling={false} style={[styles.checklistTaskTitle, { color: colors.textPrimary }]}>
+                          {task.title}
+                        </Text>
+                        {hasDescription ? (
+                          <Text allowFontScaling={false} style={[styles.checklistTaskDescription, { color: colors.textSecondary }]}>
+                            {task.description}
+                          </Text>
+                        ) : null}
+                      </View>
+                      {!isComplete ? (
+                        <Pressable
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            onSetTaskStatus(task.id, isSkipped ? 'incomplete' : 'skipped');
+                          }}
+                          style={({ pressed }) => [
+                            styles.checklistTaskSkipButton,
+                            { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' },
+                            pressed && styles.checklistTaskCardPressed,
+                          ]}
+                        >
+                          <Text allowFontScaling={false} style={[styles.checklistTaskSkipText, { color: colors.textSecondary }]}>
+                            {isSkipped ? 'Unskip' : 'Skip'}
+                          </Text>
+                        </Pressable>
+                      ) : null}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </SafeAreaView>
+        </Reanimated.View>
+        {selectedTask ? (
+          <Reanimated.View
+            entering={FadeIn.duration(180)}
+            exiting={FadeOut.duration(140)}
+            style={[
+              styles.checklistTaskDetailOverlay,
+              { backgroundColor: isDark ? 'rgba(0,0,0,0.7)' : 'rgba(0,0,0,0.5)' },
+            ]}
+          >
+            <Pressable
+              style={StyleSheet.absoluteFillObject}
+              onPress={() => setSelectedTask(null)}
+            />
+            <View style={styles.checklistTaskDetailCenter} pointerEvents="box-none">
+              <Reanimated.View
+                entering={ZoomIn.duration(220)}
+                exiting={ZoomOut.duration(160)}
+                style={[
+                  styles.checklistTaskDetailModal,
+                  {
+                    width: detailModalWidth,
+                    backgroundColor: isDark ? '#222222' : '#FFFFFF',
+                  },
+                ]}
+              >
+                <StainlessSteelPattern />
+                <View style={styles.checklistTaskDetailHeader}>
+                  <Text
+                    allowFontScaling={false}
+                    numberOfLines={2}
+                    style={[styles.checklistTaskDetailTitle, { color: colors.textPrimary }]}
+                  >
+                    {selectedTask.title}
+                  </Text>
+                </View>
+                <View style={styles.checklistTaskDetailContent}>
+                  {selectedTask.description ? (
+                    <Text allowFontScaling={false} style={[styles.checklistTaskDetailDescription, { color: colors.textSecondary }]}>
+                      {selectedTask.description}
+                    </Text>
+                  ) : null}
+                  <View
+                    style={[
+                      styles.checklistTaskDetailBox,
+                      {
+                        backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+                        borderColor: isDark ? 'rgba(255,255,255,0.13)' : 'rgba(0,0,0,0.08)',
+                      },
+                    ]}
+                  >
+                    <Text allowFontScaling={false} style={[styles.checklistTaskDetailText, { color: colors.textPrimary }]}>
+                      {selectedTask.detail}
+                    </Text>
+                  </View>
+                  {selectedTask.id === 'make_workout_template_from_text' ? (
+                    <Pressable
+                      onPress={handleCopyExampleWorkout}
+                      style={({ pressed }) => [
+                        styles.checklistTaskDetailCopyButton,
+                        { backgroundColor: colors.accent },
+                        pressed && styles.checklistTaskCardPressed,
+                      ]}
+                    >
+                      <Text allowFontScaling={false} style={styles.checklistTaskDetailCopyButtonText}>
+                        {didCopyExampleWorkout ? 'Copied' : 'Copy Example'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </Reanimated.View>
+            </View>
+          </Reanimated.View>
+        ) : null}
+      </View>
+    </Modal>
+  );
+}
+
+function NewUserChecklistCompleteGraffitiModal({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const { colors, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const artWidth = Math.min(width * 1.16, scale(460));
+  const artHeight = Math.min(height * 0.6, scale(560));
+  const mutedStroke = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(0,0,0,0.24)';
+  const softStroke = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)';
+  const floatY = useSharedValue(0);
+  const cardStyle = {
+    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+    borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.08)',
+  };
+  const floatingArtStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: floatY.value }],
+  }));
+
+  useEffect(() => {
+    if (!visible) {
+      floatY.value = 0;
+      return;
+    }
+    floatY.value = withRepeat(
+      withTiming(-scale(10), {
+        duration: 1350,
+        easing: Easing.inOut(Easing.quad),
+      }),
+      -1,
+      true
+    );
+  }, [floatY, visible]);
+
+  const handleClose = useCallback(() => {
+    void Haptics.selectionAsync();
+    onClose();
+  }, [onClose]);
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      presentationStyle="fullScreen"
+      onRequestClose={handleClose}
+      statusBarTranslucent
+    >
+      <View style={[styles.challengeCompleteRoot, { backgroundColor: colors.background }]}>
+        <StainlessSteelPattern />
+        <SafeAreaView style={styles.challengeCompleteSafeArea} edges={['left', 'right', 'bottom']}>
+          <View
+            style={[
+              styles.challengeCompleteContent,
+              {
+                paddingTop: Math.max(insets.top + Spacing.lg, Spacing['4xl']),
+                paddingBottom: Math.max(insets.bottom, Spacing.lg) + Spacing.lg,
+              },
+            ]}
+          >
+            <Reanimated.View style={[styles.challengeGraffitiStage, floatingArtStyle]}>
+              <Reanimated.View
+                entering={FadeIn.duration(520)}
+                pointerEvents="none"
+                style={styles.challengeGraffitiArt}
+              >
+                <Svg
+                  width={artWidth}
+                  height={artHeight}
+                  viewBox="0 0 460 560"
+                  pointerEvents="none"
+                >
+                  <Path
+                    d="M45 125c85-72 190-95 311-42 39 17 66 38 87 63"
+                    stroke={colors.accent}
+                    strokeWidth={18}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={0.46}
+                  />
+                  <Path
+                    d="M68 167c91-43 193-37 306 20"
+                    stroke={mutedStroke}
+                    strokeWidth={7}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={0.72}
+                  />
+                  <Path
+                    d="M37 393c70 34 144 47 222 35 62-10 114-35 157-76"
+                    stroke={colors.accent}
+                    strokeWidth={15}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={0.36}
+                  />
+                  <Path
+                    d="M70 438c55 25 125 32 212 14"
+                    stroke={softStroke}
+                    strokeWidth={8}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={0.9}
+                  />
+                  <Path
+                    d="M348 206l38-55M388 207l-39-57M72 295l37-48M113 294l-40-47"
+                    stroke={colors.accent}
+                    strokeWidth={10}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={0.44}
+                  />
+                  <Path
+                    d="M139 72c30-18 65-22 104-10M253 505c46 7 85-1 118-25"
+                    stroke={mutedStroke}
+                    strokeWidth={7}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                    opacity={0.68}
+                  />
+                  <Circle cx={44} cy={224} r={6} fill={colors.accent} opacity={0.42} />
+                  <Circle cx={92} cy={198} r={3.5} fill={mutedStroke} opacity={0.72} />
+                  <Circle cx={391} cy={118} r={5} fill={colors.accent} opacity={0.36} />
+                  <Circle cx={421} cy={179} r={3.5} fill={mutedStroke} opacity={0.72} />
+                  <Circle cx={59} cy={387} r={4.5} fill={mutedStroke} opacity={0.72} />
+                  <Circle cx={410} cy={378} r={6} fill={colors.accent} opacity={0.34} />
+                  <Circle cx={356} cy={475} r={3.5} fill={mutedStroke} opacity={0.72} />
+                </Svg>
+              </Reanimated.View>
+              <ReanimatedText
+                entering={FadeInDown.delay(120).duration(320)}
+                allowFontScaling={false}
+                style={[styles.challengeCompleteKicker, { color: colors.accent }]}
+              >
+                Fortify Challenge
+              </ReanimatedText>
+              <ReanimatedText
+                entering={ZoomIn.delay(240).duration(360)}
+                allowFontScaling={false}
+                adjustsFontSizeToFit
+                numberOfLines={1}
+                minimumFontScale={0.72}
+                style={[styles.challengeCompleteGraffitiText, { color: colors.textPrimary }]}
+              >
+                COMPLETE
+              </ReanimatedText>
+              <ReanimatedText
+                entering={FadeInDown.delay(420).duration(320)}
+                allowFontScaling={false}
+                style={[styles.challengeCompleteScore, { color: colors.textPrimary }]}
+              >
+                5/5
+              </ReanimatedText>
+            </Reanimated.View>
+
+            <View style={[styles.challengeCompleteMessage, cardStyle]}>
+              <Text allowFontScaling={false} style={[styles.challengeCompleteTitle, { color: colors.textPrimary }]}>
+                Congrats on finishing the Fortify Challenge!
+              </Text>
+            </View>
+
+            <GlassButton
+              style={styles.challengeCompleteButton}
+              onPress={handleClose}
+              hapticFeedback="impactMedium"
+            >
+              <Text style={[styles.challengeCompleteButtonText, { color: colors.accentForegroundOnFill }]}>
+                Continue
+              </Text>
+            </GlassButton>
+          </View>
+        </SafeAreaView>
+      </View>
+    </Modal>
+  );
+}
 
 // Toast Notification Component
 function ToastNotification({
@@ -747,7 +1384,12 @@ function ProgramDropCard({
           />
           <View style={styles.cardHeader}>
             <View style={styles.cardTitleRow}>
-              <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+              <Text
+                allowFontScaling={false}
+                style={[styles.cardTitle, { color: colors.textPrimary }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
                 {item.name}
               </Text>
               {item.isAiCreated && (
@@ -762,7 +1404,7 @@ function ProgramDropCard({
               <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
             </TouchableOpacity>
           </View>
-          <Text style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
+          <Text allowFontScaling={false} style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
             {item.workouts} workouts · {item.lastPerformed}
           </Text>
         </Reanimated.View>
@@ -817,7 +1459,7 @@ export default function ProgramsScreen() {
   const { colors, isDark } = useTheme();
   const { user, isAuthResolved } = useAuth();
   const readableSubtext = getReadableSubtextColors(isDark);
-  const { isTourActive, activeStepId } = useInAppTour();
+  const { isTourActive, activeStepId, hasTourFinished } = useInAppTour();
   const { highlightWorkoutId } = useLocalSearchParams<{ highlightWorkoutId?: string }>();
   const [highlightedWorkoutId, setHighlightedWorkoutId] = useState<string | null>(null);
   const modalStyles = useModalStyles();
@@ -857,6 +1499,13 @@ export default function ProgramsScreen() {
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
   const [onboardingProgramSpec, setOnboardingProgramSpec] = useState<OnboardingProgramSpec | null>(null);
   const [isOnboardingPreviewDismissing, setIsOnboardingPreviewDismissing] = useState(false);
+  const [newUserChecklistState, setNewUserChecklistState] = useState<NewUserChecklistState>(
+    getDefaultNewUserChecklistState
+  );
+  const [isNewUserChecklistLoaded, setIsNewUserChecklistLoaded] = useState(false);
+  const [isNewUserChecklistModalVisible, setIsNewUserChecklistModalVisible] = useState(false);
+  const [isNewUserChecklistCompleteVisible, setIsNewUserChecklistCompleteVisible] = useState(false);
+  const previousNewUserChecklistCompletedCountRef = useRef<number | null>(null);
   const onboardingPreviewOpacity = useRef(new Animated.Value(1)).current;
   const onboardingPreviewScale = useRef(new Animated.Value(1)).current;
   const onboardingPreviewTranslateY = useRef(new Animated.Value(0)).current;
@@ -892,6 +1541,13 @@ export default function ProgramsScreen() {
       subscription.remove();
     };
   }, [loadOnboardingProgramSpec]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void loadOnboardingProgramSpec();
+      return undefined;
+    }, [loadOnboardingProgramSpec])
+  );
 
   useEffect(() => {
     if (!isAuthResolved) {
@@ -934,6 +1590,117 @@ export default function ProgramsScreen() {
       isMounted = false;
     };
   }, [isAuthResolved, user?.id]);
+
+  useEffect(() => {
+    if (!isAuthResolved) {
+      setIsNewUserChecklistLoaded(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsNewUserChecklistLoaded(false);
+
+    const loadChecklist = async () => {
+      try {
+        const nextState = await loadNewUserChecklistState(user?.id ?? null);
+        if (isMounted) {
+          setNewUserChecklistState(nextState);
+        }
+      } catch (error) {
+        console.warn('Failed to load new user checklist:', error);
+      } finally {
+        if (isMounted) {
+          setIsNewUserChecklistLoaded(true);
+        }
+      }
+    };
+
+    void loadChecklist();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isAuthResolved, user?.id]);
+
+  const reloadNewUserChecklistState = useCallback(async () => {
+    try {
+      const nextState = await loadNewUserChecklistState(user?.id ?? null);
+      setNewUserChecklistState(nextState);
+      setIsNewUserChecklistLoaded(true);
+    } catch (error) {
+      console.warn('Failed to reload new user checklist:', error);
+    }
+  }, [user?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!isAuthResolved) {
+        return undefined;
+      }
+      void reloadNewUserChecklistState();
+      return undefined;
+    }, [isAuthResolved, reloadNewUserChecklistState])
+  );
+
+  const updateNewUserChecklistTaskStatus = useCallback((
+    taskId: NewUserChecklistTaskId,
+    status: NewUserChecklistTaskStatus
+  ) => {
+    setNewUserChecklistState((current) => {
+      if (current[taskId] === status) {
+        return current;
+      }
+      const nextState = markNewUserChecklistTaskStatus(current, taskId, status);
+      void persistNewUserChecklistState(nextState, user?.id ?? null).catch((error) => {
+        console.warn('Failed to persist new user checklist:', error);
+      });
+      return nextState;
+    });
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!isNewUserChecklistLoaded) {
+      previousNewUserChecklistCompletedCountRef.current = null;
+      return;
+    }
+
+    const completedCount = getNewUserChecklistCompletedCount(newUserChecklistState);
+    const previousCompletedCount = previousNewUserChecklistCompletedCountRef.current;
+
+    if (
+      previousCompletedCount !== null &&
+      previousCompletedCount < NEW_USER_CHECKLIST_TASKS.length &&
+      completedCount === NEW_USER_CHECKLIST_TASKS.length
+    ) {
+      setIsNewUserChecklistModalVisible(false);
+      setIsNewUserChecklistCompleteVisible(true);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    previousNewUserChecklistCompletedCountRef.current = completedCount;
+  }, [isNewUserChecklistLoaded, newUserChecklistState]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      NEW_USER_CHECKLIST_EVENT,
+      (taskId: unknown) => {
+        if (taskId === 'reset') {
+          setIsNewUserChecklistCompleteVisible(false);
+          void reloadNewUserChecklistState();
+          return;
+        }
+
+        if (!isNewUserChecklistTaskId(taskId)) {
+          return;
+        }
+        void reloadNewUserChecklistState();
+      }
+    );
+
+    return () => {
+      subscription.remove();
+    };
+  }, [reloadNewUserChecklistState]);
 
   useEffect(() => {
     void refreshPendingProgramSyncIds();
@@ -1002,6 +1769,24 @@ export default function ProgramsScreen() {
       program.aiPayloadVersion === sourceSpecKey
     ) ?? null;
   }, [onboardingProgramSpec, programs]);
+
+  const shouldShowOnboardingProgramPreview = Boolean(
+    onboardingProgramSpec && onboardingProgramSpec.status !== 'dismissed'
+  );
+  const onboardingProgramPreviewTitle =
+    onboardingPreviewProgram?.name ??
+    onboardingProgramSpec?.programName ??
+    'Your program';
+  const onboardingProgramPreviewSubtitle = onboardingPreviewProgram
+    ? 'Your personalized program is ready.'
+    : onboardingProgramSpec?.status === 'failed'
+      ? 'We are retrying your personalized program.'
+      : 'Preparing your personalized program...';
+  const onboardingProgramPreviewButtonLabel = onboardingPreviewProgram
+    ? 'VIEW PROGRAM'
+    : onboardingProgramSpec?.status === 'failed'
+      ? 'RETRYING...'
+      : 'BUILDING...';
 
   useEffect(() => {
     if (!onboardingPreviewProgram || isOnboardingPreviewDismissing) {
@@ -1531,7 +2316,12 @@ export default function ProgramsScreen() {
               <View style={styles.cardHeader}>
                 <View style={styles.cardTitleColumn}>
                   <View style={styles.cardTitleRow}>
-                    <Text style={[styles.cardTitle, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text
+                      allowFontScaling={false}
+                      style={[styles.cardTitle, { color: colors.textPrimary }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
                       {item.name}
                     </Text>
                     {item.isAiCreated && (
@@ -1550,7 +2340,7 @@ export default function ProgramsScreen() {
                           style={styles.templateSyncSpinner}
                         />
                       )}
-                      <Text style={[styles.templateSyncPillText, { color: colors.accent }]}>
+                      <Text allowFontScaling={false} style={[styles.templateSyncPillText, { color: colors.accent }]}>
                         {item.syncStatus === 'syncing' ? 'Syncing...' : 'Pending sync'}
                       </Text>
                     </View>
@@ -1564,7 +2354,7 @@ export default function ProgramsScreen() {
                   <EllipsisHorizontalIcon color={colors.accent} size={SMALL_ICON_SIZE} strokeWidth={2.5} />
                 </TouchableOpacity>
               </View>
-              <Text style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
+              <Text allowFontScaling={false} style={[styles.cardMetaText, { color: readableSubtext.meta }]}>
                 {item.exercises} exercises · {item.lastPerformed}
               </Text>
               </View>
@@ -1642,7 +2432,16 @@ export default function ProgramsScreen() {
             onEditSchedule={() => setScheduleEditorVisible(true)}
           />
 
-          {onboardingPreviewProgram && (
+          {hasTourFinished && isNewUserChecklistLoaded && !isNewUserChecklistResolved(newUserChecklistState) ? (
+            <Reanimated.View entering={FadeInDown.duration(420).springify()}>
+              <NewUserChecklistSummaryCard
+                state={newUserChecklistState}
+                onPress={() => setIsNewUserChecklistModalVisible(true)}
+              />
+            </Reanimated.View>
+          ) : null}
+
+          {shouldShowOnboardingProgramPreview && (
             <Animated.View
               style={{
                 opacity: onboardingPreviewOpacity,
@@ -1654,7 +2453,7 @@ export default function ProgramsScreen() {
             >
               <TouchableOpacity
                 activeOpacity={0.84}
-                disabled={isOnboardingPreviewDismissing}
+                disabled={!onboardingPreviewProgram || isOnboardingPreviewDismissing}
                 onPress={handleOnboardingProgramPreviewPress}
                 style={[
                   styles.onboardingProgramPreviewCard,
@@ -1675,18 +2474,33 @@ export default function ProgramsScreen() {
                         style={[styles.onboardingProgramPreviewTitle, { color: colors.textPrimary }]}
                         numberOfLines={2}
                       >
-                        {onboardingPreviewProgram.name}
+                        {onboardingProgramPreviewTitle}
+                      </Text>
+                      <Text
+                        style={[styles.onboardingProgramPreviewSubtitle, { color: colors.textSecondary }]}
+                        numberOfLines={2}
+                      >
+                        {onboardingProgramPreviewSubtitle}
                       </Text>
                     </View>
-                    <SparklesIcon color={colors.accent} size={MODAL_ICON_SIZE} strokeWidth={2} />
+                    {onboardingPreviewProgram ? (
+                      <SparklesIcon color={colors.accent} size={MODAL_ICON_SIZE} strokeWidth={2} />
+                    ) : (
+                      <ActivityIndicator color={colors.accent} size="small" />
+                    )}
                   </View>
                   <LinearGradient
                     colors={colors.accentGradient as unknown as [string, string, ...string[]]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
-                    style={styles.onboardingProgramPreviewButton}
+                    style={[
+                      styles.onboardingProgramPreviewButton,
+                      !onboardingPreviewProgram && styles.onboardingProgramPreviewButtonDisabled,
+                    ]}
                   >
-                    <Text style={[styles.onboardingProgramPreviewButtonText, { color: colors.accentForegroundOnFill }]}>VIEW PROGRAM</Text>
+                    <Text style={[styles.onboardingProgramPreviewButtonText, { color: colors.accentForegroundOnFill }]}>
+                      {onboardingProgramPreviewButtonLabel}
+                    </Text>
                   </LinearGradient>
                 </View>
               </TouchableOpacity>
@@ -1902,6 +2716,18 @@ export default function ProgramsScreen() {
         onHide={() => setShowToast(false)}
       />
 
+      <NewUserChecklistModal
+        visible={isNewUserChecklistModalVisible}
+        state={newUserChecklistState}
+        onClose={() => setIsNewUserChecklistModalVisible(false)}
+        onSetTaskStatus={updateNewUserChecklistTaskStatus}
+      />
+
+      <NewUserChecklistCompleteGraffitiModal
+        visible={isNewUserChecklistCompleteVisible}
+        onClose={() => setIsNewUserChecklistCompleteVisible(false)}
+      />
+
       <WorkoutScheduleEditorModal
         visible={scheduleEditorVisible}
         initialDays={scheduleDays}
@@ -1932,6 +2758,316 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: HORIZONTAL_PADDING,
     paddingBottom: SCROLL_PADDING_BOTTOM,
+  },
+  newUserChecklistCard: {
+    marginTop: CHECKLIST_CARD_MARGIN_TOP,
+    marginBottom: CHECKLIST_CARD_MARGIN_BOTTOM,
+    minHeight: scale(74),
+    paddingHorizontal: CHECKLIST_CARD_PADDING,
+    paddingVertical: scale(10),
+    borderRadius: CHECKLIST_CARD_RADIUS,
+    borderWidth: 1,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  newUserChecklistProgressRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: scale(14),
+  },
+  newUserChecklistRing: {
+    width: CHALLENGE_RING_SIZE,
+    height: CHALLENGE_RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  newUserChecklistRingText: {
+    position: 'absolute',
+    fontSize: moderateScale(12),
+    fontWeight: '900',
+  },
+  newUserChecklistTextColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  newUserChecklistTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: responsiveValue(12, 13, 14),
+    letterSpacing: 1.4,
+    marginBottom: scale(4),
+  },
+  newUserChecklistSubtitle: {
+    fontSize: moderateScale(13),
+    fontWeight: '700',
+  },
+  challengeCompleteRoot: {
+    flex: 1,
+  },
+  challengeCompleteSafeArea: {
+    flex: 1,
+  },
+  challengeCompleteContent: {
+    flex: 1,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    justifyContent: 'space-between',
+    gap: Spacing.xl,
+  },
+  challengeGraffitiStage: {
+    flex: 1,
+    minHeight: scale(360),
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'visible',
+  },
+  challengeGraffitiArt: {
+    position: 'absolute',
+  },
+  challengeCompleteKicker: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: responsiveValue(14, 16, 18),
+    letterSpacing: 2,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    marginBottom: scale(10),
+  },
+  challengeCompleteGraffitiText: {
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: responsiveValue(46, 58, 68),
+    lineHeight: responsiveValue(54, 66, 76),
+    letterSpacing: 2.2,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+    maxWidth: '100%',
+    textShadowColor: 'rgba(0,0,0,0.18)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 10,
+  },
+  challengeCompleteScore: {
+    marginTop: scale(6),
+    fontSize: moderateScale(58),
+    lineHeight: moderateScale(66),
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  challengeCompleteMessage: {
+    borderWidth: 1,
+    borderRadius: 24,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+  },
+  challengeCompleteTitle: {
+    fontSize: moderateScale(21),
+    lineHeight: moderateScale(28),
+    fontWeight: '800',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  challengeCompleteButton: {
+    minHeight: scale(58),
+    borderRadius: 999,
+  },
+  challengeCompleteButtonText: {
+    fontSize: moderateScale(18),
+    fontWeight: '800',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  checklistModalHeader: {
+    paddingHorizontal: HORIZONTAL_PADDING,
+    marginTop: scale(18),
+    marginBottom: CHECKLIST_MODAL_GAP,
+  },
+  checklistModalRoot: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  checklistModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  checklistFullPage: {
+    flex: 1,
+  },
+  checklistFullPageSafeArea: {
+    flex: 1,
+  },
+  checklistFullPageHeader: {
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingTop: scale(12),
+    paddingBottom: scale(16),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: scale(16),
+  },
+  checklistFullPageTitle: {
+    flex: 1,
+    fontFamily: 'BankGothicBT-Medium',
+    fontSize: responsiveValue(20, 24, 28),
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  checklistFullPageBackButton: {
+    width: scale(54),
+    height: scale(54),
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checklistFullPageHeaderSpacer: {
+    width: scale(54),
+    height: scale(54),
+  },
+  checklistModalIntro: {
+    fontSize: moderateScale(13),
+    fontWeight: '700',
+    marginBottom: scale(8),
+  },
+  checklistModalProgressTrack: {
+    height: CHECKLIST_PROGRESS_HEIGHT,
+    borderRadius: 999,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(127,127,127,0.22)',
+  },
+  checklistModalProgressFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  checklistModalScroll: {
+    flex: 1,
+  },
+  checklistModalContent: {
+    gap: CHECKLIST_MODAL_GAP,
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: scale(32),
+  },
+  checklistTaskCard: {
+    borderWidth: 1,
+    borderRadius: CHECKLIST_TASK_CARD_RADIUS,
+    padding: CHECKLIST_TASK_CARD_PADDING,
+  },
+  checklistTaskCardPressed: {
+    opacity: 0.78,
+  },
+  checklistTaskTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: scale(9),
+  },
+  checklistTaskTopRowCentered: {
+    alignItems: 'center',
+  },
+  checklistTaskStatusIcon: {
+    width: scale(24),
+    height: scale(24),
+    borderRadius: 999,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: scale(1),
+  },
+  checklistTaskStatusIconCentered: {
+    marginTop: 0,
+  },
+  checklistTaskTitleColumn: {
+    flex: 1,
+    minWidth: 0,
+  },
+  checklistTaskTitle: {
+    fontSize: CHECKLIST_TASK_TITLE_SIZE,
+    fontWeight: '800',
+  },
+  checklistTaskDescription: {
+    marginTop: scale(3),
+    fontSize: CHECKLIST_TASK_DESCRIPTION_SIZE,
+    lineHeight: CHECKLIST_TASK_DESCRIPTION_SIZE * 1.28,
+    fontWeight: '500',
+  },
+  checklistTaskSkipButton: {
+    borderRadius: 999,
+    paddingHorizontal: scale(10),
+    paddingVertical: scale(6),
+  },
+  checklistTaskSkipText: {
+    fontSize: CHECKLIST_TASK_STATUS_SIZE,
+    fontWeight: '800',
+  },
+  checklistTaskDetailOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingVertical: scale(28),
+  },
+  checklistTaskDetailCenter: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checklistTaskDetailModal: {
+    borderRadius: scale(18),
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  checklistTaskDetailHeader: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: scale(24),
+    paddingTop: scale(24),
+    paddingBottom: scale(14),
+    position: 'relative',
+    zIndex: 1,
+  },
+  checklistTaskDetailTitle: {
+    fontSize: moderateScale(18),
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  checklistTaskDetailContent: {
+    paddingHorizontal: scale(24),
+    paddingBottom: scale(24),
+    zIndex: 1,
+  },
+  checklistTaskDetailDescription: {
+    fontSize: moderateScale(14),
+    lineHeight: moderateScale(20),
+    fontWeight: '600',
+    marginBottom: scale(14),
+    textAlign: 'center',
+  },
+  checklistTaskDetailBox: {
+    borderWidth: 1,
+    borderRadius: scale(14),
+    padding: scale(14),
+  },
+  checklistTaskDetailText: {
+    fontSize: moderateScale(14),
+    lineHeight: moderateScale(21),
+    fontWeight: '600',
+  },
+  checklistTaskDetailCopyButton: {
+    marginTop: scale(14),
+    borderRadius: 999,
+    paddingVertical: scale(12),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checklistTaskDetailCopyButtonText: {
+    color: '#fff',
+    fontSize: moderateScale(12),
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
   },
   section: {
     marginBottom: SECTION_SPACING,
@@ -1969,12 +3105,21 @@ const styles = StyleSheet.create({
     lineHeight: ONBOARDING_PREVIEW_TITLE_SIZE * 1.18,
     letterSpacing: 1.4,
   },
+  onboardingProgramPreviewSubtitle: {
+    marginTop: scale(6),
+    fontSize: moderateScale(13),
+    lineHeight: moderateScale(18),
+    fontWeight: '600',
+  },
   onboardingProgramPreviewButton: {
     marginTop: ONBOARDING_PREVIEW_BUTTON_MARGIN_TOP,
     borderRadius: ONBOARDING_PREVIEW_BUTTON_RADIUS,
     paddingVertical: ONBOARDING_PREVIEW_BUTTON_PADDING_Y,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  onboardingProgramPreviewButtonDisabled: {
+    opacity: 0.68,
   },
   onboardingProgramPreviewButtonText: {
     fontFamily: 'BankGothicBT-Medium',

@@ -485,15 +485,16 @@ const TLDR_MIN_ACCEPTABLE_WORDS = 6;
 const TLDR_MAX_SENTENCES = 2;
 
 function splitTldrFromContent(content: string, allowFallback: boolean) {
-  const match = content.match(TLDR_REGEX);
+  const sanitizedContent = stripDiagnosisHeaderFromContent(content);
+  const match = sanitizedContent.match(TLDR_REGEX);
   if (!match || match.index === undefined) {
     return {
-      mainContent: content,
-      tldr: allowFallback ? buildFallbackTldr(content) : null,
+      mainContent: sanitizedContent,
+      tldr: allowFallback ? buildFallbackTldr(sanitizedContent) : null,
     };
   }
 
-  const mainContent = content.slice(0, match.index).trimEnd();
+  const mainContent = sanitizedContent.slice(0, match.index).trimEnd();
   let normalized = normalizeTldr(match[2].trim());
   if (normalized && isTldrLowQuality(normalized, mainContent)) {
     normalized = null;
@@ -502,6 +503,14 @@ function splitTldrFromContent(content: string, allowFallback: boolean) {
     mainContent,
     tldr: normalized ?? (allowFallback ? buildFallbackTldr(mainContent) : null),
   };
+}
+
+function stripDiagnosisHeaderFromContent(content: string): string {
+  if (!content) return '';
+  return content
+    .replace(/^\s*(?:\*\*)?Diagnosis(?:\*\*)?\s*(?:\:\*\*|\*\*:|:)\s*/i, '')
+    .replace(/\n\s*(?:\*\*)?Diagnosis(?:\*\*)?\s*(?:\:\*\*|\*\*:|:)\s*/gi, '\n')
+    .trimStart();
 }
 
 function buildFallbackTldr(content: string) {

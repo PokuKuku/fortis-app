@@ -10,6 +10,7 @@ import {
   generateVoiceWorkoutTemplate,
   reportRealtimeCoachUsage,
 } from '@/src/services/realtimeCoachService';
+import { requestAIDataSharingConsent } from '@/src/services/aiConsentService';
 import type { AIClarificationOption, AIImage, AIRequestContext, AIWorkoutTemplate } from '@/src/types/ai';
 import type {
   RealtimeCoachDebugStatus,
@@ -27,7 +28,11 @@ import {
   parseGeminiLiveMessage,
   uint8ArrayToBase64,
 } from '@/src/utils/geminiLive';
-import { shouldEditWorkoutFromVoice, shouldGenerateWorkoutFromVoice } from '@/src/utils/realtimeCoach';
+import {
+  shouldEditWorkoutFromVoice,
+  shouldGenerateWorkoutFromVoice,
+  shouldRegenerateWorkoutFromVoice,
+} from '@/src/utils/realtimeCoach';
 import { buildVoiceCoachInstructions } from '@/src/utils/realtimeCoachPrompt';
 import { posthog } from '@/src/config/posthog';
 
@@ -56,8 +61,8 @@ const TRANSCRIPT_IDLE_HIDE_MS = 1600;
 const MIC_STREAM_WATCHDOG_MS = 2000;
 const USER_TURN_RELEASE_DRAIN_MS = 180;
 const USAGE_REPORT_INTERVAL_MS = 30_000;
-const PLAYBACK_BUFFER_TARGET_BYTES = 4096;
-const PLAYBACK_BUFFER_FLUSH_MS = 24;
+const PLAYBACK_BUFFER_TARGET_BYTES = 8192;
+const PLAYBACK_BUFFER_FLUSH_MS = 60;
 const PLAYBACK_MIC_SUPPRESSION_GUARD_MS = 250;
 const REALTIME_SPEECH_START_RMS = 0.006;
 const REALTIME_SPEECH_END_RMS = 0.003;
@@ -210,7 +215,7 @@ const VOICE_WORKOUT_TOOL_NAME = 'create_or_update_workout';
 
 const VOICE_WORKOUT_TOOL_DECLARATION = {
   name: VOICE_WORKOUT_TOOL_NAME,
-  description: 'Create or revise the current Fortify workout preview only when the user explicitly asks Fortify to make, create, build, generate, design, plan, write, give them, add, remove, replace, or resize a workout. Follow-up edit requests like "remove incline press" or "swap bench for dumbbells" should revise the current preview. Do not use this for status statements like "I am hitting chest today."',
+  description: 'Create, revise, or regenerate the current Fortify workout preview only when the user explicitly asks Fortify to make, create, build, generate, regenerate, redo, make another, design, plan, write, give them, add, remove, replace, or resize a workout. Follow-up edit requests like "remove incline press" or "swap bench for dumbbells" should revise the current preview. Follow-up regeneration requests like "redo it" or "make another one" should build a different workout. Do not use this for status statements like "I am hitting chest today."',
   parameters: {
     type: 'object',
     properties: {
@@ -727,9 +732,8 @@ export function useRealtimeCoach({
       offset += chunk.byteLength;
     });
 
-    suppressMicForPlayback(byteLength);
     audio.playPCMData(merged);
-  }, [suppressMicForPlayback]);
+  }, []);
 
   const cleanup = useCallback(() => {
     if (sessionTimeoutRef.current) {
@@ -927,13 +931,18 @@ export function useRealtimeCoach({
     inFlightWorkoutPromptRef.current = trimmed;
     recentWorkoutPromptAttemptsRef.current.set(promptKey, now);
     workoutHandledThisTurnRef.current = true;
-    const shouldCreateEditedVoiceWorkout = shouldEditWorkoutFromVoice(trimmed, Boolean(draft));
+    const shouldCreateRegeneratedVoiceWorkout = shouldRegenerateWorkoutFromVoice(trimmed, Boolean(draft));
+    const shouldCreateEditedVoiceWorkout = !shouldCreateRegeneratedVoiceWorkout
+      && shouldEditWorkoutFromVoice(trimmed, Boolean(draft));
+    const requestContext = shouldCreateRegeneratedVoiceWorkout && draft
+      ? { avoidWorkoutTemplateDraft: draft }
+      : shouldCreateEditedVoiceWorkout && draft
+        ? { currentWorkoutTemplateDraft: draft }
+        : undefined;
     setIsGeneratingVoiceWorkout(true);
 
     try {
-      const response = await generateVoiceWorkoutTemplate(trimmed, shouldCreateEditedVoiceWorkout && draft ? {
-        currentWorkoutTemplateDraft: draft,
-      } : undefined);
+      const response = await generateVoiceWorkoutTemplate(trimmed, requestContext);
 
       const template = response.type === 'answer'
         ? response.answer?.workoutTemplate
@@ -1059,8 +1068,9 @@ export function useRealtimeCoach({
     const transcriptPrompt = latestUserTranscriptRef.current.trim();
     const draft = latestVoiceWorkoutTemplateDraftRef.current ?? currentWorkoutTemplateDraft;
     const shouldPreferTranscriptEdit = shouldEditWorkoutFromVoice(transcriptPrompt, Boolean(draft));
+    const shouldPreferTranscriptRegeneration = shouldRegenerateWorkoutFromVoice(transcriptPrompt, Boolean(draft));
     const promptValue = args.prompt ?? args.request ?? args.text;
-    const prompt = shouldPreferTranscriptEdit
+    const prompt = shouldPreferTranscriptEdit || shouldPreferTranscriptRegeneration
       ? transcriptPrompt
       : typeof promptValue === 'string'
         ? promptValue.trim()
@@ -1096,6 +1106,7 @@ export function useRealtimeCoach({
     const pcm16k = downsamplePcm16Mono(pcm24k);
     playbackChunksRef.current.push(pcm16k);
     playbackBytesRef.current += pcm16k.byteLength;
+    suppressMicForPlayback(pcm16k.byteLength);
 
     if (playbackBytesRef.current >= PLAYBACK_BUFFER_TARGET_BYTES) {
       flushPlaybackQueue();
@@ -1105,7 +1116,7 @@ export function useRealtimeCoach({
     if (!playbackFlushTimeoutRef.current) {
       playbackFlushTimeoutRef.current = setTimeout(flushPlaybackQueue, PLAYBACK_BUFFER_FLUSH_MS);
     }
-  }, [flushPlaybackQueue]);
+  }, [flushPlaybackQueue, suppressMicForPlayback]);
 
   const sendMicrophoneChunk = useCallback((socket: WebSocket, chunk: Uint8Array) => {
     microphoneChunksSentRef.current += 1;
@@ -1559,6 +1570,13 @@ export function useRealtimeCoach({
     setPhase('connecting');
 
     try {
+      const hasAIConsent = await requestAIDataSharingConsent({ forcePrompt: true });
+      if (!hasAIConsent) {
+        setError(null);
+        setPhase('stopped');
+        return;
+      }
+
       const audio = getTwoWayAudioModule();
       if (!audio) {
         setError(MISSING_NATIVE_AUDIO_MESSAGE);

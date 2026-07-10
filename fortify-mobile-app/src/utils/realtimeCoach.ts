@@ -17,8 +17,10 @@ const WORKOUT_EDIT_REGEX =
 
 const WORKOUT_NOUN_PATTERN = String.raw`(?:work\s*out|workout|routine|session|template|training(?:\s+(?:day|session|workout))?|lift|day)`;
 const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|shoulders?|arms?|biceps|triceps|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
-const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|design|plan|craft|write)`;
+const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|regenerate|reroll|redo|design|plan|craft|write)`;
 const EXERCISE_COUNT_PATTERN = String.raw`(?:\d{1,2}|one|two|three|four|five|six|seven|eight|nine|ten)`;
+const WORKOUT_ALTERNATE_REQUEST_REGEX =
+  /\b(?:another|different|completely different|new one|new version|alternate|alternative|regenerate|reroll|redo|start over|all new|fresh)\b/i;
 
 const WORKOUT_RESIZE_REGEXES = [
   /\b(?:make|change|set|turn|have|keep|give)\b[\s\S]{0,50}\b(?:it|this|that|workout|routine|session|template)\b[\s\S]{0,50}\b(?:\d{1,2}|three|four|five|six|seven|eight|nine|ten)\s+(?:(?:\w+)\s+){0,3}(?:exercise|movement|lift)s?\b/i,
@@ -51,11 +53,27 @@ export const shouldGenerateWorkoutFromVoice = (text: string, hasCurrentWorkoutDr
   if (hasCurrentWorkoutDraft && (
     WORKOUT_EDIT_REGEX.test(normalized)
     || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized))
+    || shouldRegenerateWorkoutFromVoice(normalized, hasCurrentWorkoutDraft)
   )) {
     return true;
   }
 
   return WORKOUT_CREATE_REGEXES.some((regex) => regex.test(normalized));
+};
+
+export const shouldRegenerateWorkoutFromVoice = (text: string, hasCurrentWorkoutDraft = false): boolean => {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || !hasCurrentWorkoutDraft) return false;
+  if (!WORKOUT_ALTERNATE_REQUEST_REGEX.test(normalized)) return false;
+  if (
+    WORKOUT_EDIT_REGEX.test(normalized)
+    || WORKOUT_RESIZE_REGEXES.some((regex) => regex.test(normalized))
+  ) {
+    return false;
+  }
+
+  return WORKOUT_CREATE_REGEXES.some((regex) => regex.test(normalized))
+    || /\b(?:it|this|that|workout|routine|session|template|exercises?)\b/i.test(normalized);
 };
 
 export const shouldEditWorkoutFromVoice = (text: string, hasCurrentWorkoutDraft = false): boolean => {

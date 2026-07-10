@@ -40,4 +40,28 @@ describe('normalizeAIWorkoutTemplateMetadata', () => {
     expect(template.description).toBe('Focused on lats and upper back.');
     expect(template.focus).toBe('upper back');
   });
+
+  it.each([
+    ['Biceps', 'Arms Workout'],
+    ['Triceps', 'Arms Workout'],
+    ['Forearms', 'Upper Body Workout'],
+    ['Calves', 'Legs Workout'],
+  ])('keeps a specific %s focus instead of collapsing it into a broader workout', (focus, staleName) => {
+    const template = normalizeAIWorkoutTemplateMetadata({
+      name: staleName,
+      description: `A focused ${focus.toLowerCase()} workout.`,
+      focus,
+      exercises: [
+        {
+          exerciseId: 'exercise-1',
+          exerciseName: `${focus} Exercise`,
+          sets: 3,
+          reps: '10-12',
+        },
+      ],
+    });
+
+    expect(template.name).toBe(`${focus} Workout`);
+    expect(template.focus).toBe(focus);
+  });
 });

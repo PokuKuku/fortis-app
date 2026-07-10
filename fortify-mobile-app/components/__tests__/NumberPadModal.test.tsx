@@ -30,6 +30,18 @@ jest.mock('@/src/components/workout/RPEHelpModal', () => ({
   RPEHelpModal: () => null,
 }));
 
+jest.mock('@/src/contexts/InAppTourContext', () => ({
+  useInAppTour: () => ({
+    isTourActive: false,
+    activeStepId: null,
+    advanceStep: jest.fn(),
+  }),
+}));
+
+jest.mock('@/src/components/tour/TourAnchor', () => ({
+  TourAnchor: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 describe('NumberPadModal', () => {
   afterEach(() => {
     useWorkoutStore.getState().resetStore();

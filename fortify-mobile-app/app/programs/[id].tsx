@@ -516,6 +516,7 @@ export default function ProgramDetailScreen() {
         title={program.name}
         onBack={handleBack}
         rightAction={{ label: 'Edit', onPress: handleEdit }}
+        titleStyle={styles.programTitle}
       />
 
       <ScrollView
@@ -793,6 +794,9 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '600',
   },
+  programTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+  },
   descriptionContainer: {
     marginBottom: Spacing.md,
   },
@@ -949,6 +953,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   workoutSectionTitle: {
+    fontFamily: 'BankGothicBT-Medium',
     fontSize: FontSizes.base,
     fontWeight: '600',
   },

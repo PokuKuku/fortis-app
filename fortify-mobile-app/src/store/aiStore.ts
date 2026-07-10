@@ -26,6 +26,7 @@ import {
 import * as aiService from '../services/aiService';
 import { AI_CONVERSATION_KEY } from '../constants/storageKeys';
 import { generateSecureUUID as generateId } from '../utils/uuid';
+import { completeNewUserChecklistTask } from '../utils/newUserChecklist';
 
 const makeFriendlyClarification = (question: string | undefined): string => {
   return question || 'Could you share a bit more detail so I can help?';
@@ -111,6 +112,9 @@ const WORKOUT_FOCUS_LABELS = [
   'Back',
   'Shoulders',
   'Arms',
+  'Biceps',
+  'Triceps',
+  'Forearms',
   'Core',
   'Abs',
   'Glutes',
@@ -119,6 +123,7 @@ const WORKOUT_FOCUS_LABELS = [
   'Hamstrings',
   'Calves',
   'Lats',
+  'Traps',
 ] as const;
 
 const WORKOUT_FOCUS_DISPLAY_LABELS: Record<string, string> = {
@@ -178,12 +183,20 @@ const inferWorkoutFocusLabel = (message: string): string | null => {
     [/\bpush\b/, 'Push'],
     [/\bpull\b/, 'Pull'],
     [/\bchest|pecs?\b/, 'Chest'],
-    [/\bback|lats?|latissimus|rows?\b/, 'Back'],
+    [/\bback|latissimus|rows?\b/, 'Back'],
+    [/\blats?\b/, 'Lats'],
+    [/\btraps?|trapezius\b/, 'Traps'],
     [/\bshoulders?|delts?\b/, 'Shoulders'],
+    [/\bbiceps?\b/, 'Biceps'],
+    [/\btriceps?\b/, 'Triceps'],
+    [/\bforearms?\b/, 'Forearms'],
     [/\barms?|biceps?|triceps?\b/, 'Arms'],
     [/\bcore|abs?\b/, 'Core'],
     [/\bglutes?\b/, 'Glutes'],
-    [/\blegs?|quads?|hamstrings?|calves?\b/, 'Legs'],
+    [/\bquads?|quadriceps\b/, 'Quads'],
+    [/\bhamstrings?\b/, 'Hamstrings'],
+    [/\bcal(f|ves)\b/, 'Calves'],
+    [/\blegs?\b/, 'Legs'],
   ];
 
   return checks.find(([pattern]) => pattern.test(normalized))?.[1] ?? null;
@@ -384,6 +397,18 @@ export const useAIStore = create<AIState>()(
     rateLimitStatus: null,
 
     sendMessage: async (intent, message, context, images, attachments) => {
+      if (get().isSendingMessage) {
+        return {
+          type: 'error',
+          requestId: generateId(),
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'An AI response is already in progress.',
+            retryable: false,
+          },
+        };
+      }
+
       const { conversation, persistConversation } = get();
 
       const userMessage: AIConversationMessage = {
@@ -464,6 +489,7 @@ export const useAIStore = create<AIState>()(
           posthog.capture('ai_workout_generated', {
             exercise_count: workoutTemplate.exercises.length,
           });
+          void completeNewUserChecklistTask('ask_ai_for_workout');
         }
 
         const finalConversation: AIConversation = {

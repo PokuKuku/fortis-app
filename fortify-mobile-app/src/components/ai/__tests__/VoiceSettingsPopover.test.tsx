@@ -46,11 +46,13 @@ describe('VoiceSettingsPopover', () => {
   it('opens and routes coaching style and media actions', () => {
     const onOpenCoachingStyle = jest.fn();
     const onAddMedia = jest.fn();
+    const onOpenMoreSettings = jest.fn();
     const view = render(
       <VoiceSettingsPopover
         interactionMode="push_to_talk"
         onInteractionModeChange={jest.fn()}
         onOpenCoachingStyle={onOpenCoachingStyle}
+        onOpenMoreSettings={onOpenMoreSettings}
         onAddMedia={onAddMedia}
       />
     );
@@ -66,6 +68,11 @@ describe('VoiceSettingsPopover', () => {
     fireEvent.press(view.getByText('Add Photos or Video'));
     jest.advanceTimersByTime(220);
     expect(onAddMedia).toHaveBeenCalled();
+
+    fireEvent.press(view.getByTestId('voice-settings-gear'));
+    fireEvent.press(view.getByText('More settings'));
+    jest.advanceTimersByTime(220);
+    expect(onOpenMoreSettings).toHaveBeenCalled();
   });
 
   it('toggles realtime mode', () => {
@@ -75,6 +82,7 @@ describe('VoiceSettingsPopover', () => {
         interactionMode="push_to_talk"
         onInteractionModeChange={onInteractionModeChange}
         onOpenCoachingStyle={jest.fn()}
+        onOpenMoreSettings={jest.fn()}
         onAddMedia={jest.fn()}
       />
     );
@@ -93,6 +101,7 @@ describe('VoiceSettingsPopover', () => {
         onInteractionModeChange={jest.fn()}
         onExperienceModeChange={onExperienceModeChange}
         onOpenCoachingStyle={jest.fn()}
+        onOpenMoreSettings={jest.fn()}
         onAddMedia={jest.fn()}
       />
     );

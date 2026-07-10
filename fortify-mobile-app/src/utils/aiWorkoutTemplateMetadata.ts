@@ -7,16 +7,24 @@ const FOCUS_PATTERNS: Array<[string, RegExp]> = [
   ['Push', /\bpush\b/i],
   ['Pull', /\bpull\b/i],
   ['Chest', /\bchest|pecs?\b/i],
-  ['Back', /\bback|lats?|latissimus|rows?\b/i],
+  ['Back', /\bback|latissimus|rows?\b/i],
+  ['Biceps', /\bbiceps?\b/i],
+  ['Triceps', /\btriceps?\b/i],
+  ['Forearms', /\bforearms?\b/i],
+  ['Lats', /\blats?\b/i],
+  ['Traps', /\btraps?|trapezius\b/i],
   ['Shoulders', /\bshoulders?|delts?\b/i],
-  ['Arms', /\barms?|biceps?|triceps?\b/i],
+  ['Arms', /\barms?\b/i],
   ['Core', /\bcore|abs?\b/i],
   ['Glutes', /\bglutes?\b/i],
-  ['Legs', /\blegs?|quads?|hamstrings?|calves?\b/i],
+  ['Quads', /\bquads?|quadriceps\b/i],
+  ['Hamstrings', /\bhamstrings?\b/i],
+  ['Calves', /\bcal(f|ves)\b/i],
+  ['Legs', /\blegs?\b/i],
 ];
 
 const FOCUS_NAME_PATTERN =
-  /\b(upper[\s_-]+body|lower[\s_-]+body|full[\s_-]+body|push|pull|chest|back|shoulders?|arms?|core|abs|glutes?|legs?|quads?|hamstrings?|calves|lats)\b/i;
+  /\b(upper[\s_-]+body|lower[\s_-]+body|full[\s_-]+body|push|pull|chest|back|shoulders?|arms?|biceps?|triceps?|forearms?|core|abs|glutes?|legs?|quads?|hamstrings?|calves|lats|traps?)\b/i;
 
 const MUSCLE_DISPLAY_LABELS: Record<string, string> = {
   upper_back: 'upper back',
@@ -42,7 +50,7 @@ const normalizeDisplayText = (value: string | undefined): string | undefined => 
 };
 
 const inferTemplateFocus = (template: AIWorkoutTemplate): string | null => {
-  const source = `${template.focus ?? ''} ${template.description ?? ''}`.trim();
+  const source = `${normalizeDisplayText(template.focus) ?? ''} ${normalizeDisplayText(template.description) ?? ''}`.trim();
   if (!source) return null;
   return FOCUS_PATTERNS.find(([, pattern]) => pattern.test(source))?.[0] ?? null;
 };

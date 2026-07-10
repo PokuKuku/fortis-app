@@ -43,6 +43,7 @@ import {
   useOnboardingFunnelScreen,
 } from '@/src/services/onboardingAnalyticsService';
 import { buildInitialWorkoutScheduleHistory } from '@/src/utils/workoutSchedule';
+import { ensureOnboardingProgramGenerated } from '@/src/services/onboardingProgramGenerationService';
 
 const LOADING_DURATION_MS = 13000;
 const AUTHENTICATED_AUTO_CONTINUE_DELAY_MS = 900;
@@ -273,6 +274,8 @@ export default function OnboardingCompleteScreen() {
   const summaryShineX = useRef(new Animated.Value(0)).current;
   const summaryShineY = useRef(new Animated.Value(0)).current;
   const summaryCardSizeRef = useRef({ width: 320, height: 240 });
+  const onboardingProgramGenerationPromiseRef = useRef<Promise<string | null> | null>(null);
+  const onboardingProgramGenerationSpecIdRef = useRef<string | null>(null);
 
   const activeStepIndex = useMemo(() => {
     const index = LOADING_STEPS.findIndex((step) => progressPct < step.completeAt);
@@ -686,6 +689,30 @@ export default function OnboardingCompleteScreen() {
 
   const headerStatusText = phase === 'loading' ? typedStatusLine : typedReadySubtitle;
 
+  const prepareOnboardingProgram = useCallback(async (state: OnboardingState): Promise<string | null> => {
+    const programSpec = buildOnboardingProgramSpec(state);
+    if (
+      onboardingProgramGenerationSpecIdRef.current === programSpec.id
+      && onboardingProgramGenerationPromiseRef.current
+    ) {
+      return onboardingProgramGenerationPromiseRef.current;
+    }
+
+    onboardingProgramGenerationSpecIdRef.current = programSpec.id;
+    await savePendingOnboardingProgramSpec(programSpec);
+    const generationPromise = ensureOnboardingProgramGenerated(programSpec);
+    onboardingProgramGenerationPromiseRef.current = generationPromise;
+    return generationPromise;
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated || !onboardingState) return;
+
+    void prepareOnboardingProgram(onboardingState).catch((programError) => {
+      console.warn('[Onboarding] Failed to prepare onboarding program:', programError);
+    });
+  }, [isAuthenticated, onboardingState, prepareOnboardingProgram]);
+
   useEffect(() => {
     let isActive = true;
 
@@ -919,9 +946,8 @@ export default function OnboardingCompleteScreen() {
 
       if (state) {
         try {
-          const programSpec = buildOnboardingProgramSpec(state);
           const conversionContext = buildOnboardingConversionContext(state);
-          await savePendingOnboardingProgramSpec(programSpec);
+          await prepareOnboardingProgram(state);
           await savePendingOnboardingConversionContext(conversionContext);
           trackOnboardingFinished(conversionContext);
         } catch (programSpecError) {
@@ -944,7 +970,7 @@ export default function OnboardingCompleteScreen() {
     } finally {
       setIsSaving(false);
     }
-  }, [isAuthenticated, phase, profile, router, summaryAnim, updateProfile]);
+  }, [isAuthenticated, phase, prepareOnboardingProgram, profile, router, summaryAnim, updateProfile]);
 
   useEffect(() => {
     if (phase !== 'ready') return;

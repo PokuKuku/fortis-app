@@ -632,7 +632,7 @@ export function buildDeterministicOnboardingProgram(
   const targetExerciseCount = getTargetExerciseCount(spec);
   const trainingIntent = getPrimaryTrainingIntent(spec);
   const usableExercises = exercises.filter((exercise) => (
-    !isLowValueGeneratedExercise(exercise) && hasUsableExerciseGif(exercise)
+    !isLowValueGeneratedExercise(exercise)
   ));
   if (usableExercises.length === 0) return null;
 

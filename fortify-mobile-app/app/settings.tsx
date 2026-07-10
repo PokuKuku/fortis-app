@@ -8,10 +8,11 @@ import {
   ActivityIndicator,
   Linking,
   AppState,
+  DeviceEventEmitter,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
 import {
@@ -33,9 +34,14 @@ import {
 } from 'react-native-heroicons/outline';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useTheme, type ThemeMode, ACCENT_COLOR_LABELS } from '@/src/contexts/ThemeContext';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
+import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
+import type { Exercise } from '@/src/types/exercise';
+import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
+import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import { exportWorkoutsToCSV } from '@/src/utils/exportWorkouts';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
@@ -59,6 +65,14 @@ import {
 } from '@/src/services/notificationPermissionService';
 import { RealtimeCoachSettingsModal } from '@/src/components/ai/RealtimeCoachSettingsModal';
 import { useRealtimeCoachPreferences } from '@/src/hooks/useRealtimeCoachPreferences';
+import { useWorkoutStore } from '@/src/store/workoutStore';
+import { buildWeeklyRecap, getDueWeeklyRecapWeekStart, type WeeklyRecap } from '@/src/utils/workoutRetention';
+import { getSundayWeekStart } from '@/src/utils/workoutSchedule';
+import {
+  getDefaultNewUserChecklistState,
+  NEW_USER_CHECKLIST_EVENT,
+  persistNewUserChecklistState,
+} from '@/src/utils/newUserChecklist';
 
 interface SettingsRowProps {
   icon: React.ReactNode;
@@ -78,6 +92,18 @@ const BUNDLED_APP_VERSION: string | undefined = (() => {
     return undefined;
   }
 })();
+
+const getWeeklyRecapPreviewWeekStart = () => {
+  const dueWeekStart = getDueWeeklyRecapWeekStart();
+  if (dueWeekStart) return dueWeekStart;
+
+  const currentWeekStart = getSundayWeekStart(new Date());
+  return new Date(
+    currentWeekStart.getFullYear(),
+    currentWeekStart.getMonth(),
+    currentWeekStart.getDate() - 7
+  );
+};
 
 function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colors, isDark }: SettingsRowProps) {
   return (
@@ -115,10 +141,17 @@ export default function SettingsScreen() {
     '1.1.4';
   const router = useRouter();
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut, updateProfile } = useAuth();
+  const { resetTourForDev } = useInAppTour();
   const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: Boolean(profile?.id),
   });
+  const {
+    scheduleDays,
+    scheduleHistory,
+  } = useWorkoutSchedule();
+  const { exercisesById } = useExerciseLookup();
+  const weightUnits = useWorkoutStore((s) => s.weightUnits);
   const {
     preferences: realtimeCoachPreferences,
     updatePreferences: updateRealtimeCoachPreferences,
@@ -128,6 +161,10 @@ export default function SettingsScreen() {
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
   const [showVoiceCoachSettings, setShowVoiceCoachSettings] = useState(false);
+  const [weeklyRecapPreviewOpen, setWeeklyRecapPreviewOpen] = useState(false);
+  const [weeklyRecapPreviewWeekStart, setWeeklyRecapPreviewWeekStart] = useState(() => getWeeklyRecapPreviewWeekStart());
+  const [isResettingTour, setIsResettingTour] = useState(false);
+  const [isResettingChallenge, setIsResettingChallenge] = useState(false);
   const [aiDataSharingAllowed, setAIDataSharingAllowed] = useState<boolean>(false);
   const [microphoneAllowed, setMicrophoneAllowed] = useState<boolean>(false);
   const [notificationsAllowed, setNotificationsAllowed] = useState<boolean>(false);
@@ -141,6 +178,24 @@ export default function SettingsScreen() {
     light: 'Light',
     dark: 'Dark',
   };
+  const units = profile?.preferred_units === 'metric' ? 'metric' : 'imperial';
+  const previewWeeklyRecap = useMemo<WeeklyRecap>(() => buildWeeklyRecap({
+    weekStart: weeklyRecapPreviewWeekStart,
+    scheduleDays,
+    scheduleHistory,
+    sessions: historySessions,
+    exercisesById: exercisesById as unknown as Map<string, Exercise>,
+    preferredUnits: units,
+    weightUnits,
+  }), [
+    exercisesById,
+    historySessions,
+    scheduleDays,
+    scheduleHistory,
+    weeklyRecapPreviewWeekStart,
+    units,
+    weightUnits,
+  ]);
 
   const openExternalLink = async (url: string, label: string) => {
     if (!url) {
@@ -350,6 +405,59 @@ export default function SettingsScreen() {
       Alert.alert('Export Failed', 'An unexpected error occurred.');
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleOpenWeeklyRecapPreview = () => {
+    setWeeklyRecapPreviewWeekStart(getWeeklyRecapPreviewWeekStart());
+    setWeeklyRecapPreviewOpen(true);
+  };
+
+  const handleResetInAppTour = async () => {
+    if (!__DEV__) return;
+    if (!user) {
+      Alert.alert('Not signed in', 'Sign in before resetting the in-app tour.');
+      return;
+    }
+
+    setIsResettingTour(true);
+    try {
+      const { error } = await updateProfile({
+        has_seen_in_app_tour: false,
+        in_app_tour_completed_at: null,
+        in_app_tour_version: 0,
+      });
+      if (error) {
+        Alert.alert('Reset failed', error.message);
+        return;
+      }
+
+      await resetTourForDev();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      Alert.alert('Tour reset', 'The in-app tour has been reset for this account.');
+    } finally {
+      setIsResettingTour(false);
+    }
+  };
+
+  const handleResetFortifyChallenge = async () => {
+    if (!__DEV__) return;
+    if (!user) {
+      Alert.alert('Not signed in', 'Sign in before resetting the Fortify Challenge.');
+      return;
+    }
+
+    setIsResettingChallenge(true);
+    try {
+      await persistNewUserChecklistState(getDefaultNewUserChecklistState(), user.id);
+      DeviceEventEmitter.emit(NEW_USER_CHECKLIST_EVENT, 'reset');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+      Alert.alert('Challenge reset', 'The Fortify Challenge has been reset for this account.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unable to reset Fortify Challenge.';
+      Alert.alert('Reset failed', message);
+    } finally {
+      setIsResettingChallenge(false);
     }
   };
 
@@ -714,6 +822,50 @@ export default function SettingsScreen() {
             </View>
           </View>
 
+          {__DEV__ ? (
+            <View style={styles.section}>
+              <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>Developer</Text>
+
+              <View style={[styles.settingsCard, cardStyle]}>
+                <SettingsRow
+                  icon={<SparklesIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                  label="Preview Weekly Recap"
+                  value="Dev"
+                  onPress={handleOpenWeeklyRecapPreview}
+                  showChevron
+                  colors={colors}
+                  isDark={isDark}
+                />
+
+                <View style={[styles.settingsDivider, dividerStyle]} />
+
+                <SettingsRow
+                  icon={<AdjustmentsHorizontalIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                  label="Reset In-App Tour"
+                  value={isResettingTour ? undefined : 'Dev'}
+                  onPress={handleResetInAppTour}
+                  isLoading={isResettingTour}
+                  showChevron={!isResettingTour}
+                  colors={colors}
+                  isDark={isDark}
+                />
+
+                <View style={[styles.settingsDivider, dividerStyle]} />
+
+                <SettingsRow
+                  icon={<SparklesIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
+                  label="Reset Fortify Challenge"
+                  value={isResettingChallenge ? undefined : 'Dev'}
+                  onPress={handleResetFortifyChallenge}
+                  isLoading={isResettingChallenge}
+                  showChevron={!isResettingChallenge}
+                  colors={colors}
+                  isDark={isDark}
+                />
+              </View>
+            </View>
+          ) : null}
+
           {/* App Section */}
           <View style={styles.section}>
             <Text style={[styles.sectionHeader, { color: colors.textSecondary }]}>App</Text>
@@ -767,6 +919,15 @@ export default function SettingsScreen() {
         onChange={updateRealtimeCoachPreferences}
         onClose={() => setShowVoiceCoachSettings(false)}
       />
+
+      {__DEV__ ? (
+        <WeeklyRecapModal
+          visible={weeklyRecapPreviewOpen}
+          recap={previewWeeklyRecap}
+          userName={profile?.full_name}
+          onClose={() => setWeeklyRecapPreviewOpen(false)}
+        />
+      ) : null}
     </View>
   );
 }

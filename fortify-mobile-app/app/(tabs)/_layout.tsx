@@ -24,7 +24,7 @@ import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS, TOUR_QUICK_START_TEMPLATE_ID } from '@/src/constants/inAppTour';
+import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_AI_SOURCE } from '@/src/constants/inAppTour';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
@@ -347,23 +347,23 @@ export default function TabLayout() {
     return templateMatch?.name ?? 'Workout template';
   }, [startPreset, programs]);
 
-  const upperQuickStartTemplate = useMemo(
-    () => templates.find((template) => template.id === TOUR_QUICK_START_TEMPLATE_ID) ?? null,
+  const tourQuickStartTemplate = useMemo(
+    () => templates.find((template) => template.aiSourceChatId === TOUR_BACK_WORKOUT_AI_SOURCE) ?? null,
     [templates]
   );
 
-  const isQuickStartUpperPreset = (preset: StartPreset | null) => {
+  const isTourQuickStartPreset = (preset: StartPreset | null) => {
     if (!preset || preset.type !== 'template') return false;
 
-    if (preset.templateId === TOUR_QUICK_START_TEMPLATE_ID) {
+    if (preset.templateId === tourQuickStartTemplate?.id) {
       return true;
     }
 
-    if (!upperQuickStartTemplate || !preset.templateWorkoutId) {
+    if (!tourQuickStartTemplate || !preset.templateWorkoutId) {
       return false;
     }
 
-    return upperQuickStartTemplate.workouts.some((workout) => workout.id === preset.templateWorkoutId);
+    return tourQuickStartTemplate.workouts.some((workout) => workout.id === preset.templateWorkoutId);
   };
 
   const startButtonColors = startPreset
@@ -473,12 +473,12 @@ export default function TabLayout() {
     let nextPreset = draftStartPreset ?? null;
 
     if (isTourActive && activeStepId === 'quick_start') {
-      if (!isQuickStartUpperPreset(nextPreset)) {
-        nextPreset = upperQuickStartTemplate
+      if (!isTourQuickStartPreset(nextPreset)) {
+        nextPreset = tourQuickStartTemplate
           ? {
               type: 'template',
-              templateId: upperQuickStartTemplate.id,
-              templateWorkoutId: upperQuickStartTemplate.workouts[0]?.id,
+              templateId: tourQuickStartTemplate.id,
+              templateWorkoutId: tourQuickStartTemplate.workouts[0]?.id,
             }
           : null;
       }
@@ -486,7 +486,7 @@ export default function TabLayout() {
 
     await setStartPreset(nextPreset);
     setStartConfigVisible(false);
-    if (isTourActive && activeStepId === 'quick_start' && isQuickStartUpperPreset(nextPreset)) {
+    if (isTourActive && activeStepId === 'quick_start' && isTourQuickStartPreset(nextPreset)) {
       advanceStep();
     }
   };
@@ -800,7 +800,7 @@ export default function TabLayout() {
       onChange={handleChangeStartPreset}
       onConfirm={handleConfirmStartPreset}
       onClose={() => setStartConfigVisible(false)}
-      forceTemplateId={null}
+      forceTemplateId={isTourActive && activeStepId === 'quick_start' ? tourQuickStartTemplate?.id ?? null : null}
     />
 
     <FirstWorkoutStreakModal

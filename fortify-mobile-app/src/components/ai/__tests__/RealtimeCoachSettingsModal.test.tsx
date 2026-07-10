@@ -35,7 +35,7 @@ const preferences: RealtimeCoachPreferences = {
 };
 
 describe('RealtimeCoachSettingsModal', () => {
-  it('saves and activates Custom Coach only when Save is pressed', async () => {
+  it('saves and activates Custom Coach Style only when Save is pressed', async () => {
     const onChange = jest.fn(() => Promise.resolve());
     const onClose = jest.fn();
     const view = render(
@@ -49,11 +49,13 @@ describe('RealtimeCoachSettingsModal', () => {
 
     fireEvent.press(view.getByTestId('realtime-coach-custom-coach-select-button'));
     expect(onChange).not.toHaveBeenCalled();
+    expect(view.getByTestId('realtime-coach-personality-roast').props.accessibilityState).toEqual({ selected: false });
+    expect(view.getByTestId('realtime-coach-custom-coach-select-button').props.accessibilityState).toEqual({ selected: true });
 
     fireEvent.changeText(view.getByTestId('realtime-coach-custom-coach-input'), 'Be calm but direct.');
     expect(onChange).not.toHaveBeenCalled();
 
-    fireEvent.press(view.getByTestId('realtime-coach-custom-coach-save-button'));
+    fireEvent.press(view.getByTestId('realtime-coach-finished-button'));
     await waitFor(() => {
       expect(onChange).toHaveBeenCalledWith({
         ...preferences,
@@ -75,11 +77,12 @@ describe('RealtimeCoachSettingsModal', () => {
       />
     );
 
+    fireEvent.press(view.getByTestId('realtime-coach-custom-coach-select-button'));
     fireEvent.changeText(view.getByTestId('realtime-coach-custom-coach-input'), 'A different coach');
-    fireEvent.press(view.getByTestId('realtime-coach-custom-coach-save-button'));
+    fireEvent.press(view.getByTestId('realtime-coach-finished-button'));
 
     await waitFor(() => {
-      expect(view.getByText('Couldn’t save Custom Coach. Try again.')).toBeTruthy();
+      expect(view.getByText('Couldn’t save Custom Coach Style. Try again.')).toBeTruthy();
     });
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -100,5 +103,39 @@ describe('RealtimeCoachSettingsModal', () => {
 
     fireEvent.press(view.getByText('Tough Love'));
     expect(onChange).toHaveBeenCalledWith({ ...preferences, personality: 'roast' });
+  });
+
+  it('closes with Save when there are no custom style changes to save', () => {
+    const onChange = jest.fn();
+    const onClose = jest.fn();
+    const view = render(
+      <RealtimeCoachSettingsModal
+        visible
+        preferences={{ ...preferences, personality: 'custom' }}
+        onChange={onChange}
+        onClose={onClose}
+      />
+    );
+
+    fireEvent.press(view.getByTestId('realtime-coach-finished-button'));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('keeps preset coaching styles and Custom Coach Style mutually exclusive', () => {
+    const view = render(
+      <RealtimeCoachSettingsModal
+        visible
+        preferences={{ ...preferences, personality: 'custom' }}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+
+    expect(view.getByTestId('realtime-coach-custom-coach-select-button').props.accessibilityState).toEqual({ selected: true });
+
+    fireEvent.press(view.getByText('Practical'));
+    expect(view.getByTestId('realtime-coach-personality-direct').props.accessibilityState).toEqual({ selected: true });
+    expect(view.getByTestId('realtime-coach-custom-coach-select-button').props.accessibilityState).toEqual({ selected: false });
   });
 });

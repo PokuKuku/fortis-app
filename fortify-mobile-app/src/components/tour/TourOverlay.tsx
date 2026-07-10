@@ -33,12 +33,14 @@ type TourOverlayProps = {
   mode: TourOverlayMode;
   anchorRect: AnchorRect | null;
   secondaryAnchorRect?: AnchorRect | null;
+  arrowTargetRect?: AnchorRect | null;
   body: string;
   stepLabel?: string | null;
   primaryAction?: Action | null;
   secondaryAction?: Action | null;
   auxiliaryAction?: Action | null;
   showArrow?: boolean;
+  arrowColor?: string;
   centerTooltip?: boolean;
   showHighlight?: boolean;
   hideTooltip?: boolean;
@@ -78,10 +80,12 @@ export function TourOverlay({
   mode,
   anchorRect,
   secondaryAnchorRect = null,
+  arrowTargetRect = null,
   body,
   primaryAction,
   auxiliaryAction,
   showArrow = false,
+  arrowColor,
   centerTooltip = false,
   showHighlight = true,
   hideTooltip = false,
@@ -140,6 +144,15 @@ export function TourOverlay({
     const height = Math.min(screenHeight, secondaryAnchorRect.height + holePadding + holePaddingBottom);
     return { x, y, width, height };
   }, [holePadding, holePaddingBottom, screenHeight, screenWidth, secondaryAnchorRect]);
+
+  const paddedArrowTargetRect = useMemo(() => {
+    if (!arrowTargetRect) return null;
+    const x = Math.max(0, arrowTargetRect.x - holePadding);
+    const y = Math.max(0, arrowTargetRect.y - holePadding);
+    const width = Math.min(screenWidth, arrowTargetRect.width + holePadding * 2);
+    const height = Math.min(screenHeight, arrowTargetRect.height + holePadding + holePaddingBottom);
+    return { x, y, width, height };
+  }, [arrowTargetRect, holePadding, holePaddingBottom, screenHeight, screenWidth]);
 
   const tooltipPos = useMemo(() => {
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
@@ -215,9 +228,10 @@ export function TourOverlay({
     screenWidth,
   ]);
   const shouldShowTooltip = visible && !hideTooltip;
+  const arrowRect = paddedArrowTargetRect ?? paddedRect;
   const arrowPointsUp = Boolean(
-    paddedRect
-    && (placement === 'below' || (placement === 'auto' && tooltipPos.top >= paddedRect.y + paddedRect.height))
+    arrowRect
+    && (placement === 'below' || (placement === 'auto' && tooltipPos.top >= arrowRect.y + arrowRect.height))
   );
 
   const themedStyles = {
@@ -230,9 +244,9 @@ export function TourOverlay({
     auxiliaryText: { color: colors.textSecondary },
     highlightBorder: { borderColor: colors.accent },
     primaryText: { color: colors.accentForegroundOnFill },
-    arrow: { borderTopColor: '#FFFFFF' },
-    arrowUp: { borderBottomColor: '#FFFFFF' },
-    arrowLine: { backgroundColor: '#FFFFFF' },
+    arrow: { borderTopColor: arrowColor ?? '#FFFFFF' },
+    arrowUp: { borderBottomColor: arrowColor ?? '#FFFFFF' },
+    arrowLine: { backgroundColor: arrowColor ?? '#FFFFFF' },
   };
 
   useEffect(() => {
@@ -466,13 +480,13 @@ export function TourOverlay({
   };
 
   const renderArrow = () => {
-    if (!showArrow || !paddedRect) return null;
+    if (!showArrow || !arrowRect) return null;
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;
-    const centerX = paddedRect.x + paddedRect.width / 2;
+    const centerX = arrowRect.x + arrowRect.width / 2;
     const left = clamp(centerX - ARROW_WIDTH / 2, TOOLTIP_SIDE_MARGIN, screenWidth - TOOLTIP_SIDE_MARGIN - ARROW_WIDTH);
     const topCandidate = arrowPointsUp
-      ? paddedRect.y + paddedRect.height + ARROW_GAP
-      : paddedRect.y - ARROW_GAP - ARROW_HEIGHT;
+      ? arrowRect.y + arrowRect.height + ARROW_GAP
+      : arrowRect.y - ARROW_GAP - ARROW_HEIGHT;
     const top = clamp(topCandidate, safeTop, screenHeight - insets.bottom - ARROW_HEIGHT);
 
     return (

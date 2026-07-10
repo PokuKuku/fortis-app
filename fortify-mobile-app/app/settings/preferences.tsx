@@ -25,9 +25,6 @@ import { Typography } from '@/constants/Typography';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
 import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
-import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
-import type { Exercise } from '@/src/types/exercise';
-import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import { useWorkoutRetentionPreferences } from '@/src/hooks/useWorkoutRetentionPreferences';
@@ -37,8 +34,7 @@ import {
   requestNotificationPermission,
   requestNotificationPermissionIfNeeded,
 } from '@/src/services/notificationPermissionService';
-import { buildWeeklyRecap, formatReminderTime, getDueWeeklyRecapWeekStart, normalizeReminderTime, type WeeklyRecap } from '@/src/utils/workoutRetention';
-import { getSundayWeekStart } from '@/src/utils/workoutSchedule';
+import { formatReminderTime, normalizeReminderTime } from '@/src/utils/workoutRetention';
 
 const LB_PER_KG = 2.20462;
 const KG_PER_LB = 1 / LB_PER_KG;
@@ -50,17 +46,6 @@ const CM_MIN = 120;
 const CM_MAX = 220;
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-const getWeeklyRecapPreviewWeekStart = () => {
-  const dueWeekStart = getDueWeeklyRecapWeekStart();
-  if (dueWeekStart) return dueWeekStart;
-
-  const currentWeekStart = getSundayWeekStart(new Date());
-  return new Date(
-    currentWeekStart.getFullYear(),
-    currentWeekStart.getMonth(),
-    currentWeekStart.getDate() - 7
-  );
-};
 const roundTo = (value: number, decimals = 1) => {
   const factor = Math.pow(10, decimals);
   return Math.round(value * factor) / factor;
@@ -331,7 +316,6 @@ export default function SettingsPreferencesScreen() {
   const { user, profile, updateProfile } = useAuth();
   const {
     scheduleDays,
-    scheduleHistory,
     isSaving: isSavingSchedule,
     saveScheduleDays,
   } = useWorkoutSchedule();
@@ -339,14 +323,12 @@ export default function SettingsPreferencesScreen() {
     enabled: __DEV__ && Boolean(user),
     syncToStore: false,
   });
-  const { exercisesById } = useExerciseLookup();
   const {
     reminderTime,
     setReminderTime,
   } = useWorkoutRetentionPreferences();
   const bodyType = useWorkoutStore((s) => s.bodyType);
   const setBodyType = useWorkoutStore((s) => s.setBodyType);
-  const weightUnits = useWorkoutStore((s) => s.weightUnits);
   const modalStyles = useModalStyles();
   const isCompactReminderLayout = windowHeight < 720;
   const reminderModalWidth = Math.min(360, Math.max(288, windowWidth - Spacing.lg * 2));
@@ -376,8 +358,6 @@ export default function SettingsPreferencesScreen() {
   const [goalOpen, setGoalOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [reminderTimeOpen, setReminderTimeOpen] = useState(false);
-  const [weeklyRecapPreviewOpen, setWeeklyRecapPreviewOpen] = useState(false);
-  const [weeklyRecapPreviewWeekStart, setWeeklyRecapPreviewWeekStart] = useState(() => getWeeklyRecapPreviewWeekStart());
   const [isSavingMeasurements, setIsSavingMeasurements] = useState(false);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
   const [isSavingExperience, setIsSavingExperience] = useState(false);
@@ -390,28 +370,6 @@ export default function SettingsPreferencesScreen() {
   const [reminderHour, setReminderHour] = useState(8);
   const [reminderMinute, setReminderMinute] = useState(0);
   const [reminderPeriod, setReminderPeriod] = useState<'AM' | 'PM'>('AM');
-  const previewWeeklyRecap = useMemo<WeeklyRecap>(() => buildWeeklyRecap({
-    weekStart: weeklyRecapPreviewWeekStart,
-    scheduleDays,
-    scheduleHistory,
-    sessions: weeklyRecapSessions,
-    exercisesById: exercisesById as unknown as Map<string, Exercise>,
-    preferredUnits: units,
-    weightUnits,
-  }), [
-    exercisesById,
-    scheduleDays,
-    scheduleHistory,
-    weeklyRecapPreviewWeekStart,
-    weeklyRecapSessions,
-    units,
-    weightUnits,
-  ]);
-
-  const handleOpenWeeklyRecapPreview = () => {
-    setWeeklyRecapPreviewWeekStart(getWeeklyRecapPreviewWeekStart());
-    setWeeklyRecapPreviewOpen(true);
-  };
 
   useEffect(() => {
     if (!measurementsOpen) return;
@@ -746,18 +704,6 @@ export default function SettingsPreferencesScreen() {
                 showChevron
                 colors={colors}
               />
-              {__DEV__ ? (
-                <>
-                  <View style={[styles.divider, dividerStyle]} />
-                  <PreferenceRow
-                    label="Preview Weekly Recap"
-                    value="Dev"
-                    onPress={handleOpenWeeklyRecapPreview}
-                    showChevron
-                    colors={colors}
-                  />
-                </>
-              ) : null}
             </View>
           </View>
         </ScrollView>
@@ -1018,14 +964,6 @@ export default function SettingsPreferencesScreen() {
         </View>
       </BaseModal>
 
-      {__DEV__ ? (
-        <WeeklyRecapModal
-          visible={weeklyRecapPreviewOpen}
-          recap={previewWeeklyRecap}
-          userName={profile?.full_name}
-          onClose={() => setWeeklyRecapPreviewOpen(false)}
-        />
-      ) : null}
     </View>
   );
 }

@@ -13,6 +13,9 @@ import type { WeightUnit } from '@/src/types/workout';
 import { WorkoutSet, RPE_COLORS } from '@/src/types/workout';
 import { LastPerformance } from '@/src/hooks/useLastExercisePerformance';
 import { SetTypeSelector } from './SetTypeSelector';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
@@ -68,6 +71,7 @@ interface SetRowProps {
     }>;
   } | null;
   completedSetTint?: 'accent' | 'success';
+  shouldAnchorTourSetControls?: boolean;
 }
 
 export function SetRow({
@@ -81,8 +85,10 @@ export function SetRow({
   baselinePerformance,
   suggestedPerformance,
   completedSetTint = 'accent',
+  shouldAnchorTourSetControls = false,
 }: SetRowProps) {
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
 
   const completedOverlay = completedSetTint === 'success'
     ? getAccentRgba('green', isDark ? 0.1 : 0.08)
@@ -310,6 +316,9 @@ export function SetRow({
           longPressHandledRef.current = null;
         }
       }, 500);
+      if (isTourActive && activeStepId === 'fill_weight_column' && field === 'weight') {
+        void advanceStep();
+      }
     }
   };
 
@@ -427,6 +436,9 @@ export function SetRow({
           longPressHandledRef.current = null;
         }
       }, 500);
+      if (isTourActive && activeStepId === 'complete_remaining_sets') {
+        void advanceStep();
+      }
     }
   };
 
@@ -646,6 +658,10 @@ export function SetRow({
   const setTypeStyle = getSetTypeStyle();
   const setNumberLabel = `Set ${setIndex + 1}`;
   const setTypeLabel = set.setType === 'normal' ? 'normal' : set.setType;
+  const isFirstTourSet = shouldAnchorTourSetControls && setIndex === 0;
+  const shouldAnchorWeight = isFirstTourSet && isTourActive && activeStepId === 'fill_weight_column';
+  const shouldAnchorReps = isFirstTourSet && isTourActive && activeStepId === 'fill_reps_column';
+  const shouldAnchorComplete = isFirstTourSet && isTourActive && activeStepId === 'complete_remaining_sets';
 
   return (
     <Animated.View
@@ -699,40 +715,43 @@ export function SetRow({
 
         {/* Weight input */}
         <Animated.View style={[styles.inputWrapper, styles.weightWrapper, !shouldShowCheckboxes && styles.flexCol, weightAnimatedStyle]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${setNumberLabel} weight`}
-            accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
-            onPress={() => handleInputPress('weight')}
-            onLongPress={() => handleApplyToRemaining('weight')}
-            delayLongPress={350}
-            style={[
-              getInputStyle('weight'),
-              isWeightActive && [styles.inputActive, themedStyles.inputActive],
-              isWeightActive && activeHasError && styles.inputError
-            ]}
-          >
-            <Text style={[
-              styles.inputText,
-              themedStyles.inputText,
-              (isWeightActive && !activePendingValue && allowAutoFill && inputSuggestion?.weight != null) && themedStyles.placeholderText,
-              (!isWeightActive && set.weight === null && allowAutoFill) && themedStyles.placeholderText
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
+          <TourAnchor id={TOUR_ANCHOR_IDS.activeSetWeight} disabled={!shouldAnchorWeight}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${setNumberLabel} weight`}
+              accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
+              onPress={() => handleInputPress('weight')}
+              onLongPress={() => handleApplyToRemaining('weight')}
+              delayLongPress={350}
+              style={[
+                getInputStyle('weight'),
+                isWeightActive && [styles.inputActive, themedStyles.inputActive],
+                isWeightActive && activeHasError && styles.inputError
+              ]}
             >
-              {isWeightActive
-                ? (activePendingValue || (allowAutoFill ? inputSuggestion?.weight?.toString() : '') || '')
-                : (set.weight !== null ? set.weight.toString() : (allowAutoFill ? inputSuggestion?.weight?.toString() || '' : ''))}
-            </Text>
-          </Pressable>
+              <Text style={[
+                styles.inputText,
+                themedStyles.inputText,
+                (isWeightActive && !activePendingValue && allowAutoFill && inputSuggestion?.weight != null) && themedStyles.placeholderText,
+                (!isWeightActive && set.weight === null && allowAutoFill) && themedStyles.placeholderText
+              ]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.6}
+              >
+                {isWeightActive
+                  ? (activePendingValue || (allowAutoFill ? inputSuggestion?.weight?.toString() : '') || '')
+                  : (set.weight !== null ? set.weight.toString() : (allowAutoFill ? inputSuggestion?.weight?.toString() || '' : ''))}
+              </Text>
+            </Pressable>
+          </TourAnchor>
         </Animated.View>
 
         {/* Reps input with RPE badge */}
         <Animated.View style={[styles.inputWrapper, styles.repsWrapper, !shouldShowCheckboxes && styles.flexCol, repsAnimatedStyle]}>
           <View style={styles.repsContainer}>
-            <Pressable
+            <TourAnchor id={TOUR_ANCHOR_IDS.activeSetReps} disabled={!shouldAnchorReps}>
+              <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${setNumberLabel} reps`}
               accessibilityHint="Double tap to edit. Long press to apply to remaining sets"
@@ -759,7 +778,8 @@ export function SetRow({
                     ? (activePendingValue || (allowAutoFill ? inputSuggestion?.reps?.toString() : '') || '')
                     : (set.reps !== null ? set.reps.toString() : (allowAutoFill ? inputSuggestion?.reps?.toString() || '' : ''))}
                 </Text>
-            </Pressable>
+              </Pressable>
+            </TourAnchor>
             {/* RPE Badge */}
             {set.rpe !== null && (
               <View
@@ -776,7 +796,8 @@ export function SetRow({
 
         {/* Completion checkbox */}
         {shouldShowCheckboxes && (
-          <Pressable
+          <TourAnchor id={TOUR_ANCHOR_IDS.activeSetComplete} disabled={!shouldAnchorComplete}>
+            <Pressable
             accessibilityRole="checkbox"
             accessibilityLabel={`${setNumberLabel} completed`}
             accessibilityHint="Double tap to toggle. Long press to complete remaining sets"
@@ -799,7 +820,8 @@ export function SetRow({
                 strokeWidth={2}
               />
             )}
-          </Pressable>
+            </Pressable>
+          </TourAnchor>
         )}
 
         {/* Set Type Popover */}

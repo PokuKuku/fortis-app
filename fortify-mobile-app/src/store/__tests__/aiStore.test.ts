@@ -7,6 +7,7 @@ jest.mock('@/src/services/aiService', () => ({
 }));
 
 jest.mock('@/src/utils/scopedStorage', () => ({
+  getScopedItem: jest.fn(() => Promise.resolve(null)),
   setScopedItem: jest.fn(() => Promise.resolve()),
   removeScopedItem: jest.fn(() => Promise.resolve()),
 }));
@@ -148,6 +149,46 @@ describe('useAIStore workout templates', () => {
     expect(assistantMessage?.workoutTemplate?.description).toContain('upper back');
   });
 
+  it.each([
+    ['forearms', 'Forearms', 'Dumbbell Wrist Curl'],
+    ['biceps', 'Biceps', 'Dumbbell Bicep Curl'],
+    ['triceps', 'Triceps', 'Cable Triceps Pushdown'],
+    ['calves', 'Calves', 'Standing Calf Raise'],
+  ])('preserves %s as the requested focus for generated workout cards', async (requestFocus, expectedFocus, exerciseName) => {
+    (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
+      type: 'answer',
+      requestId: `req-${requestFocus}`,
+      answer: {
+        text: `I built a ${requestFocus} workout for you.`,
+        citations: [],
+        workoutTemplate: {
+          name: 'Upper Body Workout',
+          description: `A focused ${requestFocus} session.`,
+          focus: expectedFocus,
+          estimatedDurationMinutes: 35,
+          exercises: [
+            {
+              exerciseId: `ex-${requestFocus}-1`,
+              exerciseName,
+              sets: 3,
+              reps: '12-15',
+              restSeconds: 60,
+            },
+          ],
+        },
+      },
+    });
+
+    await useAIStore.getState().sendMessage(
+      'GENERAL_CHAT',
+      `Make me a ${requestFocus} workout`
+    );
+
+    const assistantMessage = useAIStore.getState().conversation?.messages[1];
+    expect(assistantMessage?.workoutTemplate?.name).toBe(`${expectedFocus} Workout`);
+    expect(assistantMessage?.workoutTemplate?.focus).toBe(expectedFocus);
+  });
+
   it('does not render raw provider JSON errors in chat messages', async () => {
     (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
       type: 'error',
@@ -179,5 +220,40 @@ describe('useAIStore workout templates', () => {
     expect(useAIStore.getState().error).toBe(
       'That edit pulled in too much context. I trimmed it down, please try again.'
     );
+  });
+
+  it('blocks duplicate sends while an AI response is already in progress', async () => {
+    let resolveResponse: (value: unknown) => void = () => undefined;
+    (aiService.sendAIMessage as jest.Mock).mockImplementation(() => (
+      new Promise((resolve) => {
+        resolveResponse = resolve;
+      })
+    ));
+
+    const firstRequest = useAIStore.getState().sendMessage(
+      'FORTIS_ANALYST',
+      'Explain this insight and suggest what I should do next week.'
+    );
+    const secondResponse = await useAIStore.getState().sendMessage(
+      'FORTIS_ANALYST',
+      'Explain this insight and suggest what I should do next week.'
+    );
+
+    expect(secondResponse.type).toBe('error');
+    expect(secondResponse.error?.message).toBe('An AI response is already in progress.');
+    expect(aiService.sendAIMessage).toHaveBeenCalledTimes(1);
+    expect(useAIStore.getState().conversation?.messages).toHaveLength(1);
+
+    resolveResponse({
+      type: 'answer',
+      requestId: 'req-duplicate-guard',
+      answer: {
+        text: 'Here is the insight explanation.',
+        citations: [],
+      },
+    });
+    await firstRequest;
+
+    expect(useAIStore.getState().conversation?.messages).toHaveLength(2);
   });
 });

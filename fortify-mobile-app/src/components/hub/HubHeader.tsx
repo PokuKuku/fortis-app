@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextStyle } from 'react-native';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -11,9 +11,10 @@ interface HubHeaderProps {
     label: string;
     onPress: () => void;
   };
+  titleStyle?: TextStyle;
 }
 
-export function HubHeader({ title, onBack, rightAction }: HubHeaderProps) {
+export function HubHeader({ title, onBack, rightAction, titleStyle }: HubHeaderProps) {
   const { colors, isDark } = useTheme();
 
   const handleBack = () => {
@@ -49,7 +50,7 @@ export function HubHeader({ title, onBack, rightAction }: HubHeaderProps) {
         />
       </TouchableOpacity>
 
-      <Text style={[styles.title, { color: colors.textPrimary }]} numberOfLines={1}>
+      <Text style={[styles.title, { color: colors.textPrimary }, titleStyle]} numberOfLines={1}>
         {title}
       </Text>
 

@@ -15,6 +15,10 @@ jest.mock('@/src/components/superwall/useProFeatureGate', () => ({
   })),
 }));
 
+jest.mock('@/src/components/tour/TourAnchor', () => ({
+  TourAnchor: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: {
     Light: 'light',

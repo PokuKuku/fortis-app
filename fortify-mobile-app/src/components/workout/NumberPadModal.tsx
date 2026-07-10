@@ -11,6 +11,9 @@ import { useWorkoutStore } from '@/src/store/workoutStore';
 import { RPESelectorOverlay } from './RPESelectorOverlay';
 import { RPEHelpModal } from './RPEHelpModal';
 import { RpeValue } from '@/src/types/workout';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
+import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
@@ -67,6 +70,7 @@ export function NumberPadModal({
   useEditor = false,
 }: NumberPadModalProps) {
   const { colors, isDark } = useTheme();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
   const insets = useSafeAreaInsets();
 
   // Dynamic theme-aware styles
@@ -219,6 +223,14 @@ export function NumberPadModal({
     const applied = applyPendingValueToRemainingSets();
     if (applied) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      if (isTourActive && activeStepId === 'fill_reps_column') {
+        onClose();
+        // Let the keypad close and the set row return to its normal layout before
+        // measuring the checkmark for the next tour spotlight.
+        setTimeout(() => {
+          void advanceStep();
+        }, 260);
+      }
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     }
@@ -261,6 +273,7 @@ export function NumberPadModal({
   if (!visible) return null;
 
   const padBottomPadding = PAD_BOTTOM + EXTRA_BOTTOM_PADDING + Math.round(insets.bottom);
+  const shouldAnchorFillDown = isTourActive && activeStepId === 'fill_reps_column';
 
   return (
     <View style={styles.absoluteContainer} pointerEvents="box-none">
@@ -369,16 +382,18 @@ export function NumberPadModal({
 
               {/* Fill Down button - only in active workout mode */}
               {!useEditor && (
-                <Pressable
-                  onPress={handleFillDown}
-                  style={({ pressed }) => [
-                    styles.controlButton,
-                    themedStyles.controlButton,
-                    pressed && themedStyles.buttonPressed,
-                  ]}
-                >
-                  <ChevronDoubleDownIcon size={FILL_ICON_SIZE} color={colors.textPrimary} strokeWidth={2} />
-                </Pressable>
+                <TourAnchor id={TOUR_ANCHOR_IDS.activeSetFillDown} disabled={!shouldAnchorFillDown}>
+                  <Pressable
+                    onPress={handleFillDown}
+                    style={({ pressed }) => [
+                      styles.controlButton,
+                      themedStyles.controlButton,
+                      pressed && themedStyles.buttonPressed,
+                    ]}
+                  >
+                    <ChevronDoubleDownIcon size={FILL_ICON_SIZE} color={colors.textPrimary} strokeWidth={2} />
+                  </Pressable>
+                </TourAnchor>
               )}
 
               {/* Next button with gradient */}

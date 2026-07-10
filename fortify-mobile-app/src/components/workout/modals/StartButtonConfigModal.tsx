@@ -8,7 +8,6 @@ import {
 } from 'react-native-heroicons/outline';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
-import { TOUR_QUICK_START_TEMPLATE_ID } from '@/src/constants/inAppTour';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { getModalWidth, responsiveValue } from '@/src/utils/responsive';
@@ -126,7 +125,7 @@ export function StartButtonConfigModal({
   const isTourQuickStartTemplateSelected =
     isTourSelectionStep &&
     draftPreset?.type === 'template' &&
-    draftPreset.templateId === TOUR_QUICK_START_TEMPLATE_ID;
+    draftPreset.templateId === forceTemplateId;
   const canConfirm = hasChanges || hasForcedSelection || isTourQuickStartTemplateSelected;
   const disableBlankWorkout = isTourSelectionStep;
   const disableNonQuickStartTemplate = isTourSelectionStep;
@@ -198,7 +197,7 @@ export function StartButtonConfigModal({
                   template.workouts.some((w) => w.id === draftPreset.templateWorkoutId)),
               icon: <Squares2X2Icon size={18} color={themedStyles.iconColor} strokeWidth={2} />,
               disabled: (isForceMode && template.id !== forceTemplateId) ||
-                (disableNonQuickStartTemplate && template.id !== TOUR_QUICK_START_TEMPLATE_ID),
+                (disableNonQuickStartTemplate && template.id !== forceTemplateId),
               onPress: () =>
                 onChange({
                   type: 'template',

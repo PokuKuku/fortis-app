@@ -59,6 +59,7 @@ export function WorkoutDetailModal({
       visible={visible}
       onClose={onClose}
       title={workout.name}
+      titleStyle={styles.workoutTitle}
       width={350}
       animation="slide_from_right"
       showCloseButton={true}
@@ -109,6 +110,9 @@ export function WorkoutDetailModal({
 }
 
 const styles = StyleSheet.create({
+  workoutTitle: {
+    fontFamily: 'BankGothicBT-Medium',
+  },
   exerciseCount: {
     fontSize: FontSizes.sm,
     fontWeight: '500',

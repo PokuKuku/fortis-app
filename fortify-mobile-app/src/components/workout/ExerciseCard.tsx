@@ -67,6 +67,7 @@ interface ExerciseCardProps {
   completedSetTint?: 'accent' | 'success';
   shouldAnchorVoiceButton?: boolean;
   shouldAnchorSetTarget?: boolean;
+  shouldAnchorTourSetControls?: boolean;
 }
 
 export function ExerciseCard({
@@ -84,6 +85,7 @@ export function ExerciseCard({
   completedSetTint = 'accent',
   shouldAnchorVoiceButton = false,
   shouldAnchorSetTarget = false,
+  shouldAnchorTourSetControls = false,
 }: ExerciseCardProps) {
   const { colors, isDark } = useTheme();
   const { isTourActive, activeStepId } = useInAppTour();
@@ -628,6 +630,7 @@ export function ExerciseCard({
               baselinePerformance={exercise.baselinePerformance}
               suggestedPerformance={progressionSuggestion}
               completedSetTint={completedSetTint}
+              shouldAnchorTourSetControls={shouldAnchorTourSetControls}
             />
           ))}
         </View>

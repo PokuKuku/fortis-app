@@ -25,7 +25,7 @@ import type { ExerciseWithSource } from '@/src/types/exercise';
 const MAX_WORKOUT_CONTEXT_EXERCISES = 160;
 
 const WORKOUT_NOUN_PATTERN = String.raw`(?:work\s*out|workout|routine|session|template|training(?:\s+(?:day|session|workout))?|lift|day)`;
-const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|shoulders?|arms?|biceps|triceps|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
+const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|lats?|traps?|shoulders?|delts?|arms?|biceps|triceps|forearms?|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
 const WORKOUT_CREATE_VERB_PATTERN = String.raw`(?:make|create|build|generate|regenerate|reroll|redo|design|plan|craft|write|recommend|suggest|put together|give me|need|want|show me|can i have|i would like)`;
 
 const WORKOUT_REQUEST_REGEXES = [
@@ -36,23 +36,28 @@ const WORKOUT_REQUEST_REGEXES = [
 ];
 
 const WORKOUT_TARGET_MUSCLE_MAP: Array<{ regex: RegExp; muscles: string[] }> = [
-  { regex: /\bupper body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'traps', 'shoulders', 'side_delts', 'biceps', 'triceps'] },
+  { regex: /\bupper body\b/i, muscles: ['pectorals', 'lats', 'upper back', 'traps', 'delts', 'biceps', 'triceps', 'forearms'] },
   { regex: /\blower body\b/i, muscles: ['quadriceps', 'quads', 'hamstrings', 'glutes', 'calves', 'adductors', 'abductors'] },
-  { regex: /\bpush\b/i, muscles: ['chest', 'shoulders', 'side_delts', 'front_delts', 'triceps'] },
-  { regex: /\bpull\b/i, muscles: ['lats', 'middle back', 'upper_back', 'traps', 'biceps', 'forearms'] },
+  { regex: /\bpush\b/i, muscles: ['pectorals', 'delts', 'triceps'] },
+  { regex: /\bpull\b/i, muscles: ['lats', 'upper back', 'traps', 'biceps', 'forearms'] },
   { regex: /\blegs?\b/i, muscles: ['quadriceps', 'quads', 'hamstrings', 'glutes', 'calves'] },
-  { regex: /\b(?:chest|pecs?|pectorals?)\b/i, muscles: ['chest', 'pectorals', 'pecs', 'pectoralis'] },
-  { regex: /\bback\b/i, muscles: ['lats', 'middle back', 'upper_back', 'lower back', 'lower_back', 'traps'] },
-  { regex: /\b(?:shoulder(s)?|delts?|deltoids?)\b/i, muscles: ['shoulders', 'delts', 'side_delts', 'front_delts', 'rear_delts'] },
+  { regex: /\b(?:chest|pecs?|pectorals?)\b/i, muscles: ['pectorals'] },
+  { regex: /\bupper[\s_-]+back\b/i, muscles: ['upper back', 'traps', 'levator scapulae'] },
+  { regex: /\blower[\s_-]+back\b/i, muscles: ['spine'] },
+  { regex: /\b(?<!upper[\s_-])(?<!middle[\s_-])(?<!lower[\s_-])back\b/i, muscles: ['lats', 'upper back', 'spine', 'traps', 'levator scapulae'] },
+  { regex: /\blats?\b/i, muscles: ['lats'] },
+  { regex: /\btraps?\b|\btrapezius\b/i, muscles: ['traps'] },
+  { regex: /\b(?:shoulder(s)?|delts?|deltoids?)\b/i, muscles: ['delts'] },
   { regex: /\bbicep(s)?\b/i, muscles: ['biceps'] },
   { regex: /\btricep(s)?\b/i, muscles: ['triceps'] },
+  { regex: /\bforearm(s)?\b/i, muscles: ['forearms'] },
   { regex: /\barm(s)?\b/i, muscles: ['biceps', 'triceps', 'forearms'] },
   { regex: /\bglute(s)?\b/i, muscles: ['glutes'] },
   { regex: /\bhamstring(s)?\b/i, muscles: ['hamstrings'] },
   { regex: /\bquad(s|riceps)?\b/i, muscles: ['quadriceps', 'quads'] },
   { regex: /\bcal(f|ves)\b/i, muscles: ['calves'] },
-  { regex: /\bcore\b|\babs?\b/i, muscles: ['abdominals', 'abs', 'obliques', 'hip_flexors', 'hip flexors'] },
-  { regex: /\bfull body\b/i, muscles: ['chest', 'lats', 'middle back', 'upper_back', 'shoulders', 'side_delts', 'quadriceps', 'quads', 'hamstrings', 'glutes', 'biceps', 'triceps'] },
+  { regex: /\bcore\b|\babs?\b/i, muscles: ['abs', 'abdominals', 'obliques', 'hip flexors'] },
+  { regex: /\bfull body\b/i, muscles: ['pectorals', 'lats', 'upper back', 'traps', 'delts', 'quads', 'hamstrings', 'glutes', 'calves', 'biceps', 'triceps', 'forearms', 'abs'] },
 ];
 
 const WORKOUT_EQUIPMENT_MAP: Array<{ regex: RegExp; equipment: string }> = [
@@ -221,14 +226,14 @@ const buildWorkoutExerciseCatalogForAI = async (
   const anyTargetMatches = eligibleExercises.filter((exercise) =>
     exerciseMatchesTargetMuscles(exercise, targetMuscles)
   );
-  const filtered = targetMuscles.length > 0 && primaryTargetMatches.length >= 4
+  const filtered = targetMuscles.length > 0 && primaryTargetMatches.length > 0
     ? primaryTargetMatches
     : anyTargetMatches;
-  const source = filtered.length >= 12
+  // A named muscle focus is a hard constraint. Do not silently fall back to
+  // unrelated exercises when the catalog has too few matches.
+  const source = targetMuscles.length > 0
     ? filtered
-    : targetMuscles.length > 0 && filtered.length >= 4
-      ? filtered
-      : exercises.filter((exercise) => !exercise.isHidden && !avoidedExerciseIds.has(exercise.id));
+    : exercises.filter((exercise) => !exercise.isHidden && !avoidedExerciseIds.has(exercise.id));
 
   const selectedById = new Map<string, AIExerciseCatalogEntry>();
   const toCatalogEntry = (exercise: ExerciseWithSource): AIExerciseCatalogEntry => ({

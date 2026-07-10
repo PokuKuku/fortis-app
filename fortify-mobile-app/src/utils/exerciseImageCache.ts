@@ -26,6 +26,7 @@ function normalizeImageUrl(imagePath: string | null | undefined): string | null 
 }
 
 export function isExerciseGifImagePath(imagePath: string | null | undefined): boolean {
+  if (getLocalExerciseGifId(imagePath)) return true;
   const uri = normalizeImageUrl(imagePath);
   return !!uri && isGifUrl(uri);
 }

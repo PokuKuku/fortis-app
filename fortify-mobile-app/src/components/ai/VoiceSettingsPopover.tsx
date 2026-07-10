@@ -25,6 +25,7 @@ interface VoiceSettingsPopoverProps {
   onInteractionModeChange: (mode: RealtimeVoiceInteractionMode) => void;
   onExperienceModeChange?: (mode: VoiceCoachExperienceMode) => void;
   onOpenCoachingStyle: () => void;
+  onOpenMoreSettings: () => void;
   onAddMedia: () => void;
 }
 
@@ -34,6 +35,7 @@ export function VoiceSettingsPopover({
   onInteractionModeChange,
   onExperienceModeChange = () => undefined,
   onOpenCoachingStyle,
+  onOpenMoreSettings,
   onAddMedia,
 }: VoiceSettingsPopoverProps) {
   const { colors, isDark } = useTheme();
@@ -111,7 +113,9 @@ export function VoiceSettingsPopover({
           >
             <Pressable style={styles.row} onPress={() => runAfterClose(onOpenCoachingStyle)}>
               <UserCircleIcon color={colors.textSecondary} size={IconSizes.md} />
-              <Text style={[styles.label, { color: colors.textPrimary }]}>Coaching Style</Text>
+              <Text allowFontScaling={false} style={[styles.label, { color: colors.textPrimary }]}>
+                Coaching Style
+              </Text>
             </Pressable>
             <Pressable
               style={styles.row}
@@ -121,8 +125,12 @@ export function VoiceSettingsPopover({
             >
               <ChatBubbleLeftRightIcon color={colors.textSecondary} size={IconSizes.md} />
               <View style={styles.labelBlock}>
-                <Text style={[styles.label, { color: colors.textPrimary }]}>Conversation Mode</Text>
-                <Text style={[styles.caption, { color: colors.textTertiary }]}>Custom personality and prompts</Text>
+                <Text allowFontScaling={false} style={[styles.label, { color: colors.textPrimary }]}>
+                  Conversation Mode
+                </Text>
+                <Text allowFontScaling={false} style={[styles.caption, { color: colors.textTertiary }]}>
+                  Custom personality and prompts
+                </Text>
               </View>
               <Switch
                 testID="conversation-mode-switch"
@@ -138,8 +146,12 @@ export function VoiceSettingsPopover({
               onPress={() => onInteractionModeChange(interactionMode === 'realtime' ? 'push_to_talk' : 'realtime')}
             >
               <View style={styles.labelBlock}>
-                <Text style={[styles.label, { color: colors.textPrimary }]}>Realtime Mode</Text>
-                <Text style={[styles.caption, { color: colors.textTertiary }]}>Hands-free conversation</Text>
+                <Text allowFontScaling={false} style={[styles.label, { color: colors.textPrimary }]}>
+                  Realtime Mode
+                </Text>
+                <Text allowFontScaling={false} style={[styles.caption, { color: colors.textTertiary }]}>
+                  Hands-free conversation
+                </Text>
               </View>
               <Switch
                 testID="realtime-mode-switch"
@@ -150,7 +162,16 @@ export function VoiceSettingsPopover({
             </Pressable>
             <Pressable style={styles.row} onPress={() => runAfterClose(onAddMedia)}>
               <PhotoIcon color={colors.textSecondary} size={IconSizes.md} />
-              <Text style={[styles.label, { color: colors.textPrimary }]}>Add Photos or Video</Text>
+              <Text allowFontScaling={false} style={[styles.label, { color: colors.textPrimary }]}>
+                Add Photos or Video
+              </Text>
+            </Pressable>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <Pressable style={styles.row} onPress={() => runAfterClose(onOpenMoreSettings)}>
+              <Cog6ToothIcon color={colors.textSecondary} size={IconSizes.md} />
+              <Text allowFontScaling={false} style={[styles.label, { color: colors.textPrimary }]}>
+                More settings
+              </Text>
             </Pressable>
           </View>
         </Pressable>
@@ -188,6 +209,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: Spacing.md,
   },
   labelBlock: { flex: 1 },
   label: { ...Typography.bodySmall, fontWeight: '700', flex: 1 },

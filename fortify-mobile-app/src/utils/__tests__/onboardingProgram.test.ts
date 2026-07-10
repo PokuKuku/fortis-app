@@ -193,7 +193,7 @@ describe('onboarding program helpers', () => {
     expect(payload?.workouts[0].exercises.map((item) => item.exerciseName)).toContain('Leg Press');
   });
 
-  it('excludes exercises without usable GIF media', () => {
+  it('prioritizes GIF-backed exercises but can use non-GIF entries from the current DB', () => {
     const spec = buildOnboardingProgramSpec({
       workouts_per_week: 1,
       training_environment: 'gym',
@@ -224,13 +224,14 @@ describe('onboarding program helpers', () => {
     ]);
 
     const exerciseNames = payload?.workouts[0].exercises.map((item) => item.exerciseName) ?? [];
-    expect(exerciseNames).toContain('Barbell Squat');
+    expect(exerciseNames[0]).toBe('Barbell Squat');
+    expect(exerciseNames).toContain('Dumbbell Step-up Lunge');
     expect(exerciseNames).not.toContain('Advanced Dumbbell Step Up');
-    expect(exerciseNames).not.toContain('Dumbbell Step-up Lunge');
-    expect(exerciseNames).toEqual(expect.arrayContaining(['Leg Press', 'Romanian Deadlift', 'Seated Leg Curl']));
+    expect(exerciseNames).toEqual(expect.arrayContaining(['Romanian Deadlift', 'Seated Leg Curl']));
+    expect(exerciseNames.length).toBeGreaterThanOrEqual(4);
   });
 
-  it('returns fewer exercises instead of filling with non-GIF exercises', () => {
+  it('builds fallback workouts even when the exercise DB has no recognized GIF media', () => {
     const spec = buildOnboardingProgramSpec({
       workouts_per_week: 1,
       training_environment: 'gym',
@@ -238,10 +239,10 @@ describe('onboarding program helpers', () => {
     } as OnboardingState);
     const payload = buildDeterministicOnboardingProgram(spec, [
       exercise('leg-press', 'Leg Press', ['quadriceps'], 'Machine', {
-        images: ['leg-press.gif'],
+        images: [],
       }),
       exercise('rdl', 'Romanian Deadlift', ['hamstrings'], 'Barbell', {
-        images: ['rdl.gif'],
+        images: [],
       }),
       exercise('static-calf-raise', 'Standing Calf Raise', ['calves'], 'Machine', {
         images: ['standing-calf-raise.jpg'],
@@ -252,9 +253,38 @@ describe('onboarding program helpers', () => {
     ]);
 
     const exerciseNames = payload?.workouts[0].exercises.map((item) => item.exerciseName) ?? [];
-    expect(exerciseNames).toEqual(['Leg Press', 'Romanian Deadlift']);
-    expect(exerciseNames).not.toContain('Standing Calf Raise');
-    expect(exerciseNames).not.toContain('Cable Hip Adduction');
+    expect(payload).not.toBeNull();
+    expect(exerciseNames).toEqual(expect.arrayContaining([
+      'Leg Press',
+      'Romanian Deadlift',
+      'Standing Calf Raise',
+      'Cable Hip Adduction',
+    ]));
+  });
+
+  it('recognizes bundled local exercise GIF paths as usable media', () => {
+    const spec = buildOnboardingProgramSpec({
+      workouts_per_week: 1,
+      training_environment: 'gym',
+      muscle_focuses: ['chest'],
+    } as OnboardingState);
+    const payload = buildDeterministicOnboardingProgram(spec, [
+      exercise('bench', 'Barbell Bench Press', ['chest'], 'Barbell', {
+        images: ['exercise-gif://0001'],
+      }),
+      exercise('machine-press', 'Machine Bench Press', ['chest'], 'Machine', {
+        images: ['machine-press.jpg'],
+      }),
+      exercise('db-fly', 'Dumbbell Fly', ['chest'], 'Dumbbell', {
+        images: [],
+      }),
+    ]);
+
+    expect(payload?.workouts[0].exercises.map((item) => item.exerciseName)).toEqual(expect.arrayContaining([
+      'Barbell Bench Press',
+      'Machine Bench Press',
+      'Dumbbell Fly',
+    ]));
   });
 
   it('excludes gym equipment from home generated programs', () => {

@@ -29,6 +29,8 @@ import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 import { ACCENT_COLORS } from '@/src/utils/accentColors';
 import { useWorkoutStore } from '@/src/store/workoutStore';
+import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const HORIZONTAL_PADDING = scale(24);
@@ -269,36 +271,40 @@ export function WeeklyProgressCarousel({
         <View style={styles.headerRow}>
           <Text style={[styles.title, { color: colors.textPrimary }]}>{headerDateLabel}</Text>
           {isPro ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={isStreakPaused ? 'Workout streak paused' : 'Open workout streak options'}
-              onPress={handleStreakPress}
-              style={({ pressed }) => [
-                styles.streakInline,
-                pressed && styles.streakInlinePressed,
-              ]}
-            >
-              <Text style={[styles.streakText, { color: colors.textPrimary }]}>
-                {displayedStreak}
-              </Text>
-              <FireIcon
-                color={isStreakPaused ? colors.textTertiary : '#FF4D4D'}
-                size={20}
-                strokeWidth={2.4}
-              />
-            </Pressable>
+            <TourAnchor id={TOUR_ANCHOR_IDS.streakCounter}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={isStreakPaused ? 'Workout streak paused' : 'Open workout streak options'}
+                onPress={handleStreakPress}
+                style={({ pressed }) => [
+                  styles.streakInline,
+                  pressed && styles.streakInlinePressed,
+                ]}
+              >
+                <Text style={[styles.streakText, { color: colors.textPrimary }]}>
+                  {displayedStreak}
+                </Text>
+                <FireIcon
+                  color={isStreakPaused ? colors.textTertiary : '#FF4D4D'}
+                  size={20}
+                  strokeWidth={2.4}
+                />
+              </Pressable>
+            </TourAnchor>
           ) : (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Go Pro to view workout streak"
-              onPress={handleWorkoutStreakUpgradePress}
-              style={({ pressed }) => [
-                styles.streakUpgradeButton,
-                pressed && styles.streakUpgradeButtonPressed,
-              ]}
-            >
-              <Text style={styles.streakUpgradeText}>Go Pro</Text>
-            </Pressable>
+            <TourAnchor id={TOUR_ANCHOR_IDS.streakCounter}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Go Pro to view workout streak"
+                onPress={handleWorkoutStreakUpgradePress}
+                style={({ pressed }) => [
+                  styles.streakUpgradeButton,
+                  pressed && styles.streakUpgradeButtonPressed,
+                ]}
+              >
+                <Text style={styles.streakUpgradeText}>Go Pro</Text>
+              </Pressable>
+            </TourAnchor>
           )}
         </View>
         <FlatList
@@ -547,7 +553,7 @@ export function WeeklyProgressCarousel({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: scale(32),
+    marginBottom: scale(16),
   },
   headerRow: {
     flexDirection: 'row',

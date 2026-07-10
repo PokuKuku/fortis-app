@@ -25,6 +25,7 @@ import {
 } from '@/src/utils/aiChatTour';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 import { posthog } from '@/src/config/posthog';
+import { ACCENT_COLORS } from '@/src/utils/accentColors';
 
 const AI_CHAT_TOUR_NARRATION_DEFAULT = require('@/assets/audio/ai-chat-overview.m4a');
 const AI_CHAT_TOUR_NARRATION_CEDAR = require('@/assets/audio/ai-chat-overview-cedar.m4a');
@@ -33,6 +34,7 @@ const AI_CHAT_TOUR_NARRATION_CEDAR = require('@/assets/audio/ai-chat-overview-ce
 const FORCE_TOUR_ON_DEV_REFRESH = false;
 
 type TourStepId =
+  | 'streak_counter'
   | 'welcome'
   | 'workouts_intro'
   | 'add_workout_routine'
@@ -54,6 +56,10 @@ type TourStepId =
   | 'rest_timer'
   | 'open_voice_log'
   | 'voice_log_result'
+  | 'fill_weight_column'
+  | 'fill_reps_column'
+  | 'complete_remaining_sets'
+  | 'logging_shortcuts'
   | 'set_target'
   | 'rest_timer_settings'
   | 'go_insights'
@@ -68,10 +74,12 @@ type TourStep = {
   route: TourRoute;
   anchorId?: TourAnchorId;
   secondaryAnchorId?: TourAnchorId;
+  arrowAnchorId?: TourAnchorId;
   body: string;
   mode: TourOverlayMode;
   primaryActionLabel?: string | null;
   showArrow?: boolean;
+  arrowColor?: string;
   centerTooltip?: boolean;
   showHighlight?: boolean;
   hideTooltip?: boolean;
@@ -96,6 +104,16 @@ const TOUR_STEPS: TourStep[] = [
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
+  },
+  {
+    id: 'streak_counter',
+    route: '/(tabs)',
+    anchorId: TOUR_ANCHOR_IDS.streakCounter,
+    body: 'Your streak counter tracks the scheduled workout days you complete.\n\nYou can freeze your streak when life gets in the way, up to 3 times each month.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    placement: 'below',
   },
   {
     id: 'workouts_intro',
@@ -164,7 +182,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'paste_workout_result',
     route: '/workout/create',
     body: 'Your notes will now appear as a workout template! The cleaner the layout of your notes, the faster the result!',
-    mode: 'blocking',
+    mode: 'non_blocking',
     primaryActionLabel: 'Next',
     showArrow: false,
     centerTooltip: true,
@@ -231,7 +249,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'quick_start',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'Tap the dumbbell, select “Upper,” and confirm to set your default workout. You can reset it later by press & hold.',
+    body: 'Tap the dumbbell, select “Back Workout,” and confirm to set your default workout. You can reset it later by press & hold.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -268,6 +286,50 @@ const TOUR_STEPS: TourStep[] = [
     holePaddingBottom: -22,
     reserveArrowSpace: true,
     allowAnchorInteraction: false,
+  },
+  {
+    id: 'fill_weight_column',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
+    arrowAnchorId: TOUR_ANCHOR_IDS.activeSetWeight,
+    body: 'Press and hold 225 to fill the remaining sets in this weight column.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    arrowColor: ACCENT_COLORS.midnight.base,
+  },
+  {
+    id: 'fill_reps_column',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.activeSetFillDown,
+    secondaryAnchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
+    body: 'The double-down arrow on the keyboard does the same thing: it fills the remaining cells in whichever column you are editing.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    placement: 'above',
+  },
+  {
+    id: 'complete_remaining_sets',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
+    arrowAnchorId: TOUR_ANCHOR_IDS.activeSetComplete,
+    body: 'Press and hold a checkmark in the rightmost column to complete all remaining sets.',
+    mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    arrowColor: ACCENT_COLORS.midnight.base,
+  },
+  {
+    id: 'logging_shortcuts',
+    route: '/workout/active',
+    anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
+    body: 'These shortcuts keep your workout moving. Log repeated sets in seconds, so you can focus on training.',
+    mode: 'spotlight',
+    primaryActionLabel: 'Next',
+    showArrow: false,
+    placement: 'below',
+    holePadding: 0,
   },
   {
     id: 'set_target',
@@ -341,6 +403,7 @@ const TOUR_STEPS: TourStep[] = [
 ];
 
 const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
+  'streak_counter',
   'welcome',
   'workouts_intro',
   'ai_text_chat_overview',
@@ -348,6 +411,10 @@ const ROUTE_LOCKED_STEP_IDS: ReadonlySet<TourStepId> = new Set([
   'ai_voice_chat_open',
   'ai_chat_overview',
   'quick_start',
+  'fill_weight_column',
+  'fill_reps_column',
+  'complete_remaining_sets',
+  'logging_shortcuts',
   'rest_timer',
   'open_voice_log',
   'rest_timer_settings',
@@ -418,13 +485,17 @@ type InAppTourContextValue = {
   registerAnchorRect: (id: string, rect: AnchorRect) => void;
   unregisterAnchor: (id: string) => void;
   isTourActive: boolean;
+  hasTourFinished: boolean;
   activeStepId: TourStepId | null;
   activeAnchorId: TourAnchorId | null;
+  activeSecondaryAnchorId: TourAnchorId | null;
+  activeArrowAnchorId: TourAnchorId | null;
   advanceStep: () => void;
   skipTour: () => void;
   currentStepNumber: number | null;
   totalSteps: number;
   queueTourStartAfterPaywallClose: () => void;
+  resetTourForDev: () => Promise<void>;
   shouldBypassProGateForTour: (placement: PaywallPlacement) => boolean;
 };
 
@@ -478,6 +549,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const currentAnchorRect = overlayStep?.anchorId ? anchorRects[overlayStep.anchorId] ?? null : null;
   const secondaryAnchorRect = overlayStep?.secondaryAnchorId
     ? anchorRects[overlayStep.secondaryAnchorId] ?? null
+    : null;
+  const arrowAnchorRect = overlayStep?.arrowAnchorId
+    ? anchorRects[overlayStep.arrowAnchorId] ?? null
     : null;
   const normalizedPathname = useMemo(
     () => (pathname ? pathname.replace('/(tabs)', '') : ''),
@@ -856,16 +930,13 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     segments[0] !== 'onboarding' &&
     segments[0] !== 'auth' &&
     segments[0] !== 'paywall-gate';
+  // Completing or skipping a tour is permanent for an account. Tour versions track
+  // the content that was shown to new users; they must not re-enroll existing users.
   const hasSeenServer = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(
-    profile?.has_seen_in_app_tour &&
-    profile?.in_app_tour_completed_at &&
-    (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
+    profile?.has_seen_in_app_tour && profile?.in_app_tour_completed_at
   );
-  const hasServerStartedCurrentTour = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(
-    profile?.has_seen_in_app_tour &&
-    (profile?.in_app_tour_version ?? 0) >= IN_APP_TOUR_VERSION
-  );
-  const shouldUseLocalTourCompletion = !profileResolved || hasSeenServer || hasServerStartedCurrentTour;
+  const hasServerStartedTour = !FORCE_TOUR_ON_DEV_REFRESH && Boolean(profile?.has_seen_in_app_tour);
+  const shouldUseLocalTourCompletion = !profileResolved || hasSeenServer || hasServerStartedTour;
   const hasSeenLocal = shouldUseLocalTourCompletion && (
     tourState?.status === 'completed' || tourState?.status === 'skipped'
   );
@@ -879,10 +950,23 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     !isTourActive &&
     !hasSeenServer &&
     !hasSeenLocal;
+  const hasTourFinished = Boolean(
+    hasSeenServer || tourState?.status === 'completed' || tourState?.status === 'skipped'
+  );
 
   const queueTourStartAfterPaywallClose = useCallback(() => {
     setPendingPaywallStartRequestedAt(Date.now());
   }, []);
+
+  const resetTourForDev = useCallback(async () => {
+    setRenderStepId(null);
+    setPendingStepId(null);
+    setIsTooltipVisible(false);
+    setIsExitingTooltip(false);
+    lastTrackedStepIdRef.current = null;
+    await setTourStateAndPersist(null);
+    setTourLoaded(true);
+  }, [setTourStateAndPersist]);
 
   // Auto-start tour when eligible.
   useEffect(() => {
@@ -998,19 +1082,23 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     registerAnchorRect,
     unregisterAnchor,
     isTourActive,
+    hasTourFinished,
     activeStepId: logicalStep?.id ?? null,
     activeAnchorId: logicalStep?.anchorId ?? null,
+    activeSecondaryAnchorId: logicalStep?.secondaryAnchorId ?? null,
+    activeArrowAnchorId: logicalStep?.arrowAnchorId ?? null,
     advanceStep: () => void advanceStep(),
     skipTour: () => void finishTour('skipped'),
     currentStepNumber: logicalStep ? getStepIndexById(logicalStep.id) + 1 : null,
     totalSteps: TOUR_STEPS.length,
     queueTourStartAfterPaywallClose,
+    resetTourForDev,
     shouldBypassProGateForTour: (placement) => shouldBypassProGateForTourState({
       activeStepId: logicalStep?.id ?? null,
       isTourActive,
       placement,
     }),
-  }), [advanceStep, finishTour, isTourActive, logicalStep, queueTourStartAfterPaywallClose, registerAnchorRect, unregisterAnchor]);
+  }), [advanceStep, finishTour, hasTourFinished, isTourActive, logicalStep, queueTourStartAfterPaywallClose, registerAnchorRect, resetTourForDev, unregisterAnchor]);
 
   const primaryAction = useMemo(() => {
     if (!isTourActive || !overlayStep || !overlayStep.primaryActionLabel) return null;
@@ -1101,12 +1189,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         mode={overlayStep?.mode ?? 'blocking'}
         anchorRect={currentAnchorRect}
         secondaryAnchorRect={secondaryAnchorRect}
+        arrowTargetRect={arrowAnchorRect}
         body={overlayStep?.body ?? ''}
         stepLabel={stepLabel}
         primaryAction={primaryAction}
         secondaryAction={skipAction}
         auxiliaryAction={auxiliaryAction}
         showArrow={Boolean(overlayStep?.showArrow) && isTooltipVisible && Boolean(currentAnchorRect)}
+        arrowColor={overlayStep?.arrowColor}
         centerTooltip={
           Boolean(overlayStep?.centerTooltip) ||
           (overlayStep?.mode === 'spotlight' && !currentAnchorRect)
@@ -1131,7 +1221,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         showCloseButton={false}
         closeOnBackdropPress={false}
         showThemeToggle
-        confirmButtonLabel="Confirm"
+        confirmButtonLabel="Continue"
         onClose={() => {
           void finishTour('completed');
         }}

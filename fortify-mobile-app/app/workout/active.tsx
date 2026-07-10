@@ -91,6 +91,65 @@ export default function ActiveWorkoutScreen() {
   const pausedElapsedSeconds = useWorkoutStore(s => s.pausedElapsedSeconds);
   const completedSessions = useWorkoutStore(s => s.completedSessions);
   const openFirstWorkoutStreakModal = useWorkoutStore(s => s.openFirstWorkoutStreakModal);
+  const preparedTourSetStepRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const isSetAutofillTourStep = isTourActive && (
+      activeStepId === 'voice_log_result'
+      || activeStepId === 'fill_weight_column'
+      || activeStepId === 'fill_reps_column'
+      || activeStepId === 'complete_remaining_sets'
+    );
+    if (!isSetAutofillTourStep) {
+      preparedTourSetStepRef.current = null;
+      return;
+    }
+    if (preparedTourSetStepRef.current === activeStepId) return;
+
+    const exercise = activeSession?.exercises[0];
+    const firstSet = exercise?.sets[0];
+    if (!exercise || !firstSet) return;
+
+    preparedTourSetStepRef.current = activeStepId;
+    const { closeNumberPad, openNumberPad, setWeightUnit, updateSet } = useWorkoutStore.getState();
+
+    if (activeStepId === 'voice_log_result') {
+      void setWeightUnit(exercise.exerciseId, 'lbs');
+      updateSet(exercise.localId, firstSet.localId, {
+        weight: 225,
+        reps: 8,
+        isCompleted: false,
+      });
+      exercise.sets.slice(1).forEach((set) => {
+        updateSet(exercise.localId, set.localId, {
+          weight: null,
+          reps: null,
+          isCompleted: false,
+        });
+      });
+      closeNumberPad();
+      return;
+    }
+
+    if (activeStepId === 'fill_weight_column') {
+      closeNumberPad();
+      return;
+    }
+
+    if (activeStepId === 'fill_reps_column') {
+      openNumberPad(exercise.localId, firstSet.localId, 'reps', {
+        weight: 225,
+        reps: 8,
+      });
+      return;
+    }
+
+    closeNumberPad();
+  }, [
+    activeSession,
+    activeStepId,
+    isTourActive,
+  ]);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -759,13 +818,20 @@ export default function ActiveWorkoutScreen() {
         completedSetTint="success"
         shouldAnchorVoiceButton={index === 0}
         shouldAnchorSetTarget={index === 0}
+        shouldAnchorTourSetControls={index === 0}
       />
     );
 
     const shouldAnchorExerciseCard =
       index === 0 &&
       isTourActive &&
-      activeStepId === 'voice_log_result';
+      (
+        activeStepId === 'voice_log_result'
+        || activeStepId === 'fill_weight_column'
+        || activeStepId === 'fill_reps_column'
+        || activeStepId === 'complete_remaining_sets'
+        || activeStepId === 'logging_shortcuts'
+      );
 
     if (!shouldAnchorExerciseCard) {
       return card;

@@ -14,7 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { XMarkIcon, CalendarDaysIcon, PencilIcon, ClockIcon, MicrophoneIcon } from 'react-native-heroicons/outline';
+import { XMarkIcon, CalendarDaysIcon, PencilIcon, ClockIcon, MicrophoneIcon, PlusIcon } from 'react-native-heroicons/outline';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -49,6 +49,7 @@ import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/servic
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import { useProFeatureGate } from '@/src/components/superwall/useProFeatureGate';
 import { posthog } from '@/src/config/posthog';
+import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 
 const HEATMAP_SCALE = responsiveValue(0.16, 0.18, 0.2);
 const HEADER_COLLAPSE_THRESHOLD = scale(48);
@@ -163,7 +164,7 @@ export default function CreateWorkoutScreen() {
   const restTimerSettings = useWorkoutStore(s => s.restTimerSettings);
   const updateRestTimerSettings = useWorkoutStore(s => s.updateRestTimerSettings);
   const weightUnits = useWorkoutStore(s => s.weightUnits);
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
 
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [showVoiceAddSheet, setShowVoiceAddSheet] = useState(false);
@@ -177,6 +178,7 @@ export default function CreateWorkoutScreen() {
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [showHeaderDetails, setShowHeaderDetails] = useState(true);
   const [creationMethod, setCreationMethod] = useState<'manual' | 'voice' | 'paste_template'>('manual');
+  const didUsePasteTemplateRef = useRef(false);
   const headerDetailsVisibleRef = useRef(true);
   const isNavigating = useRef(false);
 
@@ -455,6 +457,9 @@ export default function CreateWorkoutScreen() {
           ? await saveEditorAsTemplate(templateId)
           : await saveEditorAsTemplate();
         if (updatedTemplateId) {
+          if (creationMethod === 'paste_template' || didUsePasteTemplateRef.current) {
+            await completeNewUserChecklistTask('make_workout_template_from_text', user?.id ?? null);
+          }
           if (!isEditingTemplate && !isEditingProgramWorkout) {
             posthog.capture('workout_created', {
               method: creationMethod,
@@ -884,7 +889,17 @@ export default function CreateWorkoutScreen() {
                       pressed && styles.addExercisesButtonPressed,
                     ]}
                   >
-                    <Text style={[styles.secondaryActionText, themedStyles.addExercisesText]}>Paste Workout</Text>
+                    <View style={styles.pasteWorkoutButtonContent}>
+                      <PlusIcon size={18} color={colors.accent} strokeWidth={2.4} />
+                      <Text
+                        style={[styles.secondaryActionText, themedStyles.addExercisesText]}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                      >
+                        Add Exercises by Text
+                      </Text>
+                    </View>
                   </Pressable>
                 </TourAnchor>
               ) : (
@@ -900,7 +915,17 @@ export default function CreateWorkoutScreen() {
                     pressed && styles.addExercisesButtonPressed,
                   ]}
                 >
-                  <Text style={[styles.secondaryActionText, themedStyles.addExercisesText]}>Paste Workout</Text>
+                  <View style={styles.pasteWorkoutButtonContent}>
+                    <PlusIcon size={18} color={colors.accent} strokeWidth={2.4} />
+                    <Text
+                      style={[styles.secondaryActionText, themedStyles.addExercisesText]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.72}
+                    >
+                      Add Exercises by Text
+                    </Text>
+                  </View>
                 </Pressable>
               )}
 
@@ -974,6 +999,7 @@ export default function CreateWorkoutScreen() {
           if (!shouldRunPasteWorkoutDemo) setShowPasteWorkoutSheet(false);
         }}
         onAdd={(entries, workoutName) => {
+          didUsePasteTemplateRef.current = true;
           addEditorExercises(entries);
           setCreationMethod('paste_template');
           posthog.capture('notes_to_template_used');
@@ -982,7 +1008,11 @@ export default function CreateWorkoutScreen() {
             setEditorWorkoutName(workoutName);
           }
         }}
-        onResolve={setUnresolvedPastedExercises}
+        onResolve={(entries) => {
+          didUsePasteTemplateRef.current = true;
+          setCreationMethod('paste_template');
+          setUnresolvedPastedExercises(entries);
+        }}
         tourExampleText={shouldRunPasteWorkoutDemo ? TOUR_PASTE_WORKOUT_EXAMPLE : undefined}
         onTourExampleImported={() => {
           setShowPasteWorkoutSheet(false);
@@ -993,6 +1023,8 @@ export default function CreateWorkoutScreen() {
         entries={unresolvedPastedExercises}
         onDismiss={() => setUnresolvedPastedExercises([])}
         onComplete={(entries) => {
+          didUsePasteTemplateRef.current = true;
+          setCreationMethod('paste_template');
           addEditorExercises(entries);
           setUnresolvedPastedExercises([]);
         }}
@@ -1242,6 +1274,13 @@ const styles = StyleSheet.create({
   },
   pasteWorkoutButton: {
     minHeight: ButtonHeights.xl,
+  },
+  pasteWorkoutButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    width: '100%',
   },
   voiceAddButton: {
     gap: Spacing.xs,

@@ -7,6 +7,7 @@ import {
   fetchAIUserContext,
   fetchAnalytics,
   fetchHistorySummary,
+  fetchRecentWorkoutContext,
   withContextCache,
 } from '../_shared/ai-context.ts';
 
@@ -214,6 +215,10 @@ function buildVoiceCoachContextPayload(context: VoiceCoachTrainingContext): Reco
     },
   };
 
+  if (context.recentWorkouts) {
+    payload.recentWorkouts = context.recentWorkouts;
+  }
+
   if (context.conversationDetail) {
     payload.conversationDetail = context.conversationDetail;
     const sessions = Array.isArray(context.conversationDetail.recentSessions)
@@ -341,7 +346,7 @@ async function assembleVoiceCoachTrainingContext(
   experienceMode: VoiceCoachExperienceMode
 ): Promise<VoiceCoachTrainingContext | null> {
   try {
-    const [user, history, analytics] = await Promise.all([
+    const [user, history, analytics, recentWorkouts] = await Promise.all([
       withContextCache(
         buildCacheKey('voice-prefs', userId),
         () => fetchAIUserContext(adminClient, userId)
@@ -354,6 +359,10 @@ async function assembleVoiceCoachTrainingContext(
         buildCacheKey('voice-analytics', userId),
         () => fetchAnalytics(adminClient, userId)
       ),
+      withContextCache(
+        buildCacheKey('voice-recent-workouts', userId, 5, 90),
+        () => fetchRecentWorkoutContext(adminClient, userId, { maxSessions: 5, days: 90 })
+      ),
     ]);
 
     const conversationDetail = experienceMode === 'conversation'
@@ -364,6 +373,7 @@ async function assembleVoiceCoachTrainingContext(
       user,
       history,
       analytics,
+      recentWorkouts,
       contextWeeks: VOICE_COACH_CONTEXT_WEEKS,
       conversationDetail,
     };

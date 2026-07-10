@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, AppState, InteractionManager, type AppStateStatus } from 'react-native';
+import { View, StyleSheet, AppState, InteractionManager, type AppStateStatus, type DimensionValue } from 'react-native';
 import type { ComponentType } from 'react';
 import { useIsFocused } from '@react-navigation/native';
 
 interface OnboardingDemoVideoProps {
   sourceModule: number;
-  height: number | string;
+  height: DimensionValue;
   scale?: number;
   offsetY?: number;
   active?: boolean;
@@ -22,7 +22,15 @@ type ExpoVideoModule = {
   createVideoPlayer: (source: number | { assetId: number }) => any;
 };
 
+type ExpoAvModule = {
+  Video: ComponentType<any>;
+  ResizeMode?: {
+    CONTAIN?: string;
+  };
+};
+
 let sharedExpoVideoModule: ExpoVideoModule | null = null;
+let sharedExpoAvModule: ExpoAvModule | null = null;
 let sharedPlayer: any | null = null;
 let sharedPlayerSourceModule: number | null = null;
 let sharedPlayerConsumerCount = 0;
@@ -44,6 +52,21 @@ const safePause = (videoPlayer: any) => {
     videoPlayer.pause?.();
   } catch {
     // no-op
+  }
+};
+
+const getExpoAvModule = (): ExpoAvModule | null => {
+  if (sharedExpoAvModule) {
+    return sharedExpoAvModule;
+  }
+
+  try {
+    // Fallback for builds where expo-video is not available yet.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    sharedExpoAvModule = require('expo-av') as ExpoAvModule;
+    return sharedExpoAvModule;
+  } catch {
+    return null;
   }
 };
 
@@ -136,6 +159,13 @@ export function OnboardingDemoVideo({
     }
     return getExpoVideoModule();
   }, [isMountReady]);
+  const expoAv = useMemo(() => {
+    if (!isMountReady || expoVideo) {
+      return null;
+    }
+    return getExpoAvModule();
+  }, [expoVideo, isMountReady]);
+  const shouldPlay = active && shouldKeepPlaying(isFocused, appState);
 
   useEffect(() => {
     if (!expoVideo || !isMountReady) return;
@@ -173,7 +203,6 @@ export function OnboardingDemoVideo({
       return;
     }
 
-    const shouldPlay = active && shouldKeepPlaying(isFocused, appState);
     if (!shouldPlay) {
       safePause(player);
       return;
@@ -222,9 +251,25 @@ export function OnboardingDemoVideo({
     return () => {
       clearInterval(watchdog);
     };
-  }, [active, appState, isFocused, player, enablePlaybackWatchdog]);
+  }, [player, shouldPlay, enablePlaybackWatchdog]);
 
   if (!expoVideo || !player) {
+    if (expoAv) {
+      const { Video, ResizeMode } = expoAv;
+      return (
+        <View style={[styles.container, { height }]}>
+          <Video
+            source={sourceModule}
+            isLooping
+            isMuted
+            shouldPlay={shouldPlay}
+            resizeMode={ResizeMode?.CONTAIN ?? 'contain'}
+            style={[styles.video, { transform: [{ scale }, { translateY: offsetY }] }]}
+          />
+        </View>
+      );
+    }
+
     return <View style={[styles.container, { height }]} />;
   }
 
