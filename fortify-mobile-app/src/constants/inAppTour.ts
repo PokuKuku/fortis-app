@@ -1,7 +1,9 @@
 export const IN_APP_TOUR_VERSION = 30 as const;
 
 export const TOUR_QUICK_START_TEMPLATE_ID = 'default-template-upper' as const;
-export const TOUR_BACK_WORKOUT_AI_SOURCE = 'in_app_tour_back_workout' as const;
+// This marks the tour-created template without using ai_source_chat_id, which
+// is reserved for real chat UUIDs in Supabase.
+export const TOUR_BACK_WORKOUT_TEMPLATE_MARKER = 'in_app_tour_back_workout' as const;
 
 export const TOUR_ANCHOR_IDS = {
   aiChatButton: 'tour.tabs.aiChatButton',

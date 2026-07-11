@@ -196,7 +196,9 @@ async function uploadProgram(
         is_default: false,
         is_ai_created: program.isAiCreated,
         ai_payload_version: program.aiPayloadVersion ?? null,
-        ai_source_chat_id: program.aiSourceChatId ?? null,
+        ai_source_chat_id: program.aiSourceChatId && isValidUUID(program.aiSourceChatId)
+          ? program.aiSourceChatId
+          : null,
         is_template: program.isTemplate,
         created_by: userId,
       })
@@ -301,7 +303,9 @@ async function updateExistingProgram(
         is_default: false,
         is_ai_created: program.isAiCreated,
         ai_payload_version: program.aiPayloadVersion ?? null,
-        ai_source_chat_id: program.aiSourceChatId ?? null,
+        ai_source_chat_id: program.aiSourceChatId && isValidUUID(program.aiSourceChatId)
+          ? program.aiSourceChatId
+          : null,
         is_template: program.isTemplate,
         updated_at: program.updatedAt ?? new Date().toISOString(),
       })

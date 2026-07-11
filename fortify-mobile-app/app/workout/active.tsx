@@ -95,8 +95,7 @@ export default function ActiveWorkoutScreen() {
 
   useEffect(() => {
     const isSetAutofillTourStep = isTourActive && (
-      activeStepId === 'voice_log_result'
-      || activeStepId === 'fill_weight_column'
+      activeStepId === 'fill_weight_column'
       || activeStepId === 'fill_reps_column'
       || activeStepId === 'complete_remaining_sets'
     );
@@ -113,7 +112,7 @@ export default function ActiveWorkoutScreen() {
     preparedTourSetStepRef.current = activeStepId;
     const { closeNumberPad, openNumberPad, setWeightUnit, updateSet } = useWorkoutStore.getState();
 
-    if (activeStepId === 'voice_log_result') {
+    if (activeStepId === 'fill_weight_column') {
       void setWeightUnit(exercise.exerciseId, 'lbs');
       updateSet(exercise.localId, firstSet.localId, {
         weight: 225,
@@ -127,11 +126,6 @@ export default function ActiveWorkoutScreen() {
           isCompleted: false,
         });
       });
-      closeNumberPad();
-      return;
-    }
-
-    if (activeStepId === 'fill_weight_column') {
       closeNumberPad();
       return;
     }
@@ -826,8 +820,7 @@ export default function ActiveWorkoutScreen() {
       index === 0 &&
       isTourActive &&
       (
-        activeStepId === 'voice_log_result'
-        || activeStepId === 'fill_weight_column'
+        activeStepId === 'fill_weight_column'
         || activeStepId === 'fill_reps_column'
         || activeStepId === 'complete_remaining_sets'
         || activeStepId === 'logging_shortcuts'

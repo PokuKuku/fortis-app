@@ -61,6 +61,7 @@ type TourStepId =
   | 'complete_remaining_sets'
   | 'logging_shortcuts'
   | 'set_target'
+  | 'set_target_explanation'
   | 'rest_timer_settings'
   | 'go_insights'
   | 'insights_overview'
@@ -92,6 +93,7 @@ type TourStep = {
   holePaddingBottom?: number;
   reserveArrowSpace?: boolean;
   allowAnchorInteraction?: boolean;
+  requiresActionBeforeNext?: boolean;
 };
 
 const TOUR_STEPS: TourStep[] = [
@@ -133,6 +135,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
   },
   {
     id: 'open_add_with_voice',
@@ -225,6 +228,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: true,
+    requiresActionBeforeNext: true,
   },
   {
     id: 'ai_voice_chat_open',
@@ -249,7 +253,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'quick_start',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.quickStartFab,
-    body: 'Tap the dumbbell, select “Back Workout,” and confirm to set your default workout. You can reset it later by press & hold.',
+    body: 'Tap the dumbbell, then select the Back Workout you made earlier.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -267,7 +271,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'open_voice_log',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.voiceLog,
-    body: 'You can tap the top-right mic on exercise cards to log sets with your voice.',
+    body: 'You can tap the top right mic on exercise cards to log sets with your voice.',
     mode: 'spotlight',
     primaryActionLabel: 'Next',
     showArrow: false,
@@ -276,16 +280,12 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'voice_log_result',
     route: '/workout/active',
-    anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
     body: 'Voice Log can fill multiple sets at once and capture the set type too.',
-    mode: 'spotlight',
+    mode: 'blocking',
     primaryActionLabel: 'Next',
     showArrow: false,
-    placement: 'below',
-    holePadding: 0,
-    holePaddingBottom: -22,
-    reserveArrowSpace: true,
-    allowAnchorInteraction: false,
+    centerTooltip: true,
+    showHighlight: false,
   },
   {
     id: 'fill_weight_column',
@@ -303,11 +303,12 @@ const TOUR_STEPS: TourStep[] = [
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.activeSetFillDown,
     secondaryAnchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
-    body: 'The double-down arrow on the keyboard does the same thing: it fills the remaining cells in whichever column you are editing.',
+    body: 'The double down arrow on the keyboard does the same thing: it fills the remaining cells in whichever column you are editing.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
     placement: 'above',
+    arrowColor: ACCENT_COLORS.midnight.base,
   },
   {
     id: 'complete_remaining_sets',
@@ -318,6 +319,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    allowAnchorInteraction: true,
     arrowColor: ACCENT_COLORS.midnight.base,
   },
   {
@@ -335,11 +337,21 @@ const TOUR_STEPS: TourStep[] = [
     id: 'set_target',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.setTarget,
-    body: 'Tap Set Target to update this exercise’s sets and rep range.\n\nUse the same control in the Edit Workout modal to update your workout template.',
+    arrowAnchorId: TOUR_ANCHOR_IDS.setTarget,
+    body: 'Tap Set Target to update this exercise’s sets and rep range.',
     mode: 'spotlight',
+    primaryActionLabel: null,
+    showArrow: true,
+    allowAnchorInteraction: true,
+  },
+  {
+    id: 'set_target_explanation',
+    route: '/workout/active',
+    body: 'Set Target lets you adjust this exercise’s planned sets and rep range. Use the same control in Edit Workout to update your saved template.',
+    mode: 'blocking',
     primaryActionLabel: 'Next',
     showArrow: false,
-    reserveArrowSpace: true,
+    renderOverlay: false,
   },
   {
     id: 'rest_timer',
@@ -494,6 +506,7 @@ type InAppTourContextValue = {
   skipTour: () => void;
   currentStepNumber: number | null;
   totalSteps: number;
+  completeCurrentStepAction: () => void;
   queueTourStartAfterPaywallClose: () => void;
   resetTourForDev: () => Promise<void>;
   shouldBypassProGateForTour: (placement: PaywallPlacement) => boolean;
@@ -517,6 +530,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
   const isWorkoutActive = useWorkoutStore((s) => s.isWorkoutActive);
+  const activeWorkoutSession = useWorkoutStore((s) => s.activeSession);
   const workoutCompletedSessions = useWorkoutStore((s) => s.completedSessions);
 
   const [tourState, setTourState] = useState<PersistedInAppTourState | null>(null);
@@ -526,8 +540,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const [pendingStepId, setPendingStepId] = useState<TourStepId | null>(null);
   const [isTooltipVisible, setIsTooltipVisible] = useState(false);
   const [isExitingTooltip, setIsExitingTooltip] = useState(false);
+  const [completedActionStepIds, setCompletedActionStepIds] = useState<Set<TourStepId>>(() => new Set());
   const [pendingPaywallStartRequestedAt, setPendingPaywallStartRequestedAt] = useState<number | null>(null);
   const lastTrackedStepIdRef = useRef<TourStepId | null>(null);
+  const completedSetsTourAdvanceRef = useRef(false);
 
   const getStepById = useCallback((stepId: string | null | undefined): TourStep | null => {
     if (!stepId) return null;
@@ -750,6 +766,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       updatedAt: now,
     };
 
+    setCompletedActionStepIds(new Set());
     await setTourStateAndPersist(next);
     posthog.capture('tour_started');
     await markTourSeenOnServer({ status: 'started' });
@@ -835,6 +852,29 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       router.navigate('/(tabs)');
     }
   }, [cancelWorkout, currentStepIndex, finishTour, isTourActive, isWorkoutActive, logicalStep?.id, router, setTourStateAndPersist, tourLoaded]);
+
+  // Long presses update workout state asynchronously. Advance only after the
+  // completed sets are committed, which keeps the next tour anchor available.
+  useEffect(() => {
+    const isCompletionStep = isTourActive && logicalStep?.id === 'complete_remaining_sets';
+    if (!isCompletionStep) {
+      completedSetsTourAdvanceRef.current = false;
+      return;
+    }
+
+    const firstExerciseSets = activeWorkoutSession?.exercises[0]?.sets ?? [];
+    const hasCompletedRemainingSets = firstExerciseSets.length > 0
+      && firstExerciseSets.every((set) => set.isCompleted);
+    if (!hasCompletedRemainingSets || completedSetsTourAdvanceRef.current) {
+      return;
+    }
+
+    completedSetsTourAdvanceRef.current = true;
+    const timer = setTimeout(() => {
+      void advanceStep();
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [activeWorkoutSession?.exercises, advanceStep, isTourActive, logicalStep?.id]);
 
   const autoNavStepRef = useRef<string | null>(null);
 
@@ -963,6 +1003,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     setPendingStepId(null);
     setIsTooltipVisible(false);
     setIsExitingTooltip(false);
+    setCompletedActionStepIds(new Set());
     lastTrackedStepIdRef.current = null;
     await setTourStateAndPersist(null);
     setTourLoaded(true);
@@ -1091,6 +1132,15 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     skipTour: () => void finishTour('skipped'),
     currentStepNumber: logicalStep ? getStepIndexById(logicalStep.id) + 1 : null,
     totalSteps: TOUR_STEPS.length,
+    completeCurrentStepAction: () => {
+      if (!isTourActive || !logicalStep?.requiresActionBeforeNext) return;
+      setCompletedActionStepIds((current) => {
+        if (current.has(logicalStep.id)) return current;
+        const next = new Set(current);
+        next.add(logicalStep.id);
+        return next;
+      });
+    },
     queueTourStartAfterPaywallClose,
     resetTourForDev,
     shouldBypassProGateForTour: (placement) => shouldBypassProGateForTourState({
@@ -1102,10 +1152,13 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
   const primaryAction = useMemo(() => {
     if (!isTourActive || !overlayStep || !overlayStep.primaryActionLabel) return null;
+    const isActionRequired = Boolean(overlayStep.requiresActionBeforeNext);
+    const hasCompletedRequiredAction = !isActionRequired || completedActionStepIds.has(overlayStep.id);
     const canAdvanceFromDisplayedStep =
       !isExitingTooltip &&
       !pendingStepId &&
-      logicalStep?.id === overlayStep.id;
+      logicalStep?.id === overlayStep.id &&
+      hasCompletedRequiredAction;
     return {
       label: overlayStep.primaryActionLabel,
       onPress: () => {
@@ -1114,7 +1167,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
       },
       disabled: !canAdvanceFromDisplayedStep,
     };
-  }, [advanceStep, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
+  }, [advanceStep, completedActionStepIds, isExitingTooltip, isTourActive, logicalStep?.id, overlayStep, pendingStepId]);
 
   const skipAction = useMemo(() => {
     if (!isTourActive || !overlayStep) return null;

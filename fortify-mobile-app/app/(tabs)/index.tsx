@@ -36,6 +36,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
+import { FontFamily } from '../../constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { AppHeaderBrand } from '@/src/components/navigation/AppHeaderBrand';
 import { GlassButton } from '../../components/GlassButton';
@@ -736,7 +737,14 @@ function NewUserChecklistModal({
                       >
                         {isComplete ? (
                           <CheckIcon color="#fff" size={scale(14)} strokeWidth={3} />
-                        ) : null}
+                        ) : (
+                          <Text
+                            allowFontScaling={false}
+                            style={[styles.checklistTaskStatusQuestion, { color: colors.textSecondary }]}
+                          >
+                            ?
+                          </Text>
+                        )}
                       </View>
                       <View style={styles.checklistTaskTitleColumn}>
                         <Text allowFontScaling={false} style={[styles.checklistTaskTitle, { color: colors.textPrimary }]}>
@@ -1028,7 +1036,7 @@ function NewUserChecklistCompleteGraffitiModal({
               hapticFeedback="impactMedium"
             >
               <Text style={[styles.challengeCompleteButtonText, { color: colors.accentForegroundOnFill }]}>
-                Continue
+                Keep going
               </Text>
             </GlassButton>
           </View>
@@ -2975,6 +2983,11 @@ const styles = StyleSheet.create({
   checklistTaskStatusIconCentered: {
     marginTop: 0,
   },
+  checklistTaskStatusQuestion: {
+    fontSize: moderateScale(16),
+    fontWeight: '800',
+    lineHeight: moderateScale(18),
+  },
   checklistTaskTitleColumn: {
     flex: 1,
     minWidth: 0,
@@ -3416,11 +3429,10 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: MODAL_TITLE_SIZE,
-    fontFamily: 'BankGothicBT-Medium',
+    fontFamily: FontFamily.bold,
     fontWeight: '700',
     color: '#DFE2E6',
     textAlign: 'center',
-    textTransform: 'uppercase',
     marginBottom: MODAL_BUTTON_GAP,
   },
   modalMessage: {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SpeakerWaveIcon } from 'react-native-heroicons/outline';
+import Svg, { Defs, Mask, Rect } from 'react-native-svg';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -424,8 +425,8 @@ export function TourOverlay({
       const rightLeft = rect.x + rect.width;
       return (
         <>
-          <View style={[styles.overlayBlock, themedStyles.overlay, { top: rect.y, left: 0, width: rect.x, height: rect.height }]} />
-          <View style={[styles.overlayBlock, themedStyles.overlay, { top: rect.y, left: rightLeft, width: Math.max(0, screenWidth - rightLeft), height: rect.height }]} />
+          <View style={[styles.overlayBlock, { top: rect.y, left: 0, width: rect.x, height: rect.height }]} />
+          <View style={[styles.overlayBlock, { top: rect.y, left: rightLeft, width: Math.max(0, screenWidth - rightLeft), height: rect.height }]} />
         </>
       );
     };
@@ -437,15 +438,52 @@ export function TourOverlay({
 
     return (
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-        <View style={[styles.overlayBlock, themedStyles.overlay, { top: 0, left: 0, right: 0, height: firstHole.y }]} />
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Svg style={StyleSheet.absoluteFill} width={screenWidth} height={screenHeight}>
+            <Defs>
+              <Mask
+                id="tour-spotlight-mask"
+                x={0}
+                y={0}
+                width={screenWidth}
+                height={screenHeight}
+                maskUnits="userSpaceOnUse"
+              >
+                <Rect x={0} y={0} width={screenWidth} height={screenHeight} fill="#FFFFFF" />
+                {holes.map((rect, index) => (
+                  <Rect
+                    key={`tour-spotlight-hole-${index}`}
+                    testID={`tour-spotlight-hole-${index}`}
+                    x={rect.x}
+                    y={rect.y}
+                    width={rect.width}
+                    height={rect.height}
+                    rx={HIGHLIGHT_RADIUS}
+                    ry={HIGHLIGHT_RADIUS}
+                    fill="#000000"
+                  />
+                ))}
+              </Mask>
+            </Defs>
+            <Rect
+              x={0}
+              y={0}
+              width={screenWidth}
+              height={screenHeight}
+              fill={TOUR_DIM_BACKGROUND}
+              mask="url(#tour-spotlight-mask)"
+            />
+          </Svg>
+        </View>
+        <View style={[styles.overlayBlock, { top: 0, left: 0, right: 0, height: firstHole.y }]} />
         {renderSideBlocks(firstHole)}
         {secondHole ? (
           <>
-            <View style={[styles.overlayBlock, themedStyles.overlay, { top: firstBottom, left: 0, right: 0, height: Math.max(0, secondHole.y - firstBottom) }]} />
+            <View style={[styles.overlayBlock, { top: firstBottom, left: 0, right: 0, height: Math.max(0, secondHole.y - firstBottom) }]} />
             {renderSideBlocks(secondHole)}
           </>
         ) : null}
-        <View style={[styles.overlayBlock, themedStyles.overlay, { top: secondBottom, left: 0, right: 0, height: Math.max(0, screenHeight - secondBottom) }]} />
+        <View style={[styles.overlayBlock, { top: secondBottom, left: 0, right: 0, height: Math.max(0, screenHeight - secondBottom) }]} />
 
         {/* In blocking mode we still render the "hole", but we swallow touches over it. */}
         {!allowHolePassthrough && holes.map((rect, index) => (

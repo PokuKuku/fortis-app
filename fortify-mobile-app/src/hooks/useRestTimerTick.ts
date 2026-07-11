@@ -34,8 +34,8 @@ const scheduleRestTimerNotification = async (endTimestamp: number): Promise<stri
     if (Platform.OS === 'android') {
       return await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'Rest complete!',
-          body: 'Back to it — crush the next set.',
+          title: 'Ready for your next set?',
+          body: 'Your rest timer is up. Take a breath and get back to it.',
           sound: 'default',
         },
         trigger: {
@@ -49,8 +49,8 @@ const scheduleRestTimerNotification = async (endTimestamp: number): Promise<stri
 
     return await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Rest complete!',
-        body: 'Back to it — crush the next set.',
+        title: 'Ready for your next set?',
+        body: 'Your rest timer is up. Take a breath and get back to it.',
         sound: 'default',
       },
       trigger: {

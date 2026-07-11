@@ -39,6 +39,22 @@ describe('TourOverlay', () => {
     expect(view.queryByTestId('tour-arrow-down')).toBeNull();
   });
 
+  it('uses a rounded spotlight cutout that matches the highlight frame', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 100, y: 200, width: 120, height: 50 }}
+        body="Workouts overview"
+      />
+    );
+
+    const spotlightHole = view.getByTestId('tour-spotlight-hole-0');
+
+    expect(spotlightHole.props.rx).toBeGreaterThan(0);
+    expect(spotlightHole.props.ry).toBe(spotlightHole.props.rx);
+  });
+
   it('keeps replay and next as independent actions', () => {
     const replay = jest.fn();
     const next = jest.fn();

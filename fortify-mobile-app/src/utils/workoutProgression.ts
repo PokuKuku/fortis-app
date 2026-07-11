@@ -28,7 +28,7 @@ export function parseRepRange(reps: string | null | undefined): RepRange | null 
   const normalized = reps.trim();
   if (!normalized) return null;
 
-  const rangeMatch = normalized.match(/^(\d+)\s*[-–]\s*(\d+)$/);
+  const rangeMatch = normalized.match(/^(\d+)\s*(?:[-–]|to)\s*(\d+)$/i);
   if (rangeMatch) {
     const min = Number(rangeMatch[1]);
     const max = Number(rangeMatch[2]);

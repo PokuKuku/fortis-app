@@ -16,8 +16,8 @@ const COMPLETION_MESSAGES = [
     body: 'Nice work getting it done. Recover, refuel, and be proud of the effort you just put in!',
   },
   {
-    title: 'Big win logged!',
-    body: 'You finished the workout. That is exactly how consistency gets built!',
+    title: 'That’s a wrap!',
+    body: 'Nice work finishing your session. Your future self will thank you.',
   },
   {
     title: 'You got it done!',

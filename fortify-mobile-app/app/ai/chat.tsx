@@ -67,11 +67,10 @@ import { VoiceSettingsPopover } from '@/src/components/ai/VoiceSettingsPopover';
 import { RealtimeCoachSettingsModal } from '@/src/components/ai/RealtimeCoachSettingsModal';
 import { flattenAIMediaImages, pickAIMediaFromLibrary } from '@/src/services/aiMediaService';
 import { setLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
-import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_AI_SOURCE } from '@/src/constants/inAppTour';
+import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_TEMPLATE_MARKER } from '@/src/constants/inAppTour';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import { useProgramsStore } from '@/src/store/programsStore';
-import { useStartPresetStore } from '@/src/store/startPresetStore';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -237,9 +236,7 @@ export default function AIChatScreen() {
   const { colors, isDark } = useTheme();
   const { profile, user } = useAuth();
   const { runProFeature } = useProFeatureGate();
-  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
-  const createWorkoutTemplate = useProgramsStore((state) => state.createWorkoutTemplate);
-  const setStartPreset = useStartPresetStore((state) => state.setPreset);
+  const { isTourActive, activeStepId, advanceStep, completeCurrentStepAction } = useInAppTour();
   const isNavigating = useRef(false);
   const stopVoiceCoachRef = useRef<() => void>(() => undefined);
   const appliedRequestedModeRef = useRef<string | null>(null);
@@ -412,11 +409,27 @@ export default function AIChatScreen() {
       setTourBackWorkoutMessages((current) => current?.map((message) => (
         message.id === messageId ? { ...message, savedWorkoutTemplateId: templateId } : message
       )) ?? null);
+
+      const staleTourTemplates = useProgramsStore.getState().programs.filter((program) =>
+        program.id !== templateId && (
+          program.aiPayloadVersion === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
+          || program.aiSourceChatId === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
+        )
+      );
+      for (const staleTemplate of staleTourTemplates) {
+        try {
+          await useProgramsStore.getState().deleteProgram(staleTemplate.id);
+        } catch (error) {
+          console.warn('[InAppTour] Failed to remove the legacy Back Workout template:', error);
+        }
+      }
+
+      completeCurrentStepAction();
       return;
     }
 
     await markWorkoutTemplateSaved(messageId, templateId);
-  }, [markWorkoutTemplateSaved]);
+  }, [completeCurrentStepAction, markWorkoutTemplateSaved]);
 
   const chatWorkoutActions = useAIWorkoutTemplateActions({
     messages: visibleMessages,
@@ -424,6 +437,11 @@ export default function AIChatScreen() {
     markWorkoutTemplateSaved: markDisplayedWorkoutTemplateSaved,
     saveWorkoutPlacement: PAYWALL_PLACEMENTS.workoutLimit,
     useProvidedExerciseIds: (message) => message.id === 'tour-back-workout-response',
+    getAiPayloadVersion: (message) => (
+      message.id === 'tour-back-workout-response'
+        ? TOUR_BACK_WORKOUT_TEMPLATE_MARKER
+        : undefined
+    ),
   });
   const voiceWorkoutActions = useAIWorkoutTemplateActions({
     messages: voiceConversationMessages,
@@ -613,33 +631,8 @@ export default function AIChatScreen() {
       },
     ]);
 
-    try {
-      const templateId = await createWorkoutTemplate(
-        workoutTemplate.name,
-        workoutTemplate.exercises,
-        {
-          description: workoutTemplate.description,
-          isAiCreated: true,
-          aiSourceChatId: TOUR_BACK_WORKOUT_AI_SOURCE,
-          aiPayloadVersion: 'ai_workout_template_v1',
-        },
-      );
-      const template = useProgramsStore.getState().programs.find((program) => program.id === templateId);
-      if (!templateId || !template?.workouts[0]?.id) {
-        throw new Error('Failed to create the Back Workout template.');
-      }
-
-      await setStartPreset({
-        type: 'template',
-        templateId,
-        templateWorkoutId: template.workouts[0].id,
-      });
-    } catch (error) {
-      console.warn('[InAppTour] Failed to prepare Back Workout quick start:', error);
-    }
-
     void advanceStep();
-  }, [advanceStep, createWorkoutTemplate, isTourBackWorkoutStep, setStartPreset]);
+  }, [advanceStep, isTourBackWorkoutStep]);
 
   const submitMessage = useCallback(async (rawMessage: string) => {
     const message = rawMessage.trim() || (pendingChatMedia.length > 0 ? 'I’d like coaching feedback on this.' : '');

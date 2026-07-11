@@ -24,10 +24,11 @@ import { Colors } from '../../constants/Colors';
 import { Sizes } from '../../constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
-import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_AI_SOURCE } from '@/src/constants/inAppTour';
+import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { scale, moderateScale } from '@/src/utils/responsive';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
+import { TOUR_BACK_WORKOUT_TEMPLATE_MARKER } from '@/src/constants/inAppTour';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
@@ -347,10 +348,18 @@ export default function TabLayout() {
     return templateMatch?.name ?? 'Workout template';
   }, [startPreset, programs]);
 
-  const tourQuickStartTemplate = useMemo(
-    () => templates.find((template) => template.aiSourceChatId === TOUR_BACK_WORKOUT_AI_SOURCE) ?? null,
-    [templates]
-  );
+  const tourQuickStartTemplate = useMemo(() => {
+    const markedTourTemplate = templates.find((template) =>
+      template.aiPayloadVersion === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
+      || template.aiSourceChatId === TOUR_BACK_WORKOUT_TEMPLATE_MARKER
+    );
+    if (markedTourTemplate) return markedTourTemplate;
+
+    // Supports tours already in progress before the template marker was added.
+    return templates.find((template) =>
+      template.isAiCreated && /^back workout(?:\s+\d+)?$/i.test(template.name)
+    ) ?? null;
+  }, [templates]);
 
   const isTourQuickStartPreset = (preset: StartPreset | null) => {
     if (!preset || preset.type !== 'template') return false;

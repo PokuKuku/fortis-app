@@ -17,6 +17,7 @@ interface UseAIWorkoutTemplateActionsOptions {
   onWorkoutTemplateSaved?: (messageId: string, templateId: string) => void;
   saveWorkoutPlacement?: PaywallPlacement;
   useProvidedExerciseIds?: (message: AIConversationMessage) => boolean;
+  getAiPayloadVersion?: (message: AIConversationMessage) => string | null | undefined;
 }
 
 export function useAIWorkoutTemplateActions({
@@ -26,6 +27,7 @@ export function useAIWorkoutTemplateActions({
   onWorkoutTemplateSaved,
   saveWorkoutPlacement = PAYWALL_PLACEMENTS.workoutLimit,
   useProvidedExerciseIds,
+  getAiPayloadVersion,
 }: UseAIWorkoutTemplateActionsOptions) {
   const router = useRouter();
   const posthog = usePostHog();
@@ -123,7 +125,7 @@ export function useAIWorkoutTemplateActions({
         description: normalizedTemplate.description,
         isAiCreated: true,
         aiSourceChatId: conversationId ?? null,
-        aiPayloadVersion: 'ai_workout_template_v1',
+        aiPayloadVersion: getAiPayloadVersion?.(message) ?? 'ai_workout_template_v1',
       }
     );
 
@@ -143,7 +145,7 @@ export function useAIWorkoutTemplateActions({
     });
     validExercises.forEach(() => posthog.capture('exercise_added', { method: 'ai' }));
     return createdTemplateId;
-  }, [conversationId, createWorkoutTemplate, markWorkoutTemplateSaved, onWorkoutTemplateSaved, posthog, resolveWorkoutTemplateExercises, savedWorkoutTemplateCount]);
+  }, [conversationId, createWorkoutTemplate, getAiPayloadVersion, markWorkoutTemplateSaved, onWorkoutTemplateSaved, posthog, resolveWorkoutTemplateExercises, savedWorkoutTemplateCount]);
 
   const handleAddWorkoutTemplate = useCallback(async (message: AIConversationMessage) => {
     if (

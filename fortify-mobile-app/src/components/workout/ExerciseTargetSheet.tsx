@@ -22,6 +22,7 @@ import { MinusIcon, PlusIcon, XMarkIcon } from 'react-native-heroicons/outline';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { TourOverlay, type AnchorRect } from '@/src/components/tour/TourOverlay';
 import { DEFAULT_TARGET_REPS, parseRepRange } from '@/src/utils/workoutProgression';
 import type { WeightUnit, WorkoutExercise } from '@/src/types/workout';
 import * as Haptics from 'expo-haptics';
@@ -44,6 +45,8 @@ interface ExerciseTargetSheetProps {
   weightUnit?: WeightUnit;
   onToggleWeightUnit?: () => void;
   onSave: (target: { sets: number; minReps: number; maxReps: number; startingWeight?: number | null }) => void;
+  showTourExplanation?: boolean;
+  onTourExplanationNext?: () => void;
 }
 
 export function ExerciseTargetSheet({
@@ -54,6 +57,8 @@ export function ExerciseTargetSheet({
   editorMode = false,
   weightUnit = 'lbs',
   onToggleWeightUnit,
+  showTourExplanation = false,
+  onTourExplanationNext,
 }: ExerciseTargetSheetProps) {
   const { colors, isDark } = useTheme();
   const initialRange = useMemo(
@@ -71,6 +76,7 @@ export function ExerciseTargetSheet({
   const [isKeypadMounted, setIsKeypadMounted] = useState(false);
   const [isModalMounted, setIsModalMounted] = useState(visible);
   const [isSheetVisible, setIsSheetVisible] = useState(visible);
+  const [sheetRect, setSheetRect] = useState<AnchorRect | null>(null);
   const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isWeightUnitTogglePendingRef = useRef(false);
   const translateY = useSharedValue(0);
@@ -249,6 +255,7 @@ export function ExerciseTargetSheet({
   };
 
   const handleDismiss = () => {
+    if (showTourExplanation) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onClose();
   };
@@ -260,6 +267,10 @@ export function ExerciseTargetSheet({
       translateY.value = Math.max(0, event.translationY);
     })
     .onEnd((event) => {
+      if (showTourExplanation) {
+        translateY.value = withTiming(0, { duration: 200 });
+        return;
+      }
       const shouldClose = event.translationY > 120 || event.velocityY > 1200;
       if (shouldClose) {
         runOnJS(handleDismiss)();
@@ -290,12 +301,16 @@ export function ExerciseTargetSheet({
       onRequestClose={handleDismiss}
     >
       <View style={styles.modalRoot}>
-        <Pressable style={styles.backdrop} onPress={handleDismiss} />
+        <Pressable style={styles.backdrop} onPress={handleDismiss} disabled={showTourExplanation} />
         {isSheetVisible && (
         <GestureDetector gesture={panGesture}>
           <Animated.View
             entering={SlideInDown.duration(250).easing(Easing.out(Easing.cubic))}
             exiting={SlideOutDown.duration(SHEET_EXIT_DURATION_MS).easing(Easing.inOut(Easing.cubic))}
+            onLayout={(event) => {
+              const { x, y, width, height } = event.nativeEvent.layout;
+              setSheetRect({ x, y, width, height });
+            }}
             style={[styles.sheet, themedStyles.sheet, containerAnimatedStyle]}
           >
             <StainlessSteelPattern />
@@ -311,18 +326,20 @@ export function ExerciseTargetSheet({
                     {formatExerciseTitle(exercise.exerciseName)}
                   </Text>
                 </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Close exercise target"
-                  onPress={handleDismiss}
-                  style={({ pressed }) => [
-                    styles.closeButton,
-                    themedStyles.iconButton,
-                    pressed && themedStyles.buttonPressed,
-                  ]}
-                >
-                  <XMarkIcon size={18} color={colors.textSecondary} strokeWidth={2.2} />
-                </Pressable>
+                {!showTourExplanation && (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Close exercise target"
+                    onPress={handleDismiss}
+                    style={({ pressed }) => [
+                      styles.closeButton,
+                      themedStyles.iconButton,
+                      pressed && themedStyles.buttonPressed,
+                    ]}
+                  >
+                    <XMarkIcon size={18} color={colors.textSecondary} strokeWidth={2.2} />
+                  </Pressable>
+                )}
               </View>
 
               <View style={styles.section}>
@@ -498,6 +515,21 @@ export function ExerciseTargetSheet({
           </Animated.View>
         </GestureDetector>
         )}
+        <TourOverlay
+          visible={showTourExplanation && Boolean(sheetRect)}
+          mode="spotlight"
+          anchorRect={sheetRect}
+          body="Set Target lets you adjust this exercise’s planned sets and rep range. Use the same control in Edit Workout to update your saved template."
+          primaryAction={onTourExplanationNext ? {
+            label: 'Next',
+            onPress: onTourExplanationNext,
+            disabled: false,
+          } : null}
+          showArrow={false}
+          placement="above"
+          holePadding={0}
+          allowAnchorInteraction={false}
+        />
       </View>
     </Modal>
   );

@@ -1,5 +1,5 @@
 export const AI_TEXT_CHAT_TOUR_COPY =
-  'Fortify can create personalized workout templates for you.\n\nThe more specific your request, the better the output.';
+  'Fortify can create personalized workout templates for you.\n\nTap Add to Workouts to save this workout for future sessions.';
 
 export const AI_CHAT_OVERVIEW_COPY =
   'Voice Coach can make workouts just like Chat and answer questions about your fitness journey.\n\nYou can customize your coach in Settings.';

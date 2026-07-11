@@ -436,9 +436,6 @@ export function SetRow({
           longPressHandledRef.current = null;
         }
       }, 500);
-      if (isTourActive && activeStepId === 'complete_remaining_sets') {
-        void advanceStep();
-      }
     }
   };
 
@@ -715,7 +712,10 @@ export function SetRow({
 
         {/* Weight input */}
         <Animated.View style={[styles.inputWrapper, styles.weightWrapper, !shouldShowCheckboxes && styles.flexCol, weightAnimatedStyle]}>
-          <TourAnchor id={TOUR_ANCHOR_IDS.activeSetWeight} disabled={!shouldAnchorWeight}>
+          <TourAnchor
+            id={shouldAnchorWeight ? TOUR_ANCHOR_IDS.activeSetWeight : `${TOUR_ANCHOR_IDS.activeSetWeight}.${setLocalId}`}
+            disabled={!shouldAnchorWeight}
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`${setNumberLabel} weight`}

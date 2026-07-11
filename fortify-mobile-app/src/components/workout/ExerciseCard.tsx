@@ -88,7 +88,7 @@ export function ExerciseCard({
   shouldAnchorTourSetControls = false,
 }: ExerciseCardProps) {
   const { colors, isDark } = useTheme();
-  const { isTourActive, activeStepId } = useInAppTour();
+  const { isTourActive, activeStepId, advanceStep } = useInAppTour();
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -351,6 +351,16 @@ export function ExerciseCard({
   const handleOpenTargetSheet = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowTargetSheet(true);
+    if (isTourActive && activeStepId === 'set_target') {
+      advanceStep();
+    }
+  };
+
+  const handleTourTargetExplanationNext = () => {
+    setShowTargetSheet(false);
+    setTimeout(() => {
+      advanceStep();
+    }, 300);
   };
 
   const handleSaveTarget = (target: { sets: number; minReps: number; maxReps: number; startingWeight?: number | null }) => {
@@ -671,6 +681,8 @@ export function ExerciseCard({
         exercise={exercise}
         onClose={() => setShowTargetSheet(false)}
         onSave={handleSaveTarget}
+        showTourExplanation={isTourActive && activeStepId === 'set_target_explanation'}
+        onTourExplanationNext={handleTourTargetExplanationNext}
         editorMode={useEditor}
         weightUnit={weightUnit}
         onToggleWeightUnit={() => {

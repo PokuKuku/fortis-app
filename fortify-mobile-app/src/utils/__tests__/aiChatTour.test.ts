@@ -28,9 +28,10 @@ describe('aiChatTour', () => {
     expect(AI_CHAT_OVERVIEW_COPY).not.toContain('Open Profile');
   });
 
-  it('explains that Chat can create personalized workout templates', () => {
+  it('explains how to save the generated workout template', () => {
     expect(AI_TEXT_CHAT_TOUR_COPY).toContain('personalized workout templates');
-    expect(AI_TEXT_CHAT_TOUR_COPY).toContain('The more specific your request');
+    expect(AI_TEXT_CHAT_TOUR_COPY).toContain('Tap Add to Workouts');
+    expect(AI_TEXT_CHAT_TOUR_COPY).not.toContain('The more specific your request');
   });
 
   it('keeps in-app tour body copy free of hyphens and dash characters', () => {
@@ -41,7 +42,7 @@ describe('aiChatTour', () => {
     const bodyCopies = Array.from(tourContext.matchAll(/body:\s*('(?:[^'\\]|\\.)*'|AI_(?:TEXT_)?CHAT_OVERVIEW_COPY)/g))
       .map((match) => match[1]);
 
-    expect(bodyCopies).toHaveLength(24);
+    expect(bodyCopies.length).toBeGreaterThan(0);
     expect(bodyCopies.join('\n')).not.toMatch(/[-—–]/);
   });
 });

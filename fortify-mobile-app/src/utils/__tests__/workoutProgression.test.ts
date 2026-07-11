@@ -8,6 +8,7 @@ describe('workoutProgression', () => {
   it('parses rep ranges and exact reps', () => {
     expect(parseRepRange('8-12')).toEqual({ min: 8, max: 12 });
     expect(parseRepRange('12 - 8')).toEqual({ min: 8, max: 12 });
+    expect(parseRepRange('8 to 10')).toEqual({ min: 8, max: 10 });
     expect(parseRepRange('5')).toEqual({ min: 5, max: 5 });
     expect(parseRepRange('AMRAP')).toBeNull();
   });

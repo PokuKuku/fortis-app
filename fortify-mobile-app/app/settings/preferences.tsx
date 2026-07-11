@@ -53,6 +53,8 @@ const roundTo = (value: number, decimals = 1) => {
 
 type TrainingExperience = 'none' | 'beginner' | 'intermediate' | 'advanced';
 
+type TrainingEnvironment = 'gym' | 'home' | 'hybrid';
+
 type FitnessGoal = 'build_muscle' | 'general_health' | 'improve_strength' | 'stay_consistent';
 
 type GoalOption = {
@@ -63,6 +65,12 @@ type GoalOption = {
 
 type ExperienceOption = {
   value: TrainingExperience;
+  title: string;
+  description: string;
+};
+
+type TrainingEnvironmentOption = {
+  value: TrainingEnvironment;
   title: string;
   description: string;
 };
@@ -83,6 +91,24 @@ const EXPERIENCE_OPTIONS: ExperienceOption[] = [
   { value: 'advanced', title: 'Advanced', description: 'Highly experienced with structured training.' },
 ];
 
+const TRAINING_ENVIRONMENT_OPTIONS: TrainingEnvironmentOption[] = [
+  {
+    value: 'gym',
+    title: 'Gym',
+    description: 'Full gym access: barbells, machines, cables, dumbbells.',
+  },
+  {
+    value: 'home',
+    title: 'Home',
+    description: 'Minimal setup: bodyweight, dumbbells, bands, and space to train.',
+  },
+  {
+    value: 'hybrid',
+    title: 'Hybrid',
+    description: 'A mix of gym days and home sessions.',
+  },
+];
+
 const EXPERIENCE_LABELS: Record<TrainingExperience, string> = {
   none: 'New to training',
   beginner: 'Beginner',
@@ -95,6 +121,12 @@ const GOAL_LABELS: Record<FitnessGoal, string> = {
   general_health: 'General health',
   improve_strength: 'Improve strength',
   stay_consistent: 'Stay consistent',
+};
+
+const TRAINING_ENVIRONMENT_LABELS: Record<TrainingEnvironment, string> = {
+  gym: 'Gym',
+  home: 'Home',
+  hybrid: 'Hybrid',
 };
 
 const formatWeight = (weightKg: number | null | undefined, units: 'imperial' | 'metric') => {
@@ -350,17 +382,22 @@ export default function SettingsPreferencesScreen() {
   const goalLabel = profile?.fitness_goal
     ? GOAL_LABELS[profile.fitness_goal as FitnessGoal]
     : '—';
+  const trainingEnvironmentLabel = profile?.training_environment
+    ? TRAINING_ENVIRONMENT_LABELS[profile.training_environment]
+    : '—';
   const bodyTypeLabel = bodyType === 'male' ? 'Male' : 'Female';
   const reminderTimeLabel = formatReminderTime(reminderTime);
 
   const [measurementsOpen, setMeasurementsOpen] = useState(false);
   const [experienceOpen, setExperienceOpen] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
+  const [trainingEnvironmentOpen, setTrainingEnvironmentOpen] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [reminderTimeOpen, setReminderTimeOpen] = useState(false);
   const [isSavingMeasurements, setIsSavingMeasurements] = useState(false);
   const [isSavingGoal, setIsSavingGoal] = useState(false);
   const [isSavingExperience, setIsSavingExperience] = useState(false);
+  const [isSavingTrainingEnvironment, setIsSavingTrainingEnvironment] = useState(false);
 
   const [heightCmInput, setHeightCmInput] = useState('');
   const [heightFeetInput, setHeightFeetInput] = useState('');
@@ -540,6 +577,19 @@ export default function SettingsPreferencesScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
   };
 
+  const handleSelectTrainingEnvironment = async (value: TrainingEnvironment) => {
+    if (!profile) return;
+    setIsSavingTrainingEnvironment(true);
+    const { error } = await updateProfile({ training_environment: value });
+    setIsSavingTrainingEnvironment(false);
+    if (error) {
+      Alert.alert('Update failed', error.message);
+      return;
+    }
+    setTrainingEnvironmentOpen(false);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
+  };
+
   const handleSaveSchedule = async (days: number[]) => {
     const { error } = await saveScheduleDays(days, { sessions: weeklyRecapSessions });
     if (error) {
@@ -686,6 +736,14 @@ export default function SettingsPreferencesScreen() {
                 label="Primary Goal"
                 value={goalLabel}
                 onPress={() => setGoalOpen(true)}
+                showChevron
+                colors={colors}
+              />
+              <View style={[styles.divider, dividerStyle]} />
+              <PreferenceRow
+                label="Training Environment"
+                value={trainingEnvironmentLabel}
+                onPress={() => setTrainingEnvironmentOpen(true)}
                 showChevron
                 colors={colors}
               />
@@ -848,6 +906,31 @@ export default function SettingsPreferencesScreen() {
           ))}
         </View>
         {isSavingGoal && (
+          <View style={styles.loadingState}>
+            <ActivityIndicator color={colors.accent} size="small" />
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Saving…</Text>
+          </View>
+        )}
+      </BaseModal>
+
+      <BaseModal
+        visible={trainingEnvironmentOpen}
+        onClose={() => setTrainingEnvironmentOpen(false)}
+        title="Training Environment"
+        showCloseButton={false}
+      >
+        <View style={styles.optionList}>
+          {TRAINING_ENVIRONMENT_OPTIONS.map((option) => (
+            <OnboardingOptionCard
+              key={option.value}
+              title={option.title}
+              description={option.description}
+              selected={profile?.training_environment === option.value}
+              onSelect={() => handleSelectTrainingEnvironment(option.value)}
+            />
+          ))}
+        </View>
+        {isSavingTrainingEnvironment && (
           <View style={styles.loadingState}>
             <ActivityIndicator color={colors.accent} size="small" />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Saving…</Text>
