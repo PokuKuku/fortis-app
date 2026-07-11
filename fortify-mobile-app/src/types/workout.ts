@@ -245,6 +245,7 @@ export type ProgramGoal = 'strength' | 'hypertrophy' | 'powerlifting' | 'general
 export interface TemplateSetDetail {
   weight: number | null;
   reps: number | null;
+  setType?: SetType;
 }
 
 /**

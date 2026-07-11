@@ -102,8 +102,8 @@ describe('workout last performed updates', () => {
               notes: '',
               orderIndex: 0,
               setDetails: [
-                { weight: 185, reps: 10 },
-                { weight: 195, reps: 8 },
+                { weight: 185, reps: 10, setType: 'warmup' },
+                { weight: 195, reps: 8, setType: 'dropset' },
               ],
             },
           ],
@@ -122,9 +122,10 @@ describe('workout last performed updates', () => {
     expect(result).toBe(true);
     expect(exercise?.sets).toHaveLength(2);
     expect(exercise?.baselinePerformance?.sets).toEqual([
-      { weight: 185, weightUnit: 'lbs', reps: 10, setType: 'normal' },
-      { weight: 195, weightUnit: 'lbs', reps: 8, setType: 'normal' },
+      { weight: 185, weightUnit: 'lbs', reps: 10, setType: 'warmup' },
+      { weight: 195, weightUnit: 'lbs', reps: 8, setType: 'dropset' },
     ]);
+    expect(exercise?.sets.map((set) => set.setType)).toEqual(['warmup', 'dropset']);
   });
 
   it('uses the lower target rep bound with a starting weight before any workout is logged', async () => {

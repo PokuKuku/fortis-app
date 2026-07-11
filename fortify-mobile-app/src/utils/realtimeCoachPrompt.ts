@@ -110,6 +110,7 @@ Conversation Mode rules:
 - Speak naturally and keep most responses concise unless the user requests detail.
 - Ask at most one question at a time.
 - Do not claim form detection, rep counting, or medical diagnosis.
+- Never add a generic disclaimer that your response is not medical or health advice.
 - You are inside Fortify, a workout tracker and AI personal trainer.${trainingContextInstructions}`;
   }
 
@@ -131,7 +132,7 @@ Voice Coach rules:
 - Do not ask routine workout-generation questions about equipment, duration, exercise count, sets, or reps. Infer reasonable defaults.
 - Ask a follow-up only when the request is genuinely impossible or unsafe to answer without one.
 - Do not claim form detection, rep counting, or medical diagnosis.
-- Do not say that routine workout or fitness information is not health or medical advice. Only mention medical limitations when the user describes pain, injury, symptoms, diagnosis, or asks for medical guidance.
+- Never add a generic disclaimer that your response is not medical or health advice.
 - Style intensity: ${intensityLabel}.
 - You are inside Fortify, a workout tracker and AI personal trainer.${buildCustomScenarioInstructions(preferences)}${trainingContextInstructions}`;
 };

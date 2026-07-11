@@ -73,6 +73,7 @@ export function SaveAsTemplateModal({
     setDetails: ex.sets.map(set => ({
       weight: set.weight,
       reps: set.reps,
+      setType: set.setType,
     })),
   }));
 

@@ -35,7 +35,7 @@ const buildTemplate = (): Program => {
             notes: '',
             orderIndex: 1,
             setDetails: [
-              { weight: 100, reps: 5 },
+              { weight: 100, reps: 5, setType: 'warmup' },
               { weight: 105, reps: 5 },
               { weight: 110, reps: 5 },
             ],
@@ -59,11 +59,13 @@ const buildTemplate = (): Program => {
 describe('workout editor store', () => {
   const originalCreate = useProgramsStore.getState().createWorkoutTemplate;
   const originalUpdate = useProgramsStore.getState().updateWorkoutTemplate;
+  const originalUpdateProgramWorkout = useProgramsStore.getState().updateProgramWorkout;
 
   afterEach(() => {
     useProgramsStore.setState({
       createWorkoutTemplate: originalCreate,
       updateWorkoutTemplate: originalUpdate,
+      updateProgramWorkout: originalUpdateProgramWorkout,
     });
     useProgramsStore.getState().resetStore();
     useWorkoutStore.getState().resetStore();
@@ -88,6 +90,7 @@ describe('workout editor store', () => {
     expect(session?.exercises[1].targetReps).toBe('5');
     expect(session?.exercises[1].sets[1].weight).toBe(105);
     expect(session?.exercises[1].sets[1].reps).toBe(5);
+    expect(session?.exercises[1].sets[0].setType).toBe('warmup');
   });
 
   it('saves edited templates via updateWorkoutTemplate', async () => {
@@ -106,7 +109,7 @@ describe('workout editor store', () => {
             {
               localId: 'set-1',
               setNumber: 1,
-              setType: 'normal',
+              setType: 'warmup',
               weight: 100,
               reps: 8,
               rpe: null,
@@ -143,8 +146,47 @@ describe('workout editor store', () => {
     expect(exercises).toHaveLength(1);
     expect(exercises[0].exerciseId).toBe('ex-bench');
     expect(exercises[0].reps).toBe('6-10');
-    expect(exercises[0].setDetails).toEqual([{ weight: 100, reps: 8 }]);
+    expect(exercises[0].setDetails).toEqual([{ weight: 100, reps: 8, setType: 'warmup' }]);
     expect(result).toBe('template-123');
+  });
+
+  it('loads and saves per-set types for a workout inside a program', async () => {
+    const program = {
+      ...buildTemplate(),
+      id: 'local-program-1',
+      isTemplate: false,
+      workouts: [{
+        ...buildTemplate().workouts[0],
+        id: 'local-program-1-workout',
+      }],
+    };
+    const updateProgramWorkout = jest.fn().mockResolvedValue(true);
+    useProgramsStore.setState({
+      programs: [program],
+      updateProgramWorkout: updateProgramWorkout as any,
+    });
+
+    const initialized = await useWorkoutStore.getState().initEditorSessionFromProgramWorkout(
+      program.id,
+      program.workouts[0].id
+    );
+
+    expect(initialized).toBe(true);
+    expect(useWorkoutStore.getState().editorSession?.exercises[1].sets[0].setType).toBe('warmup');
+
+    const saved = await useWorkoutStore.getState().saveEditorAsProgramWorkout(
+      program.id,
+      program.workouts[0].id
+    );
+
+    expect(saved).toBe(true);
+    expect(updateProgramWorkout.mock.calls[0][3][1].sets).toBe(3);
+    expect(updateProgramWorkout.mock.calls[0][3][1].setDetails).toHaveLength(3);
+    expect(updateProgramWorkout.mock.calls[0][3][1].setDetails[0]).toEqual({
+      weight: 100,
+      reps: 5,
+      setType: 'warmup',
+    });
   });
 
   it('updates editor exercise target and resizes sets', () => {

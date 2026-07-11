@@ -257,6 +257,7 @@ async function uploadProgram(
             reps: ex.reps,
             rest_seconds: ex.restSeconds || 120,
             notes: ex.notes,
+            set_details: ex.setDetails ?? null,
             order_index: ex.orderIndex ?? index,
           };
         });
@@ -397,6 +398,7 @@ async function updateExistingProgram(
             reps: ex.reps,
             rest_seconds: ex.restSeconds || 120,
             notes: ex.notes,
+            set_details: ex.setDetails ?? null,
             order_index: ex.orderIndex ?? exerciseIndex,
           };
         });

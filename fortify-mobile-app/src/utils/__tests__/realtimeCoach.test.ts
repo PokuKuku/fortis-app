@@ -187,7 +187,7 @@ describe('realtimeCoach utils', () => {
     expect(standardPrompt).toContain('Do not proactively offer to create');
     expect(standardPrompt).toContain('do not offer it again');
     expect(standardPrompt).not.toContain('ask if they want Fortify to build one');
-    expect(standardPrompt).toContain('Do not say that routine workout or fitness information is not health or medical advice');
+    expect(standardPrompt).toContain('Never add a generic disclaimer that your response is not medical or health advice');
     expect(standardPrompt).not.toContain('Custom Coach rules');
 
     const roastPrompt = buildVoiceCoachInstructions({
@@ -234,6 +234,7 @@ describe('realtimeCoach utils', () => {
     expect(conversationPrompt).toContain('Only create or revise a workout when the user explicitly asks');
     expect(conversationPrompt).toContain('call the create_or_update_workout tool immediately');
     expect(conversationPrompt).toContain('never say "chat", "card", or "screen"');
+    expect(conversationPrompt).toContain('Never add a generic disclaimer that your response is not medical or health advice');
   });
 
   it('sanitizes custom scenario instructions', () => {

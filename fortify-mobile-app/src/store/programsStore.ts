@@ -21,6 +21,7 @@ import { isLocalProgramId } from '../utils/localIds';
 import { generateUniqueName } from '../utils/nameUtils';
 import { useProgramProgressStore } from './programProgressStore';
 import { useStartPresetStore } from './startPresetStore';
+import { useWorkoutStore } from './workoutStore';
 
 import {
   Program,
@@ -351,6 +352,59 @@ const hasLocalExerciseIds = (
       ex.exerciseId.trim().length === 0
   );
 
+const snapshotTemplatePreviousPerformance = async (template: Program): Promise<Program> => {
+  try {
+    const completedSessions = useWorkoutStore.getState().completedSessions;
+    const sourceWorkout = template.workouts[0];
+    if (!sourceWorkout) return template;
+
+    const matchingSessions = completedSessions
+      .filter((session) => session.completedAt && (
+        session.programWorkoutId === sourceWorkout.id
+        || (!session.programWorkoutId && session.name === sourceWorkout.name)
+      ))
+      .sort((a, b) => (
+        (b.completedAt ?? b.startedAt).getTime() - (a.completedAt ?? a.startedAt).getTime()
+      ));
+
+    if (matchingSessions.length === 0) return template;
+
+    const exercises = sourceWorkout.exercises.map((exercise) => {
+      const latestExercise = matchingSessions
+        .map((session) => session.exercises.find((entry) => entry.exerciseId === exercise.exerciseId))
+        .find(Boolean);
+      if (!latestExercise) return exercise;
+
+      const orderedSets = [...latestExercise.sets].sort((a, b) => a.orderIndex - b.orderIndex);
+      const setCount = Math.max(1, exercise.setDetails?.length ?? exercise.sets);
+      const hasCompletedPerformance = orderedSets.some(
+        (set) => set.isCompleted || (set.weight !== null && set.reps !== null)
+      );
+      if (!hasCompletedPerformance) return exercise;
+
+      return {
+        ...exercise,
+        setDetails: Array.from({ length: setCount }, (_, index) => {
+          const set = orderedSets[index];
+          const fallback = exercise.setDetails?.[index];
+          const hasPerformance = set?.isCompleted || (set?.weight !== null && set?.reps !== null);
+          return hasPerformance
+            ? { weight: set?.weight ?? null, reps: set?.reps ?? null, setType: set?.setType }
+            : fallback ?? { weight: null, reps: null, setType: set?.setType ?? 'normal' };
+        }),
+      };
+    });
+
+    return {
+      ...template,
+      workouts: [{ ...sourceWorkout, exercises }, ...template.workouts.slice(1)],
+    };
+  } catch (error) {
+    console.warn('[ProgramsStore] Failed to snapshot source workout performance:', error);
+    return template;
+  }
+};
+
 const buildProgramWorkoutFromTemplate = (
   template: Program,
   dayNumber: number,
@@ -374,6 +428,7 @@ const buildProgramWorkoutFromTemplate = (
       restSeconds: exercise.restSeconds,
       notes: exercise.notes,
       orderIndex: index,
+      setDetails: exercise.setDetails,
     })),
   };
 };
@@ -709,7 +764,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       return false;
     }
 
-    const template = get().programs.find((p) => p.id === templateId && p.isTemplate);
+    const storedTemplate = get().programs.find((p) => p.id === templateId && p.isTemplate);
+    const template = storedTemplate
+      ? await snapshotTemplatePreviousPerformance(storedTemplate)
+      : undefined;
     const templateWorkout = template?.workouts[0];
     if (!template || !templateWorkout) {
       set({ error: 'Template not found' });
@@ -801,6 +859,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           reps: exercise.reps,
           rest_seconds: exercise.restSeconds ?? 120,
           notes: exercise.notes,
+          set_details: exercise.setDetails ?? null,
           order_index: index,
         }));
 
@@ -953,12 +1012,15 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     const programNames = programs.filter((p) => !p.isTemplate).map((p) => p.name);
     const uniqueName = generateUniqueName(name, programNames);
 
-    const templates = workouts.map((workout) => {
+    const templates = await Promise.all(workouts.map(async (workout) => {
       const template = get().programs.find(
         (program) => program.id === workout.templateId && program.isTemplate
       );
-      return { template, nameOverride: workout.name };
-    });
+      return {
+        template: template ? await snapshotTemplatePreviousPerformance(template) : undefined,
+        nameOverride: workout.name,
+      };
+    }));
 
     if (templates.some((entry) => !entry.template || !entry.template?.workouts[0])) {
       set({ error: 'One or more templates could not be found' });

@@ -61,6 +61,23 @@ describe('rest timer store', () => {
     expect(restTimerSettings.normalSeconds).toBe(120);
   });
 
+  it('keeps edited rest timer durations for workouts started from programs', async () => {
+    await useWorkoutStore.getState().updateRestTimerSettings({
+      normalSeconds: 180,
+      warmupSeconds: 75,
+      dropsetSeconds: 45,
+    });
+
+    expect(useWorkoutStore.getState().restTimerSettings).toEqual({
+      normalSeconds: 180,
+      warmupSeconds: 75,
+      dropsetSeconds: 45,
+    });
+
+    useWorkoutStore.getState().startRestTimer('warmup');
+    expect(useWorkoutStore.getState().restTimer.totalSeconds).toBe(75);
+  });
+
   it('uses next-start override once and then clears it', () => {
     nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1000);
     const { adjustRestTimerNextStart, startRestTimer } = useWorkoutStore.getState();

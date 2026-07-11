@@ -125,6 +125,28 @@ function getSetTypeFromHistory(
   return previousSet?.setType || 'normal';
 }
 
+function getLatestExerciseFromHistory(
+  completedSessions: WorkoutSession[],
+  exerciseId: string,
+  matchesSession: (session: WorkoutSession) => boolean
+): WorkoutExercise | null {
+  let latestExercise: WorkoutExercise | null = null;
+  let latestTimestamp = -1;
+
+  completedSessions.forEach((session) => {
+    if (!matchesSession(session)) return;
+    const exercise = session.exercises.find((entry) => entry.exerciseId === exerciseId);
+    if (!exercise) return;
+    const timestamp = (session.completedAt ?? session.startedAt).getTime();
+    if (timestamp > latestTimestamp) {
+      latestTimestamp = timestamp;
+      latestExercise = exercise;
+    }
+  });
+
+  return latestExercise;
+}
+
 function buildNewActiveSet(
   exercise: WorkoutExercise,
   activeSession: WorkoutSession,
@@ -816,14 +838,31 @@ export const useWorkoutStore = create<WorkoutState>()(
           const exerciseWeightUnit = weightUnits[programEx.exerciseId] || 'lbs';
           const sets: WorkoutSet[] = [];
           const numSets = Math.max(1, programEx.setDetails?.length ?? programEx.sets ?? 1);
+          const ownProgramPerformance = getLatestExerciseFromHistory(
+            completedSessions,
+            programEx.exerciseId,
+            (session) => session.programWorkoutId === programWorkoutId
+          );
+          const sourceWorkoutPerformance = ownProgramPerformance
+            ? null
+            : getLatestExerciseFromHistory(
+              completedSessions,
+              programEx.exerciseId,
+              (session) => session.name === workout.name && session.programWorkoutId !== programWorkoutId
+            );
+          const sourceSets = sourceWorkoutPerformance
+            ? [...sourceWorkoutPerformance.sets].sort((a, b) => a.orderIndex - b.orderIndex)
+            : [];
 
           for (let i = 0; i < numSets; i++) {
             const inheritedSetType = getSetTypeFromHistory(completedSessions, programEx.exerciseId, i, context);
+            const prescribedSetType = programEx.setDetails?.[i]?.setType;
+            const sourceSetType = sourceSets[i]?.setType;
 
             sets.push({
               localId: generateId(),
               setNumber: i + 1,
-              setType: inheritedSetType,
+              setType: prescribedSetType ?? (ownProgramPerformance ? inheritedSetType : sourceSetType) ?? inheritedSetType,
               weight: null,
               weightUnit: exerciseWeightUnit,
               reps: null,
@@ -843,15 +882,22 @@ export const useWorkoutStore = create<WorkoutState>()(
             targetReps: programEx.reps || DEFAULT_TARGET_REPS,
             notes: programEx.notes || '',
             orderIndex: exIndex,
-            baselinePerformance: programEx.setDetails ? {
-              sets: programEx.setDetails.map((detail, idx) => ({
-                weight: detail.weight,
-                weightUnit: exerciseWeightUnit,
+            baselinePerformance: programEx.setDetails || sourceSets.length > 0 ? {
+              sets: Array.from({ length: numSets }, (_, idx) => {
+                const detail = programEx.setDetails?.[idx];
+                const sourceSet = sourceSets[idx];
+                return {
+                weight: detail?.weight ?? sourceSet?.weight ?? null,
+                weightUnit: sourceSet?.weightUnit ?? exerciseWeightUnit,
                 // A program workout uses the prescribed lower rep bound as its
                 // initial reference until the user logs an actual performance.
-                reps: detail.reps ?? parseRepRange(programEx.reps || DEFAULT_TARGET_REPS)?.min ?? null,
-                setType: sets[idx]?.setType || 'normal',
-              })),
+                reps: detail?.reps
+                  ?? sourceSet?.reps
+                  ?? parseRepRange(programEx.reps || DEFAULT_TARGET_REPS)?.min
+                  ?? null,
+                setType: detail?.setType ?? sourceSet?.setType ?? sets[idx]?.setType ?? 'normal',
+              };
+              }),
             } : undefined,
           };
         });
@@ -2636,7 +2682,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             sets.push({
               localId: generateId(),
               setNumber: i + 1,
-              setType: 'normal',
+              setType: setDetail?.setType ?? 'normal',
               weight: setDetail?.weight ?? null,
               weightUnit: exerciseWeightUnit,
               reps: setDetail?.reps ?? null,
@@ -2712,7 +2758,7 @@ export const useWorkoutStore = create<WorkoutState>()(
             sets.push({
               localId: generateId(),
               setNumber: i + 1,
-              setType: 'normal',
+              setType: setDetail?.setType ?? 'normal',
               weight: setDetail?.weight ?? null,
               weightUnit: exerciseWeightUnit,
               reps: setDetail?.reps ?? null,
@@ -3152,6 +3198,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         setDetails: ex.sets.map(set => ({
           weight: set.weight,
           reps: set.reps,
+          setType: set.setType,
         })),
       }));
 
@@ -3185,6 +3232,7 @@ export const useWorkoutStore = create<WorkoutState>()(
         setDetails: ex.sets.map(set => ({
           weight: set.weight,
           reps: set.reps,
+          setType: set.setType,
         })),
       }));
 

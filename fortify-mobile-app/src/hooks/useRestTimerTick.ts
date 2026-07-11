@@ -147,12 +147,24 @@ export function useRestTimerTick() {
       const wasInactive = appState.current.match(/inactive|background/);
       appState.current = nextState;
       setIsBackgrounded(nextState.match(/inactive|background/) !== null);
+
+      if (nextState === 'active') {
+        const scheduledNotificationId = notificationIdRef.current;
+        notificationIdRef.current = null;
+        void cancelRestTimerNotification(scheduledNotificationId);
+      }
+
       if (wasInactive && nextState === 'active') {
         tickRestTimer();
       }
     });
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      const scheduledNotificationId = notificationIdRef.current;
+      notificationIdRef.current = null;
+      void cancelRestTimerNotification(scheduledNotificationId);
+    };
   }, [tickRestTimer]);
 }
 
