@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { AppState } from 'react-native';
 import { usePathname, useRouter, useSegments } from 'expo-router';
 import {
+  IN_APP_TOUR_NEW_USER_CUTOFF,
   IN_APP_TOUR_VERSION,
   TOUR_ANCHOR_IDS,
   type TourAnchorId,
@@ -472,6 +473,14 @@ export function shouldBypassProGateForTourState(params: {
   return Boolean(TOUR_PRO_GATE_BYPASS_STEPS[params.placement]?.has(params.activeStepId));
 }
 
+export function isProfileEligibleForInAppTour(profile: Pick<Profile, 'created_at'> | null): boolean {
+  if (!profile?.created_at) return false;
+
+  const createdAt = Date.parse(profile.created_at);
+  const cutoff = Date.parse(IN_APP_TOUR_NEW_USER_CUTOFF);
+  return Number.isFinite(createdAt) && createdAt >= cutoff;
+}
+
 const getStepIndexById = (stepId: string): number => {
   const resolvedStepId = REMOVED_TOUR_STEP_REPLACEMENTS[stepId] ?? stepId;
   const index = TOUR_STEPS.findIndex((step) => step.id === resolvedStepId);
@@ -512,6 +521,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const segments = useSegments();
   const { user, isAuthResolved, isAuthenticated, profile, profileResolved, updateProfile } = useAuth();
+  const isNewUserTourEligible = FORCE_TOUR_ON_DEV_REFRESH || isProfileEligibleForInAppTour(profile);
+  const isLegacyAccountExcluded = profileResolved && !isNewUserTourEligible;
 
   const cancelWorkout = useWorkoutStore((s) => s.cancelWorkout);
   const isWorkoutActive = useWorkoutStore((s) => s.isWorkoutActive);
@@ -917,6 +928,14 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      if (isAuthenticated && profileResolved && !isNewUserTourEligible) {
+        await clearInAppTourState();
+        if (!isMounted) return;
+        setTourState(null);
+        setTourLoaded(true);
+        return;
+      }
+
       const loaded = await loadInAppTourState();
       if (!isMounted) return;
 
@@ -947,7 +966,15 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [isAuthResolved, isAuthenticated, markTourSeenOnServer, setTourStateAndPersist, user?.id]);
+  }, [
+    isAuthResolved,
+    isAuthenticated,
+    isNewUserTourEligible,
+    markTourSeenOnServer,
+    profileResolved,
+    setTourStateAndPersist,
+    user?.id,
+  ]);
 
   const isInOnboardingOrAuth = segments[0] === 'onboarding' || segments[0] === 'auth';
   const isMainAppRoute =
@@ -972,11 +999,12 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     isMainAppRoute &&
     isAuthenticated &&
     profile?.onboarding_completed === true &&
+    isNewUserTourEligible &&
     !isTourActive &&
     !hasSeenServer &&
     !hasSeenLocal;
   const hasTourFinished = Boolean(
-    hasSeenServer || tourState?.status === 'completed' || tourState?.status === 'skipped'
+    isLegacyAccountExcluded || hasSeenServer || tourState?.status === 'completed' || tourState?.status === 'skipped'
   );
 
   const queueTourStartAfterPaywallClose = useCallback(() => {
@@ -1013,7 +1041,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
     const attemptStart = async () => {
       if (cancelled) return;
-      const hasSeenTour = hasSeenServer || hasSeenLocal;
+      const hasSeenTour = isLegacyAccountExcluded || hasSeenServer || hasSeenLocal;
       if (hasSeenTour) {
         if (!cancelled) {
           setPendingPaywallStartRequestedAt(null);
@@ -1027,6 +1055,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         isMainAppRoute &&
         isAuthenticated &&
         profile?.onboarding_completed === true &&
+        isNewUserTourEligible &&
         !isTourActive;
 
       if (isReadyToStart) {
@@ -1063,7 +1092,9 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     hasSeenLocal,
     hasSeenServer,
     isAuthenticated,
+    isLegacyAccountExcluded,
     isMainAppRoute,
+    isNewUserTourEligible,
     isTourActive,
     pendingPaywallStartRequestedAt,
     profile?.onboarding_completed,

@@ -1,5 +1,8 @@
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
-import { shouldBypassProGateForTourState } from '@/src/contexts/InAppTourContext';
+import {
+  isProfileEligibleForInAppTour,
+  shouldBypassProGateForTourState,
+} from '@/src/contexts/InAppTourContext';
 
 jest.mock('expo-av', () => ({
   Audio: {
@@ -60,5 +63,22 @@ describe('shouldBypassProGateForTourState', () => {
       isTourActive: true,
       placement: PAYWALL_PLACEMENTS.voiceExerciseAdd,
     })).toBe(false);
+  });
+});
+
+describe('isProfileEligibleForInAppTour', () => {
+  it('excludes accounts that existed before the new-user tour rollout', () => {
+    expect(isProfileEligibleForInAppTour({ created_at: '2026-07-12T20:29:59.999Z' })).toBe(false);
+  });
+
+  it('includes accounts created from the rollout onward', () => {
+    expect(isProfileEligibleForInAppTour({ created_at: '2026-07-12T20:30:00.000Z' })).toBe(true);
+    expect(isProfileEligibleForInAppTour({ created_at: '2026-07-13T12:00:00.000Z' })).toBe(true);
+  });
+
+  it('fails closed when profile creation time is unavailable or invalid', () => {
+    expect(isProfileEligibleForInAppTour(null)).toBe(false);
+    expect(isProfileEligibleForInAppTour({})).toBe(false);
+    expect(isProfileEligibleForInAppTour({ created_at: 'invalid' })).toBe(false);
   });
 });

@@ -1,5 +1,9 @@
 export const IN_APP_TOUR_VERSION = 30 as const;
 
+// Accounts created before this rollout are existing users and must never be
+// enrolled in the new-user tour, including after reinstalling the app.
+export const IN_APP_TOUR_NEW_USER_CUTOFF = '2026-07-12T20:30:00.000Z' as const;
+
 export const TOUR_QUICK_START_TEMPLATE_ID = 'default-template-upper' as const;
 // This marks the tour-created template without using ai_source_chat_id, which
 // is reserved for real chat UUIDs in Supabase.
