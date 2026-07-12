@@ -471,12 +471,13 @@ export default function CreateWorkoutScreen() {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           DeviceEventEmitter.emit('workout-updated');
           if (isEditingTemplate && templateId && updatedTemplateId !== templateId) {
+            // A seeded/default template is forked to a new ID when edited. Return
+            // to the existing detail screen, then replace its now-stale route
+            // directly. Relying on a DeviceEventEmitter redirect here races the
+            // back transition and can leave the old detail route blank forever.
             router.back();
             setTimeout(() => {
-              DeviceEventEmitter.emit('workout-template-replaced', {
-                fromId: templateId,
-                toId: updatedTemplateId,
-              });
+              router.replace(`/workouts/${updatedTemplateId}`);
             }, 0);
           } else {
             router.back();
