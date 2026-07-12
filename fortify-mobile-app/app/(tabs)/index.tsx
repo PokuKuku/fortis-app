@@ -137,6 +137,7 @@ const HEADER_PADDING_TOP = scale(16);
 const HEADER_PADDING_BOTTOM = scale(12);
 const SCROLL_PADDING_BOTTOM = scale(120);
 const SECTION_SPACING = scale(32);
+const PROGRAMS_SECTION_MARGIN_TOP = scale(8);
 const SECTION_HEADER_MARGIN = scale(16);
 const SECTION_HEADER_GAP = scale(12);
 const SECTION_Kebab_PADDING = scale(4);
@@ -2518,7 +2519,7 @@ export default function ProgramsScreen() {
           )}
 
           {/* Programs Section */}
-          <View style={styles.section}>
+          <View style={[styles.section, styles.programsSection]}>
             <View style={styles.sectionHeader}>
               <TouchableOpacity
                 onPress={() => setShowPrograms(!showPrograms)}
@@ -3086,6 +3087,9 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: SECTION_SPACING,
+  },
+  programsSection: {
+    marginTop: PROGRAMS_SECTION_MARGIN_TOP,
   },
   onboardingProgramPreviewCard: {
     marginTop: ONBOARDING_PREVIEW_MARGIN_TOP,
