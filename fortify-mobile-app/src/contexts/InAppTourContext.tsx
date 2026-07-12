@@ -17,18 +17,13 @@ import {
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { TourOverlay, type AnchorRect, type TourOverlayMode, type TourOverlayPlacement } from '@/src/components/tour/TourOverlay';
 import { PAYWALL_PLACEMENTS, type PaywallPlacement } from '@/src/components/superwall/paywallPlacements';
-import { useTourNarration } from '@/src/hooks/useTourNarration';
 import {
   AI_CHAT_OVERVIEW_COPY,
   AI_TEXT_CHAT_TOUR_COPY,
-  getAIChatTourNarrationVoice,
 } from '@/src/utils/aiChatTour';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
 import { posthog } from '@/src/config/posthog';
 import { ACCENT_COLORS } from '@/src/utils/accentColors';
-
-const AI_CHAT_TOUR_NARRATION_DEFAULT = require('@/assets/audio/ai-chat-overview.m4a');
-const AI_CHAT_TOUR_NARRATION_CEDAR = require('@/assets/audio/ai-chat-overview-cedar.m4a');
 
 // Keep development behavior aligned with production tour completion state.
 const FORCE_TOUR_ON_DEV_REFRESH = false;
@@ -55,7 +50,6 @@ type TourStepId =
   | 'launch_workout'
   | 'rest_timer'
   | 'open_voice_log'
-  | 'voice_log_result'
   | 'fill_weight_column'
   | 'fill_reps_column'
   | 'complete_remaining_sets'
@@ -101,9 +95,9 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
     route: '/(tabs)',
-    body: 'Welcome to Fortify! Congrats on committing to your fitness journey! Now let’s quickly show you around.',
+    body: 'Welcome to Fortify!\n\nLet’s quickly show you around.',
     mode: 'blocking',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
@@ -112,9 +106,9 @@ const TOUR_STEPS: TourStep[] = [
     id: 'streak_counter',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.streakCounter,
-    body: 'Your streak counter tracks the scheduled workout days you complete.\n\nYou can freeze your streak when life gets in the way, up to 3 times each month.',
+    body: 'Press this button to freeze your scheduled workout streak.\n\nThere are 3 freezes available each month.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     placement: 'below',
   },
@@ -122,9 +116,9 @@ const TOUR_STEPS: TourStep[] = [
     id: 'workouts_intro',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.workoutsSection,
-    body: 'Workouts are exercise templates. Programs group workouts. Drag a workout card into a program to add it.',
+    body: 'Workouts are exercise templates.\n\nPrograms group workouts.\n\nDrag a workout card into a program to add it.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     placement: 'below',
   },
@@ -132,7 +126,7 @@ const TOUR_STEPS: TourStep[] = [
     id: 'add_workout_routine',
     route: '/(tabs)',
     anchorId: TOUR_ANCHOR_IDS.addWorkoutRoutine,
-    body: 'Tap + beside Workouts to add a custom routine you can use for future sessions.',
+    body: 'Tap this button to add a workout',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -144,7 +138,7 @@ const TOUR_STEPS: TourStep[] = [
     anchorId: TOUR_ANCHOR_IDS.addWithVoice,
     body: 'Add with Voice allows you to add exercises by speaking.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     holePadding: 0,
   },
@@ -154,7 +148,7 @@ const TOUR_STEPS: TourStep[] = [
     anchorId: TOUR_ANCHOR_IDS.workoutExerciseCard,
     body: 'You can voice add multiple exercises at once if needed.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     showHighlight: true,
     placement: 'below',
@@ -185,9 +179,9 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'paste_workout_result',
     route: '/workout/create',
-    body: 'Your notes will now appear as a workout template! The cleaner the layout of your notes, the faster the result!',
+    body: 'Your text will now appear as a workout template!',
     mode: 'non_blocking',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Sounds good!',
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
@@ -227,7 +221,7 @@ const TOUR_STEPS: TourStep[] = [
     secondaryAnchorId: TOUR_ANCHOR_IDS.aiChatBackWorkoutPrompt,
     body: AI_TEXT_CHAT_TOUR_COPY,
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: true,
     requiresActionBeforeNext: true,
   },
@@ -245,7 +239,7 @@ const TOUR_STEPS: TourStep[] = [
     route: '/ai/chat',
     body: AI_CHAT_OVERVIEW_COPY,
     mode: 'blocking',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
@@ -272,21 +266,11 @@ const TOUR_STEPS: TourStep[] = [
     id: 'open_voice_log',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.voiceLog,
-    body: 'You can tap the top right mic on exercise cards to log sets with your voice.',
+    body: 'You can log your sets with your voice using this button.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     tooltipOffsetY: 18,
-  },
-  {
-    id: 'voice_log_result',
-    route: '/workout/active',
-    body: 'Voice Log can fill multiple sets at once and capture the set type too.',
-    mode: 'blocking',
-    primaryActionLabel: 'Next',
-    showArrow: false,
-    centerTooltip: true,
-    showHighlight: false,
   },
   {
     id: 'fill_weight_column',
@@ -329,7 +313,7 @@ const TOUR_STEPS: TourStep[] = [
     anchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
     body: 'These shortcuts keep your workout moving. Log repeated sets in seconds, so you can focus on training.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     placement: 'below',
     holePadding: 0,
@@ -339,7 +323,7 @@ const TOUR_STEPS: TourStep[] = [
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.setTarget,
     arrowAnchorId: TOUR_ANCHOR_IDS.setTarget,
-    body: 'Tap Set Target to update this exercise’s sets and rep range.',
+    body: 'Tap this button to update your rep range and number of sets.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
@@ -348,9 +332,9 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'set_target_explanation',
     route: '/workout/active',
-    body: 'Set Target lets you adjust this exercise’s planned sets and rep range. Use the same control in Edit Workout to update your saved template.',
+    body: 'You can use this control to also make and edit your workouts faster.',
     mode: 'blocking',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     renderOverlay: false,
   },
@@ -358,9 +342,9 @@ const TOUR_STEPS: TourStep[] = [
     id: 'rest_timer',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.restTimer,
-    body: 'Rest Timer keeps you on pace between sets. Tap to start/pause and adjust anytime.',
+    body: 'You can adjust your rest timer with this button.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     reserveArrowSpace: true,
   },
@@ -368,9 +352,9 @@ const TOUR_STEPS: TourStep[] = [
     id: 'rest_timer_settings',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.restTimerSettings,
-    body: 'Use the clock to set your rest timer duration.',
+    body: 'Use this button to set your resting preferences.',
     mode: 'spotlight',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
   },
   {
@@ -386,9 +370,9 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'insights_overview',
     route: '/(tabs)/insights',
-    body: 'Insights power Fortify AI. Tap "Ask Fortify" on any insight to get a breakdown and next steps.',
+    body: 'Tap \'Ask Fortify\' to get deep insights on your training patterns and recommendations.',
     mode: 'blocking',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
@@ -396,9 +380,9 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'support_overview',
     route: '/(tabs)',
-    body: 'Need help? Open Profile, tap Settings, then use Send Feedback or Report a Bug in the Support section.',
+    body: 'Need help?\n\nContact us in the support section.\n\nHappy lifting!',
     mode: 'blocking',
-    primaryActionLabel: 'Next',
+    primaryActionLabel: 'Continue',
     showArrow: false,
     centerTooltip: true,
     showHighlight: false,
@@ -456,7 +440,6 @@ const TOUR_PRO_GATE_BYPASS_STEPS: Partial<Record<PaywallPlacement, ReadonlySet<T
   ]),
   [PAYWALL_PLACEMENTS.voiceSetLog]: new Set([
     'open_voice_log',
-    'voice_log_result',
   ]),
   [PAYWALL_PLACEMENTS.aiChat]: new Set([
     'ai_chat_open',
@@ -472,8 +455,8 @@ const TOUR_PRO_GATE_BYPASS_STEPS: Partial<Record<PaywallPlacement, ReadonlySet<T
 const REMOVED_TOUR_STEP_REPLACEMENTS: Partial<Record<string, TourStepId>> = {
   add_with_voice: 'voice_add_multiple',
   confirm_add_with_voice: 'voice_add_multiple',
-  log_with_voice: 'voice_log_result',
-  confirm_voice_log: 'voice_log_result',
+  log_with_voice: 'fill_weight_column',
+  confirm_voice_log: 'fill_weight_column',
 };
 const COLD_START_TOUR_RESUME_STEP_ID: TourStepId = 'support_overview';
 
@@ -1201,33 +1184,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
     isOverlayStepOnRoute &&
     (!overlayStep.anchorId || currentAnchorRect)
   );
-  const aiChatTourNarration = getAIChatTourNarrationVoice(profile?.gender) === 'cedar'
-    ? AI_CHAT_TOUR_NARRATION_CEDAR
-    : AI_CHAT_TOUR_NARRATION_DEFAULT;
-  const {
-    isPlaying: isTourNarrationPlaying,
-    hasPlayed: hasPlayedTourNarration,
-    replay: replayTourNarration,
-  } = useTourNarration({
-    enabled: showOverlay && overlayStep?.id === 'ai_chat_overview',
-    source: aiChatTourNarration,
-    autoPlay: false,
-  });
-
-  const auxiliaryAction = useMemo(() => {
-    if (!showOverlay || overlayStep?.id !== 'ai_chat_overview') return null;
-    return {
-      label: isTourNarrationPlaying
-        ? 'Playing demo'
-        : hasPlayedTourNarration
-          ? 'Replay demo'
-          : 'Play demo',
-      onPress: () => {
-        void replayTourNarration();
-      },
-      disabled: isTourNarrationPlaying,
-    };
-  }, [hasPlayedTourNarration, isTourNarrationPlaying, overlayStep?.id, replayTourNarration, showOverlay]);
   const showPrimaryStylePicker = Boolean(
     isTourActive &&
     logicalStep?.id === 'primary_style' &&
@@ -1249,7 +1205,6 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         stepLabel={stepLabel}
         primaryAction={primaryAction}
         secondaryAction={skipAction}
-        auxiliaryAction={auxiliaryAction}
         showArrow={Boolean(overlayStep?.showArrow) && isTooltipVisible && Boolean(currentAnchorRect)}
         arrowColor={overlayStep?.arrowColor}
         centerTooltip={

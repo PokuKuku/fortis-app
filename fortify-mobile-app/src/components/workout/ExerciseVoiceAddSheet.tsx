@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ArrowPathIcon,
   CheckIcon,
+  InformationCircleIcon,
   MicrophoneIcon,
   XMarkIcon,
 } from 'react-native-heroicons/outline';
@@ -40,6 +41,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, FontSizes, Spacing } from '@/constants/Sizes';
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
+import { VoiceFeatureHelpModal } from '@/src/components/workout/VoiceFeatureHelpModal';
 import { TOUR_ANCHOR_IDS } from '@/src/constants/inAppTour';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -224,6 +226,7 @@ export function ExerciseVoiceAddSheet({
   const [processingFrame, setProcessingFrame] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [transcript, setTranscript] = useState('');
+  const [showHelp, setShowHelp] = useState(false);
   const [candidates, setCandidates] = useState<VoiceExerciseCandidate[]>([]);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
@@ -854,11 +857,21 @@ export function ExerciseVoiceAddSheet({
                   </View>
                   <View style={styles.headerCopy}>
                     <Text style={[styles.title, { color: colors.textPrimary }]}>Voice Add</Text>
-                    <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-                      Say one or more exercise names with optional set counts.
-                    </Text>
                   </View>
                 </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Voice Add explanation"
+                  accessibilityHint="Explains how to add exercises by voice"
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowHelp(true);
+                  }}
+                  hitSlop={8}
+                  style={[styles.helpButton, themedStyles.headerIconWrap]}
+                >
+                  <InformationCircleIcon size={18} color={colors.accent} strokeWidth={2} />
+                </Pressable>
               </View>
 
               {transcript.length === 0 && candidates.length === 0 && (
@@ -946,7 +959,8 @@ export function ExerciseVoiceAddSheet({
                                 <Image
                                   source={previewSource}
                                   style={styles.selectedMatchPreviewImage}
-                                  resizeMode="cover"
+                                  resizeMode="contain"
+                                  fadeDuration={0}
                                 />
                               ) : (
                                 <View style={[styles.selectedMatchPreviewFallback, themedStyles.chip]}>
@@ -1220,6 +1234,15 @@ export function ExerciseVoiceAddSheet({
             </View>
           </View>
         ) : null}
+        {showHelp ? (
+          <VoiceFeatureHelpModal
+            title="Voice Add"
+            description="Add one or more exercises in a single recording. Set counts are optional."
+            examples={['3 sets of barbell bench press', 'Squats, lat pulldowns, and curls']}
+            note="Review the matches, choose the exercises you want, then tap Add."
+            onClose={() => setShowHelp(false)}
+          />
+        ) : null}
       </View>
     </Modal>
   );
@@ -1365,6 +1388,14 @@ const styles = StyleSheet.create({
   headerCopy: {
     flex: 1,
   },
+  helpButton: {
+    width: scale(34),
+    height: scale(34),
+    borderRadius: PILL_RADIUS,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: {
     fontSize: moderateScale(18),
     fontFamily: 'BankGothicBT-Medium',
@@ -1483,11 +1514,14 @@ const styles = StyleSheet.create({
     padding: scale(Spacing.sm),
   },
   selectedMatchPreviewMedia: {
-    width: scale(56),
-    height: scale(56),
+    width: scale(72),
+    height: scale(72),
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
     flexShrink: 0,
+    backgroundColor: '#FFFFFF',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0, 0, 0, 0.08)',
   },
   selectedMatchPreviewImage: {
     width: '100%',

@@ -519,9 +519,9 @@ export function ExerciseTargetSheet({
           visible={showTourExplanation && Boolean(sheetRect)}
           mode="spotlight"
           anchorRect={sheetRect}
-          body="Set Target lets you adjust this exercise’s planned sets and rep range. Use the same control in Edit Workout to update your saved template."
+          body="You can use this control to also make and edit your workouts faster."
           primaryAction={onTourExplanationNext ? {
-            label: 'Next',
+            label: 'Continue',
             onPress: onTourExplanationNext,
             disabled: false,
           } : null}

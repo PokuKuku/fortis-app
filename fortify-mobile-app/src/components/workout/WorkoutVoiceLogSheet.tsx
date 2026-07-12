@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   ArrowPathIcon,
   CheckIcon,
+  InformationCircleIcon,
   MicrophoneIcon,
 } from 'react-native-heroicons/outline';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -36,6 +37,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { VoiceFeatureHelpModal } from '@/src/components/workout/VoiceFeatureHelpModal';
 import { Colors } from '@/constants/Colors';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -223,6 +225,7 @@ export function WorkoutVoiceLogSheet({
   const [processingFrame, setProcessingFrame] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [interpretation, setInterpretation] = useState<WorkoutVoiceInterpretation | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const [containerLayout, setContainerLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [localTooltipHeight, setLocalTooltipHeight] = useState(0);
   const [heroButtonLayout, setHeroButtonLayout] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
@@ -772,6 +775,20 @@ export function WorkoutVoiceLogSheet({
                       </Text>
                     </View>
                   </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Voice Log explanation"
+                    accessibilityHint="Explains how to log sets by voice"
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      setShowHelp(true);
+                    }}
+                    hitSlop={8}
+                    style={[styles.helpButton, themedStyles.headerIconWrap]}
+                  >
+                    <InformationCircleIcon size={18} color={colors.accent} strokeWidth={2} />
+                  </Pressable>
                 </View>
 
                 {!interpretation && (
@@ -1011,6 +1028,15 @@ export function WorkoutVoiceLogSheet({
             </View>
           )}
         </Animated.View>
+        {showHelp ? (
+          <VoiceFeatureHelpModal
+            title="Voice Log"
+            description="Log sets for the exercise shown. Say the set count, weight, and reps."
+            examples={['3 sets of 225 for 5 reps', '2 warm-up sets of 95 pounds for 10 reps']}
+            note="You can also say normal, warm-up, drop set, or failure. Review the result before tapping Apply."
+            onClose={() => setShowHelp(false)}
+          />
+        ) : null}
       </Pressable>
     </Modal>
   );
@@ -1148,6 +1174,14 @@ const styles = StyleSheet.create({
   },
   headerCopy: {
     flex: 1,
+  },
+  helpButton: {
+    width: scale(34),
+    height: scale(34),
+    borderRadius: PILL_RADIUS,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: moderateScale(18),

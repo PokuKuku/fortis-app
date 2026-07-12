@@ -41,7 +41,7 @@ export default function SplashScreen() {
   const router = useRouter();
   const pathname = usePathname();
   const rootNavigationState = useRootNavigationState();
-  const { colors } = useTheme();
+  const { colors, isLoading: isThemeLoading } = useTheme();
   const { isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved } = useAuth();
   const {
     isPending: hasPendingOnboardingAuthCompletion,
@@ -99,6 +99,7 @@ export default function SplashScreen() {
       (!profile || needsOnboarding);
     if (
       !minDelayPassed ||
+      isThemeLoading ||
       !isAuthResolved ||
       !profileStateReady ||
       !pendingOnboardingAuthCompletionResolved ||
@@ -123,6 +124,7 @@ export default function SplashScreen() {
     router.replace(nextRoute);
   }, [
     minDelayPassed,
+    isThemeLoading,
     isAuthResolved,
     isAuthenticated,
     needsOnboarding,
@@ -144,7 +146,9 @@ export default function SplashScreen() {
       <StainlessSteelPattern />
       {/* FORTIS Text */}
       <View style={styles.logoContainer}>
-        <AnimatedFortifyLogo size="large" centered shineDurationMs={1300} />
+        {!isThemeLoading ? (
+          <AnimatedFortifyLogo size="large" centered shineDurationMs={1300} />
+        ) : null}
       </View>
     </View>
   );

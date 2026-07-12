@@ -51,6 +51,14 @@ export const NEW_USER_CHECKLIST_TASKS = [
     detail:
       'Open a training insight and tap the Ask Fortify button to get an explanation and next steps.',
   },
+  {
+    id: 'log_twenty_minute_workout',
+    title: 'Log a 20 minute workout',
+    defaultStatus: 'incomplete',
+    description: 'Complete and save a workout lasting at least 20 minutes.',
+    detail:
+      'Start a workout, train for at least 20 minutes, and finish the workout to complete this task.',
+  },
 ] as const;
 
 export type NewUserChecklistTask = typeof NEW_USER_CHECKLIST_TASKS[number];

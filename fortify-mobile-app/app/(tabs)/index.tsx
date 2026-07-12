@@ -1021,7 +1021,7 @@ function NewUserChecklistCompleteGraffitiModal({
                 allowFontScaling={false}
                 style={[styles.challengeCompleteScore, { color: colors.textPrimary }]}
               >
-                5/5
+                {NEW_USER_CHECKLIST_TASKS.length}/{NEW_USER_CHECKLIST_TASKS.length}
               </ReanimatedText>
             </Reanimated.View>
 

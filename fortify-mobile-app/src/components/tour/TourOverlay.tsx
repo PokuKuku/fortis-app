@@ -583,7 +583,7 @@ export function TourOverlay({
               }
             }}
           >
-            <Text style={[styles.bodyText, themedStyles.bodyText, centerTooltip && styles.bodyTextCentered]}>{body}</Text>
+            <Text style={[styles.bodyText, themedStyles.bodyText]}>{body}</Text>
 
             {auxiliaryAction ? (
               <TouchableOpacity
@@ -643,8 +643,6 @@ const styles = StyleSheet.create({
     fontSize: moderateScale(15),
     lineHeight: moderateScale(22),
     fontWeight: FontWeights.medium,
-  },
-  bodyTextCentered: {
     textAlign: 'center',
   },
   auxiliaryButton: {

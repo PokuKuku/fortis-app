@@ -22,15 +22,14 @@ describe('aiChatTour', () => {
     expect(AI_CHAT_OVERVIEW_COPY).not.toMatch(/[-—]/);
   });
 
-  it('briefly points users to Settings for Voice Coach customization', () => {
-    expect(AI_CHAT_OVERVIEW_COPY).toContain('Settings');
-    expect(AI_CHAT_OVERVIEW_COPY).toContain('customize your coach');
-    expect(AI_CHAT_OVERVIEW_COPY).not.toContain('Open Profile');
+  it('keeps the Voice Coach overview focused on its capabilities', () => {
+    expect(AI_CHAT_OVERVIEW_COPY).toContain('Voice Coach can make workouts');
+    expect(AI_CHAT_OVERVIEW_COPY).not.toContain('Settings');
   });
 
   it('explains how to save the generated workout template', () => {
-    expect(AI_TEXT_CHAT_TOUR_COPY).toContain('personalized workout templates');
     expect(AI_TEXT_CHAT_TOUR_COPY).toContain('Tap Add to Workouts');
+    expect(AI_TEXT_CHAT_TOUR_COPY).not.toContain('personalized workout templates');
     expect(AI_TEXT_CHAT_TOUR_COPY).not.toContain('The more specific your request');
   });
 

@@ -54,6 +54,7 @@ import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/servic
 import { attributeSessionToMuscles, bucketIntensity } from '@/src/utils/muscleTaxonomy';
 import { useLatestBodyweight } from '@/src/hooks/useLatestBodyweight';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import * as Haptics from 'expo-haptics';
 import { MicrophoneIcon } from 'react-native-heroicons/outline';
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
@@ -612,6 +613,14 @@ export default function ActiveWorkoutScreen() {
     });
     const shouldShowFirstWorkoutStreak = completedSessions.length === 0;
     const completedSession = await finishWorkout();
+    if (completedSession && elapsed >= 20 * 60) {
+      void completeNewUserChecklistTask(
+        'log_twenty_minute_workout',
+        profile?.id ?? null
+      ).catch((error) => {
+        console.warn('Failed to complete 20 minute workout challenge task:', error);
+      });
+    }
     setShowFinishModal(false);
     setShowSaveTemplateModal(false);
     setFinishSnapshot(null);

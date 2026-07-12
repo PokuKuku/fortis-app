@@ -23,14 +23,9 @@ describe('shouldBypassProGateForTourState', () => {
     })).toBe(true);
   });
 
-  it('bypasses voice set logging during the active workout voice-log tour steps', () => {
+  it('bypasses voice set logging while the voice-log tour step is active', () => {
     expect(shouldBypassProGateForTourState({
       activeStepId: 'open_voice_log',
-      isTourActive: true,
-      placement: PAYWALL_PLACEMENTS.voiceSetLog,
-    })).toBe(true);
-    expect(shouldBypassProGateForTourState({
-      activeStepId: 'voice_log_result',
       isTourActive: true,
       placement: PAYWALL_PLACEMENTS.voiceSetLog,
     })).toBe(true);

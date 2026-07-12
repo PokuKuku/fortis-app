@@ -329,6 +329,7 @@ export default function AIChatScreen() {
     debugStatus,
     voiceWorkoutMessages,
     isGeneratingVoiceWorkout,
+    voiceWorkoutGenerationError,
     isSpeakingCreatorScript,
     creatorScriptError,
     isActive: isVoiceActive,
@@ -341,6 +342,7 @@ export default function AIChatScreen() {
     markVoiceWorkoutSaved,
     dismissVoiceWorkoutMessage,
     selectVoiceWorkoutClarification,
+    retryVoiceWorkoutGeneration,
     sendVisualContext,
     sendTextPrompt,
   } = useRealtimeCoach({
@@ -1035,6 +1037,7 @@ export default function AIChatScreen() {
             debugStatus={debugStatus}
             voiceWorkoutMessages={voiceWorkoutMessages}
             isGeneratingVoiceWorkout={isGeneratingVoiceWorkout}
+            voiceWorkoutGenerationError={voiceWorkoutGenerationError}
             savingWorkoutMessageId={voiceWorkoutActions.savingWorkoutMessageId}
             startingWorkoutMessageId={voiceWorkoutActions.startingWorkoutMessageId}
             isWorkoutActive={voiceWorkoutActions.isWorkoutActive}
@@ -1058,6 +1061,7 @@ export default function AIChatScreen() {
             onStartWorkoutTemplate={voiceWorkoutActions.handleStartWorkoutTemplate}
             onDismissWorkoutTemplate={dismissVoiceWorkoutMessage}
             onSelectWorkoutClarification={selectVoiceWorkoutClarification}
+            onRetryWorkoutGeneration={retryVoiceWorkoutGeneration}
             interactionMode={interactionMode}
             pendingMedia={pendingVoiceMedia}
             onRemovePendingMedia={(id) => setPendingVoiceMedia((current) => current.filter((item) => item.id !== id))}

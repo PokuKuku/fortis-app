@@ -31,7 +31,7 @@ describe('newUserChecklist', () => {
   it('defaults the first two tasks to complete', () => {
     const state = getDefaultNewUserChecklistState();
 
-    expect(NEW_USER_CHECKLIST_TASKS).toHaveLength(5);
+    expect(NEW_USER_CHECKLIST_TASKS).toHaveLength(6);
     expect(state.finish_in_app_tour).toBe('complete');
     expect(state.pick_app_theme).toBe('complete');
     expect(getNewUserChecklistCompletedCount(state)).toBe(2);
@@ -50,6 +50,7 @@ describe('newUserChecklist', () => {
     expect(state.ask_ai_for_workout).toBe('complete');
     expect(state.make_workout_template_from_text).toBe('incomplete');
     expect(state.ask_fortify_insight).toBe('incomplete');
+    expect(state.log_twenty_minute_workout).toBe('incomplete');
   });
 
   it('keeps skipped tasks out of the completed count but resolves visibility', () => {
@@ -57,6 +58,7 @@ describe('newUserChecklist', () => {
     state = markNewUserChecklistTaskStatus(state, 'ask_ai_for_workout', 'skipped');
     state = markNewUserChecklistTaskStatus(state, 'make_workout_template_from_text', 'complete');
     state = markNewUserChecklistTaskStatus(state, 'ask_fortify_insight', 'skipped');
+    state = markNewUserChecklistTaskStatus(state, 'log_twenty_minute_workout', 'skipped');
 
     expect(getNewUserChecklistCompletedCount(state)).toBe(3);
     expect(isNewUserChecklistResolved(state)).toBe(true);

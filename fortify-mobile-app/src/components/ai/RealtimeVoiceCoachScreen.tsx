@@ -44,6 +44,7 @@ interface RealtimeVoiceCoachScreenProps {
   debugStatus: RealtimeCoachDebugStatus;
   voiceWorkoutMessages: VoiceWorkoutMessage[];
   isGeneratingVoiceWorkout: boolean;
+  voiceWorkoutGenerationError?: string | null;
   savingWorkoutMessageId: string | null;
   startingWorkoutMessageId: string | null;
   isWorkoutActive: boolean;
@@ -61,6 +62,7 @@ interface RealtimeVoiceCoachScreenProps {
   onStartWorkoutTemplate: (message: AIConversationMessage) => void;
   onDismissWorkoutTemplate: (messageId: string) => void;
   onSelectWorkoutClarification?: (messageId: string, option: string | AIClarificationOption) => boolean;
+  onRetryWorkoutGeneration?: () => boolean;
   interactionMode?: 'push_to_talk' | 'realtime';
   pendingMedia?: AIPendingMedia[];
   onRemovePendingMedia?: (id: string) => void;
@@ -116,6 +118,7 @@ export function RealtimeVoiceCoachScreen({
   debugStatus,
   voiceWorkoutMessages,
   isGeneratingVoiceWorkout,
+  voiceWorkoutGenerationError = null,
   savingWorkoutMessageId,
   startingWorkoutMessageId,
   isWorkoutActive,
@@ -133,6 +136,7 @@ export function RealtimeVoiceCoachScreen({
   onStartWorkoutTemplate,
   onDismissWorkoutTemplate,
   onSelectWorkoutClarification,
+  onRetryWorkoutGeneration,
   interactionMode = 'push_to_talk',
   pendingMedia = [],
   onRemovePendingMedia,
@@ -200,7 +204,7 @@ export function RealtimeVoiceCoachScreen({
   const displayError = sanitizeVoiceCoachError(error);
   const displayTemplateSaveError = sanitizeVoiceCoachError(templateSaveError);
   const shouldShowErrorAsNotice = isFriendlyVoiceNotice(displayError);
-  const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout;
+  const hasVoiceCards = voiceWorkoutMessages.length > 0 || isGeneratingVoiceWorkout || Boolean(voiceWorkoutGenerationError);
   const cardHorizontalInset = width < 380 ? 0 : Spacing.xs;
   const pendingWorkoutCardStyle = {
     backgroundColor: isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.04)',
@@ -462,6 +466,22 @@ export function RealtimeVoiceCoachScreen({
                     </Text>
                   </View>
                 </Animated.View>
+              ) : null}
+              {!isGeneratingVoiceWorkout && voiceWorkoutGenerationError ? (
+                <View testID="voice-workout-error-card" style={[styles.pendingWorkoutCard, pendingWorkoutCardStyle]}>
+                  <Text style={[styles.pendingWorkoutTitle, { color: colors.textPrimary }]}>Workout paused</Text>
+                  <Text style={[styles.pendingWorkoutMeta, { color: colors.textSecondary }]}>
+                    {voiceWorkoutGenerationError}
+                  </Text>
+                  <Pressable
+                    testID="voice-workout-retry-button"
+                    accessibilityRole="button"
+                    onPress={onRetryWorkoutGeneration}
+                    style={[styles.workoutRetryButton, { backgroundColor: colors.accent }]}
+                  >
+                    <Text style={[styles.workoutRetryButtonText, { color: colors.accentForegroundOnFill }]}>Try again</Text>
+                  </Pressable>
+                </View>
               ) : null}
               {voiceWorkoutMessages.map((message) => {
                 const conversationMessage = asConversationMessage(message);
@@ -930,6 +950,17 @@ const styles = StyleSheet.create({
   },
   pendingWorkoutMeta: {
     ...Typography.bodySmall,
+  },
+  workoutRetryButton: {
+    alignSelf: 'flex-start',
+    marginTop: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+  },
+  workoutRetryButtonText: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
   },
   workoutSection: {
     gap: Spacing.md,

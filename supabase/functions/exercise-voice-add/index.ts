@@ -20,6 +20,11 @@ interface ExerciseVoiceInterpretation {
 }
 
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
+const TRANSCRIPTION_PROMPT = [
+  'A person is naming strength-training exercises and optional set counts.',
+  'Common phrases include barbell bench press, incline bench press, Smith machine bench press,',
+  'dumbbell press, squat, deadlift, lat pulldown, cable row, and Romanian deadlift.',
+].join(' ');
 const NUMBER_WORDS: Record<string, string> = {
   one: '1',
   two: '2',
@@ -124,14 +129,22 @@ function cleanExerciseQuery(value: string): string {
     .replace(/\bfor\s+\d+\s*sets?\b/gi, ' ')
     .replace(/\b\d+\s*sets?\s*of\b/gi, ' ')
     .replace(/\b\d+\s*sets?\b/gi, ' ')
+    .replace(/^(?:and|or)\s+/i, '')
     .replace(/^(of|the)\s+/i, '')
+    .replace(/^[,;:.\s]+|[,;:.\s]+$/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function splitExerciseNames(value: string): string[] {
+function splitExerciseParts(value: string): string[] {
   return value
-    .split(/\s*,\s*|\s+and\s+/i)
+    .split(/\s*[,;]\s*|\s+(?:and|plus|as\s+well\s+as)\s+/i)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function splitExerciseNames(value: string): string[] {
+  return splitExerciseParts(value)
     .map((part) => cleanExerciseQuery(part))
     .filter(Boolean);
 }
@@ -155,23 +168,34 @@ function fallbackInterpretTranscript(transcript: string): ExerciseVoiceInterpret
     entries.push({ exerciseQuery: cleaned, setCount, confidence });
   };
 
-  const prefixedMatches = Array.from(normalized.matchAll(/\b(\d+)\s*sets?\s*of\s+([^,]+?)(?=(?:,\s*|$))/gi));
-  prefixedMatches.forEach((match) => {
+  // A set directive applies to the complete exercise list until the next set
+  // directive, not merely until the first comma.
+  const prefixedMatches = Array.from(normalized.matchAll(/\b(\d+)\s*sets?(?:\s*of)?\s+/gi));
+  prefixedMatches.forEach((match, index) => {
     const setCount = toPositiveInt(Number(match[1]));
-    splitExerciseNames(match[2]).forEach((name) => pushEntry(name, setCount, 'high'));
+    const contentStart = (match.index ?? 0) + match[0].length;
+    const contentEnd = prefixedMatches[index + 1]?.index ?? normalized.length;
+    const exerciseList = normalized.slice(contentStart, contentEnd);
+    splitExerciseNames(exerciseList).forEach((name) => pushEntry(name, setCount, 'high'));
   });
 
-  const suffixedMatches = Array.from(normalized.matchAll(/\b([^,]+?)\s+for\s+(\d+)\s*sets?\b/gi));
-  suffixedMatches.forEach((match) => {
-    const setCount = toPositiveInt(Number(match[2]));
-    splitExerciseNames(match[1]).forEach((name) => pushEntry(name, setCount, 'high'));
-  });
+  if (entries.length === 0) {
+    // A suffix at the end applies to every exercise in the preceding list.
+    const sharedSuffix = normalized.match(/^(.+?)\s+for\s+(\d+)\s*sets?[.!?]?$/i);
+    if (sharedSuffix) {
+      const setCount = toPositiveInt(Number(sharedSuffix[2]));
+      splitExerciseNames(sharedSuffix[1]).forEach((name) => pushEntry(name, setCount, 'high'));
+    }
+  }
 
-  const trailingMatches = Array.from(normalized.matchAll(/\b([^,]+?)\s+(\d+)\s*sets?\b/gi));
-  trailingMatches.forEach((match) => {
-    const setCount = toPositiveInt(Number(match[2]));
-    splitExerciseNames(match[1]).forEach((name) => pushEntry(name, setCount, 'medium'));
-  });
+  if (entries.length === 0) {
+    // Otherwise, allow each delimited item to carry its own trailing count.
+    splitExerciseParts(normalized).forEach((item) => {
+      const trailingCount = item.match(/^(.+?)\s+(\d+)\s*sets?[.!?]?$/i);
+      if (!trailingCount) return;
+      pushEntry(trailingCount[1], toPositiveInt(Number(trailingCount[2])), 'medium');
+    });
+  }
 
   if (entries.length === 0) {
     const setCountMatch = normalized.match(/\b(\d+)\s*sets?\b|\bfor\s+(\d+)\s*sets?\b/);
@@ -202,6 +226,8 @@ async function transcribeAudio(request: ExerciseVoiceRequest): Promise<string> {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('model', model);
+    formData.append('language', 'en');
+    formData.append('prompt', TRANSCRIPTION_PROMPT);
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -244,8 +270,11 @@ async function parseExerciseTranscript(transcript: string): Promise<ExerciseVoic
     'Rules:',
     '- Parse one or more exercise names from the transcript.',
     '- If one set count applies to multiple exercises, copy that setCount onto each entry.',
+    '- Return one entry for every exercise named; never drop later comma-separated items.',
     '- If no set count is spoken for an exercise, use null.',
     '- Keep exerciseQuery concise and clean for exercise search.',
+    '- Recover an obvious exercise name when transcription contains a close phonetic error.',
+    '- Prefer standard strength-training exercise names over nonsensical literal wording.',
     '- Ignore filler words.',
     '- Max 5 entries.',
     '- Confidence must be high, medium, or low.',
@@ -254,6 +283,7 @@ async function parseExerciseTranscript(transcript: string): Promise<ExerciseVoic
     '- "barbell bench press 3 sets" => {"entries":[{"exerciseQuery":"barbell bench press","setCount":3,"confidence":"high"}]}',
     '- "squats for 3 sets" => {"entries":[{"exerciseQuery":"squats","setCount":3,"confidence":"high"}]}',
     '- "3 sets of barbell bench press and squats" => {"entries":[{"exerciseQuery":"barbell bench press","setCount":3,"confidence":"high"},{"exerciseQuery":"squats","setCount":3,"confidence":"high"}]}',
+    '- "three sets of smith\'s machine bent cross" => {"entries":[{"exerciseQuery":"smith machine bench press","setCount":3,"confidence":"medium"}]}',
     '- "bench press, lat pulldown, and squats for 3 sets" => {"entries":[{"exerciseQuery":"bench press","setCount":3,"confidence":"high"},{"exerciseQuery":"lat pulldown","setCount":3,"confidence":"high"},{"exerciseQuery":"squats","setCount":3,"confidence":"high"}]}',
     '',
     `Transcript: """${transcript}"""`,
@@ -304,8 +334,13 @@ async function parseExerciseTranscript(transcript: string): Promise<ExerciseVoic
     ? parsed.entries.map(normalizeEntry).filter((entry): entry is ExerciseVoiceEntry => entry !== null)
     : [];
 
-  if (entries.length === 0) {
-    return fallbackInterpretTranscript(transcript);
+  const fallback = fallbackInterpretTranscript(transcript);
+  const hasUnambiguousListSeparator = /[,;]|\bplus\b|\bas\s+well\s+as\b/i.test(transcript);
+  if (
+    entries.length === 0
+    || (hasUnambiguousListSeparator && fallback.entries.length > entries.length)
+  ) {
+    return fallback;
   }
 
   return buildInterpretation(transcript, entries);

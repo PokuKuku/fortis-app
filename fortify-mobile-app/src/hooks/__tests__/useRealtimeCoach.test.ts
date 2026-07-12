@@ -1116,6 +1116,40 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
+  it('carries a proposed workout into an affirmative follow-up', async () => {
+    const { hook, socket } = await startConnectedSession();
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        serverContent: {
+          outputTranscription: { text: 'Would you like me to build you a push workout?' },
+          turnComplete: true,
+        },
+      }));
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'yes' },
+        },
+      }));
+      socket.message(JSON.stringify({
+        toolCall: {
+          functionCalls: [{
+            id: 'call-affirmative',
+            name: 'create_or_update_workout',
+            args: { prompt: 'yes' },
+          }],
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith(
+      'Build the workout you just proposed: Would you like me to build you a push workout?',
+      undefined
+    );
+    hook.unmount();
+  });
+
   it('dedupes repeated workout tool calls for the same turn', async () => {
     const { hook, socket } = await startConnectedSession();
 
@@ -1299,6 +1333,37 @@ describe('useRealtimeCoach', () => {
       expect(hook.result.current.voiceWorkoutMessages).toEqual([]);
     });
     expect(hook.result.current.isGeneratingVoiceWorkout).toBe(false);
+    expect(hook.result.current.voiceWorkoutGenerationError).toBe(
+      "We couldn't finish that workout. Check your connection and try again."
+    );
+
+    mockGenerateVoiceWorkoutTemplate.mockResolvedValue({
+      type: 'answer',
+      answer: {
+        text: 'Here is your workout.',
+        workoutTemplate: {
+          name: 'Ab Workout',
+          focus: 'Core',
+          exercises: [{
+            exerciseId: 'exercise-1',
+            exerciseName: 'Crunch',
+            sets: 3,
+            reps: '12-15',
+          }],
+        },
+      },
+    });
+
+    await act(async () => {
+      expect(hook.result.current.retryVoiceWorkoutGeneration()).toBe(true);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledTimes(2);
+      expect(hook.result.current.voiceWorkoutGenerationError).toBeNull();
+      expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Ab Workout');
+    });
 
     hook.unmount();
   });

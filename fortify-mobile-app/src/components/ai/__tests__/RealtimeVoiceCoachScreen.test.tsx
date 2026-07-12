@@ -119,6 +119,7 @@ const defaultProps = {
   },
   voiceWorkoutMessages: [],
   isGeneratingVoiceWorkout: false,
+  voiceWorkoutGenerationError: null,
   savingWorkoutMessageId: null,
   startingWorkoutMessageId: null,
   isWorkoutActive: false,
@@ -131,6 +132,7 @@ const defaultProps = {
   onAddWorkoutTemplate: jest.fn(),
   onStartWorkoutTemplate: jest.fn(),
   onDismissWorkoutTemplate: jest.fn(),
+  onRetryWorkoutGeneration: jest.fn(() => true),
 };
 
 describe('RealtimeVoiceCoachScreen', () => {
@@ -468,6 +470,22 @@ describe('RealtimeVoiceCoachScreen', () => {
     expect(getByText('Coming up...')).toBeTruthy();
     expect(getByTestId('voice-card-scroll')).toBeTruthy();
     expect(getByTestId('voice-workout-loading-card')).toBeTruthy();
+  });
+
+  it('keeps a friendly retry card visible when workout generation fails', () => {
+    const onRetryWorkoutGeneration = jest.fn(() => true);
+    const { getByTestId, getByText } = render(
+      <RealtimeVoiceCoachScreen
+        {...defaultProps}
+        voiceWorkoutGenerationError="We couldn't finish that workout. Check your connection and try again."
+        onRetryWorkoutGeneration={onRetryWorkoutGeneration}
+      />
+    );
+
+    expect(getByText('Workout paused')).toBeTruthy();
+    expect(getByText("We couldn't finish that workout. Check your connection and try again.")).toBeTruthy();
+    fireEvent.press(getByTestId('voice-workout-retry-button'));
+    expect(onRetryWorkoutGeneration).toHaveBeenCalledTimes(1);
   });
 
   it('shows workout cards and sends typed prompts in conversation mode', () => {

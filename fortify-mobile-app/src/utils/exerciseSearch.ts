@@ -10,6 +10,7 @@ type ExerciseSearchEntry = {
   aliasTexts: string[];
   aliasTokenTexts: string[];
   aliasTokenSet: Set<string>;
+  instructionAliasTokenTexts: string[];
   instructionText: string;
   muscleText: string;
   equipmentText: string;
@@ -215,16 +216,18 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
       }
     });
 
-    const instructionText = normalizeText((exercise.instructions ?? []).join(' '));
-    if (instructionText) {
-      const instructionTokens = tokenize(instructionText);
-      extractInstructionAliases(instructionTokens, phrases).forEach((alias) => aliasTexts.add(alias));
-    }
-
     const aliasTokenTexts = Array.from(aliasTexts)
       .map((text) => tokenize(text).join(' '))
       .filter(Boolean);
     const aliasTokenSet = new Set(aliasTokenTexts.flatMap((text) => text.split(' ')));
+
+    // Phrases found in instructions are discovery hints, not authoritative
+    // aliases. Keeping them separate prevents copy such as "sit up straight"
+    // from outranking an exercise whose actual name is "sit-up".
+    const instructionText = normalizeText((exercise.instructions ?? []).join(' '));
+    const instructionAliasTokenTexts = instructionText
+      ? extractInstructionAliases(tokenize(instructionText), phrases)
+      : [];
 
     const muscleTokens = [
       ...(exercise.primaryMuscles ?? []),
@@ -247,6 +250,7 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
       aliasTexts: Array.from(aliasTexts),
       aliasTokenTexts,
       aliasTokenSet,
+      instructionAliasTokenTexts,
       instructionText,
       muscleText,
       equipmentText,
@@ -294,6 +298,7 @@ export function searchExercisesWithScores(
     const nameExtraTokenCount = Math.max(0, entry.nameTokens.length - queryTokens.length);
     const aliasExactStemmedMatch = entry.aliasTokenTexts.some((text) => text === stemmedQuery);
     const aliasPrefixStemmedMatch = entry.aliasTokenTexts.some((text) => text.startsWith(`${stemmedQuery} `));
+    const instructionAliasMatch = entry.instructionAliasTokenTexts.some((text) => text === stemmedQuery);
 
     if (entry.stemmedNameText === stemmedQuery) {
       score = 140;
@@ -319,7 +324,7 @@ export function searchExercisesWithScores(
     if (
       includeInstructions &&
       queryTokens.length >= 2 &&
-      entry.instructionText.includes(normalizedQuery)
+      (entry.instructionText.includes(normalizedQuery) || instructionAliasMatch)
     ) {
       score = Math.max(score, 75);
     }

@@ -30,9 +30,67 @@ interface WorkoutVoiceInterpretation {
 
 const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 const UNIT_REGEX = /\b(kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)\b/i;
-const WARMUP_REGEX = /\bwarm(?:[\s-]?up)?\b/i;
-const DROPSET_REGEX = /\bdrop(?:[\s-]?set)?\b/i;
-const FAILURE_REGEX = /\bto failure\b|\bfaili?ure\b/i;
+const SET_TYPE_PATTERN_SOURCES: Record<SetType, string[]> = {
+  normal: ['normal', 'work', 'working'],
+  warmup: ['warm', 'warm[\\s-]?up'],
+  dropset: ['drop', 'drop[\\s-]?set'],
+  failure: ['(?:to[\\s-]+)?faili?ure'],
+};
+const SET_MODIFIER_PATTERN = Object.values(SET_TYPE_PATTERN_SOURCES).flat().join('|');
+const SET_COUNT_REGEX = new RegExp(
+  `\\b(\\d+)\\s*(?:(?:${SET_MODIFIER_PATTERN})\\s+)?sets?\\b`,
+  'i',
+);
+const WEIGHT_AFTER_SETS_REGEX = new RegExp(
+  `\\b\\d+\\s*(?:(?:${SET_MODIFIER_PATTERN})\\s+)?sets?\\s*(?:of|at)?\\s*(\\d+(?:\\.\\d+)?)\\b`,
+  'i',
+);
+const SMALL_NUMBER_WORDS: Record<string, number> = {
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+};
+const TENS_NUMBER_WORDS: Record<string, number> = {
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+};
+const NUMBER_WORD_PATTERN = [
+  ...Object.keys(SMALL_NUMBER_WORDS),
+  ...Object.keys(TENS_NUMBER_WORDS),
+  'hundred',
+  'thousand',
+].join('|');
+
+type ExplicitTranscriptFields = {
+  sets: number | null;
+  weight: number | null;
+  reps: number | null;
+  weightUnit: WeightUnit | null;
+  setType: SetType | null;
+};
 
 function validateRequest(value: unknown): string | null {
   if (!value || typeof value !== 'object') return 'Request body must be an object.';
@@ -80,10 +138,23 @@ function normalizeUnit(value: string | null | undefined): WeightUnit | null {
 function normalizeSetType(value: string | null | undefined): SetType | null {
   if (!value) return null;
   const lower = value.toLowerCase().trim();
-  if (lower === 'normal') return 'normal';
-  if (lower === 'warm' || lower === 'warmup' || lower === 'warm-up' || lower === 'warm up') return 'warmup';
-  if (lower === 'drop' || lower === 'dropset' || lower === 'drop-set' || lower === 'drop set') return 'dropset';
-  if (lower === 'failure' || lower === 'to failure' || lower === 'failiure') return 'failure';
+
+  for (const [setType, patterns] of Object.entries(SET_TYPE_PATTERN_SOURCES) as Array<[SetType, string[]]>) {
+    if (patterns.some((pattern) => new RegExp(`^(?:${pattern})$`, 'i').test(lower))) {
+      return setType;
+    }
+  }
+
+  return null;
+}
+
+function findExplicitSetType(value: string): SetType | null {
+  for (const [setType, patterns] of Object.entries(SET_TYPE_PATTERN_SOURCES) as Array<[SetType, string[]]>) {
+    if (patterns.some((pattern) => new RegExp(`\\b(?:${pattern})\\b`, 'i').test(value))) {
+      return setType;
+    }
+  }
+
   return null;
 }
 
@@ -97,6 +168,82 @@ function toWeight(value: unknown): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
   if (value < 0) return null;
   return Math.round(value * 10) / 10;
+}
+
+function normalizeNumberWords(value: string): string {
+  const phraseRegex = new RegExp(
+    `\\b(?:${NUMBER_WORD_PATTERN})(?:[\\s-]+(?:(?:${NUMBER_WORD_PATTERN})|and))*\\b`,
+    'gi',
+  );
+
+  return value.replace(phraseRegex, (phrase) => {
+    const tokens = phrase.toLowerCase().split(/[\s-]+/).filter((token) => token !== 'and');
+    if (tokens.length === 0) return phrase;
+
+    let total = 0;
+    let group = 0;
+    for (const token of tokens) {
+      if (token in SMALL_NUMBER_WORDS) {
+        group += SMALL_NUMBER_WORDS[token];
+      } else if (token in TENS_NUMBER_WORDS) {
+        group += TENS_NUMBER_WORDS[token];
+      } else if (token === 'hundred') {
+        group = Math.max(group, 1) * 100;
+      } else if (token === 'thousand') {
+        total += Math.max(group, 1) * 1000;
+        group = 0;
+      } else {
+        return phrase;
+      }
+    }
+
+    return String(total + group);
+  });
+}
+
+function extractExplicitTranscriptFields(transcript: string): ExplicitTranscriptFields {
+  const normalized = normalizeNumberWords(transcript)
+    .toLowerCase()
+    .replace(/[×]/g, 'x')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const weightUnit = normalizeUnit(normalized.match(UNIT_REGEX)?.[0] ?? null);
+  const setType = findExplicitSetType(normalized);
+
+  let sets: number | null = null;
+  let reps: number | null = null;
+  let weight: number | null = null;
+
+  const triplePattern = normalized.match(/\b(\d+)\s*(?:x|by)\s*(\d+)\s*(?:at|@)\s*(\d+(?:\.\d+)?)\b/);
+  if (triplePattern) {
+    sets = Number(triplePattern[1]);
+    reps = Number(triplePattern[2]);
+    weight = Number(triplePattern[3]);
+  }
+
+  if (sets === null) {
+    const setsMatch = normalized.match(SET_COUNT_REGEX);
+    if (setsMatch) sets = Number(setsMatch[1]);
+  }
+
+  if (reps === null) {
+    const repsMatch = normalized.match(/\bfor\s+(\d+)\s*reps?\b|\b(\d+)\s*reps?\b/);
+    if (repsMatch) reps = Number(repsMatch[1] ?? repsMatch[2]);
+  }
+
+  if (weight === null) {
+    const weightBeforeReps = normalized.match(
+      /\b(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)?\s*(?:for|x)\s+\d+\s*(?:reps?)?\b/
+    );
+    if (weightBeforeReps) weight = Number(weightBeforeReps[1]);
+  }
+
+  if (weight === null) {
+    const afterSets = normalized.match(WEIGHT_AFTER_SETS_REGEX);
+    if (afterSets) weight = Number(afterSets[1]);
+  }
+
+  return { sets, weight, reps, weightUnit, setType };
 }
 
 function buildInterpretation(
@@ -153,64 +300,18 @@ function fallbackInterpretTranscript(
   transcript: string,
   defaultWeightUnit: WeightUnit
 ): WorkoutVoiceInterpretation {
-  const normalized = transcript.toLowerCase().replace(/[×]/g, 'x');
-  const explicitUnit = normalizeUnit(normalized.match(UNIT_REGEX)?.[0] ?? null);
-  const explicitSetType = normalizeSetType(
-    normalized.match(FAILURE_REGEX)?.[0]
-    ?? normalized.match(DROPSET_REGEX)?.[0]
-    ?? normalized.match(WARMUP_REGEX)?.[0]
-    ?? null
-  );
-
-  let sets: number | null = null;
-  let reps: number | null = null;
-  let weight: number | null = null;
-
-  const triplePattern = normalized.match(/\b(\d+)\s*(?:x|by)\s*(\d+)\s*(?:at|@)\s*(\d+(?:\.\d+)?)\b/);
-  if (triplePattern) {
-    sets = Number(triplePattern[1]);
-    reps = Number(triplePattern[2]);
-    weight = Number(triplePattern[3]);
-  }
-
-  if (sets === null) {
-    const setsMatch = normalized.match(/\b(\d+)\s*sets?\b/);
-    if (setsMatch) {
-      sets = Number(setsMatch[1]);
-    }
-  }
-
-  if (reps === null) {
-    const repsMatch = normalized.match(/\bfor\s+(\d+)\s*reps?\b|\b(\d+)\s*reps?\b/);
-    if (repsMatch) {
-      reps = Number(repsMatch[1] ?? repsMatch[2]);
-    }
-  }
-
-  if (weight === null) {
-    const weightBeforeReps = normalized.match(/\b(\d+(?:\.\d+)?)\s*(?:kg|kgs|kilogram|kilograms|lb|lbs|pound|pounds)?\s*(?:for|x)\s+\d+\b/);
-    if (weightBeforeReps) {
-      weight = Number(weightBeforeReps[1]);
-    }
-  }
-
-  if (weight === null) {
-    const afterSets = normalized.match(/\b\d+\s*sets?\s*(?:of|at)?\s*(\d+(?:\.\d+)?)\b/);
-    if (afterSets) {
-      weight = Number(afterSets[1]);
-    }
-  }
+  const explicit = extractExplicitTranscriptFields(transcript);
 
   return buildInterpretation(
     transcript,
     {
-      sets,
-      weight,
-      reps,
-      weightUnit: explicitUnit ?? defaultWeightUnit,
-      setType: explicitSetType ?? 'normal',
-      inferredWeightUnit: !explicitUnit,
-      inferredSetType: !explicitSetType,
+      sets: explicit.sets,
+      weight: explicit.weight,
+      reps: explicit.reps,
+      weightUnit: explicit.weightUnit ?? defaultWeightUnit,
+      setType: explicit.setType ?? 'normal',
+      inferredWeightUnit: !explicit.weightUnit,
+      inferredSetType: !explicit.setType,
     },
     defaultWeightUnit
   );
@@ -247,6 +348,11 @@ async function transcribeAudio(request: WorkoutVoiceRequest): Promise<string> {
     const formData = new FormData();
     formData.append('file', file, request.fileName);
     formData.append('model', model);
+    formData.append('language', 'en');
+    formData.append(
+      'prompt',
+      `Workout log for ${request.exerciseName}. The speaker states sets, weight, reps, and may say warm-up, drop set, or failure set.`
+    );
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
@@ -340,17 +446,24 @@ async function interpretTranscriptWithModel(
   const parsed = extractJsonObject(text);
   if (!parsed) return null;
 
+  // Numeric values explicitly present in the transcript are more reliable than
+  // model inference. This also corrects model misses around phrases such as
+  // "three warm-up sets" and "five failure sets".
+  const explicit = extractExplicitTranscriptFields(transcript);
+  const parsedWeightUnit = normalizeUnit(typeof parsed.weightUnit === 'string' ? parsed.weightUnit : null);
+  const parsedSetType = normalizeSetType(typeof parsed.setType === 'string' ? parsed.setType : null);
+
   return buildInterpretation(
     transcript,
     {
-      sets: typeof parsed.sets === 'number' ? parsed.sets : null,
-      weight: typeof parsed.weight === 'number' ? parsed.weight : null,
-      reps: typeof parsed.reps === 'number' ? parsed.reps : null,
-      weightUnit: normalizeUnit(typeof parsed.weightUnit === 'string' ? parsed.weightUnit : null),
-      setType: normalizeSetType(typeof parsed.setType === 'string' ? parsed.setType : null) ?? 'normal',
-      inferredSets: parsed.inferredSets === true,
-      inferredWeightUnit: parsed.inferredWeightUnit === true,
-      inferredSetType: parsed.inferredSetType === true,
+      sets: explicit.sets ?? (typeof parsed.sets === 'number' ? parsed.sets : null),
+      weight: explicit.weight ?? (typeof parsed.weight === 'number' ? parsed.weight : null),
+      reps: explicit.reps ?? (typeof parsed.reps === 'number' ? parsed.reps : null),
+      weightUnit: explicit.weightUnit ?? parsedWeightUnit,
+      setType: explicit.setType ?? parsedSetType ?? 'normal',
+      inferredSets: explicit.sets === null && parsed.inferredSets === true,
+      inferredWeightUnit: explicit.weightUnit === null && (parsed.inferredWeightUnit === true || !parsedWeightUnit),
+      inferredSetType: explicit.setType === null && (parsed.inferredSetType === true || !parsedSetType),
       confidence:
         parsed.confidence === 'high' || parsed.confidence === 'medium' || parsed.confidence === 'low'
           ? parsed.confidence
