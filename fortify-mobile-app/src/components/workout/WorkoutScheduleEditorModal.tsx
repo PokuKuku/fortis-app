@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
@@ -34,11 +34,15 @@ export function WorkoutScheduleEditorModal({
   const modalStyles = useModalStyles();
   const { width: windowWidth } = useWindowDimensions();
   const [selectedDays, setSelectedDays] = useState<number[]>([]);
+  const wasVisibleRef = useRef(false);
   const modalWidth = Math.min(360, Math.max(300, windowWidth - Spacing.lg * 2));
 
   useEffect(() => {
-    if (!visible) return;
-    setSelectedDays(normalizeWorkoutScheduleDays(initialDays));
+    const didOpen = visible && !wasVisibleRef.current;
+    wasVisibleRef.current = visible;
+    if (didOpen) {
+      setSelectedDays(normalizeWorkoutScheduleDays(initialDays));
+    }
   }, [initialDays, visible]);
 
   const toggleDay = (day: number) => {
@@ -80,6 +84,9 @@ export function WorkoutScheduleEditorModal({
               return (
                 <Pressable
                   key={label}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${label} workout day`}
+                  accessibilityState={{ selected }}
                   onPress={() => toggleDay(day)}
                   style={({ pressed }) => [
                     styles.dayCell,
