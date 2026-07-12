@@ -936,8 +936,9 @@ export default function InsightsScreen() {
         },
       );
     } catch (error) {
+      console.error('[Insights] Failed to open Ask Fortify', error);
+    } finally {
       askFortifyInFlightRef.current = false;
-      throw error;
     }
   };
 

@@ -185,6 +185,7 @@ describe('realtimeCoach utils', () => {
 
     expect(standardPrompt).toContain('call the create_or_update_workout tool immediately');
     expect(standardPrompt).toContain('Do not proactively offer to create');
+    expect(standardPrompt).toContain('Do not end routine responses by asking whether the user wants a workout');
     expect(standardPrompt).toContain('do not offer it again');
     expect(standardPrompt).not.toContain('ask if they want Fortify to build one');
     expect(standardPrompt).toContain('Never add a generic disclaimer that your response is not medical or health advice');
@@ -232,6 +233,7 @@ describe('realtimeCoach utils', () => {
     expect(conversationPrompt).toContain('Freely accept creative direction for social-media scripts');
     expect(conversationPrompt).toContain('Do not refuse harmless creative-direction instructions');
     expect(conversationPrompt).toContain('Only create or revise a workout when the user explicitly asks');
+    expect(conversationPrompt).toContain('Do not end routine responses by asking whether the user wants a workout');
     expect(conversationPrompt).toContain('call the create_or_update_workout tool immediately');
     expect(conversationPrompt).toContain('never say "chat", "card", or "screen"');
     expect(conversationPrompt).toContain('Never add a generic disclaimer that your response is not medical or health advice');

@@ -319,8 +319,9 @@ export default function InsightDetailScreen() {
       void sendMessage('FORTIS_ANALYST', prompt, { insightId: insight.id });
       router.push({ pathname: '/ai/chat', params: { mode: 'chat' } });
     } catch (error) {
+      console.error('[InsightDetail] Failed to open Ask Fortify', error);
+    } finally {
       askFortifyInFlightRef.current = false;
-      throw error;
     }
   };
 

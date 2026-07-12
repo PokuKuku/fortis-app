@@ -26,7 +26,7 @@ import { Typography } from '@/constants/Typography';
 import { clearOnboardingState, getOnboardingState } from '@/src/utils/onboardingState';
 import {
   buildOnboardingProgramSpec,
-  savePendingOnboardingProgramSpec,
+  savePendingOnboardingProgramSpecUnlessGenerated,
 } from '@/src/utils/onboardingProgram';
 import {
   markPendingOnboardingAuthCompletion,
@@ -234,7 +234,7 @@ export default function AuthWelcomeScreen() {
         }
 
         if (state) {
-          await savePendingOnboardingProgramSpec(buildOnboardingProgramSpec(state));
+          await savePendingOnboardingProgramSpecUnlessGenerated(buildOnboardingProgramSpec(state));
         }
 
         await withTimeout(

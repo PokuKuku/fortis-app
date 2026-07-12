@@ -142,7 +142,7 @@ describe('PaywallGateScreen', () => {
     });
   });
 
-  it('does not stay stuck waiting for identity on first launch', async () => {
+  it('never presents the paywall while Superwall identity is anonymous', async () => {
     jest.useFakeTimers();
     mockSuperwallState.isConfigured = true;
     mockSuperwallState.configurationError = null;
@@ -161,7 +161,7 @@ describe('PaywallGateScreen', () => {
 
     await waitFor(() => {
       expect(mockIdentify).toHaveBeenCalled();
-      expect(mockRegisterPlacement).toHaveBeenCalledWith({ placement: 'fortis_first' });
+      expect(mockRegisterPlacement).not.toHaveBeenCalled();
     });
   });
 

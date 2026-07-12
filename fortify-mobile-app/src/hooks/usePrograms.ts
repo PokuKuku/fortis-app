@@ -125,11 +125,26 @@ export function useProgram(id: string | undefined) {
 
   // Track current program for deletion optimization (avoids stale closure)
   const programRef = useRef<ProgramDetail | null>(null);
+  const emptyProgramRecoveryIdRef = useRef<string | null>(null);
   programRef.current = program;
 
   useEffect(() => {
     fetchPrograms();
   }, [fetchPrograms]);
+
+  useEffect(() => {
+    if (!id) {
+      emptyProgramRecoveryIdRef.current = null;
+      return;
+    }
+
+    const foundProgram = storePrograms.find((entry) => entry.id === id && !entry.isTemplate);
+    const shouldRecover = foundProgram?.isAiCreated && foundProgram.workouts.length === 0;
+    if (!shouldRecover || emptyProgramRecoveryIdRef.current === id) return;
+
+    emptyProgramRecoveryIdRef.current = id;
+    void fetchPrograms({ force: true });
+  }, [fetchPrograms, id, storePrograms]);
 
   useEffect(() => {
     let isMounted = true;

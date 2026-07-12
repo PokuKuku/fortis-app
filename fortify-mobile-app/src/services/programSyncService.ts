@@ -182,6 +182,8 @@ async function uploadProgram(
   program: Program,
   userId: string
 ): Promise<{ success: boolean; serverId?: string; error?: string }> {
+  let createdProgramId: string | null = null;
+
   try {
     // Insert the program
     const { data: insertedProgram, error: programError } = await supabase
@@ -218,6 +220,7 @@ async function uploadProgram(
     }
 
     const serverId = insertedProgram.id;
+    createdProgramId = serverId;
 
     // Insert workouts
     for (const workout of program.workouts) {
@@ -232,8 +235,7 @@ async function uploadProgram(
         .single();
 
       if (workoutError || !insertedWorkout?.id) {
-        console.warn('Failed to insert workout:', workoutError);
-        continue;
+        throw workoutError ?? new Error(`No workout ID returned for ${workout.name}`);
       }
 
       // Insert exercises for this workout
@@ -267,13 +269,29 @@ async function uploadProgram(
           .insert(exercisesToInsert);
 
         if (exercisesError) {
-          console.warn('Failed to insert exercises:', exercisesError);
+          throw exercisesError;
         }
       }
     }
 
     return { success: true, serverId };
   } catch (error) {
+    // A program is only valid when its full workout tree is saved. Remove a
+    // partially-created parent so a later fetch cannot surface a zero-workout
+    // (or partially populated) onboarding program. The local copy remains in
+    // the sync queue and can be retried safely.
+    if (createdProgramId) {
+      const { error: cleanupError } = await supabase
+        .from('workout_programs')
+        .delete()
+        .eq('id', createdProgramId)
+        .eq('created_by', userId);
+
+      if (cleanupError) {
+        console.warn('Failed to clean up partial program upload:', cleanupError);
+      }
+    }
+
     console.error('Failed to upload program:', error);
     return {
       success: false,

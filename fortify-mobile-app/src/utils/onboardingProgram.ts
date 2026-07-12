@@ -88,6 +88,7 @@ export const MUSCLE_FOCUS_LABELS: Record<MuscleFocus, string> = {
 };
 
 export const ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT = 'onboardingProgramSpecUpdated';
+export const ONBOARDING_PROGRAM_PAYLOAD_PREFIX = 'onboarding-program:';
 
 const DEFAULT_SCHEDULE = [1, 3, 5];
 const DURATION_WEEKS = 10;
@@ -283,6 +284,37 @@ export function formatOnboardingFrequencySummary(workoutsPerWeek?: number | null
 export async function savePendingOnboardingProgramSpec(spec: OnboardingProgramSpec): Promise<void> {
   await setScopedItem(PENDING_ONBOARDING_PROGRAM_SPEC_KEY, JSON.stringify(spec));
   DeviceEventEmitter.emit(ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT, spec);
+}
+
+export async function savePendingOnboardingProgramSpecUnlessGenerated(
+  spec: OnboardingProgramSpec
+): Promise<OnboardingProgramSpec> {
+  const existing = await loadPendingOnboardingProgramSpec();
+  if (
+    existing?.generatedProgramId
+    && (existing.status === 'ready' || existing.status === 'dismissed')
+  ) {
+    return existing;
+  }
+
+  await savePendingOnboardingProgramSpec(spec);
+  return spec;
+}
+
+export const isOnboardingProgramPayloadVersion = (value?: string | null): boolean => (
+  value?.startsWith(ONBOARDING_PROGRAM_PAYLOAD_PREFIX) ?? false
+);
+
+export function keepSingleOnboardingProgram<T extends { aiPayloadVersion?: string | null }>(
+  programs: T[]
+): T[] {
+  let hasKeptOnboardingProgram = false;
+  return programs.filter((program) => {
+    if (!isOnboardingProgramPayloadVersion(program.aiPayloadVersion)) return true;
+    if (hasKeptOnboardingProgram) return false;
+    hasKeptOnboardingProgram = true;
+    return true;
+  });
 }
 
 export async function loadPendingOnboardingProgramSpec(): Promise<OnboardingProgramSpec | null> {

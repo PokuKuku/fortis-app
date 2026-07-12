@@ -8,6 +8,31 @@ type BodyweightResult = {
 };
 
 const LBS_TO_KG = 1 / 2.20462;
+const inFlightByUser = new Map<string, Promise<number | null>>();
+
+const fetchLatestBodyweightKg = (userId: string): Promise<number | null> => {
+  const existing = inFlightByUser.get(userId);
+  if (existing) return existing;
+
+  const request = (async () => {
+    const { data, error } = await supabase
+      .from('user_body_metrics')
+      .select('weight, unit, recorded_at')
+      .eq('user_id', userId)
+      .order('recorded_at', { ascending: false })
+      .limit(1);
+
+    if (error || !data || data.length === 0) return null;
+    const entry = data[0] as { weight: number; unit: 'kg' | 'lb' };
+    if (!entry?.weight || entry.weight <= 0) return null;
+    return entry.unit === 'kg' ? entry.weight : entry.weight * LBS_TO_KG;
+  })().finally(() => {
+    inFlightByUser.delete(userId);
+  });
+
+  inFlightByUser.set(userId, request);
+  return request;
+};
 
 export function useLatestBodyweight(): BodyweightResult {
   const { user } = useAuth();
@@ -28,28 +53,8 @@ export function useLatestBodyweight(): BodyweightResult {
 
       setLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('user_body_metrics')
-          .select('weight, unit, recorded_at')
-          .eq('user_id', user.id)
-          .order('recorded_at', { ascending: false })
-          .limit(1);
-
+        const weightKg = await fetchLatestBodyweightKg(user.id);
         if (!isMounted) return;
-        if (error || !data || data.length === 0) {
-          setBodyweightKg(null);
-          setLoading(false);
-          return;
-        }
-
-        const entry = data[0] as { weight: number; unit: 'kg' | 'lb' };
-        if (!entry?.weight || entry.weight <= 0) {
-          setBodyweightKg(null);
-          setLoading(false);
-          return;
-        }
-
-        const weightKg = entry.unit === 'kg' ? entry.weight : entry.weight * LBS_TO_KG;
         setBodyweightKg(weightKg);
       } catch (err) {
         if (isMounted) {

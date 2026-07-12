@@ -130,6 +130,7 @@ export default function OnboardingBirthdateScreen() {
       subtitle={undefined}
       contentGap={Spacing.lg}
       onBack={() => router.back()}
+      bodyAlign="center"
       useScrollView={false}
       floatingFooter={
         <GlassButton
@@ -173,7 +174,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignSelf: 'center',
     gap: Spacing.md,
-    marginTop: 40,
+    transform: [{ translateY: -Spacing['5xl'] }],
   },
   pickerColumn: {
     flex: 1,

@@ -3,6 +3,7 @@ import {
   buildOnboardingProgramBlueprint,
   buildOnboardingProgramSpec,
   formatOnboardingFrequencySummary,
+  keepSingleOnboardingProgram,
   resolveOnboardingProgramName,
 } from '@/src/utils/onboardingProgram';
 import type { ExerciseWithSource } from '@/src/types/exercise';
@@ -31,6 +32,19 @@ const exercise = (
 });
 
 describe('onboarding program helpers', () => {
+  it('keeps only the first onboarding-generated program card', () => {
+    const programs = [
+      { id: 'onboarding-newest', aiPayloadVersion: 'onboarding-program:newest' },
+      { id: 'manual', aiPayloadVersion: null },
+      { id: 'onboarding-older', aiPayloadVersion: 'onboarding-program:older' },
+    ];
+
+    expect(keepSingleOnboardingProgram(programs).map((program) => program.id)).toEqual([
+      'onboarding-newest',
+      'manual',
+    ]);
+  });
+
   it('builds a preview from onboarding training preferences', () => {
     const state = {
       full_name: 'Kwaku Bimpong',

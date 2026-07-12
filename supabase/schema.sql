@@ -273,6 +273,46 @@ CREATE POLICY "Program workouts viewable with program"
     )
   );
 
+CREATE POLICY "Program workouts insert own"
+  ON program_workouts FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM workout_programs
+      WHERE id = program_id
+        AND created_by = (SELECT auth.uid())
+    )
+  );
+
+CREATE POLICY "Program workouts update own"
+  ON program_workouts FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM workout_programs
+      WHERE id = program_id
+        AND created_by = (SELECT auth.uid())
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM workout_programs
+      WHERE id = program_id
+        AND created_by = (SELECT auth.uid())
+    )
+  );
+
+CREATE POLICY "Program workouts delete own"
+  ON program_workouts FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM workout_programs
+      WHERE id = program_id
+        AND created_by = (SELECT auth.uid())
+    )
+  );
+
 -- =====================================================
 -- PROGRAM EXERCISES (Exercises within program workouts)
 -- =====================================================
@@ -305,6 +345,54 @@ CREATE POLICY "Program exercises viewable with workout"
       JOIN workout_programs wp ON pw.program_id = wp.id
       WHERE pw.id = program_workout_id
       AND (wp.is_public = true OR wp.created_by = auth.uid())
+    )
+  );
+
+CREATE POLICY "Program exercises insert own"
+  ON program_exercises FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM program_workouts pw
+      JOIN workout_programs wp ON pw.program_id = wp.id
+      WHERE pw.id = program_workout_id
+        AND wp.created_by = (SELECT auth.uid())
+    )
+  );
+
+CREATE POLICY "Program exercises update own"
+  ON program_exercises FOR UPDATE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM program_workouts pw
+      JOIN workout_programs wp ON pw.program_id = wp.id
+      WHERE pw.id = program_workout_id
+        AND wp.created_by = (SELECT auth.uid())
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM program_workouts pw
+      JOIN workout_programs wp ON pw.program_id = wp.id
+      WHERE pw.id = program_workout_id
+        AND wp.created_by = (SELECT auth.uid())
+    )
+  );
+
+CREATE POLICY "Program exercises delete own"
+  ON program_exercises FOR DELETE
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM program_workouts pw
+      JOIN workout_programs wp ON pw.program_id = wp.id
+      WHERE pw.id = program_workout_id
+        AND wp.created_by = (SELECT auth.uid())
     )
   );
 

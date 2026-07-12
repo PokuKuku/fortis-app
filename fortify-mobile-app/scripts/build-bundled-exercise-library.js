@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { spawnSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
@@ -129,7 +130,18 @@ function copyGifs(exerciseDbIds) {
       missing.push(id);
       return;
     }
-    fs.copyFileSync(source, target);
+    const optimizedTarget = `${target}.tmp.gif`;
+    const result = spawnSync('ffmpeg', [
+      '-y',
+      '-loglevel', 'error',
+      '-i', source,
+      '-vf', 'scale=300:300:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=3:diff_mode=rectangle',
+      optimizedTarget,
+    ], { stdio: 'inherit' });
+    if (result.status !== 0) {
+      throw new Error(`Failed to optimize exercise GIF ${id}. Ensure ffmpeg is installed.`);
+    }
+    fs.renameSync(optimizedTarget, target);
   });
 
   if (missing.length > 0) {
@@ -177,7 +189,7 @@ function main() {
 
   console.log(`Wrote ${path.relative(repoRoot, outputSnapshotPath)} (${snapshot.length} exercises)`);
   console.log(`Wrote ${path.relative(repoRoot, outputLegacyPath)} (${legacy.length} legacy exercises)`);
-  console.log(`Copied ${exerciseDbIds.length} GIFs to ${path.relative(repoRoot, outputGifDir)}`);
+  console.log(`Optimized ${exerciseDbIds.length} GIFs to ${path.relative(repoRoot, outputGifDir)}`);
   console.log(`Wrote ${path.relative(repoRoot, outputAssetMapPath)}`);
 }
 

@@ -119,7 +119,7 @@ export async function scheduleWorkoutCompletionNotification(session: WorkoutSess
     return null;
   }
 
-  if (!permissions.granted && permissions.status !== 'granted') {
+  if (!permissions || (!permissions.granted && permissions.status !== 'granted')) {
     return null;
   }
 

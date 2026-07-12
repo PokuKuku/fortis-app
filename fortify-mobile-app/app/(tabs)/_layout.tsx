@@ -295,7 +295,9 @@ export default function TabLayout() {
   const primaryShake = useRef(new Animated.Value(0)).current;
   const startActionLock = useRef(false);
   const pendingTabFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { exercises: allExercises } = useExercises();
+  // The exercise snapshot/search index is sizeable, so only hydrate it when the
+  // custom-exercise modal needs its "Based on" search.
+  const { exercises: allExercises } = useExercises({ enabled: showAddExerciseModal });
 
   const canonicalExercises = useMemo(
     () => allExercises.filter((exercise) =>
@@ -632,7 +634,7 @@ export default function TabLayout() {
           animation: 'shift',
           animationEnabled: true,
           sceneStyle: { backgroundColor: colors.background },
-          lazy: false,
+          lazy: true,
           unmountOnBlur: false,
           freezeOnBlur: true,
           tabBarStyle: {

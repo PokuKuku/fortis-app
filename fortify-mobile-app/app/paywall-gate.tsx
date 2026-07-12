@@ -22,7 +22,6 @@ import {
 
 const POST_SIGN_UP_PLACEMENT = PAYWALL_PLACEMENTS.postSignUp;
 const GATE_RETRY_DELAY_MS = 2_000;
-const IDENTITY_SYNC_MAX_RETRIES = 3;
 
 export default function PaywallGateScreen() {
   const router = useRouter();
@@ -96,14 +95,6 @@ export default function PaywallGateScreen() {
 
     return superwallUserId === null;
   }, [authUserId, hasSuperwallError, isAuthResolved, isSuperwallReady, superwallUserId]);
-
-  const canBypassIdentityGate =
-    isAuthResolved &&
-    isSuperwallReady &&
-    !hasSuperwallError &&
-    authUserId !== null &&
-    superwallUserId === null &&
-    attempt >= IDENTITY_SYNC_MAX_RETRIES;
 
   useEffect(() => {
     if (!isAuthResolved) {
@@ -179,7 +170,7 @@ export default function PaywallGateScreen() {
     try {
       await refresh();
     } catch {
-      // Best effort.
+      // Entitlement reconciliation below is still worth attempting.
     }
 
     const reconciliation = await reconcileSubscriptionStatus({
@@ -222,8 +213,12 @@ export default function PaywallGateScreen() {
       } else if (superwallUserId) {
         await signOut();
       }
-    } catch {
-      // Best effort.
+    } catch (error) {
+      console.warn('[Superwall] Unable to identify authenticated user before paywall', {
+        attempt: attempt + 1,
+        error,
+      });
+      return;
     }
 
     try {
@@ -233,6 +228,7 @@ export default function PaywallGateScreen() {
     }
   }, [
     authUserId,
+    attempt,
     hasSuperwallError,
     identify,
     isAuthResolved,
@@ -315,7 +311,10 @@ export default function PaywallGateScreen() {
       return;
     }
 
-    if (!isIdentityReady && !canBypassIdentityGate) {
+    // Never register a purchase placement for an anonymous Superwall user.
+    // Purchases must be attributed to the authenticated Supabase user so the
+    // Superwall appUserId remains queryable in our backend.
+    if (!isIdentityReady) {
       if (lastIdentityRetryRef.current !== attempt) {
         lastIdentityRetryRef.current = attempt;
         void retryIdentitySync();
@@ -382,7 +381,6 @@ export default function PaywallGateScreen() {
     retryIdentitySync,
     scheduleRetry,
     syncAccessOnce,
-    canBypassIdentityGate,
     isAuthResolved,
     update,
   ]);

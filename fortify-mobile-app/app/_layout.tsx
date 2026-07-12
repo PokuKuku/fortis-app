@@ -1,12 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { InteractionManager, Platform, Text, View } from 'react-native';
+import { Platform, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { WorkoutMiniBar } from '@/src/components/workout/WorkoutMiniBar';
-import { useWorkoutStore } from '@/src/store/workoutStore';
 import { DragDropProvider } from '@/src/contexts/DragDropContext';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { InAppTourProvider } from '@/src/contexts/InAppTourContext';
@@ -97,7 +96,9 @@ function ThemedAppContent({
       debug={__DEV__}
       autocapture={{
         captureScreens: false,
-        captureTouches: true,
+        // Touch autocapture adds avoidable instrumentation to every press in
+        // simulator/dev builds. Production analytics behavior is unchanged.
+        captureTouches: !__DEV__,
         propsToCapture: ['testID'],
         maxElementsCaptured: 20,
       }}
@@ -490,13 +491,6 @@ function ThemedAppContent({
 }
 
 export default function RootLayout() {
-  const loadStickyNotes = useWorkoutStore((s) => s.loadStickyNotes);
-  const loadWeightUnits = useWorkoutStore((s) => s.loadWeightUnits);
-  const loadCompletedSessions = useWorkoutStore((s) => s.loadCompletedSessions);
-  const loadBodyType = useWorkoutStore((s) => s.loadBodyType);
-  const loadActiveSession = useWorkoutStore((s) => s.loadActiveSession);
-  const loadRestTimerSettings = useWorkoutStore((s) => s.loadRestTimerSettings);
-  const loadStreakPauseState = useWorkoutStore((s) => s.loadStreakPauseState);
   const segments = useSegments();
   const isOnboarding = segments[0] === 'onboarding';
   const isAuth = segments[0] === 'auth';
@@ -506,47 +500,6 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     'BankGothicBT-Medium': require('../assets/fonts/BankGothicMediumBT.ttf'),
   });
-
-  // Load persisted preferences on app start
-  useEffect(() => {
-    if (shouldForceTheme) {
-      return;
-    }
-
-    let isActive = true;
-    let deferredTimer: ReturnType<typeof setTimeout> | null = null;
-    const task = InteractionManager.runAfterInteractions(() => {
-      deferredTimer = setTimeout(() => {
-        if (!isActive) return;
-        void Promise.allSettled([
-          loadStickyNotes(),
-          loadWeightUnits(),
-          loadCompletedSessions(),
-          loadBodyType(),
-          loadActiveSession(),
-          loadRestTimerSettings(),
-          loadStreakPauseState(),
-        ]);
-      }, 250);
-    });
-
-    return () => {
-      isActive = false;
-      if (deferredTimer) {
-        clearTimeout(deferredTimer);
-      }
-      task.cancel();
-    };
-  }, [
-    loadStickyNotes,
-    loadWeightUnits,
-    loadCompletedSessions,
-    loadBodyType,
-    loadActiveSession,
-    loadRestTimerSettings,
-    loadStreakPauseState,
-    shouldForceTheme,
-  ]);
 
   if (!fontsLoaded) {
     return null;

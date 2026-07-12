@@ -5,8 +5,10 @@ import { useFocusEffect } from '@react-navigation/native';
 import { GlassButton } from '@/components/GlassButton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
+import { Colors } from '@/constants/Colors';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { ACCENT_COLORS } from '@/src/utils/accentColors';
 import { moderateScale } from '@/src/utils/responsive';
 import {
   trackOnboardingStepCompleted,
@@ -14,7 +16,8 @@ import {
 } from '@/src/services/onboardingAnalyticsService';
 
 const CLARITY_ANIMATION = require('../../assets/lottie/graphs.json');
-const FORTIFY_LABEL_DELAY_MS = 1650;
+const DIRECT_LABEL_REVEAL_DELAY_MS = 1500;
+const LOTTIE_COMPOSITION_SIZE = 512;
 
 const isLikelyTruncatedAnimation = (source: unknown): boolean => {
   if (!source || typeof source !== 'object') return false;
@@ -39,6 +42,7 @@ const LottieView = (() => {
       loop?: boolean;
       onAnimationFinish?: () => void;
       ref?: unknown;
+      resizeMode?: 'contain' | 'cover' | 'center';
       style?: unknown;
     }>;
   } catch {
@@ -55,20 +59,21 @@ export default function OnboardingInsightsScreen() {
   const lottieRef = useRef<{ play?: () => void; reset?: () => void } | null>(null);
   const fortifyOpacity = useRef(new Animated.Value(0)).current;
   const fortifyTranslateY = useRef(new Animated.Value(6)).current;
-  const animationSize = Math.min(
+  const availableAnimationWidth = Math.max(1, windowWidth - (Spacing.lg * 2));
+  const animationSize = Math.round(Math.min(
     460,
-    Math.max(
-      290,
-      Math.round(Math.min(windowWidth * 0.98, windowHeight * 0.46))
-    )
-  );
-  const withoutFortifyLabelPosition = {
-    top: Math.round(animationSize * 0.52),
-    right: Math.round(animationSize * 0.08),
+    availableAnimationWidth,
+    Math.max(200, windowHeight * 0.46)
+  ));
+  const compositionScale = animationSize / LOTTIE_COMPOSITION_SIZE;
+  const directLabelStyle = {
+    borderRadius: Math.max(5, Math.round(8 * compositionScale)),
+    paddingHorizontal: Math.max(5, Math.round(8 * compositionScale)),
+    paddingVertical: Math.max(3, Math.round(4 * compositionScale)),
   };
-  const withFortifyLabelPosition = {
-    top: Math.round(animationSize * 0.22),
-    right: Math.round(animationSize * 0.12),
+  const directLabelTextStyle = {
+    fontSize: Math.max(12, Math.min(17, Math.round(20 * compositionScale))),
+    letterSpacing: Math.max(0.75, 1.25 * compositionScale),
   };
   const canRenderLottie = Boolean(LottieView) && isLottieViewManagerAvailable();
   const animationLooksTruncated = isLikelyTruncatedAnimation(CLARITY_ANIMATION);
@@ -106,7 +111,7 @@ export default function OnboardingInsightsScreen() {
             useNativeDriver: true,
           }),
         ]).start();
-      }, FORTIFY_LABEL_DELAY_MS);
+      }, DIRECT_LABEL_REVEAL_DELAY_MS);
 
       return () => {
         clearTimeout(timeout);
@@ -156,36 +161,55 @@ export default function OnboardingInsightsScreen() {
               source={CLARITY_ANIMATION}
               autoPlay={false}
               loop={false}
+              resizeMode="contain"
               onAnimationFinish={() => setShowContinue(true)}
               ref={lottieRef as unknown as never}
               style={styles.graphAnimation}
             />
-            <Animated.Text
+            <Animated.View
               style={[
-                styles.withoutFortifyLabel,
+                styles.directLabel,
+                directLabelStyle,
                 {
-                  color: colors.textPrimary,
+                  top: Math.round(72 * compositionScale),
+                  right: Math.round(72 * compositionScale),
+                  backgroundColor: colors.background,
                   opacity: fortifyOpacity,
                   transform: [{ translateY: fortifyTranslateY }],
-                  ...withoutFortifyLabelPosition,
                 },
               ]}
             >
-              without Fortify
-            </Animated.Text>
-            <Animated.Text
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.directLabelText,
+                  directLabelTextStyle,
+                  { color: ACCENT_COLORS.midnight.base },
+                ]}
+              >
+                with Fortify
+              </Text>
+            </Animated.View>
+            <Animated.View
               style={[
-                styles.withFortifyLabel,
+                styles.directLabel,
+                directLabelStyle,
                 {
-                  color: colors.tabActive,
+                  top: Math.round(350 * compositionScale),
+                  right: Math.round(58 * compositionScale),
+                  backgroundColor: colors.background,
                   opacity: fortifyOpacity,
                   transform: [{ translateY: fortifyTranslateY }],
-                  ...withFortifyLabelPosition,
                 },
               ]}
             >
-              with Fortify
-            </Animated.Text>
+              <Text
+                numberOfLines={1}
+                style={[styles.directLabelText, directLabelTextStyle, { color: Colors.error }]}
+              >
+                without Fortify
+              </Text>
+            </Animated.View>
           </View>
         ) : (
           <View
@@ -222,17 +246,12 @@ const styles = StyleSheet.create({
   graphAnimation: {
     ...StyleSheet.absoluteFillObject,
   },
-  withoutFortifyLabel: {
+  directLabel: {
     position: 'absolute',
-    fontFamily: 'BankGothicBT-Medium',
-    fontSize: moderateScale(14),
-    letterSpacing: 1,
+    zIndex: 1,
   },
-  withFortifyLabel: {
-    position: 'absolute',
+  directLabelText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: moderateScale(14),
-    letterSpacing: 1,
   },
   fallbackCard: {
     width: '100%',

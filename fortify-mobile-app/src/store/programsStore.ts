@@ -81,6 +81,45 @@ const refreshSeededDefaultProgramMetadata = (program: Program, defaultsById: Map
   };
 };
 
+export const hasCompleteProgramTree = (program: Program): boolean => (
+  program.workouts.length > 0
+  && program.workouts.every((workout) => workout.exercises.length > 0)
+);
+
+export const mergeFetchedProgramsWithLocal = (
+  serverPrograms: Program[],
+  localPrograms: Program[]
+): Program[] => {
+  const localByPayloadVersion = new Map(
+    localPrograms
+      .filter((program) => Boolean(program.aiPayloadVersion))
+      .map((program) => [program.aiPayloadVersion as string, program])
+  );
+  const retainedLocalIds = new Set<string>();
+
+  const mergedServerPrograms = serverPrograms.map((serverProgram) => {
+    const localProgram = serverProgram.aiPayloadVersion
+      ? localByPayloadVersion.get(serverProgram.aiPayloadVersion)
+      : undefined;
+
+    if (
+      localProgram
+      && hasCompleteProgramTree(localProgram)
+      && !hasCompleteProgramTree(serverProgram)
+    ) {
+      retainedLocalIds.add(localProgram.id);
+      return localProgram;
+    }
+
+    return serverProgram;
+  });
+
+  return [
+    ...mergedServerPrograms,
+    ...localPrograms.filter((program) => !retainedLocalIds.has(program.id)),
+  ];
+};
+
 interface ProgramsState {
   // Data
   programs: Program[];
@@ -556,7 +595,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           ? localPrograms.filter((p) => p.isTemplate || !p.isDefault)
           : localPrograms;
         return {
-          programs: [...programs, ...filteredLocalPrograms],
+          programs: mergeFetchedProgramsWithLocal(programs, filteredLocalPrograms),
           isLoading: false,
           hasFetchedPrograms: true,
         };
@@ -1236,12 +1275,13 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
     get().markProgramSyncing(localId, true);
     syncLocalProgram(localProgram)
-      .then((result) => {
+      .then(async (result) => {
         if (result.success && result.serverId) {
           const stillExists = get().programs.some((p) => p.id === localId);
           if (stillExists) {
             get().replaceLocalIdWithServerId(localId, result.serverId);
           }
+          await get().fetchPrograms({ force: true });
         }
         if (!result.success && !result.queued) {
           console.warn('[ProgramsStore] Generated program sync failed:', result.error);
@@ -2186,11 +2226,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Process pending program sync queue (called on sign-in or when coming online)
   syncPendingPrograms: async () => {
     const pendingIds = await getPendingProgramSyncIds();
-    if (pendingIds.length > 0) {
-      set((state) => ({
-        syncingProgramSyncIds: Array.from(new Set([...state.syncingProgramSyncIds, ...pendingIds])),
-      }));
+    if (pendingIds.length === 0) {
+      return;
     }
+    set((state) => ({
+      syncingProgramSyncIds: Array.from(new Set([...state.syncingProgramSyncIds, ...pendingIds])),
+    }));
 
     try {
       const result = await processPendingProgramQueue();

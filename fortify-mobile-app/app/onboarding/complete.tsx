@@ -28,7 +28,7 @@ import {
   buildOnboardingProgramBlueprint,
   buildOnboardingProgramSpec,
   formatOnboardingFrequencySummary,
-  savePendingOnboardingProgramSpec,
+  savePendingOnboardingProgramSpecUnlessGenerated,
   type MuscleFocus,
 } from '@/src/utils/onboardingProgram';
 import {
@@ -698,9 +698,13 @@ export default function OnboardingCompleteScreen() {
       return onboardingProgramGenerationPromiseRef.current;
     }
 
-    onboardingProgramGenerationSpecIdRef.current = programSpec.id;
-    await savePendingOnboardingProgramSpec(programSpec);
-    const generationPromise = ensureOnboardingProgramGenerated(programSpec);
+    const persistedSpec = await savePendingOnboardingProgramSpecUnlessGenerated(programSpec);
+    if (persistedSpec.status === 'dismissed' && persistedSpec.generatedProgramId) {
+      return persistedSpec.generatedProgramId;
+    }
+
+    onboardingProgramGenerationSpecIdRef.current = persistedSpec.id;
+    const generationPromise = ensureOnboardingProgramGenerated(persistedSpec);
     onboardingProgramGenerationPromiseRef.current = generationPromise;
     return generationPromise;
   }, []);

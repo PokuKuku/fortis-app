@@ -20,6 +20,7 @@ let allExercisesPromise: Promise<ExerciseWithSource[]> | null = null;
 let exerciseLookupCache: Map<string, ExerciseWithSource> | null = null;
 let snapshotExerciseCache: Exercise[] | null = null;
 let legacyCompatibilityExerciseCache: Exercise[] | null = null;
+let initialExercisesCache: ExerciseWithSource[] | null = null;
 
 const EXERCISE_LIBRARY_UPDATED_EVENT = 'exerciseLibraryUpdated';
 const CUSTOM_EXERCISE_PREFIX = 'custom-';
@@ -226,6 +227,8 @@ function getBaseExercisesSync(options?: { includeVariants?: boolean }): Exercise
 }
 
 export function getInitialExercisesSync(): ExerciseWithSource[] {
+  if (initialExercisesCache) return initialExercisesCache;
+
   const customExercises = customExerciseCache ?? [];
   const customWithSource = customExercises.map((exercise) => ({
     ...exercise,
@@ -236,7 +239,8 @@ export function getInitialExercisesSync(): ExerciseWithSource[] {
     source: 'api' as ExerciseSource,
   }));
 
-  return dedupeExercisesById([...customWithSource, ...baseWithSource]);
+  initialExercisesCache = dedupeExercisesById([...customWithSource, ...baseWithSource]);
+  return initialExercisesCache;
 }
 
 function loadLegacyCompatibilityExercises(): Exercise[] {
@@ -720,6 +724,7 @@ export async function refreshExerciseCache(): Promise<void> {
   baseExerciseFullCache = null;
   allExercisesCache = null;
   exerciseLookupCache = null;
+  initialExercisesCache = null;
   await AsyncStorage.removeItem(EXERCISE_CACHE_KEY);
   await AsyncStorage.removeItem(EXERCISE_CACHE_TIMESTAMP_KEY);
   await AsyncStorage.removeItem(EXERCISE_LIBRARY_VERSION_KEY);
@@ -837,6 +842,7 @@ export async function saveCustomExercise(exercise: Exercise): Promise<void> {
   customExerciseCache = customs;
   allExercisesCache = null;
   exerciseLookupCache = null;
+  initialExercisesCache = null;
 }
 
 // --- Cache Management ---
@@ -845,6 +851,7 @@ export function invalidateCustomCache(): void {
   customExerciseCache = null;
   allExercisesCache = null;
   exerciseLookupCache = null;
+  initialExercisesCache = null;
 }
 
 // --- Utilities ---

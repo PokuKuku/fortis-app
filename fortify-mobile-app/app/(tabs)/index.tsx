@@ -61,6 +61,7 @@ import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutSche
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
 import {
+  keepSingleOnboardingProgram,
   loadPendingOnboardingProgramSpec,
   ONBOARDING_PROGRAM_SPEC_UPDATED_EVENT,
   updatePendingOnboardingProgramSpec,
@@ -1726,8 +1727,9 @@ export default function ProgramsScreen() {
   }, [highlightWorkoutId]);
 
   // Transform store programs to UI format (exclude templates)
-  const basePrograms: ProgramItem[] = storePrograms
-    .filter(p => !p.isTemplate)
+  const basePrograms: ProgramItem[] = keepSingleOnboardingProgram(
+    storePrograms.filter(p => !p.isTemplate)
+  )
     .map(p => ({
       id: p.id,
       name: p.name,

@@ -6,12 +6,13 @@ import * as ExerciseService from '@/src/services/exerciseService';
 /**
  * Hook to load all exercises (base + custom) with automatic refresh on custom exercise changes
  */
-export function useExercises() {
+export function useExercises(options?: { enabled?: boolean }) {
+  const enabled = options?.enabled ?? true;
   const [exercises, setExercises] = useState<ExerciseWithSource[]>(() =>
-    ExerciseService.getInitialExercisesSync()
+    enabled ? ExerciseService.getInitialExercisesSync() : []
   );
   const exercisesRef = useRef(exercises);
-  const [loading, setLoading] = useState(exercises.length === 0);
+  const [loading, setLoading] = useState(enabled && exercises.length === 0);
   const [error, setError] = useState<Error | null>(null);
 
   const loadExercises = useCallback(async (options?: { showLoading?: boolean }) => {
@@ -32,6 +33,11 @@ export function useExercises() {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+
     loadExercises({ showLoading: false });
 
     // Listen for custom exercise changes
@@ -53,7 +59,7 @@ export function useExercises() {
       subscription.remove();
       librarySubscription.remove();
     };
-  }, [loadExercises]);
+  }, [enabled, loadExercises]);
 
   const refresh = useCallback(() => loadExercises({ showLoading: true }), [loadExercises]);
 

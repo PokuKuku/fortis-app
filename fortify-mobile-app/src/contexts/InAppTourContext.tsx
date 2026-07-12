@@ -91,6 +91,7 @@ type TourStep = {
   renderOverlay?: boolean;
   holePadding?: number;
   holePaddingBottom?: number;
+  holeOffsetY?: number;
   reserveArrowSpace?: boolean;
   allowAnchorInteraction?: boolean;
   requiresActionBeforeNext?: boolean;
@@ -302,12 +303,12 @@ const TOUR_STEPS: TourStep[] = [
     id: 'fill_reps_column',
     route: '/workout/active',
     anchorId: TOUR_ANCHOR_IDS.activeSetFillDown,
-    secondaryAnchorId: TOUR_ANCHOR_IDS.activeWorkoutExerciseCard,
     body: 'The double down arrow on the keyboard does the same thing: it fills the remaining cells in whichever column you are editing.',
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
     placement: 'above',
+    allowAnchorInteraction: true,
     arrowColor: ACCENT_COLORS.midnight.base,
   },
   {
@@ -380,6 +381,7 @@ const TOUR_STEPS: TourStep[] = [
     mode: 'spotlight',
     primaryActionLabel: null,
     showArrow: true,
+    holeOffsetY: 6,
   },
   {
     id: 'insights_overview',
@@ -1262,6 +1264,7 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
         placement={overlayStep?.placement}
         holePadding={overlayStep?.holePadding}
         holePaddingBottom={overlayStep?.holePaddingBottom}
+        holeOffsetY={overlayStep?.holeOffsetY}
         reserveArrowSpace={overlayStep?.reserveArrowSpace}
         allowAnchorInteraction={overlayStep?.allowAnchorInteraction}
         onTooltipHideComplete={handleTooltipHideComplete}

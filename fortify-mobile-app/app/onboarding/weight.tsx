@@ -7,7 +7,7 @@ import { OnboardingSegmentedControl } from '@/src/components/onboarding/Onboardi
 import { OnboardingRulerPicker } from '@/src/components/onboarding/OnboardingRulerPicker';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
 import { getOnboardingState, updateOnboardingState } from '@/src/utils/onboardingState';
-import { BorderRadius } from '@/constants/Sizes';
+import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import {
   trackOnboardingStepCompleted,
@@ -101,6 +101,7 @@ export default function OnboardingWeightScreen() {
       title="What is your weight?"
       subtitle="You can update this any time from your profile."
       onBack={() => router.back()}
+      bodyAlign="center"
       useScrollView={false}
       floatingFooter={
         <GlassButton style={styles.button} onPress={handleContinue} hapticFeedback="impactMedium">
@@ -108,32 +109,38 @@ export default function OnboardingWeightScreen() {
         </GlassButton>
       }
     >
-      <OnboardingSegmentedControl
-        options={[
-          { label: 'Pounds', value: 'imperial' },
-          { label: 'Kilograms', value: 'metric' },
-        ]}
-        value={unit}
-        onChange={handleUnitChange}
-      />
-
-      <View style={styles.dialBlock}>
-        <Text style={[styles.valueText, { color: colors.textPrimary }]}>{displayText}</Text>
-        <OnboardingRulerPicker
-          min={unit === 'metric' ? KG_MIN : LB_MIN}
-          max={unit === 'metric' ? KG_MAX : LB_MAX}
-          step={DIAL_STEP}
-          value={unit === 'metric' ? weightKgStateForDisplay : weightLbsForDisplay}
-          onValueChange={handleRulerChange}
-          onValueCommit={handleRulerChange}
-          unitLabel={unit === 'metric' ? ' kg' : ' lbs'}
+      <View style={styles.weightControls}>
+        <OnboardingSegmentedControl
+          options={[
+            { label: 'Pounds', value: 'imperial' },
+            { label: 'Kilograms', value: 'metric' },
+          ]}
+          value={unit}
+          onChange={handleUnitChange}
         />
+
+        <View style={styles.dialBlock}>
+          <Text style={[styles.valueText, { color: colors.textPrimary }]}>{displayText}</Text>
+          <OnboardingRulerPicker
+            min={unit === 'metric' ? KG_MIN : LB_MIN}
+            max={unit === 'metric' ? KG_MAX : LB_MAX}
+            step={DIAL_STEP}
+            value={unit === 'metric' ? weightKgStateForDisplay : weightLbsForDisplay}
+            onValueChange={handleRulerChange}
+            onValueCommit={handleRulerChange}
+            unitLabel={unit === 'metric' ? ' kg' : ' lbs'}
+          />
+        </View>
       </View>
     </OnboardingScreen>
   );
 }
 
 const styles = StyleSheet.create({
+  weightControls: {
+    gap: Spacing.md,
+    transform: [{ translateY: -Spacing['5xl'] }],
+  },
   dialBlock: {
     gap: 12,
   },

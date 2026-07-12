@@ -51,6 +51,7 @@ type TourOverlayProps = {
   placement?: TourOverlayPlacement;
   holePadding?: number;
   holePaddingBottom?: number;
+  holeOffsetY?: number;
   reserveArrowSpace?: boolean;
   allowAnchorInteraction?: boolean;
   onTooltipHideComplete?: (() => void) | null;
@@ -96,6 +97,7 @@ export function TourOverlay({
   placement = 'auto',
   holePadding = HOLE_PADDING,
   holePaddingBottom = holePadding,
+  holeOffsetY = 0,
   reserveArrowSpace = false,
   allowAnchorInteraction = mode === 'spotlight',
   onTooltipHideComplete = null,
@@ -131,29 +133,29 @@ export function TourOverlay({
   const paddedRect = useMemo(() => {
     if (!anchorRect) return null;
     const x = Math.max(0, anchorRect.x - holePadding);
-    const y = Math.max(0, anchorRect.y - holePadding);
+    const y = Math.max(0, anchorRect.y - holePadding + holeOffsetY);
     const width = Math.min(screenWidth, anchorRect.width + holePadding * 2);
     const height = Math.min(screenHeight, anchorRect.height + holePadding + holePaddingBottom);
     return { x, y, width, height };
-  }, [anchorRect, holePadding, holePaddingBottom, screenHeight, screenWidth]);
+  }, [anchorRect, holeOffsetY, holePadding, holePaddingBottom, screenHeight, screenWidth]);
 
   const paddedSecondaryRect = useMemo(() => {
     if (!secondaryAnchorRect) return null;
     const x = Math.max(0, secondaryAnchorRect.x - holePadding);
-    const y = Math.max(0, secondaryAnchorRect.y - holePadding);
+    const y = Math.max(0, secondaryAnchorRect.y - holePadding + holeOffsetY);
     const width = Math.min(screenWidth, secondaryAnchorRect.width + holePadding * 2);
     const height = Math.min(screenHeight, secondaryAnchorRect.height + holePadding + holePaddingBottom);
     return { x, y, width, height };
-  }, [holePadding, holePaddingBottom, screenHeight, screenWidth, secondaryAnchorRect]);
+  }, [holeOffsetY, holePadding, holePaddingBottom, screenHeight, screenWidth, secondaryAnchorRect]);
 
   const paddedArrowTargetRect = useMemo(() => {
     if (!arrowTargetRect) return null;
     const x = Math.max(0, arrowTargetRect.x - holePadding);
-    const y = Math.max(0, arrowTargetRect.y - holePadding);
+    const y = Math.max(0, arrowTargetRect.y - holePadding + holeOffsetY);
     const width = Math.min(screenWidth, arrowTargetRect.width + holePadding * 2);
     const height = Math.min(screenHeight, arrowTargetRect.height + holePadding + holePaddingBottom);
     return { x, y, width, height };
-  }, [arrowTargetRect, holePadding, holePaddingBottom, screenHeight, screenWidth]);
+  }, [arrowTargetRect, holeOffsetY, holePadding, holePaddingBottom, screenHeight, screenWidth]);
 
   const tooltipPos = useMemo(() => {
     const safeTop = insets.top + TOOLTIP_SIDE_MARGIN;

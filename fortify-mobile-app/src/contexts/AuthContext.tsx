@@ -239,41 +239,62 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [user?.id, fetchProfile]);
 
   const appStateRef = useRef(AppState.currentState);
+  const workoutSyncInFlightRef = useRef<Promise<void> | null>(null);
+  const programSyncInFlightRef = useRef<Promise<void> | null>(null);
 
   const syncPendingWorkouts = useCallback(async () => {
-    let pendingIds: string[] = [];
-    try {
-      const pendingCount = await getPendingSyncCount();
-      if (pendingCount === 0) return;
-
-      const pendingSessions = await getPendingSyncSessions();
-      pendingIds = pendingSessions.map((session) => session.localId);
-      if (pendingIds.length > 0) {
-        useWorkoutStore.getState().markSessionsSyncing(pendingIds);
-      }
-
-      const result = await processPendingQueue();
-      if (result.syncedLocalIds.length > 0) {
-        useWorkoutStore.getState().markSessionsSynced(result.syncedLocalIds).catch(error => {
-          console.warn('Failed to update synced workout sessions:', error);
-        });
-      }
-
-    } catch (error) {
-      console.warn('Failed to process pending workout sync queue:', error);
-    } finally {
-      if (pendingIds.length > 0) {
-        useWorkoutStore.getState().clearSessionsSyncing(pendingIds);
-      }
+    if (workoutSyncInFlightRef.current) {
+      return workoutSyncInFlightRef.current;
     }
+
+    const run = async () => {
+      let pendingIds: string[] = [];
+      try {
+        const pendingCount = await getPendingSyncCount();
+        if (pendingCount === 0) return;
+
+        const pendingSessions = await getPendingSyncSessions();
+        pendingIds = pendingSessions.map((session) => session.localId);
+        if (pendingIds.length > 0) {
+          useWorkoutStore.getState().markSessionsSyncing(pendingIds);
+        }
+
+        const result = await processPendingQueue();
+        if (result.syncedLocalIds.length > 0) {
+          useWorkoutStore.getState().markSessionsSynced(result.syncedLocalIds).catch(error => {
+            console.warn('Failed to update synced workout sessions:', error);
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to process pending workout sync queue:', error);
+      } finally {
+        if (pendingIds.length > 0) {
+          useWorkoutStore.getState().clearSessionsSyncing(pendingIds);
+        }
+      }
+    };
+
+    const request = run().finally(() => {
+      workoutSyncInFlightRef.current = null;
+    });
+    workoutSyncInFlightRef.current = request;
+    return request;
   }, []);
 
   const syncPendingPrograms = useCallback(async () => {
-    try {
-      await useProgramsStore.getState().syncPendingPrograms();
-    } catch (error) {
-      console.warn('Failed to process pending program sync queue:', error);
+    if (programSyncInFlightRef.current) {
+      return programSyncInFlightRef.current;
     }
+
+    const request = useProgramsStore.getState().syncPendingPrograms()
+      .catch((error) => {
+        console.warn('Failed to process pending program sync queue:', error);
+      })
+      .finally(() => {
+        programSyncInFlightRef.current = null;
+      });
+    programSyncInFlightRef.current = request;
+    return request;
   }, []);
 
   // Initialize auth state

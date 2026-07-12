@@ -25,6 +25,11 @@ const isFresh = (cachedAt?: string): boolean => {
   return Date.now() - cachedTime < CACHE_TTL_MS;
 };
 
+const cacheAgeMs = (cachedAt?: string): number => {
+  if (!cachedAt) return Number.POSITIVE_INFINITY;
+  return Date.now() - new Date(cachedAt).getTime();
+};
+
 const isSameVersion = (entry: CachedChartEntry | undefined, insight?: TrainingInsight | null): boolean => {
   if (!insight?.updatedAt) return true;
   return entry?.insightUpdatedAt === insight.updatedAt;
@@ -35,6 +40,7 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
   const [isLoading, setIsLoading] = useState(true);
   const lastRefreshAtRef = useRef(0);
   const refreshingRef = useRef(false);
+  const initialLoadCompleteRef = useRef(false);
 
   const readCache = useCallback(async (): Promise<CachedCharts> => {
     const cached = await getScopedItem(INSIGHT_CHARTS_CACHE_KEY);
@@ -74,6 +80,7 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
 
   useEffect(() => {
     let isMounted = true;
+    initialLoadCompleteRef.current = false;
 
     const load = async () => {
       if (!insight) {
@@ -81,6 +88,7 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
           setSeries(null);
           setIsLoading(false);
         }
+        initialLoadCompleteRef.current = true;
         return;
       }
 
@@ -91,23 +99,33 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
           setSeries(entry.series);
           setIsLoading(false);
         }
-        const now = Date.now();
-        if (now - lastRefreshAtRef.current > FOCUS_REFRESH_THROTTLE_MS) {
+        lastRefreshAtRef.current = new Date(entry.cachedAt).getTime();
+        if (cacheAgeMs(entry.cachedAt) > FOCUS_REFRESH_THROTTLE_MS) {
           refresh();
         }
+        initialLoadCompleteRef.current = true;
         return;
       }
 
+      // Prevent the focus effect from starting the same request while the
+      // initial cache miss is being resolved.
+      refreshingRef.current = true;
       if (isMounted) {
         setIsLoading(true);
       }
-      const fetched = await fetchInsightChartSeries(insight);
-      if (fetched) {
-        cached[insight.id] = { cachedAt: nowIso(), series: fetched, insightUpdatedAt: insight.updatedAt };
-        await writeCache(cached);
-        if (isMounted) {
-          setSeries(fetched);
+      try {
+        const fetched = await fetchInsightChartSeries(insight);
+        if (fetched) {
+          cached[insight.id] = { cachedAt: nowIso(), series: fetched, insightUpdatedAt: insight.updatedAt };
+          await writeCache(cached);
+          if (isMounted) {
+            setSeries(fetched);
+          }
         }
+      } finally {
+        refreshingRef.current = false;
+        lastRefreshAtRef.current = Date.now();
+        initialLoadCompleteRef.current = true;
       }
       if (isMounted) {
         setIsLoading(false);
@@ -124,6 +142,7 @@ export function useInsightChartSeries(insight?: TrainingInsight | null) {
   useFocusEffect(
     useCallback(() => {
       if (!insight) return;
+      if (!initialLoadCompleteRef.current) return;
       const now = Date.now();
       if (now - lastRefreshAtRef.current < FOCUS_REFRESH_THROTTLE_MS) return;
       refresh();

@@ -55,6 +55,21 @@ describe('TourOverlay', () => {
     expect(spotlightHole.props.ry).toBe(spotlightHole.props.rx);
   });
 
+  it('supports a step-specific vertical spotlight offset', () => {
+    const view = render(
+      <TourOverlay
+        visible
+        mode="spotlight"
+        anchorRect={{ x: 100, y: 200, width: 120, height: 50 }}
+        body="Insights navigation"
+        holePadding={0}
+        holeOffsetY={6}
+      />
+    );
+
+    expect(view.getByTestId('tour-spotlight-hole-0').props.y).toBe(206);
+  });
+
   it('keeps replay and next as independent actions', () => {
     const replay = jest.fn();
     const next = jest.fn();

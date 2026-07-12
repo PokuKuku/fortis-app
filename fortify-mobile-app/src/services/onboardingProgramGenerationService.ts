@@ -11,7 +11,7 @@ import {
   type OnboardingProgramSpec,
 } from '@/src/utils/onboardingProgram';
 
-const inFlightSpecIds = new Set<string>();
+let inFlightGeneration: Promise<string | null> | null = null;
 
 const normalizeAIProgram = (
   template: AIProgramTemplate | undefined,
@@ -50,17 +50,7 @@ const normalizeAIProgram = (
   };
 };
 
-export async function ensureOnboardingProgramGenerated(
-  providedSpec?: OnboardingProgramSpec | null
-): Promise<string | null> {
-  const spec = providedSpec ?? await loadPendingOnboardingProgramSpec();
-  if (!spec || spec.status === 'dismissed') return null;
-  if (spec.status === 'ready' && spec.generatedProgramId) {
-    return spec.generatedProgramId;
-  }
-  if (inFlightSpecIds.has(spec.id)) return null;
-
-  inFlightSpecIds.add(spec.id);
+async function generateOnboardingProgram(spec: OnboardingProgramSpec): Promise<string | null> {
   await updatePendingOnboardingProgramSpec({ status: 'generating', error: null });
 
   try {
@@ -69,17 +59,45 @@ export async function ensureOnboardingProgramGenerated(
       await fetchPrograms();
     }
 
-    const existing = useProgramsStore
+    const onboardingPrograms = useProgramsStore
       .getState()
       .programs
-      .find((program) => program.aiPayloadVersion === `onboarding-program:${spec.id}`);
+      .filter((program) => program.aiPayloadVersion?.startsWith('onboarding-program:'));
+    const exactExisting = onboardingPrograms.find(
+      (program) => program.aiPayloadVersion === `onboarding-program:${spec.id}`
+    );
+    const completeExisting = onboardingPrograms.find((program) => (
+      program.workouts.length > 0
+      && program.workouts.every((workout) => workout.exercises.length > 0)
+    ));
+    const existing = (
+      exactExisting
+      && exactExisting.workouts.length > 0
+      && exactExisting.workouts.every((workout) => workout.exercises.length > 0)
+        ? exactExisting
+        : completeExisting ?? exactExisting
+    );
     if (existing) {
-      await updatePendingOnboardingProgramSpec({
-        status: 'ready',
-        generatedProgramId: existing.id,
-        error: null,
-      });
-      return existing.id;
+      const isComplete = existing.workouts.length > 0
+        && existing.workouts.every((workout) => workout.exercises.length > 0);
+
+      if (isComplete) {
+        await updatePendingOnboardingProgramSpec({
+          status: 'ready',
+          generatedProgramId: existing.id,
+          error: null,
+        });
+        return existing.id;
+      }
+
+      if (existing === exactExisting) {
+        // Older sync behavior could leave the parent program behind after a
+        // failed nested insert. Remove that invalid record before regenerating.
+        const deleted = await useProgramsStore.getState().deleteProgram(existing.id);
+        if (!deleted) {
+          throw new Error('Could not replace the incomplete onboarding program.');
+        }
+      }
     }
 
     const exercises = await ExerciseService.getAllExercises();
@@ -125,7 +143,26 @@ export async function ensureOnboardingProgramGenerated(
       error: error instanceof Error ? error.message : 'Could not generate program.',
     });
     return null;
+  }
+}
+
+export async function ensureOnboardingProgramGenerated(
+  providedSpec?: OnboardingProgramSpec | null
+): Promise<string | null> {
+  const spec = providedSpec ?? await loadPendingOnboardingProgramSpec();
+  if (!spec || spec.status === 'dismissed') return spec?.generatedProgramId ?? null;
+  if (spec.status === 'ready' && spec.generatedProgramId) {
+    return spec.generatedProgramId;
+  }
+  if (inFlightGeneration) return inFlightGeneration;
+
+  const generation = generateOnboardingProgram(spec);
+  inFlightGeneration = generation;
+  try {
+    return await generation;
   } finally {
-    inFlightSpecIds.delete(spec.id);
+    if (inFlightGeneration === generation) {
+      inFlightGeneration = null;
+    }
   }
 }
