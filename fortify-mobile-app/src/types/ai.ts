@@ -130,6 +130,7 @@ export type AIErrorCode =
   | 'WORKOUT_TEMPLATE_UNAVAILABLE'
   | 'LLM_ERROR'
   | 'INTERNAL_ERROR'
+  | 'CONNECTION_INTERRUPTED'
   | 'ACTIVE_WORKOUT_BLOCKED';
 
 export interface AIClarificationOption {

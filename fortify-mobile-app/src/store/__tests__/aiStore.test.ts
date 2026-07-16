@@ -222,6 +222,24 @@ describe('useAIStore workout templates', () => {
     );
   });
 
+  it('keeps connection failures out of the conversation and exposes a retry', async () => {
+    (aiService.sendAIMessage as jest.Mock).mockResolvedValue({
+      type: 'error',
+      requestId: 'req-connection',
+      error: {
+        code: 'CONNECTION_INTERRUPTED',
+        message: 'Your connection was interrupted before Fortis could respond. Please try again.',
+        retryable: true,
+      },
+    });
+
+    await useAIStore.getState().sendMessage('GENERAL_CHAT', 'Review my workout');
+
+    expect(useAIStore.getState().conversation?.messages).toHaveLength(1);
+    expect(useAIStore.getState().conversation?.messages[0]?.role).toBe('user');
+    expect(useAIStore.getState().lastFailedMessage).not.toBeNull();
+  });
+
   it('blocks duplicate sends while an AI response is already in progress', async () => {
     let resolveResponse: (value: unknown) => void = () => undefined;
     (aiService.sendAIMessage as jest.Mock).mockImplementation(() => (

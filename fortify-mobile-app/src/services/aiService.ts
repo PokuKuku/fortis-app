@@ -21,8 +21,14 @@ import type { OnboardingProgramSpec } from '@/src/utils/onboardingProgram';
 import { hasAIDataSharingConsent } from '@/src/services/aiConsentService';
 import { getAllExercises } from '@/src/services/exerciseService';
 import type { ExerciseWithSource } from '@/src/types/exercise';
+import {
+  invokeEdgeFunctionWithRetry,
+  isTransientEdgeFunctionError,
+} from '@/src/services/edgeFunctionRetry';
 
 const MAX_WORKOUT_CONTEXT_EXERCISES = 160;
+export const AI_CONNECTION_INTERRUPTED_MESSAGE =
+  'Your connection was interrupted before Fortis could respond. Please try again.';
 
 const WORKOUT_NOUN_PATTERN = String.raw`(?:work\s*out|workout|routine|session|template|training(?:\s+(?:day|session|workout))?|lift|day)`;
 const WORKOUT_FOCUS_PATTERN = String.raw`(?:full\s+body|upper\s+body|lower\s+body|push|pull|legs?|chest|back|lats?|traps?|shoulders?|delts?|arms?|biceps|triceps|forearms?|glutes?|hamstrings?|quads?|calves|core|abs|cardio|conditioning|mobility|strength|hypertrophy)`;
@@ -379,9 +385,9 @@ export async function sendAIMessage(
   };
 
   try {
-    const { data, error, response } = await supabase.functions.invoke('ai', {
-      body: request,
-    });
+    const { data, error, response } = await invokeEdgeFunctionWithRetry(() => (
+      supabase.functions.invoke('ai', { body: request })
+    ));
 
     if (error) {
       if (response) {
@@ -403,14 +409,18 @@ export async function sendAIMessage(
         type: 'error',
         requestId: Crypto.randomUUID(),
         error: {
-          code: 'INTERNAL_ERROR',
-          message: error.message || 'Failed to get AI response',
+          code: isTransientEdgeFunctionError(error) ? 'CONNECTION_INTERRUPTED' : 'INTERNAL_ERROR',
+          message: isTransientEdgeFunctionError(error)
+            ? AI_CONNECTION_INTERRUPTED_MESSAGE
+            : error instanceof Error
+              ? error.message
+              : 'Failed to get AI response',
           retryable: true,
         },
       };
     }
 
-    return data as AIResponse;
+    return data!;
   } catch (err) {
     console.warn('AI service error:', err);
     return {

@@ -48,6 +48,7 @@ import {
 import { ChatMessage } from '@/src/components/ai/ChatMessage';
 import { ChatEmptyState } from '@/src/components/ai/ChatEmptyState';
 import { ChatInput } from '@/src/components/ai/ChatInput';
+import { AIConnectionErrorCard } from '@/src/components/ai/AIConnectionErrorCard';
 import { AIWorkoutPreviewModal } from '@/src/components/ai/AIWorkoutPreviewModal';
 import { CustomScenarioSheet } from '@/src/components/ai/CustomScenarioSheet';
 import { RealtimeVoiceCoachScreen } from '@/src/components/ai/RealtimeVoiceCoachScreen';
@@ -71,6 +72,7 @@ import { TOUR_ANCHOR_IDS, TOUR_BACK_WORKOUT_TEMPLATE_MARKER } from '@/src/consta
 import { TourAnchor } from '@/src/components/tour/TourAnchor';
 import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import { useProgramsStore } from '@/src/store/programsStore';
+import { AI_CONNECTION_INTERRUPTED_MESSAGE } from '@/src/services/aiService';
 
 // Helpful app tips shown while waiting for AI responses
 const LOADING_MESSAGES = [
@@ -1163,7 +1165,9 @@ export default function AIChatScreen() {
               )}
 
               {/* Error display */}
-              {error && (
+              {error === AI_CONNECTION_INTERRUPTED_MESSAGE && lastFailedMessage ? (
+                <AIConnectionErrorCard onRetry={handleRetry} />
+              ) : error ? (
                 <TouchableOpacity
                   style={styles.errorContainer}
                   onPress={lastFailedMessage ? handleRetry : clearError}
@@ -1176,7 +1180,7 @@ export default function AIChatScreen() {
                     {lastFailedMessage ? 'Tap to retry' : 'Tap to dismiss'}
                   </Text>
                 </TouchableOpacity>
-              )}
+              ) : null}
 
               {chatWorkoutActions.templateSaveError && (
                 <TouchableOpacity

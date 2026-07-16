@@ -9,7 +9,7 @@ import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate' | '/(tabs)';
-const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortisDemoFinal888.mov');
+const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortifyDemo.mov');
 
 const resolveStartupRoute = ({
   isAuthenticated,

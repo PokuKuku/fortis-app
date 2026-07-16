@@ -449,6 +449,8 @@ export const useAIStore = create<AIState>()(
         const history = buildConversationHistory(updatedConversation.messages, intent);
         const response = await aiService.sendAIMessage(intent, message, context, history, images);
         const isRateLimited = response.type === 'error' && response.error?.code === 'RATE_LIMITED';
+        const isConnectionInterrupted = response.type === 'error'
+          && response.error?.code === 'CONNECTION_INTERRUPTED';
         const friendlyErrorMessage = response.type === 'error'
           ? makeFriendlyAIErrorMessage(response.error)
           : null;
@@ -494,7 +496,9 @@ export const useAIStore = create<AIState>()(
 
         const finalConversation: AIConversation = {
           ...updatedConversation,
-          messages: [...updatedConversation.messages, assistantMessage],
+          messages: isConnectionInterrupted
+            ? updatedConversation.messages
+            : [...updatedConversation.messages, assistantMessage],
         };
 
         if (response.type === 'error') {

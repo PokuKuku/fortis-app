@@ -18,7 +18,7 @@ import { Typography } from '@/constants/Typography';
 import { useOnboardingFunnelScreen } from '@/src/services/onboardingAnalyticsService';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 
-const DEMO_VIDEO = require('../../assets/videos/FortisDemoFinal888.mov');
+const DEMO_VIDEO = require('../../assets/videos/FortifyDemo.mov');
 const WELCOME_TITLE_LINE_ONE = 'Gym Progress';
 const WELCOME_TITLE_LINE_TWO = 'made Simple';
 const WELCOME_TITLE = `${WELCOME_TITLE_LINE_ONE}\n${WELCOME_TITLE_LINE_TWO}`;
