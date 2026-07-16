@@ -473,7 +473,12 @@ export function shouldBypassProGateForTourState(params: {
   return Boolean(TOUR_PRO_GATE_BYPASS_STEPS[params.placement]?.has(params.activeStepId));
 }
 
-export function isProfileEligibleForInAppTour(profile: Pick<Profile, 'created_at'> | null): boolean {
+export function isProfileEligibleForInAppTour(
+  profile: Pick<Profile, 'created_at' | 'in_app_tour_version'> | null
+): boolean {
+  // Version 0 is reserved for an explicit developer/account reset. This lets
+  // one legacy test account preview the tour without re-enrolling old users.
+  if (profile?.in_app_tour_version === 0) return true;
   if (!profile?.created_at) return false;
 
   const createdAt = Date.parse(profile.created_at);

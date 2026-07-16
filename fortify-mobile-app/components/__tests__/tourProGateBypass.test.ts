@@ -76,6 +76,17 @@ describe('isProfileEligibleForInAppTour', () => {
     expect(isProfileEligibleForInAppTour({ created_at: '2026-07-13T12:00:00.000Z' })).toBe(true);
   });
 
+  it('allows a legacy account only when it has been explicitly reset', () => {
+    expect(isProfileEligibleForInAppTour({
+      created_at: '2026-06-22T12:00:00.000Z',
+      in_app_tour_version: 0,
+    })).toBe(true);
+    expect(isProfileEligibleForInAppTour({
+      created_at: '2026-06-22T12:00:00.000Z',
+      in_app_tour_version: 30,
+    })).toBe(false);
+  });
+
   it('fails closed when profile creation time is unavailable or invalid', () => {
     expect(isProfileEligibleForInAppTour(null)).toBe(false);
     expect(isProfileEligibleForInAppTour({})).toBe(false);
