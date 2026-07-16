@@ -40,6 +40,7 @@ import { generateSecureUUID as generateId } from '../utils/uuid';
 import { getSessionVolume, type VolumeContext } from '../utils/workoutVolume';
 import { createWorkoutVoiceLogPlan } from '../utils/workoutVoiceLog';
 import { DEFAULT_TARGET_REPS, formatRepRange, parseRepRange } from '../utils/workoutProgression';
+import { resolveProgramEditorSetTypes } from '../utils/programWorkoutEditor';
 import { posthog } from '@/src/config/posthog';
 
 // Module-level lock to prevent rapid double-clicks from creating multiple sessions
@@ -2747,18 +2748,36 @@ export const useWorkoutStore = create<WorkoutState>()(
           (a, b) => (a.orderIndex ?? 0) - (b.orderIndex ?? 0)
         );
 
-        const { weightUnits } = get();
+        const { weightUnits, completedSessions } = get();
         const exercises: WorkoutExercise[] = sortedExercises.map((programEx, exIndex) => {
           const exerciseWeightUnit = weightUnits[programEx.exerciseId] || 'lbs';
           const numSets = Math.max(1, programEx.setDetails?.length ?? programEx.sets ?? 1);
           const sets: WorkoutSet[] = [];
+          const ownProgramPerformance = getLatestExerciseFromHistory(
+            completedSessions,
+            programEx.exerciseId,
+            (session) => session.programWorkoutId === workoutId
+          );
+          const fallbackWorkoutPerformance = ownProgramPerformance
+            ? null
+            : getLatestExerciseFromHistory(
+              completedSessions,
+              programEx.exerciseId,
+              (session) => session.name === workout.name
+            );
+          const historySets = ownProgramPerformance?.sets ?? fallbackWorkoutPerformance?.sets ?? [];
+          const resolvedSetTypes = resolveProgramEditorSetTypes({
+            setCount: numSets,
+            setDetails: programEx.setDetails,
+            historySets,
+          });
 
           for (let i = 0; i < numSets; i += 1) {
             const setDetail = programEx.setDetails?.[i];
             sets.push({
               localId: generateId(),
               setNumber: i + 1,
-              setType: setDetail?.setType ?? 'normal',
+              setType: resolvedSetTypes[i],
               weight: setDetail?.weight ?? null,
               weightUnit: exerciseWeightUnit,
               reps: setDetail?.reps ?? null,
