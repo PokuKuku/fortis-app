@@ -657,6 +657,47 @@ describe('useRealtimeCoach', () => {
     hook.unmount();
   });
 
+  it('builds a workout at the conversation speech boundary without waiting for a tool call', async () => {
+    mockShouldGenerateWorkoutFromVoice.mockImplementation((text?: string) => /make me a workout/i.test(text ?? ''));
+    const conversationPreferences = {
+      ...preferences,
+      experienceMode: 'conversation' as const,
+    };
+    const { hook, socket } = await startConnectedSession({
+      interactionMode: 'realtime',
+      preferences: conversationPreferences,
+    });
+
+    await act(async () => {
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(3000) });
+      socket.message(JSON.stringify({
+        serverContent: {
+          inputTranscription: { text: 'make me a workout' },
+        },
+      }));
+      audioListeners.onMicrophoneData?.({ data: pcmChunk(0) });
+      jest.advanceTimersByTime(550 + 180);
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledTimes(1);
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledWith('make me a workout', undefined);
+    expect(hook.result.current.voiceWorkoutMessages[0]?.workoutTemplate.name).toBe('Chest Workout');
+
+    await act(async () => {
+      socket.message(JSON.stringify({
+        serverContent: {
+          outputTranscription: { text: 'I am starting that workout now.' },
+          turnComplete: true,
+        },
+      }));
+      await Promise.resolve();
+    });
+
+    expect(mockGenerateVoiceWorkoutTemplate).toHaveBeenCalledTimes(1);
+    hook.unmount();
+  });
+
   it('does not transmit realtime ambient silence until a speech turn starts', async () => {
     const { hook, socket } = await startConnectedSession({ interactionMode: 'realtime' });
 

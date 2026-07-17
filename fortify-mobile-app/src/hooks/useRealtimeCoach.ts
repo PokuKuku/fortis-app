@@ -461,6 +461,7 @@ export function useRealtimeCoach({
   const visualContextPendingRef = useRef(false);
   const realtimeSpeechActiveRef = useRef(false);
   const realtimeSpeechEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const realtimeTranscriptDrainTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const realtimePrerollChunksRef = useRef<Uint8Array[]>([]);
   const inFlightWorkoutPromptRef = useRef('');
   const recentWorkoutPromptAttemptsRef = useRef<Map<string, number>>(new Map());
@@ -642,6 +643,13 @@ export function useRealtimeCoach({
     }
   }, []);
 
+  const clearRealtimeTranscriptDrainTimeout = useCallback(() => {
+    if (realtimeTranscriptDrainTimeoutRef.current) {
+      clearTimeout(realtimeTranscriptDrainTimeoutRef.current);
+      realtimeTranscriptDrainTimeoutRef.current = null;
+    }
+  }, []);
+
   const clearPlaybackQueue = useCallback(() => {
     if (playbackFlushTimeoutRef.current) {
       clearTimeout(playbackFlushTimeoutRef.current);
@@ -757,6 +765,7 @@ export function useRealtimeCoach({
     clearMicWatchdog();
     clearUserTurnEndTimeout();
     clearRealtimeSpeechEndTimeout();
+    clearRealtimeTranscriptDrainTimeout();
     clearPlaybackQueue();
     unloadCreatorScriptSound();
     clearTranscriptHideTimeout();
@@ -807,6 +816,7 @@ export function useRealtimeCoach({
     clearMicWatchdog,
     clearUserTurnEndTimeout,
     clearRealtimeSpeechEndTimeout,
+    clearRealtimeTranscriptDrainTimeout,
     clearPlaybackQueue,
     clearTranscriptHideTimeout,
     finalizeUsageReporting,
@@ -1181,6 +1191,7 @@ export function useRealtimeCoach({
     if (rms >= REALTIME_SPEECH_START_RMS) {
       clearRealtimeSpeechEndTimeout();
       if (!realtimeSpeechActiveRef.current) {
+        clearRealtimeTranscriptDrainTimeout();
         posthog.capture('voice_chat_used');
         realtimeSpeechActiveRef.current = true;
         latestUserTranscriptRef.current = '';
@@ -1209,6 +1220,14 @@ export function useRealtimeCoach({
           if (isSocketOpen(currentSocket)) {
             currentSocket.send(JSON.stringify({ realtimeInput: { activityEnd: {} } }));
           }
+          clearRealtimeTranscriptDrainTimeout();
+          realtimeTranscriptDrainTimeoutRef.current = setTimeout(() => {
+            realtimeTranscriptDrainTimeoutRef.current = null;
+            const completedTranscript = latestUserTranscriptRef.current.trim();
+            if (completedTranscript) {
+              maybeGenerateWorkoutFromTranscript(completedTranscript);
+            }
+          }, USER_TURN_RELEASE_DRAIN_MS);
           setPhase((current) => current === 'user_speaking' ? 'listening' : current);
         }, REALTIME_SPEECH_END_DELAY_MS);
       }
@@ -1223,7 +1242,9 @@ export function useRealtimeCoach({
   }, [
     clearPlaybackQueue,
     clearRealtimeSpeechEndTimeout,
+    clearRealtimeTranscriptDrainTimeout,
     interactionMode,
+    maybeGenerateWorkoutFromTranscript,
     sendMicrophoneChunk,
   ]);
 
@@ -1536,6 +1557,7 @@ export function useRealtimeCoach({
       }
 
       if (action.type === 'turn_complete') {
+        clearRealtimeTranscriptDrainTimeout();
         if ((interactionMode === 'realtime' || !isUserTurnActiveRef.current) && latestUserTranscriptRef.current) {
           maybeGenerateWorkoutFromTranscript(latestUserTranscriptRef.current);
           latestUserTranscriptRef.current = '';
@@ -1572,6 +1594,7 @@ export function useRealtimeCoach({
     }
   }, [
     clearPlaybackQueue,
+    clearRealtimeTranscriptDrainTimeout,
     armMicrophoneWatchdog,
     hideTranscriptSoon,
     handleWorkoutToolCall,
