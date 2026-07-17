@@ -177,6 +177,9 @@ export function BaseModal({
                 {showCloseButton && (
                   <Pressable
                     onPress={handleClose}
+                    accessibilityRole="button"
+                    accessibilityLabel="Close modal"
+                    hitSlop={10}
                     style={({ pressed }) => [
                       styles.closeButton,
                       { backgroundColor: closeButtonBg },
@@ -260,6 +263,8 @@ const styles = StyleSheet.create({
     right: Spacing.lg,
     borderRadius: BorderRadius.lg,
     padding: 4,
+    zIndex: 2,
+    elevation: 2,
   },
   closeButtonPressed: {
     opacity: 0.6,
