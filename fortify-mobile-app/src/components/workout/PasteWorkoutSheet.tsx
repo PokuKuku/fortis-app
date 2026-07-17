@@ -117,7 +117,7 @@ export function PasteWorkoutSheet({
   onTourExampleImported?: () => void;
 }) {
   const { colors, isDark } = useTheme();
-  const { fontScale, height: windowHeight } = useWindowDimensions();
+  const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const { exercises } = useExercises();
   const [text, setText] = useState('');
@@ -130,7 +130,6 @@ export function PasteWorkoutSheet({
   const sheetTranslateY = useRef(new Animated.Value(0)).current;
   const index = useMemo(() => buildExerciseSearchIndex(exercises), [exercises]);
   const isTourExample = Boolean(tourExampleText);
-  const isLargeText = fontScale >= 1.2;
   const maxSheetHeight = Math.round(windowHeight * 0.9);
   const sheetBottomPadding = Math.max(insets.bottom + Spacing.lg, Spacing['2xl']);
   const dismissPanResponder = useMemo(
@@ -276,8 +275,10 @@ export function PasteWorkoutSheet({
             <View style={styles.header}>
               <Text
                 style={[styles.title, { color: colors.textPrimary }]}
-                maxFontSizeMultiplier={1.15}
-                numberOfLines={2}
+                allowFontScaling={false}
+                adjustsFontSizeToFit
+                minimumFontScale={0.78}
+                numberOfLines={1}
               >
                 Paste Workout
               </Text>
@@ -309,6 +310,18 @@ export function PasteWorkoutSheet({
               contentContainerStyle={[styles.sheetContent, { paddingBottom: sheetBottomPadding }]}
             >
               <View ref={tourInputRef} onLayout={measureTourTargets} pointerEvents={isTourExample ? 'none' : 'auto'}>
+                {!text ? (
+                  <Text
+                    pointerEvents="none"
+                    style={[styles.inputPlaceholder, { color: colors.textTertiary }]}
+                    allowFontScaling={false}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.72}
+                    numberOfLines={1}
+                  >
+                    Paste an exercise list or workout notes
+                  </Text>
+                ) : null}
                 <TextInput
                   value={text}
                   onChangeText={(value) => { setText(value); setError(null); }}
@@ -316,10 +329,9 @@ export function PasteWorkoutSheet({
                   scrollEnabled
                   numberOfLines={4}
                   editable={!isTourExample}
-                  placeholder="Paste an exercise list or workout notes"
-                  placeholderTextColor={colors.textTertiary}
-                  maxFontSizeMultiplier={1.35}
-                  style={[styles.input, isLargeText && styles.inputLargeText, {
+                  accessibilityLabel="Paste workout notes"
+                  allowFontScaling={false}
+                  style={[styles.input, {
                     color: colors.textPrimary,
                     borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
                     backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
@@ -365,21 +377,25 @@ export function PasteWorkoutSheet({
                   </Pressable>
                 </View>
               ) : (
-                <View style={[styles.row, isLargeText && styles.rowStacked]}>
-                  <Pressable style={[styles.secondary, isLargeText && styles.stackedAction, { borderColor: colors.accentBorder }]} onPress={() => void paste()}>
+                <View style={styles.row}>
+                  <Pressable style={[styles.secondary, { borderColor: colors.accentBorder }]} onPress={() => void paste()}>
                     <Text
                       style={[styles.secondaryText, { color: colors.accent }]}
-                      maxFontSizeMultiplier={1.2}
-                      numberOfLines={2}
+                      allowFontScaling={false}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                      numberOfLines={1}
                     >
                       Paste Clipboard
                     </Text>
                   </Pressable>
-                  <GlassButton style={[styles.importButton, isLargeText && styles.stackedAction]} onPress={() => importWorkout()}>
+                  <GlassButton style={styles.importButton} onPress={() => importWorkout()}>
                     <Text
                       style={[styles.importText, { color: colors.accentForegroundOnFill }]}
-                      maxFontSizeMultiplier={1.2}
-                      numberOfLines={2}
+                      allowFontScaling={false}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.7}
+                      numberOfLines={1}
                     >
                       Import Workout
                     </Text>
@@ -464,7 +480,7 @@ const styles = StyleSheet.create({
   sheetScroll: { flexShrink: 1 },
   sheetContent: { gap: Spacing.lg, paddingBottom: Spacing.xl },
   input: { minHeight: 132, maxHeight: 220, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, textAlignVertical: 'top', fontSize: 16, lineHeight: 22 },
-  inputLargeText: { minHeight: 168 },
+  inputPlaceholder: { position: 'absolute', zIndex: 1, top: Spacing.md, left: Spacing.md, right: Spacing.md, fontSize: 16, lineHeight: 22 },
   formatErrorCard: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, gap: Spacing.xs },
   formatErrorTitle: { fontSize: 14, fontWeight: '700' },
   formatErrorText: { fontSize: 13 },
@@ -475,8 +491,6 @@ const styles = StyleSheet.create({
   demoActionPressed: { opacity: 0.82 },
   demoActionText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '800', textTransform: 'uppercase' },
   row: { flexDirection: 'row', gap: Spacing.md },
-  rowStacked: { flexDirection: 'column' },
-  stackedAction: { flex: 0, width: '100%' },
   secondary: { flex: 1, borderWidth: 1, borderRadius: BorderRadius.md, minHeight: 52, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontSize: 15, fontFamily: 'BankGothicBT-Medium', fontWeight: '700', textAlign: 'center' },
   importButton: { flex: 1, minHeight: 52, borderRadius: BorderRadius.md },
