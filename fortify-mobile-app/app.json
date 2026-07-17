@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Fortify",
+    "name": "Fortify AI",
     "slug": "fortis",
     "version": "1.2.5",
     "orientation": "portrait",
@@ -23,7 +23,7 @@
       "usesAppleSignIn": true,
       "icon": "./assets/fortify_new_icon.png",
       "infoPlist": {
-        "CFBundleDisplayName": "Fortify",
+        "CFBundleDisplayName": "Fortify AI",
         "CFBundleName": "FortifyAI",
         "NSMicrophoneUsageDescription": "Fortify uses your microphone so you can dictate messages to the AI assistant.",
         "NSSpeechRecognitionUsageDescription": "Fortify uses speech recognition so your voice messages can appear as text while you speak.",

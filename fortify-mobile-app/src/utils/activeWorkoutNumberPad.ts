@@ -18,11 +18,11 @@ export function resolveActiveNumberPadSetUpdates(params: {
   const previousSet = setIndex > 0 ? params.exercise?.sets[setIndex - 1] : undefined;
 
   let finalValue = params.value;
-  if (finalValue === null && previousSet) {
-    finalValue = previousSet[params.inputType];
-  }
   if (finalValue === null) {
     finalValue = params.inputSuggestion?.[params.inputType] ?? null;
+  }
+  if (finalValue === null && previousSet) {
+    finalValue = previousSet[params.inputType];
   }
 
   if (finalValue === null && params.inputType === 'weight') {
@@ -37,8 +37,8 @@ export function resolveActiveNumberPadSetUpdates(params: {
     ? { weight: finalValue }
     : { reps: finalValue };
 
-  if (params.inputType === 'reps' && set?.weight === null && previousSet?.weight == null) {
-    updates.weight = params.inputSuggestion?.weight ?? 0;
+  if (params.inputType === 'reps' && set?.weight === null) {
+    updates.weight = params.inputSuggestion?.weight ?? previousSet?.weight ?? 0;
   }
 
   return updates;

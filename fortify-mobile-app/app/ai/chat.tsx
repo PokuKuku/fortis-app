@@ -959,6 +959,17 @@ export default function AIChatScreen() {
         <GestureDetector gesture={panGesture}>
           <View style={[styles.header, themedStyles.header]}>
             <View style={styles.headerLeft}>
+              {mode === 'chat' && messages.length > 0 && (
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={handleClear}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear chat"
+                >
+                  <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
+                </TouchableOpacity>
+              )}
               {mode === 'voice' && (
                 <VoiceSettingsPopover
                   interactionMode={interactionMode}
@@ -1008,19 +1019,12 @@ export default function AIChatScreen() {
               })}
             </View>
             <View style={styles.headerRight}>
-              {mode === 'chat' && messages.length > 0 && (
-                <TouchableOpacity
-                  style={styles.clearButton}
-                  onPress={handleClear}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.clearText, themedStyles.clearText]}>Clear</Text>
-                </TouchableOpacity>
-              )}
               <TouchableOpacity
                 style={styles.closeButton}
                 onPress={handleClose}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Close coach"
               >
                 <XMarkIcon color={colors.textSecondary} size={IconSizes.lg} />
               </TouchableOpacity>

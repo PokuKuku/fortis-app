@@ -486,6 +486,17 @@ export function isProfileEligibleForInAppTour(
   return Number.isFinite(createdAt) && createdAt >= cutoff;
 }
 
+export function getInAppTourVersionForServerUpdate(params: {
+  currentVersion: number | null | undefined;
+  status: 'started' | 'completed' | 'skipped';
+}): number {
+  // Keep the developer-reset sentinel while a legacy account is taking the
+  // tour. Replacing it on start would immediately make the account ineligible
+  // again, causing the provider to clear the newly created local tour state.
+  if (params.status === 'started' && params.currentVersion === 0) return 0;
+  return IN_APP_TOUR_VERSION;
+}
+
 const getStepIndexById = (stepId: string): number => {
   const resolvedStepId = REMOVED_TOUR_STEP_REPLACEMENTS[stepId] ?? stepId;
   const index = TOUR_STEPS.findIndex((step) => step.id === resolvedStepId);
@@ -545,6 +556,8 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
   const [pendingPaywallStartRequestedAt, setPendingPaywallStartRequestedAt] = useState<number | null>(null);
   const lastTrackedStepIdRef = useRef<TourStepId | null>(null);
   const completedSetsTourAdvanceRef = useRef(false);
+  const profileTourVersionRef = useRef(profile?.in_app_tour_version);
+  profileTourVersionRef.current = profile?.in_app_tour_version;
 
   const getStepById = useCallback((stepId: string | null | undefined): TourStep | null => {
     if (!stepId) return null;
@@ -738,7 +751,10 @@ export function InAppTourProvider({ children }: { children: React.ReactNode }) {
 
     const payload: Partial<Profile> = {
       has_seen_in_app_tour: true,
-      in_app_tour_version: IN_APP_TOUR_VERSION,
+      in_app_tour_version: getInAppTourVersionForServerUpdate({
+        currentVersion: profileTourVersionRef.current,
+        status: params.status,
+      }),
     };
 
     if (params.completedAt) {

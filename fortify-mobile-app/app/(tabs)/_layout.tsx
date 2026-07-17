@@ -752,7 +752,8 @@ export default function TabLayout() {
           tabBarLabelStyle: {
             fontSize: TAB_BAR_LABEL_SIZE,
             fontWeight: '700',
-            marginTop: moderateScale(2),
+            marginTop: 0,
+            transform: [{ translateY: -moderateScale(2) }],
           },
         }}
       />

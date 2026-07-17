@@ -872,6 +872,10 @@ function NewUserChecklistCompleteGraffitiModal({
   const { width, height } = useWindowDimensions();
   const artWidth = Math.min(width * 1.16, scale(460));
   const artHeight = Math.min(height * 0.6, scale(560));
+  const headlineAvailableWidth = Math.max(0, width - HORIZONTAL_PADDING * 2);
+  // Bank Gothic's wide glyphs plus letter spacing occupy roughly 7x the font size.
+  const headlineFontSize = Math.min(68, Math.max(36, Math.floor(headlineAvailableWidth / 7)));
+  const kickerFontSize = Math.min(22, Math.max(18, width * 0.05));
   const mutedStroke = isDark ? 'rgba(255,255,255,0.36)' : 'rgba(0,0,0,0.24)';
   const softStroke = isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)';
   const floatY = useSharedValue(0);
@@ -1003,17 +1007,26 @@ function NewUserChecklistCompleteGraffitiModal({
               <ReanimatedText
                 entering={FadeInDown.delay(120).duration(320)}
                 allowFontScaling={false}
-                style={[styles.challengeCompleteKicker, { color: colors.accent }]}
+                style={[
+                  styles.challengeCompleteKicker,
+                  { color: colors.accent, fontSize: kickerFontSize },
+                ]}
               >
                 Fortify Challenge
               </ReanimatedText>
+              {/* Avoid native auto-fit here; it can collapse custom fonts on physical iOS devices. */}
               <ReanimatedText
                 entering={ZoomIn.delay(240).duration(360)}
                 allowFontScaling={false}
-                adjustsFontSizeToFit
                 numberOfLines={1}
-                minimumFontScale={0.72}
-                style={[styles.challengeCompleteGraffitiText, { color: colors.textPrimary }]}
+                style={[
+                  styles.challengeCompleteGraffitiText,
+                  {
+                    color: colors.textPrimary,
+                    fontSize: headlineFontSize,
+                    lineHeight: Math.ceil(headlineFontSize * 1.15),
+                  },
+                ]}
               >
                 COMPLETE
               </ReanimatedText>
@@ -2840,7 +2853,6 @@ const styles = StyleSheet.create({
   },
   challengeCompleteKicker: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: responsiveValue(14, 16, 18),
     letterSpacing: 2,
     textAlign: 'center',
     textTransform: 'uppercase',
@@ -2848,8 +2860,6 @@ const styles = StyleSheet.create({
   },
   challengeCompleteGraffitiText: {
     fontFamily: 'BankGothicBT-Medium',
-    fontSize: responsiveValue(46, 58, 68),
-    lineHeight: responsiveValue(54, 66, 76),
     letterSpacing: 2.2,
     textAlign: 'center',
     textTransform: 'uppercase',

@@ -1,5 +1,6 @@
 import { PAYWALL_PLACEMENTS } from '@/src/components/superwall/paywallPlacements';
 import {
+  getInAppTourVersionForServerUpdate,
   isProfileEligibleForInAppTour,
   shouldBypassProGateForTourState,
 } from '@/src/contexts/InAppTourContext';
@@ -91,5 +92,32 @@ describe('isProfileEligibleForInAppTour', () => {
     expect(isProfileEligibleForInAppTour(null)).toBe(false);
     expect(isProfileEligibleForInAppTour({})).toBe(false);
     expect(isProfileEligibleForInAppTour({ created_at: 'invalid' })).toBe(false);
+  });
+});
+
+describe('getInAppTourVersionForServerUpdate', () => {
+  it('keeps a legacy dev-reset account eligible while its tour is in progress', () => {
+    expect(getInAppTourVersionForServerUpdate({
+      currentVersion: 0,
+      status: 'started',
+    })).toBe(0);
+  });
+
+  it('records the current version when the reset tour finishes', () => {
+    expect(getInAppTourVersionForServerUpdate({
+      currentVersion: 0,
+      status: 'completed',
+    })).toBe(30);
+    expect(getInAppTourVersionForServerUpdate({
+      currentVersion: 0,
+      status: 'skipped',
+    })).toBe(30);
+  });
+
+  it('records the current version for ordinary new-user tour starts', () => {
+    expect(getInAppTourVersionForServerUpdate({
+      currentVersion: null,
+      status: 'started',
+    })).toBe(30);
   });
 });

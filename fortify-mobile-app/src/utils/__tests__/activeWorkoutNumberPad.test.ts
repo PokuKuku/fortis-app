@@ -79,20 +79,42 @@ describe('resolveActiveNumberPadSetUpdates', () => {
     });
   });
 
-  it('uses the previous set when confirming an empty value after the first set', () => {
+  it('commits the displayed placeholders instead of values from a preceding warm-up set', () => {
     const exercise = buildExercise([
-      buildSet('set-1', { weight: 135, reps: 8, isCompleted: true }),
-      buildSet('set-2'),
+      buildSet('warmup-1', {
+        setType: 'warmup',
+        weight: 70,
+        reps: 4,
+        isCompleted: true,
+      }),
+      buildSet('normal-1'),
     ]);
 
     expect(resolveActiveNumberPadSetUpdates({
       exercise,
-      inputSuggestion: { weight: 150, reps: 10 },
+      inputSuggestion: { weight: 75, reps: 4 },
       inputType: 'reps',
-      setLocalId: 'set-2',
+      setLocalId: 'normal-1',
       value: null,
     })).toEqual({
-      reps: 8,
+      reps: 4,
+      weight: 75,
+    });
+  });
+
+  it('preserves an explicitly entered weight when completing through reps', () => {
+    const exercise = buildExercise([
+      buildSet('set-1', { weight: 80 }),
+    ]);
+
+    expect(resolveActiveNumberPadSetUpdates({
+      exercise,
+      inputSuggestion: { weight: 75, reps: 4 },
+      inputType: 'reps',
+      setLocalId: 'set-1',
+      value: null,
+    })).toEqual({
+      reps: 4,
     });
   });
 
