@@ -109,3 +109,11 @@ export const USER_SCOPED_STORAGE_KEYS = [
   THEME_MODE_KEY,
   ACCENT_COLOR_KEY,
 ] as const;
+
+// Account-scoped state that should remain available when the same user signs back in.
+export const SIGN_OUT_PRESERVED_STORAGE_KEYS = [
+  DELETED_DEFAULT_PROGRAM_IDS_KEY,
+  NEW_USER_CHECKLIST_KEY,
+  PROGRAM_PROGRESS_KEY,
+  START_BUTTON_PRESET_KEY,
+] as const;
