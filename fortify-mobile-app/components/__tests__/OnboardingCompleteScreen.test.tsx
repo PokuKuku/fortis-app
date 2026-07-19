@@ -220,6 +220,30 @@ describe('OnboardingCompleteScreen', () => {
     expect(mockClearOnboardingState).not.toHaveBeenCalled();
   });
 
+  it('does not leave onboarding when completion intent cannot be persisted', async () => {
+    mockMarkPendingOnboardingAuthCompletion.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    render(<OnboardingCompleteScreen />);
+
+    await act(async () => {
+      jest.advanceTimersByTime(14_500);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("I'm ready")).toBeTruthy();
+    });
+
+    await act(async () => {
+      fireEvent.press(screen.getByText("I'm ready"));
+      await Promise.resolve();
+    });
+
+    expect(mockMarkPendingOnboardingAuthCompletion).toHaveBeenCalledTimes(1);
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+  });
+
   it('finalizes on the complete page when the user is already authenticated', async () => {
     mockAuthState.isAuthenticated = true;
     mockAuthState.profile = {

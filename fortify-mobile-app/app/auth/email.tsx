@@ -28,7 +28,10 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
-import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
+import {
+  markPendingOnboardingAuthCompletion,
+  usePendingOnboardingAuthCompletion,
+} from '@/src/utils/onboardingAuthCompletion';
 
 const signInSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -143,7 +146,7 @@ export default function EmailAuthScreen() {
     if (!pendingPostSignInRedirect) return;
     if (!isAuthenticated || !profileResolved) return;
 
-    if (sourceValue === 'onboarding-complete') {
+    if (sourceValue === 'onboarding-complete' || hasPendingOnboardingAuthCompletion) {
       setPendingPostSignInRedirect(false);
       setIsLoading(false);
       router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
@@ -233,6 +236,17 @@ export default function EmailAuthScreen() {
     setConfirmationNotice(null);
     setIsLoading(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (sourceValue === 'onboarding-complete') {
+      try {
+        await markPendingOnboardingAuthCompletion();
+      } catch (intentError) {
+        console.warn('[Auth] Failed to preserve onboarding completion intent:', intentError);
+        setIsLoading(false);
+        setError('We could not safely preserve your onboarding progress. Please try again.');
+        return;
+      }
+    }
 
     const { error: authError } = isSignUp
       ? await signUpWithEmail(data.email, data.password)

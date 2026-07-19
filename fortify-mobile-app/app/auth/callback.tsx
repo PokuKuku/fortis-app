@@ -76,7 +76,17 @@ export default function AuthCallbackScreen() {
         return;
       }
 
-      const shouldFinalizeOnboarding = await hasPendingOnboardingAuthCompletion();
+      let shouldFinalizeOnboarding: boolean;
+      try {
+        shouldFinalizeOnboarding = await hasPendingOnboardingAuthCompletion();
+      } catch (intentError) {
+        console.warn('[Auth] Unable to verify onboarding completion intent:', intentError);
+        setError(
+          'We could not verify your onboarding progress. Please try again instead of restarting onboarding.',
+        );
+        setIsProcessing(false);
+        return;
+      }
       if (shouldFinalizeOnboarding) {
         router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
         return;

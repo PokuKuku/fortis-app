@@ -19,7 +19,7 @@ export default function StartWorkoutDeepLinkScreen() {
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
   const { colors } = useTheme();
-  const { isAuthResolved, isAuthenticated, needsOnboarding, profileResolved } = useAuth();
+  const { isAuthResolved, isAuthenticated, needsOnboarding, profile, profileResolved } = useAuth();
   const {
     isPending: hasPendingOnboardingAuthCompletion,
     isResolved: pendingOnboardingAuthCompletionResolved,
@@ -38,12 +38,13 @@ export default function StartWorkoutDeepLinkScreen() {
         return;
       }
 
-      if (needsOnboarding) {
-        if (
-          !pendingOnboardingAuthCompletionResolved ||
-          hasPendingOnboardingAuthCompletion
-        ) {
+      if (!profile || needsOnboarding) {
+        if (!pendingOnboardingAuthCompletionResolved) {
           hasHandledRef.current = false;
+          return;
+        }
+        if (hasPendingOnboardingAuthCompletion) {
+          router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
           return;
         }
         router.replace('/onboarding');
@@ -99,6 +100,7 @@ export default function StartWorkoutDeepLinkScreen() {
     isAuthenticated,
     needsOnboarding,
     pendingOnboardingAuthCompletionResolved,
+    profile,
     profileResolved,
     rootNavigationState?.key,
     router,

@@ -86,12 +86,16 @@ describe('StartWorkout deep link auth guard', () => {
     });
   });
 
-  it('does not route to onboarding while onboarding completion is pending', async () => {
+  it('routes pending incomplete profiles to the authoritative auth finalizer', async () => {
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
 
     render(<StartWorkoutDeepLinkScreen />);
 
     await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith({
+        pathname: '/auth',
+        params: { onboarding: 'complete' },
+      });
       expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     });
   });

@@ -107,10 +107,11 @@ export default function PaywallGateScreen() {
     if (!profileResolved) {
       return;
     }
-    if (
-      !pendingOnboardingAuthCompletionResolved ||
-      (hasPendingOnboardingAuthCompletion && (!profile || needsOnboarding))
-    ) {
+    if (!pendingOnboardingAuthCompletionResolved) {
+      return;
+    }
+    if (hasPendingOnboardingAuthCompletion && (!profile || needsOnboarding)) {
+      router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
       return;
     }
     if (!profile || needsOnboarding) {

@@ -17,6 +17,7 @@ import { ChevronLeftIcon } from 'react-native-heroicons/outline';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
+import { GlassButton } from '@/components/GlassButton';
 import { AuthProviderButtons } from '@/src/components/auth/AuthProviderButtons';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -83,6 +84,8 @@ export default function AuthWelcomeScreen() {
   const TERMS_OF_SERVICE_URL = process.env.EXPO_PUBLIC_TERMS_URL ?? '';
   const PRIVACY_POLICY_URL = process.env.EXPO_PUBLIC_PRIVACY_POLICY_URL ?? '';
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [finalizationError, setFinalizationError] = useState<string | null>(null);
+  const [finalizationAttempt, setFinalizationAttempt] = useState(0);
 
   useEffect(() => {
     setAllowProfileCreation(isOnboardingCompletionAuth);
@@ -120,8 +123,18 @@ export default function AuthWelcomeScreen() {
   const isMountedRef = useRef(true);
   const onboardingFinalizeInFlightRef = useRef(false);
   const didFinalizeOnboardingAuthRef = useRef(false);
+  const isAwaitingOnboardingFinalization =
+    isOnboardingCompletionAuth &&
+    isAuthenticated &&
+    profile?.onboarding_completed !== true &&
+    !finalizationError;
   const isAuthProcessing =
-    isFocused && (isLoading || isFinalizing || (isAuthenticated && !profileResolved));
+    isFocused && (
+      isLoading ||
+      isFinalizing ||
+      (isAuthenticated && !profileResolved) ||
+      isAwaitingOnboardingFinalization
+    );
 
   useEffect(() => {
     isFocusedRef.current = isFocused;
@@ -137,11 +150,13 @@ export default function AuthWelcomeScreen() {
   useEffect(() => {
     if (!isFocused) return;
     if (!isOnboardingCompletionAuth) return;
+    if (finalizationError) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
 
     if (profile?.onboarding_completed) {
       if (didFinalizeOnboardingAuthRef.current) return;
       didFinalizeOnboardingAuthRef.current = true;
+      setFinalizationError(null);
       router.replace('/paywall-gate');
       return;
     }
@@ -151,6 +166,7 @@ export default function AuthWelcomeScreen() {
 
     onboardingFinalizeInFlightRef.current = true;
     didFinalizeOnboardingAuthRef.current = true;
+    setFinalizationError(null);
     setIsFinalizing(true);
 
     const profileSnapshot = profile;
@@ -226,22 +242,29 @@ export default function AuthWelcomeScreen() {
           'Finalizing profile',
         );
         if (error) {
-          didFinalizeOnboardingAuthRef.current = false;
-          if (isMountedRef.current && isFocusedRef.current) {
-            router.replace('/onboarding/welcome');
-          }
-          return;
+          throw error;
         }
 
         if (state) {
-          await savePendingOnboardingProgramSpecUnlessGenerated(buildOnboardingProgramSpec(state));
+          try {
+            await savePendingOnboardingProgramSpecUnlessGenerated(buildOnboardingProgramSpec(state));
+          } catch (programSpecError) {
+            // Program generation is recoverable and must never block the paywall.
+            console.warn('[Auth] Failed to preserve onboarding program spec:', programSpecError);
+          }
         }
 
-        await withTimeout(
-          clearOnboardingState(),
-          ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
-          'Clearing onboarding state',
-        );
+        try {
+          await withTimeout(
+            clearOnboardingState(),
+            ONBOARDING_STATE_CLEAR_TIMEOUT_MS,
+            'Clearing onboarding state',
+          );
+        } catch (clearError) {
+          // The server profile is already finalized. Local cleanup can retry later
+          // and must not send a completed user back into onboarding.
+          console.warn('[Auth] Failed to clear local onboarding state:', clearError);
+        }
 
         if (isMountedRef.current && isFocusedRef.current) {
           router.replace('/paywall-gate');
@@ -250,7 +273,9 @@ export default function AuthWelcomeScreen() {
         didFinalizeOnboardingAuthRef.current = false;
         console.warn('[Auth] Failed to finalize onboarding after sign-in:', finalizeError);
         if (isMountedRef.current && isFocusedRef.current) {
-          router.replace('/onboarding/welcome');
+          setFinalizationError(
+            'We could not finish setting up your account. Your onboarding progress is safe—please try again.',
+          );
         }
       } finally {
         onboardingFinalizeInFlightRef.current = false;
@@ -264,11 +289,19 @@ export default function AuthWelcomeScreen() {
     isFocused,
     isLoading,
     isOnboardingCompletionAuth,
+    finalizationError,
+    finalizationAttempt,
     profile,
     profileResolved,
     router,
     updateProfile,
   ]);
+
+  const handleRetryFinalization = () => {
+    didFinalizeOnboardingAuthRef.current = false;
+    setFinalizationError(null);
+    setFinalizationAttempt((attempt) => attempt + 1);
+  };
 
   // Navigate when auth state changes in non-onboarding-complete auth entry paths.
   useEffect(() => {
@@ -321,7 +354,13 @@ export default function AuthWelcomeScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (isOnboardingCompletionAuth) {
-        await markPendingOnboardingAuthCompletion();
+        try {
+          await markPendingOnboardingAuthCompletion();
+        } catch (intentError) {
+          console.warn('[Auth] Failed to preserve onboarding completion intent:', intentError);
+          setError('We could not safely preserve your onboarding progress. Please try again.');
+          return;
+        }
       }
 
       const { error: signInError } = await signInWithGoogle();
@@ -340,7 +379,13 @@ export default function AuthWelcomeScreen() {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       if (isOnboardingCompletionAuth) {
-        await markPendingOnboardingAuthCompletion();
+        try {
+          await markPendingOnboardingAuthCompletion();
+        } catch (intentError) {
+          console.warn('[Auth] Failed to preserve onboarding completion intent:', intentError);
+          setError('We could not safely preserve your onboarding progress. Please try again.');
+          return;
+        }
       }
 
       const { error: signInError } = await signInWithApple();
@@ -471,7 +516,24 @@ export default function AuthWelcomeScreen() {
         </View>
       </SafeAreaView>
 
-      {isAuthProcessing && (
+      {finalizationError && isFocused && isOnboardingCompletionAuth ? (
+        <View style={[styles.loadingOverlay, themedStyles.loadingOverlay]}>
+          <AnimatedFortifyLogo
+            size="large"
+            centered
+            animate={false}
+            useDynamicSizing={false}
+            sizeScale={AUTH_LOGO_SCALE}
+          />
+          <Text style={[styles.finalizationErrorTitle, { color: colors.textPrimary }]}>Setup paused</Text>
+          <Text style={[styles.finalizationErrorBody, { color: colors.textSecondary }]}>
+            {finalizationError}
+          </Text>
+          <GlassButton style={styles.retryButton} onPress={handleRetryFinalization}>
+            <Text style={[styles.retryButtonText, { color: colors.accentForegroundOnFill }]}>Try again</Text>
+          </GlassButton>
+        </View>
+      ) : isAuthProcessing ? (
         <View style={[styles.loadingOverlay, themedStyles.loadingOverlay]} pointerEvents="none">
           <AnimatedFortifyLogo
             size="large"
@@ -485,7 +547,7 @@ export default function AuthWelcomeScreen() {
             Getting things ready...
           </Text>
         </View>
-      )}
+      ) : null}
     </View>
   );
 }
@@ -506,6 +568,27 @@ const styles = StyleSheet.create({
   loadingText: {
     ...Typography.caption,
     marginTop: Spacing.md,
+  },
+  finalizationErrorTitle: {
+    ...Typography.body,
+    marginTop: Spacing.xl,
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  finalizationErrorBody: {
+    ...Typography.body,
+    maxWidth: 320,
+    marginTop: Spacing.sm,
+    textAlign: 'center',
+  },
+  retryButton: {
+    width: 220,
+    height: 48,
+    marginTop: Spacing.xl,
+    borderRadius: BorderRadius.xl,
+  },
+  retryButtonText: {
+    ...Typography.button,
   },
   header: {
     paddingHorizontal: Spacing['2xl'],

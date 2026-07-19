@@ -6,6 +6,7 @@ import {
   Animated,
   Easing,
   PanResponder,
+  Alert,
   useWindowDimensions,
   type DimensionValue,
   type LayoutChangeEvent,
@@ -847,10 +848,19 @@ export default function OnboardingCompleteScreen() {
 
     if (!isAuthenticated) {
       returnedFromAuthRef.current = true;
+      setIsSaving(true);
       try {
         await markPendingOnboardingAuthCompletion();
       } catch (intentError) {
         console.warn('[Onboarding] Failed to persist auth completion intent:', intentError);
+        returnedFromAuthRef.current = false;
+        didContinueRef.current = false;
+        setIsSaving(false);
+        Alert.alert(
+          'Unable to continue',
+          'We could not safely save your onboarding progress. Please try again so you are not sent back through onboarding.',
+        );
+        return;
       }
       router.push({ pathname: '/auth', params: { onboarding: 'complete' } });
       return;

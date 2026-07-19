@@ -223,7 +223,7 @@ describe('PaywallGateScreen', () => {
     expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
   });
 
-  it('keeps loading instead of routing incomplete profiles to onboarding during pending completion', async () => {
+  it('routes pending incomplete profiles to the authoritative auth finalizer', async () => {
     mockSuperwallState.isConfigured = true;
     mockSuperwallState.configurationError = null;
     mockAuthState.profile = { onboarding_completed: false };
@@ -236,11 +236,15 @@ describe('PaywallGateScreen', () => {
       await Promise.resolve();
     });
 
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/auth',
+      params: { onboarding: 'complete' },
+    });
     expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
   });
 
-  it('keeps loading instead of routing missing profiles to onboarding during pending completion', async () => {
+  it('routes pending missing profiles to the authoritative auth finalizer', async () => {
     mockSuperwallState.isConfigured = true;
     mockSuperwallState.configurationError = null;
     mockAuthState.profile = null;
@@ -253,6 +257,10 @@ describe('PaywallGateScreen', () => {
       await Promise.resolve();
     });
 
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/auth',
+      params: { onboarding: 'complete' },
+    });
     expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     expect(mockQueueTourStartAfterPaywallClose).not.toHaveBeenCalled();
   });

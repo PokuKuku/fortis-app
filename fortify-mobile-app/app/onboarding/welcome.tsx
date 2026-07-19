@@ -167,11 +167,17 @@ export default function OnboardingWelcomeScreen() {
     if (!isFocused) return;
     if (!showSignInSheet && !authInProgress) return;
     if (!isAuthenticated || isLoading || !profileResolved) return;
+    if (pendingOnboardingAuthCompletionResolved && hasPendingOnboardingAuthCompletion) {
+      setShowSignInSheet(false);
+      if (profile?.onboarding_completed === true) {
+        router.replace('/paywall-gate');
+      } else {
+        router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
+      }
+      return;
+    }
     if (!profile || needsOnboarding) {
-      if (
-        !pendingOnboardingAuthCompletionResolved ||
-        hasPendingOnboardingAuthCompletion
-      ) {
+      if (!pendingOnboardingAuthCompletionResolved) {
         return;
       }
       setShowSignInSheet(false);

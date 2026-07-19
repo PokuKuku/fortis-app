@@ -8,6 +8,7 @@ const mockSignInWithEmail = jest.fn();
 const mockSignUpWithEmail = jest.fn();
 const mockSetAllowProfileCreation = jest.fn();
 const mockUsePendingOnboardingAuthCompletion = jest.fn();
+const mockMarkPendingOnboardingAuthCompletion = jest.fn();
 
 let mockSearchParams: { source?: string; mode?: string } = {
   source: 'onboarding',
@@ -43,6 +44,7 @@ jest.mock('@/src/contexts/ThemeContext', () => ({
 }));
 
 jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
+  markPendingOnboardingAuthCompletion: () => mockMarkPendingOnboardingAuthCompletion(),
   usePendingOnboardingAuthCompletion: () => mockUsePendingOnboardingAuthCompletion(),
 }));
 
@@ -115,6 +117,7 @@ describe('EmailAuthScreen', () => {
     jest.clearAllMocks();
     mockSearchParams = { source: 'onboarding', mode: 'signin' };
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: true });
+    mockMarkPendingOnboardingAuthCompletion.mockResolvedValue(undefined);
     mockAuthState = {
       signInWithEmail: mockSignInWithEmail.mockResolvedValue({ error: null }),
       signUpWithEmail: mockSignUpWithEmail.mockResolvedValue({ error: null }),
@@ -233,7 +236,7 @@ describe('EmailAuthScreen', () => {
     });
   });
 
-  it('continues redirecting after pending completion state resolves late', async () => {
+  it('routes to the authoritative auth finalizer when completion state resolves late', async () => {
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: false, isResolved: false });
     const { getByPlaceholderText, getByText, rerender } = render(<EmailAuthScreen />);
 
@@ -261,6 +264,10 @@ describe('EmailAuthScreen', () => {
     rerender(<EmailAuthScreen />);
 
     await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith({
+        pathname: '/auth',
+        params: { onboarding: 'complete' },
+      });
       expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     });
   });
@@ -294,5 +301,23 @@ describe('EmailAuthScreen', () => {
         params: { onboarding: 'complete' },
       });
     });
+  });
+
+  it('does not authenticate from onboarding completion when its intent cannot be persisted', async () => {
+    mockSearchParams = { source: 'onboarding-complete', mode: 'signin' };
+    mockMarkPendingOnboardingAuthCompletion.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    const { getByPlaceholderText, getByText } = render(<EmailAuthScreen />);
+
+    fireEvent.changeText(getByPlaceholderText('your@email.com'), 'newuser@example.com');
+    fireEvent.changeText(getByPlaceholderText('Enter your password'), 'password123');
+    fireEvent.press(getByText('Sign In'));
+
+    await waitFor(() => {
+      expect(getByText(/could not safely preserve your onboarding progress/i)).toBeTruthy();
+    });
+
+    expect(mockSignInWithEmail).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
   });
 });

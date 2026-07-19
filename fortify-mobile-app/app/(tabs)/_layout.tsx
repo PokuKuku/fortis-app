@@ -54,7 +54,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import {
   completeStartupReveal,
-  resetStartupReveal,
+  isStartupRevealComplete,
 } from '@/src/utils/startupReveal';
 
 type PrimaryTabRoute = 'history' | 'insights' | 'index' | 'profile';
@@ -64,11 +64,7 @@ export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { width: windowWidth } = useWindowDimensions();
-  const didInitializeStartupRevealRef = useRef(false);
-  if (!didInitializeStartupRevealRef.current) {
-    resetStartupReveal();
-    didInitializeStartupRevealRef.current = true;
-  }
+  const shouldRunStartupRevealRef = useRef(!isStartupRevealComplete());
   const { colors, isDark } = useTheme();
   const {
     isAuthenticated,
@@ -134,8 +130,10 @@ export default function TabLayout() {
   const lastAccessSyncAtRef = useRef(0);
   const subscriptionStatusRef = useRef(subscriptionStatus);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const startupVeilTranslateX = useRef(new Animated.Value(0)).current;
-  const [showStartupVeil, setShowStartupVeil] = useState(true);
+  const startupVeilTranslateX = useRef(
+    new Animated.Value(shouldRunStartupRevealRef.current ? 0 : -Math.max(1, windowWidth))
+  ).current;
+  const [showStartupVeil, setShowStartupVeil] = useState(shouldRunStartupRevealRef.current);
   const authUserId = authUser?.id ?? null;
   const superwallUserId =
     typeof superwallUser?.appUserId === 'string' && superwallUser.appUserId.trim().length > 0
@@ -148,6 +146,10 @@ export default function TabLayout() {
   }, [subscriptionStatus]);
 
   useEffect(() => {
+    if (!showStartupVeil) {
+      return;
+    }
+
     const revealFrame = requestAnimationFrame(() => {
       Animated.timing(startupVeilTranslateX, {
         toValue: -Math.max(1, windowWidth),
@@ -166,7 +168,7 @@ export default function TabLayout() {
       cancelAnimationFrame(revealFrame);
       startupVeilTranslateX.stopAnimation();
     };
-  }, [startupVeilTranslateX, windowWidth]);
+  }, [showStartupVeil, startupVeilTranslateX, windowWidth]);
 
   const syncAccessState = useCallback(
     async (reason: 'initial' | 'app-active') => {
@@ -234,17 +236,17 @@ export default function TabLayout() {
     }
     if (
       pendingOnboardingAuthCompletionResolved &&
-      hasPendingOnboardingAuthCompletion &&
-      profile?.onboarding_completed === true
+      hasPendingOnboardingAuthCompletion
     ) {
-      router.replace('/paywall-gate');
+      if (profile?.onboarding_completed === true) {
+        router.replace('/paywall-gate');
+      } else {
+        router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
+      }
       return;
     }
     if (!profile || needsOnboarding) {
-      if (
-        !pendingOnboardingAuthCompletionResolved ||
-        hasPendingOnboardingAuthCompletion
-      ) {
+      if (!pendingOnboardingAuthCompletionResolved) {
         return;
       }
       router.replace('/onboarding');

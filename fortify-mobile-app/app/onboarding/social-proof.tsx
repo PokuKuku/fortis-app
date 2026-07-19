@@ -73,6 +73,20 @@ const TESTIMONIALS = [
     title: 'gute app',
     body: 'sehr gute app 👍👍',
   },
+  {
+    initials: 'CS',
+    name: 'cjsosmoothchsmo',
+    color: '#5B8FB9',
+    title: 'Great app',
+    body: '🔥🔥',
+  },
+  {
+    initials: 'B',
+    name: 'Badgermc',
+    color: '#B1785A',
+    title: 'Very good for beginners even more experience people could use this tool is very helpful for tracking',
+    body: 'Very good for beginners very simple use very simple interface AI is very helpful',
+  },
 ];
 
 const JAYCEE_REVIEW = TESTIMONIALS[0];
@@ -83,6 +97,9 @@ const CLMT5_REVIEW = TESTIMONIALS[4];
 const DISCOLIGHT_REVIEW = TESTIMONIALS[5];
 const BODYBUILDER_REVIEW = TESTIMONIALS[6];
 const JETTE_REVIEW = TESTIMONIALS[7];
+const GREAT_APP_REVIEW = TESTIMONIALS[8];
+const BEGINNERS_REVIEW = TESTIMONIALS[9];
+const ADDITIONAL_REVIEWS = [GREAT_APP_REVIEW, BEGINNERS_REVIEW];
 
 export default function OnboardingSocialProofScreen() {
   useOnboardingFunnelScreen('Social Proof page');
@@ -110,12 +127,12 @@ export default function OnboardingSocialProofScreen() {
     const primaryGoal = state?.fitness_goals?.[0] ?? state?.fitness_goal;
     const primaryChallenge = state?.biggest_challenges?.[0] ?? state?.biggest_challenge;
     if (primaryChallenge === 'plateaus' || state?.progress_blocker === 'unclear_progress') {
-      return [CLMT5_REVIEW, JAYCEE_REVIEW, KWAKU_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW, DISCOLIGHT_REVIEW, BODYBUILDER_REVIEW, JETTE_REVIEW];
+      return [CLMT5_REVIEW, JAYCEE_REVIEW, KWAKU_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW, DISCOLIGHT_REVIEW, BODYBUILDER_REVIEW, JETTE_REVIEW, ...ADDITIONAL_REVIEWS];
     }
     if (primaryGoal === 'build_muscle' || primaryGoal === 'lose_fat' || primaryGoal === 'improve_strength') {
-      return [KWAKU_REVIEW, CLMT5_REVIEW, JAYCEE_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW, DISCOLIGHT_REVIEW, BODYBUILDER_REVIEW, JETTE_REVIEW];
+      return [KWAKU_REVIEW, CLMT5_REVIEW, JAYCEE_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW, DISCOLIGHT_REVIEW, BODYBUILDER_REVIEW, JETTE_REVIEW, ...ADDITIONAL_REVIEWS];
     }
-    return [JAYCEE_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW, KWAKU_REVIEW, CLMT5_REVIEW, DISCOLIGHT_REVIEW, BODYBUILDER_REVIEW, JETTE_REVIEW];
+    return [JAYCEE_REVIEW, MARKUS_REVIEW, KAITLIN_REVIEW, KWAKU_REVIEW, CLMT5_REVIEW, DISCOLIGHT_REVIEW, BODYBUILDER_REVIEW, JETTE_REVIEW, ...ADDITIONAL_REVIEWS];
   }, [state]);
 
   const caption = useMemo(() => {

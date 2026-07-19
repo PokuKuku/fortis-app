@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import AuthWelcomeScreen from '@/app/auth/index';
 
 const mockReplace = jest.fn();
@@ -229,5 +229,43 @@ describe('AuthWelcomeScreen', () => {
 
     expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
     expect(mockUpdateProfile).not.toHaveBeenCalled();
+  });
+
+  it('fails closed on the auth screen instead of restarting onboarding when profile finalization fails', async () => {
+    mockUpdateProfile.mockResolvedValueOnce({ error: new Error('profile update failed') });
+
+    render(<AuthWelcomeScreen />);
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Setup paused')).toBeTruthy();
+    });
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding/welcome');
+    expect(mockReplace).not.toHaveBeenCalledWith('/paywall-gate');
+
+    fireEvent.press(screen.getByText('Try again'));
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(2);
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+    });
+  });
+
+  it('continues to the paywall when noncritical local cleanup fails after profile finalization', async () => {
+    mockClearOnboardingState.mockRejectedValueOnce(new Error('storage cleanup failed'));
+
+    render(<AuthWelcomeScreen />);
+
+    await waitFor(() => {
+      expect(mockUpdateProfile).toHaveBeenCalledTimes(1);
+      expect(mockReplace).toHaveBeenCalledWith('/paywall-gate');
+    });
+
+    expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
   });
 });

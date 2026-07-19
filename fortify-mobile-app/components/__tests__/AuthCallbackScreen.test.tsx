@@ -108,4 +108,16 @@ describe('AuthCallbackScreen', () => {
       expect(mockReplace).toHaveBeenCalledWith('/');
     });
   });
+
+  it('fails closed instead of routing to startup when completion intent cannot be read', async () => {
+    mockHasPendingOnboardingAuthCompletion.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    const { getByText } = render(<AuthCallbackScreen />);
+
+    await waitFor(() => {
+      expect(getByText(/could not verify your onboarding progress/i)).toBeTruthy();
+    });
+
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
 });

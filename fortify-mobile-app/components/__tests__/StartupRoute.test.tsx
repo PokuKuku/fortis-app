@@ -4,6 +4,7 @@ import StartupScreen from '@/app/index';
 
 const mockReplace = jest.fn();
 const mockUsePendingOnboardingAuthCompletion = jest.fn();
+const mockResetStartupReveal = jest.fn();
 
 const mockAuthState = {
   isAuthResolved: true,
@@ -50,6 +51,10 @@ jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
   usePendingOnboardingAuthCompletion: () => mockUsePendingOnboardingAuthCompletion(),
 }));
 
+jest.mock('@/src/utils/startupReveal', () => ({
+  resetStartupReveal: () => mockResetStartupReveal(),
+}));
+
 jest.mock('@/components/AnimatedFortifyLogo', () => {
   const ReactModule = require('react') as typeof React;
 
@@ -90,16 +95,20 @@ describe('Startup route guard', () => {
     });
   };
 
-  it('keeps loading instead of routing incomplete profiles to onboarding during pending completion', async () => {
+  it('routes pending incomplete profiles to the authoritative auth finalizer', async () => {
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
 
     render(<StartupScreen />);
     await finishStartupWait();
 
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/auth',
+      params: { onboarding: 'complete' },
+    });
     expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
   });
 
-  it('keeps loading instead of routing missing profiles to onboarding during pending completion', async () => {
+  it('routes pending missing profiles to the authoritative auth finalizer', async () => {
     mockAuthState.profile = null;
     mockAuthState.needsOnboarding = false;
     mockUsePendingOnboardingAuthCompletion.mockReturnValue({ isPending: true, isResolved: true });
@@ -107,6 +116,10 @@ describe('Startup route guard', () => {
     render(<StartupScreen />);
     await finishStartupWait();
 
+    expect(mockReplace).toHaveBeenCalledWith({
+      pathname: '/auth',
+      params: { onboarding: 'complete' },
+    });
     expect(mockReplace).not.toHaveBeenCalledWith('/onboarding');
   });
 
@@ -116,6 +129,19 @@ describe('Startup route guard', () => {
 
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith('/onboarding');
+    });
+  });
+
+  it('arms the landing reveal only when cold-starting directly into the tabs', async () => {
+    mockAuthState.profile = { onboarding_completed: true };
+    mockAuthState.needsOnboarding = false;
+
+    render(<StartupScreen />);
+    await finishStartupWait();
+
+    await waitFor(() => {
+      expect(mockResetStartupReveal).toHaveBeenCalledTimes(1);
+      expect(mockReplace).toHaveBeenCalledWith('/(tabs)');
     });
   });
 });

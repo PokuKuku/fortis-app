@@ -8,6 +8,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
+import { resetStartupReveal } from '@/src/utils/startupReveal';
 type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate' | '/(tabs)';
 const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortifyDemo.mov');
 const SPLASH_LOGO_SHINE_DURATION_MS = 1300;
@@ -78,21 +79,24 @@ export default function SplashScreen() {
 
   useEffect(() => {
     const profileStateReady = !isAuthenticated || profileResolved;
-    const isWaitingForOnboardingCompletion =
-      isAuthenticated &&
-      profileStateReady &&
-      pendingOnboardingAuthCompletionResolved &&
-      hasPendingOnboardingAuthCompletion &&
-      (!profile || needsOnboarding);
     if (
       !logoShineComplete ||
       isThemeLoading ||
       !isAuthResolved ||
       !profileStateReady ||
       !pendingOnboardingAuthCompletionResolved ||
-      isWaitingForOnboardingCompletion ||
       hasNavigatedRef.current
     ) {
+      return;
+    }
+
+    if (isAuthenticated && hasPendingOnboardingAuthCompletion) {
+      hasNavigatedRef.current = true;
+      if (profile?.onboarding_completed === true) {
+        router.replace('/paywall-gate');
+      } else {
+        router.replace({ pathname: '/auth', params: { onboarding: 'complete' } });
+      }
       return;
     }
 
@@ -100,7 +104,7 @@ export default function SplashScreen() {
       isAuthenticated,
       needsOnboarding,
       hasProfile: Boolean(profile),
-      hasPendingOnboardingCompletion: hasPendingOnboardingAuthCompletion,
+      hasPendingOnboardingCompletion: false,
     });
     const requiresOnboardingWarmup = nextRoute === '/onboarding/welcome' || nextRoute === '/onboarding';
     if (requiresOnboardingWarmup && !onboardingWarmupReady) {
@@ -108,6 +112,11 @@ export default function SplashScreen() {
     }
 
     hasNavigatedRef.current = true;
+    if (nextRoute === '/(tabs)') {
+      // Arm the landing veil only for the cold-start handoff into the app.
+      // Later tab-layout mounts (including tour route changes) must not replay it.
+      resetStartupReveal();
+    }
     router.replace(nextRoute);
   }, [
     logoShineComplete,
