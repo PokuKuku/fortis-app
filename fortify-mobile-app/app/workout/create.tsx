@@ -6,7 +6,6 @@ import {
   Pressable,
   TextInput,
   FlatList,
-  ActivityIndicator,
   DeviceEventEmitter,
   Alert,
 } from 'react-native';
@@ -21,6 +20,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import * as Haptics from 'expo-haptics';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -247,7 +247,7 @@ export default function CreateWorkoutScreen() {
   );
   const exercisesWithMuscles = useExercisesWithMuscles(exerciseIds);
   const hasMuscles = exercisesWithMuscles.length > 0;
-  const { bodyweightKg } = useLatestBodyweight();
+  const { bodyweightKg } = useLatestBodyweight({ enabled: exerciseIds.length > 0 });
 
   const heatmapLevels = useMemo(() => {
     if (!editorSession || exercisesWithMuscles.length === 0) return null;
@@ -936,7 +936,11 @@ export default function CreateWorkoutScreen() {
                 disabled={!canSave}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
+                  <ActionProgressLabel
+                    label={mode === 'log' ? 'Logging…' : isFinishEdit ? 'Updating…' : 'Creating…'}
+                    color={colors.accentForegroundOnFill}
+                    style={styles.primaryActionText}
+                  />
                 ) : (
                   <Text
                     style={[

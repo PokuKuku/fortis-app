@@ -50,9 +50,18 @@ jest.mock('@/src/utils/onboardingAuthCompletion', () => ({
   usePendingOnboardingAuthCompletion: () => mockUsePendingOnboardingAuthCompletion(),
 }));
 
-jest.mock('@/components/AnimatedFortifyLogo', () => ({
-  AnimatedFortifyLogo: () => null,
-}));
+jest.mock('@/components/AnimatedFortifyLogo', () => {
+  const ReactModule = require('react') as typeof React;
+
+  return {
+    AnimatedFortifyLogo: ({ onShineComplete }: { onShineComplete?: () => void }) => {
+      ReactModule.useEffect(() => {
+        onShineComplete?.();
+      }, [onShineComplete]);
+      return null;
+    },
+  };
+});
 
 jest.mock('@/components/StainlessSteelPattern', () => ({
   StainlessSteelPattern: () => null,

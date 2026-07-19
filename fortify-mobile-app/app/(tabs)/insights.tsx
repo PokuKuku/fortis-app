@@ -1,8 +1,16 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  InteractionManager,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useIsFocused } from '@react-navigation/native';
 import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
 import { addDays, format } from 'date-fns';
 import * as Haptics from 'expo-haptics';
@@ -14,6 +22,7 @@ import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useExercises } from '@/src/hooks/useExercises';
 import { useExercisesWithMuscles } from '@/src/hooks/useExercisesWithMuscles';
+import { buildExerciseSearchIndex } from '@/src/utils/exerciseSearch';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useAIStore } from '@/src/store/aiStore';
 import { StartedInsightCard } from '@/src/components/insights/StartedInsightCard';
@@ -36,6 +45,7 @@ import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import { posthog } from '@/src/config/posthog';
 import { completeNewUserChecklistTask } from '@/src/utils/newUserChecklist';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { TabPageSkeleton } from '@/src/components/ui/TabPageSkeleton';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -55,6 +65,7 @@ const ACTION_BUTTON_HEIGHT = scale(32);
 const ACTION_TEXT_SIZE = moderateScale(13);
 const LIST_PADDING_BOTTOM = scale(120);
 const EMPTY_PADDING_Y = scale(Spacing['3xl']);
+const PULL_TO_REFRESH_THRESHOLD = scale(72);
 
 type SparklineData = {
   values: number[];
@@ -777,9 +788,18 @@ export default function InsightsScreen() {
   const { exercises } = useExercises();
   const sendMessage = useAIStore((state) => state.sendMessage);
   const { runProFeature } = useProFeatureGate();
-  const isFocused = useIsFocused();
   const { user } = useAuth();
   const askFortifyInFlightRef = useRef(false);
+  const exerciseLibraryNavigationRef = useRef(false);
+
+  useEffect(() => {
+    if (exercises.length === 0) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      buildExerciseSearchIndex(exercises, { includeInstructions: false });
+      router.prefetch('/exercises');
+    });
+    return () => task.cancel();
+  }, [exercises, router]);
 
   const exerciseNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -986,39 +1006,29 @@ export default function InsightsScreen() {
   };
 
   const handleOpenLibrary = () => {
+    if (exerciseLibraryNavigationRef.current) return;
+    exerciseLibraryNavigationRef.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
     router.push('/exercises');
+    setTimeout(() => {
+      exerciseLibraryNavigationRef.current = false;
+    }, 600);
   };
 
-  const completedSessions = useWorkoutStore((s) => s.completedSessions);
-  const lastCompletedKeyRef = useRef<string | null>(null);
-  const pendingRefreshRef = useRef(false);
-  const latestCompletedKey = useMemo(() => {
-    if (completedSessions.length === 0) return null;
-    const latest = completedSessions[0];
-    const timestamp = latest.completedAt ?? latest.startedAt;
-    const millis = timestamp ? timestamp.getTime() : 0;
-    return `${latest.localId}:${millis}`;
-  }, [completedSessions]);
-  const showStartedCard = completedSessions.length === 0;
-
-  useEffect(() => {
-    if (!latestCompletedKey) return;
-    if (latestCompletedKey === lastCompletedKeyRef.current) return;
-    lastCompletedKeyRef.current = latestCompletedKey;
-    if (isFocused) {
-      refresh();
-    } else {
-      pendingRefreshRef.current = true;
+  const pullDistanceRef = useRef(0);
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    pullDistanceRef.current = Math.max(0, -event.nativeEvent.contentOffset.y);
+  };
+  const handleScrollEndDrag = () => {
+    const shouldRefresh = pullDistanceRef.current >= PULL_TO_REFRESH_THRESHOLD;
+    pullDistanceRef.current = 0;
+    if (shouldRefresh) {
+      void refresh();
     }
-  }, [isFocused, latestCompletedKey, refresh]);
+  };
 
-  useEffect(() => {
-    if (!isFocused) return;
-    if (!pendingRefreshRef.current) return;
-    pendingRefreshRef.current = false;
-    refresh();
-  }, [isFocused, refresh]);
+  const completedSessions = useWorkoutStore((state) => state.completedSessions);
+  const showStartedCard = completedSessions.length === 0;
 
   const hasInsights =
     showStartedCard ||
@@ -1028,6 +1038,10 @@ export default function InsightsScreen() {
     visibleRisks.length > 0 ||
     visiblePositives.length > 0;
 
+  if ((isLoading || isRefreshing) && insights.length === 0) {
+    return <TabPageSkeleton title="Insights" />;
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
@@ -1036,13 +1050,10 @@ export default function InsightsScreen() {
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={refresh}
-              tintColor={readableText.secondary}
-            />
-          }
+          onScroll={handleScroll}
+          onScrollEndDrag={handleScrollEndDrag}
+          scrollEventThrottle={16}
+          alwaysBounceVertical
           showsVerticalScrollIndicator={false}
         >
           <AppHeaderBrand style={styles.header} />
@@ -1054,6 +1065,7 @@ export default function InsightsScreen() {
           <AccentShadowCard radius={CARD_RADIUS}>
             <TouchableOpacity
               style={[styles.cardBase, styles.libraryCard, cardTheme]}
+              onPressIn={handleOpenLibrary}
               onPress={handleOpenLibrary}
               activeOpacity={0.8}
             >
@@ -1078,14 +1090,7 @@ export default function InsightsScreen() {
             </TouchableOpacity>
           </AccentShadowCard>
 
-          {isLoading && !hasInsights ? (
-            <View style={styles.loadingState}>
-              <ActivityIndicator size="small" color={readableText.secondary} />
-              <Text style={[styles.loadingText, { color: readableText.secondary }]}>
-                Loading insights...
-              </Text>
-            </View>
-          ) : !hasInsights ? (
+          {!hasInsights ? (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: readableText.secondary }]}>
                 No insights yet. Log a completed workout to generate your weekly insight.
@@ -1579,14 +1584,6 @@ const styles = StyleSheet.create({
   shareButtonText: {
     fontSize: ACTION_TEXT_SIZE,
     fontWeight: '600',
-  },
-  loadingState: {
-    paddingVertical: scale(Spacing.xl),
-    alignItems: 'center',
-    gap: scale(Spacing.sm),
-  },
-  loadingText: {
-    fontSize: moderateScale(14),
   },
   emptyState: {
     paddingVertical: EMPTY_PADDING_Y,

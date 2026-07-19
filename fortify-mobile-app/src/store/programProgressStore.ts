@@ -311,6 +311,9 @@ export const useProgramProgressStore = create<ProgramProgressState>((set, get) =
 
     loadProgressPromise = (async () => {
       const localMap = parseStoredProgress(await getScopedItem(PROGRAM_PROGRESS_KEY));
+      // Cached progress is render-ready. Cloud reconciliation must not hold back
+      // workout cards or the start action on a cold launch.
+      set({ progressByProgram: localMap, isLoaded: true });
 
       try {
         const remoteEntries = await fetchAllProgramProgressEntries();

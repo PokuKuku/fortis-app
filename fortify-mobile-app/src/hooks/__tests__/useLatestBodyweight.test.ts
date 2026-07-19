@@ -21,6 +21,13 @@ describe('useLatestBodyweight', () => {
     jest.clearAllMocks();
   });
 
+  it('does not request bodyweight data while disabled', () => {
+    const { result } = renderHook(() => useLatestBodyweight({ enabled: false }));
+
+    expect(result.current).toEqual({ bodyweightKg: null, loading: false });
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
   it('shares an in-flight request across simultaneous consumers', async () => {
     let resolveRequest: (value: unknown) => void = () => undefined;
     mockLimit.mockReturnValue(new Promise((resolve) => {

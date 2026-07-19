@@ -18,7 +18,8 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius, FontSizes, ButtonHeights, IconSizes } from '@/constants/Sizes';
 import { useProgram } from '@/src/hooks/usePrograms';
 import { HubHeader, HubExerciseRow, HubStatsSection } from '@/src/components/hub';
-import { ProgramWorkout } from '@/src/types/program';
+import { ProgramWorkout, type ProgramDetail } from '@/src/types/program';
+import { TabPageSkeleton } from '@/src/components/ui/TabPageSkeleton';
 import { DeleteKebabMenu } from '@/src/components/program/DeleteKebabMenu';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useProgramsStore } from '@/src/store/programsStore';
@@ -233,8 +234,51 @@ export default function ProgramDetailScreen() {
   const { colors, isDark } = useTheme();
   const { scheduleDays } = useWorkoutSchedule();
   const modalStyles = useModalStyles();
-  const { program, loading } = useProgram(id);
+  const { program: hydratedProgram, loading } = useProgram(id);
   const isNavigating = useRef(false);
+  const storePrograms = useProgramsStore(s => s.programs);
+  const cachedProgram = useMemo<ProgramDetail | null>(() => {
+    if (!id || Array.isArray(id)) return null;
+    const sourceProgram = storePrograms.find((candidate) => candidate.id === id && !candidate.isTemplate);
+    if (!sourceProgram) return null;
+
+    return {
+      id: sourceProgram.id,
+      name: sourceProgram.name,
+      description: sourceProgram.description,
+      difficulty: sourceProgram.difficulty,
+      durationWeeks: sourceProgram.durationWeeks ?? 0,
+      goal: sourceProgram.goal,
+      createdBy: sourceProgram.createdBy,
+      isPublic: sourceProgram.isPublic,
+      workouts: sourceProgram.workouts.map((workout) => ({
+        id: workout.id,
+        name: workout.name,
+        dayNumber: workout.dayNumber,
+        exercises: workout.exercises.map((exercise, index) => ({
+          id: exercise.id,
+          exerciseId: exercise.exerciseId,
+          exerciseName: exercise.exerciseName,
+          orderIndex: exercise.orderIndex ?? index,
+          targetSets: exercise.sets,
+          targetReps: exercise.reps,
+          restSeconds: exercise.restSeconds,
+          notes: exercise.notes,
+          primaryMuscles: [],
+          secondaryMuscles: [],
+          images: [],
+        })),
+      })),
+      stats: {
+        timesCompleted: 0,
+        volumeHistory: [],
+        repsHistory: [],
+        durationHistory: [],
+      },
+      lastPerformed: sourceProgram.lastPerformedAt ?? undefined,
+    };
+  }, [id, storePrograms]);
+  const program = hydratedProgram ?? cachedProgram;
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const removeExerciseFromProgramWorkout = useProgramsStore(s => s.removeExerciseFromProgramWorkout);
   const startWorkoutFromProgram = useWorkoutStore(s => s.startWorkoutFromProgram);
@@ -476,11 +520,7 @@ export default function ProgramDetailScreen() {
   // Not found state (avoid loading splash)
   if (!program) {
     if (loading) {
-      return (
-        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-          <StainlessSteelPattern />
-        </SafeAreaView>
-      );
+      return <TabPageSkeleton title="Program" />;
     }
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -527,7 +567,7 @@ export default function ProgramDetailScreen() {
         {/* Description */}
         {program.description && (
           <Animated.View
-            entering={FadeIn.delay(100).duration(300)}
+            entering={FadeIn.delay(20).duration(160)}
             style={styles.descriptionContainer}
           >
             <Text style={[styles.description, { color: colors.textSecondary }]}>{program.description}</Text>
@@ -536,7 +576,7 @@ export default function ProgramDetailScreen() {
 
         {/* Meta Tags */}
         <Animated.View
-          entering={FadeIn.delay(150).duration(300)}
+          entering={FadeIn.delay(30).duration(160)}
           style={styles.metaTagsContainer}
         >
           {/* Duration */}
@@ -560,7 +600,7 @@ export default function ProgramDetailScreen() {
 
         {/* Creator & Last Performed */}
         <Animated.View
-          entering={FadeIn.delay(200).duration(300)}
+          entering={FadeIn.delay(40).duration(160)}
           style={styles.creatorContainer}
         >
           <Text style={[styles.progressText, { color: colors.textSecondary }]}>
@@ -569,7 +609,7 @@ export default function ProgramDetailScreen() {
         </Animated.View>
 
         <Animated.View
-          entering={FadeInDown.delay(250).duration(400)}
+          entering={FadeInDown.delay(50).duration(180)}
           style={styles.section}
         >
           <MuscleHeatmap exercises={heatmapExercises} gender={bodyType} />
@@ -577,7 +617,7 @@ export default function ProgramDetailScreen() {
 
         {/* Start Program Button */}
         <Animated.View
-          entering={FadeInDown.delay(300).duration(400)}
+          entering={FadeInDown.delay(60).duration(180)}
           style={styles.startButtonContainer}
         >
           <GlassButton
@@ -594,7 +634,7 @@ export default function ProgramDetailScreen() {
         </Animated.View>
 
         <Animated.View
-          entering={FadeInDown.delay(325).duration(400)}
+          entering={FadeInDown.delay(75).duration(180)}
           style={styles.scheduleContainer}
         >
           <ProgramScheduleRow scheduleDays={scheduleDays} completedWeekdays={completedWeekdays} />
@@ -602,7 +642,7 @@ export default function ProgramDetailScreen() {
 
         {/* Workouts Section */}
         <Animated.View
-          entering={FadeInDown.delay(350).duration(400)}
+          entering={FadeInDown.delay(90).duration(180)}
           style={styles.section}
         >
           <View style={styles.sectionHeader}>

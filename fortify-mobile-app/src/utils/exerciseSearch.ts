@@ -26,6 +26,20 @@ export type ExerciseSearchOptions = {
   minFuzzyScore?: number;
 };
 
+export type ExerciseSearchBuildOptions = {
+  includeInstructions?: boolean;
+};
+
+type CachedExerciseSearchIndexes = {
+  full?: ExerciseSearchIndex;
+  lean?: ExerciseSearchIndex;
+};
+
+const exerciseSearchIndexCache = new WeakMap<
+  ExerciseWithSource[],
+  CachedExerciseSearchIndexes
+>();
+
 const CANONICAL_QUERY_BOOSTS: Array<{
   query: string;
   preferredNames: string[];
@@ -195,8 +209,25 @@ function getCanonicalIntentScore(queryTokens: string[], entry: ExerciseSearchEnt
   return 0;
 }
 
-export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): ExerciseSearchIndex {
-  const phrases = buildPhraseSet(exercises);
+export function getCachedExerciseSearchIndex(
+  exercises: ExerciseWithSource[],
+  options: ExerciseSearchBuildOptions = {}
+): ExerciseSearchIndex | null {
+  const includeInstructions = options.includeInstructions ?? true;
+  const cached = exerciseSearchIndexCache.get(exercises);
+  return (includeInstructions ? cached?.full : cached?.lean) ?? null;
+}
+
+export function buildExerciseSearchIndex(
+  exercises: ExerciseWithSource[],
+  options: ExerciseSearchBuildOptions = {}
+): ExerciseSearchIndex {
+  const includeInstructions = options.includeInstructions ?? true;
+  const cacheKey = includeInstructions ? 'full' : 'lean';
+  const cached = exerciseSearchIndexCache.get(exercises)?.[cacheKey];
+  if (cached) return cached;
+
+  const phrases = includeInstructions ? buildPhraseSet(exercises) : new Set<string>();
 
   const entries = exercises.map((exercise) => {
     const nameText = normalizeText(exercise.name);
@@ -224,7 +255,9 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
     // Phrases found in instructions are discovery hints, not authoritative
     // aliases. Keeping them separate prevents copy such as "sit up straight"
     // from outranking an exercise whose actual name is "sit-up".
-    const instructionText = normalizeText((exercise.instructions ?? []).join(' '));
+    const instructionText = includeInstructions
+      ? normalizeText((exercise.instructions ?? []).join(' '))
+      : '';
     const instructionAliasTokenTexts = instructionText
       ? extractInstructionAliases(tokenize(instructionText), phrases)
       : [];
@@ -257,7 +290,11 @@ export function buildExerciseSearchIndex(exercises: ExerciseWithSource[]): Exerc
     };
   });
 
-  return { entries };
+  const index = { entries };
+  const cachedIndexes = exerciseSearchIndexCache.get(exercises) ?? {};
+  cachedIndexes[cacheKey] = index;
+  exerciseSearchIndexCache.set(exercises, cachedIndexes);
+  return index;
 }
 
 export function searchExercises(

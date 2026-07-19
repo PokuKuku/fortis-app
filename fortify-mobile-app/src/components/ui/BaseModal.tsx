@@ -87,6 +87,10 @@ export interface BaseModalProps {
   width?: number;
   /** Modal content animation (default: 'zoom') */
   animation?: 'zoom' | 'slide_from_right';
+  /** Entrance duration in milliseconds (default: 250) */
+  enterDuration?: number;
+  /** Backdrop fade-in duration in milliseconds (default: 200) */
+  backdropEnterDuration?: number;
 }
 
 export function BaseModal({
@@ -102,6 +106,8 @@ export function BaseModal({
   hapticOnClose = true,
   width = DEFAULT_MODAL_WIDTH,
   animation = 'zoom',
+  enterDuration = 250,
+  backdropEnterDuration = 200,
 }: BaseModalProps) {
   const { colors, isDark } = useTheme();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -131,8 +137,8 @@ export function BaseModal({
 
   const contentEntering =
     animation === 'slide_from_right'
-      ? SlideInRight.duration(250)
-      : ZoomIn.duration(250);
+      ? SlideInRight.duration(enterDuration)
+      : ZoomIn.duration(enterDuration);
   const contentExiting =
     animation === 'slide_from_right'
       ? SlideOutRight.duration(200)
@@ -147,7 +153,7 @@ export function BaseModal({
       statusBarTranslucent
     >
       <Animated.View
-        entering={FadeIn.duration(200)}
+        entering={FadeIn.duration(backdropEnterDuration)}
         exiting={FadeOut.duration(150)}
         style={[styles.backdrop, { backgroundColor: isDark ? 'rgba(0, 0, 0, 0.7)' : 'rgba(0, 0, 0, 0.5)' }]}
       >

@@ -2,7 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
 import { TRAINING_INSIGHTS_CACHE_KEY } from '@/src/constants/storageKeys';
-import { fetchTrainingInsights, refreshTrainingInsights, dismissInsight, snoozeInsightType } from '@/src/services/insightsService';
+import {
+  fetchTrainingInsights,
+  refreshTrainingInsights,
+  dismissInsight,
+  snoozeInsightType,
+  subscribeToTrainingInsightsRefresh,
+} from '@/src/services/insightsService';
 import { TrainingInsight, InsightType } from '@/src/types/insights';
 
 type CachedInsights = {
@@ -10,14 +16,25 @@ type CachedInsights = {
   cachedAt: string;
 };
 
+const REFRESH_THROTTLE_MS = 2 * 60 * 1000;
+let activeRemoteFetch: Promise<TrainingInsight[] | null> | null = null;
+
+function fetchTrainingInsightsDeduped(): Promise<TrainingInsight[] | null> {
+  if (activeRemoteFetch) return activeRemoteFetch;
+  activeRemoteFetch = fetchTrainingInsights().finally(() => {
+    activeRemoteFetch = null;
+  });
+  return activeRemoteFetch;
+}
+
 export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
   const [insights, setInsights] = useState<TrainingInsight[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | null>(null);
-  const lastRefreshAtRef = useRef(0);
+  const lastFetchAtRef = useRef(0);
   const refreshingRef = useRef(false);
-  const REFRESH_THROTTLE_MS = 2 * 60 * 1000;
+  const initializedRef = useRef(false);
 
   const persistCache = useCallback(async (items: TrainingInsight[]) => {
     const payload: CachedInsights = {
@@ -28,20 +45,36 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     setCachedAt(payload.cachedAt);
   }, []);
 
-  const loadCached = useCallback(async () => {
+  const loadCached = useCallback(async (): Promise<number | null> => {
     const cached = await getScopedItem(TRAINING_INSIGHTS_CACHE_KEY);
-    if (!cached) return;
+    if (!cached) return null;
     try {
       const parsed = JSON.parse(cached) as CachedInsights;
       if (Array.isArray(parsed.items)) {
         setInsights(parsed.items);
         setCachedAt(parsed.cachedAt || null);
         setIsLoading(false);
+        const cachedAtMs = Date.parse(parsed.cachedAt);
+        return Number.isFinite(cachedAtMs) ? cachedAtMs : 0;
       }
     } catch {
       // ignore cache errors
     }
+    return null;
   }, []);
+
+  const fetchLatest = useCallback(async () => {
+    try {
+      const remote = await fetchTrainingInsightsDeduped();
+      if (remote !== null) {
+        setInsights(remote);
+        await persistCache(remote);
+      }
+    } finally {
+      lastFetchAtRef.current = Date.now();
+      setIsLoading(false);
+    }
+  }, [persistCache]);
 
   const refresh = useCallback(async () => {
     if (refreshingRef.current) return;
@@ -49,18 +82,14 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     setIsRefreshing(true);
     try {
       await refreshTrainingInsights();
-      const remote = await fetchTrainingInsights();
-      if (remote !== null) {
-        setInsights(remote);
-        await persistCache(remote);
-      }
+      await fetchLatest();
     } finally {
       setIsRefreshing(false);
       setIsLoading(false);
       refreshingRef.current = false;
-      lastRefreshAtRef.current = Date.now();
+      lastFetchAtRef.current = Date.now();
     }
-  }, [persistCache]);
+  }, [fetchLatest]);
 
   const dismiss = useCallback(async (insightId: string) => {
     const previous = insights;
@@ -90,14 +119,20 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     let isMounted = true;
 
     const run = async () => {
-      await loadCached();
+      const cachedAtMs = await loadCached();
       if (!isMounted) return;
+      if (cachedAtMs !== null) {
+        lastFetchAtRef.current = cachedAtMs;
+      }
       if (options?.skipRefresh) {
         setIsLoading(false);
+        initializedRef.current = true;
         return;
       }
-      await refresh();
-      lastRefreshAtRef.current = Date.now();
+      if (cachedAtMs === null || Date.now() - cachedAtMs >= REFRESH_THROTTLE_MS) {
+        await fetchLatest();
+      }
+      initializedRef.current = true;
     };
 
     run();
@@ -105,15 +140,22 @@ export function useTrainingInsights(options?: { skipRefresh?: boolean }) {
     return () => {
       isMounted = false;
     };
-  }, [loadCached, options?.skipRefresh, refresh]);
+  }, [fetchLatest, loadCached, options?.skipRefresh]);
+
+  useEffect(() => {
+    return subscribeToTrainingInsightsRefresh(() => {
+      void fetchLatest();
+    });
+  }, [fetchLatest]);
 
   useFocusEffect(
     useCallback(() => {
       if (options?.skipRefresh) return;
+      if (!initializedRef.current) return;
       const now = Date.now();
-      if (now - lastRefreshAtRef.current < REFRESH_THROTTLE_MS) return;
-      refresh();
-    }, [options?.skipRefresh, refresh])
+      if (now - lastFetchAtRef.current < REFRESH_THROTTLE_MS) return;
+      void fetchLatest();
+    }, [fetchLatest, options?.skipRefresh])
   );
 
   return {

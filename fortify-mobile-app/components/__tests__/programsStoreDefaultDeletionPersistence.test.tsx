@@ -13,6 +13,7 @@ jest.mock('@/src/services/programSyncService', () => ({
 }));
 
 jest.mock('@/src/utils/scopedStorage', () => ({
+  getActiveScopedStorageUser: jest.fn(() => 'user-1'),
   getScopedItem: jest.fn(),
   setScopedItem: jest.fn(),
 }));

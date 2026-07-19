@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ChevronLeftIcon } from 'react-native-heroicons/outline';
@@ -12,6 +12,7 @@ import { useAIStore } from '@/src/store/aiStore';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
 import { InsightRadarChart } from '@/src/components/insights/InsightRadarChart';
 import { SegmentedControl } from '@/src/components/insights/SegmentedControl';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
 import type { EvidenceItem, TrainingInsight } from '@/src/types/insights';
 import type { InsightChartTab } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
@@ -416,12 +417,7 @@ export default function InsightDetailScreen() {
             </View>
 
             {isLoading && !series ? (
-              <View style={styles.loadingState}>
-                <ActivityIndicator size="small" color={colors.textSecondary} />
-                <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-                  Loading chart...
-                </Text>
-              </View>
+              <SectionSkeleton height={240} rows={4} />
             ) : isWorkoutRecap ? (
               <InsightRadarChart data={series?.breakdown ?? []} />
             ) : (

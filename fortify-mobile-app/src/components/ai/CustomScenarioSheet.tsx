@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +15,7 @@ import * as Haptics from 'expo-haptics';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import type { AICoachPersonality, RealtimeCoachPreferences } from '@/src/types/realtimeCoach';
 import {
   MAX_CUSTOM_SCENARIO_INSTRUCTIONS_CHARS,
@@ -257,7 +257,11 @@ export function CustomScenarioSheet({
                 ]}
               >
                 {isSavingCustomCoach ? (
-                  <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
+                  <ActionProgressLabel
+                    label="Saving…"
+                    color={colors.accentForegroundOnFill}
+                    style={styles.saveButtonText}
+                  />
                 ) : (
                   <Text style={[styles.saveButtonText, { color: colors.accentForegroundOnFill }]}>
                     Save Custom Coach

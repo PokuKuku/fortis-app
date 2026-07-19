@@ -4,7 +4,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  InteractionManager,
 } from 'react-native';
+import { useEffect, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
@@ -44,10 +46,23 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuth();
   const { colors } = useTheme();
+  const settingsNavigationRef = useRef(false);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      router.prefetch('/settings');
+    });
+    return () => task.cancel();
+  }, [router]);
 
   const handleSettingsPress = () => {
+    if (settingsNavigationRef.current) return;
+    settingsNavigationRef.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/settings');
+    setTimeout(() => {
+      settingsNavigationRef.current = false;
+    }, 600);
   };
 
   return (
@@ -68,6 +83,7 @@ export default function ProfileScreen() {
             {isAuthenticated && (
               <TouchableOpacity
                 style={styles.settingsButton}
+                onPressIn={handleSettingsPress}
                 onPress={handleSettingsPress}
                 activeOpacity={0.7}
               >

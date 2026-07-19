@@ -153,12 +153,13 @@ function writeAssetMap(exerciseDbIds) {
   const lines = [
     "import type { ImageSourcePropType } from 'react-native';",
     '',
-    'export const exerciseGifAssets: Record<string, ImageSourcePropType> = {',
-    ...exerciseDbIds.map((id) => `  '${id}': require('../../assets/exercise-gifs/360/${id}.gif'),`),
-    '};',
+    `export const EXERCISE_GIF_ASSET_COUNT = ${exerciseDbIds.length};`,
     '',
     'export function getExerciseGifAsset(exerciseDbId: string): ImageSourcePropType | null {',
-    '  return exerciseGifAssets[exerciseDbId] ?? null;',
+    '  switch (exerciseDbId) {',
+    ...exerciseDbIds.map((id) => `    case '${id}': return require('../../assets/exercise-gifs/360/${id}.gif');`),
+    '    default: return null;',
+    '  }',
     '}',
     '',
   ];
@@ -167,6 +168,18 @@ function writeAssetMap(exerciseDbIds) {
 }
 
 function main() {
+  if (process.argv.includes('--asset-map-only')) {
+    const snapshot = readJson(outputSnapshotPath);
+    const exerciseDbIds = snapshot
+      .map((row) => String(row.exercise_db_id ?? ''))
+      .filter(Boolean)
+      .sort();
+
+    writeAssetMap(exerciseDbIds);
+    console.log(`Wrote ${path.relative(repoRoot, outputAssetMapPath)} (${exerciseDbIds.length} lazy assets)`);
+    return;
+  }
+
   const nextRows = readJson(sourceJsonPath);
   const oldRows = readJson(oldSnapshotPath);
   const { byName } = buildOldSnapshotMaps(oldRows);

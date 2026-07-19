@@ -18,6 +18,8 @@ import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { getDefaultTemplates } from '@/src/data/defaultPrograms';
+import type { WorkoutDetail } from '@/src/types/program';
+import { TabPageSkeleton } from '@/src/components/ui/TabPageSkeleton';
 
 const LEGACY_DEFAULT_TEMPLATE_NAMES_BY_ID = new Map<string, string[]>([
   ['default-template-upper', ['Upper']],
@@ -36,11 +38,51 @@ export default function WorkoutDetailScreen() {
   const router = useRouter();
   const { colors, isDark } = useTheme();
   const modalStyles = useModalStyles();
-  const { workout, loading, refresh: refreshWorkout } = useWorkout(id);
+  const { workout: hydratedWorkout, loading, refresh: refreshWorkout } = useWorkout(id);
   const isNavigating = useRef(false);
   const isReadOnlyFromProgramEdit = source === 'program-edit';
   const storePrograms = useProgramsStore(s => s.programs);
   const [isRedirectingReplacement, setIsRedirectingReplacement] = useState(false);
+
+  const cachedWorkout = useMemo<WorkoutDetail | null>(() => {
+    if (!id || Array.isArray(id)) return null;
+
+    const sourceProgram = storePrograms.find((program) =>
+      (program.isTemplate && program.id === id) ||
+      program.workouts.some((candidate) => candidate.id === id)
+    );
+    const sourceWorkout = sourceProgram?.isTemplate && sourceProgram.id === id
+      ? sourceProgram.workouts[0]
+      : sourceProgram?.workouts.find((candidate) => candidate.id === id);
+    if (!sourceProgram || !sourceWorkout) return null;
+
+    return {
+      id,
+      name: sourceProgram.isTemplate && sourceProgram.id === id
+        ? sourceProgram.name
+        : sourceWorkout.name,
+      description: undefined,
+      exercises: sourceWorkout.exercises.map((exercise, index) => ({
+        id: exercise.id,
+        exerciseId: exercise.exerciseId,
+        exerciseName: exercise.exerciseName,
+        orderIndex: exercise.orderIndex ?? index,
+        targetSets: exercise.sets,
+        targetReps: exercise.reps,
+        primaryMuscles: [],
+        secondaryMuscles: [],
+        images: [],
+      })),
+      stats: {
+        timesCompleted: 0,
+        volumeHistory: [],
+        repsHistory: [],
+        durationHistory: [],
+      },
+      lastPerformed: sourceProgram.lastPerformedAt ?? undefined,
+    };
+  }, [id, storePrograms]);
+  const workout = hydratedWorkout ?? cachedWorkout;
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -207,11 +249,7 @@ export default function WorkoutDetailScreen() {
   // Not found state (avoid loading splash)
   if (!workout) {
     if (loading || isRedirectingReplacement) {
-      return (
-        <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
-          <StainlessSteelPattern />
-        </SafeAreaView>
-      );
+      return <TabPageSkeleton title="Workout" />;
     }
     return (
       <SafeAreaView style={[styles.container, themedStyles.container]} edges={['top']}>
@@ -263,7 +301,7 @@ export default function WorkoutDetailScreen() {
         {/* Description */}
         {workout.description && (
           <Animated.View
-            entering={FadeIn.delay(100).duration(300)}
+            entering={FadeIn.delay(20).duration(160)}
             style={styles.descriptionContainer}
           >
             <Text style={[styles.description, themedStyles.description]}>{workout.description}</Text>
@@ -272,7 +310,7 @@ export default function WorkoutDetailScreen() {
 
         {/* Muscle Heatmap Section */}
         <Animated.View
-          entering={FadeInDown.delay(200).duration(400)}
+          entering={FadeInDown.delay(30).duration(180)}
           style={styles.section}
         >
           <MuscleHeatmap exercises={workout.exercises} gender={bodyType} />
@@ -280,7 +318,7 @@ export default function WorkoutDetailScreen() {
 
         {/* Start Workout Button */}
         <Animated.View
-          entering={FadeInDown.delay(300).duration(400)}
+          entering={FadeInDown.delay(60).duration(180)}
           style={styles.startButtonContainer}
         >
           <GlassButton
@@ -297,7 +335,7 @@ export default function WorkoutDetailScreen() {
 
         {/* Exercises Section */}
         <Animated.View
-          entering={FadeInDown.delay(400).duration(400)}
+          entering={FadeInDown.delay(90).duration(180)}
           style={styles.section}
         >
           <View style={styles.sectionHeader}>

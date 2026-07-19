@@ -41,4 +41,21 @@ describe('BaseModal close button', () => {
     fireEvent.press(closeButton);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('accepts a faster entrance without changing modal behavior', () => {
+    const { getByText } = render(
+      <BaseModal
+        visible
+        onClose={jest.fn()}
+        title="Quick modal"
+        enterDuration={120}
+        backdropEnterDuration={100}
+      >
+        <Text>Ready</Text>
+      </BaseModal>
+    );
+
+    expect(getByText('Quick modal')).toBeTruthy();
+    expect(getByText('Ready')).toBeTruthy();
+  });
 });

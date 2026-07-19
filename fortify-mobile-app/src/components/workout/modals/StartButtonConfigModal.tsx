@@ -15,6 +15,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import type { StartPreset } from '@/src/store/startPresetStore';
 import type { Program } from '@/src/types/workout';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
 
 interface StartButtonConfigModalProps {
   visible: boolean;
@@ -138,6 +139,8 @@ export function StartButtonConfigModal({
       titleStyle={styles.modalTitle}
       icon={<PlayIcon size={24} color={themedStyles.iconColor} strokeWidth={2} />}
       width={getModalWidth(responsiveValue(300, 320, 320))}
+      enterDuration={120}
+      backdropEnterDuration={100}
       showCloseButton={!disableClose}
       closeOnBackdropPress={!disableClose}
     >
@@ -183,7 +186,7 @@ export function StartButtonConfigModal({
 
         <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Workouts</Text>
         {isLoading && templates.length === 0 ? (
-          <Text style={[styles.emptyText, themedStyles.emptyText]}>Loading workouts...</Text>
+          <SectionSkeleton height={72} rows={1} />
         ) : templates.length === 0 ? (
           <Text style={[styles.emptyText, themedStyles.emptyText]}>No saved workouts yet.</Text>
         ) : (
@@ -212,7 +215,7 @@ export function StartButtonConfigModal({
 
         <Text style={[styles.sectionTitle, themedStyles.sectionTitle]}>Programs</Text>
         {isLoading && programs.length === 0 ? (
-          <Text style={[styles.emptyText, themedStyles.emptyText]}>Loading programs...</Text>
+          <SectionSkeleton height={72} rows={1} />
         ) : programs.length === 0 ? (
           <Text style={[styles.emptyText, themedStyles.emptyText]}>No programs created yet.</Text>
         ) : (

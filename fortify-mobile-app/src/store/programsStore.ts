@@ -7,7 +7,11 @@
  */
 import { create } from 'zustand';
 import { DeviceEventEmitter } from 'react-native';
-import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import {
+  getActiveScopedStorageUser,
+  getScopedItem,
+  setScopedItem,
+} from '@/src/utils/scopedStorage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import {
   syncLocalProgram,
@@ -32,13 +36,43 @@ import {
   ProgramExerciseDTO,
   TemplateSetDetail,
 } from '../types/workout';
-import { DELETED_DEFAULT_PROGRAM_IDS_KEY, LOCAL_TEMPLATES_KEY } from '../constants/storageKeys';
+import {
+  DELETED_DEFAULT_PROGRAM_IDS_KEY,
+  LOCAL_TEMPLATES_KEY,
+  PROGRAMS_KEY,
+} from '../constants/storageKeys';
 import { MAX_WORKOUTS_PER_PROGRAM } from '../constants/programs';
 import type { GeneratedProgramPayload } from '../utils/onboardingProgram';
 
 const DEFAULT_PROGRAM_IDS = new Set(
   [...getDefaultPrograms(), ...getDefaultTemplates()].map((program) => program.id)
 );
+
+let programsPersistenceQueue: Promise<void> = Promise.resolve();
+
+export const flushProgramsPersistence = async (): Promise<void> => {
+  await programsPersistenceQueue.catch(() => undefined);
+};
+
+const persistProgramCollections = (programs: Program[]): Promise<void> => {
+  const userId = getActiveScopedStorageUser();
+  const localPrograms = programs.filter((program) => isLocalProgramId(program.id));
+  const localPayload = JSON.stringify(localPrograms);
+  const snapshotPayload = JSON.stringify(programs);
+
+  // Preserve mutation order even when several card actions happen quickly. Without
+  // serialization an older AsyncStorage write can finish after a newer delete/create.
+  programsPersistenceQueue = programsPersistenceQueue
+    .catch(() => undefined)
+    .then(async () => {
+      await Promise.all([
+        setScopedItem(LOCAL_TEMPLATES_KEY, localPayload, userId),
+        setScopedItem(PROGRAMS_KEY, snapshotPayload, userId),
+      ]);
+    });
+
+  return programsPersistenceQueue;
+};
 
 const parseDeletedDefaultProgramIds = (raw: string | null): Set<string> => {
   if (!raw) return new Set();
@@ -51,13 +85,174 @@ const parseDeletedDefaultProgramIds = (raw: string | null): Set<string> => {
   }
 };
 
-const loadDeletedDefaultProgramIds = async (): Promise<Set<string>> => {
+type DefaultProgramPersistence = {
+  deletedIds: Set<string>;
+  accountUserId: string | null;
+  starterContentInitialized: boolean;
+};
+
+let cachedDefaultProgramPersistence: DefaultProgramPersistence | null = null;
+
+export const primeDefaultProgramPersistence = (
+  userId: string | null,
+  profile?: {
+    deleted_default_program_ids?: string[] | null;
+    starter_content_initialized?: boolean | null;
+  } | null
+): void => {
+  if (!userId || !profile) {
+    cachedDefaultProgramPersistence = null;
+    return;
+  }
+
+  cachedDefaultProgramPersistence = {
+    deletedIds: new Set(
+      Array.isArray(profile.deleted_default_program_ids)
+        ? profile.deleted_default_program_ids.filter(
+          (value): value is string => typeof value === 'string'
+        )
+        : []
+    ),
+    accountUserId: userId,
+    starterContentInitialized: profile.starter_content_initialized === true,
+  };
+};
+
+const resolveProgramAccountUserId = async (): Promise<string | null> => {
+  if (!isSupabaseConfigured()) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id ?? null;
+};
+
+const loadDefaultProgramPersistence = async (): Promise<DefaultProgramPersistence> => {
   const raw = await getScopedItem(DELETED_DEFAULT_PROGRAM_IDS_KEY);
-  return parseDeletedDefaultProgramIds(raw);
+  const localDeletedIds = parseDeletedDefaultProgramIds(raw);
+
+  if (cachedDefaultProgramPersistence?.accountUserId) {
+    const cachedCloudDeletedCount = cachedDefaultProgramPersistence.deletedIds.size;
+    const mergedDeletedIds = new Set([
+      ...cachedDefaultProgramPersistence.deletedIds,
+      ...localDeletedIds,
+    ]);
+    cachedDefaultProgramPersistence = {
+      ...cachedDefaultProgramPersistence,
+      deletedIds: mergedDeletedIds,
+    };
+    await setScopedItem(
+      DELETED_DEFAULT_PROGRAM_IDS_KEY,
+      JSON.stringify(Array.from(mergedDeletedIds)),
+      cachedDefaultProgramPersistence.accountUserId
+    );
+    if (mergedDeletedIds.size !== cachedCloudDeletedCount) {
+      void supabase
+        .from('profiles')
+        .update({ deleted_default_program_ids: Array.from(mergedDeletedIds) })
+        .eq('id', cachedDefaultProgramPersistence.accountUserId)
+        .then(({ error }) => {
+          if (error) {
+            console.warn('Failed to merge local starter workout deletions to cloud:', error);
+          }
+        });
+    }
+    return cachedDefaultProgramPersistence;
+  }
+
+  const accountUserId = await resolveProgramAccountUserId();
+
+  if (!accountUserId) {
+    return {
+      deletedIds: localDeletedIds,
+      accountUserId: null,
+      starterContentInitialized: false,
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('deleted_default_program_ids, starter_content_initialized')
+      .eq('id', accountUserId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    const cloudDeletedIds = new Set<string>(
+      Array.isArray(data?.deleted_default_program_ids)
+        ? data.deleted_default_program_ids.filter((value): value is string => typeof value === 'string')
+        : []
+    );
+    const mergedDeletedIds = new Set([...cloudDeletedIds, ...localDeletedIds]);
+
+    await setScopedItem(
+      DELETED_DEFAULT_PROGRAM_IDS_KEY,
+      JSON.stringify(Array.from(mergedDeletedIds)),
+      accountUserId
+    );
+
+    if (mergedDeletedIds.size !== cloudDeletedIds.size) {
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ deleted_default_program_ids: Array.from(mergedDeletedIds) })
+        .eq('id', accountUserId);
+      if (updateError) {
+        console.warn('Failed to merge local starter workout deletions to cloud:', updateError);
+      }
+    }
+
+    return {
+      deletedIds: mergedDeletedIds,
+      accountUserId,
+      starterContentInitialized: data?.starter_content_initialized === true,
+    };
+  } catch (error) {
+    console.warn('Failed to load cloud starter workout state:', error);
+    return {
+      deletedIds: localDeletedIds,
+      accountUserId,
+      starterContentInitialized: false,
+    };
+  }
+};
+
+const loadDeletedDefaultProgramIds = async (): Promise<Set<string>> => {
+  const persistence = await loadDefaultProgramPersistence();
+  return persistence.deletedIds;
 };
 
 const persistDeletedDefaultProgramIds = async (ids: Set<string>): Promise<void> => {
   await setScopedItem(DELETED_DEFAULT_PROGRAM_IDS_KEY, JSON.stringify(Array.from(ids)));
+
+  if (cachedDefaultProgramPersistence) {
+    cachedDefaultProgramPersistence = {
+      ...cachedDefaultProgramPersistence,
+      deletedIds: new Set(ids),
+    };
+  }
+
+  const accountUserId = await resolveProgramAccountUserId();
+  if (!accountUserId) return;
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ deleted_default_program_ids: Array.from(ids) })
+    .eq('id', accountUserId);
+
+  if (error) throw error;
+};
+
+const markStarterContentInitialized = async (userId: string): Promise<void> => {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ starter_content_initialized: true })
+    .eq('id', userId);
+
+  if (error) throw error;
+  if (cachedDefaultProgramPersistence?.accountUserId === userId) {
+    cachedDefaultProgramPersistence = {
+      ...cachedDefaultProgramPersistence,
+      starterContentInitialized: true,
+    };
+  }
 };
 
 const isSeededDefaultProgram = (program: Program | undefined): program is Program =>
@@ -232,7 +427,7 @@ interface ProgramsState {
 
   // Cloud sync
   syncPendingPrograms: () => Promise<void>;
-  replaceLocalIdWithServerId: (localId: string, serverId: string) => void;
+  replaceLocalIdWithServerId: (localId: string, serverId: string) => Promise<void>;
   refreshPendingProgramSyncIds: () => Promise<void>;
   markProgramSyncing: (programId: string, syncing: boolean) => void;
 }
@@ -600,6 +795,9 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           hasFetchedPrograms: true,
         };
       });
+      void get().persistLocalPrograms().catch((error) => {
+        console.warn('Failed to cache programs snapshot:', error);
+      });
     } catch (err: any) {
       // Don't show error for timeout/abort - just stop loading
       if (err?.name === 'AbortError' || err?.message?.includes('aborted')) {
@@ -634,6 +832,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         programs: state.programs.filter((p) => p.id !== id),
         isDeleting: false,
       }));
+      await get().persistLocalPrograms();
 
       return true;
     }
@@ -644,7 +843,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         programs: state.programs.filter((p) => p.id !== id),
         isDeleting: false,
       }));
-      get().persistLocalPrograms();
+      await get().persistLocalPrograms();
 
       // Also remove from pending sync queue to prevent resurrection
       removeFromPendingQueue(id).catch(err => {
@@ -682,6 +881,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       set({ isDeleting: false });
+      await get().persistLocalPrograms();
 
       return true;
     } catch (err) {
@@ -730,6 +930,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       // Duplicate workouts and exercises
+      const duplicatedWorkouts: ProgramWorkout[] = [];
       for (const workout of original.workouts) {
         const { data: newWorkout, error: workoutError } = await supabase
           .from('program_workouts')
@@ -757,12 +958,36 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         }));
 
         if (exercisesToInsert.length > 0) {
-          await supabase.from('program_exercises').insert(exercisesToInsert);
+          const { error: exercisesError } = await supabase
+            .from('program_exercises')
+            .insert(exercisesToInsert);
+          if (exercisesError) continue;
         }
+
+        duplicatedWorkouts.push({
+          ...workout,
+          id: newWorkout.id,
+          exercises: workout.exercises.map((exercise, index) => ({
+            ...exercise,
+            id: `${newWorkout.id}-cached-${index}`,
+          })),
+        });
       }
 
-      // Refresh programs list
-      get().fetchPrograms({ force: true });
+      const duplicatedProgram: Program = {
+        ...original,
+        id: newProgram.id,
+        name: `${original.name} (Copy)`,
+        isDefault: false,
+        isPublic: false,
+        createdBy: session.user.id,
+        createdAt: newProgram.created_at ?? new Date().toISOString(),
+        updatedAt: newProgram.updated_at ?? new Date().toISOString(),
+        workouts: duplicatedWorkouts,
+      };
+      set((state) => ({ programs: [duplicatedProgram, ...state.programs] }));
+      await get().persistLocalPrograms();
+      void get().fetchPrograms({ force: true });
 
       return newProgram.id;
     } catch (err) {
@@ -845,12 +1070,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const updatedProgram = applyLocalUpdate();
 
       if (isLocalProgramId(programId)) {
-        get().persistLocalPrograms();
+        await get().persistLocalPrograms();
         syncLocalProgram(updatedProgram).catch((err) => {
           console.warn('Background program sync failed:', err);
         });
       } else {
-        get().persistLocalPrograms();
+        await get().persistLocalPrograms();
       }
 
       return true;
@@ -913,6 +1138,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       applyLocalUpdate(workout.id);
+      await get().persistLocalPrograms();
       return true;
     } catch (err) {
       set({
@@ -986,7 +1212,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       set((state) => ({
         programs: [localProgram, ...state.programs],
       }));
-      get().persistLocalPrograms();
+      await get().persistLocalPrograms();
       get().markProgramSyncing(localId, true);
 
       // Attempt cloud sync in background (don't await, don't block)
@@ -998,7 +1224,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
             const stillExists = get().programs.some((p) => p.id === localId);
             if (stillExists) {
               // Replace local ID with server ID
-              get().replaceLocalIdWithServerId(localId, result.serverId);
+              await get().replaceLocalIdWithServerId(localId, result.serverId);
             } else {
               // Program was deleted during sync - clean up from Supabase
               void (async () => {
@@ -1100,14 +1326,14 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       set((state) => ({
         programs: [localProgram, ...state.programs],
       }));
-      get().persistLocalPrograms();
+      await get().persistLocalPrograms();
 
       syncLocalProgram(localProgram)
-        .then((result) => {
+        .then(async (result) => {
           if (result.success && result.serverId) {
             const stillExists = get().programs.some((p) => p.id === localId);
             if (stillExists) {
-              get().replaceLocalIdWithServerId(localId, result.serverId);
+              await get().replaceLocalIdWithServerId(localId, result.serverId);
             }
           }
         })
@@ -1279,7 +1505,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         if (result.success && result.serverId) {
           const stillExists = get().programs.some((p) => p.id === localId);
           if (stillExists) {
-            get().replaceLocalIdWithServerId(localId, result.serverId);
+            await get().replaceLocalIdWithServerId(localId, result.serverId);
           }
           await get().fetchPrograms({ force: true });
         }
@@ -1367,12 +1593,12 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const updatedProgram = applyLocalUpdate();
 
       if (programId.startsWith('local-')) {
-        get().persistLocalPrograms();
+        await get().persistLocalPrograms();
         syncLocalProgram(updatedProgram).catch((err) => {
           console.warn('Background program sync failed:', err);
         });
       } else {
-        get().persistLocalPrograms();
+        await get().persistLocalPrograms();
       }
 
       return programId;
@@ -1382,6 +1608,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         applyLocalUpdate();
+        await get().persistLocalPrograms();
         return programId;
       }
 
@@ -1528,6 +1755,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       }
 
       applyLocalUpdate(insertedWorkoutIds);
+      await get().persistLocalPrograms();
       return programId;
     } catch (err) {
       set({
@@ -1581,7 +1809,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }));
 
     if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
-      get().persistLocalPrograms();
+      await get().persistLocalPrograms();
       if (programId.startsWith('local-')) {
         syncLocalProgram(updatedProgram).catch((err) => {
           console.warn('Background program sync failed:', err);
@@ -1627,6 +1855,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         set({ error: programError.message });
       }
 
+      await get().persistLocalPrograms();
       return true;
     } catch (err) {
       set((state) => ({
@@ -1660,7 +1889,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }));
 
     if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
-      get().persistLocalPrograms();
+      await get().persistLocalPrograms();
       return true;
     }
 
@@ -1691,8 +1920,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       );
       const tempError = tempResults.find((r) => r.error)?.error;
       if (tempError) {
-        set({ error: tempError.message });
-        return false;
+        throw new Error(tempError.message);
       }
 
       // Then move to final sequential day numbers
@@ -1706,10 +1934,10 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       );
       const finalError = finalResults.find((r) => r.error)?.error;
       if (finalError) {
-        set({ error: finalError.message });
-        return false;
+        throw new Error(finalError.message);
       }
 
+      await get().persistLocalPrograms();
       return true;
     } catch (err) {
       set((state) => ({
@@ -1749,7 +1977,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }));
 
     if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
-      get().persistLocalPrograms();
+      await get().persistLocalPrograms();
       return true;
     }
 
@@ -1770,6 +1998,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         return false;
       }
 
+      await get().persistLocalPrograms();
       return true;
     } catch (err) {
       set((state) => ({
@@ -1827,7 +2056,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }));
 
     if (isLocalProgramId(programId) || !isSupabaseConfigured()) {
-      get().persistLocalPrograms();
+      await get().persistLocalPrograms();
       return true;
     }
 
@@ -1905,6 +2134,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         ),
       }));
 
+      await get().persistLocalPrograms();
       return true;
     } catch (err) {
       set((state) => ({
@@ -2015,7 +2245,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       const persistForkLocally = async () => {
         replaceSeededTemplate(copiedTemplate);
-        get().persistLocalPrograms();
+        await get().persistLocalPrograms();
         await removeFromPendingQueue(templateId);
         await get().refreshPendingProgramSyncIds();
         return localId;
@@ -2053,6 +2283,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
           };
 
           replaceSeededTemplate(syncedTemplate);
+          await get().persistLocalPrograms();
           await removeFromPendingQueue(localId);
           await get().refreshPendingProgramSyncIds();
           return result.serverId;
@@ -2073,9 +2304,9 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
     }
 
     const updatedProgram = applyLocalUpdate();
+    await get().persistLocalPrograms();
 
     if (isLocalProgramId(templateId)) {
-      get().persistLocalPrograms();
       await removeFromPendingQueue(templateId);
       await get().refreshPendingProgramSyncIds();
     }
@@ -2086,11 +2317,11 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
     get().markProgramSyncing(templateId, true);
     syncLocalProgram(updatedProgram)
-      .then((result) => {
+      .then(async (result) => {
         if (isLocalProgramId(templateId) && result.success && result.serverId) {
           const stillExists = get().programs.some((p) => p.id === templateId);
           if (stillExists) {
-            get().replaceLocalIdWithServerId(templateId, result.serverId);
+            await get().replaceLocalIdWithServerId(templateId, result.serverId);
           }
         }
         if (!result.success && !result.queued) {
@@ -2132,6 +2363,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
         p.id === id ? { ...p, lastPerformedAt: new Date().toISOString() } : p
       ),
     }));
+    await get().persistLocalPrograms();
   },
 
   // Clear error
@@ -2159,53 +2391,120 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   // Load local programs from AsyncStorage
   loadLocalPrograms: async () => {
     try {
-      const stored = await getScopedItem(LOCAL_TEMPLATES_KEY);
-      const deletedDefaultIds = await loadDeletedDefaultProgramIds();
-      const defaults = [...getDefaultPrograms(), ...getDefaultTemplates()].filter(
-        (program) => !deletedDefaultIds.has(program.id)
-      );
-      const defaultsById = new Map(defaults.map((program) => [program.id, program]));
-      let localPrograms = stored ? (JSON.parse(stored) as Program[]) : defaults;
-      let didChangeStoredPrograms = false;
+      const [stored, localDeletedRaw, cachedProgramsRaw] = await Promise.all([
+        getScopedItem(LOCAL_TEMPLATES_KEY),
+        getScopedItem(DELETED_DEFAULT_PROGRAM_IDS_KEY),
+        getScopedItem(PROGRAMS_KEY),
+      ]);
 
-      if (stored) {
-        const refreshedPrograms = localPrograms.map((program) =>
-          refreshSeededDefaultProgramMetadata(program, defaultsById)
+      const applyLocalSnapshot = async (
+        storedPrograms: string | null,
+        defaultPersistence: DefaultProgramPersistence
+      ) => {
+        const deletedDefaultIds = defaultPersistence.deletedIds;
+        const defaults = [...getDefaultPrograms(), ...getDefaultTemplates()].filter(
+          (program) => !deletedDefaultIds.has(program.id)
         );
-        didChangeStoredPrograms = JSON.stringify(refreshedPrograms) !== JSON.stringify(localPrograms);
-        localPrograms = refreshedPrograms;
+        const defaultsById = new Map(defaults.map((program) => [program.id, program]));
+        let localPrograms = storedPrograms ? (JSON.parse(storedPrograms) as Program[]) : defaults;
+        let didChangeStoredPrograms = false;
 
-        const beforePrune = localPrograms.length;
-        localPrograms = localPrograms.filter(
-          (program) => !(
-            program.isDefault &&
-            (deletedDefaultIds.has(program.id) || REMOVED_DEFAULT_PROGRAM_IDS.has(program.id))
-          )
-        );
-        didChangeStoredPrograms = beforePrune !== localPrograms.length;
+        if (storedPrograms) {
+          const refreshedPrograms = localPrograms.map((program) =>
+            refreshSeededDefaultProgramMetadata(program, defaultsById)
+          );
+          didChangeStoredPrograms = JSON.stringify(refreshedPrograms) !== JSON.stringify(localPrograms);
+          localPrograms = refreshedPrograms;
 
-        const existingIds = new Set(localPrograms.map((program) => program.id));
-        const missingDefaults = defaults.filter((program) => !existingIds.has(program.id));
-        if (missingDefaults.length > 0) {
-          localPrograms = [...localPrograms, ...missingDefaults];
-          didChangeStoredPrograms = true;
+          const beforePrune = localPrograms.length;
+          localPrograms = localPrograms.filter(
+            (program) => !(
+              program.isDefault &&
+              (deletedDefaultIds.has(program.id) || REMOVED_DEFAULT_PROGRAM_IDS.has(program.id))
+            )
+          );
+          didChangeStoredPrograms = didChangeStoredPrograms || beforePrune !== localPrograms.length;
+
+          const existingIds = new Set(localPrograms.map((program) => program.id));
+          const missingDefaults = defaults.filter((program) => !existingIds.has(program.id));
+          if (missingDefaults.length > 0) {
+            localPrograms = [...localPrograms, ...missingDefaults];
+            didChangeStoredPrograms = true;
+          }
         }
 
-        if (didChangeStoredPrograms) {
+        // Publish the cached snapshot before any persistence or network follow-up.
+        set((state) => {
+          const nonLocalPrograms = state.programs.filter(
+            (program) => !isLocalProgramId(program.id) && !REMOVED_DEFAULT_PROGRAM_IDS.has(program.id)
+          );
+          return { programs: [...nonLocalPrograms, ...localPrograms] };
+        });
+
+        if ((!storedPrograms && localPrograms.length > 0) || didChangeStoredPrograms) {
           await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
         }
-      } else if (localPrograms.length > 0) {
-        await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
+
+        if (defaultPersistence.accountUserId && !defaultPersistence.starterContentInitialized) {
+          void markStarterContentInitialized(defaultPersistence.accountUserId).catch((error) => {
+            console.warn('Failed to mark starter workouts initialized:', error);
+          });
+        }
+      };
+
+      const localPersistence: DefaultProgramPersistence = {
+        deletedIds: new Set([
+          ...(cachedDefaultProgramPersistence?.deletedIds ?? []),
+          ...parseDeletedDefaultProgramIds(localDeletedRaw),
+        ]),
+        accountUserId: null,
+        starterContentInitialized: true,
+      };
+
+      if (stored) {
+        // Normal cold start: render the account-scoped snapshot immediately and
+        // reconcile cloud tombstones in the background.
+        await applyLocalSnapshot(stored, localPersistence);
+        void loadDefaultProgramPersistence()
+          .then(async (cloudPersistence) => {
+            const latestStored = await getScopedItem(LOCAL_TEMPLATES_KEY);
+            await applyLocalSnapshot(latestStored ?? stored, cloudPersistence);
+          })
+          .catch((error) => {
+            console.warn('Failed to reconcile starter workouts:', error);
+          });
+      } else {
+        // A reinstall has no trustworthy local snapshot. Check account tombstones
+        // before seeding defaults so deleted starter workouts never reappear.
+        await applyLocalSnapshot(null, await loadDefaultProgramPersistence());
       }
 
-      // Merge with existing programs (avoid duplicates)
-      set((state) => {
-        const nonLocalPrograms = state.programs.filter(
-          (p) => !isLocalProgramId(p.id) && !REMOVED_DEFAULT_PROGRAM_IDS.has(p.id)
-        );
-        return { programs: [...nonLocalPrograms, ...localPrograms] };
-      });
-      await get().refreshPendingProgramSyncIds();
+      if (cachedProgramsRaw) {
+        try {
+          const cachedPrograms = (JSON.parse(cachedProgramsRaw) as Program[]).filter(
+            (program) => !(
+              program.isDefault
+              && (
+                localPersistence.deletedIds.has(program.id)
+                || REMOVED_DEFAULT_PROGRAM_IDS.has(program.id)
+              )
+            )
+          );
+          set((state) => ({
+            // Current local entries win because they may contain unsynced edits
+            // made after the last successful server snapshot.
+            programs: Array.from(
+              new Map(
+                [...cachedPrograms, ...state.programs].map((program) => [program.id, program])
+              ).values()
+            ),
+          }));
+        } catch (error) {
+          console.warn('Failed to load cached programs snapshot:', error);
+        }
+      }
+
+      void get().refreshPendingProgramSyncIds();
     } catch (err) {
       console.warn('Failed to load local programs:', err);
     }
@@ -2215,9 +2514,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   persistLocalPrograms: async () => {
     try {
       const { programs } = get();
-      // Only persist programs with local IDs (not synced to Supabase)
-      const localPrograms = programs.filter((p) => isLocalProgramId(p.id));
-      await setScopedItem(LOCAL_TEMPLATES_KEY, JSON.stringify(localPrograms));
+      await persistProgramCollections(programs);
     } catch (err) {
       console.warn('Failed to persist local programs:', err);
     }
@@ -2238,7 +2535,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
 
       // Update local IDs with server IDs for successfully synced programs
       for (const [localId, serverId] of result.idMappings) {
-        get().replaceLocalIdWithServerId(localId, serverId);
+        await get().replaceLocalIdWithServerId(localId, serverId);
       }
 
       if (result.processed > 0) {
@@ -2256,7 +2553,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
   },
 
   // Replace a local program ID with server-assigned ID after successful sync
-  replaceLocalIdWithServerId: (localId: string, serverId: string) => {
+  replaceLocalIdWithServerId: async (localId: string, serverId: string) => {
     set((state) => {
       const nextPrograms = state.programs.map((p) => {
         if (p.id === localId) {
@@ -2291,7 +2588,7 @@ export const useProgramsStore = create<ProgramsState>((set, get) => ({
       };
     });
     // Re-persist to remove from local storage (no longer has local- prefix)
-    get().persistLocalPrograms();
+    await get().persistLocalPrograms();
     DeviceEventEmitter.emit('workout-template-replaced', {
       fromId: localId,
       toId: serverId,

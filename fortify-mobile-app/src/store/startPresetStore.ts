@@ -10,11 +10,17 @@ export type StartPreset =
   | { type: 'template'; templateId?: string; templateWorkoutId?: string }
   | { type: 'program'; programId: string };
 
+type StartPresetProfile = {
+  default_start_type?: string | null;
+  default_start_template_id?: string | null;
+  default_start_program_id?: string | null;
+};
+
 interface StartPresetState {
   preset: StartPreset | null;
   isLoaded: boolean;
   isSyncing: boolean;
-  loadPreset: () => Promise<void>;
+  loadPreset: (profile?: StartPresetProfile | null) => Promise<void>;
   setPreset: (preset: StartPreset | null) => Promise<void>;
   migrateLocalId: (localId: string, serverId: string) => void;
   resetStore: () => void;
@@ -49,11 +55,7 @@ const parsePreset = (raw: string | null): StartPreset | null => {
   }
 };
 
-const buildPresetFromProfile = (profile: {
-  default_start_type?: string | null;
-  default_start_template_id?: string | null;
-  default_start_program_id?: string | null;
-}): StartPreset | null => {
+const buildPresetFromProfile = (profile: StartPresetProfile): StartPreset | null => {
   if (profile.default_start_type === 'blank') {
     return { type: 'blank' };
   }
@@ -107,13 +109,13 @@ export const useStartPresetStore = create<StartPresetState>((set, get) => ({
   isLoaded: false,
   isSyncing: false,
 
-  loadPreset: async () => {
+  loadPreset: async (profile) => {
     const localRaw = await getScopedItem(START_BUTTON_PRESET_KEY);
     const localPreset = parsePreset(localRaw);
     if (localPreset) {
-      set({ preset: localPreset });
+      set({ preset: localPreset, isLoaded: true });
     } else {
-      set({ preset: null });
+      set({ preset: null, isLoaded: true });
     }
 
     if (localPreset && !canSyncPreset(localPreset)) {
@@ -127,25 +129,29 @@ export const useStartPresetStore = create<StartPresetState>((set, get) => ({
     }
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        set({ isLoaded: true });
-        return;
+      let remoteProfile: StartPresetProfile | null = profile ?? null;
+      if (profile === undefined) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          set({ isLoaded: true });
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('default_start_type, default_start_template_id, default_start_program_id')
+          .eq('id', session.user.id)
+          .single();
+
+        if (error) {
+          console.warn('Failed to load start preset from profile:', error.message);
+          set({ isLoaded: true });
+          return;
+        }
+        remoteProfile = data;
       }
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('default_start_type, default_start_template_id, default_start_program_id')
-        .eq('id', session.user.id)
-        .single();
-
-      if (error) {
-        console.warn('Failed to load start preset from profile:', error.message);
-        set({ isLoaded: true });
-        return;
-      }
-
-      const remotePreset = buildPresetFromProfile(data ?? {});
+      const remotePreset = buildPresetFromProfile(remoteProfile ?? {});
       if (remotePreset) {
         set({ preset: remotePreset });
         await setScopedItem(START_BUTTON_PRESET_KEY, JSON.stringify(remotePreset));

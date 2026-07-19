@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import * as Linking from 'expo-linking';
@@ -10,6 +10,7 @@ import { useTheme } from '@/src/contexts/ThemeContext';
 import { Typography } from '@/constants/Typography';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { hasPendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
+import { TabPageSkeleton } from '@/src/components/ui/TabPageSkeleton';
 
 const extractAuthParam = (url: string, key: string) => {
   try {
@@ -104,6 +105,10 @@ export default function AuthCallbackScreen() {
     router.replace('/auth');
   };
 
+  if (isProcessing && !error) {
+    return <TabPageSkeleton title="Finishing sign-in" />;
+  }
+
   return (
     <View style={[styles.container, themedStyles.container]}>
       <StainlessSteelPattern />
@@ -116,9 +121,6 @@ export default function AuthCallbackScreen() {
             <Text style={[styles.message, error ? themedStyles.error : themedStyles.message]}>
               {error ?? 'Hang tight while we verify your email.'}
             </Text>
-            {isProcessing && !error && (
-              <ActivityIndicator color={colors.textPrimary} />
-            )}
             {error && (
               <GlassButton style={styles.button} onPress={handleBackToAuth}>
                 <Text style={[styles.buttonText, themedStyles.buttonText]}>

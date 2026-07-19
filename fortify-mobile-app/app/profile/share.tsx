@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Share,
   Platform,
 } from 'react-native';
@@ -16,6 +15,8 @@ import type { RefObject } from 'react';
 import { addDays, endOfDay, format, startOfDay, startOfWeek, subDays } from 'date-fns';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
 import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
@@ -569,9 +570,7 @@ export default function ProfileShareScreen() {
                         Lifetime training totals
                       </Text>
                       {monthlyStats.isLoading ? (
-                        <View style={styles.loadingContainer}>
-                          <ActivityIndicator color={colors.accent} size="small" />
-                        </View>
+                        <SectionSkeleton height={180} rows={3} />
                       ) : (
                         <View style={styles.statsGrid}>
                           {monthlyStatTiles.map((tile) => (
@@ -591,21 +590,25 @@ export default function ProfileShareScreen() {
 
                   {shareType === 'signature' && (
                     <View style={[styles.shareBlock, styles.signatureShareBlock]}>
-                      <>
-                        <View style={styles.signatureHeatmap}>
-                          <WeeklyTierMuscleHeatmap
-                            muscleLevels={weeklyHasWorkouts && signatureHeatmapReady ? weeklyMuscleLevels : {}}
-                            gender={bodyType}
-                            scale={0.45}
-                            compact
-                          />
-                        </View>
-                        {!weeklyHasWorkouts && signatureHeatmapReady && (
-                          <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
-                            Log a workout to reveal your muscle map.
-                          </Text>
-                        )}
-                      </>
+                      {!signatureHeatmapReady ? (
+                        <SectionSkeleton height={230} rows={4} />
+                      ) : (
+                        <>
+                          <View style={styles.signatureHeatmap}>
+                            <WeeklyTierMuscleHeatmap
+                              muscleLevels={weeklyHasWorkouts && signatureHeatmapReady ? weeklyMuscleLevels : {}}
+                              gender={bodyType}
+                              scale={0.45}
+                              compact
+                            />
+                          </View>
+                          {!weeklyHasWorkouts && signatureHeatmapReady && (
+                            <Text style={[styles.emptyHint, { color: colors.textTertiary }]}>
+                              Log a workout to reveal your muscle map.
+                            </Text>
+                          )}
+                        </>
+                      )}
                     </View>
                   )}
 
@@ -690,7 +693,11 @@ export default function ProfileShareScreen() {
               activeOpacity={0.8}
             >
               {isSharing ? (
-                <ActivityIndicator size="small" color={colors.accent} />
+                <ActionProgressLabel
+                  label="Sharing…"
+                  color={colors.accent}
+                  style={styles.shareButtonText}
+                />
               ) : (
                 <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
               )}
@@ -957,8 +964,5 @@ const styles = StyleSheet.create({
   },
   shareError: {
     fontSize: moderateScale(11),
-  },
-  loadingContainer: {
-    paddingVertical: scale(Spacing.md),
   },
 });

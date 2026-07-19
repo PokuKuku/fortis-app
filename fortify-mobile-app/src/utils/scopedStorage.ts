@@ -4,6 +4,17 @@ import { USER_SCOPED_STORAGE_KEYS } from '@/src/constants/storageKeys';
 
 const GUEST_USER_KEY = 'guest';
 
+// Supabase session lookup is comparatively expensive and every persisted store used to
+// repeat it during startup. AuthContext keeps this hint current so a cold-start hydrate
+// can resolve all scoped keys without serializing behind the auth storage lock.
+let activeScopedUserId: string | null | undefined;
+
+export const setActiveScopedStorageUser = (userId: string | null): void => {
+  activeScopedUserId = userId;
+};
+
+export const getActiveScopedStorageUser = (): string | null | undefined => activeScopedUserId;
+
 export const getUserScopedKeySync = (baseKey: string, userId?: string | null): string => {
   return `${baseKey}:${userId ?? GUEST_USER_KEY}`;
 };
@@ -14,6 +25,10 @@ export const getUserScopedKey = async (
 ): Promise<string> => {
   if (userId !== undefined) {
     return getUserScopedKeySync(baseKey, userId);
+  }
+
+  if (activeScopedUserId !== undefined) {
+    return getUserScopedKeySync(baseKey, activeScopedUserId);
   }
 
   if (!isSupabaseConfigured()) {

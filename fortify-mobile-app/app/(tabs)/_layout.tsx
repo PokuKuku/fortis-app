@@ -12,6 +12,8 @@ import {
   DeviceEventEmitter,
   Alert,
   AppState,
+  Easing,
+  useWindowDimensions,
   type AppStateStatus,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
@@ -48,12 +50,25 @@ import { triggerImmediateNavigationHaptic } from '@/src/components/haptics/navig
 import { reconcileSubscriptionStatus } from '@/src/components/superwall/subscriptionStatusSync';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 import { getLastAICoachMode } from '@/src/services/aiCoachModePreferenceService';
+import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
+import { AnimatedFortifyLogo } from '@/components/AnimatedFortifyLogo';
+import {
+  completeStartupReveal,
+  resetStartupReveal,
+} from '@/src/utils/startupReveal';
 
 type PrimaryTabRoute = 'history' | 'insights' | 'index' | 'profile';
+const STARTUP_REVEAL_DURATION_MS = 175;
 
 export default function TabLayout() {
   const router = useRouter();
   const pathname = usePathname();
+  const { width: windowWidth } = useWindowDimensions();
+  const didInitializeStartupRevealRef = useRef(false);
+  if (!didInitializeStartupRevealRef.current) {
+    resetStartupReveal();
+    didInitializeStartupRevealRef.current = true;
+  }
   const { colors, isDark } = useTheme();
   const {
     isAuthenticated,
@@ -100,7 +115,6 @@ export default function TabLayout() {
   const { programs, fetchPrograms, isLoading: isProgramsLoading } = useProgramsStore();
   const loadProgramProgress = useProgramProgressStore(s => s.loadProgress);
   const startPreset = useStartPresetStore(s => s.preset);
-  const loadStartPreset = useStartPresetStore(s => s.loadPreset);
   const setStartPreset = useStartPresetStore(s => s.setPreset);
   // Tab bar stays at fixed position
   const tabBarBottom = scale(14);
@@ -120,6 +134,8 @@ export default function TabLayout() {
   const lastAccessSyncAtRef = useRef(0);
   const subscriptionStatusRef = useRef(subscriptionStatus);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const startupVeilTranslateX = useRef(new Animated.Value(0)).current;
+  const [showStartupVeil, setShowStartupVeil] = useState(true);
   const authUserId = authUser?.id ?? null;
   const superwallUserId =
     typeof superwallUser?.appUserId === 'string' && superwallUser.appUserId.trim().length > 0
@@ -130,6 +146,27 @@ export default function TabLayout() {
   useEffect(() => {
     subscriptionStatusRef.current = subscriptionStatus;
   }, [subscriptionStatus]);
+
+  useEffect(() => {
+    const revealFrame = requestAnimationFrame(() => {
+      Animated.timing(startupVeilTranslateX, {
+        toValue: -Math.max(1, windowWidth),
+        duration: STARTUP_REVEAL_DURATION_MS,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          completeStartupReveal();
+          setShowStartupVeil(false);
+        }
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(revealFrame);
+      startupVeilTranslateX.stopAnimation();
+    };
+  }, [startupVeilTranslateX, windowWidth]);
 
   const syncAccessState = useCallback(
     async (reason: 'initial' | 'app-active') => {
@@ -256,12 +293,6 @@ export default function TabLayout() {
       subscription.remove();
     };
   }, [syncAccessState]);
-
-  useEffect(() => {
-    if (!isLoading) {
-      loadStartPreset();
-    }
-  }, [isLoading, isAuthenticated, loadStartPreset]);
 
   useEffect(() => {
     loadProgramProgress();
@@ -425,13 +456,16 @@ export default function TabLayout() {
     router.push({ pathname: '/ai/chat', params: { mode } });
   };
 
-  const openStartConfig = async () => {
+  const openStartConfig = () => {
     if (startConfigVisible || isWorkoutActive) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
     setDraftStartPreset(startPreset);
     setStartConfigVisible(true);
     if (!programs.length) {
-      await fetchPrograms();
+      // Let React commit the modal shell before program hydration updates the store.
+      requestAnimationFrame(() => {
+        void fetchPrograms();
+      });
     }
   };
 
@@ -460,15 +494,23 @@ export default function TabLayout() {
   const handleStartPress = async () => {
     if (isWorkoutActive) return;
     if (isTourActive && activeStepId === 'quick_start') {
-      await openStartConfig();
+      openStartConfig();
       return;
     }
     if (!startPreset) {
-      await openStartConfig();
+      openStartConfig();
       return;
     }
 
     await startWorkoutFromPreset(startPreset);
+  };
+
+  const shouldOpenStartConfigOnPressIn =
+    !startPreset || (isTourActive && activeStepId === 'quick_start');
+
+  const handleStartPressIn = () => {
+    if (isWorkoutActive || !shouldOpenStartConfigOnPressIn) return;
+    openStartConfig();
   };
 
   const handleStartLongPress = () => {
@@ -634,7 +676,9 @@ export default function TabLayout() {
           animation: 'shift',
           animationEnabled: true,
           sceneStyle: { backgroundColor: colors.background },
-          lazy: true,
+          // Mount tab scenes up front so first-time navigation never exposes an empty scene.
+          // Screens with asynchronous data render their own themed skeleton state.
+          lazy: false,
           unmountOnBlur: false,
           freezeOnBlur: true,
           tabBarStyle: {
@@ -860,7 +904,8 @@ export default function TabLayout() {
             isWorkoutActive && styles.centerButtonDisabled,
           ]}
           gradientColors={startButtonColors}
-          onPress={() => void handleStartPress()}
+          onPressIn={handleStartPressIn}
+          onPress={shouldOpenStartConfigOnPressIn ? undefined : () => void handleStartPress()}
           onLongPress={handleStartLongPress}
           disabled={isWorkoutActive}
           pointerEvents={detailModalVisible ? 'none' : 'auto'}
@@ -1083,11 +1128,40 @@ export default function TabLayout() {
         </View>
       </View>
     </Modal>
+    {showStartupVeil ? (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.startupVeil,
+          {
+            backgroundColor: colors.background,
+            transform: [{ translateX: startupVeilTranslateX }],
+          },
+        ]}
+      >
+        <StainlessSteelPattern />
+        <View style={styles.startupVeilLogo}>
+          <AnimatedFortifyLogo size="large" centered animate={false} />
+        </View>
+      </Animated.View>
+    ) : null}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  startupVeil: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5000,
+    elevation: 5000,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  startupVeilLogo: {
+    zIndex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tabIconContainer: {
     padding: scale(6),
     borderRadius: scale(10),

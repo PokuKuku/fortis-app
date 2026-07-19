@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
   useWindowDimensions,
   PanResponder,
 } from 'react-native';
@@ -23,6 +22,7 @@ import { supabase } from '@/src/lib/supabase';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { BaseModal, useModalStyles } from '@/src/components/ui/BaseModal';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
 import { WorkoutScheduleEditorModal } from '@/src/components/workout/WorkoutScheduleEditorModal';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
@@ -857,7 +857,11 @@ export default function SettingsPreferencesScreen() {
             disabled={isSavingMeasurements}
           >
             {isSavingMeasurements ? (
-              <ActivityIndicator color={colors.white} size="small" />
+              <ActionProgressLabel
+                label="Saving…"
+                color={colors.accentForegroundOnFill}
+                style={modalStyles.successButtonText}
+              />
             ) : (
               <Text style={modalStyles.successButtonText}>Save</Text>
             )}
@@ -883,8 +887,7 @@ export default function SettingsPreferencesScreen() {
         </View>
         {isSavingExperience && (
           <View style={styles.loadingState}>
-            <ActivityIndicator color={colors.accent} size="small" />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Saving…</Text>
+            <ActionProgressLabel label="Saving…" color={colors.accent} style={styles.loadingText} />
           </View>
         )}
       </BaseModal>
@@ -907,8 +910,7 @@ export default function SettingsPreferencesScreen() {
         </View>
         {isSavingGoal && (
           <View style={styles.loadingState}>
-            <ActivityIndicator color={colors.accent} size="small" />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Saving…</Text>
+            <ActionProgressLabel label="Saving…" color={colors.accent} style={styles.loadingText} />
           </View>
         )}
       </BaseModal>
@@ -932,8 +934,7 @@ export default function SettingsPreferencesScreen() {
         </View>
         {isSavingTrainingEnvironment && (
           <View style={styles.loadingState}>
-            <ActivityIndicator color={colors.accent} size="small" />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Saving…</Text>
+            <ActionProgressLabel label="Saving…" color={colors.accent} style={styles.loadingText} />
           </View>
         )}
       </BaseModal>

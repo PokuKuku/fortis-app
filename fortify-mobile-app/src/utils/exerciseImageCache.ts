@@ -7,6 +7,7 @@ const prefetchedExerciseImageUrls = new Set<string>();
 const inflightExerciseImageUrls = new Set<string>();
 const MAX_GIF_PREFETCH_PER_CALL = 2;
 const EXERCISE_GIF_SCHEME = 'exercise-gif://';
+const localGifSourceCache = new Map<string, ImageSourcePropType | null>();
 
 function getLocalExerciseGifId(imagePath: string | null | undefined): string | null {
   if (!imagePath?.startsWith(EXERCISE_GIF_SCHEME)) return null;
@@ -36,7 +37,13 @@ export function getCachedExerciseImageSource(
 ): ImageSourcePropType | null {
   const localGifId = getLocalExerciseGifId(imagePath);
   if (localGifId) {
-    return getExerciseGifAsset(localGifId);
+    if (localGifSourceCache.has(localGifId)) {
+      return localGifSourceCache.get(localGifId) ?? null;
+    }
+
+    const source = getExerciseGifAsset(localGifId);
+    localGifSourceCache.set(localGifId, source);
+    return source;
   }
 
   const uri = normalizeImageUrl(imagePath);

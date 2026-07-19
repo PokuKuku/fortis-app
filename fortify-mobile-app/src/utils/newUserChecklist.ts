@@ -1,6 +1,7 @@
 import { DeviceEventEmitter } from 'react-native';
 import { NEW_USER_CHECKLIST_KEY } from '@/src/constants/storageKeys';
 import { getScopedItem, setScopedItem } from '@/src/utils/scopedStorage';
+import { isSupabaseConfigured, supabase } from '@/src/lib/supabase';
 
 export const NEW_USER_CHECKLIST_EVENT = 'new-user-checklist-task-completed' as const;
 
@@ -96,26 +97,105 @@ export const normalizeNewUserChecklistState = (value: unknown): NewUserChecklist
   }, {} as NewUserChecklistState);
 };
 
+const CHECKLIST_STATUS_PRIORITY: Record<NewUserChecklistTaskStatus, number> = {
+  incomplete: 0,
+  skipped: 1,
+  complete: 2,
+};
+
+const mergeNewUserChecklistStates = (
+  localState: NewUserChecklistState,
+  cloudState: NewUserChecklistState
+): NewUserChecklistState => NEW_USER_CHECKLIST_TASKS.reduce((state, task) => {
+  const localStatus = localState[task.id];
+  const cloudStatus = cloudState[task.id];
+  state[task.id] = CHECKLIST_STATUS_PRIORITY[localStatus] >= CHECKLIST_STATUS_PRIORITY[cloudStatus]
+    ? localStatus
+    : cloudStatus;
+  return state;
+}, {} as NewUserChecklistState);
+
 export const loadNewUserChecklistState = async (
   userId?: string | null
 ): Promise<NewUserChecklistState> => {
   const raw = await getScopedItem(NEW_USER_CHECKLIST_KEY, userId);
-  if (!raw) {
-    return getDefaultNewUserChecklistState();
+  let localState: NewUserChecklistState | null = null;
+
+  if (raw) {
+    try {
+      localState = normalizeNewUserChecklistState(JSON.parse(raw));
+    } catch {
+      localState = null;
+    }
   }
 
-  try {
-    return normalizeNewUserChecklistState(JSON.parse(raw));
-  } catch {
-    return getDefaultNewUserChecklistState();
+  const accountUserId = await resolveChecklistUserId(userId);
+  if (accountUserId) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('new_user_checklist_state')
+        .eq('id', accountUserId)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (data?.new_user_checklist_state) {
+        const cloudState = normalizeNewUserChecklistState(data.new_user_checklist_state);
+        const mergedState = localState
+          ? mergeNewUserChecklistStates(localState, cloudState)
+          : cloudState;
+        await setScopedItem(NEW_USER_CHECKLIST_KEY, JSON.stringify(mergedState), accountUserId);
+        if (JSON.stringify(mergedState) !== JSON.stringify(cloudState)) {
+          await persistChecklistStateToCloud(mergedState, accountUserId);
+        }
+        return mergedState;
+      }
+
+      if (localState) {
+        await persistChecklistStateToCloud(localState, accountUserId);
+      }
+    } catch (error) {
+      console.warn('Failed to load cloud Fortify Challenge state:', error);
+    }
   }
+
+  return localState ?? getDefaultNewUserChecklistState();
 };
 
 export const persistNewUserChecklistState = async (
   state: NewUserChecklistState,
   userId?: string | null
 ): Promise<void> => {
-  await setScopedItem(NEW_USER_CHECKLIST_KEY, JSON.stringify(normalizeNewUserChecklistState(state)), userId);
+  const normalizedState = normalizeNewUserChecklistState(state);
+  await setScopedItem(NEW_USER_CHECKLIST_KEY, JSON.stringify(normalizedState), userId);
+
+  const accountUserId = await resolveChecklistUserId(userId);
+  if (accountUserId) {
+    await persistChecklistStateToCloud(normalizedState, accountUserId);
+  }
+};
+
+const resolveChecklistUserId = async (userId?: string | null): Promise<string | null> => {
+  if (userId !== undefined) return userId;
+  if (!isSupabaseConfigured()) return null;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id ?? null;
+};
+
+const persistChecklistStateToCloud = async (
+  state: NewUserChecklistState,
+  userId: string
+): Promise<void> => {
+  if (!isSupabaseConfigured()) return;
+
+  const { error } = await supabase
+    .from('profiles')
+    .update({ new_user_checklist_state: state })
+    .eq('id', userId);
+
+  if (error) throw error;
 };
 
 export const markNewUserChecklistTaskStatus = (
@@ -145,10 +225,16 @@ export const completeNewUserChecklistTask = async (
 ): Promise<void> => {
   const currentState = await loadNewUserChecklistState(userId);
   if (currentState[taskId] !== 'complete') {
-    await persistNewUserChecklistState(
-      markNewUserChecklistTaskStatus(currentState, taskId, 'complete'),
-      userId
-    );
+    try {
+      await persistNewUserChecklistState(
+        markNewUserChecklistTaskStatus(currentState, taskId, 'complete'),
+        userId
+      );
+    } catch (error) {
+      // Local persistence has already completed. Keep the UI responsive and
+      // merge this progress into cloud state on the next successful load.
+      console.warn('Failed to sync completed Fortify Challenge task:', error);
+    }
   }
   emitNewUserChecklistTaskCompleted(taskId);
 };

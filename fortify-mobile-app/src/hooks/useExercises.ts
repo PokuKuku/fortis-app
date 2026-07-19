@@ -6,10 +6,15 @@ import * as ExerciseService from '@/src/services/exerciseService';
 /**
  * Hook to load all exercises (base + custom) with automatic refresh on custom exercise changes
  */
-export function useExercises(options?: { enabled?: boolean }) {
+export function useExercises(options?: { enabled?: boolean; deferInitialSnapshot?: boolean }) {
   const enabled = options?.enabled ?? true;
+  const deferInitialSnapshot = options?.deferInitialSnapshot ?? false;
   const [exercises, setExercises] = useState<ExerciseWithSource[]>(() =>
-    enabled ? ExerciseService.getInitialExercisesSync() : []
+    enabled
+      ? deferInitialSnapshot
+        ? ExerciseService.getCachedInitialExercisesSync() ?? []
+        : ExerciseService.getInitialExercisesSync()
+      : []
   );
   const exercisesRef = useRef(exercises);
   const [loading, setLoading] = useState(enabled && exercises.length === 0);
@@ -19,6 +24,12 @@ export function useExercises(options?: { enabled?: boolean }) {
     try {
       if (options?.showLoading || exercisesRef.current.length === 0) {
         setLoading(true);
+      }
+      if (deferInitialSnapshot && exercisesRef.current.length === 0) {
+        const initial = ExerciseService.getInitialExercisesSync();
+        exercisesRef.current = initial;
+        setExercises(initial);
+        setLoading(false);
       }
       const data = await ExerciseService.getAllExercises();
       exercisesRef.current = data;
@@ -30,7 +41,7 @@ export function useExercises(options?: { enabled?: boolean }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [deferInitialSnapshot]);
 
   useEffect(() => {
     if (!enabled) {

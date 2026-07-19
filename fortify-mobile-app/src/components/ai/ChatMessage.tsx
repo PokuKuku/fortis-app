@@ -38,6 +38,8 @@ interface ChatMessageProps {
   message: AIConversationMessage;
   /** Animation delay for staggered entrance */
   delay?: number;
+  /** Disable when mounting existing conversation history during a mode switch. */
+  animateEntrance?: boolean;
   /** Callback when user taps a clarification option */
   onClarificationSelect?: (option: string | AIClarificationOption) => void;
   onClarificationView?: (option: AIClarificationOption) => void;
@@ -57,6 +59,7 @@ interface ChatMessageProps {
 export function ChatMessage({
   message,
   delay = 0,
+  animateEntrance = true,
   onClarificationSelect,
   onClarificationView,
   onViewWorkoutTemplate,
@@ -255,7 +258,7 @@ export function ChatMessage({
 
   return (
     <ReAnimated.View
-      entering={FadeIn.duration(300).delay(delay)}
+      entering={animateEntrance ? FadeIn.duration(300).delay(delay) : undefined}
       style={[styles.container, isUser ? [styles.userContainer, themedStyles.userContainer] : styles.aiContainer]}
     >
       {isUser && message.attachments && message.attachments.length > 0 && (

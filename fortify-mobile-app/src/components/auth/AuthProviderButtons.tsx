@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { GlassButton } from '@/components/GlassButton';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -6,6 +6,7 @@ import { Colors } from '@/constants/Colors';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { AppleLogo, GoogleLogo } from './AuthLogos';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 
 interface AuthProviderButtonsProps {
   onGoogle: () => void;
@@ -50,7 +51,11 @@ export function AuthProviderButtons({
           activeOpacity={0.8}
         >
           {isLoadingGoogle ? (
-            <ActivityIndicator color={colors.textPrimary} size="small" />
+            <ActionProgressLabel
+              label="Connecting to Google…"
+              color={themedStyles.oauthButtonText.color}
+              style={styles.oauthButtonText}
+            />
           ) : (
             <>
               <View style={styles.oauthIconContainer}>
@@ -69,7 +74,11 @@ export function AuthProviderButtons({
             activeOpacity={0.8}
           >
             {isLoadingApple ? (
-              <ActivityIndicator color={colors.textPrimary} size="small" />
+              <ActionProgressLabel
+                label="Connecting to Apple…"
+                color={themedStyles.oauthButtonText.color}
+                style={styles.oauthButtonText}
+              />
             ) : (
               <>
                 <View style={styles.oauthIconContainer}>

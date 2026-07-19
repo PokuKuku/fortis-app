@@ -16,6 +16,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { ExerciseCharts } from '@/src/components/exercise/ExerciseCharts';
 import { Colors } from '@/constants/Colors';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { TabPageSkeleton } from '@/src/components/ui/TabPageSkeleton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { Spacing, FontSizes, BorderRadius } from '@/constants/Sizes';
@@ -288,6 +289,9 @@ export default function ExerciseDetailsScreen() {
   ]);
 
   if (!exercise) {
+    if (loading) {
+      return <TabPageSkeleton title="Exercise" />;
+    }
     return (
       <SafeAreaView style={[styles.container, themedStyles.container]}>
         <StainlessSteelPattern />

@@ -129,8 +129,10 @@ function ThemedAppContent({
             <Stack.Screen
               name="(tabs)"
               options={{
-                ...ONBOARDING_TRANSITION,
-                animationTypeForReplace: 'push',
+                // TabLayout owns the branded startup wipe so the native stack must
+                // not add a competing fade underneath it.
+                animation: 'none',
+                gestureEnabled: false,
               }}
             />
             <Stack.Screen
@@ -395,7 +397,7 @@ function ThemedAppContent({
             name="exercises/index"
             options={{
               animation: 'slide_from_right',
-              animationDuration: 220,
+              animationDuration: 140,
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}
@@ -422,7 +424,7 @@ function ThemedAppContent({
             name="workouts/[id]"
             options={{
               animation: 'slide_from_right',
-              animationDuration: 220,
+              animationDuration: 140,
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}
@@ -431,7 +433,7 @@ function ThemedAppContent({
             name="programs/[id]"
             options={{
               animation: 'slide_from_right',
-              animationDuration: 220,
+              animationDuration: 140,
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}
@@ -450,6 +452,7 @@ function ThemedAppContent({
             name="settings"
             options={{
               animation: 'slide_from_right',
+              animationDuration: 140,
               gestureEnabled: true,
               gestureDirection: 'horizontal',
             }}

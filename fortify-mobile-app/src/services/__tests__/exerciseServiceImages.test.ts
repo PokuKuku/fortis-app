@@ -11,7 +11,10 @@ jest.mock('@/src/lib/supabase', () => ({
 
 import { getAllExercises, getExerciseById } from '@/src/services/exerciseService';
 import { getCachedExerciseImageSource } from '@/src/utils/exerciseImageCache';
-import { exerciseGifAssets } from '@/src/utils/exerciseGifAssets';
+import {
+  EXERCISE_GIF_ASSET_COUNT,
+  getExerciseGifAsset,
+} from '@/src/utils/exerciseGifAssets';
 
 describe('exerciseService image hydration', () => {
   beforeEach(async () => {
@@ -24,7 +27,7 @@ describe('exerciseService image hydration', () => {
 
     expect(new Set(ids).size).toBe(ids.length);
     expect(exercises.filter((exercise) => exercise.source === 'api')).toHaveLength(1381);
-    expect(Object.keys(exerciseGifAssets)).toHaveLength(1394);
+    expect(EXERCISE_GIF_ASSET_COUNT).toBe(1394);
     expect(exercises.every((exercise) => exercise.images[0]?.startsWith('exercise-gif://'))).toBe(true);
   });
 
@@ -36,6 +39,16 @@ describe('exerciseService image hydration', () => {
     expect(exercise?.exerciseDbId).toBe('0025');
     expect(exercise?.images[0]).toBe('exercise-gif://0025');
     expect(getCachedExerciseImageSource(exercise?.images[0])).toBeTruthy();
+  });
+
+  it('resolves only requested bundled assets and safely rejects unknown ids', () => {
+    const firstSource = getCachedExerciseImageSource('exercise-gif://0025');
+    const cachedSource = getCachedExerciseImageSource('exercise-gif://0025');
+
+    expect(firstSource).toBeTruthy();
+    expect(cachedSource).toBe(firstSource);
+    expect(getExerciseGifAsset('missing')).toBeNull();
+    expect(getCachedExerciseImageSource('exercise-gif://missing')).toBeNull();
   });
 
   it('resolves new ExerciseDB ids through the same bundled exercise', async () => {

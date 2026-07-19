@@ -4,6 +4,7 @@ import * as ExerciseService from '@/src/services/exerciseService';
 
 jest.mock('@/src/services/exerciseService', () => ({
   getInitialExercisesSync: jest.fn(() => [{ id: 'initial', name: 'Initial' }]),
+  getCachedInitialExercisesSync: jest.fn(() => null),
   getAllExercises: jest.fn(async () => [{ id: 'loaded', name: 'Loaded' }]),
   invalidateCustomCache: jest.fn(),
 }));
@@ -36,5 +37,38 @@ describe('useExercises', () => {
       expect(result.current.exercises).toEqual([{ id: 'loaded', name: 'Loaded' }]);
     });
     expect(ExerciseService.getAllExercises).toHaveBeenCalledTimes(1);
+  });
+
+  it('can defer the large synchronous snapshot until after the first render', async () => {
+    let resolveRemote: ((value: Array<{ id: string; name: string }>) => void) | undefined;
+    (ExerciseService.getAllExercises as jest.Mock).mockReturnValueOnce(new Promise((resolve) => {
+      resolveRemote = resolve;
+    }));
+    const { result } = renderHook(() => useExercises({ deferInitialSnapshot: true }));
+
+    await waitFor(() => {
+      expect(result.current.exercises).toEqual([{ id: 'initial', name: 'Initial' }]);
+    });
+    expect(ExerciseService.getInitialExercisesSync).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      resolveRemote?.([{ id: 'loaded', name: 'Loaded' }]);
+    });
+    await waitFor(() => {
+      expect(result.current.exercises).toEqual([{ id: 'loaded', name: 'Loaded' }]);
+    });
+    expect(ExerciseService.getAllExercises).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses an already-warmed snapshot immediately without reparsing it', async () => {
+    (ExerciseService.getCachedInitialExercisesSync as jest.Mock).mockReturnValueOnce([
+      { id: 'cached', name: 'Cached' },
+    ]);
+
+    const { result } = renderHook(() => useExercises({ deferInitialSnapshot: true }));
+
+    expect(result.current.exercises).toEqual([{ id: 'cached', name: 'Cached' }]);
+    expect(ExerciseService.getInitialExercisesSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(ExerciseService.getAllExercises).toHaveBeenCalledTimes(1));
   });
 });

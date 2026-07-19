@@ -14,7 +14,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   KeyboardAvoidingView,
   Platform,
   NativeScrollEvent,
@@ -261,8 +261,13 @@ export default function AIChatScreen() {
   const [loadingMessage, setLoadingMessage] = useState(LOADING_MESSAGES[0]);
   const [clarificationPreviewMessage, setClarificationPreviewMessage] = useState<AIConversationMessage | null>(null);
   const [resolvedClarificationMessageIds, setResolvedClarificationMessageIds] = useState<Set<string>>(() => new Set());
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<FlatList<AIConversationMessage>>(null);
+  const modeRef = useRef<AIVoiceMode>(mode);
   const shouldAutoScrollRef = useRef(true);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Dynamic theme-aware styles
   const themedStyles = {
@@ -923,31 +928,19 @@ export default function AIChatScreen() {
   }, [activeStepId, advanceStep, isTourActive, mode, stopVoiceCoach]);
 
   const handleModeChange = useCallback((nextMode: AIVoiceMode) => {
-    if (nextMode === mode) return;
+    if (nextMode === modeRef.current) return;
+    modeRef.current = nextMode;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (nextMode === 'voice' && isTourActive && activeStepId === 'ai_voice_chat_open') {
       hasSelectedTourVoiceModeRef.current = true;
     }
-    if (nextMode === 'chat') {
-      void runProFeature(
-        {
-          placement: PAYWALL_PLACEMENTS.aiChat,
-          params: {
-            source: 'ai_chat',
-            action: 'switch_to_chat',
-          },
-        },
-        () => {
-          stopVoiceCoach();
-          setMode(nextMode);
-          void setLastAICoachMode(nextMode);
-        },
-      );
-      return;
-    }
+
+    // Change the visible mode first. Voice cleanup is handled by the mode effect
+    // after this render, so native audio/socket teardown cannot delay the toggle.
+    // Text actions remain gated at the point where the user sends a message.
     setMode(nextMode);
     void setLastAICoachMode(nextMode);
-  }, [activeStepId, isTourActive, mode, runProFeature, stopVoiceCoach]);
+  }, [activeStepId, isTourActive]);
 
   const activePreviewMessage = activeWorkoutActions.previewMessage ?? clarificationPreviewMessage;
 
@@ -996,8 +989,11 @@ export default function AIChatScreen() {
                       styles.modeOption,
                       selected && { backgroundColor: colors.accent },
                     ]}
+                    onPressIn={() => handleModeChange(item)}
                     onPress={() => handleModeChange(item)}
                     activeOpacity={0.8}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected }}
                   >
                     <Text style={[
                       styles.modeOptionText,
@@ -1083,8 +1079,107 @@ export default function AIChatScreen() {
             style={styles.content}
             keyboardVerticalOffset={0}
           >
-            <ScrollView
+            <FlatList
               ref={scrollViewRef}
+              data={visibleMessages}
+              keyExtractor={(message) => message.id}
+              renderItem={({ item: message }) => (
+                <ChatMessage
+                  message={message}
+                  animateEntrance={false}
+                  isSavingWorkoutTemplate={chatWorkoutActions.savingWorkoutMessageId === message.id}
+                  isUpdatingWorkoutTemplate={chatWorkoutActions.updatingWorkoutMessageId === message.id}
+                  isStartingWorkoutTemplate={chatWorkoutActions.startingWorkoutMessageId === message.id}
+                  onClarificationSelect={(option) => { void handleClarificationConfirm(option, message.id); }}
+                  onClarificationView={handleClarificationView}
+                  onViewWorkoutTemplate={chatWorkoutActions.handleViewWorkoutTemplate}
+                  onAddWorkoutTemplate={chatWorkoutActions.handleAddWorkoutTemplate}
+                  onUpdateWorkoutTemplate={chatWorkoutActions.handleUpdateWorkoutTemplate}
+                  onStartWorkoutTemplate={chatWorkoutActions.handleStartWorkoutTemplate}
+                  isStartWorkoutTemplateDisabled={
+                    chatWorkoutActions.isWorkoutActive
+                    || (isTourWorkoutResultStep && message.id === 'tour-back-workout-response')
+                  }
+                  startWorkoutTemplateDisabledLabel={
+                    isTourWorkoutResultStep && message.id === 'tour-back-workout-response'
+                      ? 'Start'
+                      : undefined
+                  }
+                  tourMessageAnchorId={
+                    isTourWorkoutResultStep && message.id === 'tour-back-workout-request'
+                      ? TOUR_ANCHOR_IDS.aiChatBackWorkoutPrompt
+                      : undefined
+                  }
+                  tourWorkoutTemplateAnchorId={
+                    isTourWorkoutResultStep && message.id === 'tour-back-workout-response'
+                      ? TOUR_ANCHOR_IDS.aiChatWorkoutTemplate
+                      : undefined
+                  }
+                />
+              )}
+              ListEmptyComponent={!isSendingMessage ? (
+                <ChatEmptyState
+                  onQuickAction={handleQuickAction}
+                  isTourBackWorkoutStep={isTourBackWorkoutStep}
+                  onTourBackWorkoutPress={handleTourBackWorkoutPress}
+                />
+              ) : null}
+              ListFooterComponent={(
+                <>
+                  {isSendingMessage && (
+                    <Animated.View
+                      entering={FadeIn.duration(200)}
+                      exiting={FadeOut.duration(150)}
+                      style={styles.loadingContainer}
+                    >
+                      <AnimatedLoadingSparkles />
+                      <Text style={[styles.loadingText, themedStyles.loadingText]}>{loadingMessage}</Text>
+                    </Animated.View>
+                  )}
+
+                  {showRateLimitWarning && (
+                    <Animated.View
+                      entering={FadeIn.duration(200)}
+                      style={styles.rateLimitWarning}
+                    >
+                      <ExclamationTriangleIcon size={16} color={Colors.warning} />
+                      <Text style={styles.rateLimitWarningText}>
+                        {remaining} AI request{remaining !== 1 ? 's' : ''} remaining today
+                      </Text>
+                    </Animated.View>
+                  )}
+
+                  {error === AI_CONNECTION_INTERRUPTED_MESSAGE && lastFailedMessage ? (
+                    <AIConnectionErrorCard onRetry={handleRetry} />
+                  ) : error ? (
+                    <TouchableOpacity
+                      style={styles.errorContainer}
+                      onPress={lastFailedMessage ? handleRetry : clearError}
+                      activeOpacity={0.8}
+                      accessibilityLabel={lastFailedMessage ? 'Retry failed message' : 'Dismiss error'}
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.errorText}>{error}</Text>
+                      <Text style={[styles.errorHint, themedStyles.errorHint]}>
+                        {lastFailedMessage ? 'Tap to retry' : 'Tap to dismiss'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {chatWorkoutActions.templateSaveError && (
+                    <TouchableOpacity
+                      style={styles.errorContainer}
+                      onPress={() => chatWorkoutActions.setTemplateSaveError(null)}
+                      activeOpacity={0.8}
+                      accessibilityLabel="Dismiss workout save error"
+                      accessibilityRole="button"
+                    >
+                      <Text style={styles.errorText}>{chatWorkoutActions.templateSaveError}</Text>
+                      <Text style={[styles.errorHint, themedStyles.errorHint]}>Tap to dismiss</Text>
+                    </TouchableOpacity>
+                  )}
+                </>
+              )}
               style={styles.messagesContainer}
               contentContainerStyle={styles.messagesContent}
               showsVerticalScrollIndicator={false}
@@ -1096,109 +1191,11 @@ export default function AIChatScreen() {
               }}
               onScroll={handleScroll}
               scrollEventThrottle={16}
-            >
-              {visibleMessages.length === 0 && !isSendingMessage ? (
-                <ChatEmptyState
-                  onQuickAction={handleQuickAction}
-                  isTourBackWorkoutStep={isTourBackWorkoutStep}
-                  onTourBackWorkoutPress={handleTourBackWorkoutPress}
-                />
-              ) : (
-                <>
-                  {visibleMessages.map((message) => (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}
-                      isSavingWorkoutTemplate={chatWorkoutActions.savingWorkoutMessageId === message.id}
-                      isUpdatingWorkoutTemplate={chatWorkoutActions.updatingWorkoutMessageId === message.id}
-                      isStartingWorkoutTemplate={chatWorkoutActions.startingWorkoutMessageId === message.id}
-                      onClarificationSelect={(option) => { void handleClarificationConfirm(option, message.id); }}
-                      onClarificationView={handleClarificationView}
-                      onViewWorkoutTemplate={chatWorkoutActions.handleViewWorkoutTemplate}
-                      onAddWorkoutTemplate={chatWorkoutActions.handleAddWorkoutTemplate}
-                      onUpdateWorkoutTemplate={chatWorkoutActions.handleUpdateWorkoutTemplate}
-                      onStartWorkoutTemplate={chatWorkoutActions.handleStartWorkoutTemplate}
-                      isStartWorkoutTemplateDisabled={
-                        chatWorkoutActions.isWorkoutActive
-                        || (isTourWorkoutResultStep && message.id === 'tour-back-workout-response')
-                      }
-                      startWorkoutTemplateDisabledLabel={
-                        isTourWorkoutResultStep && message.id === 'tour-back-workout-response'
-                          ? 'Start'
-                          : undefined
-                      }
-                      tourMessageAnchorId={
-                        isTourWorkoutResultStep && message.id === 'tour-back-workout-request'
-                          ? TOUR_ANCHOR_IDS.aiChatBackWorkoutPrompt
-                          : undefined
-                      }
-                      tourWorkoutTemplateAnchorId={
-                        isTourWorkoutResultStep && message.id === 'tour-back-workout-response'
-                          ? TOUR_ANCHOR_IDS.aiChatWorkoutTemplate
-                          : undefined
-                      }
-                    />
-                  ))}
-
-
-                  {/* Loading indicator */}
-                  {isSendingMessage && (
-                    <Animated.View
-                      entering={FadeIn.duration(200)}
-                      exiting={FadeOut.duration(150)}
-                      style={styles.loadingContainer}
-                    >
-                      <AnimatedLoadingSparkles />
-                      <Text style={[styles.loadingText, themedStyles.loadingText]}>{loadingMessage}</Text>
-                    </Animated.View>
-                  )}
-                </>
-              )}
-
-              {/* Rate limit warning - only shown when approaching limit */}
-              {showRateLimitWarning && (
-                <Animated.View
-                  entering={FadeIn.duration(200)}
-                  style={styles.rateLimitWarning}
-                >
-                  <ExclamationTriangleIcon size={16} color={Colors.warning} />
-                  <Text style={styles.rateLimitWarningText}>
-                    {remaining} AI request{remaining !== 1 ? 's' : ''} remaining today
-                  </Text>
-                </Animated.View>
-              )}
-
-              {/* Error display */}
-              {error === AI_CONNECTION_INTERRUPTED_MESSAGE && lastFailedMessage ? (
-                <AIConnectionErrorCard onRetry={handleRetry} />
-              ) : error ? (
-                <TouchableOpacity
-                  style={styles.errorContainer}
-                  onPress={lastFailedMessage ? handleRetry : clearError}
-                  activeOpacity={0.8}
-                  accessibilityLabel={lastFailedMessage ? "Retry failed message" : "Dismiss error"}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.errorText}>{error}</Text>
-                  <Text style={[styles.errorHint, themedStyles.errorHint]}>
-                    {lastFailedMessage ? 'Tap to retry' : 'Tap to dismiss'}
-                  </Text>
-                </TouchableOpacity>
-              ) : null}
-
-              {chatWorkoutActions.templateSaveError && (
-                <TouchableOpacity
-                  style={styles.errorContainer}
-                  onPress={() => chatWorkoutActions.setTemplateSaveError(null)}
-                  activeOpacity={0.8}
-                  accessibilityLabel="Dismiss workout save error"
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.errorText}>{chatWorkoutActions.templateSaveError}</Text>
-                  <Text style={[styles.errorHint, themedStyles.errorHint]}>Tap to dismiss</Text>
-                </TouchableOpacity>
-              )}
-            </ScrollView>
+              initialNumToRender={8}
+              maxToRenderPerBatch={6}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
+            />
 
             {/* Input */}
             <AIMediaPreviewStrip

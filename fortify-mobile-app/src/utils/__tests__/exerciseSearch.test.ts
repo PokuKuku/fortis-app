@@ -1,4 +1,8 @@
-import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
+import {
+  buildExerciseSearchIndex,
+  getCachedExerciseSearchIndex,
+  searchExercises,
+} from '@/src/utils/exerciseSearch';
 import type { ExerciseWithSource } from '@/src/types/exercise';
 
 const exercise = (id: string, name: string): ExerciseWithSource => ({
@@ -24,6 +28,17 @@ const exerciseWithInstructions = (
 });
 
 describe('exercise search', () => {
+  it('reuses a lean index without processing instruction-only matches', () => {
+    const exercises = [
+      exercise('sit-up', '3/4 Sit-Up'),
+      exerciseWithInstructions('neck-stretch', 'Neck Side Stretch', ['Sit up straight.']),
+    ];
+    const index = buildExerciseSearchIndex(exercises, { includeInstructions: false });
+
+    expect(getCachedExerciseSearchIndex(exercises, { includeInstructions: false })).toBe(index);
+    expect(searchExercises('sit up straight', index, { includeInstructions: false })).toEqual([]);
+  });
+
   it('keeps unrelated fuzzy matches out of multi-word exercise results', () => {
     const index = buildExerciseSearchIndex([
       exercise('rear-delt-fly', 'Cable Rear Delt Fly'),

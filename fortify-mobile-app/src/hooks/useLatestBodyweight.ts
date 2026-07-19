@@ -34,16 +34,17 @@ const fetchLatestBodyweightKg = (userId: string): Promise<number | null> => {
   return request;
 };
 
-export function useLatestBodyweight(): BodyweightResult {
+export function useLatestBodyweight(options?: { enabled?: boolean }): BodyweightResult {
+  const enabled = options?.enabled ?? true;
   const { user } = useAuth();
   const [bodyweightKg, setBodyweightKg] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(enabled);
 
   useEffect(() => {
     let isMounted = true;
 
     const loadBodyweight = async () => {
-      if (!user?.id || !isSupabaseConfigured()) {
+      if (!enabled || !user?.id || !isSupabaseConfigured()) {
         if (isMounted) {
           setBodyweightKg(null);
           setLoading(false);
@@ -71,7 +72,7 @@ export function useLatestBodyweight(): BodyweightResult {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [enabled, user?.id]);
 
   return { bodyweightKg, loading };
 }

@@ -6,7 +6,6 @@ import {
   Pressable,
   TextInput,
   FlatList,
-  ActivityIndicator,
   Modal,
   ScrollView,
 } from 'react-native';
@@ -30,6 +29,7 @@ import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { GlassButton } from '@/components/GlassButton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import * as Haptics from 'expo-haptics';
 import { useProgramsStore } from '@/src/store/programsStore';
 import { ProgramLimitModal } from '@/src/components/workout/modals/ProgramLimitModal';
@@ -803,7 +803,11 @@ export default function CreateProgramScreen() {
                 disabled={!canSave}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
+                  <ActionProgressLabel
+                    label={isEditing ? 'Updating…' : 'Creating…'}
+                    color={colors.accentForegroundOnFill}
+                    style={styles.primaryActionText}
+                  />
                 ) : (
                   <Text
                     style={[

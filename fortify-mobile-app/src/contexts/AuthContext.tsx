@@ -6,14 +6,22 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured, clearSupabaseAuthStorage } from '@/src/lib/supabase';
 import { processPendingQueue, getPendingSyncCount, getPendingSyncSessions, fetchWorkoutHistory } from '@/src/services/workoutHistoryService';
 import { clearCachedWorkoutHistory, setCachedWorkoutHistory } from '@/src/services/workoutHistoryCache';
-import { useProgramsStore } from '@/src/store/programsStore';
+import {
+  flushProgramsPersistence,
+  primeDefaultProgramPersistence,
+  useProgramsStore,
+} from '@/src/store/programsStore';
 import { processPendingStickyNotesQueue } from '@/src/services/stickyNotesService';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { mergeWorkoutSessions } from '@/src/utils/workoutHistory';
 import { useAIStore } from '@/src/store/aiStore';
 import { useProgramProgressStore } from '@/src/store/programProgressStore';
 import { useStartPresetStore } from '@/src/store/startPresetStore';
-import { migrateGuestStorageToUser, clearUserScopedStorage } from '@/src/utils/scopedStorage';
+import {
+  migrateGuestStorageToUser,
+  clearUserScopedStorage,
+  setActiveScopedStorageUser,
+} from '@/src/utils/scopedStorage';
 import { invalidateCustomCache } from '@/src/services/exerciseService';
 import { type AccentColorName } from '@/src/utils/accentColors';
 import { SIGN_OUT_PRESERVED_STORAGE_KEYS } from '@/src/constants/storageKeys';
@@ -50,6 +58,12 @@ export interface Profile {
   workout_consistency?: 'none' | 'daily' | 'few_times_week' | 'once_or_less' | 'starting' | null;
   preferred_units: 'imperial' | 'metric';
   onboarding_completed: boolean;
+  starter_content_initialized?: boolean | null;
+  deleted_default_program_ids?: string[] | null;
+  new_user_checklist_state?: Record<string, unknown> | null;
+  default_start_type?: string | null;
+  default_start_template_id?: string | null;
+  default_start_program_id?: string | null;
   created_at?: string;
   has_seen_in_app_tour?: boolean | null;
   in_app_tour_completed_at?: string | null;
@@ -142,7 +156,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const workoutStore = useWorkoutStore.getState();
       const aiStore = useAIStore.getState();
-      const programProgressStore = useProgramProgressStore.getState();
 
       await Promise.all([
         workoutStore.loadActiveSession(),
@@ -152,7 +165,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         workoutStore.loadWeightUnits(),
         workoutStore.loadBodyType(),
         workoutStore.loadStreakPauseState(),
-        programProgressStore.loadProgress(),
         aiStore.loadConversation(),
       ]);
     } finally {
@@ -333,14 +345,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setSession(sessionToUse);
       setUser(sessionToUse?.user ?? null);
+      setActiveScopedStorageUser(sessionToUse?.user?.id ?? null);
       setIsAuthResolved(true);
 
       if (sessionToUse?.user) {
         await migrateGuestStorageToUser(sessionToUse.user.id);
-        await hydrateUserData();
-        const profileData = await fetchProfile(sessionToUse.user.id);
+        const [profileData] = await Promise.all([
+          fetchProfile(sessionToUse.user.id),
+          hydrateUserData(),
+        ]);
+        primeDefaultProgramPersistence(sessionToUse.user.id, profileData);
+        await useProgramsStore.getState().loadLocalPrograms();
         setProfile(profileData);
         setProfileResolved(true);
+        void useStartPresetStore.getState().loadPreset(profileData);
+        setIsLoading(false);
         syncPendingWorkouts();
         syncPendingPrograms();
       } else {
@@ -353,6 +372,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (isInvalidRefreshTokenError(error)) {
         clearSupabaseAuthStorage().catch(() => undefined);
       }
+      setActiveScopedStorageUser(null);
+      primeDefaultProgramPersistence(null);
       setIsLoading(false);
       setIsAuthResolved(true);
     });
@@ -362,17 +383,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
+      setActiveScopedStorageUser(newSession?.user?.id ?? null);
 
       if (newSession?.user) {
         const userId = newSession.user.id;
         void (async () => {
           await migrateGuestStorageToUser(userId);
-          if (event === 'SIGNED_IN') {
-            await hydrateUserData();
-          }
-          const profileData = await fetchProfile(userId);
+          const [profileData] = await Promise.all([
+            fetchProfile(userId),
+            event === 'SIGNED_IN' ? hydrateUserData() : Promise.resolve(),
+          ]);
+          primeDefaultProgramPersistence(userId, profileData);
+          await useProgramsStore.getState().loadLocalPrograms();
           setProfile(profileData);
           setProfileResolved(true);
+          void useStartPresetStore.getState().loadPreset(profileData);
 
           // Process any pending syncs when user signs in
           if (event === 'SIGNED_IN') {
@@ -643,6 +668,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
     hydrateRunRef.current += 1;
     setIsHydrating(false);
+    await flushProgramsPersistence();
 
     // Capture user ID before clearing state (needed for scoped storage cleanup)
     const currentUserId = user?.id;
@@ -705,6 +731,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Clear state immediately - UI updates right away
     setUser(null);
     setSession(null);
+    setActiveScopedStorageUser(null);
+    primeDefaultProgramPersistence(null);
     setProfile(null);
     setProfileResolved(false);
 

@@ -18,6 +18,8 @@ interface AnimatedFortifyLogoProps {
   sizeScale?: number;
   introDurationMs?: number;
   shineDurationMs?: number;
+  loopShine?: boolean;
+  onShineComplete?: () => void;
   pulseWhileLoading?: boolean;
   pulseDurationMs?: number;
 }
@@ -33,6 +35,8 @@ export function AnimatedFortifyLogo({
   sizeScale = 1,
   introDurationMs,
   shineDurationMs,
+  loopShine = true,
+  onShineComplete,
   pulseWhileLoading = false,
   pulseDurationMs,
 }: AnimatedFortifyLogoProps) {
@@ -47,6 +51,7 @@ export function AnimatedFortifyLogo({
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const pulseScaleAnim = useRef(new Animated.Value(1)).current;
   const pulseOpacityAnim = useRef(new Animated.Value(1)).current;
+  const onShineCompleteRef = useRef(onShineComplete);
   const [paintTick, setPaintTick] = useState(0);
   const gradientId = useRef(
     `textGradient-fortify-${size}-${Math.random().toString(36).slice(2, 9)}`
@@ -76,6 +81,10 @@ export function AnimatedFortifyLogo({
     inputRange: [0, 1],
     outputRange: [-config.width, config.width],
   });
+
+  useEffect(() => {
+    onShineCompleteRef.current = onShineComplete;
+  }, [onShineComplete]);
 
   useEffect(() => {
     if (!shouldAnimate) {
@@ -108,15 +117,18 @@ export function AnimatedFortifyLogo({
       }),
     ]).start();
 
-    const shineLoop = Animated.loop(
-      Animated.timing(shineAnim, {
-        toValue: 1,
-        duration: shineDuration,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      })
-    );
-    shineLoop.start();
+    const shineTiming = Animated.timing(shineAnim, {
+      toValue: 1,
+      duration: shineDuration,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    });
+    const shineAnimation = loopShine ? Animated.loop(shineTiming) : shineTiming;
+    shineAnimation.start(({ finished }) => {
+      if (finished && !loopShine) {
+        onShineCompleteRef.current?.();
+      }
+    });
 
     let pulseLoop: Animated.CompositeAnimation | null = null;
     if (pulseWhileLoading) {
@@ -156,12 +168,13 @@ export function AnimatedFortifyLogo({
     }
 
     return () => {
-      shineLoop.stop();
+      shineAnimation.stop();
       pulseLoop?.stop();
     };
   }, [
     fadeAnim,
     introDuration,
+    loopShine,
     pulseDuration,
     pulseOpacityAnim,
     pulseScaleAnim,

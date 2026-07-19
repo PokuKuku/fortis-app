@@ -34,6 +34,7 @@ import { ensureMicrophonePermission, openMicrophoneSettings } from '@/src/servic
 import { createExerciseVoiceFileName, interpretExerciseVoiceAdd } from '@/src/services/exerciseVoiceService';
 import type { ExerciseVoiceEntry } from '@/src/types/exerciseVoice';
 import { posthog } from '@/src/config/posthog';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
 
 interface AddExerciseModalProps {
   visible: boolean;
@@ -193,7 +194,10 @@ export function AddExerciseModal({
   const activeSession = useWorkoutStore(s => s.activeSession);
 
   // Use centralized exercise service
-  const { exercises: allExercises, loading } = useExercises();
+  // Avoid loading and indexing the full exercise library while this modal is hidden.
+  const { exercises: allExercises, loading } = useExercises({
+    enabled: visible && !suspended,
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedExercises, setSelectedExercises] = useState<SelectedExerciseDraft[]>([]);
@@ -1129,6 +1133,7 @@ export function AddExerciseModal({
               offset: EXERCISE_ROW_HEIGHT * index,
               index,
             })}
+            ListEmptyComponent={loading ? <SectionSkeleton height={280} rows={6} /> : null}
           />
 
           {/* Add Button (only in add mode) */}

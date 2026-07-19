@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, Pressable } from 'react-native';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { useWeeklyMuscles } from '@/src/hooks/useWeeklyMuscles';
 import { useWorkoutStore } from '@/src/store/workoutStore';
 import { WeeklyTierMuscleHeatmap } from '@/src/components/profile/WeeklyTierMuscleHeatmap';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
 import { Spacing, BorderRadius } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useRouter } from 'expo-router';
@@ -65,9 +66,7 @@ export function WeeklyMuscleHeatmapCard() {
       </View>
 
       {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator color={colors.accent} size="small" />
-        </View>
+        <SectionSkeleton height={220} rows={4} />
       ) : (
         <View style={styles.heatmapContent}>
           <WeeklyTierMuscleHeatmap

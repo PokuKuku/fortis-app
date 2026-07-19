@@ -119,7 +119,9 @@ export function PasteWorkoutSheet({
   const { colors, isDark } = useTheme();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const { exercises } = useExercises();
+  // The workout builder mounts this sheet while hidden, so defer the exercise
+  // library and search index until the user actually opens it.
+  const { exercises } = useExercises({ enabled: visible });
   const [text, setText] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [showFormatHelp, setShowFormatHelp] = useState(false);

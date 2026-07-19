@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Keyboard,
   TouchableWithoutFeedback,
   ScrollView,
@@ -23,6 +22,7 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Colors } from '@/constants/Colors';
@@ -473,7 +473,11 @@ export default function EmailAuthScreen() {
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <ActivityIndicator color={Colors.white} size="small" />
+                      <ActionProgressLabel
+                        label={isSignUp ? 'Creating account…' : 'Signing in…'}
+                        color={Colors.white}
+                        style={styles.submitButtonText}
+                      />
                     ) : (
                       <Text style={styles.submitButtonText}>
                         {isSignUp ? 'Create Account' : 'Sign In'}

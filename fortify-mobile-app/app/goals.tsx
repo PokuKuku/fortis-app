@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,6 +20,8 @@ import { Typography } from '@/constants/Typography';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { OnboardingOptionCard } from '@/src/components/onboarding/OnboardingOptionCard';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 
 type FitnessGoal = 'build_muscle' | 'general_health' | 'improve_strength' | 'stay_consistent';
 
@@ -209,17 +210,18 @@ export default function GoalsScreen() {
                   disabled={isSavingWeight}
                 >
                   {isSavingWeight ? (
-                    <ActivityIndicator color={colors.accentForegroundOnFill} size="small" />
+                    <ActionProgressLabel
+                      label="Saving…"
+                      color={colors.accentForegroundOnFill}
+                      style={styles.primaryButtonText}
+                    />
                   ) : (
                     <Text style={[styles.primaryButtonText, { color: colors.accentForegroundOnFill }]}>Save</Text>
                   )}
                 </TouchableOpacity>
               </View>
               {isLoadingWeight && (
-                <View style={styles.loadingState}>
-                  <ActivityIndicator color={colors.accent} size="small" />
-                  <Text style={[styles.loadingText, themedStyles.loadingText]}>Loading metrics...</Text>
-                </View>
+                <SectionSkeleton height={92} rows={2} />
               )}
               <Text style={[styles.helperText, themedStyles.helperText]}>
                 Used for AI personalization and progress analysis.
@@ -242,8 +244,11 @@ export default function GoalsScreen() {
             </View>
             {isSavingGoal ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color={colors.accent} size="small" />
-                <Text style={[styles.loadingText, themedStyles.loadingText]}>Saving goal...</Text>
+                <ActionProgressLabel
+                  label="Saving goal…"
+                  color={colors.accent}
+                  style={styles.loadingText}
+                />
               </View>
             ) : (
               <Text style={[styles.goalHint, themedStyles.goalHint]}>

@@ -43,6 +43,12 @@ CREATE TABLE profiles (
 
   -- Onboarding status
   onboarding_completed BOOLEAN DEFAULT FALSE,
+  starter_content_initialized BOOLEAN NOT NULL DEFAULT FALSE,
+  deleted_default_program_ids TEXT[] NOT NULL DEFAULT '{}',
+  new_user_checklist_state JSONB CHECK (
+    new_user_checklist_state IS NULL
+    OR jsonb_typeof(new_user_checklist_state) = 'object'
+  ),
 
   -- Metadata
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,

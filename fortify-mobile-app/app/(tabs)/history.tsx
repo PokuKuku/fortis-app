@@ -1,5 +1,14 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { AppState, View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable } from 'react-native';
+import {
+  AppState,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  Pressable,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -18,6 +27,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { AppHeaderBrand } from '../../src/components/navigation/AppHeaderBrand';
+import { TabPageSkeleton } from '../../src/components/ui/TabPageSkeleton';
 import { getWorkoutSummary, useWorkoutStore } from '../../src/store/workoutStore';
 import { getPendingSyncSessions, processPendingQueue } from '../../src/services/workoutHistoryService';
 import { useWorkoutHistorySource } from '../../src/hooks/useWorkoutHistorySource';
@@ -34,6 +44,7 @@ import { Typography } from '../../constants/Typography';
 import { WorkoutHistoryDetailModal } from '../../src/components/workout/modals/WorkoutHistoryDetailModal';
 import { AccentShadowCard } from '../../src/components/ui/AccentShadowCard';
 
+const PULL_TO_REFRESH_THRESHOLD = scale(72);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 // Responsive calendar day sizing
@@ -47,7 +58,6 @@ const HEADER_PADDING_BOTTOM = scale(Spacing.md);
 const TITLE_PADDING_BOTTOM = scale(Spacing.md);
 const SECTION_TITLE_SIZE = moderateScale(24);
 const LIST_PADDING_BOTTOM = scale(120);
-const LOADING_GAP = scale(Spacing.md);
 const BODY_TEXT_SIZE = moderateScale(16);
 const BODY_LINE_HEIGHT = moderateScale(24);
 const CALENDAR_CARD_MARGIN = scale(Spacing.lg);
@@ -82,7 +92,6 @@ const PENDING_SECTION_GAP = scale(Spacing.sm);
 const PENDING_PILL_PADDING_X = scale(8);
 const PENDING_PILL_PADDING_Y = scale(2);
 const PENDING_TEXT_SIZE = moderateScale(10);
-const PENDING_SPINNER_MARGIN = scale(Spacing.xs);
 const EXERCISE_COUNT_SIZE = moderateScale(12);
 const EMPTY_CONTAINER_PADDING_Y = scale(Spacing['3xl']);
 const EMPTY_CONTAINER_PADDING_X = scale(Spacing['2xl']);
@@ -356,13 +365,6 @@ function PendingSyncCard({
               {session.name}
             </Text>
             <View style={[styles.pendingPill, { borderColor: colors.accentBorder }]}>
-              {isSyncing && (
-                <ActivityIndicator
-                  size="small"
-                  color={colors.accent}
-                  style={styles.pendingSpinner}
-                />
-              )}
               <Text style={[styles.pendingPillText, { color: colors.accent }]}>
                 {isSyncing ? 'Syncing...' : 'Pending sync'}
               </Text>
@@ -622,6 +624,18 @@ export default function HistoryScreen() {
     setIsRefreshing(false);
   }, [loadData]);
 
+  const pullDistanceRef = useRef(0);
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    pullDistanceRef.current = Math.max(0, -event.nativeEvent.contentOffset.y);
+  }, []);
+  const handleScrollEndDrag = useCallback(() => {
+    const shouldRefresh = pullDistanceRef.current >= PULL_TO_REFRESH_THRESHOLD;
+    pullDistanceRef.current = 0;
+    if (shouldRefresh && !isRefreshing) {
+      void onRefresh();
+    }
+  }, [isRefreshing, onRefresh]);
+
   const handleDayPress = useCallback((day: DateData) => {
     // Parse as local date to avoid timezone issues
     // new Date("2025-12-20") parses as UTC midnight, which shifts to previous day in west timezones
@@ -718,25 +732,17 @@ export default function HistoryScreen() {
   const hasRemoteSessions = allSessions.length > 0;
   const isLoading = historyLoading || isPendingLoading;
 
+  if (isRefreshing || (isLoading && !hasRemoteSessions && !hasPendingSessions)) {
+    return <TabPageSkeleton title="History" />;
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StainlessSteelPattern />
 
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {isLoading && !hasRemoteSessions && !hasPendingSessions ? (
-          <View style={styles.loadingContainer}>
-            <AppHeaderBrand style={styles.header} />
-            <View style={styles.titleContainer}>
-              <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>History</Text>
-            </View>
-            <View style={styles.loadingContent}>
-              <ActivityIndicator size="small" color={colors.accent} />
-              <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading history...</Text>
-            </View>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredWorkouts}
+        <FlatList
+          data={filteredWorkouts}
             keyExtractor={(item) => item.localId}
             renderItem={({ item }) => (
               <WorkoutHistoryCard
@@ -819,16 +825,11 @@ export default function HistoryScreen() {
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
-            refreshControl={
-              <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={onRefresh}
-                tintColor={colors.accent}
-                colors={[colors.accent]}
-              />
-            }
+            onScroll={handleScroll}
+            onScrollEndDrag={handleScrollEndDrag}
+            scrollEventThrottle={16}
+            alwaysBounceVertical
           />
-        )}
       </SafeAreaView>
 
       <DateSelector
@@ -873,22 +874,6 @@ const styles = StyleSheet.create({
     fontSize: SECTION_TITLE_SIZE,
     fontFamily: 'BankGothicBT-Medium',
     color: Colors.textPrimary,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: HORIZONTAL_PADDING,
-  },
-  loadingContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: LOADING_GAP,
-  },
-  loadingText: {
-    ...Typography.body,
-    fontSize: BODY_TEXT_SIZE,
-    lineHeight: BODY_LINE_HEIGHT,
-    color: Colors.textSecondary,
   },
   calendarCard: {
     marginBottom: CALENDAR_CARD_MARGIN,
@@ -1056,9 +1041,6 @@ const styles = StyleSheet.create({
     paddingVertical: PENDING_PILL_PADDING_Y,
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  pendingSpinner: {
-    marginRight: PENDING_SPINNER_MARGIN,
   },
   pendingPillText: {
     ...Typography.caption,

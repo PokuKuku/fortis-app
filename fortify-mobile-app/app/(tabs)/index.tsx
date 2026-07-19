@@ -7,7 +7,6 @@ import {
   Animated,
   Modal,
   Dimensions,
-  ActivityIndicator,
   Pressable,
   DeviceEventEmitter,
   ScrollView,
@@ -38,6 +37,11 @@ import { StainlessSteelPattern } from '../../components/StainlessSteelPattern';
 import { Colors } from '../../constants/Colors';
 import { FontFamily } from '../../constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { InlineSkeleton } from '@/src/components/ui/TabPageSkeleton';
+import {
+  isStartupRevealComplete,
+  subscribeToStartupReveal,
+} from '@/src/utils/startupReveal';
 import { AppHeaderBrand } from '@/src/components/navigation/AppHeaderBrand';
 import { GlassButton } from '../../components/GlassButton';
 import { DraggableGrid } from '../../src/components/DraggableGrid';
@@ -156,8 +160,6 @@ const CARD_Kebab_PADDING = scale(4);
 const CARD_Kebab_MARGIN_LEFT = scale(8);
 const AI_BADGE_SIZE = scale(14);
 const AI_BADGE_MARGIN_LEFT = scale(2);
-const LOADING_PADDING = scale(24);
-const LOADING_GAP = scale(12);
 const EMPTY_PADDING = scale(32);
 const EMPTY_TEXT_SIZE = moderateScale(16);
 const EMPTY_SUBTEXT_SIZE = moderateScale(14);
@@ -193,7 +195,6 @@ const TEMPLATE_SYNC_CLOUD_SIZE = scale(14);
 const TEMPLATE_SYNC_PILL_PADDING_X = scale(8);
 const TEMPLATE_SYNC_PILL_PADDING_Y = scale(3);
 const TEMPLATE_SYNC_PILL_TEXT_SIZE = moderateScale(9);
-const TEMPLATE_SYNC_PILL_GAP = scale(4);
 const TEMPLATE_SYNC_ROW_MARGIN_TOP = scale(4);
 const ONBOARDING_PREVIEW_MARGIN_TOP = scale(18);
 const ONBOARDING_PREVIEW_MARGIN_BOTTOM = scale(24);
@@ -1325,12 +1326,14 @@ function ProgramDropCard({
   item,
   isActive,
   onPress,
+  onPressIn,
   onKebabPress,
   enableDropZone,
 }: {
   item: ProgramItem;
   isActive: boolean;
   onPress: () => void;
+  onPressIn: () => void;
   onKebabPress: (event: any) => void;
   enableDropZone: boolean;
 }) {
@@ -1372,6 +1375,7 @@ function ProgramDropCard({
       style={styles.cardPressFrame}
     >
       <PressDownTouchable
+        onPressIn={onPressIn}
         onPress={onPress}
         style={styles.cardPressFrame}
       >
@@ -1438,10 +1442,11 @@ function ProgramDropCard({
 
 const buildDropIn = (index: number) =>
   FadeInDown
-    .delay(index * 40)
+    // Keep the cascade visible while capping the wait on long workout lists.
+    .delay(Math.min(index, 6) * 32)
     .springify()
-    .damping(18)
-    .stiffness(160)
+    .damping(19)
+    .stiffness(175)
     .mass(0.6);
 
 const EMPTY_HOME_CARD_ORDER: HomeCardOrderState = {
@@ -1508,7 +1513,6 @@ export default function ProgramsScreen() {
   const appendTemplateToProgram = useProgramsStore(s => s.appendTemplateToProgram);
   const removeWorkoutFromProgram = useProgramsStore(s => s.removeWorkoutFromProgram);
   const { canCreateProgram, canCreateWorkoutTemplate, runProFeature } = useProFeatureGate();
-  const loadProgress = useProgramProgressStore(s => s.loadProgress);
   const isProgramProgressLoaded = useProgramProgressStore(s => s.isLoaded);
   const progressByProgram = useProgramProgressStore(s => s.progressByProgram);
   const restartProgram = useProgramProgressStore(s => s.restartProgram);
@@ -1517,6 +1521,9 @@ export default function ProgramsScreen() {
 
   const [showPrograms, setShowPrograms] = useState(false);
   const [showWorkouts, setShowWorkouts] = useState(true);
+  const [startupRevealComplete, setStartupRevealComplete] = useState(
+    isStartupRevealComplete
+  );
   const [scheduleEditorVisible, setScheduleEditorVisible] = useState(false);
   const [homeCardOrder, setHomeCardOrder] = useState<HomeCardOrderState>(EMPTY_HOME_CARD_ORDER);
   const [isHomeCardOrderLoaded, setIsHomeCardOrderLoaded] = useState(false);
@@ -1533,6 +1540,16 @@ export default function ProgramsScreen() {
   const onboardingPreviewScale = useRef(new Animated.Value(1)).current;
   const onboardingPreviewTranslateY = useRef(new Animated.Value(0)).current;
   const shouldAnchorAddWorkout = isTourActive && activeStepId === 'add_workout_routine';
+
+  useEffect(() => {
+    const subscription = subscribeToStartupReveal(() => {
+      setStartupRevealComplete(true);
+    });
+    if (isStartupRevealComplete()) {
+      setStartupRevealComplete(true);
+    }
+    return () => subscription.remove();
+  }, []);
 
   const loadOnboardingProgramSpec = useCallback(async () => {
     try {
@@ -1904,9 +1921,6 @@ export default function ProgramsScreen() {
   useEffect(() => {
     fetchPrograms();
   }, [fetchPrograms]);
-  useEffect(() => {
-    loadProgress();
-  }, [loadProgress]);
   const [openKebab, setOpenKebab] = useState<{
     type: 'program' | 'workout' | null;
     id: string | null;
@@ -1949,10 +1963,19 @@ export default function ProgramsScreen() {
     router.push(`/workouts/${templateId}`);
   };
 
+  const handleWorkoutCardPressIn = (templateId: string) => {
+    // Warm the route module during the press without interfering with drag/reorder.
+    router.prefetch(`/workouts/${templateId}`);
+  };
+
   // Handle program card press - navigate to program detail
   const handleProgramCardPress = (programId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/programs/${programId}`);
+  };
+
+  const handleProgramCardPressIn = (programId: string) => {
+    router.prefetch(`/programs/${programId}`);
   };
 
   const handleOnboardingProgramPreviewPress = useCallback(async () => {
@@ -2308,6 +2331,7 @@ export default function ProgramsScreen() {
             onAnimationComplete={() => handleAnimationComplete('workout', item.id)}
           >
             <PressDownTouchable
+              onPressIn={() => handleWorkoutCardPressIn(item.id)}
               onPress={() => handleWorkoutCardPress(item.id)}
               style={styles.cardPressFrame}
             >
@@ -2357,13 +2381,6 @@ export default function ProgramsScreen() {
                   </View>
                   {(item.syncStatus === 'pending' || item.syncStatus === 'syncing') && (
                     <View style={[styles.templateSyncPill, { borderColor: colors.accentBorder }]}>
-                      {item.syncStatus === 'syncing' && (
-                        <ActivityIndicator
-                          size="small"
-                          color={colors.accent}
-                          style={styles.templateSyncSpinner}
-                        />
-                      )}
                       <Text allowFontScaling={false} style={[styles.templateSyncPillText, { color: colors.accent }]}>
                         {item.syncStatus === 'syncing' ? 'Syncing...' : 'Pending sync'}
                       </Text>
@@ -2392,6 +2409,7 @@ export default function ProgramsScreen() {
       handleAnimationComplete,
       handleKebabPress,
       handleWorkoutCardPress,
+      handleWorkoutCardPressIn,
       colors,
       isDark,
       workoutCardThemeStyle,
@@ -2416,6 +2434,7 @@ export default function ProgramsScreen() {
               item={item}
               isActive={isActive}
               enableDropZone={showPrograms}
+              onPressIn={() => handleProgramCardPressIn(item.id)}
               onPress={() => handleProgramCardPress(item.id)}
               onKebabPress={(event) => handleKebabPress('program', item.id, event)}
             />
@@ -2423,7 +2442,14 @@ export default function ProgramsScreen() {
         </Reanimated.View>
       );
     },
-    [animatingCards, handleAnimationComplete, handleKebabPress, handleProgramCardPress, showPrograms]
+    [
+      animatingCards,
+      handleAnimationComplete,
+      handleKebabPress,
+      handleProgramCardPress,
+      handleProgramCardPressIn,
+      showPrograms,
+    ]
   );
 
   // Theme-aware styles for glass cards and popovers
@@ -2510,7 +2536,7 @@ export default function ProgramsScreen() {
                     {onboardingPreviewProgram ? (
                       <SparklesIcon color={colors.accent} size={MODAL_ICON_SIZE} strokeWidth={2} />
                     ) : (
-                      <ActivityIndicator color={colors.accent} size="small" />
+                      <InlineSkeleton width={MODAL_ICON_SIZE} height={MODAL_ICON_SIZE} />
                     )}
                   </View>
                   <LinearGradient
@@ -2560,7 +2586,7 @@ export default function ProgramsScreen() {
             </View>
 
             <CollapsibleSection isOpen={showPrograms}>
-              {showPrograms && (
+              {showPrograms && startupRevealComplete && (
                 programs.length === 0 ? null : (
                   <DraggableGrid
                     data={programs}
@@ -2620,7 +2646,7 @@ export default function ProgramsScreen() {
             </View>
 
             <CollapsibleSection isOpen={showWorkouts}>
-              {showWorkouts && (
+              {showWorkouts && startupRevealComplete && (
                 workouts.length === 0 ? null : (
                   <DraggableGrid
                     data={workouts}
@@ -3226,9 +3252,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 3,
   },
-  templateSyncSpinner: {
-    marginRight: TEMPLATE_SYNC_PILL_GAP,
-  },
   templateSyncPillText: {
     fontSize: TEMPLATE_SYNC_PILL_TEXT_SIZE,
     fontWeight: '600',
@@ -3237,13 +3260,6 @@ const styles = StyleSheet.create({
   },
   aiBadge: {
     marginLeft: AI_BADGE_MARGIN_LEFT,
-  },
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: LOADING_PADDING,
-    gap: LOADING_GAP,
   },
   loadingText: {
     fontSize: moderateScale(14),

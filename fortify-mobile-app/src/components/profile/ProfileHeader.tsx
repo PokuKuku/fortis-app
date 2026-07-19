@@ -7,7 +7,6 @@ import {
   TextInput,
   Image,
   Alert,
-  ActivityIndicator,
   ScrollView,
   type ImageSourcePropType,
 } from 'react-native';
@@ -22,6 +21,8 @@ import { useActivityHeatmap } from '@/src/hooks/useActivityHeatmap';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { Spacing, BorderRadius, Sizes } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 
 const HEATMAP_CELL_SIZE = 10;
 const HEATMAP_CELL_GAP = 4;
@@ -272,7 +273,11 @@ export function ProfileHeader() {
         >
           {isUploadingAvatar ? (
             <View style={styles.avatarLoading}>
-              <ActivityIndicator color={colors.accent} size="small" />
+              <ActionProgressLabel
+                label="•••"
+                accessibilityLabel="Uploading avatar"
+                color={colors.accent}
+              />
             </View>
           ) : avatarSource ? (
             <Image source={avatarSource} style={styles.avatarImage} />
@@ -310,7 +315,11 @@ export function ProfileHeader() {
                 disabled={isSavingName}
               >
                 {isSavingName ? (
-                  <ActivityIndicator color={colors.accent} size="small" />
+                  <ActionProgressLabel
+                    label="•••"
+                    accessibilityLabel="Saving name"
+                    color={colors.accent}
+                  />
                 ) : (
                   <CheckIcon color={colors.accent} size={20} strokeWidth={2.5} />
                 )}
@@ -365,7 +374,10 @@ export function ProfileHeader() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.heatmapContainer}>
+        {isLoading || historyLoading ? (
+          <SectionSkeleton height={160} rows={4} />
+        ) : (
+          <View style={styles.heatmapContainer}>
           <View style={styles.heatmapGrid}>
             <View style={styles.fixedLabelsColumn}>
               <View style={styles.monthLabelSpacer} />
@@ -469,7 +481,8 @@ export function ProfileHeader() {
           {!hasActivity && !(isLoading || historyLoading) && (
             <Text style={[styles.emptyStateText, { color: colors.textTertiary }]}>No workouts logged yet</Text>
           )}
-        </View>
+          </View>
+        )}
       </View>
     </View>
   );

@@ -7,7 +7,6 @@ import {
   Pressable,
   TextInput,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { XMarkIcon, PlusIcon, TrashIcon } from 'react-native-heroicons/outline';
@@ -16,6 +15,7 @@ import { Spacing, FontSizes, BorderRadius, ButtonHeights, Sizes } from '@/consta
 import { Typography } from '@/constants/Typography';
 import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { GlassButton } from '@/components/GlassButton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import * as Haptics from 'expo-haptics';
@@ -411,7 +411,11 @@ export function CreateWorkoutModal({
                 disabled={!canSave}
               >
                 {isSaving ? (
-                  <ActivityIndicator size="small" color="#fff" />
+                  <ActionProgressLabel
+                    label={isEditing ? 'Updating…' : 'Saving…'}
+                    color={colors.accentForegroundOnFill}
+                    style={styles.saveButtonText}
+                  />
                 ) : (
                   <Text style={[styles.saveButtonText, { color: colors.accentForegroundOnFill }]}>{saveButtonText}</Text>
                 )}

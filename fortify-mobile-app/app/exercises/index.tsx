@@ -1,5 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, FlatList, TouchableOpacity, Animated, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  FlatList,
+  TouchableOpacity,
+  Animated,
+  Image,
+  InteractionManager,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MagnifyingGlassIcon, ChevronLeftIcon, PlusIcon } from 'react-native-heroicons/outline';
@@ -11,13 +22,19 @@ import { useExercises } from '@/src/hooks/useExercises';
 import { useTheme } from '@/src/contexts/ThemeContext';
 import { Sizes, Spacing } from '@/constants/Sizes';
 import { scale, moderateScale } from '@/src/utils/responsive';
-import { buildExerciseSearchIndex, searchExercises } from '@/src/utils/exerciseSearch';
+import {
+  buildExerciseSearchIndex,
+  getCachedExerciseSearchIndex,
+  searchExercises,
+  type ExerciseSearchIndex,
+} from '@/src/utils/exerciseSearch';
 import { ACTIVE_MUSCLE_KEYS, getMuscleDisplayName, type MuscleKey } from '@/src/utils/muscleTaxonomy';
 import { AccentShadowCard } from '@/src/components/ui/AccentShadowCard';
 import {
   getCachedExerciseImageSource,
   prefetchExerciseImagesFromExercises,
 } from '@/src/utils/exerciseImageCache';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
 
 const HORIZONTAL_PADDING = scale(Spacing['2xl']);
 const HEADER_PADDING_TOP = scale(Spacing.lg);
@@ -84,11 +101,15 @@ export default function ExercisesScreen() {
   const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
   const [activePopover, setActivePopover] = useState<'muscle' | 'equipment' | null>(null);
   const [customModalVisible, setCustomModalVisible] = useState(false);
+  const [imagesReady, setImagesReady] = useState(false);
   const isNavigating = useRef(false);
   const filteredExercisesRef = useRef<Exercise[]>([]);
 
   // Use centralized exercise service
-  const { exercises: allExercises } = useExercises();
+  const { exercises: allExercises, loading } = useExercises({ deferInitialSnapshot: true });
+  const [searchIndex, setSearchIndex] = useState<ExerciseSearchIndex | null>(() =>
+    getCachedExerciseSearchIndex(allExercises, { includeInstructions: false })
+  );
 
   const filterPopoverScale = useRef(new Animated.Value(0)).current;
   const filterPopoverOpacity = useRef(new Animated.Value(0)).current;
@@ -133,6 +154,13 @@ export default function ExercisesScreen() {
       ]).start();
     }
   }, [activePopover]);
+
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => {
+      setImagesReady(true);
+    });
+    return () => task.cancel();
+  }, []);
 
   // Get unique muscles and equipment
   const uniqueMuscles = useMemo(() => {
@@ -189,13 +217,32 @@ export default function ExercisesScreen() {
   const muscleOptionBorder = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)';
   const optionSelectedBg = colors.accentOverlay;
 
-  const searchIndex = useMemo(
-    () => buildExerciseSearchIndex(allExercises),
-    [allExercises]
-  );
+  useEffect(() => {
+    if (allExercises.length === 0) {
+      setSearchIndex(null);
+      return;
+    }
+
+    const cached = getCachedExerciseSearchIndex(allExercises, { includeInstructions: false });
+    if (cached) {
+      setSearchIndex(cached);
+      return;
+    }
+
+    setSearchIndex(null);
+    const task = InteractionManager.runAfterInteractions(() => {
+      setSearchIndex(buildExerciseSearchIndex(allExercises, { includeInstructions: false }));
+    });
+    return () => task.cancel();
+  }, [allExercises]);
 
   const filteredExercises = useMemo(() => {
-    const baseResults = searchExercises(searchQuery, searchIndex);
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    const baseResults = normalizedQuery.length === 0
+      ? allExercises
+      : searchIndex
+        ? searchExercises(searchQuery, searchIndex, { includeInstructions: false })
+        : allExercises.filter((exercise) => exercise.name.toLowerCase().includes(normalizedQuery));
 
     return baseResults.filter((exercise) => {
       const matchesMuscle = selectedMuscles.length === 0 ||
@@ -206,7 +253,7 @@ export default function ExercisesScreen() {
 
       return matchesMuscle && matchesEquipment;
     });
-  }, [searchQuery, searchIndex, selectedMuscles, selectedEquipment]);
+  }, [allExercises, searchQuery, searchIndex, selectedMuscles, selectedEquipment]);
 
   useEffect(() => {
     filteredExercisesRef.current = filteredExercises;
@@ -240,7 +287,7 @@ export default function ExercisesScreen() {
   };
 
   const renderExerciseCard = ({ item }: { item: Exercise }) => {
-    const imageSource = getCachedExerciseImageSource(item.images[0]);
+    const imageSource = imagesReady ? getCachedExerciseImageSource(item.images[0]) : null;
 
     return (
       <AccentShadowCard radius={CARD_RADIUS}>
@@ -371,11 +418,13 @@ export default function ExercisesScreen() {
           keyExtractor={getExerciseListKey}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
-          initialNumToRender={20}
-          maxToRenderPerBatch={10}
-          windowSize={10}
+          ListEmptyComponent={loading ? <SectionSkeleton height={300} rows={7} /> : null}
+          initialNumToRender={8}
+          maxToRenderPerBatch={6}
+          windowSize={7}
           onViewableItemsChanged={handleViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
+          extraData={imagesReady}
         />
       </View>
 

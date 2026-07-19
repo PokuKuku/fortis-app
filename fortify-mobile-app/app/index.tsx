@@ -10,6 +10,7 @@ import { StainlessSteelPattern } from '@/components/StainlessSteelPattern';
 import { usePendingOnboardingAuthCompletion } from '@/src/utils/onboardingAuthCompletion';
 type StartupRoute = '/onboarding/welcome' | '/onboarding' | '/paywall-gate' | '/(tabs)';
 const ONBOARDING_DEMO_VIDEO = require('../assets/videos/FortifyDemo.mov');
+const SPLASH_LOGO_SHINE_DURATION_MS = 1300;
 
 const resolveStartupRoute = ({
   isAuthenticated,
@@ -47,23 +48,9 @@ export default function SplashScreen() {
     isPending: hasPendingOnboardingAuthCompletion,
     isResolved: pendingOnboardingAuthCompletionResolved,
   } = usePendingOnboardingAuthCompletion();
-  const splashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasNavigatedRef = useRef(false);
-  const [minDelayPassed, setMinDelayPassed] = useState(false);
+  const [logoShineComplete, setLogoShineComplete] = useState(false);
   const [onboardingWarmupReady, setOnboardingWarmupReady] = useState(false);
-
-  useEffect(() => {
-    splashTimeoutRef.current = setTimeout(() => {
-      setMinDelayPassed(true);
-    }, 600);
-
-    return () => {
-      if (splashTimeoutRef.current) {
-        clearTimeout(splashTimeoutRef.current);
-        splashTimeoutRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!rootNavigationState?.key) {
@@ -98,7 +85,7 @@ export default function SplashScreen() {
       hasPendingOnboardingAuthCompletion &&
       (!profile || needsOnboarding);
     if (
-      !minDelayPassed ||
+      !logoShineComplete ||
       isThemeLoading ||
       !isAuthResolved ||
       !profileStateReady ||
@@ -123,7 +110,7 @@ export default function SplashScreen() {
     hasNavigatedRef.current = true;
     router.replace(nextRoute);
   }, [
-    minDelayPassed,
+    logoShineComplete,
     isThemeLoading,
     isAuthResolved,
     isAuthenticated,
@@ -147,7 +134,13 @@ export default function SplashScreen() {
       {/* FORTIS Text */}
       <View style={styles.logoContainer}>
         {!isThemeLoading ? (
-          <AnimatedFortifyLogo size="large" centered shineDurationMs={1300} />
+          <AnimatedFortifyLogo
+            size="large"
+            centered
+            shineDurationMs={SPLASH_LOGO_SHINE_DURATION_MS}
+            loopShine={false}
+            onShineComplete={() => setLogoShineComplete(true)}
+          />
         ) : null}
       </View>
     </View>

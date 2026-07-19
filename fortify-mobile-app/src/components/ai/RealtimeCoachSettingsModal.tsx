@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   LayoutChangeEvent,
   PanResponder,
   Pressable,
@@ -16,6 +15,7 @@ import { BaseModal } from '@/src/components/ui/BaseModal';
 import { BorderRadius, Spacing } from '@/constants/Sizes';
 import { Typography } from '@/constants/Typography';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import {
   CANON_COACH_PERSONALITIES,
   COACH_PERSONALITY_LABELS,
@@ -368,7 +368,11 @@ export function RealtimeCoachSettingsModal({
             ]}
           >
             {isSavingCustomCoach ? (
-              <ActivityIndicator size="small" color={colors.accentForegroundOnFill} />
+              <ActionProgressLabel
+                label="Saving…"
+                color={colors.accentForegroundOnFill}
+                style={styles.finishedButtonText}
+              />
             ) : (
               <Text style={[styles.finishedButtonText, { color: colors.accentForegroundOnFill }]}>
                 Save

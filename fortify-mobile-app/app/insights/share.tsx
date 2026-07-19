@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Share,
   Platform,
 } from 'react-native';
@@ -20,6 +19,8 @@ import { useInsightChartSeries } from '@/src/hooks/useInsightChartSeries';
 import { useTrainingInsights } from '@/src/hooks/useTrainingInsights';
 import { InsightLineChart } from '@/src/components/insights/InsightLineChart';
 import { InsightRadarChart } from '@/src/components/insights/InsightRadarChart';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
+import { ActionProgressLabel } from '@/src/components/ui/ActionProgressLabel';
 import type { TrainingInsight } from '@/src/types/insights';
 import type { InsightBarPoint, InsightChartPoint, InsightChartSeries } from '@/src/types/insightCharts';
 import { formatEvidenceDelta, formatEvidenceValue } from '@/src/utils/insightsFormat';
@@ -300,22 +301,7 @@ export default function InsightShareScreen() {
 
   const renderShareChart = () => {
     if (chartIsLoading) {
-      return (
-        <View
-          style={[
-            styles.chartLoading,
-            {
-              backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
-            },
-          ]}
-        >
-          <ActivityIndicator size="small" color={colors.textSecondary} />
-          <Text style={[styles.chartLoadingText, { color: colors.textSecondary }]}>
-            Loading chart...
-          </Text>
-        </View>
-      );
+      return <SectionSkeleton height={220} rows={4} />;
     }
 
     if (!shareChart) {
@@ -605,16 +591,15 @@ export default function InsightShareScreen() {
               activeOpacity={0.8}
             >
               {isSharing ? (
-                <ActivityIndicator size="small" color={colors.accent} />
+                <ActionProgressLabel
+                  label="Sharing…"
+                  color={colors.accent}
+                  style={styles.shareButtonText}
+                />
               ) : (
                 <Text style={[styles.shareButtonText, { color: colors.accent }]}>Share</Text>
               )}
             </TouchableOpacity>
-            {chartIsLoading && (
-              <Text style={[styles.shareError, { color: colors.textTertiary }]}>
-                Loading chart data...
-              </Text>
-            )}
             {!isCaptureReady && (
               <Text style={[styles.shareError, { color: colors.textTertiary }]}>
                 Share preview requires a dev client rebuild.
@@ -751,17 +736,6 @@ const styles = StyleSheet.create({
   },
   shareChart: {
     marginTop: scale(Spacing.xs),
-  },
-  chartLoading: {
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: scale(Spacing.md),
-    gap: scale(Spacing.xs),
-  },
-  chartLoadingText: {
-    fontSize: moderateScale(11),
   },
   evidenceRow: {
     flexDirection: 'row',

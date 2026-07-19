@@ -22,6 +22,7 @@ type GlassButtonHapticFeedback =
 interface GlassButtonProps {
   children: ReactNode;
   onPress?: () => void;
+  onPressIn?: () => void;
   onLongPress?: () => void;
   style?: StyleProp<ViewStyle>;
   gradientColors?: string[];
@@ -37,6 +38,7 @@ interface GlassButtonProps {
 export function GlassButton({
   children,
   onPress,
+  onPressIn,
   onLongPress,
   style,
   gradientColors,
@@ -129,6 +131,13 @@ export function GlassButton({
     onLongPress();
   };
 
+  const handlePressIn = () => {
+    animatePress(1);
+    if (!disabled) {
+      onPressIn?.();
+    }
+  };
+
   return (
     <Animated.View
       pointerEvents={pointerEvents}
@@ -168,7 +177,7 @@ export function GlassButton({
           style={styles.touchable}
           onPress={handlePress}
           onLongPress={handleLongPress}
-          onPressIn={() => animatePress(1)}
+          onPressIn={handlePressIn}
           onPressOut={() => animatePress(0)}
           activeOpacity={0.8}
           disabled={disabled}

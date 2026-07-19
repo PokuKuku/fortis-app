@@ -38,6 +38,18 @@ describe('GlassButton', () => {
     expect(onPressMock).toHaveBeenCalledTimes(1);
   });
 
+  it('calls onPressIn as soon as the press begins', () => {
+    const onPressInMock = jest.fn();
+    const { getByText } = renderWithTheme(
+      <GlassButton onPressIn={onPressInMock}>
+        <Text>Press In</Text>
+      </GlassButton>
+    );
+
+    fireEvent(getByText('Press In'), 'pressIn');
+    expect(onPressInMock).toHaveBeenCalledTimes(1);
+  });
+
   it('does not call onPress when disabled', () => {
     const onPressMock = jest.fn();
     const { getByText } = renderWithTheme(

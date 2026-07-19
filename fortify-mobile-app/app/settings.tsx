@@ -5,14 +5,14 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
   Linking,
   AppState,
   DeviceEventEmitter,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as Haptics from 'expo-haptics';
 import Constants from 'expo-constants';
 import {
@@ -37,8 +37,10 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useInAppTour } from '@/src/contexts/InAppTourContext';
 import { useTheme, type ThemeMode, ACCENT_COLOR_LABELS } from '@/src/contexts/ThemeContext';
 import { AccentColorPicker } from '@/src/components/ui/AccentColorPicker';
+import { InlineSkeleton } from '@/src/components/ui/TabPageSkeleton';
 import { WeeklyRecapModal } from '@/src/components/retention/WeeklyRecapModal';
 import type { Exercise } from '@/src/types/exercise';
+import type { WorkoutSession } from '@/src/types/workout';
 import { useExerciseLookup } from '@/src/hooks/useExerciseLookup';
 import { useWorkoutHistorySource } from '@/src/hooks/useWorkoutHistorySource';
 import { useWorkoutSchedule } from '@/src/hooks/useWorkoutSchedule';
@@ -79,6 +81,7 @@ interface SettingsRowProps {
   label: string;
   value?: string;
   onPress?: () => void;
+  onPressIn?: () => void;
   showChevron?: boolean;
   isLoading?: boolean;
   colors: ReturnType<typeof useTheme>['colors'];
@@ -105,11 +108,12 @@ const getWeeklyRecapPreviewWeekStart = () => {
   );
 };
 
-function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colors, isDark }: SettingsRowProps) {
+function SettingsRow({ icon, label, value, onPress, onPressIn, showChevron, isLoading, colors, isDark }: SettingsRowProps) {
   return (
     <TouchableOpacity
       style={styles.settingsRow}
       activeOpacity={0.7}
+      onPressIn={onPressIn}
       onPress={onPress}
       disabled={!onPress || isLoading}
     >
@@ -119,7 +123,7 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
       </View>
       <View style={styles.settingsRowRight}>
         {isLoading ? (
-          <ActivityIndicator size="small" color={colors.textSecondary} />
+          <InlineSkeleton width={48} height={14} />
         ) : (
           <>
             {value && <Text style={[styles.settingsValue, { color: colors.textSecondary }]}>{value}</Text>}
@@ -133,25 +137,64 @@ function SettingsRow({ icon, label, value, onPress, showChevron, isLoading, colo
   );
 }
 
+function SettingsWeeklyRecapPreview({
+  sessions,
+  weekStart,
+  userName,
+  onClose,
+}: {
+  sessions: WorkoutSession[];
+  weekStart: Date;
+  userName?: string | null;
+  onClose: () => void;
+}) {
+  const { profile } = useAuth();
+  const { scheduleDays, scheduleHistory } = useWorkoutSchedule();
+  const { exercisesById } = useExerciseLookup();
+  const weightUnits = useWorkoutStore((state) => state.weightUnits);
+  const preferredUnits = profile?.preferred_units === 'metric' ? 'metric' : 'imperial';
+  const recap = useMemo<WeeklyRecap>(() => buildWeeklyRecap({
+    weekStart,
+    scheduleDays,
+    scheduleHistory,
+    sessions,
+    exercisesById: exercisesById as unknown as Map<string, Exercise>,
+    preferredUnits,
+    weightUnits,
+  }), [
+    exercisesById,
+    preferredUnits,
+    scheduleDays,
+    scheduleHistory,
+    sessions,
+    weekStart,
+    weightUnits,
+  ]);
+
+  return (
+    <WeeklyRecapModal
+      visible
+      recap={recap}
+      userName={userName}
+      onClose={onClose}
+    />
+  );
+}
+
 export default function SettingsScreen() {
   const APP_VERSION =
     BUNDLED_APP_VERSION ??
     Constants.expoConfig?.version ??
     Constants.nativeAppVersion ??
-    '1.1.4';
+    '1.2.7';
   const router = useRouter();
+  const exerciseLibraryNavigationRef = useRef(false);
   const { colors, isDark, mode, setMode, accentColor } = useTheme();
   const { user, profile, signOut, updateProfile } = useAuth();
   const { resetTourForDev } = useInAppTour();
   const { sessions: historySessions, isLoading: historyLoading } = useWorkoutHistorySource({
     enabled: Boolean(profile?.id),
   });
-  const {
-    scheduleDays,
-    scheduleHistory,
-  } = useWorkoutSchedule();
-  const { exercisesById } = useExerciseLookup();
-  const weightUnits = useWorkoutStore((s) => s.weightUnits);
   const {
     preferences: realtimeCoachPreferences,
     updatePreferences: updateRealtimeCoachPreferences,
@@ -178,25 +221,6 @@ export default function SettingsScreen() {
     light: 'Light',
     dark: 'Dark',
   };
-  const units = profile?.preferred_units === 'metric' ? 'metric' : 'imperial';
-  const previewWeeklyRecap = useMemo<WeeklyRecap>(() => buildWeeklyRecap({
-    weekStart: weeklyRecapPreviewWeekStart,
-    scheduleDays,
-    scheduleHistory,
-    sessions: historySessions,
-    exercisesById: exercisesById as unknown as Map<string, Exercise>,
-    preferredUnits: units,
-    weightUnits,
-  }), [
-    exercisesById,
-    historySessions,
-    scheduleDays,
-    scheduleHistory,
-    weeklyRecapPreviewWeekStart,
-    units,
-    weightUnits,
-  ]);
-
   const openExternalLink = async (url: string, label: string) => {
     if (!url) {
       Alert.alert('Missing link', `${label} link is not configured yet.`);
@@ -229,14 +253,16 @@ export default function SettingsScreen() {
       }
     };
 
-    void (async () => {
-      const allowed = await hasAIDataSharingConsent();
-      if (isMounted) {
-        setAIDataSharingAllowed(allowed);
-      }
-      await refreshMicrophonePermission();
-      await refreshNotificationPermission();
-    })();
+    const initialPermissionTask = InteractionManager.runAfterInteractions(() => {
+      void (async () => {
+        const allowed = await hasAIDataSharingConsent();
+        if (isMounted) {
+          setAIDataSharingAllowed(allowed);
+        }
+        await refreshMicrophonePermission();
+        await refreshNotificationPermission();
+      })();
+    });
 
     const appStateSubscription = AppState.addEventListener('change', (nextState) => {
       if (nextState === 'active') {
@@ -247,6 +273,7 @@ export default function SettingsScreen() {
 
     return () => {
       isMounted = false;
+      initialPermissionTask.cancel();
       appStateSubscription.remove();
     };
   }, []);
@@ -606,8 +633,13 @@ export default function SettingsScreen() {
   };
 
   const handleOpenExerciseLibrary = () => {
+    if (exerciseLibraryNavigationRef.current) return;
+    exerciseLibraryNavigationRef.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push('/exercises');
+    setTimeout(() => {
+      exerciseLibraryNavigationRef.current = false;
+    }, 600);
   };
 
   // Theme-aware card styles
@@ -719,6 +751,7 @@ export default function SettingsScreen() {
               <SettingsRow
                 icon={<MagnifyingGlassIcon color={colors.textSecondary} size={20} strokeWidth={2} />}
                 label="Exercise Library"
+                onPressIn={handleOpenExerciseLibrary}
                 onPress={handleOpenExerciseLibrary}
                 showChevron
                 colors={colors}
@@ -908,22 +941,26 @@ export default function SettingsScreen() {
       </SafeAreaView>
 
       {/* Accent Color Picker Modal */}
-      <AccentColorPicker
-        visible={showAccentPicker}
-        onClose={() => setShowAccentPicker(false)}
-      />
+      {showAccentPicker ? (
+        <AccentColorPicker
+          visible
+          onClose={() => setShowAccentPicker(false)}
+        />
+      ) : null}
 
-      <RealtimeCoachSettingsModal
-        visible={showVoiceCoachSettings}
-        preferences={realtimeCoachPreferences}
-        onChange={updateRealtimeCoachPreferences}
-        onClose={() => setShowVoiceCoachSettings(false)}
-      />
+      {showVoiceCoachSettings ? (
+        <RealtimeCoachSettingsModal
+          visible
+          preferences={realtimeCoachPreferences}
+          onChange={updateRealtimeCoachPreferences}
+          onClose={() => setShowVoiceCoachSettings(false)}
+        />
+      ) : null}
 
-      {__DEV__ ? (
-        <WeeklyRecapModal
-          visible={weeklyRecapPreviewOpen}
-          recap={previewWeeklyRecap}
+      {__DEV__ && weeklyRecapPreviewOpen ? (
+        <SettingsWeeklyRecapPreview
+          sessions={historySessions}
+          weekStart={weeklyRecapPreviewWeekStart}
           userName={profile?.full_name}
           onClose={() => setWeeklyRecapPreviewOpen(false)}
         />

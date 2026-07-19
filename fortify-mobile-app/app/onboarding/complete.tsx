@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Animated,
-  ActivityIndicator,
   Easing,
   PanResponder,
   useWindowDimensions,
@@ -19,6 +18,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { GlassButton } from '@/components/GlassButton';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
+import { SectionSkeleton } from '@/src/components/ui/TabPageSkeleton';
 import { OnboardingScreen } from '@/src/components/onboarding/OnboardingScreen';
 import { MuscleHeatmap } from '@/src/components/workout/MuscleHeatmap';
 import { TOTAL_ONBOARDING_STEPS } from '@/src/constants/onboarding';
@@ -1244,10 +1244,7 @@ export default function OnboardingCompleteScreen() {
                   </View>
                 ) : (
                   <View style={styles.summaryLoading}>
-                    <ActivityIndicator size="small" color={colors.accent} />
-                    <Text allowFontScaling={false} style={[styles.summaryLoadingText, { color: colors.textSecondary }]}>
-                      Gathering your setup…
-                    </Text>
+                    <SectionSkeleton height={112} rows={2} />
                   </View>
                 )}
               </LinearGradient>

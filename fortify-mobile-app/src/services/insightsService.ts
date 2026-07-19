@@ -8,6 +8,16 @@ import { supabase, isSupabaseConfigured } from '@/src/lib/supabase';
 import { TrainingInsightDTO, TrainingInsight, dtoToTrainingInsight, InsightType } from '@/src/types/insights';
 
 const toIsoDate = (date: Date): string => date.toISOString().slice(0, 10);
+const refreshListeners = new Set<() => void>();
+
+export function subscribeToTrainingInsightsRefresh(listener: () => void): () => void {
+  refreshListeners.add(listener);
+  return () => refreshListeners.delete(listener);
+}
+
+function notifyTrainingInsightsRefreshed(): void {
+  refreshListeners.forEach((listener) => listener());
+}
 
 export async function fetchTrainingInsights(): Promise<TrainingInsight[] | null> {
   if (!isSupabaseConfigured()) {
@@ -54,6 +64,7 @@ export async function refreshTrainingInsights(): Promise<{ success: boolean; err
     return { success: false, error: error.message };
   }
 
+  notifyTrainingInsightsRefreshed();
   return { success: true };
 }
 

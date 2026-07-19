@@ -243,6 +243,20 @@ export function getInitialExercisesSync(): ExerciseWithSource[] {
   return initialExercisesCache;
 }
 
+/**
+ * Return an already-prepared exercise collection without parsing the bundled
+ * snapshot. Used by screens that need an immediate warm-cache render.
+ */
+export function getCachedInitialExercisesSync(): ExerciseWithSource[] | null {
+  if (allExercisesCache && allExercisesCache.length >= MIN_EXPECTED_EXERCISE_COUNT) {
+    return allExercisesCache;
+  }
+  if (initialExercisesCache && initialExercisesCache.length >= MIN_EXPECTED_EXERCISE_COUNT) {
+    return initialExercisesCache;
+  }
+  return null;
+}
+
 function loadLegacyCompatibilityExercises(): Exercise[] {
   if (legacyCompatibilityExerciseCache) return legacyCompatibilityExerciseCache;
 
